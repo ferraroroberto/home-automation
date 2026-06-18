@@ -1,0 +1,8 @@
+# Test-only dependencies. Install with:
+#   .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+
+pytest>=8.0
+
+# Playwright browser-E2E suite (tests/e2e). After install, fetch browsers:
+#   .venv\Scripts\python.exe -m playwright install chromium webkit
+pytest-playwright>=0.5

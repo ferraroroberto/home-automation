@@ -1,5 +1,6 @@
 #!/bin/bash
-# Launch the Streamlit app locally.
+# Launch the Streamlit POC spike locally (throwaway data/debug view, not
+# the product — the real control surface is the FastAPI + PWA webapp).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -11,7 +12,7 @@ if [ ! -f ".venv/bin/python" ]; then
     exit 1
 fi
 
-.venv/bin/python -m streamlit run app/app.py \
+.venv/bin/python -m streamlit run spike/streamlit_app.py \
     --server.enableXsrfProtection false \
     --server.enableCORS false \
     --browser.gatherUsageStats=false

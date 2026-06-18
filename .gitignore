@@ -1,6 +1,13 @@
 # Secrets — never commit
 .env
 
+# Webapp secrets + per-machine generated artifacts (public repo!)
+config/webapp_config.json
+webapp/certificates/
+webapp/*.log
+app/webapp/static/ca.crt
+app/webapp/static/*.mobileconfig
+
 # Virtual env
 .venv/
 venv/
@@ -10,6 +17,7 @@ __pycache__/
 *.pyc
 *.py[cod]
 *.egg-info/
+.pytest_cache/
 
 # Streamlit
 .streamlit/secrets.toml

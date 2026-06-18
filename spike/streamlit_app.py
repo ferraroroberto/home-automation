@@ -1,15 +1,18 @@
 r"""
-Streamlit control UI
-====================
-Interactive surface over :mod:`src.melcloud_client` — read the live state
-of the MELCloud Home units and write controls back to them (power,
-operation mode, target temperature, fan speed).
+Streamlit control UI — POC SPIKE (not the product)
+===================================================
+A lightweight, throwaway way to eyeball the live MELCloud Home data and
+poke a single unit's controls (power, operation mode, target temperature,
+fan speed). It is **independent** from the product: the real control
+surface is the FastAPI + PWA webapp under ``app/webapp/``. This spike
+shares nothing with it beyond :mod:`src.melcloud_client`, and is kept
+around only as a fast data/debug view.
 
 Run with::
 
-    .\launch_app.bat                                            # Windows
-    & .\.venv\Scripts\python.exe -m streamlit run app/app.py    # Windows (direct)
-    ./.venv/bin/python -m streamlit run app/app.py              # POSIX
+    .\launch_app.bat                                                   # Windows
+    & .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py  # Windows (direct)
+    ./.venv/bin/python -m streamlit run spike/streamlit_app.py            # POSIX
 
 All MELCloud logic lives in ``src/`` — this file only renders + dispatches.
 """

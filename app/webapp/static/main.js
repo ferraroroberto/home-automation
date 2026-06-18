@@ -1,0 +1,275 @@
+/* Home Automation — entry module: boots the dashboard and wires events.
+ *
+ * Loaded by index.html as <script type="module">. Renders one card per
+ * unit with the everyday controls inline (power / target / fan + room
+ * readout); secondary settings (mode + both vanes) live in a per-unit
+ * detail modal. Each write hits POST /api/units/{id} and re-renders only
+ * that card from the read-back response.
+ */
+
+'use strict';
+
+import {
+  state,
+  els,
+  toast,
+  modeIcon,
+  tokenFromUrl,
+  writeToken,
+} from './state.js';
+import { jsonApi, hideLogin } from './api.js';
+
+const DEFAULT_RANGE = [16, 31];
+
+// --------------------------------------------------------------- helpers
+function unitById(id) {
+  return state.units.find(function (u) { return u.unit_id === id; });
+}
+
+function tempRange(unit) {
+  let rng = unit.temp_ranges && unit.temp_ranges[unit.operation_mode];
+  if (!rng && unit.temp_ranges) {
+    const vals = Object.values(unit.temp_ranges);
+    if (vals.length) rng = vals[0];
+  }
+  return rng && rng.length === 2 ? rng : DEFAULT_RANGE;
+}
+
+function fmtTemp(v) {
+  return v == null ? '—' : Number(v).toFixed(1) + '°';
+}
+
+// --------------------------------------------------- write + re-render
+async function applyControl(unitId, patch) {
+  try {
+    const updated = await jsonApi('/api/units/' + encodeURIComponent(unitId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    state.units = state.units.map(function (u) {
+      return u.unit_id === updated.unit_id ? updated : u;
+    });
+    rerenderCard(updated.unit_id);
+    if (state.selectedId === updated.unit_id) populateDetail(updated);
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+// ------------------------------------------------------------- card DOM
+function buildCard(unit) {
+  const card = document.createElement('article');
+  card.className = 'card unit-card';
+  card.dataset.unitId = unit.unit_id;
+  renderCardInto(card, unit);
+  return card;
+}
+
+function renderCardInto(card, unit) {
+  const on = unit.power === true;
+  card.classList.toggle('is-off', !on);
+  const [tmin, tmax] = tempRange(unit).map(Number);
+  const step = Number(unit.temp_step) || 0.5;
+
+  card.innerHTML = '';
+
+  // Header — mode icon + name, opens the detail modal.
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'unit-header';
+  header.title = 'Open settings';
+  header.innerHTML =
+    '<span class="unit-mode-icon">' + modeIcon(unit.operation_mode) + '</span>' +
+    '<span class="unit-name"></span>' +
+    '<span class="unit-chevron">›</span>';
+  header.querySelector('.unit-name').textContent = unit.name || 'Unit';
+  header.addEventListener('click', function () { openDetail(unit.unit_id); });
+  card.appendChild(header);
+
+  // Room temperature readout (TEMP. AMBIENTE).
+  const room = document.createElement('div');
+  room.className = 'unit-room';
+  room.innerHTML =
+    '<span class="label">Room</span>' +
+    '<span class="value">' + fmtTemp(unit.room_temperature) + '</span>';
+  card.appendChild(room);
+
+  // Power toggle (ESTADO).
+  const power = document.createElement('button');
+  power.type = 'button';
+  power.className = 'toggle' + (on ? ' on' : '');
+  power.setAttribute('role', 'switch');
+  power.setAttribute('aria-checked', on ? 'true' : 'false');
+  power.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+    (on ? 'ON' : 'OFF') + '</span>';
+  power.addEventListener('click', function () {
+    applyControl(unit.unit_id, { power: !on });
+  });
+  card.appendChild(power);
+
+  // Target temperature (AJUSTAR A) with steppers.
+  const target = document.createElement('div');
+  target.className = 'unit-target';
+  const cur = unit.set_temperature == null ? tmin : Number(unit.set_temperature);
+  target.innerHTML =
+    '<span class="label">Set to</span>' +
+    '<div class="stepper">' +
+    '  <button type="button" class="step minus" aria-label="Lower">−</button>' +
+    '  <span class="target-value">' + fmtTemp(cur) + '</span>' +
+    '  <button type="button" class="step plus" aria-label="Raise">+</button>' +
+    '</div>';
+  const setTo = function (v) {
+    const clamped = Math.min(Math.max(v, tmin), tmax);
+    if (clamped === cur) return;
+    applyControl(unit.unit_id, { set_temperature: clamped });
+  };
+  target.querySelector('.minus').addEventListener('click', function () {
+    setTo(Math.round((cur - step) * 10) / 10);
+  });
+  target.querySelector('.plus').addEventListener('click', function () {
+    setTo(Math.round((cur + step) * 10) / 10);
+  });
+  card.appendChild(target);
+
+  // Fan speed.
+  if (unit.fan_speeds && unit.fan_speeds.length) {
+    const fan = document.createElement('label');
+    fan.className = 'unit-fan';
+    fan.innerHTML = '<span class="label">Fan</span>';
+    const sel = document.createElement('select');
+    sel.className = 'select-native';
+    unit.fan_speeds.forEach(function (f) {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      if (f === unit.fan_speed) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', function () {
+      applyControl(unit.unit_id, { fan_speed: sel.value });
+    });
+    fan.appendChild(sel);
+    card.appendChild(fan);
+  }
+}
+
+function rerenderCard(unitId) {
+  const card = els.grid.querySelector('[data-unit-id="' + CSS.escape(unitId) + '"]');
+  const unit = unitById(unitId);
+  if (card && unit) renderCardInto(card, unit);
+}
+
+function renderAll() {
+  els.grid.innerHTML = '';
+  state.units.forEach(function (u) { els.grid.appendChild(buildCard(u)); });
+}
+
+// ----------------------------------------------------------- detail modal
+function fillSelect(sel, options, current) {
+  sel.innerHTML = '';
+  options.forEach(function (o) {
+    const opt = document.createElement('option');
+    opt.value = o;
+    opt.textContent = o;
+    if (o === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function populateDetail(unit) {
+  els.detailName.textContent = unit.name || 'Unit';
+
+  fillSelect(els.detailMode, unit.operation_modes || [], unit.operation_mode);
+
+  els.detailVaneVerticalRow.hidden = !unit.has_vane_vertical;
+  if (unit.has_vane_vertical) {
+    fillSelect(els.detailVaneVertical, unit.vane_vertical_options || [], unit.vane_vertical);
+  }
+  els.detailVaneHorizontalRow.hidden = !unit.has_vane_horizontal;
+  if (unit.has_vane_horizontal) {
+    fillSelect(els.detailVaneHorizontal, unit.vane_horizontal_options || [], unit.vane_horizontal);
+  }
+}
+
+function openDetail(unitId) {
+  const unit = unitById(unitId);
+  if (!unit) return;
+  state.selectedId = unitId;
+  populateDetail(unit);
+  if (typeof els.detail.showModal === 'function') els.detail.showModal();
+  else els.detail.setAttribute('open', '');
+}
+
+function closeDetail() {
+  state.selectedId = null;
+  if (typeof els.detail.close === 'function') els.detail.close();
+  else els.detail.removeAttribute('open');
+}
+
+// --------------------------------------------------------------- boot
+async function loadUnits() {
+  els.status.textContent = 'Loading…';
+  try {
+    const body = await jsonApi('/api/units');
+    state.units = (body && body.units) || [];
+    renderAll();
+    els.status.textContent = state.units.length + ' unit(s)';
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') {
+      els.status.textContent = 'Sign in to continue';
+      return;
+    }
+    els.status.textContent = '';
+    toast('Load failed: ' + (exc.message || exc), 'error');
+  }
+}
+
+// --------------------------------------------------------------- wire up
+els.refreshBtn.addEventListener('click', loadUnits);
+els.detailClose.addEventListener('click', closeDetail);
+els.detail.addEventListener('click', function (ev) {
+  if (ev.target === els.detail) closeDetail();  // backdrop click
+});
+els.detailMode.addEventListener('change', function () {
+  if (state.selectedId) applyControl(state.selectedId, { operation_mode: els.detailMode.value });
+});
+els.detailVaneVertical.addEventListener('change', function () {
+  if (state.selectedId) applyControl(state.selectedId, { vane_vertical_direction: els.detailVaneVertical.value });
+});
+els.detailVaneHorizontal.addEventListener('change', function () {
+  if (state.selectedId) applyControl(state.selectedId, { vane_horizontal_direction: els.detailVaneHorizontal.value });
+});
+
+els.loginForm.addEventListener('submit', async function (ev) {
+  ev.preventDefault();
+  els.loginError.hidden = true;
+  const password = els.loginPassword.value;
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const body = await res.json().catch(function () { return null; });
+    if (!res.ok || !body || !body.token) {
+      els.loginError.textContent = (body && body.detail) || 'Login failed';
+      els.loginError.hidden = false;
+      return;
+    }
+    writeToken(body.token);
+    hideLogin();
+    loadUnits();
+  } catch (exc) {
+    els.loginError.textContent = String(exc.message || exc);
+    els.loginError.hidden = false;
+  }
+});
+
+(function boot() {
+  const fromUrl = tokenFromUrl();
+  if (fromUrl) writeToken(fromUrl);
+  loadUnits();
+})();

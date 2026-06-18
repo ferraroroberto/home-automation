@@ -4,4 +4,5 @@
 # description, exposed services). Schema: fleet-config/architecture/README.md.
 layer       = "working-web"
 icon        = "🌡️"
-description = "Control Mitsubishi HVAC via MELCloud Home."
+port        = 8447
+description = "Mobile-first PWA to control Mitsubishi HVAC via MELCloud Home (LAN + Tailscale, HTTPS + token)."

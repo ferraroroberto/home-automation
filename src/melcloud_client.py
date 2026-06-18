@@ -29,6 +29,8 @@ from aiomelcloudhome import (
     ATAFanSpeed,
     ATAOperationMode,
     ATAUnit,
+    ATAVaneHorizontal,
+    ATAVaneVertical,
     MELCloudHome,
 )
 from dotenv import load_dotenv
@@ -76,6 +78,15 @@ class DeviceInfo:
     temp_step: float = 0.5
     # mode name -> (min, max) target-temperature range for that mode.
     temp_ranges: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    # Vane (air-direction) state. Directions are ``None`` when the unit
+    # has no controllable vane; the ``*_options`` lists drive the
+    # detail-modal selectors and ``has_vane_*`` gates whether to show them.
+    vane_vertical: Optional[str] = None
+    vane_horizontal: Optional[str] = None
+    vane_vertical_options: List[str] = field(default_factory=list)
+    vane_horizontal_options: List[str] = field(default_factory=list)
+    has_vane_vertical: bool = False
+    has_vane_horizontal: bool = False
 
 
 def _load_credentials() -> tuple[str, str]:
@@ -122,6 +133,26 @@ def _available_fan_speeds(unit: ATAUnit) -> List[str]:
     return speeds
 
 
+def _vane_vertical_options(unit: ATAUnit) -> List[str]:
+    """Selectable vertical vane directions (the full enum), with the
+    current value always kept selectable."""
+    options = [v.value for v in ATAVaneVertical]
+    current = unit.vane_vertical_direction
+    if current is not None and current.value not in options:
+        options.append(current.value)
+    return options
+
+
+def _vane_horizontal_options(unit: ATAUnit) -> List[str]:
+    """Selectable horizontal vane directions (the full enum), with the
+    current value always kept selectable."""
+    options = [v.value for v in ATAVaneHorizontal]
+    current = unit.vane_horizontal_direction
+    if current is not None and current.value not in options:
+        options.append(current.value)
+    return options
+
+
 def _temp_ranges(unit: ATAUnit) -> Dict[str, Tuple[float, float]]:
     """Map each temperature-bearing mode to its (min, max) target range."""
     caps = unit.capabilities
@@ -143,6 +174,8 @@ def _snapshot(unit: ATAUnit, building: str) -> DeviceInfo:
     """Copy the fields of interest out of a live ATA unit."""
     caps = unit.capabilities
     step = 0.5 if (caps and caps.has_half_degree_increments) else 1.0
+    has_vert = bool(caps.has_vane_vertical) if caps else False
+    has_horiz = bool(caps.has_vane_horizontal) if caps else False
     return DeviceInfo(
         unit_id=unit.id,
         name=unit.name,
@@ -156,6 +189,22 @@ def _snapshot(unit: ATAUnit, building: str) -> DeviceInfo:
         fan_speeds=_available_fan_speeds(unit),
         temp_step=step,
         temp_ranges=_temp_ranges(unit),
+        vane_vertical=(
+            unit.vane_vertical_direction.value
+            if unit.vane_vertical_direction
+            else None
+        ),
+        vane_horizontal=(
+            unit.vane_horizontal_direction.value
+            if unit.vane_horizontal_direction
+            else None
+        ),
+        vane_vertical_options=_vane_vertical_options(unit) if has_vert else [],
+        vane_horizontal_options=(
+            _vane_horizontal_options(unit) if has_horiz else []
+        ),
+        has_vane_vertical=has_vert,
+        has_vane_horizontal=has_horiz,
     )
 
 
@@ -182,6 +231,8 @@ async def set_device_state(
     operation_mode: Optional[str] = None,
     set_temperature: Optional[float] = None,
     fan_speed: Optional[str] = None,
+    vane_vertical_direction: Optional[str] = None,
+    vane_horizontal_direction: Optional[str] = None,
 ) -> DeviceInfo:
     """Write the supplied controls to one ATA unit and return its new state.
 
@@ -192,11 +243,23 @@ async def set_device_state(
 
     mode_enum = ATAOperationMode(operation_mode) if operation_mode else None
     fan_enum = ATAFanSpeed(fan_speed) if fan_speed else None
+    vane_vert_enum = (
+        ATAVaneVertical(vane_vertical_direction)
+        if vane_vertical_direction
+        else None
+    )
+    vane_horiz_enum = (
+        ATAVaneHorizontal(vane_horizontal_direction)
+        if vane_horizontal_direction
+        else None
+    )
 
     async with MELCloudHome(username=email, password=password) as client:
         logger.info(
-            "ℹ️ Writing power=%s mode=%s temp=%s fan=%s to unit %s",
-            power, operation_mode, set_temperature, fan_speed, unit_id,
+            "ℹ️ Writing power=%s mode=%s temp=%s fan=%s vert=%s horiz=%s "
+            "to unit %s",
+            power, operation_mode, set_temperature, fan_speed,
+            vane_vertical_direction, vane_horizontal_direction, unit_id,
         )
         await client.control_ata_unit(
             unit_id,
@@ -204,6 +267,8 @@ async def set_device_state(
             operation_mode=mode_enum,
             set_temperature=set_temperature,
             set_fan_speed=fan_enum,
+            vane_vertical_direction=vane_vert_enum,
+            vane_horizontal_direction=vane_horiz_enum,
         )
 
         # Read back so the caller sees the applied state.

@@ -5,7 +5,7 @@ Canonical instructions for AI coding agents working in this repository. Claude C
 > Universal dev-workflow directives (plan mode, asking, before/while editing, git, branch & PR pipeline, documentation discipline) live once in the machine config (`~/.claude/CLAUDE.md`) and are not restated here. This file owns only what is specific to this project's shape.
 
 ## Streamlit conventions
-*Apply only if this project uses Streamlit.*
+*Apply only to the Streamlit **spike** (`spike/streamlit_app.py`) — the product is the FastAPI + PWA webapp under `app/webapp/`, not Streamlit.*
 
 - `st.set_page_config(layout="wide", page_title="...")` MUST be the first Streamlit call.
 - Use `width="stretch"` (and `width="content"` where appropriate) in new and modified code. **Never** introduce new `use_container_width=True` — it is deprecated. When you touch existing code that uses `use_container_width`, migrate it.
@@ -45,7 +45,8 @@ Optional. Lives at `tests/e2e/`. **Don't create the folder until the first regre
 Windows / PowerShell:
 - Syntax: `& .\.venv\Scripts\python.exe -m py_compile <file>`
 - CLI smoke: `& .\.venv\Scripts\python.exe -m src.list_devices`
-- Streamlit boot check: `& .\.venv\Scripts\python.exe -m streamlit run app/app.py --server.headless true`
+- Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8447` then `curl -k https://127.0.0.1:8447/healthz` and `…/api/units` (loopback bypasses the token).
+- Streamlit spike boot check: `& .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py --server.headless true`
 
 There is no unit-test suite yet — say so plainly rather than claiming "tests pass."
 
@@ -55,12 +56,19 @@ Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahe
 **Platform: MELCloud Home, not classic MELCloud.** These units migrated from classic MELCloud (`app.melcloud.com`, served by `pymelcloud`) to **MELCloud Home**, a different API. `pymelcloud` authenticates to the old account but lists zero devices. This project uses [`aiomelcloudhome`](https://github.com/erwindouna/aiomelcloudhome) — a pure-async client that does the PKCE login over HTTP (no browser). Use **MELCloud Home** credentials in `.env`.
 
 **Layout:**
-- `src/melcloud_client.py` — async auth + fetch + control (the shared, UI-free core). `fetch_devices()` walks buildings → air-to-air units; `set_device_state()` writes via `control_ata_unit`. Capabilities drive the selectable modes, fan speeds, and per-mode temperature bounds.
+- `src/melcloud_client.py` — async auth + fetch + control (the shared, UI-free core). `fetch_devices()` walks buildings → air-to-air units; `set_device_state()` writes via `control_ata_unit`. Capabilities drive the selectable modes, fan speeds, per-mode temperature bounds, and the two vanes (vertical/horizontal).
 - `src/list_devices.py` — CLI that prints each unit's live state.
-- `app/app.py` — Streamlit control UI over the same core (unit picker + power / mode / target-temp / fan controls).
+- `src/webapp_config.py` — webapp host/port + auth secrets (`auth_token` / `auth_password`); real `config/webapp_config.json` gitignored, `…sample.json` committed.
+- `app/webapp/` — **the product**: FastAPI (`server.py` + `middleware.py` + `routers/{units,auth,misc}.py`) over the same core, serving a static PWA (`static/`). `GET /api/units` → `fetch_devices()`; `POST /api/units/{id}` → `set_device_state(...)`. Card grid with inline controls; per-unit detail modal for mode + vanes.
+- `scripts/` — `gen_ssl_cert.py` (self-signed CA+leaf, Tailscale-aware SANs), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons; Pillow dev-only).
+- `spike/streamlit_app.py` — the **independent POC spike** (throwaway data/debug view; shares only `src/melcloud_client.py`), launched via `launch_app.bat` on :8501.
 
-**Credentials:** `MELCLOUD_EMAIL` / `MELCLOUD_PASSWORD` in `.env` (gitignored, never committed) — these are the MELCloud Home login. The repo is **public**, so never commit credentials or unit/room names.
+**Credentials & secrets:** `MELCLOUD_EMAIL` / `MELCLOUD_PASSWORD` in `.env` (the MELCloud Home login). The repo is **public** — never commit credentials, the bearer token / password (`config/webapp_config.json`), the TLS keys (`webapp/certificates/`), or unit/room names. All are gitignored.
 
-**Restart recipe:** no tray / long-lived daemon. The app is plain `streamlit run app/app.py` (via `launch_app.bat`). It has no hot-reload across imported-module changes, so after editing `src/` **fully restart** the process (kill the `:8501` listener and relaunch `launch_app.bat`) rather than relying on Streamlit's in-process rerun. The signal that new code is live is the unit list rendering via `aiomelcloudhome` (6 units), not just the page loading.
+**Security model:** the webapp binds `0.0.0.0:8447` and is reached over LAN / **Tailscale** behind a **self-signed-CA HTTPS** endpoint + an optional **bearer token** (loopback bypasses; remote needs `Authorization: Bearer` or `?token=`). Mirrors the `photo-ocr` / `app-launcher` stack. No cloudflared tunnel, no WebAuthn passkey (there's no terminal here).
+
+**Restart recipe:** no tray yet (issue #2 adds one). The webapp runs via `webapp.bat` → `uvicorn app.webapp.server:app` on :8447 (HTTPS when `webapp/certificates/cert.pem` is present). No hot-reload across imported-module changes, so after editing `src/` or `app/webapp/` **fully restart** the process (kill the `:8447` listener and relaunch `webapp.bat`). The signal that new code is live is the unit grid rendering (6 units). The Streamlit spike is a separate manual launch on :8501.
+
+**TLS rotation:** the leaf cert expires ~396 days after generation — **regenerate before ~July 2027** (`scripts/gen_ssl_cert.py`, reuses the CA so no device re-trust). See README.
 
 See `README.md` for setup, layout, and usage.

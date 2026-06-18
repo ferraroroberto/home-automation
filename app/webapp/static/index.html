@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Home Automation">
+  <meta name="theme-color" content="#0a0f1a">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icon-180.png">
+  <link rel="icon" href="/static/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/static/icon-512.png">
+  <link rel="stylesheet" href="/static/styles.css">
+  <title>🌡 Home Automation</title>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>🌡 Home</h1>
+      <div class="header-actions">
+        <span id="status" class="status"></span>
+        <button id="refreshBtn" type="button" class="header-icon-btn" title="Refresh" aria-label="Refresh">🔄</button>
+      </div>
+    </header>
+
+    <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
+
+    <div id="toast" class="toast" hidden></div>
+  </main>
+
+  <dialog id="detailDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="detailName">Unit</h2>
+        <button id="detailClose" type="button" class="detail-close" aria-label="Close">✕</button>
+      </div>
+
+      <label class="row">
+        <span>Mode</span>
+        <select id="detailMode" class="select-native"></select>
+      </label>
+
+      <label class="row" id="detailVaneVerticalRow" hidden>
+        <span>Vane — vertical</span>
+        <select id="detailVaneVertical" class="select-native"></select>
+      </label>
+
+      <label class="row" id="detailVaneHorizontalRow" hidden>
+        <span>Vane — horizontal</span>
+        <select id="detailVaneHorizontal" class="select-native"></select>
+      </label>
+    </div>
+  </dialog>
+
+  <div id="loginOverlay" class="login-overlay" hidden>
+    <form id="loginForm" class="login-card" autocomplete="off">
+      <h2>🔐 Sign in</h2>
+      <p class="muted small">Enter the password to control your units.</p>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required>
+      <button type="submit" class="big-btn">Unlock</button>
+      <div id="loginError" class="login-error" hidden></div>
+    </form>
+  </div>
+
+  <script type="module" src="/static/main.js"></script>
+</body>
+</html>
