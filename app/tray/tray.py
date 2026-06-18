@@ -17,14 +17,17 @@ Menu:
 from __future__ import annotations
 
 # Standard library imports
+import datetime
 import json
 import logging
+import os
+import shutil
 import subprocess
 import sys
 import threading
 import webbrowser
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 # Local imports
 from app.tray.manager import WebappManager, cert_paths, load_config
@@ -34,6 +37,12 @@ from src.webapp_config import append_auth_token, load_webapp_config
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Breadcrumbs for the Tailscale resolver. The tray runs under pythonw (no
+# console), so logger output is void — a gitignored file log is the only way
+# a future "Copy Tailscale URL" failure is diagnosable. webapp/*.log is
+# already gitignored.
+TS_DEBUG_LOG = PROJECT_ROOT / "webapp" / "tailscale_debug.log"
 
 
 def _build_icon():
@@ -63,31 +72,120 @@ def _clipboard_copy(text: str) -> bool:
     return False
 
 
+def _tailscale_binary() -> Optional[str]:
+    """Locate the tailscale CLI — PATH first, then the standard Windows install.
+
+    The GUI installer drops ``tailscale.exe`` under ``Program Files`` but
+    doesn't always add it to PATH, and the tray is often started at login
+    with a minimal environment — so PATH alone isn't enough.
+    """
+    found = shutil.which("tailscale")
+    if found:
+        return found
+    candidates = [
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        / "Tailscale" / "tailscale.exe",
+        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
+        / "Tailscale" / "tailscale.exe",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _ts_debug(msg: str) -> None:
+    """Append a breadcrumb to the Tailscale debug log (best-effort)."""
+    logger.debug(f"tailscale: {msg}")
+    try:
+        TS_DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.datetime.now().isoformat(timespec="seconds")
+        with TS_DEBUG_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(f"{stamp} {msg}\n")
+    except OSError:
+        pass
+
+
+def _run_tailscale(binary: str, args: List[str]) -> subprocess.CompletedProcess:
+    """Run the tailscale CLI windowless, with stdin detached.
+
+    ``CREATE_NO_WINDOW`` stops a console flashing out of the windowless
+    tray; ``stdin=DEVNULL`` avoids the invalid-handle trap a ``pythonw``
+    parent can hit when a child inherits a missing stdin.
+    """
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return subprocess.run(
+        [binary, *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=12,
+        check=False,
+        creationflags=creationflags,
+    )
+
+
 def _tailscale_hostname() -> Optional[str]:
-    """Return the tailnet hostname for this machine, or None if unavailable."""
+    """Return this machine's tailnet address, or None if unavailable.
+
+    Prefers the full DNS name (e.g. ``tower.tailnet.ts.net``) — the only
+    form that resolves over MagicDNS from a phone, and the form the copied
+    URL wants — and falls back to the raw ``100.x`` IP. The short hostname
+    is deliberately NOT used: it doesn't resolve via MagicDNS off-LAN.
+    Every failure path leaves a breadcrumb in ``webapp/tailscale_debug.log``
+    since the windowless tray has no console.
+    """
+    binary = _tailscale_binary()
+    if binary is None:
+        _ts_debug("CLI not found on PATH or under Program Files")
+        return None
+    _ts_debug(f"using binary {binary}")
+
+    # 1. `status --json` → Self.DNSName (the FQDN).
     try:
-        result = subprocess.run(
-            ["tailscale", "status", "--self=true", "--peers=false", "--json"],
-            capture_output=True,
-            text=True,
-            timeout=4,
-            check=False,
+        result = _run_tailscale(
+            binary, ["status", "--self=true", "--peers=false", "--json"]
         )
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
-        logger.debug(f"tailscale lookup failed: {exc}")
-        return None
-    if result.returncode != 0:
-        return None
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _ts_debug(f"status raised {type(exc).__name__}: {exc}")
+        result = None
+    if result is not None:
+        if result.returncode != 0:
+            _ts_debug(
+                f"status rc={result.returncode} "
+                f"stderr={(result.stderr or '').strip()[:200]!r}"
+            )
+        else:
+            try:
+                data = json.loads(result.stdout)
+                dns = ((data.get("Self") or {}).get("DNSName") or "").rstrip(".")
+                if dns:
+                    _ts_debug(f"resolved DNSName {dns}")
+                    return dns
+                _ts_debug(
+                    f"status ok but DNSName empty; "
+                    f"BackendState={data.get('BackendState')!r}"
+                )
+            except ValueError as exc:
+                _ts_debug(f"status JSON parse failed: {exc}")
+
+    # 2. Fallback: `tailscale ip -4` → the raw 100.x address.
     try:
-        data = json.loads(result.stdout)
-    except ValueError:
-        return None
-    self_node = data.get("Self") or {}
-    dns = (self_node.get("DNSName") or "").rstrip(".")
-    if not dns:
-        return None
-    short = dns.split(".")[0]
-    return short or dns
+        ip_res = _run_tailscale(binary, ["ip", "-4"])
+        if ip_res.returncode == 0:
+            lines = (ip_res.stdout or "").strip().splitlines()
+            ip = lines[0].strip() if lines else ""
+            if ip:
+                _ts_debug(f"fell back to tailscale ip {ip}")
+                return ip
+        _ts_debug(
+            f"ip -4 rc={ip_res.returncode} "
+            f"stderr={(ip_res.stderr or '').strip()[:200]!r}"
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _ts_debug(f"ip -4 raised {type(exc).__name__}: {exc}")
+    return None
 
 
 def _notify(title: str, message: str) -> None:

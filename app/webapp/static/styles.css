@@ -240,3 +240,10 @@ html, body {
 .login-error { color: #c0392b; font-size: 0.9rem; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
+
+/* Build-identity footer (which build the PWA is running). */
+.page-foot {
+  margin: 16px 4px;
+  text-align: center;
+}
+.page-foot p { margin: 2px 0; }

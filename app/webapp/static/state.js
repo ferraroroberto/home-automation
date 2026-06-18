@@ -25,6 +25,7 @@ export const els = {
   refreshBtn: document.getElementById('refreshBtn'),
   status: document.getElementById('status'),
   toast: document.getElementById('toast'),
+  buildReadout: document.getElementById('buildReadout'),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

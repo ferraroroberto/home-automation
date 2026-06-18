@@ -87,7 +87,10 @@ dashboard is up from login without a console window. Drop a shortcut to
   picked up (run it after editing `src/` or `app/`).
 - Tray menu: **Open** the dashboard, **Copy local/Tailscale URL** (token
   appended), **Restart webapp**, **Status**, **Quit** (stops the webapp
-  cleanly — no orphaned process on `:8447`).
+  cleanly — no orphaned process on `:8447`). **Copy Tailscale URL** copies the
+  full tailnet FQDN (`https://<pc>.<tailnet>.ts.net:8447?token=…`) — the only
+  form that resolves over MagicDNS from a phone — falling back to the `100.x`
+  tailnet IP; both are covered by the cert SANs.
 
 The tray launches `python -m app.tray`; detection/kill is scoped to *this*
 repo's `.venv` by command line, so sister-app trays are never touched.
