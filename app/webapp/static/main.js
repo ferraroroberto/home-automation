@@ -209,6 +209,21 @@ function closeDetail() {
   else els.detail.removeAttribute('open');
 }
 
+// --------------------------------------------------- build identity
+async function fetchVersion() {
+  // Visible proof of which build the PWA is running — confirms a tray
+  // restart actually picked up new code. Uses jsonApi so the bearer token
+  // is attached (/api/version is auth-gated like the rest of the API).
+  try {
+    const body = await jsonApi('/api/version');
+    const sha = body.git_sha || 'unknown';
+    const ts = (body.built_at || '').replace('T', ' ').slice(0, 16);
+    els.buildReadout.textContent = ts ? ('Build: ' + sha + ' · ' + ts) : ('Build: ' + sha);
+  } catch (_) {
+    els.buildReadout.textContent = '';
+  }
+}
+
 // --------------------------------------------------------------- boot
 async function loadUnits() {
   els.status.textContent = 'Loading…';
@@ -272,4 +287,5 @@ els.loginForm.addEventListener('submit', async function (ev) {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
   loadUnits();
+  fetchVersion();
 })();
