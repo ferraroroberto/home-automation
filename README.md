@@ -137,7 +137,7 @@ on the PC trust it (use `--skip-install` to skip).
 The webapp installs to the iPhone/Android home screen as a full-screen app.
 Because the cert is self-signed, first-time iOS setup is a short detour:
 
-1. Open `https://<pc-hostname>:8447/install-ca` in Safari → **Allow** to download the profile.
+1. In the dashboard, expand **⚙️ Settings** → tap **📲 Install certificate** (or open `https://<pc-hostname>:8447/install-ca` directly) in Safari → **Allow** to download the profile.
 2. **Settings → General → VPN & Device Management** → tap the profile → **Install**.
 3. **Settings → General → About → Certificate Trust Settings** → toggle the CA **ON**.
 4. Force-quit Safari, reopen the URL (the lock icon should be solid), then **Share → Add to Home Screen**.
