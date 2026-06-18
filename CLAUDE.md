@@ -60,6 +60,7 @@ Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahe
 - `src/list_devices.py` — CLI that prints each unit's live state.
 - `src/webapp_config.py` — webapp host/port + auth secrets (`auth_token` / `auth_password`); real `config/webapp_config.json` gitignored, `…sample.json` committed.
 - `app/webapp/` — **the product**: FastAPI (`server.py` + `middleware.py` + `routers/{units,auth,misc}.py`) over the same core, serving a static PWA (`static/`). `GET /api/units` → `fetch_devices()`; `POST /api/units/{id}` → `set_device_state(...)`. Card grid with inline controls; per-unit detail modal for mode + vanes.
+- `app/tray/` — the **Windows tray** that owns the webapp lifecycle (`tray.bat` → `python -m app.tray`). `tray.py` (pystray icon + menu), `__main__.py` (entry), `manager.py` (adopt-or-spawn / restart / stop for uvicorn, reading host/port from `webapp_config`). `single_instance.py` + `tray_lifecycle.ps1` are **vendored verbatim** from `project-scaffolding` — never edit per-app.
 - `scripts/` — `gen_ssl_cert.py` (self-signed CA+leaf, Tailscale-aware SANs), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons; Pillow dev-only).
 - `spike/streamlit_app.py` — the **independent POC spike** (throwaway data/debug view; shares only `src/melcloud_client.py`), launched via `launch_app.bat` on :8501.
 
@@ -67,7 +68,7 @@ Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahe
 
 **Security model:** the webapp binds `0.0.0.0:8447` and is reached over LAN / **Tailscale** behind a **self-signed-CA HTTPS** endpoint + an optional **bearer token** (loopback bypasses; remote needs `Authorization: Bearer` or `?token=`). Mirrors the `photo-ocr` / `app-launcher` stack. No cloudflared tunnel, no WebAuthn passkey (there's no terminal here).
 
-**Restart recipe:** no tray yet (issue #2 adds one). The webapp runs via `webapp.bat` → `uvicorn app.webapp.server:app` on :8447 (HTTPS when `webapp/certificates/cert.pem` is present). No hot-reload across imported-module changes, so after editing `src/` or `app/webapp/` **fully restart** the process (kill the `:8447` listener and relaunch `webapp.bat`). The signal that new code is live is the unit grid rendering (6 units). The Streamlit spike is a separate manual launch on :8501.
+**Restart recipe:** the webapp is owned by the **tray** (`tray.bat` → `python -m app.tray`, on :8447, HTTPS when `webapp/certificates/cert.pem` is present). No hot-reload across imported-module changes, so after editing `src/` or `app/`, **`tray.bat --restart`** — it kills the old tray subtree, orphan-proof-reclaims `:8447` (scoped to this repo's `.venv` by CommandLine), and starts a fresh tray. The signal that new code is live is the unit grid rendering (6 units). `webapp.bat` is the headless/dev alternative (no tray); a tray with no `app/api/version` endpoint means verify the live build by the 6-unit grid + `/healthz`, not a served git_sha. The Streamlit spike is a separate manual launch on :8501.
 
 **TLS rotation:** the leaf cert expires ~396 days after generation — **regenerate before ~July 2027** (`scripts/gen_ssl_cert.py`, reuses the CA so no device re-trust). See README.
 

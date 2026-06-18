@@ -11,5 +11,9 @@ uvicorn[standard]>=0.29.0
 # Self-signed CA + leaf cert generation for the HTTPS endpoint
 cryptography>=42.0.0
 
+# Windows system tray that owns the webapp lifecycle (tray.bat -> -m app.tray)
+pystray>=0.19
+Pillow>=10.0
+
 # Streamlit POC spike (independent throwaway data/debug view)
 streamlit>=1.30.0
