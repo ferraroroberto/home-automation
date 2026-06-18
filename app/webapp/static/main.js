@@ -76,7 +76,13 @@ function renderCardInto(card, unit) {
 
   card.innerHTML = '';
 
-  // Header — mode icon + name, opens the detail modal.
+  // --- Top band: name (opens modal) + the action controls beside it. ---
+  const top = document.createElement('div');
+  top.className = 'unit-top';
+  card.appendChild(top);
+
+  // Header — mode icon + name, opens the detail modal. Kept a sibling of
+  // the controls so tapping power/fan does not also open the modal.
   const header = document.createElement('button');
   header.type = 'button';
   header.className = 'unit-header';
@@ -87,15 +93,7 @@ function renderCardInto(card, unit) {
     '<span class="unit-chevron">›</span>';
   header.querySelector('.unit-name').textContent = unit.name || 'Unit';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
-  card.appendChild(header);
-
-  // Room temperature readout (TEMP. AMBIENTE).
-  const room = document.createElement('div');
-  room.className = 'unit-room';
-  room.innerHTML =
-    '<span class="label">Room</span>' +
-    '<span class="value">' + fmtTemp(unit.room_temperature) + '</span>';
-  card.appendChild(room);
+  top.appendChild(header);
 
   // Power toggle (ESTADO).
   const power = document.createElement('button');
@@ -108,7 +106,38 @@ function renderCardInto(card, unit) {
   power.addEventListener('click', function () {
     applyControl(unit.unit_id, { power: !on });
   });
-  card.appendChild(power);
+  top.appendChild(power);
+
+  // Fan speed — compact, label-less in the top band (aria-label for a11y).
+  if (unit.fan_speeds && unit.fan_speeds.length) {
+    const sel = document.createElement('select');
+    sel.className = 'select-native unit-fan';
+    sel.setAttribute('aria-label', 'Fan speed');
+    unit.fan_speeds.forEach(function (f) {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      if (f === unit.fan_speed) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', function () {
+      applyControl(unit.unit_id, { fan_speed: sel.value });
+    });
+    top.appendChild(sel);
+  }
+
+  // --- Readings band: room temperature + target stepper. ---
+  const readings = document.createElement('div');
+  readings.className = 'unit-readings';
+  card.appendChild(readings);
+
+  // Room temperature readout (TEMP. AMBIENTE).
+  const room = document.createElement('div');
+  room.className = 'unit-room';
+  room.innerHTML =
+    '<span class="label">Room</span>' +
+    '<span class="value">' + fmtTemp(unit.room_temperature) + '</span>';
+  readings.appendChild(room);
 
   // Target temperature (AJUSTAR A) with steppers.
   const target = document.createElement('div');
@@ -132,28 +161,7 @@ function renderCardInto(card, unit) {
   target.querySelector('.plus').addEventListener('click', function () {
     setTo(Math.round((cur + step) * 10) / 10);
   });
-  card.appendChild(target);
-
-  // Fan speed.
-  if (unit.fan_speeds && unit.fan_speeds.length) {
-    const fan = document.createElement('label');
-    fan.className = 'unit-fan';
-    fan.innerHTML = '<span class="label">Fan</span>';
-    const sel = document.createElement('select');
-    sel.className = 'select-native';
-    unit.fan_speeds.forEach(function (f) {
-      const opt = document.createElement('option');
-      opt.value = f;
-      opt.textContent = f;
-      if (f === unit.fan_speed) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.addEventListener('change', function () {
-      applyControl(unit.unit_id, { fan_speed: sel.value });
-    });
-    fan.appendChild(sel);
-    card.appendChild(fan);
-  }
+  readings.appendChild(target);
 }
 
 function rerenderCard(unitId) {
