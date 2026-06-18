@@ -13,6 +13,13 @@
   <link rel="icon" type="image/png" href="/static/icon-512.png">
   <link rel="stylesheet" href="/static/styles.css">
   <title>🌡 Home Automation</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('home-automation.theme');
+      var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    })();
+  </script>
 </head>
 <body>
   <main class="app">
@@ -20,7 +27,7 @@
       <h1>🌡 Home</h1>
       <div class="header-actions">
         <span id="status" class="status"></span>
-        <button id="refreshBtn" type="button" class="header-icon-btn" title="Refresh" aria-label="Refresh">🔄</button>
+        <button id="themeBtn" type="button" class="header-icon-btn" title="Toggle theme" aria-label="Toggle dark mode">🌙</button>
       </div>
     </header>
 

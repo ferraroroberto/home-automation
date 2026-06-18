@@ -16,6 +16,7 @@ import {
   modeIcon,
   tokenFromUrl,
   writeToken,
+  THEME_KEY,
 } from './state.js';
 import { jsonApi, hideLogin } from './api.js';
 
@@ -284,7 +285,23 @@ async function saveDisplayName() {
   }
 }
 
-els.refreshBtn.addEventListener('click', loadUnits);
+// --------------------------------------------------------------- theme toggle
+function applyTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  els.themeBtn.textContent = dark ? '☀️' : '🌙';
+  localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+}
+
+(function initTheme() {
+  const stored = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(stored ? stored === 'dark' : prefersDark);
+})();
+
+els.themeBtn.addEventListener('click', function () {
+  applyTheme(document.documentElement.dataset.theme !== 'dark');
+});
+
 els.detailClose.addEventListener('click', closeDetail);
 els.detail.addEventListener('click', function (ev) {
   if (ev.target === els.detail) closeDetail();  // backdrop click
@@ -333,4 +350,5 @@ els.loginForm.addEventListener('submit', async function (ev) {
   if (fromUrl) writeToken(fromUrl);
   loadUnits();
   fetchVersion();
+  setInterval(loadUnits, 30_000);
 })();
