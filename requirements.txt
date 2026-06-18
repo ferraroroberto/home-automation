@@ -1,0 +1,8 @@
+# MELCloud Home API client (async, pure-HTTP PKCE login — no browser)
+aiomelcloudhome>=0.1.7
+
+# Load credentials from .env
+python-dotenv>=1.0.0
+
+# Streamlit control UI
+streamlit>=1.30.0
