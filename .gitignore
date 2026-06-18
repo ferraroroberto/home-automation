@@ -3,6 +3,7 @@
 
 # Webapp secrets + per-machine generated artifacts (public repo!)
 config/webapp_config.json
+config/display_names.json
 webapp/certificates/
 webapp/*.log
 app/webapp/static/ca.crt

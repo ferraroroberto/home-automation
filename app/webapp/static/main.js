@@ -91,7 +91,7 @@ function renderCardInto(card, unit) {
     '<span class="unit-mode-icon">' + modeIcon(unit.operation_mode) + '</span>' +
     '<span class="unit-name"></span>' +
     '<span class="unit-chevron">›</span>';
-  header.querySelector('.unit-name').textContent = unit.name || 'Unit';
+  header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
   top.appendChild(header);
 
@@ -170,9 +170,16 @@ function rerenderCard(unitId) {
   if (card && unit) renderCardInto(card, unit);
 }
 
+function displayLabel(unit) {
+  return unit.display_name || unit.name || '';
+}
+
 function renderAll() {
   els.grid.innerHTML = '';
-  state.units.forEach(function (u) { els.grid.appendChild(buildCard(u)); });
+  const sorted = state.units.slice().sort(function (a, b) {
+    return displayLabel(a).localeCompare(displayLabel(b));
+  });
+  sorted.forEach(function (u) { els.grid.appendChild(buildCard(u)); });
 }
 
 // ----------------------------------------------------------- detail modal
@@ -188,7 +195,9 @@ function fillSelect(sel, options, current) {
 }
 
 function populateDetail(unit) {
-  els.detailName.textContent = unit.name || 'Unit';
+  els.detailName.textContent = displayLabel(unit) || 'Unit';
+  els.detailDisplayName.value = unit.display_name || '';
+  els.detailDisplayName.placeholder = unit.name || 'Custom label…';
 
   fillSelect(els.detailMode, unit.operation_modes || [], unit.operation_mode);
 
@@ -251,10 +260,38 @@ async function loadUnits() {
 }
 
 // --------------------------------------------------------------- wire up
+async function saveDisplayName() {
+  if (!state.selectedId) return;
+  const newName = els.detailDisplayName.value.trim();
+  try {
+    await jsonApi('/api/units/' + encodeURIComponent(state.selectedId) + '/display_name', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: newName }),
+    });
+    state.units = state.units.map(function (u) {
+      if (u.unit_id !== state.selectedId) return u;
+      return Object.assign({}, u, { display_name: newName || null });
+    });
+    const unit = unitById(state.selectedId);
+    if (unit) els.detailName.textContent = displayLabel(unit) || 'Unit';
+    renderAll();
+    toast('Name saved', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to save name: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
 els.refreshBtn.addEventListener('click', loadUnits);
 els.detailClose.addEventListener('click', closeDetail);
 els.detail.addEventListener('click', function (ev) {
   if (ev.target === els.detail) closeDetail();  // backdrop click
+});
+els.detailDisplayName.addEventListener('blur', saveDisplayName);
+els.detailDisplayName.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Enter') { ev.preventDefault(); els.detailDisplayName.blur(); }
 });
 els.detailMode.addEventListener('change', function () {
   if (state.selectedId) applyControl(state.selectedId, { operation_mode: els.detailMode.value });
