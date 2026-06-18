@@ -29,13 +29,17 @@ WHITE = (244, 247, 251)
 
 
 def _thermometer(size: int, pad_ratio: float) -> Image.Image:
-    """Draw a thermometer glyph centred on a rounded dark tile."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
+    """Draw a thermometer glyph on a full-bleed, opaque dark tile.
 
-    # Rounded background tile.
-    radius = int(size * 0.22)
-    d.rounded_rectangle([0, 0, size - 1, size - 1], radius=radius, fill=BG)
+    Full-bleed + opaque (RGB, no alpha, no transparent corners) is required
+    for the iOS apple-touch-icon: iOS composites any alpha against black and
+    applies its own squircle corner mask, so a transparent-cornered RGBA icon
+    renders as an invisible black square on a dark home screen. Android/Chrome
+    apply the maskable safe-zone + corner mask themselves, so a flat opaque
+    square is the correct source for every target.
+    """
+    img = Image.new("RGB", (size, size), BG)
+    d = ImageDraw.Draw(img)
 
     # Glyph geometry inside a padded safe zone.
     pad = int(size * pad_ratio)
