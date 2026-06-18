@@ -66,7 +66,7 @@ html, body {
 .units-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 @media (min-width: 520px) {
   .units-grid { grid-template-columns: 1fr 1fr; }
@@ -79,42 +79,61 @@ html, body {
   box-shadow: var(--shadow);
 }
 .unit-card {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "header header"
-    "room   power"
-    "target fan";
-  gap: 10px 12px;
-  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 14px;
   transition: opacity 0.15s ease;
 }
 .unit-card.is-off { background: var(--card-off); }
 .unit-card.is-off .unit-room .value,
 .unit-card.is-off .target-value { color: var(--muted); }
 
-.unit-header {
-  grid-area: header;
+/* top band: name (opens modal) + power + fan, all on one row */
+.unit-top {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.unit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
   background: none;
   border: none;
-  padding: 2px 0 8px;
-  border-bottom: 1px solid var(--line);
+  padding: 0;
   cursor: pointer;
   text-align: left;
-  width: 100%;
   color: inherit;
 }
-.unit-mode-icon { font-size: 1.3rem; }
-.unit-name { font-weight: 650; font-size: 1.05rem; flex: 1; }
-.unit-chevron { color: var(--muted); font-size: 1.4rem; line-height: 1; }
+.unit-mode-icon { font-size: 1.3rem; flex: none; }
+.unit-name {
+  font-weight: 650;
+  font-size: 1.05rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unit-chevron { color: var(--muted); font-size: 1.4rem; line-height: 1; flex: none; }
 
-.unit-room { grid-area: room; display: flex; flex-direction: column; }
+/* readings band: room readout + target stepper */
+.unit-readings {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.unit-room { display: flex; flex-direction: column; }
 .unit-room .label,
-.unit-target .label,
-.unit-fan .label {
+.unit-target .label {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -124,9 +143,8 @@ html, body {
 
 /* power toggle */
 .toggle {
-  grid-area: power;
+  flex: none;
   align-self: center;
-  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -149,10 +167,10 @@ html, body {
 .toggle.on .toggle-label { color: #fff; }
 
 /* target stepper */
-.unit-target { grid-area: target; display: flex; flex-direction: column; gap: 4px; }
+.unit-target { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .stepper { display: inline-flex; align-items: center; gap: 8px; }
 .stepper .step {
-  width: 34px; height: 34px;
+  width: 32px; height: 32px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: #f6f8fb;
@@ -164,11 +182,11 @@ html, body {
 .stepper .step:active { transform: scale(0.92); }
 .target-value { font-size: 1.35rem; font-weight: 700; min-width: 3.4ch; text-align: center; }
 
-/* fan select */
-.unit-fan { grid-area: fan; display: flex; flex-direction: column; gap: 4px; justify-self: end; }
+/* fan select — compact in the top band */
+.unit-fan { flex: none; max-width: 9ch; }
 .select-native {
   font-size: 0.95rem;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: #f6f8fb;
