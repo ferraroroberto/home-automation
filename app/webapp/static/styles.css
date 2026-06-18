@@ -241,6 +241,26 @@ html, body {
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 
+/* ----------------------------------------------------------- settings */
+.settings-card { padding: 0; margin-top: 16px; }
+.settings-summary {
+  cursor: pointer;
+  padding: 14px;
+  font-weight: 650;
+  font-size: 1.05rem;
+  list-style-position: inside;
+}
+.settings-summary-title { margin-left: 4px; }
+.settings-card[open] .settings-summary { border-bottom: 1px solid var(--line); }
+.settings-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-body h3 { margin: 0; font-size: 1rem; }
+.install-ca-btn { text-align: center; text-decoration: none; }
+
 /* Build-identity footer (which build the PWA is running). */
 .page-foot {
   margin: 16px 4px;

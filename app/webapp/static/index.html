@@ -28,6 +28,28 @@
 
     <div id="toast" class="toast" hidden></div>
 
+    <!-- Settings: collapsible, mirrors app-launcher's ⚙️ Settings block.
+         /install-ca is auth-exempt, so the link is a plain navigation that
+         works over Tailscale without a token (no JS needed). -->
+    <details class="card settings-card">
+      <summary class="settings-summary">
+        <span class="settings-summary-title">⚙️ Settings</span>
+      </summary>
+      <div class="settings-body">
+        <h3>🔒 HTTPS trust profile</h3>
+        <p class="muted small">
+          First time on an iPhone or a new device? Install the local CA so the
+          browser trusts this site's certificate — green lock, no warning.
+        </p>
+        <a class="big-btn install-ca-btn" href="/install-ca">📲 Install certificate</a>
+        <p class="muted small">
+          On iOS: open the downloaded profile under
+          <strong>Settings → Profile Downloaded</strong>, then enable it in
+          <strong>Settings → General → About → Certificate Trust Settings</strong>.
+        </p>
+      </div>
+    </details>
+
     <!-- Build identity: which build the PWA is running. Filled by main.js. -->
     <footer class="page-foot">
       <p id="buildReadout" class="muted small"></p>
