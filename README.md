@@ -37,6 +37,10 @@ optional bearer token. Three ways to reach it once running:
   - `middleware.py` — bearer-token / loopback auth gate.
   - `routers/` — `units` (read + control), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
+- **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
+  - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
+  - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp.
+  - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
 - **`config/`** — `webapp_config.sample.json` committed; real `webapp_config.json` gitignored.
@@ -65,6 +69,30 @@ Then edit `.env` and set `MELCLOUD_EMAIL` and `MELCLOUD_PASSWORD` (your
 MELCloud Home login).
 
 ## Run the webapp (the product)
+
+### Via the tray (the always-on way)
+
+```powershell
+.\tray.bat                                                        # Windows
+```
+
+`tray.bat` puts a **system-tray icon** in the notification area that owns the
+webapp's lifecycle — it spawns and supervises the uvicorn server, so the
+dashboard is up from login without a console window. Drop a shortcut to
+`tray.bat` in the **Startup folder** (`shell:startup`) for always-on use.
+
+- Idempotent: a second `tray.bat` no-ops if a tray is already running.
+- `tray.bat --restart` stops the running tray, **reclaims `:8447` even from an
+  orphaned uvicorn**, and starts a fresh one — this is how a new pull is
+  picked up (run it after editing `src/` or `app/`).
+- Tray menu: **Open** the dashboard, **Copy local/Tailscale URL** (token
+  appended), **Restart webapp**, **Status**, **Quit** (stops the webapp
+  cleanly — no orphaned process on `:8447`).
+
+The tray launches `python -m app.tray`; detection/kill is scoped to *this*
+repo's `.venv` by command line, so sister-app trays are never touched.
+
+### Headless / dev (no tray)
 
 ```powershell
 .\webapp.bat                                                      # Windows
