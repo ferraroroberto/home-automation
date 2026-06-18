@@ -8,6 +8,10 @@ webapp/*.log
 app/webapp/static/ca.crt
 app/webapp/static/*.mobileconfig
 
+# Pasted-image / scratch temp dir (e.g. screenshots dropped into chat) —
+# never commit (public repo).
+.launcher-tmp/
+
 # Virtual env
 .venv/
 venv/
