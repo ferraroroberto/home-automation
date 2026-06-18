@@ -29,6 +29,7 @@ export const els = {
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),
+  detailDisplayName: document.getElementById('detailDisplayName'),
   detailMode: document.getElementById('detailMode'),
   detailVaneVertical: document.getElementById('detailVaneVertical'),
   detailVaneHorizontal: document.getElementById('detailVaneHorizontal'),
