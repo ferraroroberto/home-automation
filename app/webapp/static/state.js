@@ -20,9 +20,11 @@ export const state = {
 };
 
 // ----------------------------------------------------------------- DOM
+export const THEME_KEY = 'home-automation.theme';
+
 export const els = {
   grid: document.getElementById('unitsGrid'),
-  refreshBtn: document.getElementById('refreshBtn'),
+  themeBtn: document.getElementById('themeBtn'),
   status: document.getElementById('status'),
   toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),

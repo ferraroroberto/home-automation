@@ -11,6 +11,25 @@
   --line: #e2e7ef;
   --radius: 16px;
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  --input-bg: #f6f8fb;
+  --toggle-track: #cfd6e0;
+  --toggle-knob: #fff;
+  --toggle-label: #54606e;
+  --close-bg: #eef1f6;
+}
+
+[data-theme="dark"] {
+  --card: #1b2536;
+  --card-off: #141d2c;
+  --ink: #e8edf4;
+  --muted: #9fb0c3;
+  --line: #2a3548;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  --input-bg: #0f1824;
+  --toggle-track: #2a3548;
+  --toggle-knob: #6b7785;
+  --toggle-label: #9fb0c3;
+  --close-bg: #2a3548;
 }
 
 * { box-sizing: border-box; }
@@ -148,7 +167,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #cfd6e0;
+  background: var(--toggle-track);
   border: none;
   border-radius: 999px;
   padding: 4px 12px 4px 4px;
@@ -157,11 +176,11 @@ html, body {
 .toggle .knob {
   width: 22px; height: 22px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--toggle-knob);
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   transition: transform 0.15s ease;
 }
-.toggle .toggle-label { font-size: 0.8rem; font-weight: 700; color: #54606e; }
+.toggle .toggle-label { font-size: 0.8rem; font-weight: 700; color: var(--toggle-label); }
 .toggle.on { background: var(--on); }
 .toggle.on .knob { transform: translateX(2px); }
 .toggle.on .toggle-label { color: #fff; }
@@ -173,7 +192,7 @@ html, body {
   width: 32px; height: 32px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: #f6f8fb;
+  background: var(--input-bg);
   font-size: 1.3rem;
   line-height: 1;
   cursor: pointer;
@@ -189,7 +208,7 @@ html, body {
   padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: #f6f8fb;
+  background: var(--input-bg);
   color: var(--ink);
 }
 
@@ -206,7 +225,7 @@ html, body {
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .detail-header h2 { margin: 0; font-size: 1.15rem; }
 .detail-close {
-  background: #eef1f6; border: none; border-radius: 10px;
+  background: var(--close-bg); border: none; border-radius: 10px;
   width: 34px; height: 34px; font-size: 1rem; cursor: pointer; color: var(--muted);
 }
 .detail-card .row {
@@ -221,7 +240,7 @@ html, body {
   padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: #f6f8fb;
+  background: var(--input-bg);
   color: var(--ink);
   font-family: inherit;
 }
@@ -258,7 +277,7 @@ html, body {
 .login-card h2 { margin: 0; }
 .login-card input {
   font-size: 1rem; padding: 12px; border-radius: 10px;
-  border: 1px solid var(--line); background: #f6f8fb;
+  border: 1px solid var(--line); background: var(--input-bg);
 }
 .big-btn {
   background: var(--accent); color: #fff; border: none;
