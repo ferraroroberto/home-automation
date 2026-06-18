@@ -4,5 +4,12 @@ aiomelcloudhome>=0.1.7
 # Load credentials from .env
 python-dotenv>=1.0.0
 
-# Streamlit control UI
+# FastAPI + PWA control dashboard (the product)
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
+# Self-signed CA + leaf cert generation for the HTTPS endpoint
+cryptography>=42.0.0
+
+# Streamlit POC spike (independent throwaway data/debug view)
 streamlit>=1.30.0
