@@ -27,6 +27,7 @@ import {
   restyleEnergyCharts,
 } from './energy.js';
 import { onPlugsTab, wirePlugsToggle } from './plugs.js';
+import { startWeatherPolling } from './weather.js';
 
 const DEFAULT_RANGE = [16, 31];
 
@@ -414,6 +415,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
 
   loadUnits();
   loadEnergy();
+  startWeatherPolling();
   fetchVersion();
   setInterval(loadUnits, 30_000);
 })();

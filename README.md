@@ -52,7 +52,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json` and `display_names.sample.json` committed; real `webapp_config.json` and `display_names.json` gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, and `location.sample.json` committed; real `webapp_config.json`, `display_names.json`, and `location.json` gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -153,6 +153,25 @@ The live display refreshes every ~10 s while the Energy tab is open and every
 than `ENERGY_PERSIST_INTERVAL_S`). Energy (Wh) is integrated from the samples
 (rectangular rule, gaps capped) — a household-monitoring estimate, not a
 billing-grade meter read.
+
+## Weather
+
+The header shows a compact current-weather readout (temperature + a weather
+icon) for the home location, read from **Open-Meteo** (keyless — no account, no
+API key).
+
+- **Location config:** the home coordinates live in `config/location.json`
+  (`lat` / `lon` / optional `label`). This file is **gitignored** — the repo is
+  public, so the home location never enters git. Copy `config/location.sample.json`
+  (placeholder `0.0/0.0`) to `config/location.json` and fill in your own lat/lon
+  (geocode an address with any keyless geocoder, e.g.
+  `https://geocoding-api.open-meteo.com/v1/search?name=<city>`).
+- **Endpoint:** `GET /api/weather` returns `{available, temperature_c,
+  weather_code, is_day, label}`. When `config/location.json` is absent or
+  Open-Meteo is unreachable it returns `{available: false, reason}` with HTTP
+  200 — weather is decorative, never a 500. The header readout stays hidden
+  until the first successful read and fails quietly thereafter.
+- **Cadence:** the frontend polls every ~10 minutes (weather barely moves).
 
 ## Tuya / Smart Life
 
