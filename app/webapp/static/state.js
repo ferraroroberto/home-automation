@@ -63,9 +63,10 @@ export const els = {
   energyFlow: document.getElementById('energyFlow'),
   enPv: document.getElementById('enPv'),
   enHouse: document.getElementById('enHouse'),
-  enGrid: document.getElementById('enGrid'),
   enSurplus: document.getElementById('enSurplus'),
   enUpdated: document.getElementById('enUpdated'),
+  // Header weather readout (GET /api/weather)
+  weather: document.getElementById('weather'),
   // Energy tab: hero numbers, charts, range switcher
   heroProd: document.getElementById('heroProd'),
   heroCons: document.getElementById('heroCons'),

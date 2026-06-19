@@ -44,11 +44,10 @@ function nowLabel() {
 
 // ----------------------------------------------------- render a live snapshot
 export function renderEnergy(e) {
-  // --- Home compact tile (Solar / House / Grid / Net) ---
+  // --- Home compact tile (Production / Consumption / Net grid) — mirrors
+  //     the Energy-tab heroes. ---
   els.enPv.textContent = e.inverter_reachable ? fmtW(e.pv_power_w) : 'asleep';
   els.enHouse.textContent = fmtW(e.house_consumption_w);
-  const imp = Number(e.grid_import_w) || 0;
-  els.enGrid.textContent = fmtW(Math.max(0, imp));
   els.enSurplus.textContent = fmtSignedW(e.pv_surplus_w);
   if (els.enUpdated) els.enUpdated.textContent = 'Updated ' + nowLabel();
   els.energyFlow.hidden = false;
