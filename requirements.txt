@@ -4,6 +4,9 @@ aiomelcloudhome>=0.1.7
 # SMA solar: local energy-meter (Speedwire) + ennexOS inverter reads
 pysma-plus>=0.4.2
 
+# Tuya / Smart Life: local LAN control via gitignored devices.json
+tinytuya>=1.18.1
+
 # Load credentials from .env
 python-dotenv>=1.0.0
 

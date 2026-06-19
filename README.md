@@ -33,6 +33,7 @@ optional bearer token. Three ways to reach it once running:
   - `list_devices.py` — CLI that prints each unit's live state.
   - `sma_client.py` — async read of the local SMA solar/energy devices (meter + inverter).
   - `list_energy.py` — CLI that prints the live energy flow.
+  - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
 - **`app/webapp/`** — the FastAPI + PWA product.
   - `server.py` — `create_app()`, middleware, static mount, routers.
@@ -110,6 +111,31 @@ night):
 
 then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 `GET /api/energy` serves the same snapshot to the PWA.
+
+## Tuya / Smart Life
+
+Smart Life devices are Tuya devices. This project uses `tinytuya` as a local LAN control foundation. Runtime reads and commands use the local keys stored in gitignored `devices.json`; they do not require an active Tuya Cloud project once that file exists.
+
+One-time Tuya bootstrap, only needed when `devices.json` must be generated or refreshed from the Smart Life account:
+
+1. Register or log in at `https://iot.tuya.com/`.
+2. Create a **Smart Home** Cloud Project in the **Central Europe** data center.
+3. Link the Smart Life mobile app account to that project by scanning the QR code from the Tuya developer portal.
+4. Copy the project's **Access ID / Client ID** and **Access Secret / Client Secret** into `.env` for the wizard:
+
+| Key | Meaning |
+|-----|---------|
+| `TUYA_API_KEY` | Tuya Cloud Project Access ID / Client ID, used only for TinyTuya bootstrap. |
+| `TUYA_API_SECRET` | Tuya Cloud Project Access Secret / Client Secret, used only for TinyTuya bootstrap. |
+| `TUYA_REGION` | Tuya data-center region for bootstrap. Use `eu` for Central Europe. |
+
+Then fetch the device list and local keys:
+
+```powershell
+& .\.venv\Scripts\python.exe -m tinytuya wizard
+```
+
+The wizard writes `devices.json` in the project root. That file contains device IDs, local keys, IPs, protocol versions, and DPS mappings; it is required for LAN-mode control and is gitignored because it contains secrets. TinyTuya may also write `tinytuya.json`; that is gitignored as well. Energy DPS varies by plug model, so `src/tuya_client.py` reads the captured `mapping` block instead of assuming fixed DPS indexes.
 
 ## Run the webapp (the product)
 
