@@ -20,7 +20,11 @@ Run with::
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -28,9 +32,23 @@ from fastapi.staticfiles import StaticFiles
 from app.webapp.middleware import BearerTokenMiddleware
 from app.webapp.routers import auth, energy, misc, units
 from app.webapp.routers._helpers import STATIC_DIR
+from app.webapp.sampler import start_sampler
 from src.webapp_config import load_webapp_config
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Own the background energy sampler for the life of the webapp process."""
+    task = start_sampler()
+    try:
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 def create_app() -> FastAPI:
@@ -38,7 +56,7 @@ def create_app() -> FastAPI:
     webapp_cfg = load_webapp_config()
     auth.ensure_auth_log_handler()
 
-    app = FastAPI(title="Home Automation", version="0.1.0")
+    app = FastAPI(title="Home Automation", version="0.1.0", lifespan=lifespan)
 
     # Read the token from app.state on every request so a future rotate
     # could take effect without re-importing the module.

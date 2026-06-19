@@ -13,7 +13,9 @@ from playwright.sync_api import Page, expect
 
 def _boot(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector(".unit-card", state="attached")
+    # Unit cards live in the AC tab now — activate it before interacting.
+    page.locator("#tabAc").click()
+    page.wait_for_selector(".unit-card", state="visible")
 
 
 def test_power_toggle_posts_and_rerenders(
@@ -54,9 +56,9 @@ def test_fan_change_posts_fan_speed(
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1") and r.method == "POST"
     ) as info:
-        card.locator(".unit-fan select").select_option("Three")
+        card.locator("select.unit-fan").select_option("Three")
     assert info.value.post_data_json == {"fan_speed": "Three"}
-    expect(card.locator(".unit-fan select")).to_have_value("Three")
+    expect(card.locator("select.unit-fan")).to_have_value("Three")
 
 
 def test_target_clamped_at_min(

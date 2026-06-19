@@ -165,7 +165,14 @@ def base_url() -> Iterator[str]:
     )
     kwargs: dict = dict(
         cwd=str(_REPO_ROOT), stdout=log_handle, stderr=subprocess.STDOUT,
-        env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+        env={
+            **os.environ,
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUTF8": "1",
+            # Never let the autobooted webapp hammer the real SMA devices — the
+            # frontend is driven against stubbed energy fixtures, not the cloud.
+            "ENERGY_SAMPLER_ENABLED": "0",
+        },
     )
     if sys.platform == "win32":
         kwargs["creationflags"] = (
@@ -267,6 +274,54 @@ def mock_api(page: Page) -> Callable[[List[Dict]], List[Dict]]:
         page.route("**/api/units", handle)
         page.route("**/api/units/*", handle)
         return list(store.values())
+
+    return _install
+
+
+@pytest.fixture
+def mock_energy(page: Page) -> Callable[..., None]:
+    """Stub the three energy endpoints with deterministic fixtures.
+
+    Covers the live snapshot (``/api/energy``), the live-chart history
+    (``/api/energy/history``), and the aggregate buckets
+    (``/api/energy/aggregate``). Call before navigating. Defaults describe a
+    sunny exporting moment so the hero numbers and charts have content.
+    """
+    def _install(
+        snapshot: Optional[Dict] = None,
+        samples: Optional[List[Dict]] = None,
+        buckets: Optional[List[Dict]] = None,
+    ) -> None:
+        snap = snapshot or {
+            "grid_import_w": 0.0, "grid_export_w": 1200.0,
+            "pv_power_w": 2500.0, "house_consumption_w": 1300.0,
+            "pv_surplus_w": 1200.0, "grid_import_kwh": None, "grid_export_kwh": None,
+            "meter_reachable": True, "inverter_reachable": True, "meter_serial": None,
+        }
+        hist = samples if samples is not None else [
+            {"ts": 1700000000, "pv_power_w": 2400.0, "house_consumption_w": 1200.0,
+             "grid_import_w": 0.0, "grid_export_w": 1200.0, "pv_surplus_w": 1200.0,
+             "inverter_reachable": True, "meter_reachable": True},
+            {"ts": 1700000060, "pv_power_w": 2500.0, "house_consumption_w": 1300.0,
+             "grid_import_w": 0.0, "grid_export_w": 1200.0, "pv_surplus_w": 1200.0,
+             "inverter_reachable": True, "meter_reachable": True},
+        ]
+        aggs = buckets if buckets is not None else [
+            {"key": "2026-06-19T10", "label": "10:00", "pv_wh": 1800.0,
+             "house_wh": 1100.0, "import_wh": 0.0, "export_wh": 700.0,
+             "pv_n": 60, "pv_missing": False},
+            {"key": "2026-06-19T11", "label": "11:00", "pv_wh": 2100.0,
+             "house_wh": 1250.0, "import_wh": 50.0, "export_wh": 900.0,
+             "pv_n": 60, "pv_missing": False},
+        ]
+        page.route("**/api/energy", lambda r: r.fulfill(
+            status=200, content_type="application/json", body=_json(snap)))
+        page.route("**/api/energy/history*", lambda r: r.fulfill(
+            status=200, content_type="application/json",
+            body=_json({"minutes": 60, "samples": hist})))
+        page.route("**/api/energy/aggregate*", lambda r: r.fulfill(
+            status=200, content_type="application/json",
+            body=_json({"range": "hourly", "buckets": aggs})))
 
     return _install
 

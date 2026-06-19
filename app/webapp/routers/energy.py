@@ -12,10 +12,11 @@ so ``pv_power_w`` is ``null`` and ``inverter_reachable`` is ``false`` then.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
+from src.energy_history import aggregate, recent_samples
 from src.sma_client import EnergyState, fetch_energy_state
 
 logger = logging.getLogger(__name__)
@@ -47,3 +48,40 @@ async def get_energy() -> Dict[str, Any]:
         logger.warning("⚠️  Failed to read energy flow: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to read energy: {exc}")
     return _energy_dict(state)
+
+
+@router.get("/api/energy/history")
+async def get_energy_history(
+    minutes: int = Query(60, ge=1, le=1440),
+) -> Dict[str, Any]:
+    """Recent raw samples for the live flowing chart.
+
+    ``None`` powers (e.g. asleep PV) are preserved so the client draws a gap,
+    never a misleading 0.
+    """
+    try:
+        samples: List[Dict[str, Any]] = recent_samples(minutes)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to read energy history: %s", exc)
+        raise HTTPException(status_code=502, detail=f"failed to read history: {exc}")
+    return {"minutes": minutes, "samples": samples}
+
+
+@router.get("/api/energy/aggregate")
+async def get_energy_aggregate(
+    range: str = Query("hourly", pattern="^(hourly|daily|monthly)$"),
+    count: int = Query(0, ge=0, le=400),
+) -> Dict[str, Any]:
+    """Hourly / daily / monthly energy buckets (Wh) for the aggregate charts.
+
+    Each bucket flags ``pv_missing`` when no PV sample landed in it (asleep
+    inverter), keeping that distinct from a real 0 Wh of production.
+    """
+    try:
+        buckets = aggregate(range, count or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to aggregate energy history: %s", exc)
+        raise HTTPException(status_code=502, detail=f"failed to aggregate: {exc}")
+    return {"range": range, "buckets": buckets}
