@@ -117,6 +117,10 @@
          and LAN reads only. The empty/error note guides toward refreshing
          devices.json (never the cloud). -->
     <section id="panePlugs" class="pane" aria-label="Smart Life devices" hidden>
+      <div class="plugs-toolbar">
+        <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Show all</button>
+        <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
+      </div>
       <section id="plugsGrid" class="plugs-grid" aria-label="Devices"></section>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
     </section>

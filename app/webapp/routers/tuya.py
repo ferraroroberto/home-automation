@@ -64,6 +64,7 @@ def _base_card(info: TuyaDeviceInfo) -> Dict[str, Any]:
         "has_switch": info.switch_dps is not None,
         "has_cover": info.cover_control_dps is not None,
         "metered": bool(info.energy_dps),
+        "has_valid_ip": info.has_valid_ip,
         "reachable": False,
         "switch_on": None,
         "power_w": None,

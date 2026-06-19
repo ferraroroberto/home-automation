@@ -352,6 +352,15 @@ html, body {
 }
 
 /* ----------------------------------------------------- plugs (Smart Life) */
+.plugs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.plugs-toolbar .range-tab { flex: none; }
+.plugs-hidden-count { line-height: 1; }
+
 .plugs-grid {
   display: grid;
   grid-template-columns: 1fr;

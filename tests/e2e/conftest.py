@@ -330,38 +330,57 @@ def mock_energy(page: Page) -> Callable[..., None]:
 def sample_plugs() -> List[Dict]:
     """Four deterministic Tuya device cards covering each render branch:
     a metered plug (watts), a plain switch, a cover, and an offline device.
-    Names are obvious fixtures, never the user's real devices (public repo)."""
+    All four are registered (has_valid_ip=True) so the default filter keeps
+    them visible. Names are obvious fixtures, never the user's real devices
+    (public repo)."""
     return [
         {
             "device_id": "plug-1", "name": "Test Heater", "category": "cz",
             "has_switch": True, "has_cover": False, "metered": True,
-            "reachable": True, "switch_on": True,
+            "has_valid_ip": True, "reachable": True, "switch_on": True,
             "power_w": 1450.0, "current_ma": 6300.0, "voltage_v": 230.0,
             "energy_kwh": 12.5, "error": None,
         },
         {
             "device_id": "plug-2", "name": "Test Lamp", "category": "kg",
             "has_switch": True, "has_cover": False, "metered": False,
-            "reachable": True, "switch_on": False,
+            "has_valid_ip": True, "reachable": True, "switch_on": False,
             "power_w": None, "current_ma": None, "voltage_v": None,
             "energy_kwh": None, "error": None,
         },
         {
             "device_id": "cover-1", "name": "Test Blind", "category": "cl",
             "has_switch": False, "has_cover": True, "metered": False,
-            "reachable": True, "switch_on": None,
+            "has_valid_ip": True, "reachable": True, "switch_on": None,
             "power_w": None, "current_ma": None, "voltage_v": None,
             "energy_kwh": None, "error": None,
         },
         {
             "device_id": "plug-3", "name": "Test Offline", "category": "cz",
             "has_switch": True, "has_cover": False, "metered": True,
-            "reachable": False, "switch_on": None,
+            "has_valid_ip": True, "reachable": False, "switch_on": None,
             "power_w": None, "current_ma": None, "voltage_v": None,
             "energy_kwh": None,
             "error": "Offline — refresh devices.json if this persists.",
         },
     ]
+
+
+@pytest.fixture
+def sample_plugs_with_no_ip(sample_plugs: List[Dict]) -> List[Dict]:
+    """sample_plugs plus one no-IP adapter (has_valid_ip=False).
+    Used to verify the default-filter and show-all toggle behaviour."""
+    import copy
+    devices = copy.deepcopy(sample_plugs)
+    devices.append({
+        "device_id": "plug-noip", "name": "Test NoIP", "category": "cz",
+        "has_switch": True, "has_cover": False, "metered": False,
+        "has_valid_ip": False, "reachable": False, "switch_on": None,
+        "power_w": None, "current_ma": None, "voltage_v": None,
+        "energy_kwh": None,
+        "error": "No local IP — refresh devices.json on the home network.",
+    })
+    return devices
 
 
 @pytest.fixture
