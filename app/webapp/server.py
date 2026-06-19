@@ -10,6 +10,7 @@ Routes (split across ``app/webapp/routers/``):
     POST /api/login              → password → bearer token   (auth)
     GET  /api/units              → live state of every unit  (units)
     POST /api/units/{id}         → write controls + read back (units)
+    GET  /api/energy             → live SMA energy flow       (energy)
 
 Run with::
 
@@ -25,7 +26,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.webapp.middleware import BearerTokenMiddleware
-from app.webapp.routers import auth, misc, units
+from app.webapp.routers import auth, energy, misc, units
 from app.webapp.routers._helpers import STATIC_DIR
 from src.webapp_config import load_webapp_config
 
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(misc.router)
     app.include_router(auth.router)
     app.include_router(units.router)
+    app.include_router(energy.router)
 
     logger.info(
         "ℹ️  webapp ready (auth gate %s)",

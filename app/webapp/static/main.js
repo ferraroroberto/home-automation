@@ -242,6 +242,52 @@ async function fetchVersion() {
   }
 }
 
+// --------------------------------------------------- energy flow tile
+function fmtW(v) {
+  return v == null ? '—' : Math.round(Number(v)) + ' W';
+}
+
+function fmtSignedW(v) {
+  if (v == null) return '—';
+  const rounded = Math.round(Number(v));
+  if (rounded === 0) return '0 W';
+  return (rounded > 0 ? '+' : '-') + Math.abs(rounded) + ' W';
+}
+
+function renderEnergy(e) {
+  // Solar: the inverter sleeps at night → show "asleep" not a stale 0.
+  els.enPv.textContent = e.inverter_reachable ? fmtW(e.pv_power_w) : 'asleep';
+  els.enHouse.textContent = fmtW(e.house_consumption_w);
+
+  // Grid: imported watts only. Net import/export is shown separately.
+  const imp = Number(e.grid_import_w) || 0;
+  els.enGrid.textContent = fmtW(Math.max(0, imp));
+
+  // Net: + exporting (room to shift load on), - importing.
+  const surplus = e.pv_surplus_w;
+  els.enSurplus.textContent = fmtSignedW(surplus);
+
+  const now = new Date();
+  if (els.enUpdated) {
+    els.enUpdated.textContent = 'Updated ' + now.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+  els.energyFlow.hidden = false;
+}
+
+async function loadEnergy() {
+  try {
+    const body = await jsonApi('/api/energy');
+    if (body) renderEnergy(body);
+  } catch (_) {
+    // Energy is secondary to unit control — fail quietly, keeping the last
+    // rendered values (and staying hidden if it never loaded).
+  }
+}
+
 // --------------------------------------------------------------- boot
 async function loadUnits() {
   els.status.textContent = 'Loading…';
@@ -349,6 +395,8 @@ els.loginForm.addEventListener('submit', async function (ev) {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
   loadUnits();
+  loadEnergy();
   fetchVersion();
   setInterval(loadUnits, 30_000);
+  setInterval(loadEnergy, 30_000);
 })();

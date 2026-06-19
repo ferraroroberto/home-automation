@@ -28,6 +28,13 @@ export const els = {
   status: document.getElementById('status'),
   toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
+  // Energy-flow tile (GET /api/energy)
+  energyFlow: document.getElementById('energyFlow'),
+  enPv: document.getElementById('enPv'),
+  enHouse: document.getElementById('enHouse'),
+  enGrid: document.getElementById('enGrid'),
+  enSurplus: document.getElementById('enSurplus'),
+  enUpdated: document.getElementById('enUpdated'),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

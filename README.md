@@ -31,11 +31,13 @@ optional bearer token. Three ways to reach it once running:
 - **`src/`** — non-UI Python.
   - `melcloud_client.py` — async auth + fetch + control (the shared core).
   - `list_devices.py` — CLI that prints each unit's live state.
+  - `sma_client.py` — async read of the local SMA solar/energy devices (meter + inverter).
+  - `list_energy.py` — CLI that prints the live energy flow.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
 - **`app/webapp/`** — the FastAPI + PWA product.
   - `server.py` — `create_app()`, middleware, static mount, routers.
   - `middleware.py` — bearer-token / loopback auth gate.
-  - `routers/` — `units` (read + control), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live SMA energy flow), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
   - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
@@ -45,7 +47,7 @@ optional bearer token. Three ways to reach it once running:
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
 - **`config/`** — `webapp_config.sample.json` committed; real `webapp_config.json` gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`); gitignored.
-- **`.env`** — MELCloud credentials (gitignored; copy from `.env.example`).
+- **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
 ## Setup
 
@@ -67,6 +69,47 @@ Copy-Item .env.example .env      # Windows
 
 Then edit `.env` and set `MELCLOUD_EMAIL` and `MELCLOUD_PASSWORD` (your
 MELCloud Home login).
+
+## SMA solar / energy
+
+The dashboard shows the home's live energy flow (☀️ Solar · 🏠 House · ⚡ Grid ·
+♻️ Net) as the read-side foundation of the eventual solar load-balancing
+automation (shift HVAC load to match PV). When `SMA_CLOUD_PLANT_ID` is set, it
+uses the same Sunny Portal energy-balance values shown in the SMA Energy app.
+If cloud is not configured or unavailable, it falls back to local LAN reads:
+
+- **Sunny Home Manager 2.0 / energy meter** — read over **Speedwire** (UDP
+  multicast) with **no credentials**. Gives grid import/export + cumulative
+  counters. Discovered automatically on the LAN.
+- **PV inverter** (Tripower X / ennexOS) — read over its **local ennexOS web
+  API**, logging in with the SMA account. Gives PV production. SMA inverters
+  **power down at night**, so the inverter only appears on the network while
+  producing; an asleep inverter is reported as such (PV unknown), not an error.
+
+Config in `.env`:
+
+| Key | Meaning |
+|-----|---------|
+| `SMA_CLOUD_PLANT_ID` | Sunny Portal plant/component ID. When set, the app reads the same cloud energy-balance values shown in the SMA Energy app. |
+| `SMA_INVERTER_HOST` | Inverter LAN IP/host. Blank → read the meter only. |
+| `SMA_INVERTER_ACCESS_METHOD` | `ennexos` (default) or `speedwireinvV2` for Speedwire-only inverters. |
+| `SMA_INVERTER_GROUP` | Speedwire login group: `user` (default) or `installer`. |
+| `SMA_INVERTER_PASSWORD` | Local Speedwire inverter password (max 12 chars). Use this instead of the SMA cloud password for Speedwire devices. |
+| `SMA_USER` / `SMA_PASSWORD` | SMA account, for Sunny Portal cloud login and ennexOS local login. |
+
+Find the inverter IP by running the CLI **in daylight** (it is off-network at
+night):
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_energy      # Windows
+```
+
+```bash
+./.venv/bin/python -m src.list_energy                # POSIX
+```
+
+then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
+`GET /api/energy` serves the same snapshot to the PWA.
 
 ## Run the webapp (the product)
 

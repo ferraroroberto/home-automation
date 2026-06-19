@@ -1,6 +1,9 @@
 # MELCloud Home API client (async, pure-HTTP PKCE login — no browser)
 aiomelcloudhome>=0.1.7
 
+# SMA solar: local energy-meter (Speedwire) + ennexOS inverter reads
+pysma-plus>=0.4.2
+
 # Load credentials from .env
 python-dotenv>=1.0.0
 

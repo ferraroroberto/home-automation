@@ -44,8 +44,8 @@ Optional. Lives at `tests/e2e/`. **Don't create the folder until the first regre
 ## Verification (before declaring a task done)
 Windows / PowerShell:
 - Syntax: `& .\.venv\Scripts\python.exe -m py_compile <file>`
-- CLI smoke: `& .\.venv\Scripts\python.exe -m src.list_devices`
-- Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8447` then `curl -k https://127.0.0.1:8447/healthz` and `…/api/units` (loopback bypasses the token).
+- CLI smoke: `& .\.venv\Scripts\python.exe -m src.list_devices` (HVAC) · `& .\.venv\Scripts\python.exe -m src.list_energy` (SMA energy)
+- Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8447` then `curl -k https://127.0.0.1:8447/healthz`, `…/api/units` and `…/api/energy` (loopback bypasses the token).
 - Streamlit spike boot check: `& .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py --server.headless true`
 
 There is no unit-test suite yet — say so plainly rather than claiming "tests pass."
@@ -58,8 +58,10 @@ Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahe
 **Layout:**
 - `src/melcloud_client.py` — async auth + fetch + control (the shared, UI-free core). `fetch_devices()` walks buildings → air-to-air units; `set_device_state()` writes via `control_ata_unit`. Capabilities drive the selectable modes, fan speeds, per-mode temperature bounds, and the two vanes (vertical/horizontal).
 - `src/list_devices.py` — CLI that prints each unit's live state.
+- `src/sma_client.py` — async, UI-free read of the **SMA solar/energy** devices (issue #21): prefer Sunny Portal cloud energy-balance when `SMA_CLOUD_PLANT_ID` is set, otherwise local Sunny Home Manager / energy meter over Speedwire (no creds → grid import/export) + the PV inverter over either local ennexOS or Speedwire (creds from `.env` → PV production). `fetch_energy_state()` returns the flattened `EnergyState` (grid/PV/consumption/net); an asleep or unconfigured inverter is `inverter_reachable=False`, not an error. Wraps `pysma-plus`.
+- `src/list_energy.py` — CLI that prints the live energy flow (mirrors `list_devices.py`).
 - `src/webapp_config.py` — webapp host/port + auth secrets (`auth_token` / `auth_password`); real `config/webapp_config.json` gitignored, `…sample.json` committed.
-- `app/webapp/` — **the product**: FastAPI (`server.py` + `middleware.py` + `routers/{units,auth,misc}.py`) over the same core, serving a static PWA (`static/`). `GET /api/units` → `fetch_devices()`; `POST /api/units/{id}` → `set_device_state(...)`. Card grid with inline controls; per-unit detail modal for mode + vanes.
+- `app/webapp/` — **the product**: FastAPI (`server.py` + `middleware.py` + `routers/{units,energy,auth,misc}.py`) over the same core, serving a static PWA (`static/`). `GET /api/units` → `fetch_devices()`; `POST /api/units/{id}` → `set_device_state(...)`; `GET /api/energy` → `fetch_energy_state()`. Card grid with inline controls + a top energy-flow tile; per-unit detail modal for mode + vanes.
 - `app/tray/` — the **Windows tray** that owns the webapp lifecycle (`tray.bat` → `python -m app.tray`). `tray.py` (pystray icon + menu), `__main__.py` (entry), `manager.py` (adopt-or-spawn / restart / stop for uvicorn, reading host/port from `webapp_config`). `single_instance.py` + `tray_lifecycle.ps1` are **vendored verbatim** from `project-scaffolding` — never edit per-app.
 - `scripts/` — `gen_ssl_cert.py` (self-signed CA+leaf, Tailscale-aware SANs), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons; Pillow dev-only).
 - `spike/streamlit_app.py` — the **independent POC spike** (throwaway data/debug view; shares only `src/melcloud_client.py`), launched via `launch_app.bat` on :8501.
