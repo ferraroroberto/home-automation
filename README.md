@@ -52,7 +52,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json` committed; real `webapp_config.json` gitignored.
+- **`config/`** — `webapp_config.sample.json` and `display_names.sample.json` committed; real `webapp_config.json` and `display_names.json` gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -284,6 +284,29 @@ trusted tailnet). Loopback callers always bypass the gate.
 - Remote (LAN / Tailscale) callers must present `Authorization: Bearer <token>` or `?token=…`.
 - Open the webapp once with `?token=…`; the page stashes it in localStorage and strips it from the URL.
 - A login **password** lets a fresh device (e.g. an iOS PWA whose storage is partitioned) type a secret into the overlay instead — the server hands the token back. Failed attempts log to `webapp/auth.log`.
+
+## Custom unit names
+
+Each HVAC unit has a factory name supplied by MELCloud (e.g. "MSZAP15VGK").
+You can override it with a friendlier label — "Living Room", "Master Bedroom" —
+that is shown in the card grid and the detail modal instead of the API name.
+
+- Open the detail modal for a unit → fill in the **Display name** field → the
+  label is saved immediately via `PUT /api/units/{id}/display_name` and
+  reflected on the card without a page reload.
+- Overrides are stored in `config/display_names.json` (gitignored — it would
+  expose room names in a public repo). A template with the JSON structure is at
+  `config/display_names.sample.json`:
+
+  ```json
+  {
+    "12345": "Living Room",
+    "67890": "Master Bedroom"
+  }
+  ```
+
+  Keys are unit IDs (strings); values are the display names. The file is
+  optional — a missing file is silently treated as no overrides.
 
 ## CLI
 
