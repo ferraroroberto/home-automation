@@ -9,7 +9,9 @@ from playwright.sync_api import Page, expect
 
 def _open_detail(page: Page, base_url: str, unit_id: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector(".unit-card", state="attached")
+    # Unit cards live in the AC tab now — activate it before opening a modal.
+    page.locator("#tabAc").click()
+    page.wait_for_selector(".unit-card", state="visible")
     page.locator(f'[data-unit-id="{unit_id}"] .unit-header').click()
     expect(page.locator("#detailDialog")).to_be_visible()
 

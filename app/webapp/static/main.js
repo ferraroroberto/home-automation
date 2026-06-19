@@ -19,6 +19,13 @@ import {
   THEME_KEY,
 } from './state.js';
 import { jsonApi, hideLogin } from './api.js';
+import { setTab, wireTabs, onTabChange, initialTab } from './tabs.js';
+import {
+  loadEnergy,
+  wireEnergyControls,
+  onEnergyTab,
+  restyleEnergyCharts,
+} from './energy.js';
 
 const DEFAULT_RANGE = [16, 31];
 
@@ -52,6 +59,7 @@ async function applyControl(unitId, patch) {
       return u.unit_id === updated.unit_id ? updated : u;
     });
     rerenderCard(updated.unit_id);
+    renderAcSummary();
     if (state.selectedId === updated.unit_id) populateDetail(updated);
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
@@ -242,50 +250,44 @@ async function fetchVersion() {
   }
 }
 
-// --------------------------------------------------- energy flow tile
-function fmtW(v) {
-  return v == null ? '—' : Math.round(Number(v)) + ' W';
-}
-
-function fmtSignedW(v) {
-  if (v == null) return '—';
-  const rounded = Math.round(Number(v));
-  if (rounded === 0) return '0 W';
-  return (rounded > 0 ? '+' : '-') + Math.abs(rounded) + ' W';
-}
-
-function renderEnergy(e) {
-  // Solar: the inverter sleeps at night → show "asleep" not a stale 0.
-  els.enPv.textContent = e.inverter_reachable ? fmtW(e.pv_power_w) : 'asleep';
-  els.enHouse.textContent = fmtW(e.house_consumption_w);
-
-  // Grid: imported watts only. Net import/export is shown separately.
-  const imp = Number(e.grid_import_w) || 0;
-  els.enGrid.textContent = fmtW(Math.max(0, imp));
-
-  // Net: + exporting (room to shift load on), - importing.
-  const surplus = e.pv_surplus_w;
-  els.enSurplus.textContent = fmtSignedW(surplus);
-
-  const now = new Date();
-  if (els.enUpdated) {
-    els.enUpdated.textContent = 'Updated ' + now.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+// ------------------------------------------------ read-only AC summary (Home)
+function renderAcSummary() {
+  els.acSummary.innerHTML = '';
+  if (!state.units.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted small ac-summary-empty';
+    empty.textContent = 'No units.';
+    els.acSummary.appendChild(empty);
+    return;
   }
-  els.energyFlow.hidden = false;
-}
+  const sorted = state.units.slice().sort(function (a, b) {
+    return displayLabel(a).localeCompare(displayLabel(b));
+  });
+  sorted.forEach(function (u) {
+    const on = u.power === true;
+    const row = document.createElement('div');
+    row.className = 'ac-line' + (on ? '' : ' is-off');
 
-async function loadEnergy() {
-  try {
-    const body = await jsonApi('/api/energy');
-    if (body) renderEnergy(body);
-  } catch (_) {
-    // Energy is secondary to unit control — fail quietly, keeping the last
-    // rendered values (and staying hidden if it never loaded).
-  }
+    const name = document.createElement('span');
+    name.className = 'ac-line-name';
+    name.textContent = modeIcon(u.operation_mode) + ' ' + (displayLabel(u) || 'Unit');
+
+    const stats = document.createElement('span');
+    stats.className = 'ac-line-stats';
+    // room → target, mode · fan, on/off pill — one scannable line per unit.
+    const room = fmtTemp(u.room_temperature);
+    const target = fmtTemp(u.set_temperature);
+    stats.innerHTML =
+      '<span class="ac-temp">' + room + ' → ' + target + '</span>' +
+      '<span class="ac-meta">' + (u.operation_mode || '—') +
+        (u.fan_speed ? ' · ' + u.fan_speed : '') + '</span>' +
+      '<span class="ac-state ' + (on ? 'on' : 'off') + '">' +
+        (on ? 'ON' : 'OFF') + '</span>';
+
+    row.appendChild(name);
+    row.appendChild(stats);
+    els.acSummary.appendChild(row);
+  });
 }
 
 // --------------------------------------------------------------- boot
@@ -295,6 +297,7 @@ async function loadUnits() {
     const body = await jsonApi('/api/units');
     state.units = (body && body.units) || [];
     renderAll();
+    renderAcSummary();
     els.status.textContent = state.units.length + ' unit(s)';
   } catch (exc) {
     if (String(exc.message) === 'auth required') {
@@ -323,6 +326,7 @@ async function saveDisplayName() {
     const unit = unitById(state.selectedId);
     if (unit) els.detailName.textContent = displayLabel(unit) || 'Unit';
     renderAll();
+    renderAcSummary();
     toast('Name saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
@@ -336,6 +340,7 @@ function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   els.themeBtn.textContent = dark ? '☀️' : '🌙';
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+  restyleEnergyCharts();
 }
 
 (function initTheme() {
@@ -394,9 +399,17 @@ els.loginForm.addEventListener('submit', async function (ev) {
 (function boot() {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
+
+  // Tabs: register the energy controller as the tab-change hook, then select
+  // the remembered tab — setTab fires onEnergyTab, which also sets the poll
+  // cadence (fast on Energy, slow elsewhere) and lazily builds the charts.
+  wireTabs();
+  wireEnergyControls();
+  onTabChange(onEnergyTab);
+  setTab(initialTab());
+
   loadUnits();
   loadEnergy();
   fetchVersion();
   setInterval(loadUnits, 30_000);
-  setInterval(loadEnergy, 30_000);
 })();

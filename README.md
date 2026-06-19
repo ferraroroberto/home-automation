@@ -33,13 +33,18 @@ optional bearer token. Three ways to reach it once running:
   - `list_devices.py` — CLI that prints each unit's live state.
   - `sma_client.py` — async read of the local SMA solar/energy devices (meter + inverter).
   - `list_energy.py` — CLI that prints the live energy flow.
+  - `energy_history.py` — SQLite store + rollups for the energy dashboard history.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
 - **`app/webapp/`** — the FastAPI + PWA product.
-  - `server.py` — `create_app()`, middleware, static mount, routers.
+  - `server.py` — `create_app()`, middleware, static mount, routers, sampler lifespan.
   - `middleware.py` — bearer-token / loopback auth gate.
-  - `routers/` — `units` (read + control), `energy` (live SMA energy flow), `auth` (login), `misc` (page, health, CA profile).
+  - `sampler.py` — background energy sampler owned by the webapp lifecycle.
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
+    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy switcher),
+    `energy.js` (energy tab + live polling), `charts.js` (Chart.js wrappers),
+    `state.js`, `api.js`; `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
   - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp.
@@ -47,7 +52,7 @@ optional bearer token. Three ways to reach it once running:
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
 - **`config/`** — `webapp_config.sample.json` committed; real `webapp_config.json` gitignored.
-- **`webapp/`** — runtime state (`certificates/`, `auth.log`); gitignored.
+- **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
 ## Setup
@@ -111,6 +116,41 @@ night):
 
 then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 `GET /api/energy` serves the same snapshot to the PWA.
+
+## Energy monitoring & history
+
+The PWA splits into three tabs: **Home** (a compact energy tile + a read-only
+one-line-per-unit AC summary), **AC** (the full unit controls + detail modal),
+and **Energy** (live hero numbers, a flowing line chart of recent
+production/consumption/net, and hourly/daily/monthly aggregate bars).
+
+While the webapp runs, a background **sampler** (started in the FastAPI
+lifespan, so it lives and dies with the tray's uvicorn process) persists the
+live energy flow to a server-side SQLite database. Recent raw samples feed the
+live chart; completed hours are folded into compact rollups that daily and
+monthly views group from. An **asleep inverter is stored as no PV reading**, not
+a misleading 0, so the charts show a gap and aggregates flag `pv_missing`.
+
+- **Storage:** `webapp/energy_history.sqlite3` (gitignored, per-machine runtime
+  data — never committed).
+- **Endpoints:** `GET /api/energy` (live snapshot), `GET /api/energy/history?minutes=N`
+  (raw samples for the live chart), `GET /api/energy/aggregate?range=hourly|daily|monthly`
+  (energy-per-bucket, Wh).
+- **Cadence/retention knobs** (`.env`, all optional):
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `ENERGY_SAMPLER_ENABLED` | `true` | Master switch. `false`/`0` serves live + existing history but persists nothing (used by the e2e suite and dev runs so they don't poll SMA). |
+| `ENERGY_PERSIST_INTERVAL_S` | `60` | Seconds between persisted samples. For a 5-minute cloud source (Sunny Portal) the data simply won't change faster than the source. |
+| `ENERGY_COMPACT_INTERVAL_S` | `3600` | How often completed hours are folded into rollups and old raw data pruned. |
+| `ENERGY_RAW_RETENTION_DAYS` | `7` | How long raw per-sample rows are kept (feeds the live chart). |
+| `ENERGY_HOURLY_RETENTION_DAYS` | `400` | How long hourly rollups are kept (daily/monthly views group from these). |
+
+The live display refreshes every ~10 s while the Energy tab is open and every
+30 s otherwise; that cadence is a frontend constant (it never persists faster
+than `ENERGY_PERSIST_INTERVAL_S`). Energy (Wh) is integrated from the samples
+(rectangular rule, gaps capped) — a household-monitoring estimate, not a
+billing-grade meter read.
 
 ## Tuya / Smart Life
 
@@ -245,9 +285,12 @@ Print every device's live state:
 
 A Playwright browser-E2E suite lives in `tests/e2e/`. It boots the real
 webapp (adopting a running one on :8447, else autobooting a disposable
-instance) and drives the PWA, **stubbing `/api/units` with fixtures** so
-it never touches the live cloud or actuates real HVAC. Runs in two
-projections — Chromium desktop + WebKit on an iPhone 14.
+instance with the energy sampler off) and drives the PWA, **stubbing
+`/api/units` and the `/api/energy*` endpoints with fixtures** so it never
+touches the live cloud or actuates real HVAC. Coverage includes the
+Home/AC/Energy tab navigation, the read-only AC summary, and an Energy-tab
+render (hero numbers + charts). Runs in two projections — Chromium desktop +
+WebKit on an iPhone 14.
 
 ```powershell
 & .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt

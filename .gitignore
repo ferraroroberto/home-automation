@@ -8,6 +8,9 @@ config/webapp_config.json
 config/display_names.json
 webapp/certificates/
 webapp/*.log
+# Energy-history store (server-side SQLite; per-machine runtime data)
+webapp/*.sqlite3
+webapp/*.sqlite3-*
 app/webapp/static/ca.crt
 app/webapp/static/*.mobileconfig
 

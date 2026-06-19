@@ -5,4 +5,5 @@
 layer       = "working-web"
 icon        = "🌡️"
 port        = 8447
-description = "Home automation suite (ac/power)."
+description = "Home automation suite: AC control + solar/energy monitoring."
+chips       = ["FastAPI", "PWA", "MELCloud", "SMA", "Tuya"]

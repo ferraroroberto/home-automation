@@ -31,33 +31,84 @@
       </div>
     </header>
 
-    <!-- Live solar energy flow (GET /api/energy). Hidden until the first
-         successful read; the inverter sleeps at night so Solar shows
-         "asleep" then rather than a stale number. -->
-    <section id="energyFlow" class="card energy-card" aria-label="Energy flow" hidden>
-      <div class="energy-meta" id="enUpdated"></div>
-      <div class="energy-grid">
-        <div class="energy-stat">
-          <span class="energy-label">☀️ Solar</span>
-          <span class="energy-value" id="enPv">—</span>
+    <!-- Top segmented tab control (mirrors app-launcher's nav.tabs). Panes are
+         toggled with [hidden]; the chosen tab is remembered in localStorage. -->
+    <nav class="tabs" aria-label="Sections">
+      <button id="tabHome" type="button" class="tab active" data-tab="home">🏠 Home</button>
+      <button id="tabAc" type="button" class="tab" data-tab="ac">❄️ AC</button>
+      <button id="tabEnergy" type="button" class="tab" data-tab="energy">⚡ Energy</button>
+    </nav>
+
+    <!-- ============================== HOME =============================== -->
+    <section id="paneHome" class="pane" aria-label="Home">
+      <!-- Compact live energy tile (GET /api/energy). Hidden until the first
+           successful read; the inverter sleeps at night so Solar shows
+           "asleep" then rather than a stale number. -->
+      <section id="energyFlow" class="card energy-card" aria-label="Energy flow" hidden>
+        <div class="energy-meta" id="enUpdated"></div>
+        <div class="energy-grid">
+          <div class="energy-stat">
+            <span class="energy-label">☀️ Solar</span>
+            <span class="energy-value" id="enPv">—</span>
+          </div>
+          <div class="energy-stat">
+            <span class="energy-label">🏠 House</span>
+            <span class="energy-value" id="enHouse">—</span>
+          </div>
+          <div class="energy-stat">
+            <span class="energy-label">⚡ Grid</span>
+            <span class="energy-value" id="enGrid">—</span>
+          </div>
+          <div class="energy-stat">
+            <span class="energy-label">♻️ Net</span>
+            <span class="energy-value" id="enSurplus">—</span>
+          </div>
         </div>
-        <div class="energy-stat">
-          <span class="energy-label">🏠 House</span>
-          <span class="energy-value" id="enHouse">—</span>
-        </div>
-        <div class="energy-stat">
-          <span class="energy-label">⚡ Grid</span>
-          <span class="energy-value" id="enGrid">—</span>
-        </div>
-        <div class="energy-stat">
-          <span class="energy-label">♻️ Net</span>
-          <span class="energy-value" id="enSurplus">—</span>
-        </div>
-      </div>
-      <p id="enNote" hidden></p>
+        <p id="enNote" hidden></p>
+      </section>
+
+      <!-- Read-only AC summary: one line per unit. Controls live in the AC tab. -->
+      <section id="acSummary" class="card ac-summary" aria-label="AC summary"></section>
     </section>
 
-    <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
+    <!-- =============================== AC =============================== -->
+    <section id="paneAc" class="pane" aria-label="AC units" hidden>
+      <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
+    </section>
+
+    <!-- ============================= ENERGY ============================= -->
+    <section id="paneEnergy" class="pane" aria-label="Energy monitoring" hidden>
+      <section class="energy-heroes" aria-label="Live energy">
+        <div class="hero">
+          <span class="hero-label">☀️ Production</span>
+          <span class="hero-value" id="heroProd">—</span>
+        </div>
+        <div class="hero">
+          <span class="hero-label">🏠 Consumption</span>
+          <span class="hero-value" id="heroCons">—</span>
+        </div>
+        <div class="hero">
+          <span class="hero-label">⚡ Net grid</span>
+          <span class="hero-value" id="heroNet">—</span>
+        </div>
+      </section>
+
+      <section class="card chart-card">
+        <h3 class="chart-title">Live flow <span id="liveMeta" class="muted small"></span></h3>
+        <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
+      </section>
+
+      <nav class="range-tabs" aria-label="Aggregate range">
+        <button id="rangeHourly" type="button" class="range-tab active" data-range="hourly">Hourly</button>
+        <button id="rangeDaily" type="button" class="range-tab" data-range="daily">Daily</button>
+        <button id="rangeMonthly" type="button" class="range-tab" data-range="monthly">Monthly</button>
+      </nav>
+
+      <section class="card chart-card">
+        <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
+        <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
+      </section>
+    </section>
 
     <div id="toast" class="toast" hidden></div>
 
@@ -128,6 +179,8 @@
     </form>
   </div>
 
+  <!-- Chart.js (vendored UMD, v4.4.7) — exposes window.Chart for charts.js. -->
+  <script src="/static/vendor/chart.umd.min.js"></script>
   <script type="module" src="/static/main.js"></script>
 </body>
 </html>

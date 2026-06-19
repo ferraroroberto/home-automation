@@ -55,8 +55,8 @@ def test_card_anatomy(
     # Room readout + target value present.
     expect(card.locator(".unit-room .value")).to_contain_text("22.5")
     expect(card.locator(".target-value")).to_contain_text("24.0")
-    # Fan select rendered with the current value.
-    expect(card.locator(".unit-fan select")).to_have_value("Auto")
+    # Fan select rendered with the current value (.unit-fan is the <select>).
+    expect(card.locator("select.unit-fan")).to_have_value("Auto")
 
 
 def test_off_unit_marked(

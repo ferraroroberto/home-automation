@@ -17,10 +17,19 @@ export const TOKEN_KEY = 'home-automation.token';
 export const state = {
   units: [],
   selectedId: null,
+  // Active top-level tab: 'home' | 'ac' | 'energy'.
+  tab: 'home',
+  // Active aggregate range on the Energy tab: 'hourly' | 'daily' | 'monthly'.
+  range: 'hourly',
+  // Live Chart.js instances (created lazily on the Energy tab); kept so the
+  // theme toggle can restyle and the live poller can push points.
+  liveChart: null,
+  aggChart: null,
 };
 
 // ----------------------------------------------------------------- DOM
 export const THEME_KEY = 'home-automation.theme';
+export const TAB_KEY = 'home-automation.tab';
 
 export const els = {
   grid: document.getElementById('unitsGrid'),
@@ -28,13 +37,33 @@ export const els = {
   status: document.getElementById('status'),
   toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
-  // Energy-flow tile (GET /api/energy)
+  // Tabs + panes
+  tabHome: document.getElementById('tabHome'),
+  tabAc: document.getElementById('tabAc'),
+  tabEnergy: document.getElementById('tabEnergy'),
+  paneHome: document.getElementById('paneHome'),
+  paneAc: document.getElementById('paneAc'),
+  paneEnergy: document.getElementById('paneEnergy'),
+  // Read-only AC summary (Home tab)
+  acSummary: document.getElementById('acSummary'),
+  // Energy-flow tile (GET /api/energy), Home tab
   energyFlow: document.getElementById('energyFlow'),
   enPv: document.getElementById('enPv'),
   enHouse: document.getElementById('enHouse'),
   enGrid: document.getElementById('enGrid'),
   enSurplus: document.getElementById('enSurplus'),
   enUpdated: document.getElementById('enUpdated'),
+  // Energy tab: hero numbers, charts, range switcher
+  heroProd: document.getElementById('heroProd'),
+  heroCons: document.getElementById('heroCons'),
+  heroNet: document.getElementById('heroNet'),
+  liveMeta: document.getElementById('liveMeta'),
+  liveChart: document.getElementById('liveChart'),
+  aggChart: document.getElementById('aggChart'),
+  aggEmpty: document.getElementById('aggEmpty'),
+  rangeHourly: document.getElementById('rangeHourly'),
+  rangeDaily: document.getElementById('rangeDaily'),
+  rangeMonthly: document.getElementById('rangeMonthly'),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),
