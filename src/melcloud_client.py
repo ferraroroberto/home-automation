@@ -10,12 +10,13 @@ The unit migrated from classic MELCloud (``app.melcloud.com``, served by
 wraps ``aiomelcloudhome`` — a pure-async HTTP client that performs the
 PKCE login flow with no browser dependency.
 
-Shared by both the CLI (``src/list_devices.py``) and the Streamlit
-control UI (``app/app.py``) so auth + fetch + write logic lives in
-exactly one place.  Every call authenticates fresh and tears the session
-down — simple and stateless, which suits Streamlit reruns and a
-proof-of-concept.  A future load-balancer should hold one long-lived
-client and refresh the token rather than re-login per call.
+Consumed by the FastAPI + PWA webapp (``app/webapp/``, via
+``app/webapp/routers/units.py``), the CLI (``src/list_devices.py``),
+and the throwaway Streamlit spike (``spike/streamlit_app.py``) so auth
++ fetch + write logic lives in exactly one place.  Every call
+authenticates fresh and tears the session down — simple and stateless.
+A future load-balancer should hold one long-lived client and refresh the
+token rather than re-login per call.
 """
 
 from __future__ import annotations
