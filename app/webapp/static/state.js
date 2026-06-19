@@ -17,7 +17,9 @@ export const TOKEN_KEY = 'home-automation.token';
 export const state = {
   units: [],
   selectedId: null,
-  // Active top-level tab: 'home' | 'ac' | 'energy'.
+  // Local Tuya / Smart Life device cards from GET /api/tuya.
+  plugs: [],
+  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs'.
   tab: 'home',
   // Active aggregate range on the Energy tab: 'hourly' | 'daily' | 'monthly'.
   range: 'hourly',
@@ -41,9 +43,14 @@ export const els = {
   tabHome: document.getElementById('tabHome'),
   tabAc: document.getElementById('tabAc'),
   tabEnergy: document.getElementById('tabEnergy'),
+  tabPlugs: document.getElementById('tabPlugs'),
   paneHome: document.getElementById('paneHome'),
   paneAc: document.getElementById('paneAc'),
   paneEnergy: document.getElementById('paneEnergy'),
+  panePlugs: document.getElementById('panePlugs'),
+  // Plugs (Smart Life) tab
+  plugsGrid: document.getElementById('plugsGrid'),
+  plugsNote: document.getElementById('plugsNote'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
   // Energy-flow tile (GET /api/energy), Home tab

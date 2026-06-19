@@ -9,7 +9,7 @@
 
 import { els, state, TAB_KEY } from './state.js';
 
-const TABS = ['home', 'ac', 'energy'];
+const TABS = ['home', 'ac', 'energy', 'plugs'];
 let onChange = function () {};
 
 export function onTabChange(fn) {
@@ -22,9 +22,11 @@ export function setTab(tab) {
   els.tabHome.classList.toggle('active', tab === 'home');
   els.tabAc.classList.toggle('active', tab === 'ac');
   els.tabEnergy.classList.toggle('active', tab === 'energy');
+  els.tabPlugs.classList.toggle('active', tab === 'plugs');
   els.paneHome.hidden = tab !== 'home';
   els.paneAc.hidden = tab !== 'ac';
   els.paneEnergy.hidden = tab !== 'energy';
+  els.panePlugs.hidden = tab !== 'plugs';
   try { localStorage.setItem(TAB_KEY, tab); } catch (_) { /* private mode */ }
   onChange(tab);
 }
@@ -33,6 +35,7 @@ export function wireTabs() {
   els.tabHome.addEventListener('click', function () { setTab('home'); });
   els.tabAc.addEventListener('click', function () { setTab('ac'); });
   els.tabEnergy.addEventListener('click', function () { setTab('energy'); });
+  els.tabPlugs.addEventListener('click', function () { setTab('plugs'); });
 }
 
 export function initialTab() {

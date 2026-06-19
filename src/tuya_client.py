@@ -342,6 +342,40 @@ def list_devices() -> list[TuyaDeviceInfo]:
     return devices
 
 
+def read_device_state(device_id: str) -> dict[str, Any]:
+    """Read one device's live switch + energy state in a single LAN status read.
+
+    Both the on/off switch and the metered-plug energy values come from the
+    same DPS payload, so this issues one ``status()`` round-trip rather than a
+    separate read per concern.  Returns ``reachable=True`` with whatever fields
+    the device exposes; an offline/timed-out device surfaces as a
+    :class:`TuyaCommandError` so the caller can mark just that card unavailable
+    without failing the whole listing.
+    """
+    metadata = _local_metadata(device_id)
+    switch = _first_mapping(metadata.raw, _SWITCH_CODES)
+    energy = _energy_mappings(metadata.raw)
+
+    status = _status(device_id, tinytuya.OutletDevice)
+    dps = status["dps"]
+
+    result: dict[str, Any] = {
+        "device_id": device_id,
+        "reachable": True,
+        "switch_on": None,
+        "power_w": None,
+        "current_ma": None,
+        "voltage_v": None,
+        "energy_kwh": None,
+    }
+    if switch and switch.dps in dps:
+        result["switch_on"] = bool(dps.get(switch.dps))
+    for name, mapping in energy.items():
+        result[name] = _scaled(dps.get(mapping.dps), mapping)
+    logger.info("✅ Read Tuya state from %s", device_id)
+    return result
+
+
 def set_switch(device_id: str, on: bool) -> dict[str, Any]:
     """Turn a Tuya plug/light switch on or off via local LAN control."""
     metadata = _local_metadata(device_id)

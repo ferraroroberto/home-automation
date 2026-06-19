@@ -37,6 +37,7 @@
       <button id="tabHome" type="button" class="tab active" data-tab="home">🏠 Home</button>
       <button id="tabAc" type="button" class="tab" data-tab="ac">❄️ AC</button>
       <button id="tabEnergy" type="button" class="tab" data-tab="energy">⚡ Energy</button>
+      <button id="tabPlugs" type="button" class="tab" data-tab="plugs">🔌 Plugs</button>
     </nav>
 
     <!-- ============================== HOME =============================== -->
@@ -108,6 +109,16 @@
         <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
         <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
       </section>
+    </section>
+
+    <!-- ============================== PLUGS ============================== -->
+    <!-- Smart Life / Tuya devices: dense card grid, on/off + live watts, with
+         blind controls for covers. Cloud-free — driven by local devices.json
+         and LAN reads only. The empty/error note guides toward refreshing
+         devices.json (never the cloud). -->
+    <section id="panePlugs" class="pane" aria-label="Smart Life devices" hidden>
+      <section id="plugsGrid" class="plugs-grid" aria-label="Devices"></section>
+      <p id="plugsNote" class="muted small plugs-note" hidden></p>
     </section>
 
     <div id="toast" class="toast" hidden></div>

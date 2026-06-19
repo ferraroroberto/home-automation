@@ -40,11 +40,12 @@ optional bearer token. Three ways to reach it once running:
   - `server.py` — `create_app()`, middleware, static mount, routers, sampler lifespan.
   - `middleware.py` — bearer-token / loopback auth gate.
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate), `tuya` (local Smart Life devices + watts), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
-    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy switcher),
-    `energy.js` (energy tab + live polling), `charts.js` (Chart.js wrappers),
-    `state.js`, `api.js`; `vendor/chart.umd.min.js` (vendored Chart.js v4).
+    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs switcher),
+    `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab),
+    `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
+    `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
   - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp.
@@ -119,10 +120,11 @@ then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 
 ## Energy monitoring & history
 
-The PWA splits into three tabs: **Home** (a compact energy tile + a read-only
+The PWA splits into four tabs: **Home** (a compact energy tile + a read-only
 one-line-per-unit AC summary), **AC** (the full unit controls + detail modal),
-and **Energy** (live hero numbers, a flowing line chart of recent
-production/consumption/net, and hourly/daily/monthly aggregate bars).
+**Energy** (live hero numbers, a flowing line chart of recent
+production/consumption/net, and hourly/daily/monthly aggregate bars), and
+**🔌 Plugs** (the local Smart Life devices — see below).
 
 While the webapp runs, a background **sampler** (started in the FastAPI
 lifespan, so it lives and dies with the tray's uvicorn process) persists the
@@ -176,6 +178,20 @@ Then fetch the device list and local keys:
 ```
 
 The wizard writes `devices.json` in the project root. That file contains device IDs, local keys, IPs, protocol versions, and DPS mappings; it is required for LAN-mode control and is gitignored because it contains secrets. TinyTuya may also write `tinytuya.json`; that is gitignored as well. Energy DPS varies by plug model, so `src/tuya_client.py` reads the captured `mapping` block instead of assuming fixed DPS indexes.
+
+### 🔌 Plugs tab
+
+The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tuya devices: a dense mobile grid showing every captured device at once, with an on/off switch where supported, **live wattage on metered plugs** (so solar/load decisions are obvious without opening the vendor app), and open/stop/close controls for covers. It is **cloud-free at runtime** — it reads `devices.json` plus local LAN status only.
+
+- **Endpoints:** `GET /api/tuya` (device cards with switch state, reachability, and live energy fields — the per-device LAN reads run in parallel), `POST /api/tuya/{id}/switch` (`{"on": true|false}`), `POST /api/tuya/{id}/cover` (`{"action": "open"|"close"|"stop"}`).
+- **Cadence:** the tab refreshes every ~15 s **only while it is open** (LAN reads are comparatively expensive), and stops polling when you leave it.
+- **Offline devices:** a powered-off plug or one without a usable LAN IP renders as **Unavailable** without blocking the reachable devices from updating or being controlled.
+- **Missing or stale devices?** Re-run the TinyTuya wizard/snapshot **on the home network** to refresh `devices.json` (new IPs, new devices, updated local keys) — never the cloud:
+
+  ```powershell
+  & .\.venv\Scripts\python.exe -m tinytuya wizard      # full re-pair (new devices / keys)
+  & .\.venv\Scripts\python.exe -m tinytuya snapshot    # quick IP/state refresh of known devices
+  ```
 
 ## Run the webapp (the product)
 
@@ -286,11 +302,12 @@ Print every device's live state:
 A Playwright browser-E2E suite lives in `tests/e2e/`. It boots the real
 webapp (adopting a running one on :8447, else autobooting a disposable
 instance with the energy sampler off) and drives the PWA, **stubbing
-`/api/units` and the `/api/energy*` endpoints with fixtures** so it never
-touches the live cloud or actuates real HVAC. Coverage includes the
-Home/AC/Energy tab navigation, the read-only AC summary, and an Energy-tab
-render (hero numbers + charts). Runs in two projections — Chromium desktop +
-WebKit on an iPhone 14.
+`/api/units`, the `/api/energy*` endpoints, and `/api/tuya*` with fixtures** so
+it never touches the live cloud, the LAN, or actuates real HVAC. Coverage
+includes the Home/AC/Energy/Plugs tab navigation, the read-only AC summary, an
+Energy-tab render (hero numbers + charts), and the Plugs tab (metered-plug
+watts, a switch round-trip, cover controls, and an offline device). Runs in two
+projections — Chromium desktop + WebKit on an iPhone 14.
 
 ```powershell
 & .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
