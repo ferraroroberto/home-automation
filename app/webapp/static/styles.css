@@ -69,6 +69,12 @@ html, body {
 .header h1 { font-size: 1.35rem; margin: 0; color: #f4f7fb; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .status { color: #9fb0c3; font-size: 0.85rem; }
+.weather {
+  color: #f4f7fb;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .header-icon-btn {
   background: #1b2536;
   color: #f4f7fb;
@@ -211,7 +217,8 @@ html, body {
 .unit-card.is-off .unit-room .value,
 .unit-card.is-off .target-value { color: var(--muted); }
 
-/* Energy-flow tile: four compact stats (Solar / House / Grid / Net). */
+/* Energy-flow tile: three compact stats (Production / Consumption / Net grid),
+   mirroring the Energy-tab heroes. */
 .energy-card {
   padding: 11px 12px 24px;
   margin-bottom: 10px;
@@ -231,7 +238,7 @@ html, body {
 }
 .energy-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   align-items: center;
 }
@@ -241,11 +248,8 @@ html, body {
   align-items: center;
   gap: 2px;
 }
-.energy-label { font-size: 0.72rem; color: var(--muted); }
+.energy-label { font-size: 0.72rem; color: var(--muted); text-align: center; }
 .energy-value { font-size: 0.98rem; font-weight: 600; }
-@media (max-width: 360px) {
-  .energy-grid { grid-template-columns: repeat(2, 1fr); }
-}
 
 /* top band: name (opens modal) + power + fan, all on one row */
 .unit-top {

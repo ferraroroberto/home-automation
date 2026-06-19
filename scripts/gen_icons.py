@@ -1,4 +1,4 @@
-"""Generate the PWA icons (a simple thermometer glyph on a dark tile).
+"""Generate the PWA icons (a simple house glyph on a dark tile).
 
 Writes into ``app/webapp/static/``:
 
@@ -28,8 +28,8 @@ ACCENT = (47, 125, 246)  # --accent
 WHITE = (244, 247, 251)
 
 
-def _thermometer(size: int, pad_ratio: float) -> Image.Image:
-    """Draw a thermometer glyph on a full-bleed, opaque dark tile.
+def _house(size: int, pad_ratio: float) -> Image.Image:
+    """Draw a house glyph on a full-bleed, opaque dark tile.
 
     Full-bleed + opaque (RGB, no alpha, no transparent corners) is required
     for the iOS apple-touch-icon: iOS composites any alpha against black and
@@ -37,40 +37,42 @@ def _thermometer(size: int, pad_ratio: float) -> Image.Image:
     renders as an invisible black square on a dark home screen. Android/Chrome
     apply the maskable safe-zone + corner mask themselves, so a flat opaque
     square is the correct source for every target.
+
+    The glyph is a white house silhouette (gabled roof + square body) with an
+    accent-coloured door, centred in a padded safe zone.
     """
     img = Image.new("RGB", (size, size), BG)
     d = ImageDraw.Draw(img)
 
     # Glyph geometry inside a padded safe zone.
     pad = int(size * pad_ratio)
+    left = pad
+    right = size - pad
+    top = pad
+    bottom = size - pad
     cx = size // 2
-    stem_w = int(size * 0.12)
-    bulb_r = int(size * 0.13)
-    top_y = pad + bulb_r // 2
-    bulb_cy = size - pad - bulb_r
+    span = right - left
 
-    # Stem (rounded) in white.
-    d.rounded_rectangle(
-        [cx - stem_w // 2, top_y, cx + stem_w // 2, bulb_cy],
-        radius=stem_w // 2,
+    # Roof: a gable triangle spanning the full width, apex at the top.
+    eaves_y = top + int(span * 0.42)  # where the roof meets the walls
+    d.polygon(
+        [(left, eaves_y), (cx, top), (right, eaves_y)],
         fill=WHITE,
     )
-    # Bulb outline in white.
-    d.ellipse(
-        [cx - bulb_r, bulb_cy - bulb_r, cx + bulb_r, bulb_cy + bulb_r],
-        fill=WHITE,
-    )
-    # Coloured mercury: inner fill + bulb.
-    inner_w = max(2, int(stem_w * 0.42))
-    inner_top = int(size * 0.42)
+
+    # Body: a square wall block under the eaves, inset so the roof overhangs.
+    body_inset = int(span * 0.12)
+    body_left = left + body_inset
+    body_right = right - body_inset
+    d.rectangle([body_left, eaves_y, body_right, bottom], fill=WHITE)
+
+    # Door: a tall accent-coloured opening, bottom-centred in the body.
+    door_w = int(span * 0.22)
+    door_h = int((bottom - eaves_y) * 0.62)
+    door_top = bottom - door_h
     d.rounded_rectangle(
-        [cx - inner_w // 2, inner_top, cx + inner_w // 2, bulb_cy],
-        radius=inner_w // 2,
-        fill=ACCENT,
-    )
-    inner_r = int(bulb_r * 0.62)
-    d.ellipse(
-        [cx - inner_r, bulb_cy - inner_r, cx + inner_r, bulb_cy + inner_r],
+        [cx - door_w // 2, door_top, cx + door_w // 2, bottom],
+        radius=max(2, door_w // 6),
         fill=ACCENT,
     )
     return img
@@ -79,10 +81,10 @@ def _thermometer(size: int, pad_ratio: float) -> Image.Image:
 def main() -> int:
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
-    icon = _thermometer(512, pad_ratio=0.18)
+    icon = _house(512, pad_ratio=0.18)
     icon.save(STATIC_DIR / "icon-512.png")
 
-    maskable = _thermometer(512, pad_ratio=0.28)  # extra safe-zone padding
+    maskable = _house(512, pad_ratio=0.28)  # extra safe-zone padding
     maskable.save(STATIC_DIR / "icon-512-maskable.png")
 
     icon.resize((180, 180), Image.LANCZOS).save(STATIC_DIR / "icon-180.png")
