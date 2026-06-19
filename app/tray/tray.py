@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import List, Optional
 
 # Local imports
-from app.tray.manager import WebappManager, cert_paths, load_config
+from app.webapp.manager import WebappManager, cert_paths, load_config
 from app.tray.single_instance import SingleInstance
 from src.webapp_config import append_auth_token, load_webapp_config
 

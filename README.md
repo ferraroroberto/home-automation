@@ -39,6 +39,7 @@ optional bearer token. Three ways to reach it once running:
 - **`app/webapp/`** — the FastAPI + PWA product.
   - `server.py` — `create_app()`, middleware, static mount, routers, sampler lifespan.
   - `middleware.py` — bearer-token / loopback auth gate.
+  - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate), `tuya` (local Smart Life devices + watts), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
@@ -48,7 +49,6 @@ optional bearer token. Three ways to reach it once running:
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
   - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
-  - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp.
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
