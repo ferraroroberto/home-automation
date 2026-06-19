@@ -326,6 +326,90 @@ def mock_energy(page: Page) -> Callable[..., None]:
     return _install
 
 
+@pytest.fixture
+def sample_plugs() -> List[Dict]:
+    """Four deterministic Tuya device cards covering each render branch:
+    a metered plug (watts), a plain switch, a cover, and an offline device.
+    Names are obvious fixtures, never the user's real devices (public repo)."""
+    return [
+        {
+            "device_id": "plug-1", "name": "Test Heater", "category": "cz",
+            "has_switch": True, "has_cover": False, "metered": True,
+            "reachable": True, "switch_on": True,
+            "power_w": 1450.0, "current_ma": 6300.0, "voltage_v": 230.0,
+            "energy_kwh": 12.5, "error": None,
+        },
+        {
+            "device_id": "plug-2", "name": "Test Lamp", "category": "kg",
+            "has_switch": True, "has_cover": False, "metered": False,
+            "reachable": True, "switch_on": False,
+            "power_w": None, "current_ma": None, "voltage_v": None,
+            "energy_kwh": None, "error": None,
+        },
+        {
+            "device_id": "cover-1", "name": "Test Blind", "category": "cl",
+            "has_switch": False, "has_cover": True, "metered": False,
+            "reachable": True, "switch_on": None,
+            "power_w": None, "current_ma": None, "voltage_v": None,
+            "energy_kwh": None, "error": None,
+        },
+        {
+            "device_id": "plug-3", "name": "Test Offline", "category": "cz",
+            "has_switch": True, "has_cover": False, "metered": True,
+            "reachable": False, "switch_on": None,
+            "power_w": None, "current_ma": None, "voltage_v": None,
+            "energy_kwh": None,
+            "error": "Offline — refresh devices.json if this persists.",
+        },
+    ]
+
+
+@pytest.fixture
+def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
+    """Stub the local Tuya API on ``page``.
+
+    ``GET /api/tuya`` returns the supplied device cards; the switch POST flips
+    ``switch_on`` and echoes the card back (mirroring the server's read-back);
+    the cover POST acknowledges the action. Returns the live list so a test can
+    assert server-bound mutations. Call before navigating.
+    """
+    def _install(devices: List[Dict]) -> List[Dict]:
+        store = {d["device_id"]: d for d in devices}
+
+        def handle(route: Route) -> None:
+            req = route.request
+            if req.method == "GET":
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({"devices": list(store.values())}),
+                )
+                return
+            # POST .../switch or .../cover on /api/tuya/{id}/{verb}
+            parts = req.url.rstrip("/").split("/")
+            verb, did = parts[-1], parts[-2]
+            device = store.get(did)
+            if device is None:
+                route.fulfill(status=404, content_type="application/json",
+                              body=_json({"detail": "not found"}))
+                return
+            body = req.post_data_json or {}
+            if verb == "switch":
+                device["switch_on"] = bool(body.get("on"))
+                route.fulfill(status=200, content_type="application/json",
+                              body=_json(device))
+                return
+            route.fulfill(status=200, content_type="application/json",
+                          body=_json({"device_id": did, "reachable": True,
+                                      "action": body.get("action"), "ok": True}))
+
+        page.route("**/api/tuya", handle)
+        page.route("**/api/tuya/**", handle)
+        return list(store.values())
+
+    return _install
+
+
 def _json(obj) -> str:
     import json
     return json.dumps(obj)

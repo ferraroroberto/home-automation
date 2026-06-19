@@ -351,6 +351,68 @@ html, body {
   color: var(--ink);
 }
 
+/* ----------------------------------------------------- plugs (Smart Life) */
+.plugs-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 520px) {
+  .plugs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.plugs-note { margin: 10px 4px; }
+
+.plug-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  min-width: 0;
+  transition: opacity 0.15s ease;
+}
+.plug-card.is-off { background: var(--card-off); }
+.plug-card.is-unavailable { background: var(--card-off); opacity: 0.6; }
+
+.plug-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.plug-name {
+  font-weight: 650;
+  font-size: 1rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Live wattage — the headline value on a metered plug. */
+.plug-watts {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+/* Cover controls: open / stop / close, three equal buttons. */
+.plug-cover { display: flex; gap: 6px; }
+.cover-btn {
+  flex: 1;
+  background: var(--card-off);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cover-btn:active { transform: scale(0.96); }
+
+.plug-unavailable { color: var(--muted); font-size: 0.82rem; }
+
 /* ----------------------------------------------------------- detail modal */
 .detail-dialog {
   border: none;
