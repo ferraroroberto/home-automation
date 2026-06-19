@@ -31,6 +31,32 @@
       </div>
     </header>
 
+    <!-- Live solar energy flow (GET /api/energy). Hidden until the first
+         successful read; the inverter sleeps at night so Solar shows
+         "asleep" then rather than a stale number. -->
+    <section id="energyFlow" class="card energy-card" aria-label="Energy flow" hidden>
+      <div class="energy-meta" id="enUpdated"></div>
+      <div class="energy-grid">
+        <div class="energy-stat">
+          <span class="energy-label">☀️ Solar</span>
+          <span class="energy-value" id="enPv">—</span>
+        </div>
+        <div class="energy-stat">
+          <span class="energy-label">🏠 House</span>
+          <span class="energy-value" id="enHouse">—</span>
+        </div>
+        <div class="energy-stat">
+          <span class="energy-label">⚡ Grid</span>
+          <span class="energy-value" id="enGrid">—</span>
+        </div>
+        <div class="energy-stat">
+          <span class="energy-label">♻️ Net</span>
+          <span class="energy-value" id="enSurplus">—</span>
+        </div>
+      </div>
+      <p id="enNote" hidden></p>
+    </section>
+
     <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
 
     <div id="toast" class="toast" hidden></div>

@@ -50,7 +50,7 @@ html, body {
 }
 
 .app {
-  max-width: 720px;
+  max-width: 772px;
   margin: 0 auto;
   padding: env(safe-area-inset-top) 12px 24px;
 }
@@ -88,7 +88,7 @@ html, body {
   gap: 10px;
 }
 @media (min-width: 520px) {
-  .units-grid { grid-template-columns: 1fr 1fr; }
+  .units-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ----------------------------------------------------------- card */
@@ -100,20 +100,57 @@ html, body {
 .unit-card {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 9px 14px;
+  gap: 5px;
+  padding: 7px 12px;
+  min-width: 0;
   transition: opacity 0.15s ease;
 }
 .unit-card.is-off { background: var(--card-off); }
 .unit-card.is-off .unit-room .value,
 .unit-card.is-off .target-value { color: var(--muted); }
 
+/* Energy-flow tile: four compact stats (Solar / House / Grid / Net). */
+.energy-card {
+  padding: 11px 12px 24px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.energy-meta {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  transform: translateX(-50%);
+  text-align: center;
+  width: max-content;
+  min-height: 1em;
+  font-size: 0.68rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+.energy-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+.energy-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.energy-label { font-size: 0.72rem; color: var(--muted); }
+.energy-value { font-size: 0.98rem; font-weight: 600; }
+@media (max-width: 360px) {
+  .energy-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* top band: name (opens modal) + power + fan, all on one row */
 .unit-top {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-bottom: 6px;
+  gap: 8px;
+  padding-bottom: 5px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -130,10 +167,10 @@ html, body {
   text-align: left;
   color: inherit;
 }
-.unit-mode-icon { font-size: 1.3rem; flex: none; }
+.unit-mode-icon { font-size: 1.15rem; flex: none; }
 .unit-name {
   font-weight: 650;
-  font-size: 1.05rem;
+  font-size: 1rem;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -147,7 +184,7 @@ html, body {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .unit-room { display: flex; flex-direction: column; }
@@ -166,15 +203,15 @@ html, body {
   align-self: center;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   background: var(--toggle-track);
   border: none;
   border-radius: 999px;
-  padding: 4px 12px 4px 4px;
+  padding: 3px 10px 3px 3px;
   cursor: pointer;
 }
 .toggle .knob {
-  width: 22px; height: 22px;
+  width: 20px; height: 20px;
   border-radius: 50%;
   background: var(--toggle-knob);
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
@@ -186,10 +223,10 @@ html, body {
 .toggle.on .toggle-label { color: #fff; }
 
 /* target stepper */
-.unit-target { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
-.stepper { display: inline-flex; align-items: center; gap: 8px; }
+.unit-target { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.stepper { display: inline-flex; align-items: center; gap: 6px; }
 .stepper .step {
-  width: 32px; height: 32px;
+  width: 28px; height: 28px;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--input-bg);
@@ -199,7 +236,7 @@ html, body {
   color: var(--accent);
 }
 .stepper .step:active { transform: scale(0.92); }
-.target-value { font-size: 1.35rem; font-weight: 700; min-width: 3.4ch; text-align: center; }
+.target-value { font-size: 1.25rem; font-weight: 700; min-width: 3.4ch; text-align: center; }
 
 /* fan select — compact in the top band */
 .unit-fan { flex: none; max-width: 9ch; }
@@ -221,7 +258,12 @@ html, body {
   background: transparent;
 }
 .detail-dialog::backdrop { background: rgba(0,0,0,0.5); }
-.detail-card { background: var(--card); border-radius: 18px; padding: 18px; }
+.detail-card {
+  background: var(--card);
+  border-radius: 18px;
+  color: var(--ink);
+  padding: 18px;
+}
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .detail-header h2 { margin: 0; font-size: 1.15rem; }
 .detail-close {
@@ -232,7 +274,7 @@ html, body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 12px 0; border-top: 1px solid var(--line);
 }
-.detail-card .row span { font-weight: 550; }
+.detail-card .row span { color: var(--ink); font-weight: 550; }
 .detail-card .row .select-native,
 .detail-card .row .input-native { min-width: 55%; }
 .input-native {
