@@ -47,8 +47,9 @@ Windows / PowerShell:
 - CLI smoke: `& .\.venv\Scripts\python.exe -m src.list_devices` (HVAC) · `& .\.venv\Scripts\python.exe -m src.list_energy` (SMA energy)
 - Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8447` then `curl -k https://127.0.0.1:8447/healthz`, `…/api/units` and `…/api/energy` (loopback bypasses the token).
 - Streamlit spike boot check: `& .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py --server.headless true`
+- E2E suite: `& .\.venv\Scripts\python.exe -m pytest tests/e2e` — adopt-or-boot fixture; runs Chromium + WebKit projections. Faster dev loop: `--browser chromium`.
 
-There is no unit-test suite yet — say so plainly rather than claiming "tests pass."
+There is no Python unit-test suite; the e2e suite under `tests/e2e/` is the regression gate — say so plainly rather than claiming "tests pass."
 
 ## This repository
 Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahead of a **solar load-balancing automation** (the eventual goal: shift HVAC load to match PV generation — see the sister `pvgis` repo for the solar-output estimate side).
@@ -61,6 +62,7 @@ Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahe
 - `src/sma_client.py` — async, UI-free read of the **SMA solar/energy** devices (issue #21): prefer Sunny Portal cloud energy-balance when `SMA_CLOUD_PLANT_ID` is set, otherwise local Sunny Home Manager / energy meter over Speedwire (no creds → grid import/export) + the PV inverter over either local ennexOS or Speedwire (creds from `.env` → PV production). `fetch_energy_state()` returns the flattened `EnergyState` (grid/PV/consumption/net); an asleep or unconfigured inverter is `inverter_reachable=False`, not an error. Wraps `pysma-plus`.
 - `src/list_energy.py` — CLI that prints the live energy flow (mirrors `list_devices.py`).
 - `src/webapp_config.py` — webapp host/port + auth secrets (`auth_token` / `auth_password`); real `config/webapp_config.json` gitignored, `…sample.json` committed.
+- `src/display_names.py` — maps unit IDs → custom display-name overrides; persisted atomically to `config/display_names.json` (gitignored, `config/display_names.sample.json` committed). `load_display_names()` / `save_display_names()` / `set_display_name()` — edited via the detail-modal "Display name" input and `PUT /api/units/{id}/display_name`.
 - `app/webapp/` — **the product**: FastAPI (`server.py` + `middleware.py` + `routers/{units,energy,auth,misc}.py`) over the same core, serving a static PWA (`static/`). `GET /api/units` → `fetch_devices()`; `POST /api/units/{id}` → `set_device_state(...)`; `GET /api/energy` → `fetch_energy_state()`. Card grid with inline controls + a top energy-flow tile; per-unit detail modal for mode + vanes. `manager.py` (adopt-or-spawn / restart / stop for uvicorn, reading host/port from `webapp_config`) lives here too — at the **canonical fleet path** `app.webapp.manager` so the `projects.toml` `restart_cmd` is identical to every other tray-owned app.
 - `app/tray/` — the **Windows tray** that owns the webapp lifecycle (`tray.bat` → `python -m app.tray`). `tray.py` (pystray icon + menu), `__main__.py` (entry); the tray imports `WebappManager` from `app.webapp.manager`. `single_instance.py` + `tray_lifecycle.ps1` are **vendored verbatim** from `project-scaffolding` — never edit per-app.
 - `scripts/` — `gen_ssl_cert.py` (self-signed CA+leaf, Tailscale-aware SANs), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons; Pillow dev-only).
