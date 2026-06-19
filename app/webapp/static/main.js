@@ -26,7 +26,7 @@ import {
   onEnergyTab,
   restyleEnergyCharts,
 } from './energy.js';
-import { onPlugsTab } from './plugs.js';
+import { onPlugsTab, wirePlugsToggle } from './plugs.js';
 
 const DEFAULT_RANGE = [16, 31];
 
@@ -406,6 +406,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // cadence (fast on Energy, slow elsewhere) and lazily builds the charts.
   wireTabs();
   wireEnergyControls();
+  wirePlugsToggle();
   // Both the Energy and Plugs tabs adjust their own polling cadence on tab
   // change, so fan the single switcher hook out to both controllers.
   onTabChange(function (tab) { onEnergyTab(tab); onPlugsTab(tab); });

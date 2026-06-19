@@ -19,6 +19,9 @@ export const state = {
   selectedId: null,
   // Local Tuya / Smart Life device cards from GET /api/tuya.
   plugs: [],
+  // When false (default), only cards with has_valid_ip===true are shown.
+  // When true, all cards render (including unregistered/no-IP adapters).
+  plugsShowAll: false,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs'.
   tab: 'home',
   // Active aggregate range on the Energy tab: 'hourly' | 'daily' | 'monthly'.
@@ -32,6 +35,7 @@ export const state = {
 // ----------------------------------------------------------------- DOM
 export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
+export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 
 export const els = {
   grid: document.getElementById('unitsGrid'),
@@ -51,6 +55,8 @@ export const els = {
   // Plugs (Smart Life) tab
   plugsGrid: document.getElementById('plugsGrid'),
   plugsNote: document.getElementById('plugsNote'),
+  plugsToggleBtn: document.getElementById('plugsToggleBtn'),
+  plugsHiddenCount: document.getElementById('plugsHiddenCount'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
   // Energy-flow tile (GET /api/energy), Home tab

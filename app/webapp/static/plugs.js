@@ -10,7 +10,7 @@
 
 'use strict';
 
-import { state, els, toast } from './state.js';
+import { state, els, toast, PLUGS_SHOW_ALL_KEY } from './state.js';
 import { jsonApi } from './api.js';
 
 const POLL_MS = 15_000;
@@ -136,18 +136,63 @@ function buildCard(device) {
 
 export function renderPlugs() {
   els.plugsGrid.innerHTML = '';
+
+  // Update toggle button label to reflect current state.
+  if (els.plugsToggleBtn) {
+    els.plugsToggleBtn.textContent = state.plugsShowAll ? 'Hide unregistered' : 'Show all';
+    els.plugsToggleBtn.classList.toggle('active', state.plugsShowAll);
+  }
+
   if (!state.plugs.length) {
     els.plugsNote.hidden = false;
     els.plugsNote.textContent =
       'No Smart Life devices. Refresh devices.json on the home network ' +
       '(python -m tinytuya wizard) to capture them.';
+    if (els.plugsHiddenCount) els.plugsHiddenCount.hidden = true;
     return;
   }
   els.plugsNote.hidden = true;
+
   const sorted = state.plugs.slice().sort(function (a, b) {
     return (a.name || '').localeCompare(b.name || '');
   });
-  sorted.forEach(function (d) { els.plugsGrid.appendChild(buildCard(d)); });
+
+  // When "show all" is off (default), hide devices without a valid LAN IP.
+  // Registered-but-offline devices (has_valid_ip=true, reachable=false) still show.
+  const visible = state.plugsShowAll
+    ? sorted
+    : sorted.filter(function (d) { return d.has_valid_ip === true; });
+
+  const hiddenCount = sorted.length - visible.length;
+  if (els.plugsHiddenCount) {
+    if (!state.plugsShowAll && hiddenCount > 0) {
+      els.plugsHiddenCount.textContent =
+        hiddenCount + ' unregistered hidden';
+      els.plugsHiddenCount.hidden = false;
+    } else {
+      els.plugsHiddenCount.hidden = true;
+    }
+  }
+
+  visible.forEach(function (d) { els.plugsGrid.appendChild(buildCard(d)); });
+}
+
+// ------------------------------------------------------- toggle wiring
+export function wirePlugsToggle() {
+  // Restore persisted preference on page load.
+  try {
+    const stored = localStorage.getItem(PLUGS_SHOW_ALL_KEY);
+    if (stored === 'true') state.plugsShowAll = true;
+  } catch (_) { /* private mode */ }
+
+  if (!els.plugsToggleBtn) return;
+  els.plugsToggleBtn.addEventListener('click', function () {
+    state.plugsShowAll = !state.plugsShowAll;
+    try {
+      localStorage.setItem(PLUGS_SHOW_ALL_KEY, String(state.plugsShowAll));
+    } catch (_) { /* private mode */ }
+    renderPlugs();
+  });
 }
 
 export async function loadPlugs() {
