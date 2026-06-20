@@ -17,6 +17,11 @@ uvicorn[standard]>=0.29.0
 # Async HTTP for the keyless Open-Meteo weather read (GET /api/weather)
 aiohttp>=3.9.0
 
+# RISCO Cloud alarm (issue #43): async client behind the Security tab. 0.7.x are
+# yanked on PyPI; RISCO periodically blocks third-party clients, so track
+# releases and keep the pin on a known-good floor.
+pyrisco>=0.8.0
+
 # Self-signed CA + leaf cert generation for the HTTPS endpoint
 cryptography>=42.0.0
 

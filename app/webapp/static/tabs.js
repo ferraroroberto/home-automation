@@ -1,4 +1,4 @@
-/* Three-tab switcher: Home | AC | Energy.
+/* Tab switcher: Home | AC | Energy | Plugs | Security.
  *
  * Mirrors app-launcher's nav.tabs pattern: .tab buttons get .active, .pane
  * sections toggle via [hidden]. The chosen tab is remembered in localStorage
@@ -9,7 +9,7 @@
 
 import { els, state, TAB_KEY } from './state.js';
 
-const TABS = ['home', 'ac', 'energy', 'plugs'];
+const TABS = ['home', 'ac', 'energy', 'plugs', 'security'];
 let onChange = function () {};
 
 export function onTabChange(fn) {
@@ -23,10 +23,12 @@ export function setTab(tab) {
   els.tabAc.classList.toggle('active', tab === 'ac');
   els.tabEnergy.classList.toggle('active', tab === 'energy');
   els.tabPlugs.classList.toggle('active', tab === 'plugs');
+  els.tabSecurity.classList.toggle('active', tab === 'security');
   els.paneHome.hidden = tab !== 'home';
   els.paneAc.hidden = tab !== 'ac';
   els.paneEnergy.hidden = tab !== 'energy';
   els.panePlugs.hidden = tab !== 'plugs';
+  els.paneSecurity.hidden = tab !== 'security';
   try { localStorage.setItem(TAB_KEY, tab); } catch (_) { /* private mode */ }
   onChange(tab);
 }
@@ -36,6 +38,7 @@ export function wireTabs() {
   els.tabAc.addEventListener('click', function () { setTab('ac'); });
   els.tabEnergy.addEventListener('click', function () { setTab('energy'); });
   els.tabPlugs.addEventListener('click', function () { setTab('plugs'); });
+  els.tabSecurity.addEventListener('click', function () { setTab('security'); });
 }
 
 export function initialTab() {

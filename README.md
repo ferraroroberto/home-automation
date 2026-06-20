@@ -35,16 +35,18 @@ optional bearer token. Three ways to reach it once running:
   - `list_energy.py` — CLI that prints the live energy flow.
   - `energy_history.py` — SQLite store + rollups for the energy dashboard history.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
+  - `risco_client.py` — async RISCO Cloud alarm state, controls, event log, and detector bypass.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
 - **`app/webapp/`** — the FastAPI + PWA product.
   - `server.py` — `create_app()`, middleware, static mount, routers, sampler lifespan.
   - `middleware.py` — bearer-token / loopback auth gate.
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate), `tuya` (local Smart Life devices + watts), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab),
+    `security.js` (RISCO alarm tab),
     `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
@@ -76,6 +78,33 @@ Copy-Item .env.example .env      # Windows
 
 Then edit `.env` and set `MELCLOUD_EMAIL` and `MELCLOUD_PASSWORD` (your
 MELCloud Home login).
+
+## RISCO alarm / Security tab
+
+The **Security** tab integrates the RISCO Cloud alarm through `pyrisco` for
+state/events and the native RISCO WebUI command path for arm/disarm actions.
+It shows the current alarm state, one-tap controls, the recent event log, and a
+collapsible detector list with per-zone bypass toggles.
+
+Config in `.env`:
+
+| Key | Meaning |
+|-----|---------|
+| `RISCO_USERNAME` | RISCO Cloud login email. Use a dedicated sub-account if possible so the dashboard does not compete with the phone app session. |
+| `RISCO_PASSWORD` | RISCO Cloud password. |
+| `RISCO_PIN` | Panel PIN used by RISCO Cloud/WebUI commands. |
+| `RISCO_PERIMETER_GROUP` | Optional group letter used only to label partially-set states more precisely. |
+| `RISCO_PARTIAL_GROUP` | Optional group letter used only to label partially-set states more precisely. |
+
+Read-only smoke command:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_security
+```
+
+RISCO periodically blocks third-party clients. If login starts failing after
+credentials were known-good, check for a newer `pyrisco` release before changing
+the app code.
 
 ## SMA solar / energy
 
@@ -120,14 +149,15 @@ then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 
 ## Energy monitoring & history
 
-The PWA splits into four tabs: **Home** (a compact energy tile + a read-only
+The PWA splits into five tabs: **Home** (a compact energy tile + a read-only
 one-line-per-unit AC summary), **AC** (the full unit controls + detail modal),
 **Energy** (an SMA-style solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
 flow row with a solar deficit/surplus banner, self-sufficiency / self-consumption
 tiles, today's generation & consumption split cards, a savings estimate, an
 all-positive Generation/Grid-supplied/Consumption live chart, and a
 Day/Week/Month/Year/Σ history chart), and **🔌 Plugs** (the local Smart Life
-devices — see below).
+devices — see below), and **🛡️ Security** (RISCO alarm controls, event log, and
+detector bypass).
 
 While the webapp runs, a background **sampler** (started in the FastAPI
 lifespan, so it lives and dies with the tray's uvicorn process) persists the
