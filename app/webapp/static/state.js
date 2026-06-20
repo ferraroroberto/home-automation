@@ -60,7 +60,6 @@ export const els = {
   paneSecurity: document.getElementById('paneSecurity'),
   // Security (RISCO alarm) tab
   securityState: document.getElementById('securityState'),
-  securityMeta: document.getElementById('securityMeta'),
   securityActions: document.getElementById('securityActions'),
   securityEvents: document.getElementById('securityEvents'),
   securityEventsNote: document.getElementById('securityEventsNote'),

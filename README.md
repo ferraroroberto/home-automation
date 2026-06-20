@@ -83,8 +83,14 @@ MELCloud Home login).
 
 The **Security** tab integrates the RISCO Cloud alarm through `pyrisco` for
 state/events and the native RISCO WebUI command path for arm/disarm actions.
-It shows the current alarm state, one-tap controls, the recent event log, and a
-collapsible detector list with per-zone bypass toggles.
+It shows the current alarm state as a single centered `Current state: <Word>`
+line (colour-coded), one row of rounded action pills (`Disarm` / `Partial` /
+`Perimeter` / `Full`) where the current state is highlighted and reachable
+actions are quieter outlines, the recent event log, and a collapsible detector
+list with per-zone bypass toggles. The first button reads **`Clear`** (and is
+only tappable) when a trouble or alarm-memory condition is present; tapping it
+clears that condition. Every action shows an optimistic toast on tap, then
+re-renders from the panel's live state.
 
 Config in `.env`:
 
