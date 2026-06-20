@@ -25,10 +25,11 @@ const TODAY_MS = 60_000;      // today's kWh totals move slowly — refresh gent
 const LIVE_WINDOW_MIN = 60;   // minutes of recent history seeded into the live chart
 const LIVE_MAX_POINTS = 400;  // ring-buffer cap on the live chart
 
-// Rough, clearly-labelled estimates for the savings card.
+// Rough, clearly-labelled estimates for the savings card. The € figure is no
+// longer a flat rate — it comes from the tiered tariff via /api/energy/cost
+// (see loadSavingsEur); only the CO₂/trees credit stays a simple factor.
 const CO2_KG_PER_KWH = 0.4;       // grid emission factor (kg CO₂ avoided / kWh)
 const CO2_KG_PER_TREE_YEAR = 21;  // sequestration per tree-year
-const EUR_PER_KWH = 0.10;         // flat placeholder rate (tiered rates: #46)
 
 let energyTimer = null;
 let todayTimer = null;
@@ -191,13 +192,10 @@ function renderToday(b) {
     els.consPct.textContent = '—';
   }
 
-  // Savings: from today's clean PV generation. Rough, labelled an estimate.
-  // € is on self-consumed PV only (the kWh not bought from the grid) at a flat
-  // placeholder rate; CO₂/trees credit all generation. Exact tiered rates: #46.
+  // Savings: CO₂/trees credit all of today's clean PV generation. The € figure
+  // is filled by loadSavingsEur() from the tiered tariff (avoided grid cost of
+  // the self-consumed PV) so it agrees with the cost breakdown below.
   const co2 = pvWh != null ? (pvWh / 1000) * CO2_KG_PER_KWH : null;
-  const selfPvWh = pvWh != null && pvWh > 0 ? Math.max(0, pvWh - exportWh) : null;
-  const eur = selfPvWh != null ? (selfPvWh / 1000) * EUR_PER_KWH : null;
-  els.savEur.textContent = eur != null ? '€' + eur.toFixed(2) : '—';
   els.savCo2.textContent = co2 != null ? co2.toFixed(1) + ' kg' : '—';
   els.savTrees.textContent = co2 != null ? (co2 / CO2_KG_PER_TREE_YEAR).toFixed(2) : '—';
 }
@@ -209,6 +207,115 @@ async function loadToday() {
   } catch (_) {
     // Secondary — keep whatever the last successful read rendered.
   }
+  loadSavingsEur();  // tiered € for the savings card (today, all-in avoided cost)
+}
+
+// --------------------------------------------------- cost & savings table
+function currencySymbol(cur) {
+  return cur === 'EUR' ? '€' : (cur ? cur + ' ' : '€');
+}
+
+function num2(v) {
+  return Number(v || 0).toFixed(2);
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+function costRow(label, hours, rate, used, grid, solar, cost, saved, sym, cls) {
+  const name = '<th scope="row"><span class="cost-period">' + esc(label) + '</span>'
+    + (hours ? '<span class="cost-hours">' + esc(hours) + '</span>' : '') + '</th>';
+  const rateCell = '<td class="cost-rate">' + (rate != null ? sym + Number(rate).toFixed(3) : '') + '</td>';
+  return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>'
+    + name
+    + rateCell
+    + '<td>' + num2(used) + '</td>'
+    + '<td>' + num2(grid) + '</td>'
+    + '<td>' + num2(solar) + '</td>'
+    + '<td>' + sym + num2(cost) + '</td>'
+    + '<td class="cost-saved">' + sym + num2(saved) + '</td>'
+    + '</tr>';
+}
+
+function costStat(label, value, cls) {
+  return '<div class="cost-stat"><span class="cost-stat-label">' + esc(label) + '</span>'
+    + '<span class="cost-stat-value' + (cls ? ' ' + cls : '') + '">' + esc(value) + '</span></div>';
+}
+
+function renderCost(body) {
+  const periods = (body && body.periods) || [];
+  const totals = body && body.totals;
+  const summary = body && body.summary;
+  const sym = currencySymbol(body && body.currency);
+  const hasData = !!(totals && totals.consumption_kwh > 0);
+
+  els.costEmpty.hidden = hasData;
+  if (!hasData) {
+    els.costBody.innerHTML = '';
+    els.costFoot.innerHTML = '';
+    els.costSummary.innerHTML = '';
+    els.costNote.textContent = '';
+    return;
+  }
+
+  els.costBody.innerHTML = periods.map(function (p) {
+    return costRow(p.label, p.hours, p.rate_eur_kwh, p.consumption_kwh, p.grid_kwh,
+      p.solar_kwh, p.grid_cost, p.savings, sym, '');
+  }).join('');
+  els.costFoot.innerHTML = totals
+    ? costRow('Total', '', null, totals.consumption_kwh, totals.grid_kwh, totals.solar_kwh,
+        totals.grid_cost, totals.savings, sym, 'cost-total')
+    : '';
+
+  els.costSummary.innerHTML = (summary && totals) ? [
+    costStat('Generated', num2(totals.generation_kwh) + ' kWh'),
+    costStat('Saved', sym + num2(totals.savings), 'cost-pos'),
+    costStat('Grid cost', sym + num2(totals.grid_cost)),
+    costStat('Fixed', sym + num2(summary.fixed_cost)),
+    costStat('Est. bill', sym + num2(summary.estimated_bill)),
+    costStat('Without solar', sym + num2(summary.cost_without_solar)),
+  ].join('') : '';
+
+  if (body && body.configured === false) {
+    els.costNote.textContent = 'Flat €0.10/kWh estimate — set config/tariff.json for tiered rates.';
+  } else if (body) {
+    els.costNote.textContent = (body.tariff_name || 'Tariff') + ' · estimate, all-in prices.';
+  } else {
+    els.costNote.textContent = '';
+  }
+}
+
+async function loadCost(range) {
+  try {
+    const body = await jsonApi('/api/energy/cost?range=' + encodeURIComponent(range));
+    renderCost(body);
+  } catch (_) {
+    els.costEmpty.hidden = false;
+  }
+}
+
+// The savings card € is always "today" (its own day query), independent of the
+// cost table's selected range, and uses the tiered avoided-cost figure.
+async function loadSavingsEur() {
+  try {
+    const body = await jsonApi('/api/energy/cost?range=day');
+    const sym = currencySymbol(body && body.currency);
+    const s = body && body.totals ? body.totals.savings : null;
+    els.savEur.textContent = s != null ? sym + Number(s).toFixed(2) : '—';
+  } catch (_) {
+    // keep the last rendered value
+  }
+}
+
+function setCostRange(range) {
+  state.costRange = range;
+  els.costRangeBtns.forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.crange === range);
+  });
+  loadCost(range);
 }
 
 // --------------------------------------------------------------- charts
@@ -248,6 +355,9 @@ export function wireEnergyControls() {
   els.rangeBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setRange(btn.dataset.range); });
   });
+  els.costRangeBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () { setCostRange(btn.dataset.crange); });
+  });
 }
 
 // --------------------------------------------------------- cadence + tabs
@@ -267,6 +377,7 @@ export function onEnergyTab(tab) {
     ensureCharts();
     loadLiveHistory();
     loadAggregate(state.range);
+    loadCost(state.costRange);  // cost & savings breakdown table
     loadEnergy();          // immediate refresh on entry
     loadToday();           // today's split cards + savings
     schedule(LIVE_MS);

@@ -78,9 +78,16 @@ def test_energy_tab_renders_flow_and_charts(
 
     # Today's generation card is populated from /api/energy/today.
     expect(page.locator("#genTotal")).to_have_text("9.00 kWh")
-    # Savings: € on today's self-consumed PV (9.0 − 3.5 kWh fed in) at €0.10/kWh.
-    expect(page.locator("#savEur")).to_have_text("€0.55")
+    # Savings €: now the tiered avoided-cost from /api/energy/cost?range=day
+    # (the cost fixture's totals.savings), not the old flat-rate computation.
+    expect(page.locator("#savEur")).to_have_text("€0.37")
 
     # Both chart canvases render once the pane is shown.
     expect(page.locator("#liveChart")).to_be_visible()
     expect(page.locator("#aggChart")).to_be_visible()
+
+    # Cost & savings breakdown table: a row per tariff period + a Total row,
+    # fed by the /api/energy/cost stub.
+    expect(page.locator("#costBody tr")).to_have_count(3)
+    expect(page.locator("#costFoot")).to_contain_text("Total")
+    expect(page.locator("#costFoot")).to_contain_text("€0.37")

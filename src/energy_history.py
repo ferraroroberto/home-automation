@@ -431,6 +431,33 @@ def aggregate(
     raise ValueError(f"unknown period: {period!r}")
 
 
+def hourly_range(period: str = "month", now: Optional[int] = None, path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Hourly buckets covering one of the five history windows, oldest first.
+
+    Unlike :func:`framed_buckets` (which groups week/month/year to day or month
+    resolution for charting), this keeps **hour** resolution so a time-of-use
+    tariff can assign each hour to its period. Windows match the chart ranges:
+    ``day`` from local midnight, ``week``/``month``/``year`` rolling back 7/30/365
+    days, ``total`` all retained history. Each bucket carries ``hour_start`` plus
+    the usual pv/house/import/export Wh (see :func:`_hourly_since`).
+    """
+    current = int(now if now is not None else time.time())
+    if period == "day":
+        dt_now = datetime.fromtimestamp(current)
+        since = int(datetime(dt_now.year, dt_now.month, dt_now.day).timestamp())
+    elif period == "week":
+        since = current - 7 * 24 * _HOUR
+    elif period == "month":
+        since = current - 30 * 24 * _HOUR
+    elif period == "year":
+        since = current - 365 * 24 * _HOUR
+    elif period == "total":
+        since = 0
+    else:
+        raise ValueError(f"unknown period: {period!r}")
+    return _hourly_since(since, current, path)
+
+
 def _group(hours: List[Dict[str, Any]], n: int, fmt_key: str, fmt_label: str) -> List[Dict[str, Any]]:
     """Group hourly rollups into day/month buckets (local time), keep last ``n``."""
     buckets: Dict[str, Dict[str, Any]] = {}

@@ -34,6 +34,7 @@ optional bearer token. Three ways to reach it once running:
   - `sma_client.py` — async read of the local SMA solar/energy devices (meter + inverter).
   - `list_energy.py` — CLI that prints the live energy flow.
   - `energy_history.py` — SQLite store + rollups for the energy dashboard history.
+  - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `risco_client.py` — async RISCO Cloud alarm state, controls, event log, and detector bypass.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
@@ -42,7 +43,7 @@ optional bearer token. Three ways to reach it once running:
   - `middleware.py` — bearer-token / loopback auth gate.
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab),
@@ -160,10 +161,11 @@ one-line-per-unit AC summary), **AC** (the full unit controls + detail modal),
 **Energy** (an SMA-style solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
 flow row with a colour-coded grid arrow (blue ◀ importing, green ▶ exporting),
 self-sufficiency / self-consumption tiles, today's generation & consumption split
-cards, a savings estimate (€ saved on self-consumed PV at a flat €0.10/kWh, plus
-CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Consumption live
-chart, and a
-Day/Week/Month/Year/Σ history chart), and **🔌 Plugs** (the local Smart Life
+cards, a savings estimate (€ saved on self-consumed PV at the configured tiered
+rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Consumption
+live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
+breakdown** table (grid energy priced per time-of-use period, self-consumed PV
+valued at the avoided rate — see *Electricity tariff* below), and **🔌 Plugs** (the local Smart Life
 devices — see below), and **🛡️ Security** (RISCO alarm controls, event log, and
 detector bypass).
 
@@ -178,9 +180,12 @@ a misleading 0, so the charts show a gap and aggregates flag `pv_missing`.
   data — never committed).
 - **Endpoints:** `GET /api/energy` (live snapshot), `GET /api/energy/today`
   (today's totals for the split + savings cards), `GET /api/energy/history?minutes=N`
-  (raw samples for the live chart), and `GET /api/energy/aggregate?range=day|week|month|year|total`
+  (raw samples for the live chart), `GET /api/energy/aggregate?range=day|week|month|year|total`
   (energy-per-bucket, Wh — `day` is a 24h fill-up frame; `week`/`month`/`year` are
-  rolling data-only windows; `total` is all retained history).
+  rolling data-only windows; `total` is all retained history), and
+  `GET /api/energy/cost?range=day|week|month|year|total` (tiered cost & savings
+  breakdown over the same windows — per-period consumption/grid/solar/cost/savings
+  plus a fixed-cost + estimated-bill summary; see *Electricity tariff* below).
 - **Cadence/retention knobs** (`.env`, all optional):
 
 | Key | Default | Meaning |
@@ -196,6 +201,38 @@ The live display refreshes every ~5 s while the Energy tab is open and every
 than `ENERGY_PERSIST_INTERVAL_S`). Energy (Wh) is integrated from the samples
 (rectangular rule, gaps capped) — a household-monitoring estimate, not a
 billing-grade meter read.
+
+### Electricity tariff (cost & savings)
+
+The Energy tab's **cost & savings breakdown** prices grid energy per time-of-use
+period and values the self-consumed PV at the same avoided rate. Rates come from
+a per-machine tariff file:
+
+- **Config:** `config/tariff.json` (gitignored) — copy `config/tariff.sample.json`
+  and fill in your rates from your electricity invoice. Each period's
+  `price_eur_kwh` is **pre-tax** (energy commodity + access tolls + system
+  charges); the app adds `electricity_tax_eur_kwh` and `vat_pct` on top, so the
+  all-in price of a kWh is `(price + electricity_tax) × (1 + vat_pct/100)`.
+- **Calendar:** `"2.0TD"` applies the Spanish 2.0TD time-of-use bands (P1 punta,
+  P2 llano, P3 valle, weekends/holidays all-valle); any other value treats the
+  first period as a single flat rate. Optional `holidays` (a list of
+  `"YYYY-MM-DD"`) are billed as valle.
+- **Fallback:** with no `config/tariff.json`, the breakdown still renders at a
+  flat **€0.10/kWh** estimate (`configured: false`) — clearly labelled in the UI.
+- **What it computes:** per-period consumption / grid-import / solar-covered kWh,
+  grid cost €, and savings € (avoided cost of self-consumed PV), plus a summary
+  with the prorated fixed standing charge, an estimated bill, and the "without
+  solar" cost. Export is credited at `export_eur_kwh` (0 = no feed-in payment).
+
+How the period prices and the model are derived from a real PVPC 2.0TD invoice —
+including the PVPC hourly-market approximation and the bono-social handling — is
+documented in [`docs/tariff-model.md`](docs/tariff-model.md).
+
+> **Data-retention caveat.** The breakdown is computed from the local history DB,
+> so the **Year** and **Σ Total** windows only fill in as the sampler accrues
+> data (hourly rollups are kept `ENERGY_HOURLY_RETENTION_DAYS`, default ~400
+> days). A freshly-started instance shows mostly empty long windows until history
+> builds up — this is an estimate from monitored data, not your utility's meter.
 
 ## Weather
 
