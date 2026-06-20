@@ -235,6 +235,49 @@ html, body {
 .savings-label { font-size: 0.78rem; color: var(--muted); }
 .savings-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
+/* --------------------------------------------- cost & savings breakdown */
+.cost-card { padding: 12px; margin-bottom: 12px; }
+.cost-table-wrap { width: 100%; overflow-x: auto; }
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.86rem;
+}
+.cost-table th,
+.cost-table td { padding: 7px 6px; text-align: right; white-space: nowrap; }
+.cost-table thead th {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--line);
+}
+.cost-table th[scope="row"] { text-align: left; font-weight: 600; }
+.cost-table thead th:first-child { text-align: left; }
+.cost-table tbody td { border-bottom: 1px solid var(--line); }
+.cost-period { display: block; }
+.cost-hours { display: block; font-size: 0.68rem; font-weight: 400; color: var(--muted); }
+.cost-table .cost-rate { color: var(--muted); }
+.cost-table .cost-saved { color: var(--on); font-weight: 600; }
+.cost-table .cost-total th,
+.cost-table .cost-total td {
+  border-top: 2px solid var(--line);
+  font-weight: 700;
+}
+.cost-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.cost-stat { display: flex; flex-direction: column; gap: 2px; }
+.cost-stat-label { font-size: 0.72rem; color: var(--muted); }
+.cost-stat-value { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cost-stat-value.cost-pos { color: var(--on); }
+.cost-note { margin: 10px 0 0; }
+
 /* ----------------------------------------------------- energy charts */
 .chart-card { padding: 12px; margin-bottom: 12px; }
 .chart-title { margin: 0 0 8px; font-size: 0.95rem; }

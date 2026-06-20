@@ -31,6 +31,8 @@ export const state = {
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
   range: 'day',
+  // Active range for the Energy-tab cost & savings breakdown table.
+  costRange: 'day',
   // Live Chart.js instances (created lazily on the Energy tab); kept so the
   // theme toggle can restyle and the live poller can push points.
   liveChart: null,
@@ -132,7 +134,15 @@ export const els = {
   aggChart: document.getElementById('aggChart'),
   aggEmpty: document.getElementById('aggEmpty'),
   // History range buttons (Day / Week / Month / Year / Σ) — driven by data-range.
-  rangeBtns: Array.from(document.querySelectorAll('.range-tabs .range-tab')),
+  rangeBtns: Array.from(document.querySelectorAll('#aggRange .range-tab')),
+  // Energy tab: cost & savings breakdown
+  costMeta: document.getElementById('costMeta'),
+  costBody: document.getElementById('costBody'),
+  costFoot: document.getElementById('costFoot'),
+  costSummary: document.getElementById('costSummary'),
+  costEmpty: document.getElementById('costEmpty'),
+  costNote: document.getElementById('costNote'),
+  costRangeBtns: Array.from(document.querySelectorAll('#costRange .range-tab')),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

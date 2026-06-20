@@ -12,12 +12,14 @@ so ``pv_power_w`` is ``null`` and ``inverter_reachable`` is ``false`` then.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Query
 
-from src.energy_history import aggregate, framed_buckets, recent_samples
+from src.energy_history import aggregate, framed_buckets, hourly_range, recent_samples
 from src.sma_client import EnergyState, fetch_energy_state
+from src.tariff import cost_breakdown, load_tariff
 
 logger = logging.getLogger(__name__)
 
@@ -102,3 +104,43 @@ async def get_energy_aggregate(
         logger.warning("⚠️  Failed to build energy history: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to aggregate: {exc}")
     return {"range": range, "buckets": buckets}
+
+
+# Nominal day-count per window for prorating the fixed standing charge. ``total``
+# is sized to the actual span of retained data instead (computed below).
+_WINDOW_DAYS = {"day": 1.0, "week": 7.0, "month": 30.0, "year": 365.0}
+
+
+def _window_days(range_: str, buckets: List[Dict[str, Any]]) -> float:
+    """Days the window spans, for prorating fixed costs."""
+    if range_ in _WINDOW_DAYS:
+        return _WINDOW_DAYS[range_]
+    if not buckets:  # total, but no history yet
+        return 0.0
+    first = min(int(b["hour_start"]) for b in buckets)
+    return max(1.0, (time.time() - first) / 86_400.0)
+
+
+@router.get("/api/energy/cost")
+async def get_energy_cost(
+    range: str = Query("month", pattern="^(day|week|month|year|total)$"),
+) -> Dict[str, Any]:
+    """Tiered cost & savings breakdown for a window (issue #46).
+
+    Splits the window's hourly energy into time-of-use periods (P1/P2/P3 for a
+    Spanish 2.0TD tariff), prices grid import at each period's all-in rate, and
+    values self-consumed PV at that same avoided rate (the savings). Returns
+    per-period rows + totals + a fixed-cost / estimated-bill summary. Falls back
+    to a flat 0.10 €/kWh estimate (``configured: false``) when no tariff is set.
+    """
+    try:
+        buckets = hourly_range(range)
+        tariff = load_tariff()
+        result = cost_breakdown(buckets, tariff, _window_days(range, buckets))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to build energy cost breakdown: %s", exc)
+        raise HTTPException(status_code=502, detail=f"failed to build cost: {exc}")
+    result["range"] = range
+    return result

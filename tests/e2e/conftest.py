@@ -284,15 +284,16 @@ def mock_energy(page: Page) -> Callable[..., None]:
 
     Covers the live snapshot (``/api/energy``), today's totals
     (``/api/energy/today``), the live-chart history (``/api/energy/history``),
-    and the history buckets (``/api/energy/aggregate``). Call before navigating.
-    Defaults describe a sunny exporting moment so the flow row and charts have
-    content.
+    the history buckets (``/api/energy/aggregate``), and the tiered cost & savings
+    breakdown (``/api/energy/cost``). Call before navigating. Defaults describe a
+    sunny exporting moment so the flow row, charts, and cost table have content.
     """
     def _install(
         snapshot: Optional[Dict] = None,
         samples: Optional[List[Dict]] = None,
         buckets: Optional[List[Dict]] = None,
         today: Optional[Dict] = None,
+        cost: Optional[Dict] = None,
     ) -> None:
         snap = snapshot or {
             "grid_import_w": 0.0, "grid_export_w": 1200.0,
@@ -332,6 +333,30 @@ def mock_energy(page: Page) -> Callable[..., None]:
         page.route("**/api/energy/aggregate*", lambda r: r.fulfill(
             status=200, content_type="application/json",
             body=_json({"range": "day", "buckets": aggs})))
+        cost_body = cost if cost is not None else {
+            "currency": "EUR", "tariff_name": "Test 2.0TD", "calendar": "2.0TD",
+            "configured": True, "range": "day",
+            "periods": [
+                {"key": "P3", "label": "Off-peak", "hours": "0–8 · weekends",
+                 "price_eur_kwh": 0.11, "rate_eur_kwh": 0.121,
+                 "consumption_kwh": 2.0, "grid_kwh": 1.5, "solar_kwh": 0.5,
+                 "generation_kwh": 0.5, "export_kwh": 0.0, "grid_cost": 0.18, "savings": 0.06},
+                {"key": "P2", "label": "Standard", "hours": "8–10 · 14–18 · 22–24",
+                 "price_eur_kwh": 0.13, "rate_eur_kwh": 0.143,
+                 "consumption_kwh": 1.0, "grid_kwh": 0.4, "solar_kwh": 0.6,
+                 "generation_kwh": 0.8, "export_kwh": 0.1, "grid_cost": 0.06, "savings": 0.09},
+                {"key": "P1", "label": "Peak", "hours": "10–14 · 18–22",
+                 "price_eur_kwh": 0.2, "rate_eur_kwh": 0.22,
+                 "consumption_kwh": 1.5, "grid_kwh": 0.5, "solar_kwh": 1.0,
+                 "generation_kwh": 1.2, "export_kwh": 0.2, "grid_cost": 0.11, "savings": 0.22},
+            ],
+            "totals": {"consumption_kwh": 4.5, "grid_kwh": 2.4, "solar_kwh": 2.1,
+                       "generation_kwh": 2.5, "export_kwh": 0.3, "grid_cost": 0.35, "savings": 0.37},
+            "summary": {"fixed_cost": 0.58, "export_credit": 0.0,
+                        "cost_without_solar": 0.72, "estimated_bill": 0.93, "days": 1.0},
+        }
+        page.route("**/api/energy/cost*", lambda r: r.fulfill(
+            status=200, content_type="application/json", body=_json(cost_body)))
 
     return _install
 

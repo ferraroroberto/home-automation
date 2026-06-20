@@ -1,0 +1,22 @@
+{
+  "_doc": "Electricity tariff model for the Energy-tab cost/savings breakdown. Copy this file to config/tariff.json (gitignored) and fill in YOUR rates from your electricity invoice. See docs/tariff-model.md for how each field maps to a Spanish PVPC 2.0TD bill and how to derive the per-period prices. All prices below are PRE-TAX (energy commodity + access tolls + system charges); electricity tax and VAT are added by the app. When config/tariff.json is absent the app falls back to a flat 0.10 EUR/kWh estimate.",
+  "currency": "EUR",
+  "tariff_name": "Example 2.0TD time-of-use tariff",
+  "calendar": "2.0TD",
+  "holidays": [],
+  "vat_pct": 10,
+  "electricity_tax_eur_kwh": 0.001,
+  "periods": {
+    "P1": { "label": "Peak", "price_eur_kwh": 0.20 },
+    "P2": { "label": "Standard", "price_eur_kwh": 0.13 },
+    "P3": { "label": "Off-peak", "price_eur_kwh": 0.11 }
+  },
+  "export_eur_kwh": 0.0,
+  "fixed": {
+    "contracted_power_kw": 4.6,
+    "power_term_p1_eur_kw_year": 27.0,
+    "power_term_p3_eur_kw_year": 0.7,
+    "marketing_margin_eur_kw_year": 3.11,
+    "meter_rental_eur_day": 0.0266
+  }
+}

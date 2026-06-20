@@ -199,7 +199,7 @@
         <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
       </section>
 
-      <nav class="range-tabs" aria-label="History range">
+      <nav class="range-tabs" id="aggRange" aria-label="History range">
         <button id="rangeDay" type="button" class="range-tab active" data-range="day">Day</button>
         <button id="rangeWeek" type="button" class="range-tab" data-range="week">Week</button>
         <button id="rangeMonth" type="button" class="range-tab" data-range="month">Month</button>
@@ -211,6 +211,39 @@
         <h3 class="chart-title">Generation &amp; consumption</h3>
         <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
         <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
+      </section>
+
+      <!-- Cost & savings breakdown — grid energy priced per tariff period, with
+           self-consumed PV valued at the avoided rate, across the five windows. -->
+      <section class="card cost-card" aria-label="Cost and savings breakdown">
+        <h3 class="chart-title">💶 Cost &amp; savings <span id="costMeta" class="muted small"></span></h3>
+        <nav class="range-tabs" id="costRange" aria-label="Cost range">
+          <button type="button" class="range-tab active" data-crange="day">Day</button>
+          <button type="button" class="range-tab" data-crange="week">Week</button>
+          <button type="button" class="range-tab" data-crange="month">Month</button>
+          <button type="button" class="range-tab" data-crange="year">Year</button>
+          <button type="button" class="range-tab" data-crange="total">Σ</button>
+        </nav>
+        <div class="cost-table-wrap">
+          <table class="cost-table">
+            <thead>
+              <tr>
+                <th scope="col">Period</th>
+                <th scope="col">Rate</th>
+                <th scope="col">Used</th>
+                <th scope="col">Grid</th>
+                <th scope="col">Solar</th>
+                <th scope="col">Cost</th>
+                <th scope="col">Saved</th>
+              </tr>
+            </thead>
+            <tbody id="costBody"></tbody>
+            <tfoot id="costFoot"></tfoot>
+          </table>
+        </div>
+        <div class="cost-summary" id="costSummary"></div>
+        <p id="costEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
+        <p class="muted small cost-note" id="costNote"></p>
       </section>
     </section>
 
