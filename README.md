@@ -38,8 +38,9 @@ optional bearer token. Three ways to reach it once running:
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `risco_client.py` — async RISCO Cloud alarm state, controls, event log, and detector bypass.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
+  - `static_versioning.py` — build identity (git SHA) + content-hash (`?v=`) stamping of the PWA's `.js`/`.css` URLs so a mobile PWA never serves stale cached code.
 - **`app/webapp/`** — the FastAPI + PWA product.
-  - `server.py` — `create_app()`, middleware, static mount, routers, sampler lifespan.
+  - `server.py` — `create_app()`, middleware, caching static mount, routers, sampler lifespan.
   - `middleware.py` — bearer-token / loopback auth gate.
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
