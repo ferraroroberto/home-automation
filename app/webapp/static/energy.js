@@ -28,6 +28,7 @@ const LIVE_MAX_POINTS = 400;  // ring-buffer cap on the live chart
 // Rough, clearly-labelled estimates for the savings card.
 const CO2_KG_PER_KWH = 0.4;       // grid emission factor (kg CO₂ avoided / kWh)
 const CO2_KG_PER_TREE_YEAR = 21;  // sequestration per tree-year
+const EUR_PER_KWH = 0.10;         // flat placeholder rate (tiered rates: #46)
 
 let energyTimer = null;
 let todayTimer = null;
@@ -119,20 +120,6 @@ export function renderEnergy(e) {
     els.wireGrid.textContent = '·';
   }
 
-  // --- Solar deficit / surplus banner. ---
-  if (surplus == null) {
-    els.flowBanner.hidden = true;
-  } else {
-    els.flowBanner.hidden = false;
-    const exporting = surplus > 0;
-    const deficit = surplus < 0;
-    els.flowBanner.classList.toggle('is-surplus', exporting);
-    els.flowBanner.classList.toggle('is-deficit', deficit);
-    els.flowBannerLabel.textContent =
-      exporting ? 'Solar surplus' : deficit ? 'Solar deficit' : 'Balanced';
-    els.flowBannerValue.textContent = fmtSignedW(surplus);
-  }
-
   // --- Live efficiency tiles. ---
   els.liveSelfSuff.textContent = fmtPct(selfSufficiencyFrac(solar, e.house_consumption_w));
   els.liveSelfCons.textContent = fmtPct(selfConsumptionFrac(solar, e.house_consumption_w));
@@ -205,7 +192,12 @@ function renderToday(b) {
   }
 
   // Savings: from today's clean PV generation. Rough, labelled an estimate.
+  // € is on self-consumed PV only (the kWh not bought from the grid) at a flat
+  // placeholder rate; CO₂/trees credit all generation. Exact tiered rates: #46.
   const co2 = pvWh != null ? (pvWh / 1000) * CO2_KG_PER_KWH : null;
+  const selfPvWh = pvWh != null && pvWh > 0 ? Math.max(0, pvWh - exportWh) : null;
+  const eur = selfPvWh != null ? (selfPvWh / 1000) * EUR_PER_KWH : null;
+  els.savEur.textContent = eur != null ? '€' + eur.toFixed(2) : '—';
   els.savCo2.textContent = co2 != null ? co2.toFixed(1) + ' kg' : '—';
   els.savTrees.textContent = co2 != null ? (co2 / CO2_KG_PER_TREE_YEAR).toFixed(2) : '—';
 }

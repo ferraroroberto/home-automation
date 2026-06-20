@@ -96,9 +96,6 @@ export const els = {
   flowNodeHouse: document.getElementById('flowNodeHouse'),
   wirePv: document.getElementById('wirePv'),
   wireGrid: document.getElementById('wireGrid'),
-  flowBanner: document.getElementById('flowBanner'),
-  flowBannerLabel: document.getElementById('flowBannerLabel'),
-  flowBannerValue: document.getElementById('flowBannerValue'),
   // Energy tab: live efficiency tiles
   liveSelfSuff: document.getElementById('liveSelfSuff'),
   liveSelfCons: document.getElementById('liveSelfCons'),
@@ -114,6 +111,7 @@ export const els = {
   consBar: document.getElementById('consBar'),
   consPct: document.getElementById('consPct'),
   // Energy tab: savings
+  savEur: document.getElementById('savEur'),
   savCo2: document.getElementById('savCo2'),
   savTrees: document.getElementById('savTrees'),
   // Energy tab: charts, range switcher
