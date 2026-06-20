@@ -52,6 +52,35 @@ def test_metered_plug_shows_watts(
     expect(watts).to_have_text("1450 W")
 
 
+def test_plugs_stats_block_summarizes(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
+
+    # 4 devices; Heater on, Lamp off; live watts = the metered, reachable plug.
+    expect(page.locator("#plugsStats")).to_be_visible()
+    expect(page.locator("#plugStatTotal")).to_have_text("4")
+    expect(page.locator("#plugStatOn")).to_have_text("1")
+    expect(page.locator("#plugStatOff")).to_have_text("1")
+    expect(page.locator("#plugStatWatts")).to_have_text("1450 W")
+
+
+def test_plug_rename_round_trips(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
+
+    # Tap the name → rename modal opens; saving relabels the card from the override.
+    page.locator('[data-device-id="plug-1"] .plug-name').click()
+    expect(page.locator("#plugDialog")).to_be_visible()
+    field = page.locator("#plugDisplayName")
+    field.fill("Garage Heater")
+    field.press("Enter")  # Enter blurs → PUT /api/tuya/{id}/display_name
+    expect(page.locator('[data-device-id="plug-1"] .plug-name')).to_have_text("Garage Heater")
+
+
 def test_switch_toggle_round_trips(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,

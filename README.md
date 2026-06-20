@@ -54,7 +54,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, and `location.sample.json` committed; real `webapp_config.json`, `display_names.json`, and `location.json` gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, and `location.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, and `location.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -239,9 +239,10 @@ The wizard writes `devices.json` in the project root. That file contains device 
 
 ### 🔌 Plugs tab
 
-The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tuya devices: a dense mobile grid showing every captured device at once, with an on/off switch where supported, **live wattage on metered plugs** (so solar/load decisions are obvious without opening the vendor app), and open/stop/close controls for covers. It is **cloud-free at runtime** — it reads `devices.json` plus local LAN status only.
+The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tuya devices: a dense mobile grid showing every captured device at once, with each tile a single **name · wattage · on/off** row (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app), and open/stop/close controls for covers. A **summary block** at the top totals devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json` plus local LAN status only.
 
-- **Endpoints:** `GET /api/tuya` (device cards with switch state, reachability, and live energy fields — the per-device LAN reads run in parallel), `POST /api/tuya/{id}/switch` (`{"on": true|false}`), `POST /api/tuya/{id}/cover` (`{"action": "open"|"close"|"stop"}`).
+- **Rename a socket:** tap a plug's name to open a rename modal (same UX as the AC-unit rename). The custom label is saved via `PUT /api/tuya/{id}/display_name` to a gitignored `config/tuya_display_names.json` (`device_id` → label, parallel to the unit `config/display_names.json`); a missing file is not an error. The override wins over the Tuya device name everywhere in the UI.
+- **Endpoints:** `GET /api/tuya` (device cards with switch state, reachability, live energy fields, and the `display_name` override — the per-device LAN reads run in parallel), `POST /api/tuya/{id}/switch` (`{"on": true|false}`), `POST /api/tuya/{id}/cover` (`{"action": "open"|"close"|"stop"}`), `PUT /api/tuya/{id}/display_name` (`{"display_name": "…"}`; empty clears the override).
 - **Cadence:** the tab refreshes every ~15 s **only while it is open** (LAN reads are comparatively expensive), and stops polling when you leave it.
 - **Offline devices:** a powered-off plug or one without a usable LAN IP renders as **Unavailable** without blocking the reachable devices from updating or being controlled.
 - **Missing or stale devices?** Re-run the TinyTuya wizard/snapshot **on the home network** to refresh `devices.json` (new IPs, new devices, updated local keys) — never the cloud:

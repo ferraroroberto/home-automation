@@ -26,7 +26,7 @@ import {
   onEnergyTab,
   restyleEnergyCharts,
 } from './energy.js';
-import { onPlugsTab, wirePlugsToggle } from './plugs.js';
+import { onPlugsTab, wirePlugsToggle, wirePlugDetail } from './plugs.js';
 import { onSecurityTab } from './security.js';
 import { startWeatherPolling } from './weather.js';
 
@@ -404,6 +404,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireTabs();
   wireEnergyControls();
   wirePlugsToggle();
+  wirePlugDetail();
   // Energy, Plugs, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) { onEnergyTab(tab); onPlugsTab(tab); onSecurityTab(tab); });

@@ -414,7 +414,7 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                     body=_json({"devices": list(store.values())}),
                 )
                 return
-            # POST .../switch or .../cover on /api/tuya/{id}/{verb}
+            # POST .../switch|.../cover or PUT .../display_name on /api/tuya/{id}/{verb}
             parts = req.url.rstrip("/").split("/")
             verb, did = parts[-1], parts[-2]
             device = store.get(did)
@@ -423,6 +423,12 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                               body=_json({"detail": "not found"}))
                 return
             body = req.post_data_json or {}
+            if verb == "display_name":  # PUT — set/clear the override, echo it back
+                name = (body.get("display_name") or "").strip()
+                device["display_name"] = name or None
+                route.fulfill(status=200, content_type="application/json",
+                              body=_json({"device_id": did, "display_name": name or None}))
+                return
             if verb == "switch":
                 device["switch_on"] = bool(body.get("on"))
                 route.fulfill(status=200, content_type="application/json",

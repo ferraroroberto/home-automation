@@ -26,6 +26,11 @@ function deviceById(id) {
   return state.plugs.find(function (d) { return d.device_id === id; });
 }
 
+// Custom override (PUT /api/tuya/{id}/display_name) wins over the Tuya name.
+function plugLabel(device) {
+  return device.display_name || device.name || '';
+}
+
 // ----------------------------------------------------------------- write
 async function toggleSwitch(device) {
   const next = !(device.switch_on === true);
@@ -59,7 +64,7 @@ async function coverAction(device, action) {
         body: JSON.stringify({ action: action }),
       },
     );
-    toast(device.name + ' ' + action, 'good');
+    toast(plugLabel(device) + ' ' + action, 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -76,14 +81,27 @@ function buildCard(device) {
   if (!device.reachable) card.classList.add('is-unavailable');
   else if (device.has_switch && !on) card.classList.add('is-off');
 
-  // --- Top band: name + power toggle (when switchable & reachable). ---
+  // --- Top band: one row — name (tap to rename) · wattage · toggle. The
+  //     wattage sits immediately left of the toggle so metered and unmetered
+  //     tiles share the same row shape (and thus the same height). ---
   const top = document.createElement('div');
   top.className = 'plug-top';
 
-  const name = document.createElement('span');
+  const name = document.createElement('button');
+  name.type = 'button';
   name.className = 'plug-name';
-  name.textContent = device.name || 'Device';
+  name.title = 'Rename';
+  name.textContent = plugLabel(device) || 'Device';
+  name.addEventListener('click', function () { openPlugDetail(device.device_id); });
   top.appendChild(name);
+
+  // Live wattage on metered, reachable plugs — just left of the toggle.
+  if (device.metered && device.reachable && device.power_w != null) {
+    const watts = document.createElement('span');
+    watts.className = 'plug-watts';
+    watts.textContent = fmtW(device.power_w);
+    top.appendChild(watts);
+  }
 
   if (device.has_switch && device.reachable) {
     const toggle = document.createElement('button');
@@ -91,21 +109,13 @@ function buildCard(device) {
     toggle.className = 'toggle' + (on ? ' on' : '');
     toggle.setAttribute('role', 'switch');
     toggle.setAttribute('aria-checked', on ? 'true' : 'false');
-    toggle.setAttribute('aria-label', 'Power ' + (device.name || 'device'));
+    toggle.setAttribute('aria-label', 'Power ' + (plugLabel(device) || 'device'));
     toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
       (on ? 'ON' : 'OFF') + '</span>';
     toggle.addEventListener('click', function () { toggleSwitch(device); });
     top.appendChild(toggle);
   }
   card.appendChild(top);
-
-  // --- Live wattage: first-class on metered plugs. ---
-  if (device.metered && device.reachable && device.power_w != null) {
-    const watts = document.createElement('div');
-    watts.className = 'plug-watts';
-    watts.textContent = fmtW(device.power_w);
-    card.appendChild(watts);
-  }
 
   // --- Cover controls (open / stop / close). ---
   if (device.has_cover && device.reachable) {
@@ -134,8 +144,76 @@ function buildCard(device) {
   return card;
 }
 
+// --------------------------------------------------------- rename modal
+function openPlugDetail(deviceId) {
+  const device = deviceById(deviceId);
+  if (!device) return;
+  state.selectedPlugId = deviceId;
+  els.plugDetailName.textContent = plugLabel(device) || 'Device';
+  els.plugDisplayName.value = device.display_name || '';
+  els.plugDisplayName.placeholder = device.name || 'Custom label…';
+  if (typeof els.plugDialog.showModal === 'function') els.plugDialog.showModal();
+  else els.plugDialog.setAttribute('open', '');
+  els.plugDisplayName.focus();
+}
+
+function closePlugDetail() {
+  state.selectedPlugId = null;
+  if (typeof els.plugDialog.close === 'function') els.plugDialog.close();
+  else els.plugDialog.removeAttribute('open');
+}
+
+async function savePlugName() {
+  if (!state.selectedPlugId) return;
+  const id = state.selectedPlugId;
+  const newName = els.plugDisplayName.value.trim();
+  try {
+    await jsonApi('/api/tuya/' + encodeURIComponent(id) + '/display_name', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: newName }),
+    });
+    state.plugs = state.plugs.map(function (d) {
+      return d.device_id === id ? Object.assign({}, d, { display_name: newName || null }) : d;
+    });
+    const device = deviceById(id);
+    if (device) els.plugDetailName.textContent = plugLabel(device) || 'Device';
+    renderPlugs();
+    toast('Name saved', 'good');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to save name: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+// ----------------------------------------------------------- summary stats
+// Totals over every known device (state.plugs), independent of the show-all
+// filter: devices, switches on, switches off, and live watts on reachable
+// metered plugs.
+function renderStats() {
+  if (!state.plugs.length) {
+    els.plugsStats.hidden = true;
+    return;
+  }
+  let on = 0;
+  let off = 0;
+  let watts = 0;
+  state.plugs.forEach(function (d) {
+    if (d.switch_on === true) on += 1;
+    else if (d.has_switch && d.switch_on === false) off += 1;
+    if (d.metered && d.reachable && d.power_w != null) watts += Number(d.power_w);
+  });
+  els.plugStatTotal.textContent = String(state.plugs.length);
+  els.plugStatOn.textContent = String(on);
+  els.plugStatOff.textContent = String(off);
+  els.plugStatWatts.textContent = fmtW(watts);
+  els.plugsStats.hidden = false;
+}
+
 export function renderPlugs() {
   els.plugsGrid.innerHTML = '';
+  renderStats();
 
   // Update toggle button label to reflect current state.
   if (els.plugsToggleBtn) {
@@ -192,6 +270,18 @@ export function wirePlugsToggle() {
       localStorage.setItem(PLUGS_SHOW_ALL_KEY, String(state.plugsShowAll));
     } catch (_) { /* private mode */ }
     renderPlugs();
+  });
+}
+
+// Wire the rename modal once at boot (mirrors the AC detail-modal wiring).
+export function wirePlugDetail() {
+  els.plugDetailClose.addEventListener('click', closePlugDetail);
+  els.plugDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.plugDialog) closePlugDetail();  // backdrop click
+  });
+  els.plugDisplayName.addEventListener('blur', savePlugName);
+  els.plugDisplayName.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); els.plugDisplayName.blur(); }
   });
 }
 

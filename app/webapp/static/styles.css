@@ -455,6 +455,21 @@ html, body {
 }
 
 /* ----------------------------------------------------- plugs (Smart Life) */
+/* Summary stats: devices · on · off · live watts, four cells in one row. */
+.plugs-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.plugs-stat { display: flex; flex-direction: column; gap: 3px; }
+.plugs-stat-label { font-size: 0.78rem; color: var(--muted); }
+.plugs-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
 .plugs-toolbar {
   display: flex;
   align-items: center;
@@ -480,6 +495,10 @@ html, body {
   gap: 8px;
   padding: 12px;
   min-width: 0;
+  /* Uniform tile height regardless of metering/cover content (grid stretches
+     cards in a row; this floors the bare switch tiles to the metered height). */
+  min-height: 72px;
+  justify-content: center;
   transition: opacity 0.15s ease;
 }
 .plug-card.is-off { background: var(--card-off); }
@@ -488,21 +507,30 @@ html, body {
 .plug-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
 }
+/* Name is a button (tap to rename) but reads as plain text. */
 .plug-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: var(--ink);
+  font: inherit;
   font-weight: 650;
   font-size: 1rem;
-  min-width: 0;
+  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Live wattage — the headline value on a metered plug. */
+/* Live wattage — sits just left of the toggle, on the same row as the name. */
 .plug-watts {
-  font-size: 1.5rem;
+  flex: none;
+  font-size: 1.05rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
