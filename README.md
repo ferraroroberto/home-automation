@@ -152,9 +152,11 @@ then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 The PWA splits into five tabs: **Home** (a compact energy tile + a read-only
 one-line-per-unit AC summary), **AC** (the full unit controls + detail modal),
 **Energy** (an SMA-style solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
-flow row with a solar deficit/surplus banner, self-sufficiency / self-consumption
-tiles, today's generation & consumption split cards, a savings estimate, an
-all-positive Generation/Grid-supplied/Consumption live chart, and a
+flow row with a colour-coded grid arrow (blue ◀ importing, green ▶ exporting),
+self-sufficiency / self-consumption tiles, today's generation & consumption split
+cards, a savings estimate (€ saved on self-consumed PV at a flat €0.10/kWh, plus
+CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Consumption live
+chart, and a
 Day/Week/Month/Year/Σ history chart), and **🔌 Plugs** (the local Smart Life
 devices — see below), and **🛡️ Security** (RISCO alarm controls, event log, and
 detector bypass).

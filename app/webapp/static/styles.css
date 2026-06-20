@@ -183,23 +183,6 @@ html, body {
 .flow-arrow.is-import { color: var(--accent); }
 .flow-arrow.is-export { color: var(--on); }
 
-/* ------------------------------------------------- deficit/surplus banner */
-.flow-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 12px;
-  font-weight: 650;
-  color: #fff;
-  background: var(--card-off);
-}
-.flow-banner.is-deficit { background: var(--deficit); }
-.flow-banner.is-surplus { background: var(--on); }
-.flow-banner-value { font-variant-numeric: tabular-nums; }
-
 /* ----------------------------------------------------- efficiency tiles */
 .metric-tiles {
   display: grid;
@@ -240,7 +223,7 @@ html, body {
 /* ----------------------------------------------------------- savings */
 .savings-card { padding: 12px; margin-bottom: 12px; }
 .savings-title { margin: 0; font-size: 0.95rem; }
-.savings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+.savings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .savings-stat { display: flex; flex-direction: column; gap: 3px; }
 .savings-label { font-size: 0.78rem; color: var(--muted); }
 .savings-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }

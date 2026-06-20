@@ -71,12 +71,15 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#flowPv")).to_have_text("2,500 W")
     expect(page.locator("#flowHouse")).to_have_text("1,300 W")
     expect(page.locator("#flowGrid")).to_have_text("1,200 W")
-    # Exporting → green surplus banner with the signed value.
-    expect(page.locator("#flowBanner")).to_contain_text("Solar surplus")
-    expect(page.locator("#flowBannerValue")).to_have_text("+1,200 W")
+    # Exporting (surplus > 0) → the grid arrow points out (▶) and reads as export.
+    grid_arrow = page.locator("#wireGrid")
+    expect(grid_arrow).to_have_class("flow-arrow is-export")
+    expect(grid_arrow).to_have_text("▶")
 
     # Today's generation card is populated from /api/energy/today.
     expect(page.locator("#genTotal")).to_have_text("9.00 kWh")
+    # Savings: € on today's self-consumed PV (9.0 − 3.5 kWh fed in) at €0.10/kWh.
+    expect(page.locator("#savEur")).to_have_text("€0.55")
 
     # Both chart canvases render once the pane is shown.
     expect(page.locator("#liveChart")).to_be_visible()

@@ -124,13 +124,6 @@
         </div>
       </section>
 
-      <!-- Solar deficit / surplus banner — the load-shift signal. Hidden until
-           the first read; red when importing, green when exporting. -->
-      <div class="flow-banner" id="flowBanner" hidden>
-        <span class="flow-banner-label" id="flowBannerLabel"></span>
-        <span class="flow-banner-value" id="flowBannerValue"></span>
-      </div>
-
       <!-- Instantaneous efficiency tiles. -->
       <section class="metric-tiles" aria-label="Live efficiency">
         <div class="card metric-tile">
@@ -187,6 +180,10 @@
       <section class="card savings-card" aria-label="Your savings">
         <h3 class="savings-title">🌱 Your savings <span class="muted small">· today, estimated</span></h3>
         <div class="savings-grid">
+          <div class="savings-stat">
+            <span class="savings-label">€ saved</span>
+            <span class="savings-value" id="savEur">—</span>
+          </div>
           <div class="savings-stat">
             <span class="savings-label">CO₂ avoided</span>
             <span class="savings-value" id="savCo2">—</span>
