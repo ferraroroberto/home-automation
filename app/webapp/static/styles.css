@@ -71,9 +71,7 @@ html, body {
   background: var(--bg);
   z-index: 5;
 }
-.header h1 { font-size: 1.35rem; margin: 0; color: var(--ink); }
 .header-actions { display: flex; align-items: center; gap: 10px; }
-.status { color: var(--muted); font-size: 0.85rem; }
 .weather {
   color: var(--ink);
   font-size: 0.9rem;
@@ -795,6 +793,12 @@ html, body {
   gap: 10px;
 }
 .settings-body h3 { margin: 0; font-size: 1rem; }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.settings-row span { color: var(--ink); font-weight: 550; }
 .install-ca-btn { text-align: center; text-decoration: none; }
 
 /* Build-identity footer (which build the PWA is running). */
