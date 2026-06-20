@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Query
 
-from src.energy_history import aggregate, recent_samples
+from src.energy_history import aggregate, framed_buckets, recent_samples
 from src.sma_client import EnergyState, fetch_energy_state
 
 logger = logging.getLogger(__name__)
@@ -67,21 +67,38 @@ async def get_energy_history(
     return {"minutes": minutes, "samples": samples}
 
 
-@router.get("/api/energy/aggregate")
-async def get_energy_aggregate(
-    range: str = Query("hourly", pattern="^(hourly|daily|monthly)$"),
-    count: int = Query(0, ge=0, le=400),
-) -> Dict[str, Any]:
-    """Hourly / daily / monthly energy buckets (Wh) for the aggregate charts.
+@router.get("/api/energy/today")
+async def get_energy_today() -> Dict[str, Any]:
+    """Today's energy totals (one daily bucket) for the split + savings cards.
 
-    Each bucket flags ``pv_missing`` when no PV sample landed in it (asleep
-    inverter), keeping that distinct from a real 0 Wh of production.
+    Returns ``{"bucket": <daily bucket>}`` with ``pv_wh`` / ``house_wh`` /
+    ``import_wh`` / ``export_wh`` / ``pv_missing`` for the current local day, or
+    ``{"bucket": null}`` before any sample has landed today.
     """
     try:
-        buckets = aggregate(range, count or None)
+        buckets = aggregate("daily", 1)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to read today's energy: %s", exc)
+        raise HTTPException(status_code=502, detail=f"failed to read today: {exc}")
+    return {"bucket": buckets[-1] if buckets else None}
+
+
+@router.get("/api/energy/aggregate")
+async def get_energy_aggregate(
+    range: str = Query("day", pattern="^(day|week|month|year|total)$"),
+) -> Dict[str, Any]:
+    """Calendar-framed energy buckets (Wh) for the history chart.
+
+    Each range is a fixed, fill-up window — 24h ``day``, Mon–Sun ``week``, the
+    current ``month``, Jan–Dec ``year``, all-time ``total`` — carrying generation
+    / grid-supplied / consumption energy per slot. Future slots come back empty,
+    so the chart fills left-to-right. See :func:`framed_buckets`.
+    """
+    try:
+        buckets = framed_buckets(range)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to aggregate energy history: %s", exc)
+        logger.warning("⚠️  Failed to build energy history: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to aggregate: {exc}")
     return {"range": range, "buckets": buckets}

@@ -1,6 +1,6 @@
 /* Home Automation — header weather readout.
  *
- * Polls GET /api/weather at a slow cadence and shows a compact "🌤 21°C" in
+ * Polls GET /api/weather at a slow cadence and shows a compact "Madrid 🌤 21°" in
  * the header. Hidden until the first successful read; fails quietly like the
  * energy tile (weather is decorative, never load-bearing). */
 
@@ -31,7 +31,9 @@ function render(w) {
   if (!w || !w.available) return;  // stay hidden, keep last value
   const icon = weatherIcon(Number(w.weather_code), w.is_day !== false);
   const temp = Math.round(Number(w.temperature_c));
-  els.weather.textContent = icon + ' ' + temp + '°';
+  const loc = (w.label || '').trim();
+  // Location · weather · temperature — e.g. "Madrid 🌤 21°".
+  els.weather.textContent = (loc ? loc + ' ' : '') + icon + ' ' + temp + '°';
   els.weather.hidden = false;
 }
 

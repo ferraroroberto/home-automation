@@ -122,9 +122,12 @@ then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 
 The PWA splits into four tabs: **Home** (a compact energy tile + a read-only
 one-line-per-unit AC summary), **AC** (the full unit controls + detail modal),
-**Energy** (live hero numbers, a flowing line chart of recent
-production/consumption/net, and hourly/daily/monthly aggregate bars), and
-**🔌 Plugs** (the local Smart Life devices — see below).
+**Energy** (an SMA-style solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
+flow row with a solar deficit/surplus banner, self-sufficiency / self-consumption
+tiles, today's generation & consumption split cards, a savings estimate, an
+all-positive Generation/Grid-supplied/Consumption live chart, and a
+Day/Week/Month/Year/Σ history chart), and **🔌 Plugs** (the local Smart Life
+devices — see below).
 
 While the webapp runs, a background **sampler** (started in the FastAPI
 lifespan, so it lives and dies with the tray's uvicorn process) persists the
@@ -135,9 +138,11 @@ a misleading 0, so the charts show a gap and aggregates flag `pv_missing`.
 
 - **Storage:** `webapp/energy_history.sqlite3` (gitignored, per-machine runtime
   data — never committed).
-- **Endpoints:** `GET /api/energy` (live snapshot), `GET /api/energy/history?minutes=N`
-  (raw samples for the live chart), `GET /api/energy/aggregate?range=hourly|daily|monthly`
-  (energy-per-bucket, Wh).
+- **Endpoints:** `GET /api/energy` (live snapshot), `GET /api/energy/today`
+  (today's totals for the split + savings cards), `GET /api/energy/history?minutes=N`
+  (raw samples for the live chart), and `GET /api/energy/aggregate?range=day|week|month|year|total`
+  (energy-per-bucket, Wh — `day` is a 24h fill-up frame; `week`/`month`/`year` are
+  rolling data-only windows; `total` is all retained history).
 - **Cadence/retention knobs** (`.env`, all optional):
 
 | Key | Default | Meaning |
@@ -148,7 +153,7 @@ a misleading 0, so the charts show a gap and aggregates flag `pv_missing`.
 | `ENERGY_RAW_RETENTION_DAYS` | `7` | How long raw per-sample rows are kept (feeds the live chart). |
 | `ENERGY_HOURLY_RETENTION_DAYS` | `400` | How long hourly rollups are kept (daily/monthly views group from these). |
 
-The live display refreshes every ~10 s while the Energy tab is open and every
+The live display refreshes every ~5 s while the Energy tab is open and every
 30 s otherwise; that cadence is a frontend constant (it never persists faster
 than `ENERGY_PERSIST_INTERVAL_S`). Energy (Wh) is integrated from the samples
 (rectangular rule, gaps capped) — a household-monitoring estimate, not a

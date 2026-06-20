@@ -443,3 +443,72 @@ def _group(hours: List[Dict[str, Any]], n: int, fmt_key: str, fmt_label: str) ->
             order.append(key)
         _accumulate(buckets[key], h)
     return [_round_bucket(buckets[k]) for k in order[-n:]]
+
+
+# --------------------------------------- chart windows (fill-up day + rolling)
+def _frame_bucket(key: str, label: str, hours: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build one display bucket from a (possibly empty) list of hourly rollups."""
+    bucket = _empty_bucket(key, label)
+    for h in hours:
+        _accumulate(bucket, h)
+    return _round_bucket(bucket)
+
+
+def framed_buckets(
+    period: str = "day",
+    now: Optional[int] = None,
+    path: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """Chart-ready energy buckets for the history view's five ranges.
+
+    * ``day``   — 24 hourly slots from local midnight today, *padded* so future
+      hours come back empty and the chart fills left-to-right through the day.
+    * ``week``  — rolling last 7 days (daily buckets).
+    * ``month`` — rolling last 30 days (daily buckets).
+    * ``year``  — rolling last 12 months (monthly buckets; ~365 days, but month
+      resolution stays readable where 365 daily points would not).
+    * ``total`` — every month of retained history.
+
+    Rolling ranges reuse :func:`aggregate` (last-N, data-only — never a sparse
+    empty frame); only ``day`` is a fixed fill-up window. Each bucket carries
+    generation (``pv_wh``) / grid-supplied (``import_wh``) / consumption
+    (``house_wh``) Wh.
+    """
+    current = int(now if now is not None else time.time())
+
+    if period == "day":
+        dt_now = datetime.fromtimestamp(current)
+        start = datetime(dt_now.year, dt_now.month, dt_now.day)
+        since = int(start.timestamp())
+        by_hour = {int(h["hour_start"]): h for h in _hourly_since(since, current, path)}
+        out = []
+        for i in range(24):
+            hs = since + i * _HOUR
+            hours = [by_hour[hs]] if hs in by_hour else []
+            out.append(_frame_bucket(str(hs), "%02d" % i, hours))
+        return out
+
+    if period == "week":
+        return aggregate("daily", 7, now, path)
+
+    if period == "month":
+        return aggregate("daily", 30, now, path)
+
+    if period == "year":
+        return aggregate("monthly", 12, now, path)
+
+    if period == "total":
+        ordered: List[str] = []
+        groups: Dict[str, List[Dict[str, Any]]] = {}
+        labels: Dict[str, str] = {}
+        for h in _hourly_since(0, current, path):
+            d = datetime.fromtimestamp(h["hour_start"])
+            key = d.strftime("%Y-%m")
+            if key not in groups:
+                groups[key] = []
+                labels[key] = d.strftime("%b %y")
+                ordered.append(key)
+            groups[key].append(h)
+        return [_frame_bucket(k, labels[k], groups[k]) for k in ordered]
+
+    raise ValueError(f"unknown period: {period!r}")

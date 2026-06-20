@@ -1,21 +1,24 @@
 /* Chart.js wrappers for the Energy tab.
  *
- * Two charts, both reading their colors from the page's CSS custom properties
- * so dark/light themes Just Work (restyle() re-reads them on toggle):
+ * Both charts use the same three all-positive series — nothing dips below zero,
+ * so every line "goes up" and the translucent fills stack visually (SMA style):
  *
- *   • live line chart  — Production / Consumption / Net (W), recent samples.
- *     spanGaps:false so an asleep inverter (null PV) draws a gap, never a 0.
- *   • aggregate bars    — Production / Consumption / Net grid (Wh) per bucket;
- *     Net is signed (− importing, + exporting).
+ *   • live line chart  — Generation / Grid-supplied / Consumption (W), recent
+ *     samples. spanGaps:false so an asleep inverter (null generation) draws a
+ *     gap, never a 0.
+ *   • history area chart — the same three in energy (kWh) per calendar slot,
+ *     for a fill-up Day / Week / Month / Year / Total window.
+ *
+ * Colours read from CSS custom properties only for axes/legend (theme-aware via
+ * restyle()); the series palette is fixed so it matches the flow + cards:
+ *   Generation = green, Grid-supplied = red, Consumption = grey line.
  *
  * Chart.js is loaded as a vendored UMD global (window.Chart) by index.html. */
 
 'use strict';
 
-const PROD = '#f5a623';   // warm — production stands out
-const CONS = '#2f7df6';   // accent blue — consumption
-const NET = '#2ecc71';    // green — net (paired with red via per-bar coloring)
-const NEG = '#e2574c';    // red — importing (negative net)
+const GEN = '#2ecc71';   // green — generation (matches the solar flow + gen bar)
+const GRID = '#e2574c';  // red — grid-supplied (matches the deficit banner)
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -30,6 +33,12 @@ function palette() {
   };
 }
 
+// Hex (#rrggbb) → rgba string at the given alpha — for translucent fills.
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+
 function baseScales(pal, unit) {
   return {
     x: {
@@ -37,6 +46,7 @@ function baseScales(pal, unit) {
       grid: { display: false },
     },
     y: {
+      beginAtZero: true,
       title: { display: true, text: unit, color: pal.muted },
       ticks: { color: pal.muted },
       grid: { color: pal.line },
@@ -48,33 +58,19 @@ function legend(pal) {
   return { labels: { color: pal.ink, boxWidth: 12, usePointStyle: true } };
 }
 
-// ----------------------------------------------------------------- live
-export function createLiveChart(canvas) {
-  const pal = palette();
-  return new Chart(canvas.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [
-        ds('Production', PROD),
-        ds('Consumption', CONS),
-        ds('Net', NET),
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      spanGaps: false,
-      interaction: { mode: 'index', intersect: false },
-      elements: { point: { radius: 0 }, line: { tension: 0.25, borderWidth: 2 } },
-      plugins: { legend: legend(pal) },
-      scales: baseScales(pal, 'W'),
-    },
-  });
+// A translucent filled area (Generation, Grid-supplied).
+function area(label, color) {
+  return {
+    label: label,
+    data: [],
+    borderColor: color,
+    backgroundColor: hexA(color, 0.18),
+    fill: 'origin',
+  };
 }
 
-function ds(label, color) {
+// A plain envelope line (Consumption) — colour passed in so it can be theme grey.
+function envelope(label, color) {
   return {
     label: label,
     data: [],
@@ -84,19 +80,50 @@ function ds(label, color) {
   };
 }
 
+function commonOptions(pal, unit, spanGaps) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    spanGaps: spanGaps,
+    interaction: { mode: 'index', intersect: false },
+    elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 2 } },
+    plugins: { legend: legend(pal) },
+    scales: baseScales(pal, unit),
+  };
+}
+
+// ----------------------------------------------------------------- live
+export function createLiveChart(canvas) {
+  const pal = palette();
+  return new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        area('Generation', GEN),
+        area('Grid-supplied', GRID),
+        envelope('Consumption', pal.muted),
+      ],
+    },
+    // spanGaps:false — asleep generation should read as a gap, not a 0.
+    options: commonOptions(pal, 'W', false),
+  });
+}
+
 export function setLiveData(chart, samples) {
   chart.data.labels = samples.map(function (s) { return timeLabel(s.ts); });
   chart.data.datasets[0].data = samples.map(function (s) { return s.pv_power_w; });
-  chart.data.datasets[1].data = samples.map(function (s) { return s.house_consumption_w; });
-  chart.data.datasets[2].data = samples.map(function (s) { return s.pv_surplus_w; });
+  chart.data.datasets[1].data = samples.map(function (s) { return s.grid_import_w; });
+  chart.data.datasets[2].data = samples.map(function (s) { return s.house_consumption_w; });
   chart.update('none');
 }
 
-export function pushLivePoint(chart, ts, prod, cons, net, maxPoints) {
+export function pushLivePoint(chart, ts, gen, grid, cons, maxPoints) {
   chart.data.labels.push(timeLabel(ts));
-  chart.data.datasets[0].data.push(prod);
-  chart.data.datasets[1].data.push(cons);
-  chart.data.datasets[2].data.push(net);
+  chart.data.datasets[0].data.push(gen);
+  chart.data.datasets[1].data.push(grid);
+  chart.data.datasets[2].data.push(cons);
   const cap = maxPoints || 360;
   while (chart.data.labels.length > cap) {
     chart.data.labels.shift();
@@ -111,52 +138,42 @@ function timeLabel(tsSeconds) {
   });
 }
 
-// ------------------------------------------------------------ aggregate
+// ------------------------------------------------------------ history
 export function createAggChart(canvas) {
   const pal = palette();
   return new Chart(canvas.getContext('2d'), {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: [],
       datasets: [
-        { label: 'Production', data: [], backgroundColor: PROD },
-        { label: 'Consumption', data: [], backgroundColor: CONS },
-        { label: 'Net grid', data: [], backgroundColor: [] },
+        area('Generation', GEN),
+        area('Grid-supplied', GRID),
+        envelope('Consumption', pal.muted),
       ],
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: { legend: legend(pal) },
-      scales: baseScales(pal, 'Wh'),
-    },
+    // spanGaps:true — empty future slots are real 0 kWh, draw a continuous frame.
+    options: commonOptions(pal, 'kWh', true),
   });
 }
+
+function kwh(wh) { return (Number(wh) || 0) / 1000; }
 
 export function setAggData(chart, buckets) {
   chart.data.labels = buckets.map(function (b) { return b.label; });
-  // Production: null (not 0) when the inverter was asleep all bucket, so the
-  // bar is absent rather than a misleading zero.
-  chart.data.datasets[0].data = buckets.map(function (b) {
-    return b.pv_missing ? null : b.pv_wh;
-  });
-  chart.data.datasets[1].data = buckets.map(function (b) { return b.house_wh; });
-  const net = buckets.map(function (b) { return round1(b.export_wh - b.import_wh); });
-  chart.data.datasets[2].data = net;
-  chart.data.datasets[2].backgroundColor = net.map(function (v) {
-    return v >= 0 ? NET : NEG;
-  });
+  chart.data.datasets[0].data = buckets.map(function (b) { return kwh(b.pv_wh); });
+  chart.data.datasets[1].data = buckets.map(function (b) { return kwh(b.import_wh); });
+  chart.data.datasets[2].data = buckets.map(function (b) { return kwh(b.house_wh); });
   chart.update('none');
 }
-
-function round1(v) { return Math.round(v * 10) / 10; }
 
 // --------------------------------------------------------------- theming
 export function restyle(chart, unit) {
   if (!chart) return;
   const pal = palette();
   chart.options.plugins.legend.labels.color = pal.ink;
+  // Consumption envelope tracks the theme's muted grey.
+  chart.data.datasets[2].borderColor = pal.muted;
+  chart.data.datasets[2].backgroundColor = pal.muted;
   Object.assign(chart.options.scales, baseScales(pal, unit));
   chart.update('none');
 }

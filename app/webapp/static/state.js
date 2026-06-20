@@ -24,8 +24,8 @@ export const state = {
   plugsShowAll: false,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs'.
   tab: 'home',
-  // Active aggregate range on the Energy tab: 'hourly' | 'daily' | 'monthly'.
-  range: 'hourly',
+  // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
+  range: 'day',
   // Live Chart.js instances (created lazily on the Energy tab); kept so the
   // theme toggle can restyle and the live poller can push points.
   liveChart: null,
@@ -67,17 +67,43 @@ export const els = {
   enUpdated: document.getElementById('enUpdated'),
   // Header weather readout (GET /api/weather)
   weather: document.getElementById('weather'),
-  // Energy tab: hero numbers, charts, range switcher
-  heroProd: document.getElementById('heroProd'),
-  heroCons: document.getElementById('heroCons'),
-  heroNet: document.getElementById('heroNet'),
+  // Energy tab: flow diagram (live)
+  flowTime: document.getElementById('flowTime'),
+  flowPv: document.getElementById('flowPv'),
+  flowGrid: document.getElementById('flowGrid'),
+  flowHouse: document.getElementById('flowHouse'),
+  flowNodePv: document.getElementById('flowNodePv'),
+  flowNodeGrid: document.getElementById('flowNodeGrid'),
+  flowNodeHouse: document.getElementById('flowNodeHouse'),
+  wirePv: document.getElementById('wirePv'),
+  wireGrid: document.getElementById('wireGrid'),
+  flowBanner: document.getElementById('flowBanner'),
+  flowBannerLabel: document.getElementById('flowBannerLabel'),
+  flowBannerValue: document.getElementById('flowBannerValue'),
+  // Energy tab: live efficiency tiles
+  liveSelfSuff: document.getElementById('liveSelfSuff'),
+  liveSelfCons: document.getElementById('liveSelfCons'),
+  // Energy tab: today's split cards
+  genTotal: document.getElementById('genTotal'),
+  genSelf: document.getElementById('genSelf'),
+  genFeed: document.getElementById('genFeed'),
+  genBar: document.getElementById('genBar'),
+  genPct: document.getElementById('genPct'),
+  consTotal: document.getElementById('consTotal'),
+  consSelf: document.getElementById('consSelf'),
+  consGrid: document.getElementById('consGrid'),
+  consBar: document.getElementById('consBar'),
+  consPct: document.getElementById('consPct'),
+  // Energy tab: savings
+  savCo2: document.getElementById('savCo2'),
+  savTrees: document.getElementById('savTrees'),
+  // Energy tab: charts, range switcher
   liveMeta: document.getElementById('liveMeta'),
   liveChart: document.getElementById('liveChart'),
   aggChart: document.getElementById('aggChart'),
   aggEmpty: document.getElementById('aggEmpty'),
-  rangeHourly: document.getElementById('rangeHourly'),
-  rangeDaily: document.getElementById('rangeDaily'),
-  rangeMonthly: document.getElementById('rangeMonthly'),
+  // History range buttons (Day / Week / Month / Year / Σ) — driven by data-range.
+  rangeBtns: Array.from(document.querySelectorAll('.range-tabs .range-tab')),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

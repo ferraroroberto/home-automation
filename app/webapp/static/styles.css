@@ -8,6 +8,7 @@
   --muted: #6b7785;
   --accent: #2f7df6;
   --on: #2ecc71;
+  --deficit: #e2574c;
   --line: #e2e7ef;
   --radius: 16px;
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
@@ -147,25 +148,108 @@ html, body {
 .ac-state.on { background: var(--on); color: #fff; }
 .ac-state.off { background: var(--toggle-track); color: var(--toggle-label); }
 
-/* ----------------------------------------------------- energy heroes */
-.energy-heroes {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
+/* ------------------------------------------------- energy flow diagram */
+.flow-card { padding: 12px; margin-bottom: 10px; }
+.flow-head { display: flex; align-items: baseline; justify-content: space-between; }
+.flow-title { margin: 0; font-size: 0.95rem; }
+.flow-time { font-variant-numeric: tabular-nums; }
+
+/* One compact row: Solar · Home · Grid, each a small stacked node, joined by
+   directional arrows. Far shorter than a stacked diagram. */
+.flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 10px;
 }
-.hero {
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 12px 8px;
+.flow-node {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  transition: opacity 0.2s ease;
+}
+.flow-node.is-idle { opacity: 0.4; }
+.flow-icon { font-size: 1.45rem; line-height: 1.1; }
+.flow-value { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.flow-name { font-size: 0.66rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Arrows carry a glyph; colour + direction are set in JS. */
+.flow-arrow {
+  flex: none;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted);
+}
+.flow-arrow.is-active { color: var(--on); }
+.flow-arrow.is-import { color: var(--accent); }
+.flow-arrow.is-export { color: var(--on); }
+
+/* ------------------------------------------------- deficit/surplus banner */
+.flow-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-weight: 650;
+  color: #fff;
+  background: var(--card-off);
+}
+.flow-banner.is-deficit { background: var(--deficit); }
+.flow-banner.is-surplus { background: var(--on); }
+.flow-banner-value { font-variant-numeric: tabular-nums; }
+
+/* ----------------------------------------------------- efficiency tiles */
+.metric-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.metric-tile {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
 }
-.hero-label { font-size: 0.72rem; color: var(--muted); text-align: center; }
-.hero-value { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.metric-label { font-size: 0.78rem; color: var(--muted); }
+.metric-value { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ----------------------------------------------------- today split cards */
+.split-card { padding: 12px; margin-bottom: 12px; }
+.split-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.split-title { margin: 0; font-size: 0.95rem; }
+.split-total { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.split-legend { display: flex; justify-content: space-between; gap: 10px; margin: 10px 0 6px; }
+.split-leg { display: flex; flex-direction: column; gap: 1px; }
+.split-leg-end { align-items: flex-end; text-align: right; }
+.split-leg-name { font-size: 0.74rem; color: var(--muted); }
+.split-leg-val { font-size: 0.95rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.split-bar {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--card-off);
+  overflow: hidden;
+}
+.split-bar-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.3s ease; }
+.split-bar-gen { background: var(--on); }
+.split-bar-cons { background: var(--accent); }
+.split-pct { display: block; margin-top: 6px; }
+
+/* ----------------------------------------------------------- savings */
+.savings-card { padding: 12px; margin-bottom: 12px; }
+.savings-title { margin: 0; font-size: 0.95rem; }
+.savings-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
+.savings-stat { display: flex; flex-direction: column; gap: 3px; }
+.savings-label { font-size: 0.78rem; color: var(--muted); }
+.savings-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ----------------------------------------------------- energy charts */
 .chart-card { padding: 12px; margin-bottom: 12px; }
@@ -175,15 +259,15 @@ html, body {
 .chart-wrap-agg { height: 230px; }
 .chart-empty { margin: 8px 0 0; text-align: center; }
 
-.range-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.range-tabs { display: flex; gap: 5px; margin-bottom: 12px; }
 .range-tab {
   flex: 1;
   background: var(--card-off);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 8px;
+  padding: 8px 4px;
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -217,8 +301,8 @@ html, body {
 .unit-card.is-off .unit-room .value,
 .unit-card.is-off .target-value { color: var(--muted); }
 
-/* Energy-flow tile: three compact stats (Production / Consumption / Net grid),
-   mirroring the Energy-tab heroes. */
+/* Energy-flow tile: three compact stats (Production / Consumption / Net grid)
+   on the Home tab, a condensed peek at the full Energy-tab flow diagram. */
 .energy-card {
   padding: 11px 12px 24px;
   margin-bottom: 10px;
