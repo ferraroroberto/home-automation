@@ -15,6 +15,8 @@ Routes (split across ``app/webapp/routers/``):
     GET  /api/tuya               → local Tuya devices + watts (tuya)
     POST /api/tuya/{id}/switch   → on/off a Tuya plug/light   (tuya)
     POST /api/tuya/{id}/cover    → open/close/stop a blind     (tuya)
+    GET  /api/security           → RISCO alarm state           (security)
+    POST /api/security/{action}  → arm/disarm/perimeter alarm  (security)
 
 Run with::
 
@@ -34,7 +36,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.webapp.middleware import BearerTokenMiddleware
-from app.webapp.routers import auth, energy, misc, tuya, units, weather
+from app.webapp.routers import auth, energy, misc, security, tuya, units, weather
 from app.webapp.routers._helpers import STATIC_DIR
 from app.webapp.sampler import start_sampler
 from src.webapp_config import load_webapp_config
@@ -80,6 +82,7 @@ def create_app() -> FastAPI:
     app.include_router(energy.router)
     app.include_router(weather.router)
     app.include_router(tuya.router)
+    app.include_router(security.router)
 
     logger.info(
         "ℹ️  webapp ready (auth gate %s)",

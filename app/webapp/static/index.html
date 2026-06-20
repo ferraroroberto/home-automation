@@ -42,6 +42,7 @@
       <button id="tabAc" type="button" class="tab" data-tab="ac">❄️ AC</button>
       <button id="tabEnergy" type="button" class="tab" data-tab="energy">⚡ Energy</button>
       <button id="tabPlugs" type="button" class="tab" data-tab="plugs">🔌 Plugs</button>
+      <button id="tabSecurity" type="button" class="tab" data-tab="security">🛡️ Security</button>
     </nav>
 
     <!-- ============================== HOME =============================== -->
@@ -217,6 +218,36 @@
       </div>
       <section id="plugsGrid" class="plugs-grid" aria-label="Devices"></section>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
+    </section>
+
+    <!-- ============================= SECURITY ============================ -->
+    <section id="paneSecurity" class="pane" aria-label="Security" hidden>
+      <section class="card security-card" aria-label="Alarm controls">
+        <div class="security-head">
+          <div>
+            <span class="security-kicker">System</span>
+            <h2 id="securityState" class="security-state">-</h2>
+          </div>
+          <span id="securityMeta" class="security-meta muted small"></span>
+        </div>
+        <div id="securityActions" class="security-actions" aria-label="Alarm actions"></div>
+      </section>
+
+      <details class="card security-card security-events-card">
+        <summary class="security-section-head security-summary">
+          <h3>Event log</h3>
+        </summary>
+        <div id="securityEvents" class="security-events"></div>
+        <p id="securityEventsNote" class="muted small security-note" hidden></p>
+      </details>
+
+      <details class="card security-card security-zones-card">
+        <summary class="security-section-head security-summary">
+          <h3>Detectors</h3>
+        </summary>
+        <div id="securityZones" class="security-zones"></div>
+        <p id="securityZonesNote" class="muted small security-note" hidden></p>
+      </details>
     </section>
 
     <div id="toast" class="toast" hidden></div>

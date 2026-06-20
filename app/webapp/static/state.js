@@ -22,7 +22,10 @@ export const state = {
   // When false (default), only cards with has_valid_ip===true are shown.
   // When true, all cards render (including unregistered/no-IP adapters).
   plugsShowAll: false,
-  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs'.
+  // RISCO alarm state and event log from GET /api/security.
+  security: null,
+  securityEvents: [],
+  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
   range: 'day',
@@ -48,10 +51,20 @@ export const els = {
   tabAc: document.getElementById('tabAc'),
   tabEnergy: document.getElementById('tabEnergy'),
   tabPlugs: document.getElementById('tabPlugs'),
+  tabSecurity: document.getElementById('tabSecurity'),
   paneHome: document.getElementById('paneHome'),
   paneAc: document.getElementById('paneAc'),
   paneEnergy: document.getElementById('paneEnergy'),
   panePlugs: document.getElementById('panePlugs'),
+  paneSecurity: document.getElementById('paneSecurity'),
+  // Security (RISCO alarm) tab
+  securityState: document.getElementById('securityState'),
+  securityMeta: document.getElementById('securityMeta'),
+  securityActions: document.getElementById('securityActions'),
+  securityEvents: document.getElementById('securityEvents'),
+  securityEventsNote: document.getElementById('securityEventsNote'),
+  securityZones: document.getElementById('securityZones'),
+  securityZonesNote: document.getElementById('securityZonesNote'),
   // Plugs (Smart Life) tab
   plugsGrid: document.getElementById('plugsGrid'),
   plugsNote: document.getElementById('plugsNote'),
