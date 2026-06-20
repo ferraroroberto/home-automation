@@ -280,17 +280,19 @@ def mock_api(page: Page) -> Callable[[List[Dict]], List[Dict]]:
 
 @pytest.fixture
 def mock_energy(page: Page) -> Callable[..., None]:
-    """Stub the three energy endpoints with deterministic fixtures.
+    """Stub the four energy endpoints with deterministic fixtures.
 
-    Covers the live snapshot (``/api/energy``), the live-chart history
-    (``/api/energy/history``), and the aggregate buckets
-    (``/api/energy/aggregate``). Call before navigating. Defaults describe a
-    sunny exporting moment so the hero numbers and charts have content.
+    Covers the live snapshot (``/api/energy``), today's totals
+    (``/api/energy/today``), the live-chart history (``/api/energy/history``),
+    and the history buckets (``/api/energy/aggregate``). Call before navigating.
+    Defaults describe a sunny exporting moment so the flow row and charts have
+    content.
     """
     def _install(
         snapshot: Optional[Dict] = None,
         samples: Optional[List[Dict]] = None,
         buckets: Optional[List[Dict]] = None,
+        today: Optional[Dict] = None,
     ) -> None:
         snap = snapshot or {
             "grid_import_w": 0.0, "grid_export_w": 1200.0,
@@ -314,14 +316,22 @@ def mock_energy(page: Page) -> Callable[..., None]:
              "house_wh": 1250.0, "import_wh": 50.0, "export_wh": 900.0,
              "pv_n": 60, "pv_missing": False},
         ]
+        today_bucket = today if today is not None else {
+            "key": "2026-06-19", "label": "Fri 19", "pv_wh": 9000.0,
+            "house_wh": 6000.0, "import_wh": 500.0, "export_wh": 3500.0,
+            "pv_n": 300, "pv_missing": False,
+        }
         page.route("**/api/energy", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(snap)))
+        page.route("**/api/energy/today", lambda r: r.fulfill(
+            status=200, content_type="application/json",
+            body=_json({"bucket": today_bucket})))
         page.route("**/api/energy/history*", lambda r: r.fulfill(
             status=200, content_type="application/json",
             body=_json({"minutes": 60, "samples": hist})))
         page.route("**/api/energy/aggregate*", lambda r: r.fulfill(
             status=200, content_type="application/json",
-            body=_json({"range": "hourly", "buckets": aggs})))
+            body=_json({"range": "day", "buckets": aggs})))
 
     return _install
 

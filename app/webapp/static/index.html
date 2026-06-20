@@ -79,18 +79,109 @@
 
     <!-- ============================= ENERGY ============================= -->
     <section id="paneEnergy" class="pane" aria-label="Energy monitoring" hidden>
-      <section class="energy-heroes" aria-label="Live energy">
-        <div class="hero">
-          <span class="hero-label">☀️ Production</span>
-          <span class="hero-value" id="heroProd">—</span>
+      <!-- Live energy-flow diagram: ☀️ Solar feeds 🏠 Home, the 🗼 Grid makes up
+           the difference (or absorbs the surplus). Values + arrow directions
+           come from GET /api/energy; an asleep inverter dims the Solar node. -->
+      <section class="card flow-card" aria-label="Energy flow">
+        <div class="flow-head">
+          <h3 class="flow-title">⚡ Energy now</h3>
+          <span class="flow-time muted small" id="flowTime"></span>
         </div>
-        <div class="hero">
-          <span class="hero-label">🏠 Consumption</span>
-          <span class="hero-value" id="heroCons">—</span>
+        <!-- Compact inline flow: Solar → Home ← Grid, in one row. Home sits in
+             the middle (the consumer); arrows show which way power flows and are
+             coloured in JS. Net + self-consumption read from the banner/tiles. -->
+        <div class="flow-row">
+          <div class="flow-node" id="flowNodePv">
+            <span class="flow-icon">☀️</span>
+            <span class="flow-value" id="flowPv">—</span>
+            <span class="flow-name">Solar</span>
+          </div>
+          <span class="flow-arrow" id="wirePv" aria-hidden="true">·</span>
+          <div class="flow-node" id="flowNodeHouse">
+            <span class="flow-icon">🏠</span>
+            <span class="flow-value" id="flowHouse">—</span>
+            <span class="flow-name">Home</span>
+          </div>
+          <span class="flow-arrow" id="wireGrid" aria-hidden="true">·</span>
+          <div class="flow-node" id="flowNodeGrid">
+            <span class="flow-icon">🗼</span>
+            <span class="flow-value" id="flowGrid">—</span>
+            <span class="flow-name">Grid</span>
+          </div>
         </div>
-        <div class="hero">
-          <span class="hero-label">⚡ Net grid</span>
-          <span class="hero-value" id="heroNet">—</span>
+      </section>
+
+      <!-- Solar deficit / surplus banner — the load-shift signal. Hidden until
+           the first read; red when importing, green when exporting. -->
+      <div class="flow-banner" id="flowBanner" hidden>
+        <span class="flow-banner-label" id="flowBannerLabel"></span>
+        <span class="flow-banner-value" id="flowBannerValue"></span>
+      </div>
+
+      <!-- Instantaneous efficiency tiles. -->
+      <section class="metric-tiles" aria-label="Live efficiency">
+        <div class="card metric-tile">
+          <span class="metric-label">Self-sufficiency</span>
+          <span class="metric-value" id="liveSelfSuff">—</span>
+        </div>
+        <div class="card metric-tile">
+          <span class="metric-label">Self-consumption</span>
+          <span class="metric-value" id="liveSelfCons">—</span>
+        </div>
+      </section>
+
+      <!-- Today's generation: self-consumed vs fed back to the grid. -->
+      <section class="card split-card" aria-label="Today's generation">
+        <div class="split-head">
+          <h3 class="split-title">☀️ Today's generation</h3>
+          <span class="split-total" id="genTotal">—</span>
+        </div>
+        <div class="split-legend">
+          <div class="split-leg">
+            <span class="split-leg-name">Self-consumption</span>
+            <span class="split-leg-val" id="genSelf">—</span>
+          </div>
+          <div class="split-leg split-leg-end">
+            <span class="split-leg-name">Grid feed-in</span>
+            <span class="split-leg-val" id="genFeed">—</span>
+          </div>
+        </div>
+        <div class="split-bar"><span class="split-bar-fill split-bar-gen" id="genBar"></span></div>
+        <span class="split-pct muted small" id="genPct">—</span>
+      </section>
+
+      <!-- Today's consumption: covered by solar vs drawn from the grid. -->
+      <section class="card split-card" aria-label="Today's consumption">
+        <div class="split-head">
+          <h3 class="split-title">🏠 Today's consumption</h3>
+          <span class="split-total" id="consTotal">—</span>
+        </div>
+        <div class="split-legend">
+          <div class="split-leg">
+            <span class="split-leg-name">Self-sufficiency</span>
+            <span class="split-leg-val" id="consSelf">—</span>
+          </div>
+          <div class="split-leg split-leg-end">
+            <span class="split-leg-name">Grid-supplied</span>
+            <span class="split-leg-val" id="consGrid">—</span>
+          </div>
+        </div>
+        <div class="split-bar"><span class="split-bar-fill split-bar-cons" id="consBar"></span></div>
+        <span class="split-pct muted small" id="consPct">—</span>
+      </section>
+
+      <!-- Your savings — a rough, clearly-labelled estimate from today's PV. -->
+      <section class="card savings-card" aria-label="Your savings">
+        <h3 class="savings-title">🌱 Your savings <span class="muted small">· today, estimated</span></h3>
+        <div class="savings-grid">
+          <div class="savings-stat">
+            <span class="savings-label">CO₂ avoided</span>
+            <span class="savings-value" id="savCo2">—</span>
+          </div>
+          <div class="savings-stat">
+            <span class="savings-label">Trees equivalent</span>
+            <span class="savings-value" id="savTrees">—</span>
+          </div>
         </div>
       </section>
 
@@ -99,13 +190,16 @@
         <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
       </section>
 
-      <nav class="range-tabs" aria-label="Aggregate range">
-        <button id="rangeHourly" type="button" class="range-tab active" data-range="hourly">Hourly</button>
-        <button id="rangeDaily" type="button" class="range-tab" data-range="daily">Daily</button>
-        <button id="rangeMonthly" type="button" class="range-tab" data-range="monthly">Monthly</button>
+      <nav class="range-tabs" aria-label="History range">
+        <button id="rangeDay" type="button" class="range-tab active" data-range="day">Day</button>
+        <button id="rangeWeek" type="button" class="range-tab" data-range="week">Week</button>
+        <button id="rangeMonth" type="button" class="range-tab" data-range="month">Month</button>
+        <button id="rangeYear" type="button" class="range-tab" data-range="year">Year</button>
+        <button id="rangeTotal" type="button" class="range-tab" data-range="total">Σ</button>
       </nav>
 
       <section class="card chart-card">
+        <h3 class="chart-title">Generation &amp; consumption</h3>
         <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
         <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
       </section>
