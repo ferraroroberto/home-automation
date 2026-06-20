@@ -25,13 +25,10 @@
 <body>
   <main class="app">
     <header class="header">
-      <h1>🏠 Home</h1>
       <div class="header-actions">
         <!-- Local weather readout (GET /api/weather). Hidden until the first
              successful read; fails quietly like the energy tile. -->
         <span id="weather" class="weather" hidden></span>
-        <span id="status" class="status"></span>
-        <button id="themeBtn" type="button" class="header-icon-btn" title="Toggle theme" aria-label="Toggle dark mode">🌙</button>
       </div>
     </header>
 
@@ -260,6 +257,11 @@
         <span class="settings-summary-title">⚙️ Settings</span>
       </summary>
       <div class="settings-body">
+        <h3>🎨 Appearance</h3>
+        <div class="settings-row">
+          <span>Theme</span>
+          <button id="themeBtn" type="button" class="header-icon-btn" title="Toggle theme" aria-label="Toggle dark mode">🌙</button>
+        </div>
         <h3>🔒 HTTPS trust profile</h3>
         <p class="muted small">
           First time on an iPhone or a new device? Install the local CA so the

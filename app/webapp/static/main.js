@@ -295,19 +295,14 @@ function renderAcSummary() {
 
 // --------------------------------------------------------------- boot
 async function loadUnits() {
-  els.status.textContent = 'Loading…';
   try {
     const body = await jsonApi('/api/units');
     state.units = (body && body.units) || [];
     renderAll();
     renderAcSummary();
-    els.status.textContent = state.units.length + ' unit(s)';
   } catch (exc) {
-    if (String(exc.message) === 'auth required') {
-      els.status.textContent = 'Sign in to continue';
-      return;
-    }
-    els.status.textContent = '';
+    // A 401 already surfaced the login overlay (api.js → showLogin); stay quiet.
+    if (String(exc.message) === 'auth required') return;
     toast('Load failed: ' + (exc.message || exc), 'error');
   }
 }

@@ -43,7 +43,6 @@ export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const els = {
   grid: document.getElementById('unitsGrid'),
   themeBtn: document.getElementById('themeBtn'),
-  status: document.getElementById('status'),
   toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
   // Tabs + panes
