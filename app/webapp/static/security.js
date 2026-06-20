@@ -15,12 +15,18 @@ const ACTIONS = ['disarm', 'partial', 'perimeter', 'arm'];
 const ACTION_LABELS = {
   disarm: 'Disarm',
   partial: 'Partial',
-  arm: 'Arm',
+  arm: 'Full',
   perimeter: 'Perimeter',
 };
+// Optimistic toast shown the instant an action is tapped (before the refresh).
+const ACTION_TOASTS = {
+  partial: 'Arming partial',
+  perimeter: 'Arming perimeter',
+  arm: 'Arming full',
+};
 const MODE_LABELS = {
-  disarmed: 'Disarmed',
-  armed: 'Armed',
+  disarmed: 'Not armed',
+  armed: 'Fully armed',
   arming: 'Arming',
   partial: 'Partial',
   perimeter: 'Perimeter',
@@ -55,8 +61,28 @@ function statusClass(mode) {
   return '';
 }
 
+// A trouble or alarm-memory condition turns the first button into "Clear".
+function hasTroubleOrMemory() {
+  const security = state.security || {};
+  return security.trouble === true || security.memory_alarm === true;
+}
+
+// Which action represents the state the system is currently in (highlighted as
+// the active pill). Null while triggered/unknown — nothing to highlight.
+function currentAction() {
+  const mode = currentMode();
+  if (mode === 'disarmed') return 'disarm';
+  if (mode === 'armed' || mode === 'arming') return 'arm';
+  if (mode === 'partial') return 'partial';
+  if (mode === 'perimeter') return 'perimeter';
+  return null;
+}
+
 function actionAvailable(action) {
   if (!supported(action)) return false;
+  // Clear: disarm is tappable whenever a trouble/alarm-memory must be cleared,
+  // even from an otherwise-disarmed system.
+  if (action === 'disarm' && hasTroubleOrMemory()) return true;
   const mode = currentMode();
   if (mode === 'disarmed') return action !== 'disarm';
   if (mode === 'armed' || mode === 'arming' || mode === 'partial' || mode === 'perimeter') {
@@ -78,8 +104,16 @@ function fmtTime(value) {
   });
 }
 
+// Toast wording for an action, evaluated before the POST (so the disarm vs
+// clear distinction still sees the current trouble/memory state).
+function actionToast(action) {
+  if (action === 'disarm') return hasTroubleOrMemory() ? 'Clearing' : 'Disarming';
+  return ACTION_TOASTS[action] || 'Working…';
+}
+
 async function postAction(action) {
   if (!actionAvailable(action)) return;
+  toast(actionToast(action), 'good');  // optimistic — fires the instant you tap
   try {
     state.security = await jsonApi('/api/security/' + encodeURIComponent(action), {
       method: 'POST',
@@ -114,13 +148,19 @@ async function setBypass(zone, bypass) {
 
 function renderActions() {
   els.securityActions.innerHTML = '';
+  const current = currentAction();
+  const clearing = hasTroubleOrMemory();
   ACTIONS.forEach(function (action) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'range-tab security-action security-action-' + action;
-    btn.textContent = ACTION_LABELS[action];
+    btn.className = 'security-action security-action-' + action;
+    // The first button reads "Clear" only while a trouble/alarm-memory is up.
+    btn.textContent = action === 'disarm' && clearing ? 'Clear' : ACTION_LABELS[action];
     btn.disabled = !actionAvailable(action);
-    if (btn.disabled) {
+    // The state the system is in shows as the highlighted (filled) pill, even
+    // when it isn't itself a tappable transition.
+    if (action === current) btn.classList.add('is-current');
+    if (btn.disabled && action !== current) {
       btn.title = currentMode() === 'unknown' ? 'State unavailable' : 'Unavailable in current state';
     }
     btn.addEventListener('click', function () { postAction(action); });
@@ -131,28 +171,16 @@ function renderActions() {
 function renderState() {
   const security = state.security;
   const mode = security ? currentMode() : 'unknown';
-  const label = security ? displayLabel() : '-';
+  const label = security ? displayLabel() : '—';
   els.securityState.className = 'security-state ' + statusClass(mode);
   els.securityState.innerHTML = '';
   const prefix = document.createElement('span');
-  prefix.textContent = 'Your System is ';
+  prefix.textContent = 'Current state: ';
   els.securityState.appendChild(prefix);
   const word = document.createElement('span');
   word.className = 'security-state-word';
   word.textContent = label;
   els.securityState.appendChild(word);
-
-  if (!security) {
-    els.securityMeta.textContent = '';
-    return;
-  }
-  const bits = [];
-  if (security.system_ready === true) bits.push('Ready');
-  if (security.trouble === true) bits.push('Trouble');
-  if (security.ongoing_alarm === true) bits.push('Alarm');
-  else if (security.memory_alarm === true) bits.push('Alarm memory');
-  else if (security.alarm_pending === true) bits.push('Alarm');
-  els.securityMeta.textContent = bits.join(' · ');
 }
 
 function renderEvents() {
