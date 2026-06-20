@@ -18,6 +18,13 @@
   --toggle-label: #54606e;
   --close-bg: #eef1f6;
   --toast-bg: #1b2536;
+  /* Home-tab tile typography — one value size, one icon size, one label size,
+     shared by the weather strip and the energy peek so every number across the
+     two tiles (time · temp · forecast · production · consumption · net) reads
+     at the same scale rather than each picking its own. */
+  --tile-value: 1.15rem;
+  --tile-icon: 1.3rem;
+  --tile-label: 0.92rem;
   color-scheme: light dark;
 }
 
@@ -280,27 +287,35 @@ html, body {
 
 /* Weather strip (Home tab): current time · current weather · today's forecast,
    three groups on one row. Hidden until the first successful /api/weather read. */
+/* Three equal columns aligned to the energy peek below: time over Production,
+   current temp over Consumption, forecast over Net grid. Same padding + gap +
+   track template as .energy-grid so the two cards' columns line up exactly. */
 .weather-tile {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   padding: 12px 14px;
   margin-bottom: 10px;
 }
-.weather-now { display: flex; flex-direction: column; min-width: 0; }
+.weather-now { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
 .weather-time {
-  font-size: 1.4rem;
+  font-size: var(--tile-value);
   font-weight: 650;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
-.weather-loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.weather-current { display: flex; align-items: center; gap: 8px; }
-.weather-current-icon { font-size: 1.7rem; line-height: 1; }
+.weather-loc {
+  font-size: var(--tile-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.weather-current { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.weather-current-icon { font-size: var(--tile-icon); line-height: 1; }
 .weather-current-temp {
-  font-size: 1.6rem;
+  font-size: var(--tile-value);
   font-weight: 650;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -308,18 +323,29 @@ html, body {
 .weather-forecast {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
+  /* min-width:0 keeps this a true 1fr track (matching the Net-grid column
+     below); nowrap holds the range on one line, overflowing left into the
+     empty space beside the centred temperature rather than wrapping. */
+  min-width: 0;
+  white-space: nowrap;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.weather-fc-icon { font-size: 1.2rem; line-height: 1; }
-.weather-fc-range { color: var(--ink); font-weight: 550; }
+.weather-fc-icon { font-size: var(--tile-icon); line-height: 1; }
+.weather-fc-range {
+  font-size: var(--tile-value);
+  color: var(--ink);
+  font-weight: 650;
+  white-space: nowrap;
+}
 .weather-fc-sep { color: var(--muted); margin: 0 1px; }
 
 /* Energy-flow tile: three compact stats (Production / Consumption / Net grid)
    on the Home tab, a condensed peek at the full Energy-tab flow diagram. */
 .energy-card {
-  padding: 11px 12px 24px;
+  padding: 12px 14px 24px;
   margin-bottom: 10px;
   position: relative;
 }
@@ -338,17 +364,26 @@ html, body {
 .energy-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 8px;
   align-items: center;
 }
+/* Each stat hugs its column the same way the weather group above it does, so
+   Production sits under the time (left), Consumption under the temp (centre),
+   Net grid under the forecast (right). */
 .energy-stat {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 2px;
 }
-.energy-label { font-size: 0.72rem; color: var(--muted); text-align: center; }
-.energy-value { font-size: 0.98rem; font-weight: 600; }
+.energy-stat:nth-child(1) { align-items: flex-start; }
+.energy-stat:nth-child(2) { align-items: center; }
+.energy-stat:nth-child(3) { align-items: flex-end; }
+.energy-label { font-size: var(--tile-label); color: var(--muted); }
+.energy-value {
+  font-size: var(--tile-value);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
 
 /* top band: name (opens modal) + power + fan, all on one row */
 .unit-top {
