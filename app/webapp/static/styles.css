@@ -60,24 +60,8 @@ html, body {
   padding: env(safe-area-inset-top) 12px 24px;
 }
 
-/* ----------------------------------------------------------- header */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 4px 10px;
-  position: sticky;
-  top: 0;
-  background: var(--bg);
-  z-index: 5;
-}
-.header-actions { display: flex; align-items: center; gap: 10px; }
-.weather {
-  color: var(--ink);
-  font-size: 0.9rem;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
+/* ------------------------------------------------------ theme toggle */
+/* The 🌙/☀️ button (lives in the Settings block). */
 .header-icon-btn {
   background: var(--card);
   color: var(--ink);
@@ -101,7 +85,7 @@ html, body {
   border: 1px solid var(--line);
   border-radius: 12px;
   position: sticky;
-  top: 56px;
+  top: 0;
   z-index: 4;
 }
 .tab {
@@ -310,6 +294,44 @@ html, body {
 .unit-card.is-off { background: var(--card-off); }
 .unit-card.is-off .unit-room .value,
 .unit-card.is-off .target-value { color: var(--muted); }
+
+/* Weather strip (Home tab): current time · current weather · today's forecast,
+   three groups on one row. Hidden until the first successful /api/weather read. */
+.weather-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.weather-now { display: flex; flex-direction: column; min-width: 0; }
+.weather-time {
+  font-size: 1.4rem;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.weather-loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.weather-current { display: flex; align-items: center; gap: 8px; }
+.weather-current-icon { font-size: 1.7rem; line-height: 1; }
+.weather-current-temp {
+  font-size: 1.6rem;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.weather-forecast {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.weather-fc-icon { font-size: 1.2rem; line-height: 1; }
+.weather-fc-range { color: var(--ink); font-weight: 550; }
+.weather-fc-sep { color: var(--muted); margin: 0 1px; }
 
 /* Energy-flow tile: three compact stats (Production / Consumption / Net grid)
    on the Home tab, a condensed peek at the full Energy-tab flow diagram. */

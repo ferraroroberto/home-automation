@@ -1,13 +1,14 @@
-"""Current-weather API for the header readout.
+"""Current-weather API for the Home-tab weather tile.
 
 ``GET /api/weather`` returns the home's current temperature + a WMO weather
-code, read from **Open-Meteo** (keyless, no account). The home location lives
-in a gitignored ``config/location.json`` (see ``src/location_config.py``); the
-real coordinates never enter the public repo.
+code, plus today's forecast (min / max + a forecast code), read from
+**Open-Meteo** (keyless, no account). The home location lives in a gitignored
+``config/location.json`` (see ``src/location_config.py``); the real coordinates
+never enter the public repo.
 
 Failure is quiet, never a 500: a missing location config or an unreachable
 Open-Meteo returns HTTP 200 with ``available=False`` so the frontend simply
-keeps the readout hidden — weather is decorative, not load-bearing.
+keeps the tile hidden — weather is decorative, not load-bearing.
 """
 
 from __future__ import annotations
@@ -43,6 +44,8 @@ async def get_weather() -> Dict[str, Any]:
         "latitude": loc.lat,
         "longitude": loc.lon,
         "current": "temperature_2m,weather_code,is_day",
+        "daily": "temperature_2m_max,temperature_2m_min,weather_code",
+        "forecast_days": 1,
         "timezone": "auto",
     }
     try:
@@ -61,10 +64,27 @@ async def get_weather() -> Dict[str, Any]:
     if temp is None or code is None:
         return {"available": False, "reason": "no_data"}
 
+    # Today's forecast (daily arrays, index 0). Optional — a malformed/missing
+    # daily block degrades to null fields, never a failure (still 200).
+    daily = data.get("daily") or {}
+    today_max = _first(daily.get("temperature_2m_max"))
+    today_min = _first(daily.get("temperature_2m_min"))
+    today_code = _first(daily.get("weather_code"))
+
     return {
         "available": True,
         "temperature_c": float(temp),
         "weather_code": int(code),
         "is_day": bool(current.get("is_day", 1)),
         "label": loc.label,
+        "temp_max_c": None if today_max is None else float(today_max),
+        "temp_min_c": None if today_min is None else float(today_min),
+        "forecast_code": None if today_code is None else int(today_code),
     }
+
+
+def _first(seq: Any) -> Any:
+    """First element of a non-empty list, else ``None`` (Open-Meteo daily arrays)."""
+    if isinstance(seq, list) and seq:
+        return seq[0]
+    return None

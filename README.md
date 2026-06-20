@@ -191,9 +191,9 @@ billing-grade meter read.
 
 ## Weather
 
-The header shows a compact current-weather readout (temperature + a weather
-icon) for the home location, read from **Open-Meteo** (keyless — no account, no
-API key).
+The **Home tab** shows a compact weather strip — current time, current weather
+(icon + temperature), and today's forecast (min / max + a forecast icon) — for
+the home location, read from **Open-Meteo** (keyless — no account, no API key).
 
 - **Location config:** the home coordinates live in `config/location.json`
   (`lat` / `lon` / optional `label`). This file is **gitignored** — the repo is
@@ -202,10 +202,12 @@ API key).
   (geocode an address with any keyless geocoder, e.g.
   `https://geocoding-api.open-meteo.com/v1/search?name=<city>`).
 - **Endpoint:** `GET /api/weather` returns `{available, temperature_c,
-  weather_code, is_day, label}`. When `config/location.json` is absent or
-  Open-Meteo is unreachable it returns `{available: false, reason}` with HTTP
-  200 — weather is decorative, never a 500. The header readout stays hidden
-  until the first successful read and fails quietly thereafter.
+  weather_code, is_day, label, temp_min_c, temp_max_c, forecast_code}` (the last
+  three are today's forecast, from Open-Meteo's `daily` block; null if that block
+  is missing). When `config/location.json` is absent or Open-Meteo is unreachable
+  it returns `{available: false, reason}` with HTTP 200 — weather is decorative,
+  never a 500. The tile stays hidden until the first successful read and fails
+  quietly thereafter. The clock ticks client-side, independent of the poll.
 - **Cadence:** the frontend polls every ~10 minutes (weather barely moves).
 
 ## Tuya / Smart Life

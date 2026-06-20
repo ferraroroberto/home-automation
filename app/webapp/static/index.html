@@ -24,14 +24,6 @@
 </head>
 <body>
   <main class="app">
-    <header class="header">
-      <div class="header-actions">
-        <!-- Local weather readout (GET /api/weather). Hidden until the first
-             successful read; fails quietly like the energy tile. -->
-        <span id="weather" class="weather" hidden></span>
-      </div>
-    </header>
-
     <!-- Top segmented tab control (mirrors app-launcher's nav.tabs). Panes are
          toggled with [hidden]; the chosen tab is remembered in localStorage. -->
     <nav class="tabs" aria-label="Sections">
@@ -44,6 +36,29 @@
 
     <!-- ============================== HOME =============================== -->
     <section id="paneHome" class="pane" aria-label="Home">
+      <!-- Weather strip (GET /api/weather): current time · current weather ·
+           today's forecast (min/max + code). Home-tab only. Hidden until the
+           first successful read; fails quietly like the energy tile. -->
+      <section id="weatherTile" class="card weather-tile" aria-label="Weather" hidden>
+        <div class="weather-now">
+          <span class="weather-time" id="wxTime">—</span>
+          <span class="weather-loc muted small" id="wxLoc"></span>
+        </div>
+        <div class="weather-current">
+          <span class="weather-current-icon" id="wxNowIcon">—</span>
+          <span class="weather-current-temp" id="wxNowTemp">—</span>
+        </div>
+        <div class="weather-forecast">
+          <span class="weather-fc-icon" id="wxFcIcon">—</span>
+          <span class="weather-fc-range">
+            <span class="weather-fc-min" id="wxFcMin">—</span>
+            <span class="weather-fc-sep">/</span>
+            <span class="weather-fc-max" id="wxFcMax">—</span>
+          </span>
+          <span class="weather-fc-label muted small">today</span>
+        </div>
+      </section>
+
       <!-- Compact live energy tile (GET /api/energy). Hidden until the first
            successful read; the inverter sleeps at night so Solar shows
            "asleep" then rather than a stale number. -->
