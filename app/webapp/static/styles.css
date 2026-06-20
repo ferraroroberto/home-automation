@@ -1,7 +1,7 @@
 /* Home Automation — mobile-first PWA dashboard. */
 
 :root {
-  --bg: #0a0f1a;
+  --bg: #f5f7fa;
   --card: #ffffff;
   --card-off: #eef1f6;
   --ink: #16202e;
@@ -16,9 +16,12 @@
   --toggle-knob: #fff;
   --toggle-label: #54606e;
   --close-bg: #eef1f6;
+  --toast-bg: #1b2536;
+  color-scheme: light dark;
 }
 
 [data-theme="dark"] {
+  --bg: #0a0f1a;
   --card: #1b2536;
   --card-off: #141d2c;
   --ink: #e8edf4;
@@ -30,6 +33,7 @@
   --toggle-knob: #6b7785;
   --toggle-label: #9fb0c3;
   --close-bg: #2a3548;
+  --toast-bg: #1b2536;
 }
 
 * { box-sizing: border-box; }
@@ -66,18 +70,18 @@ html, body {
   background: var(--bg);
   z-index: 5;
 }
-.header h1 { font-size: 1.35rem; margin: 0; color: #f4f7fb; }
+.header h1 { font-size: 1.35rem; margin: 0; color: var(--ink); }
 .header-actions { display: flex; align-items: center; gap: 10px; }
-.status { color: #9fb0c3; font-size: 0.85rem; }
+.status { color: var(--muted); font-size: 0.85rem; }
 .weather {
-  color: #f4f7fb;
+  color: var(--ink);
   font-size: 0.9rem;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .header-icon-btn {
-  background: #1b2536;
-  color: #f4f7fb;
+  background: var(--card);
+  color: var(--ink);
   border: none;
   border-radius: 12px;
   width: 40px;
@@ -470,7 +474,7 @@ html, body {
   left: 50%;
   bottom: calc(18px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  background: #1b2536;
+  background: var(--toast-bg);
   color: #fff;
   padding: 10px 16px;
   border-radius: 12px;
