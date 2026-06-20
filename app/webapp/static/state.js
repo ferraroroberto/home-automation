@@ -77,8 +77,15 @@ export const els = {
   enHouse: document.getElementById('enHouse'),
   enSurplus: document.getElementById('enSurplus'),
   enUpdated: document.getElementById('enUpdated'),
-  // Header weather readout (GET /api/weather)
-  weather: document.getElementById('weather'),
+  // Home-tab weather tile (GET /api/weather)
+  weatherTile: document.getElementById('weatherTile'),
+  wxTime: document.getElementById('wxTime'),
+  wxLoc: document.getElementById('wxLoc'),
+  wxNowIcon: document.getElementById('wxNowIcon'),
+  wxNowTemp: document.getElementById('wxNowTemp'),
+  wxFcIcon: document.getElementById('wxFcIcon'),
+  wxFcMin: document.getElementById('wxFcMin'),
+  wxFcMax: document.getElementById('wxFcMax'),
   // Energy tab: flow diagram (live)
   flowTime: document.getElementById('flowTime'),
   flowPv: document.getElementById('flowPv'),
