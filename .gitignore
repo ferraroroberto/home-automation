@@ -6,6 +6,7 @@ tinytuya.json
 # Webapp secrets + per-machine generated artifacts (public repo!)
 config/webapp_config.json
 config/display_names.json
+config/tuya_display_names.json
 config/location.json
 webapp/certificates/
 webapp/*.log

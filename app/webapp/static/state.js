@@ -19,6 +19,8 @@ export const state = {
   selectedId: null,
   // Local Tuya / Smart Life device cards from GET /api/tuya.
   plugs: [],
+  // device_id whose rename modal is open (or null).
+  selectedPlugId: null,
   // When false (default), only cards with has_valid_ip===true are shown.
   // When true, all cards render (including unregistered/no-IP adapters).
   plugsShowAll: false,
@@ -69,6 +71,17 @@ export const els = {
   plugsNote: document.getElementById('plugsNote'),
   plugsToggleBtn: document.getElementById('plugsToggleBtn'),
   plugsHiddenCount: document.getElementById('plugsHiddenCount'),
+  // Plugs summary stats
+  plugsStats: document.getElementById('plugsStats'),
+  plugStatTotal: document.getElementById('plugStatTotal'),
+  plugStatOn: document.getElementById('plugStatOn'),
+  plugStatOff: document.getElementById('plugStatOff'),
+  plugStatWatts: document.getElementById('plugStatWatts'),
+  // Plug rename modal
+  plugDialog: document.getElementById('plugDialog'),
+  plugDetailName: document.getElementById('plugDetailName'),
+  plugDisplayName: document.getElementById('plugDisplayName'),
+  plugDetailClose: document.getElementById('plugDetailClose'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
   // Energy-flow tile (GET /api/energy), Home tab

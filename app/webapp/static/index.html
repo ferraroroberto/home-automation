@@ -221,6 +221,26 @@
          and LAN reads only. The empty/error note guides toward refreshing
          devices.json (never the cloud). -->
     <section id="panePlugs" class="pane" aria-label="Smart Life devices" hidden>
+      <!-- Summary: total devices · on · off · live consumption (reachable
+           metered). Computed from state.plugs; hidden until devices load. -->
+      <section id="plugsStats" class="card plugs-stats" aria-label="Plugs summary" hidden>
+        <div class="plugs-stat">
+          <span class="plugs-stat-label">Devices</span>
+          <span class="plugs-stat-value" id="plugStatTotal">—</span>
+        </div>
+        <div class="plugs-stat">
+          <span class="plugs-stat-label">On</span>
+          <span class="plugs-stat-value" id="plugStatOn">—</span>
+        </div>
+        <div class="plugs-stat">
+          <span class="plugs-stat-label">Off</span>
+          <span class="plugs-stat-value" id="plugStatOff">—</span>
+        </div>
+        <div class="plugs-stat">
+          <span class="plugs-stat-label">Live</span>
+          <span class="plugs-stat-value" id="plugStatWatts">—</span>
+        </div>
+      </section>
       <div class="plugs-toolbar">
         <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Show all</button>
         <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
@@ -319,6 +339,22 @@
       <label class="row" id="detailVaneHorizontalRow" hidden>
         <span>Vane — horizontal</span>
         <select id="detailVaneHorizontal" class="select-native"></select>
+      </label>
+    </div>
+  </dialog>
+
+  <!-- Plug rename modal — mirrors the AC detail modal, name-only. Opened by
+       tapping a plug card's name; saves via PUT /api/tuya/{id}/display_name. -->
+  <dialog id="plugDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="plugDetailName">Device</h2>
+        <button id="plugDetailClose" type="button" class="detail-close" aria-label="Close">✕</button>
+      </div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="plugDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
     </div>
   </dialog>
