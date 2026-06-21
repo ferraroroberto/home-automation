@@ -135,6 +135,12 @@ html, body {
    theme vars so the glass bar works in both light and dark. */
 @media (pointer: coarse) and (max-width: 520px) {
   .app {
+    /* Always fill the viewport so the fixed bottom bar anchors to the *viewport*
+       bottom, not the content bottom. Without this, iOS standalone PWAs pin a
+       position:fixed bar to the short page's content bottom on non-scrolling
+       pages, so it rides up (issue #61). 100vh fallback for iOS < 15.4. */
+    min-height: 100vh;
+    min-height: 100dvh;
     padding-bottom: calc(
       var(--bottom-tabs-inset) + var(--bottom-tabs-height) +
       var(--bottom-tabs-gap) + 24px
