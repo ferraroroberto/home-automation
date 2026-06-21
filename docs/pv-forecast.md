@@ -57,6 +57,38 @@ tile reads) — there is no separate lat/lon here. If either `pv_system.json` or
 `location.json` is absent the forecast simply reports "not configured"; the card
 shows a one-line note pointing at the sample and nothing else breaks.
 
+### Choosing `performance_ratio` (and reading it off a PVGIS system)
+
+`performance_ratio` is the single knob that turns clear-sky irradiance into a
+believable yield, so it is worth setting deliberately rather than leaving at the
+0.8 default. Crucially, **it is not the same number as a PVGIS "system loss"**,
+even though it is tempting to set `1 − loss`:
+
+- **PVGIS** applies its `loss` percentage (cabling, inverter, soiling, mismatch)
+  *on top of* a separate, physics-based **panel-temperature** correction — hot
+  panels lose efficiency, and PVGIS models that hour by hour.
+- **This model has no temperature term.** It scales GTI straight to power, so
+  `performance_ratio` has to absorb *both* the PVGIS-style system losses *and*
+  the temperature loss PVGIS would have handled separately.
+
+So translating a PVGIS setup, don't copy `1 − loss/100` verbatim — subtract a
+further few points for thermal loss. Worked example (the home array, from the
+sister `pvgis` repo's `.env`):
+
+| PVGIS input | value | → this model |
+| --- | --- | --- |
+| `HOME_PEAKPOWER_KW` | 8.0 | `kwp: 8.0` |
+| `HOME_TILT_DEG` | 35 | `tilt_deg: 35` |
+| `HOME_AZIMUTH_DEG` | 0 | `azimuth_deg: 0` (same 0 = S convention) |
+| `HOME_LOSS_PCT` | 14 | system loss only → 0.86 |
+| *typical thermal loss* | ~6% | the part PVGIS models separately |
+| **combined** | | **`performance_ratio: 0.80`** |
+
+Empirically this matters: 0.86 (the raw `1 − loss`) forecast ≈ 51 kWh for a
+clear June day, while PVGIS's own annual model lands ~45–48 kWh — 0.80 brings the
+estimate back in line. If you have measured generation, tune `performance_ratio`
+so the dashed forecast sits over the filled actual curve on clear days.
+
 ## Endpoint
 
 `GET /api/energy/forecast?day=yesterday|today|tomorrow` →
