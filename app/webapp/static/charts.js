@@ -9,16 +9,17 @@
  *   • history area chart — the same three in energy (kWh) per calendar slot,
  *     for a fill-up Day / Week / Month / Year / Total window.
  *
- * Colours read from CSS custom properties only for axes/legend (theme-aware via
- * restyle()); the series palette is fixed so it matches the flow + cards:
- *   Generation = green, Grid-supplied = red, Consumption = grey line.
+ * All colours read from the design-system CSS custom properties (theme-aware via
+ * restyle()): axes/legend from --ink/--muted/--line, and the series palette from
+ * the status tokens so it matches the flow + cards:
+ *   Generation = --on (success/green), Grid-supplied = --deficit (danger/red),
+ *   Consumption = --muted (grey line).
+ * NOTE: tokens are consumed as #rrggbb here (hexA parses hex). The P3 oklch layer
+ * (issue #65) must add a gamut-safe resolver before --on/--deficit can be oklch.
  *
  * Chart.js is loaded as a vendored UMD global (window.Chart) by index.html. */
 
 'use strict';
-
-const GEN = '#2ecc71';   // green — generation (matches the solar flow + gen bar)
-const GRID = '#e2574c';  // red — grid-supplied (matches the deficit banner)
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -27,9 +28,11 @@ function cssVar(name, fallback) {
 
 function palette() {
   return {
-    ink: cssVar('--ink', '#16202e'),
-    muted: cssVar('--muted', '#6b7785'),
-    line: cssVar('--line', '#e2e7ef'),
+    ink: cssVar('--ink', '#1f2328'),
+    muted: cssVar('--muted', '#656d76'),
+    line: cssVar('--line', '#d1d9e0'),
+    gen: cssVar('--on', '#1a7f37'),
+    grid: cssVar('--deficit', '#cf222e'),
   };
 }
 
@@ -101,8 +104,8 @@ export function createLiveChart(canvas) {
     data: {
       labels: [],
       datasets: [
-        area('Generation', GEN),
-        area('Grid-supplied', GRID),
+        area('Generation', pal.gen),
+        area('Grid-supplied', pal.grid),
         envelope('Consumption', pal.muted),
       ],
     },
@@ -146,8 +149,8 @@ export function createAggChart(canvas) {
     data: {
       labels: [],
       datasets: [
-        area('Generation', GEN),
-        area('Grid-supplied', GRID),
+        area('Generation', pal.gen),
+        area('Grid-supplied', pal.grid),
         envelope('Consumption', pal.muted),
       ],
     },
@@ -171,7 +174,11 @@ export function restyle(chart, unit) {
   if (!chart) return;
   const pal = palette();
   chart.options.plugins.legend.labels.color = pal.ink;
-  // Consumption envelope tracks the theme's muted grey.
+  // Series colours track the theme's status tokens (--on / --deficit / --muted).
+  chart.data.datasets[0].borderColor = pal.gen;
+  chart.data.datasets[0].backgroundColor = hexA(pal.gen, 0.18);
+  chart.data.datasets[1].borderColor = pal.grid;
+  chart.data.datasets[1].backgroundColor = hexA(pal.grid, 0.18);
   chart.data.datasets[2].borderColor = pal.muted;
   chart.data.datasets[2].backgroundColor = pal.muted;
   Object.assign(chart.options.scales, baseScales(pal, unit));
