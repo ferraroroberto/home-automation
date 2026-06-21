@@ -45,32 +45,6 @@ export function wireTabs() {
   TABS.forEach(function (name) {
     els[TAB_ELS[name]].addEventListener('click', function () { setTab(name); });
   });
-  wireBottomTabsPin();
-}
-
-// Keep the floating mobile tab bar glued to the *visual* viewport bottom. iOS
-// Safari positions `position: fixed` against the layout viewport and only
-// re-snaps fixed elements once a scroll / address-bar transition settles, so
-// the bar visibly drifts a few px first. Translating it by the visual↔layout
-// bottom delta tracks the address bar in real time. No-op when the two
-// viewports coincide (delta 0) — desktop, the e2e projections, a settled
-// phone — so the desktop nav is never moved. (Ported from app-launcher.)
-function pinBottomTabs() {
-  const nav = els.tabHome && els.tabHome.closest('.tabs');
-  if (!nav) return;
-  const vp = window.visualViewport;
-  if (!vp) return;
-  const layoutH = document.documentElement.clientHeight;
-  const delta = Math.round(layoutH - (vp.offsetTop + vp.height));
-  nav.style.transform = delta > 0 ? 'translateY(' + -delta + 'px)' : '';
-}
-
-function wireBottomTabsPin() {
-  if (!window.visualViewport) return;
-  pinBottomTabs();
-  window.visualViewport.addEventListener('resize', pinBottomTabs);
-  window.visualViewport.addEventListener('scroll', pinBottomTabs);
-  window.addEventListener('scroll', pinBottomTabs, { passive: true });
 }
 
 export function initialTab() {
