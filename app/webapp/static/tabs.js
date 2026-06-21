@@ -10,6 +10,13 @@
 import { els, state, TAB_KEY } from './state.js';
 
 const TABS = ['home', 'ac', 'energy', 'plugs', 'security'];
+// tab name → button el handle / pane el handle (in state.els).
+const TAB_ELS = {
+  home: 'tabHome', ac: 'tabAc', energy: 'tabEnergy', plugs: 'tabPlugs', security: 'tabSecurity',
+};
+const PANE_ELS = {
+  home: 'paneHome', ac: 'paneAc', energy: 'paneEnergy', plugs: 'panePlugs', security: 'paneSecurity',
+};
 let onChange = function () {};
 
 export function onTabChange(fn) {
@@ -19,26 +26,51 @@ export function onTabChange(fn) {
 export function setTab(tab) {
   if (!TABS.includes(tab)) tab = 'home';
   state.tab = tab;
-  els.tabHome.classList.toggle('active', tab === 'home');
-  els.tabAc.classList.toggle('active', tab === 'ac');
-  els.tabEnergy.classList.toggle('active', tab === 'energy');
-  els.tabPlugs.classList.toggle('active', tab === 'plugs');
-  els.tabSecurity.classList.toggle('active', tab === 'security');
-  els.paneHome.hidden = tab !== 'home';
-  els.paneAc.hidden = tab !== 'ac';
-  els.paneEnergy.hidden = tab !== 'energy';
-  els.panePlugs.hidden = tab !== 'plugs';
-  els.paneSecurity.hidden = tab !== 'security';
+  TABS.forEach(function (name) {
+    const tabEl = els[TAB_ELS[name]];
+    const paneEl = els[PANE_ELS[name]];
+    const active = name === tab;
+    tabEl.classList.toggle('active', active);
+    tabEl.setAttribute('aria-selected', active ? 'true' : 'false');
+    tabEl.tabIndex = active ? 0 : -1;
+    paneEl.hidden = !active;
+  });
+  const nav = els.tabHome.closest('.tabs');
+  if (nav) nav.dataset.activeTab = tab;
   try { localStorage.setItem(TAB_KEY, tab); } catch (_) { /* private mode */ }
   onChange(tab);
 }
 
 export function wireTabs() {
-  els.tabHome.addEventListener('click', function () { setTab('home'); });
-  els.tabAc.addEventListener('click', function () { setTab('ac'); });
-  els.tabEnergy.addEventListener('click', function () { setTab('energy'); });
-  els.tabPlugs.addEventListener('click', function () { setTab('plugs'); });
-  els.tabSecurity.addEventListener('click', function () { setTab('security'); });
+  TABS.forEach(function (name) {
+    els[TAB_ELS[name]].addEventListener('click', function () { setTab(name); });
+  });
+  wireBottomTabsPin();
+}
+
+// Keep the floating mobile tab bar glued to the *visual* viewport bottom. iOS
+// Safari positions `position: fixed` against the layout viewport and only
+// re-snaps fixed elements once a scroll / address-bar transition settles, so
+// the bar visibly drifts a few px first. Translating it by the visual↔layout
+// bottom delta tracks the address bar in real time. No-op when the two
+// viewports coincide (delta 0) — desktop, the e2e projections, a settled
+// phone — so the desktop nav is never moved. (Ported from app-launcher.)
+function pinBottomTabs() {
+  const nav = els.tabHome && els.tabHome.closest('.tabs');
+  if (!nav) return;
+  const vp = window.visualViewport;
+  if (!vp) return;
+  const layoutH = document.documentElement.clientHeight;
+  const delta = Math.round(layoutH - (vp.offsetTop + vp.height));
+  nav.style.transform = delta > 0 ? 'translateY(' + -delta + 'px)' : '';
+}
+
+function wireBottomTabsPin() {
+  if (!window.visualViewport) return;
+  pinBottomTabs();
+  window.visualViewport.addEventListener('resize', pinBottomTabs);
+  window.visualViewport.addEventListener('scroll', pinBottomTabs);
+  window.addEventListener('scroll', pinBottomTabs, { passive: true });
 }
 
 export function initialTab() {

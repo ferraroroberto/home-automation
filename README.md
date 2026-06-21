@@ -157,8 +157,9 @@ then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 
 ## Energy monitoring & history
 
-The PWA splits into five tabs: **Home** (a compact energy tile + a read-only
-one-line-per-unit AC summary), **AC** (the full unit controls + detail modal),
+The PWA splits into five tabs: **Home** (the same live ☀️ Solar · 🏠 Home · 🗼 Grid
+energy-flow card as the Energy tab + a read-only one-line-per-unit AC summary),
+**AC** (the full unit controls + detail modal),
 **Energy** (an SMA-style solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
 flow row with a colour-coded grid arrow (blue ◀ importing, green ▶ exporting),
 self-sufficiency / self-consumption tiles, today's generation & consumption split
@@ -169,6 +170,11 @@ breakdown** table (grid energy priced per time-of-use period, self-consumed PV
 valued at the avoided rate — see *Electricity tariff* below), and **🔌 Plugs** (the local Smart Life
 devices — see below), and **🛡️ Security** (RISCO alarm controls, event log, and
 detector bypass).
+
+On desktop the tabs are a top segmented control; on a phone / installed PWA they
+become a floating bottom tab bar with stroke icons (mirroring the `app-launcher`
+nav). Collapsible sections (Settings, Security's event log + detectors) share one
+centered, icon-led summary style.
 
 While the webapp runs, a background **sampler** (started in the FastAPI
 lifespan, so it lives and dies with the tray's uvicorn process) persists the
@@ -240,6 +246,8 @@ documented in [`docs/tariff-model.md`](docs/tariff-model.md).
 The **Home tab** shows a compact weather strip — current time, current weather
 (icon + temperature), and today's forecast (min / max + a forecast icon) — for
 the home location, read from **Open-Meteo** (keyless — no account, no API key).
+The `label` is still part of the API response but is **not** rendered on the
+strip (it's obviously home), so the strip stays on a single line.
 
 - **Location config:** the home coordinates live in `config/location.json`
   (`lat` / `lon` / optional `label`). This file is **gitignored** — the repo is

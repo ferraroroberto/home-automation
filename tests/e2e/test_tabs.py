@@ -30,6 +30,11 @@ def test_tab_navigation_switches_panes(
     expect(page.locator("#paneAc")).to_be_hidden()
     expect(page.locator("#paneEnergy")).to_be_hidden()
 
+    # Home now shows the same Solar → Home ← Grid flow card as Energy (issue #57),
+    # revealed once the first /api/energy read lands.
+    expect(page.locator("#paneHome .flow-row")).to_be_visible()
+    expect(page.locator("#homeFlowPv")).to_have_text("2,500 W")
+
     # AC tab → unit cards become visible.
     page.locator("#tabAc").click()
     expect(page.locator("#paneAc")).to_be_visible()
@@ -40,7 +45,7 @@ def test_tab_navigation_switches_panes(
     page.locator("#tabEnergy").click()
     expect(page.locator("#paneEnergy")).to_be_visible()
     expect(page.locator("#paneAc")).to_be_hidden()
-    expect(page.locator(".flow-row")).to_be_visible()
+    expect(page.locator("#paneEnergy .flow-row")).to_be_visible()
 
 
 def test_home_shows_ac_summary_line_per_unit(
