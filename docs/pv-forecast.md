@@ -99,7 +99,8 @@ so the dashed forecast sits over the filled actual curve on clear days.
   "day": "today",
   "expected": [{ "hour": 0, "wh": 0.0 }, /* … 24 hourly points … */],
   "expected_total_kwh": 18.4,
-  "actual": [{ "hour": 0, "wh": null }, /* … or null for tomorrow … */]
+  "actual": [{ "hour": 0, "wh": null }, /* … or null for tomorrow … */],
+  "system": { "kwp": 1.5, "tilt_deg": 35, "azimuth_deg": 0, "performance_ratio": 0.8 }
 }
 ```
 
@@ -107,6 +108,10 @@ so the dashed forecast sits over the filled actual curve on clear days.
 (`hourly_day`), 24 hourly points where a `null` hour is an asleep inverter or an
 hour with no sample (drawn as a gap, never a 0) — the same "asleep is not zero"
 rule the live chart uses. `tomorrow` has no actuals, so `actual` is `null`.
+
+`system` echoes back the array parameters the curve was computed from, so the
+card can show them in a caption (e.g. `1.5 kWp · 35° tilt · S · PR 0.80`) and you
+can sanity-check the inputs at a glance. Present only on an available forecast.
 
 Always HTTP 200: when the array/location is unconfigured or Open-Meteo is
 unreachable it returns `{ "available": false, "reason": … }` and the card keeps

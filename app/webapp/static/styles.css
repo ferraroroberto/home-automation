@@ -476,13 +476,19 @@ html, body {
 /* ------------------------------------------------------- solar forecast */
 .forecast-card { padding: 12px; margin-bottom: 12px; }
 /* "Expected generation +X kWh" — neutral primary text (the green identity lives
-   on the chart's actual-generation area; the headline is informational). */
+   on the chart's actual-generation area; the headline is informational). Sized
+   at the body role (like .split-total), not heading-lg, so it stays in scale. */
 .forecast-headline {
-  margin: 2px 0 10px;
-  font-size: var(--font-heading-lg);
+  margin: 4px 0 2px;
+  font-size: var(--font-body);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
+}
+/* The array parameters the curve was computed from, e.g. "1.5 kWp · 35° · S · PR 0.80". */
+.forecast-params {
+  margin: 0 0 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ----------------------------------------------------- energy charts */

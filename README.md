@@ -268,9 +268,10 @@ strip (it's obviously home), so the strip stays on a single line.
 
 The Energy tab's **Solar forecast** card shows an *expected generation* curve
 (dashed) with the day's measured generation overlaid (filled), a headline
-"Expected generation +X kWh", and a **Yesterday / Today / Tomorrow** toggle. It is
-read/visualisation only — a forecast to compare against reality, not a control
-input.
+"Expected generation +X kWh", a caption with the array parameters the curve was
+computed from (e.g. `1.5 kWp · 35° tilt · S · PR 0.80`), and a **Yesterday /
+Today / Tomorrow** toggle. It is read/visualisation only — a forecast to compare
+against reality, not a control input.
 
 - **Source:** one keyless **Open-Meteo** call for hourly *global tilted
   irradiance* (the same host the weather tile uses), scaled by the array to an
@@ -282,8 +283,9 @@ input.
   `performance_ratio`. Coordinates are reused from `config/location.json` (the
   weather tile's file) — there is no separate lat/lon.
 - **Endpoint:** `GET /api/energy/forecast?day=yesterday|today|tomorrow` returns
-  the hourly expected curve, the day's `expected_total_kwh`, and (for
-  today/yesterday) the measured `actual` overlay (`null` for tomorrow). When
+  the hourly expected curve, the day's `expected_total_kwh`, the `system` params
+  used (kWp / tilt / azimuth / performance_ratio), and (for today/yesterday) the
+  measured `actual` overlay (`null` for tomorrow). When
   `pv_system.json`/`location.json` is absent or Open-Meteo is unreachable it
   returns `{available: false, reason}` with HTTP 200 — the card keeps a one-line
   note and nothing else breaks.

@@ -202,4 +202,5 @@ async def get_energy_forecast(
         "expected": forecast.expected,
         "expected_total_kwh": round(forecast.expected_total_wh / 1000.0, 2),
         "actual": actual,
+        "system": forecast.system,  # array params the curve was computed from
     }

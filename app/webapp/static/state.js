@@ -151,6 +151,7 @@ export const els = {
   // Energy tab: solar-forecast card
   forecastMeta: document.getElementById('forecastMeta'),
   forecastHeadline: document.getElementById('forecastHeadline'),
+  forecastParams: document.getElementById('forecastParams'),
   forecastChart: document.getElementById('forecastChart'),
   forecastEmpty: document.getElementById('forecastEmpty'),
   forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .range-tab')),

@@ -54,6 +54,9 @@ class PvForecast:
     expected: List[Dict[str, Any]] = field(default_factory=list)
     expected_total_wh: float = 0.0
     reason: Optional[str] = None
+    # The array parameters the curve was computed from (for the UI to display),
+    # populated only on an available forecast.
+    system: Optional[Dict[str, Any]] = None
 
 
 def _unavailable(day: str, reason: str) -> PvForecast:
@@ -141,4 +144,10 @@ async def fetch_pv_forecast(
         day=day,
         expected=expected,
         expected_total_wh=round(total_wh, 1),
+        system={
+            "kwp": system.kwp,
+            "tilt_deg": system.tilt_deg,
+            "azimuth_deg": system.azimuth_deg,
+            "performance_ratio": system.performance_ratio,
+        },
     )
