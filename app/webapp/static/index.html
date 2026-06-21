@@ -101,12 +101,45 @@
         </div>
       </section>
 
+      <!-- Alarm controls (actionable) — the *same* component as the Security
+           tab, rendered into these home containers too (issue #72). -->
+      <section class="card security-card" aria-label="Alarm controls">
+        <h2 id="homeSecurityState" class="security-state">Alarm state: —</h2>
+        <div id="homeSecurityActions" class="security-actions" aria-label="Alarm actions"></div>
+      </section>
+
+      <!-- AC summary: one line per unit with an inline power toggle (issue #72).
+           Mode + vanes still live in the AC tab's per-unit detail modal. -->
+      <section id="acSummary" class="card ac-summary" aria-label="AC summary"></section>
+
+      <!-- Plug summary (informative) — the same totals as the Plugs tab. Loaded
+           once on Home entry; live control stays on the Plugs tab (issue #72). -->
+      <section id="homePlugsStats" class="card plugs-summary" aria-label="Plug summary" hidden>
+        <div class="plugs-stats">
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">Devices</span>
+            <span class="plugs-stat-value" id="homePlugStatTotal">—</span>
+          </div>
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">On</span>
+            <span class="plugs-stat-value" id="homePlugStatOn">—</span>
+          </div>
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">Off</span>
+            <span class="plugs-stat-value" id="homePlugStatOff">—</span>
+          </div>
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">Live</span>
+            <span class="plugs-stat-value" id="homePlugStatWatts">—</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Live energy-flow card — the *same* Solar → Home ← Grid view as the
            Energy tab (issue #57: one shared visualization, not a divergent
            compact tile). Filled by renderEnergy(); hidden until the first read. -->
       <section id="homeEnergyFlow" class="card flow-card" aria-label="Energy flow" hidden>
         <div class="flow-head">
-          <h3 class="flow-title">⚡ Energy now</h3>
           <span class="flow-time muted small" id="homeFlowTime"></span>
         </div>
         <div class="flow-row">
@@ -129,9 +162,6 @@
           </div>
         </div>
       </section>
-
-      <!-- Read-only AC summary: one line per unit. Controls live in the AC tab. -->
-      <section id="acSummary" class="card ac-summary" aria-label="AC summary"></section>
     </section>
 
     <!-- =============================== AC =============================== -->
@@ -146,7 +176,6 @@
            come from GET /api/energy; an asleep inverter dims the Solar node. -->
       <section class="card flow-card" aria-label="Energy flow">
         <div class="flow-head">
-          <h3 class="flow-title">⚡ Energy now</h3>
           <span class="flow-time muted small" id="flowTime"></span>
         </div>
         <!-- Compact inline flow: Solar → Home ← Grid, in one row. Home sits in
@@ -280,7 +309,6 @@
               <tr>
                 <th scope="col">Period</th>
                 <th scope="col">Rate</th>
-                <th scope="col">Used</th>
                 <th scope="col">Grid</th>
                 <th scope="col">Solar</th>
                 <th scope="col">Cost</th>
@@ -322,22 +350,24 @@
     <section id="panePlugs" class="pane" role="tabpanel" aria-labelledby="tabPlugs" aria-label="Smart Life devices" hidden>
       <!-- Summary: total devices · on · off · live consumption (reachable
            metered). Computed from state.plugs; hidden until devices load. -->
-      <section id="plugsStats" class="card plugs-stats" aria-label="Plugs summary" hidden>
-        <div class="plugs-stat">
-          <span class="plugs-stat-label">Devices</span>
-          <span class="plugs-stat-value" id="plugStatTotal">—</span>
-        </div>
-        <div class="plugs-stat">
-          <span class="plugs-stat-label">On</span>
-          <span class="plugs-stat-value" id="plugStatOn">—</span>
-        </div>
-        <div class="plugs-stat">
-          <span class="plugs-stat-label">Off</span>
-          <span class="plugs-stat-value" id="plugStatOff">—</span>
-        </div>
-        <div class="plugs-stat">
-          <span class="plugs-stat-label">Live</span>
-          <span class="plugs-stat-value" id="plugStatWatts">—</span>
+      <section id="plugsStats" class="card plugs-summary" aria-label="Plug summary" hidden>
+        <div class="plugs-stats">
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">Devices</span>
+            <span class="plugs-stat-value" id="plugStatTotal">—</span>
+          </div>
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">On</span>
+            <span class="plugs-stat-value" id="plugStatOn">—</span>
+          </div>
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">Off</span>
+            <span class="plugs-stat-value" id="plugStatOff">—</span>
+          </div>
+          <div class="plugs-stat">
+            <span class="plugs-stat-label">Live</span>
+            <span class="plugs-stat-value" id="plugStatWatts">—</span>
+          </div>
         </div>
       </section>
       <div class="plugs-toolbar">
@@ -351,7 +381,7 @@
     <!-- ============================= SECURITY ============================ -->
     <section id="paneSecurity" class="pane" role="tabpanel" aria-labelledby="tabSecurity" aria-label="Security" hidden>
       <section class="card security-card" aria-label="Alarm controls">
-        <h2 id="securityState" class="security-state">Current state: —</h2>
+        <h2 id="securityState" class="security-state">Alarm state: —</h2>
         <div id="securityActions" class="security-actions" aria-label="Alarm actions"></div>
       </section>
 

@@ -192,8 +192,10 @@ async function savePlugName() {
 // filter: devices, switches on, switches off, and live watts on reachable
 // metered plugs.
 function renderStats() {
+  // The same totals render in the Plugs tab card and the Home tab tile (#72).
+  const cards = [els.plugsStats, els.homePlugsStats];
   if (!state.plugs.length) {
-    els.plugsStats.hidden = true;
+    cards.forEach(function (c) { if (c) c.hidden = true; });
     return;
   }
   let on = 0;
@@ -204,11 +206,16 @@ function renderStats() {
     else if (d.has_switch && d.switch_on === false) off += 1;
     if (d.metered && d.reachable && d.power_w != null) watts += Number(d.power_w);
   });
-  els.plugStatTotal.textContent = String(state.plugs.length);
-  els.plugStatOn.textContent = String(on);
-  els.plugStatOff.textContent = String(off);
-  els.plugStatWatts.textContent = fmtW(watts);
-  els.plugsStats.hidden = false;
+  const total = String(state.plugs.length);
+  const onStr = String(on);
+  const offStr = String(off);
+  const wattStr = fmtW(watts);
+  const set = function (el, v) { if (el) el.textContent = v; };
+  set(els.plugStatTotal, total); set(els.homePlugStatTotal, total);
+  set(els.plugStatOn, onStr); set(els.homePlugStatOn, onStr);
+  set(els.plugStatOff, offStr); set(els.homePlugStatOff, offStr);
+  set(els.plugStatWatts, wattStr); set(els.homePlugStatWatts, wattStr);
+  cards.forEach(function (c) { if (c) c.hidden = false; });
 }
 
 export function renderPlugs() {
@@ -311,6 +318,11 @@ export function onPlugsTab(tab) {
   if (tab === 'plugs') {
     loadPlugs();            // immediate refresh on entry (also the first load)
     schedule(POLL_MS);
+  } else if (tab === 'home') {
+    // Home shows the (informative) plug summary: load once on entry, but do not
+    // start the comparatively expensive LAN polling on the default tab (#72).
+    loadPlugs();
+    schedule(0);
   } else {
     schedule(0);
   }

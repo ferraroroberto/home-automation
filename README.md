@@ -85,11 +85,12 @@ MELCloud Home login).
 
 The **Security** tab integrates the RISCO Cloud alarm through `pyrisco` for
 state/events and the native RISCO WebUI command path for arm/disarm actions.
-It shows the current alarm state as a single centered `Current state: <Word>`
+It shows the current alarm state as a single centered `Alarm state: <Word>`
 line (colour-coded), one row of rounded action pills (`Disarm` / `Partial` /
 `Perimeter` / `Full`) where the current state is highlighted and reachable
 actions are quieter outlines, the recent event log, and a collapsible detector
-list with per-zone bypass toggles. The first button reads **`Clear`** (and is
+list with per-zone toggles (active = green, bypassed = red). The same alarm
+state + action pills are mirrored, actionable, on the **Home** tab. The first button reads **`Clear`** (and is
 only tappable) when a trouble or alarm-memory condition is present; tapping it
 clears that condition. Every action shows an optimistic toast on tap, then
 re-renders from the panel's live state.
@@ -157,8 +158,10 @@ then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 
 ## Energy monitoring & history
 
-The PWA splits into five tabs: **Home** (the same live ☀️ Solar · 🏠 Home · 🗼 Grid
-energy-flow card as the Energy tab + a read-only one-line-per-unit AC summary),
+The PWA splits into five tabs: **Home** (a consolidated dashboard — weather strip,
+the actionable alarm tile, a one-line-per-unit AC summary with inline power
+toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
+card as the Energy tab; alarm + AC act, the rest inform),
 **AC** (the full unit controls + detail modal),
 **Energy** (an SMA-style solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
 flow row with a colour-coded grid arrow (blue ◀ importing, green ▶ exporting),
@@ -464,7 +467,7 @@ webapp (adopting a running one on :8447, else autobooting a disposable
 instance with the energy sampler off) and drives the PWA, **stubbing
 `/api/units`, the `/api/energy*` endpoints, and `/api/tuya*` with fixtures** so
 it never touches the live cloud, the LAN, or actuates real HVAC. Coverage
-includes the Home/AC/Energy/Plugs tab navigation, the read-only AC summary, an
+includes the Home/AC/Energy/Plugs tab navigation, the Home AC summary, an
 Energy-tab render (hero numbers + charts), and the Plugs tab (metered-plug
 watts, a switch round-trip, cover controls, and an offline device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14.

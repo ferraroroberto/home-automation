@@ -239,9 +239,14 @@ html, body {
   .tabs {
     position: fixed;
     top: auto;
-    left: max(var(--bottom-tabs-margin), env(safe-area-inset-left, 0));
-    right: max(var(--bottom-tabs-margin), env(safe-area-inset-right, 0));
-    bottom: var(--bottom-tabs-margin);
+    /* A touch more side inset than the bottom gap so the pill is a few px
+       narrower (issue #72) without changing its height off the bottom. */
+    left: max(calc(var(--bottom-tabs-margin) + 6px), env(safe-area-inset-left, 0));
+    right: max(calc(var(--bottom-tabs-margin) + 6px), env(safe-area-inset-right, 0));
+    /* Lift above the home-indicator safe area so the visible gap below the pill
+       matches the left/right gap (Telegram-style). Bare --bottom-tabs-margin
+       measured from the physical edge let the indicator zone crowd the bar. */
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin));
     z-index: 120;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -318,9 +323,9 @@ html, body {
 .ac-summary { padding: 6px 12px; }
 .ac-summary-empty { margin: 8px 0; }
 .ac-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 9px 0;
   border-top: 1px solid var(--line);
@@ -334,22 +339,22 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ac-line-stats { display: flex; align-items: center; gap: 10px; flex: none; }
+/* Centred temperature column: room → target above, mode · fan beneath. */
+.ac-line-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  text-align: center;
+}
 .ac-temp { font-weight: 650; font-variant-numeric: tabular-nums; }
 .ac-meta { color: var(--muted); font-size: var(--font-caption); }
-.ac-state {
-  font-size: var(--font-caption);
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: var(--radius-pill);
-}
-.ac-state.on { background: var(--on); color: var(--accent-fg); }
-.ac-state.off { background: var(--toggle-track); color: var(--toggle-label); }
 
 /* ------------------------------------------------- energy flow diagram */
 .flow-card { padding: 12px; margin-bottom: var(--gap); }
-.flow-head { display: flex; align-items: baseline; justify-content: space-between; }
-.flow-title { margin: 0; font-size: var(--font-label); }
+/* Title removed (the Solar→Home←Grid row is self-evident, #72); the lone
+   last-updated timestamp sits right-aligned. */
+.flow-head { display: flex; align-items: baseline; justify-content: flex-end; }
 .flow-time { font-variant-numeric: tabular-nums; }
 
 /* One compact row: Solar · Home · Grid, each a small stacked node, joined by
@@ -460,6 +465,13 @@ html, body {
 .cost-table .cost-total td {
   border-top: 2px solid var(--line);
   font-weight: 700;
+}
+/* Narrow phones: tighten the cells so the 6 columns fit with no horizontal
+   scroll (issue #72) while keeping the 3-decimal tariff rate. */
+@media (max-width: 430px) {
+  .cost-table { font-size: var(--font-caption); }
+  .cost-table th,
+  .cost-table td { padding: 6px 3px; }
 }
 .cost-summary {
   display: grid;
@@ -710,14 +722,19 @@ html, body {
 
 /* ----------------------------------------------------- plugs (Smart Life) */
 /* Summary stats: devices · on · off · live watts, four cells in one row. */
+.plugs-summary { padding: 12px; margin-bottom: var(--gap); }
 .plugs-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  padding: 12px;
-  margin-bottom: var(--gap);
 }
-.plugs-stat { display: flex; flex-direction: column; gap: 3px; }
+.plugs-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
 .plugs-stat-label { font-size: var(--font-caption); color: var(--muted); }
 .plugs-stat-value {
   font-size: var(--font-body);
@@ -925,16 +942,17 @@ html, body {
   font-size: var(--font-caption);
   flex: none;
 }
+.security-zone.is-active .security-zone-flags { color: var(--on); }
+.security-zone.is-bypassed .security-zone-flags { color: var(--deficit); }
 .security-zone.is-triggered .security-zone-flags { color: var(--deficit); }
-.security-zone.is-bypassed .security-zone-flags { color: var(--on); }
 .security-bypass {
   justify-self: end;
 }
 .security-bypass.on {
-  background: var(--deficit);
+  background: var(--on);
 }
 .security-bypass.off {
-  background: var(--on);
+  background: var(--deficit);
 }
 .security-bypass.on .toggle-label,
 .security-bypass.off .toggle-label { color: var(--accent-fg); }

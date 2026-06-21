@@ -157,19 +157,31 @@ function timeLabel(tsSeconds) {
 }
 
 // ------------------------------------------------------------ history
+// A grouped bar per calendar slot. Bars (not an area line) so a single-bucket
+// range — Year or Total when only one month of history exists — still draws,
+// and the all-time Total reads as the single bar the design calls for (#72).
+function histBar(label, color) {
+  return {
+    label: label,
+    data: [],
+    borderColor: color,
+    backgroundColor: alphaFill(color, 0.7),
+    borderWidth: 1,
+  };
+}
+
 export function createAggChart(canvas) {
   const pal = palette();
   return new Chart(canvas.getContext('2d'), {
-    type: 'line',
+    type: 'bar',
     data: {
       labels: [],
       datasets: [
-        area('Generation', pal.gen),
-        area('Grid-supplied', pal.grid),
-        envelope('Consumption', pal.muted),
+        histBar('Generation', pal.gen),
+        histBar('Grid-supplied', pal.grid),
+        histBar('Consumption', pal.muted),
       ],
     },
-    // spanGaps:true — empty future slots are real 0 kWh, draw a continuous frame.
     options: commonOptions(pal, 'kWh', true),
   });
 }
@@ -254,12 +266,16 @@ export function restyle(chart, unit) {
   const pal = palette();
   chart.options.plugins.legend.labels.color = pal.ink;
   // Series colours track the theme's status tokens (--on / --deficit / --muted).
+  // The history chart is grouped bars (solid fills); the live chart is areas
+  // (translucent fills) + a solid consumption line.
+  const isBar = chart.config.type === 'bar';
+  const fillA = isBar ? 0.7 : 0.18;
   chart.data.datasets[0].borderColor = pal.gen;
-  chart.data.datasets[0].backgroundColor = alphaFill(pal.gen, 0.18);
+  chart.data.datasets[0].backgroundColor = alphaFill(pal.gen, fillA);
   chart.data.datasets[1].borderColor = pal.grid;
-  chart.data.datasets[1].backgroundColor = alphaFill(pal.grid, 0.18);
+  chart.data.datasets[1].backgroundColor = alphaFill(pal.grid, fillA);
   chart.data.datasets[2].borderColor = pal.muted;
-  chart.data.datasets[2].backgroundColor = pal.muted;
+  chart.data.datasets[2].backgroundColor = isBar ? alphaFill(pal.muted, fillA) : pal.muted;
   Object.assign(chart.options.scales, baseScales(pal, unit));
   chart.update('none');
 }

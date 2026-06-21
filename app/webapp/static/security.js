@@ -146,8 +146,11 @@ async function setBypass(zone, bypass) {
   }
 }
 
-function renderActions() {
-  els.securityActions.innerHTML = '';
+// Alarm controls render into every registered container — the Security tab and
+// the Home tab both show the same actionable pills (issue #72).
+function renderActionsInto(el) {
+  if (!el) return;
+  el.innerHTML = '';
   const current = currentAction();
   const clearing = hasTroubleOrMemory();
   ACTIONS.forEach(function (action) {
@@ -164,23 +167,34 @@ function renderActions() {
       btn.title = currentMode() === 'unknown' ? 'State unavailable' : 'Unavailable in current state';
     }
     btn.addEventListener('click', function () { postAction(action); });
-    els.securityActions.appendChild(btn);
+    el.appendChild(btn);
   });
 }
 
-function renderState() {
+function renderActions() {
+  renderActionsInto(els.securityActions);
+  renderActionsInto(els.homeSecurityActions);
+}
+
+function renderStateInto(el) {
+  if (!el) return;
   const security = state.security;
   const mode = security ? currentMode() : 'unknown';
   const label = security ? displayLabel() : '—';
-  els.securityState.className = 'security-state ' + statusClass(mode);
-  els.securityState.innerHTML = '';
+  el.className = 'security-state ' + statusClass(mode);
+  el.innerHTML = '';
   const prefix = document.createElement('span');
-  prefix.textContent = 'Current state: ';
-  els.securityState.appendChild(prefix);
+  prefix.textContent = 'Alarm state: ';
+  el.appendChild(prefix);
   const word = document.createElement('span');
   word.className = 'security-state-word';
   word.textContent = label;
-  els.securityState.appendChild(word);
+  el.appendChild(word);
+}
+
+function renderState() {
+  renderStateInto(els.securityState);
+  renderStateInto(els.homeSecurityState);
 }
 
 function renderEvents() {
@@ -315,7 +329,9 @@ function schedule(ms) {
 }
 
 export function onSecurityTab(tab) {
-  if (tab === 'security') {
+  // The alarm tile is actionable on Home too, so keep it loaded + polling there
+  // as well as on the Security tab (issue #72).
+  if (tab === 'security' || tab === 'home') {
     loadSecurity();
     schedule(POLL_MS);
   } else {

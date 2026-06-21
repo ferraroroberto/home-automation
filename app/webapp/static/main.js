@@ -275,20 +275,33 @@ function renderAcSummary() {
     name.className = 'ac-line-name';
     name.textContent = modeIcon(u.operation_mode) + ' ' + (displayLabel(u) || 'Unit');
 
-    const stats = document.createElement('span');
-    stats.className = 'ac-line-stats';
-    // room → target, mode · fan, on/off pill — one scannable line per unit.
+    // Centred temperature column: room → target on top, mode · fan beneath, so
+    // the readings line up down the card (issue #72).
+    const center = document.createElement('span');
+    center.className = 'ac-line-center';
     const room = fmtTemp(u.room_temperature);
     const target = fmtTemp(u.set_temperature);
-    stats.innerHTML =
+    center.innerHTML =
       '<span class="ac-temp">' + room + ' → ' + target + '</span>' +
       '<span class="ac-meta">' + (u.operation_mode || '—') +
-        (u.fan_speed ? ' · ' + u.fan_speed : '') + '</span>' +
-      '<span class="ac-state ' + (on ? 'on' : 'off') + '">' +
-        (on ? 'ON' : 'OFF') + '</span>';
+        (u.fan_speed ? ' · ' + u.fan_speed : '') + '</span>';
+
+    // Power toggle — the app's standard switch, actionable from Home (issue #72).
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'toggle ac-line-toggle' + (on ? ' on' : '');
+    toggle.setAttribute('role', 'switch');
+    toggle.setAttribute('aria-checked', on ? 'true' : 'false');
+    toggle.setAttribute('aria-label', 'Power ' + (displayLabel(u) || 'unit'));
+    toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+      (on ? 'ON' : 'OFF') + '</span>';
+    toggle.addEventListener('click', function () {
+      applyControl(u.unit_id, { power: !on });
+    });
 
     row.appendChild(name);
-    row.appendChild(stats);
+    row.appendChild(center);
+    row.appendChild(toggle);
     els.acSummary.appendChild(row);
   });
 }
