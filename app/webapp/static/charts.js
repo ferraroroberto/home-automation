@@ -157,29 +157,22 @@ function timeLabel(tsSeconds) {
 }
 
 // ------------------------------------------------------------ history
-// A grouped bar per calendar slot. Bars (not an area line) so a single-bucket
-// range — Year or Total when only one month of history exists — still draws,
-// and the all-time Total reads as the single bar the design calls for (#72).
-function histBar(label, color) {
-  return {
-    label: label,
-    data: [],
-    borderColor: color,
-    backgroundColor: alphaFill(color, 0.7),
-    borderWidth: 1,
-  };
-}
-
+// The same filled Generation / Grid-supplied areas + a Consumption envelope as
+// the live chart, but per calendar slot in kWh (#74 — reverted from the #72 bar
+// experiment, which read as cluttered hourly bars on the Day view). A single-
+// bucket range (the Σ Total, or Year with <1y of history) would draw an
+// invisible 1-point line, so setAggData() turns the point markers on in that
+// one case — see there.
 export function createAggChart(canvas) {
   const pal = palette();
   return new Chart(canvas.getContext('2d'), {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: [],
       datasets: [
-        histBar('Generation', pal.gen),
-        histBar('Grid-supplied', pal.grid),
-        histBar('Consumption', pal.muted),
+        area('Generation', pal.gen),
+        area('Grid-supplied', pal.grid),
+        envelope('Consumption', pal.muted),
       ],
     },
     options: commonOptions(pal, 'kWh', true),
@@ -193,6 +186,11 @@ export function setAggData(chart, buckets) {
   chart.data.datasets[0].data = buckets.map(function (b) { return kwh(b.pv_wh); });
   chart.data.datasets[1].data = buckets.map(function (b) { return kwh(b.import_wh); });
   chart.data.datasets[2].data = buckets.map(function (b) { return kwh(b.house_wh); });
+  // A line through a single point is invisible (pointRadius is 0 everywhere
+  // else), so the Σ Total — and any range that resolves to one bucket — would
+  // read as empty. Show the markers only in that case so the value is visible.
+  const single = buckets.length <= 1;
+  chart.data.datasets.forEach(function (d) { d.pointRadius = single ? 4 : 0; });
   chart.update('none');
 }
 
@@ -266,16 +264,14 @@ export function restyle(chart, unit) {
   const pal = palette();
   chart.options.plugins.legend.labels.color = pal.ink;
   // Series colours track the theme's status tokens (--on / --deficit / --muted).
-  // The history chart is grouped bars (solid fills); the live chart is areas
-  // (translucent fills) + a solid consumption line.
-  const isBar = chart.config.type === 'bar';
-  const fillA = isBar ? 0.7 : 0.18;
+  // Both history and live charts are areas (translucent fills) + a solid
+  // Consumption line.
   chart.data.datasets[0].borderColor = pal.gen;
-  chart.data.datasets[0].backgroundColor = alphaFill(pal.gen, fillA);
+  chart.data.datasets[0].backgroundColor = alphaFill(pal.gen, 0.18);
   chart.data.datasets[1].borderColor = pal.grid;
-  chart.data.datasets[1].backgroundColor = alphaFill(pal.grid, fillA);
+  chart.data.datasets[1].backgroundColor = alphaFill(pal.grid, 0.18);
   chart.data.datasets[2].borderColor = pal.muted;
-  chart.data.datasets[2].backgroundColor = isBar ? alphaFill(pal.muted, fillA) : pal.muted;
+  chart.data.datasets[2].backgroundColor = pal.muted;
   Object.assign(chart.options.scales, baseScales(pal, unit));
   chart.update('none');
 }

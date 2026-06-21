@@ -100,7 +100,6 @@ export const els = {
   acSummary: document.getElementById('acSummary'),
   // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.
   homeEnergyFlow: document.getElementById('homeEnergyFlow'),
-  homeFlowTime: document.getElementById('homeFlowTime'),
   homeFlowPv: document.getElementById('homeFlowPv'),
   homeFlowGrid: document.getElementById('homeFlowGrid'),
   homeFlowHouse: document.getElementById('homeFlowHouse'),
@@ -116,7 +115,6 @@ export const els = {
   wxFcMin: document.getElementById('wxFcMin'),
   wxFcMax: document.getElementById('wxFcMax'),
   // Energy tab: flow diagram (live)
-  flowTime: document.getElementById('flowTime'),
   flowPv: document.getElementById('flowPv'),
   flowGrid: document.getElementById('flowGrid'),
   flowHouse: document.getElementById('flowHouse'),

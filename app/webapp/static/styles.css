@@ -319,7 +319,7 @@ html, body {
 }
 
 /* ----------------------------------------------------------- AC summary */
-.ac-summary { padding: 6px 12px; }
+.ac-summary { padding: 6px 12px; margin-bottom: var(--gap); }
 .ac-summary-empty { margin: 8px 0; }
 .ac-line {
   display: grid;
@@ -350,11 +350,9 @@ html, body {
 .ac-meta { color: var(--muted); font-size: var(--font-caption); }
 
 /* ------------------------------------------------- energy flow diagram */
+/* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
+   self-evident, and the time duplicated the phone clock — #74). */
 .flow-card { padding: 12px; margin-bottom: var(--gap); }
-/* Title removed (the Solar→Home←Grid row is self-evident, #72); the lone
-   last-updated timestamp sits right-aligned. */
-.flow-head { display: flex; align-items: baseline; justify-content: flex-end; }
-.flow-time { font-variant-numeric: tabular-nums; }
 
 /* One compact row: Solar · Home · Grid, each a small stacked node, joined by
    directional arrows. Far shorter than a stacked diagram. */
@@ -363,7 +361,6 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  margin-top: 10px;
 }
 .flow-node {
   display: flex;

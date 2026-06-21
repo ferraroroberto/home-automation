@@ -80,9 +80,10 @@
 
     <!-- ============================== HOME =============================== -->
     <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
-      <!-- Weather strip (GET /api/weather): current time · current weather ·
-           today's forecast (min/max + code). Home-tab only. Hidden until the
-           first successful read; fails quietly like the energy tile. -->
+      <!-- Weather strip (GET /api/weather): current weather · today's forecast
+           (min/max + code) on the left, a transparent theme toggle on the right.
+           Home-tab only. Hidden until the first successful read; fails quietly
+           like the energy tile. -->
       <section id="weatherTile" class="card weather-tile" aria-label="Weather" hidden>
         <div class="weather-info">
           <div class="weather-current">
@@ -140,9 +141,6 @@
            Energy tab (issue #57: one shared visualization, not a divergent
            compact tile). Filled by renderEnergy(); hidden until the first read. -->
       <section id="homeEnergyFlow" class="card flow-card" aria-label="Energy flow" hidden>
-        <div class="flow-head">
-          <span class="flow-time muted small" id="homeFlowTime"></span>
-        </div>
         <div class="flow-row">
           <div class="flow-node" id="homeFlowNodePv">
             <span class="flow-icon">☀️</span>
@@ -176,9 +174,6 @@
            the difference (or absorbs the surplus). Values + arrow directions
            come from GET /api/energy; an asleep inverter dims the Solar node. -->
       <section class="card flow-card" aria-label="Energy flow">
-        <div class="flow-head">
-          <span class="flow-time muted small" id="flowTime"></span>
-        </div>
         <!-- Compact inline flow: Solar → Home ← Grid, in one row. Home sits in
              the middle (the consumer); arrows show which way power flows and are
              coloured in JS. Net + self-consumption read from the banner/tiles. -->

@@ -82,17 +82,16 @@ function selfConsumptionFrac(solar, house) {
 // Element groupings for the two *identical* Solar → Home ← Grid flow cards: the
 // Energy tab's and the Home tab's. Same view, rendered once (issue #57).
 const energyFlowRefs = {
-  time: els.flowTime, pv: els.flowPv, grid: els.flowGrid, house: els.flowHouse,
+  pv: els.flowPv, grid: els.flowGrid, house: els.flowHouse,
   nodePv: els.flowNodePv, wirePv: els.wirePv, wireGrid: els.wireGrid,
 };
 const homeFlowRefs = {
-  time: els.homeFlowTime, pv: els.homeFlowPv, grid: els.homeFlowGrid, house: els.homeFlowHouse,
+  pv: els.homeFlowPv, grid: els.homeFlowGrid, house: els.homeFlowHouse,
   nodePv: els.homeFlowNodePv, wirePv: els.homeWirePv, wireGrid: els.homeWireGrid,
 };
 
 // Fill one flow card from a snapshot, against whichever ref set is passed in.
 function renderFlowCard(r, e, solar) {
-  r.time.textContent = nowLabel();
   r.pv.textContent = e.inverter_reachable ? fmtW(e.pv_power_w) : 'asleep';
   r.grid.textContent = fmtW(gridFlowW(e));
   r.house.textContent = fmtW(e.house_consumption_w);
