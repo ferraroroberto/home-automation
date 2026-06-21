@@ -44,13 +44,6 @@ function fmtW(v) {
   return v == null ? '—' : group(Math.round(Number(v))) + ' W';
 }
 
-function fmtSignedW(v) {
-  if (v == null) return '—';
-  const rounded = Math.round(Number(v));
-  if (rounded === 0) return '0 W';
-  return (rounded > 0 ? '+' : '−') + group(Math.abs(rounded)) + ' W';
-}
-
 function fmtKwh(wh) {
   return wh == null ? '—' : (Number(wh) / 1000).toFixed(2) + ' kWh';
 }
@@ -85,41 +78,52 @@ function selfConsumptionFrac(solar, house) {
 }
 
 // ----------------------------------------------------- render a live snapshot
-export function renderEnergy(e) {
-  const solar = e.inverter_reachable ? e.pv_power_w : null;
+// Element groupings for the two *identical* Solar → Home ← Grid flow cards: the
+// Energy tab's and the Home tab's. Same view, rendered once (issue #57).
+const energyFlowRefs = {
+  time: els.flowTime, pv: els.flowPv, grid: els.flowGrid, house: els.flowHouse,
+  nodePv: els.flowNodePv, wirePv: els.wirePv, wireGrid: els.wireGrid,
+};
+const homeFlowRefs = {
+  time: els.homeFlowTime, pv: els.homeFlowPv, grid: els.homeFlowGrid, house: els.homeFlowHouse,
+  nodePv: els.homeFlowNodePv, wirePv: els.homeWirePv, wireGrid: els.homeWireGrid,
+};
 
-  // --- Home compact tile (Production / Consumption / Net grid). ---
-  els.enPv.textContent = e.inverter_reachable ? fmtW(e.pv_power_w) : 'asleep';
-  els.enHouse.textContent = fmtW(e.house_consumption_w);
-  els.enSurplus.textContent = fmtSignedW(e.pv_surplus_w);
-  if (els.enUpdated) els.enUpdated.textContent = 'Updated ' + nowLabel();
-  els.energyFlow.hidden = false;
-
-  // --- Energy-tab flow diagram. ---
-  els.flowTime.textContent = nowLabel();
-  els.flowPv.textContent = e.inverter_reachable ? fmtW(e.pv_power_w) : 'asleep';
-  els.flowGrid.textContent = fmtW(gridFlowW(e));
-  els.flowHouse.textContent = fmtW(e.house_consumption_w);
-  els.flowNodePv.classList.toggle('is-idle', !e.inverter_reachable);
+// Fill one flow card from a snapshot, against whichever ref set is passed in.
+function renderFlowCard(r, e, solar) {
+  r.time.textContent = nowLabel();
+  r.pv.textContent = e.inverter_reachable ? fmtW(e.pv_power_w) : 'asleep';
+  r.grid.textContent = fmtW(gridFlowW(e));
+  r.house.textContent = fmtW(e.house_consumption_w);
+  r.nodePv.classList.toggle('is-idle', !e.inverter_reachable);
 
   // Solar → Home arrow: green ▶ while producing, dim · when asleep/zero.
   const producing = solar != null && solar > 0;
-  els.wirePv.classList.toggle('is-active', producing);
-  els.wirePv.textContent = producing ? '▶' : '·';
+  r.wirePv.classList.toggle('is-active', producing);
+  r.wirePv.textContent = producing ? '▶' : '·';
 
   // Home ↔ Grid arrow (Grid sits on the right): ◀ importing (grid feeds home),
   // ▶ exporting (home feeds grid back), · when balanced.
   const surplus = e.pv_surplus_w;
-  els.wireGrid.classList.remove('is-import', 'is-export');
+  r.wireGrid.classList.remove('is-import', 'is-export');
   if (surplus != null && surplus > 1) {
-    els.wireGrid.classList.add('is-export');
-    els.wireGrid.textContent = '▶';
+    r.wireGrid.classList.add('is-export');
+    r.wireGrid.textContent = '▶';
   } else if (surplus != null && surplus < -1) {
-    els.wireGrid.classList.add('is-import');
-    els.wireGrid.textContent = '◀';
+    r.wireGrid.classList.add('is-import');
+    r.wireGrid.textContent = '◀';
   } else {
-    els.wireGrid.textContent = '·';
+    r.wireGrid.textContent = '·';
   }
+}
+
+export function renderEnergy(e) {
+  const solar = e.inverter_reachable ? e.pv_power_w : null;
+
+  // Energy-tab flow card + the matching Home-tab card (revealed once it has data).
+  renderFlowCard(energyFlowRefs, e, solar);
+  renderFlowCard(homeFlowRefs, e, solar);
+  els.homeEnergyFlow.hidden = false;
 
   // --- Live efficiency tiles. ---
   els.liveSelfSuff.textContent = fmtPct(selfSufficiencyFrac(solar, e.house_consumption_w));

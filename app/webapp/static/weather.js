@@ -49,10 +49,10 @@ function tickClock() {
 function render(w) {
   if (!w || !w.available) return;  // stay hidden, keep last value
 
-  // Current weather — icon + temperature, plus the location label.
+  // Current weather — icon + temperature. The location label is intentionally
+  // not shown (issue #57): it's obviously home, so the tile stays one line.
   els.wxNowIcon.textContent = weatherIcon(Number(w.weather_code), w.is_day !== false);
   els.wxNowTemp.textContent = fmtTemp(w.temperature_c);
-  els.wxLoc.textContent = (w.label || '').trim();
 
   // Today's forecast — daytime icon (the forecast describes the day) + min/max.
   els.wxFcIcon.textContent =

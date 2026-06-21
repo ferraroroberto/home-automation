@@ -24,25 +24,68 @@
 </head>
 <body>
   <main class="app">
-    <!-- Top segmented tab control (mirrors app-launcher's nav.tabs). Panes are
-         toggled with [hidden]; the chosen tab is remembered in localStorage. -->
-    <nav class="tabs" aria-label="Sections">
-      <button id="tabHome" type="button" class="tab active" data-tab="home">🏠 Home</button>
-      <button id="tabAc" type="button" class="tab" data-tab="ac">❄️ AC</button>
-      <button id="tabEnergy" type="button" class="tab" data-tab="energy">⚡ Energy</button>
-      <button id="tabPlugs" type="button" class="tab" data-tab="plugs">🔌 Plugs</button>
-      <button id="tabSecurity" type="button" class="tab" data-tab="security">🛡️ Security</button>
+    <!-- Top segmented tab control on desktop; on mobile / installed PWA it
+         becomes app-launcher's floating bottom tab bar (issue #57). Each tab
+         carries an app-launcher-style stroke SVG icon (shown on mobile) plus the
+         emoji+label kept for the unchanged desktop look. Panes toggle with
+         [hidden]; the chosen tab is remembered in localStorage. -->
+    <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="home">
+      <button id="tabHome" type="button" class="tab active" data-tab="home"
+              role="tab" aria-selected="true" aria-controls="paneHome">
+        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M3.5 11.5 12 4l8.5 7.5" />
+          <path d="M5.5 10v9.5h13V10" />
+        </svg>
+        <span class="tab-emoji" aria-hidden="true">🏠</span>
+        <span class="tab-label">Home</span>
+      </button>
+      <button id="tabAc" type="button" class="tab" data-tab="ac"
+              role="tab" aria-selected="false" aria-controls="paneAc" tabindex="-1">
+        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M12 3v18" />
+          <path d="M4.2 7.5 19.8 16.5" />
+          <path d="M19.8 7.5 4.2 16.5" />
+        </svg>
+        <span class="tab-emoji" aria-hidden="true">❄️</span>
+        <span class="tab-label">AC</span>
+      </button>
+      <button id="tabEnergy" type="button" class="tab" data-tab="energy"
+              role="tab" aria-selected="false" aria-controls="paneEnergy" tabindex="-1">
+        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M13 3 5 13h6l-1 8 8-11h-6z" />
+        </svg>
+        <span class="tab-emoji" aria-hidden="true">⚡</span>
+        <span class="tab-label">Energy</span>
+      </button>
+      <button id="tabPlugs" type="button" class="tab" data-tab="plugs"
+              role="tab" aria-selected="false" aria-controls="panePlugs" tabindex="-1">
+        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M9 4v4" />
+          <path d="M15 4v4" />
+          <path d="M7.5 8h9v2.5a4.5 4.5 0 0 1-9 0z" />
+          <path d="M12 15v5" />
+        </svg>
+        <span class="tab-emoji" aria-hidden="true">🔌</span>
+        <span class="tab-label">Plugs</span>
+      </button>
+      <button id="tabSecurity" type="button" class="tab" data-tab="security"
+              role="tab" aria-selected="false" aria-controls="paneSecurity" tabindex="-1">
+        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M12 3.5 19 6v5.5c0 4.2-2.9 7-7 8.5-4.1-1.5-7-4.3-7-8.5V6z" />
+        </svg>
+        <span class="tab-emoji" aria-hidden="true">🛡️</span>
+        <span class="tab-label">Security</span>
+      </button>
     </nav>
 
     <!-- ============================== HOME =============================== -->
-    <section id="paneHome" class="pane" aria-label="Home">
+    <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
       <!-- Weather strip (GET /api/weather): current time · current weather ·
            today's forecast (min/max + code). Home-tab only. Hidden until the
            first successful read; fails quietly like the energy tile. -->
       <section id="weatherTile" class="card weather-tile" aria-label="Weather" hidden>
         <div class="weather-now">
           <span class="weather-time" id="wxTime">—</span>
-          <span class="weather-loc muted" id="wxLoc"></span>
         </div>
         <div class="weather-current">
           <span class="weather-current-icon" id="wxNowIcon">—</span>
@@ -58,26 +101,33 @@
         </div>
       </section>
 
-      <!-- Compact live energy tile (GET /api/energy). Hidden until the first
-           successful read; the inverter sleeps at night so Solar shows
-           "asleep" then rather than a stale number. -->
-      <section id="energyFlow" class="card energy-card" aria-label="Energy flow" hidden>
-        <div class="energy-meta" id="enUpdated"></div>
-        <div class="energy-grid">
-          <div class="energy-stat">
-            <span class="energy-label">☀️ Production</span>
-            <span class="energy-value" id="enPv">—</span>
+      <!-- Live energy-flow card — the *same* Solar → Home ← Grid view as the
+           Energy tab (issue #57: one shared visualization, not a divergent
+           compact tile). Filled by renderEnergy(); hidden until the first read. -->
+      <section id="homeEnergyFlow" class="card flow-card" aria-label="Energy flow" hidden>
+        <div class="flow-head">
+          <h3 class="flow-title">⚡ Energy now</h3>
+          <span class="flow-time muted small" id="homeFlowTime"></span>
+        </div>
+        <div class="flow-row">
+          <div class="flow-node" id="homeFlowNodePv">
+            <span class="flow-icon">☀️</span>
+            <span class="flow-value" id="homeFlowPv">—</span>
+            <span class="flow-name">Solar</span>
           </div>
-          <div class="energy-stat">
-            <span class="energy-label">🏠 Consumption</span>
-            <span class="energy-value" id="enHouse">—</span>
+          <span class="flow-arrow" id="homeWirePv" aria-hidden="true">·</span>
+          <div class="flow-node">
+            <span class="flow-icon">🏠</span>
+            <span class="flow-value" id="homeFlowHouse">—</span>
+            <span class="flow-name">Home</span>
           </div>
-          <div class="energy-stat">
-            <span class="energy-label">⚡ Net grid</span>
-            <span class="energy-value" id="enSurplus">—</span>
+          <span class="flow-arrow" id="homeWireGrid" aria-hidden="true">·</span>
+          <div class="flow-node">
+            <span class="flow-icon">🗼</span>
+            <span class="flow-value" id="homeFlowGrid">—</span>
+            <span class="flow-name">Grid</span>
           </div>
         </div>
-        <p id="enNote" hidden></p>
       </section>
 
       <!-- Read-only AC summary: one line per unit. Controls live in the AC tab. -->
@@ -85,12 +135,12 @@
     </section>
 
     <!-- =============================== AC =============================== -->
-    <section id="paneAc" class="pane" aria-label="AC units" hidden>
+    <section id="paneAc" class="pane" role="tabpanel" aria-labelledby="tabAc" aria-label="AC units" hidden>
       <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
     </section>
 
     <!-- ============================= ENERGY ============================= -->
-    <section id="paneEnergy" class="pane" aria-label="Energy monitoring" hidden>
+    <section id="paneEnergy" class="pane" role="tabpanel" aria-labelledby="tabEnergy" aria-label="Energy monitoring" hidden>
       <!-- Live energy-flow diagram: ☀️ Solar feeds 🏠 Home, the 🗼 Grid makes up
            the difference (or absorbs the surplus). Values + arrow directions
            come from GET /api/energy; an asleep inverter dims the Solar node. -->
@@ -252,7 +302,7 @@
          blind controls for covers. Cloud-free — driven by local devices.json
          and LAN reads only. The empty/error note guides toward refreshing
          devices.json (never the cloud). -->
-    <section id="panePlugs" class="pane" aria-label="Smart Life devices" hidden>
+    <section id="panePlugs" class="pane" role="tabpanel" aria-labelledby="tabPlugs" aria-label="Smart Life devices" hidden>
       <!-- Summary: total devices · on · off · live consumption (reachable
            metered). Computed from state.plugs; hidden until devices load. -->
       <section id="plugsStats" class="card plugs-stats" aria-label="Plugs summary" hidden>
@@ -282,23 +332,31 @@
     </section>
 
     <!-- ============================= SECURITY ============================ -->
-    <section id="paneSecurity" class="pane" aria-label="Security" hidden>
+    <section id="paneSecurity" class="pane" role="tabpanel" aria-labelledby="tabSecurity" aria-label="Security" hidden>
       <section class="card security-card" aria-label="Alarm controls">
         <h2 id="securityState" class="security-state">Current state: —</h2>
         <div id="securityActions" class="security-actions" aria-label="Alarm actions"></div>
       </section>
 
       <details class="card security-card security-events-card">
-        <summary class="security-section-head security-summary">
-          <h3>Event log</h3>
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <span class="collapse-icon" aria-hidden="true">📜</span>
+            <h3 class="collapse-title">Event log</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
         </summary>
         <div id="securityEvents" class="security-events"></div>
         <p id="securityEventsNote" class="muted small security-note" hidden></p>
       </details>
 
       <details class="card security-card security-zones-card">
-        <summary class="security-section-head security-summary">
-          <h3>Detectors</h3>
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <span class="collapse-icon" aria-hidden="true">📡</span>
+            <h3 class="collapse-title">Detectors</h3>
+          </span>
+          <span class="collapse-chevron" aria-hidden="true">›</span>
         </summary>
         <div id="securityZones" class="security-zones"></div>
         <p id="securityZonesNote" class="muted small security-note" hidden></p>
@@ -311,8 +369,12 @@
          /install-ca is auth-exempt, so the link is a plain navigation that
          works over Tailscale without a token (no JS needed). -->
     <details class="card settings-card">
-      <summary class="settings-summary">
-        <span class="settings-summary-title">⚙️ Settings</span>
+      <summary class="collapse-summary">
+        <span class="collapse-main">
+          <span class="collapse-icon" aria-hidden="true">⚙️</span>
+          <span class="collapse-title">Settings</span>
+        </span>
+        <span class="collapse-chevron" aria-hidden="true">›</span>
       </summary>
       <div class="settings-body">
         <h3>🎨 Appearance</h3>

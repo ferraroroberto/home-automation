@@ -85,16 +85,18 @@ export const els = {
   plugDetailClose: document.getElementById('plugDetailClose'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
-  // Energy-flow tile (GET /api/energy), Home tab
-  energyFlow: document.getElementById('energyFlow'),
-  enPv: document.getElementById('enPv'),
-  enHouse: document.getElementById('enHouse'),
-  enSurplus: document.getElementById('enSurplus'),
-  enUpdated: document.getElementById('enUpdated'),
+  // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.
+  homeEnergyFlow: document.getElementById('homeEnergyFlow'),
+  homeFlowTime: document.getElementById('homeFlowTime'),
+  homeFlowPv: document.getElementById('homeFlowPv'),
+  homeFlowGrid: document.getElementById('homeFlowGrid'),
+  homeFlowHouse: document.getElementById('homeFlowHouse'),
+  homeFlowNodePv: document.getElementById('homeFlowNodePv'),
+  homeWirePv: document.getElementById('homeWirePv'),
+  homeWireGrid: document.getElementById('homeWireGrid'),
   // Home-tab weather tile (GET /api/weather)
   weatherTile: document.getElementById('weatherTile'),
   wxTime: document.getElementById('wxTime'),
-  wxLoc: document.getElementById('wxLoc'),
   wxNowIcon: document.getElementById('wxNowIcon'),
   wxNowTemp: document.getElementById('wxNowTemp'),
   wxFcIcon: document.getElementById('wxFcIcon'),
