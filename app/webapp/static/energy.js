@@ -330,6 +330,24 @@ const FORECAST_NOTES = {
   no_location: 'Solar forecast needs config/location.json (the home coordinates).',
 };
 
+// Azimuth (Open-Meteo convention: 0=S, -90=E, 90=W, ±180=N) → 8-point compass.
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'N'];
+function azimuthCompass(deg) {
+  return COMPASS[Math.round(Number(deg) / 45) + 4];
+}
+
+// Trim a trailing ".0" so 1.5 → "1.5" but 8 → "8".
+function trimNum(n) {
+  return String(Number(n)).replace(/\.0$/, '');
+}
+
+// "1.5 kWp · 35° tilt · S · PR 0.80" from the array params the curve used.
+function forecastParamsLine(sys) {
+  if (!sys) return '';
+  return trimNum(sys.kwp) + ' kWp · ' + trimNum(sys.tilt_deg) + '° tilt · '
+    + azimuthCompass(sys.azimuth_deg) + ' · PR ' + Number(sys.performance_ratio).toFixed(2);
+}
+
 function renderForecast(body) {
   const available = !!(body && body.available);
   els.forecastEmpty.hidden = available;
@@ -338,6 +356,7 @@ function renderForecast(body) {
       FORECAST_NOTES[body && body.reason] || 'Solar forecast is unavailable right now.';
     els.forecastHeadline.textContent = '—';
     els.forecastMeta.textContent = '';
+    els.forecastParams.textContent = '';
     if (state.forecastChart) setForecastData(state.forecastChart, [], null);
     return;
   }
@@ -345,6 +364,7 @@ function renderForecast(body) {
   const total = body.expected_total_kwh != null ? Number(body.expected_total_kwh).toFixed(1) : '—';
   els.forecastHeadline.textContent = 'Expected generation +' + total + ' kWh';
   els.forecastMeta.textContent = body.actual ? '· estimate vs actual' : '· estimate';
+  els.forecastParams.textContent = forecastParamsLine(body.system);
 }
 
 async function loadForecast(day) {
