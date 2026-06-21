@@ -9,6 +9,7 @@ config/display_names.json
 config/tuya_display_names.json
 config/location.json
 config/tariff.json
+config/pv_system.json
 webapp/certificates/
 webapp/*.log
 # Energy-history store (server-side SQLite; per-machine runtime data)

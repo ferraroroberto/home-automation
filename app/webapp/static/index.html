@@ -295,6 +295,22 @@
         <p id="costEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
         <p class="muted small cost-note" id="costNote"></p>
       </section>
+
+      <!-- Solar forecast — expected generation (Open-Meteo tilted irradiance,
+           scaled by the configured PV array) as a dashed curve, with the day's
+           measured generation overlaid. A rough, clearly-labelled estimate; the
+           card stays empty-noted until config/pv_system.json exists (issue #39). -->
+      <section class="card forecast-card" aria-label="Solar generation forecast">
+        <h3 class="chart-title">🔆 Solar forecast <span id="forecastMeta" class="muted small"></span></h3>
+        <nav class="range-tabs" id="forecastDay" aria-label="Forecast day">
+          <button type="button" class="range-tab" data-day="yesterday">Yesterday</button>
+          <button type="button" class="range-tab active" data-day="today">Today</button>
+          <button type="button" class="range-tab" data-day="tomorrow">Tomorrow</button>
+        </nav>
+        <p class="forecast-headline" id="forecastHeadline">—</p>
+        <div class="chart-wrap chart-wrap-forecast"><canvas id="forecastChart"></canvas></div>
+        <p id="forecastEmpty" class="muted small chart-empty" hidden>Solar forecast needs config/pv_system.json — copy the committed sample and fill in your array.</p>
+      </section>
     </section>
 
     <!-- ============================== PLUGS ============================== -->
