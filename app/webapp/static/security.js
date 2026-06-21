@@ -11,6 +11,8 @@ import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 
 const POLL_MS = 10_000;
+// The full alarm-control row, in display order. Always rendered; the live state
+// machine decides which are tappable and which is the current (selected) one.
 const ACTIONS = ['disarm', 'partial', 'perimeter', 'arm'];
 const ACTION_LABELS = {
   disarm: 'Disarm',
@@ -61,29 +63,10 @@ function statusClass(mode) {
   return '';
 }
 
-// A trouble or alarm-memory condition turns the first button into "Clear".
-function hasTroubleOrMemory() {
-  const security = state.security || {};
-  return security.trouble === true || security.memory_alarm === true;
-}
-
-// Which action represents the state the system is currently in (highlighted as
-// the active pill). Null while triggered/unknown — nothing to highlight.
-function currentAction() {
-  const mode = currentMode();
-  if (mode === 'disarmed') return 'disarm';
-  if (mode === 'armed' || mode === 'arming') return 'arm';
-  if (mode === 'partial') return 'partial';
-  if (mode === 'perimeter') return 'perimeter';
-  return null;
-}
-
 function actionAvailable(action) {
   if (!supported(action)) return false;
-  // Clear: disarm is tappable whenever a trouble/alarm-memory must be cleared,
-  // even from an otherwise-disarmed system.
-  if (action === 'disarm' && hasTroubleOrMemory()) return true;
   const mode = currentMode();
+  // Disarmed: only the arm options are actionable (Disarm is the current state).
   if (mode === 'disarmed') return action !== 'disarm';
   if (mode === 'armed' || mode === 'arming' || mode === 'partial' || mode === 'perimeter') {
     return action === 'disarm';
@@ -104,16 +87,15 @@ function fmtTime(value) {
   });
 }
 
-// Toast wording for an action, evaluated before the POST (so the disarm vs
-// clear distinction still sees the current trouble/memory state).
+// Toast wording for an action, evaluated before the POST.
 function actionToast(action) {
-  if (action === 'disarm') return hasTroubleOrMemory() ? 'Clearing' : 'Disarming';
+  if (action === 'disarm') return 'Disarming';
   return ACTION_TOASTS[action] || 'Working…';
 }
 
 async function postAction(action) {
   if (!actionAvailable(action)) return;
-  toast(actionToast(action), 'good');  // optimistic — fires the instant you tap
+  toast(actionToast(action));  // optimistic — fires the instant you tap (neutral toast)
   try {
     state.security = await jsonApi('/api/security/' + encodeURIComponent(action), {
       method: 'POST',
@@ -147,26 +129,26 @@ async function setBypass(zone, bypass) {
 }
 
 // Alarm controls render into every registered container — the Security tab and
-// the Home tab both show the same actionable pills (issue #72).
+// the Home tab both show the same actionable pills (issue #72). The full row
+// (Disarm · Partial · Perimeter · Full) always renders: each reachable action is
+// a tappable translucent colour pill, the rest fade out. The current state is
+// not specially highlighted on the pills — the "Alarm state: …" line carries it.
 function renderActionsInto(el) {
   if (!el) return;
   el.innerHTML = '';
-  const current = currentAction();
-  const clearing = hasTroubleOrMemory();
   ACTIONS.forEach(function (action) {
+    const available = actionAvailable(action);
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'security-action security-action-' + action;
-    // The first button reads "Clear" only while a trouble/alarm-memory is up.
-    btn.textContent = action === 'disarm' && clearing ? 'Clear' : ACTION_LABELS[action];
-    btn.disabled = !actionAvailable(action);
-    // The state the system is in shows as the highlighted (filled) pill, even
-    // when it isn't itself a tappable transition.
-    if (action === current) btn.classList.add('is-current');
-    if (btn.disabled && action !== current) {
+    btn.textContent = ACTION_LABELS[action];
+    btn.disabled = !available;
+    if (btn.disabled) {
       btn.title = currentMode() === 'unknown' ? 'State unavailable' : 'Unavailable in current state';
     }
-    btn.addEventListener('click', function () { postAction(action); });
+    if (available) {
+      btn.addEventListener('click', function () { postAction(action); });
+    }
     el.appendChild(btn);
   });
 }

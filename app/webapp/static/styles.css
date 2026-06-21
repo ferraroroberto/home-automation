@@ -34,7 +34,6 @@
   --toggle-knob: #ffffff;
   --toggle-label: var(--muted);
   --close-bg: var(--card-off);
-  --toast-bg: var(--ink);
   /* radii (rounded scale) */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -95,7 +94,6 @@
   --toggle-knob: var(--ink);
   --toggle-label: var(--muted);
   --close-bg: var(--line);
-  --toast-bg: var(--line);
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
   --tabbar-bg: rgba(22, 27, 34, 0.86);
@@ -839,15 +837,19 @@ html, body {
   color: var(--ink);
 }
 .security-state-word { font-weight: 800; }
+/* State word colour follows the same three-colour scheme as the pills:
+   green disarmed, yellow partial/perimeter, red armed/alert. No blue. */
 .security-state.is-disarmed .security-state-word { color: var(--on); }
 .security-state.is-armed .security-state-word { color: var(--deficit); }
 .security-state.is-alert .security-state-word { color: var(--deficit); }
 .security-state.is-partial .security-state-word { color: var(--attention); }
-.security-state.is-perimeter .security-state-word { color: var(--accent); }
+.security-state.is-perimeter .security-state-word { color: var(--attention); }
 
-/* Alarm actions: one full-width row of rounded pills. The current state is a
-   filled (highlighted) pill; reachable actions are quieter outlined pills;
-   unavailable actions fade out. Each keeps its colour identity via --act. */
+/* Alarm actions: one full-width row of rounded pills using translucent colour
+   tints — no hard outlines, no solid fills. Three colour identities via --act:
+   green disarm, yellow partial/perimeter, red full (and the alert Clear). The
+   current armed mode shows as a quiet "selected" pill; a real alert shows a
+   distinct "Clear" CTA; unavailable actions fade out. */
 .security-actions {
   display: flex;
   gap: 8px;
@@ -859,8 +861,8 @@ html, body {
   min-height: 44px;
   padding-inline: 6px;
   border-radius: var(--radius-pill);
-  border: 1.5px solid var(--act);
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--act) 22%, transparent);
+  background: color-mix(in srgb, var(--act) 14%, transparent);
   color: var(--act);
   font-size: var(--font-label);
   font-weight: 700;
@@ -868,17 +870,14 @@ html, body {
 }
 .security-action-disarm { --act: var(--on); }
 .security-action-partial { --act: var(--attention); }
+.security-action-perimeter { --act: var(--attention); }
 .security-action-arm { --act: var(--deficit); }
-.security-action-perimeter { --act: var(--accent); }
-.security-action.is-current {
-  background: var(--act);
-  border-color: var(--act);
-  color: var(--accent-fg);
-  box-shadow: var(--shadow);
-}
+
 .security-action:not(:disabled):hover { filter: brightness(1.05); }
 .security-action:active:not(:disabled) { transform: scale(0.97); }
-.security-action:disabled:not(.is-current) {
+/* Unavailable actions (incl. the current state) drop their colour and fade —
+   only the actions you can actually take carry a colour. */
+.security-action:disabled {
   cursor: not-allowed;
   --act: var(--line);
   color: var(--muted);
@@ -1007,22 +1006,35 @@ html, body {
 }
 
 /* ----------------------------------------------------------- toast */
+/* Neutral frosted toast — the same glass treatment as the floating bottom nav
+   (not a solid block). Sits above the nav so it's never hidden behind it. Only
+   real errors tint red. */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  bottom: calc(
+    var(--bottom-tabs-height) + var(--bottom-tabs-margin) * 2 +
+    env(safe-area-inset-bottom, 0px) + 8px
+  );
   transform: translateX(-50%);
-  background: var(--toast-bg);
-  color: var(--accent-fg);
+  background: var(--tabbar-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid var(--tabbar-border);
+  color: var(--ink);
   padding: 10px 16px;
   border-radius: var(--radius-md);
   font-size: var(--font-label);
+  font-weight: 700;
   box-shadow: var(--shadow);
-  z-index: 20;
+  z-index: 130;
   max-width: 90vw;
 }
-.toast.error { background: var(--deficit); }
-.toast.good { background: var(--on); }
+.toast.error {
+  background: color-mix(in srgb, var(--deficit) 75%, transparent);
+  border-color: var(--deficit);
+  color: var(--accent-fg);
+}
 
 /* ----------------------------------------------------------- login */
 .login-overlay {
