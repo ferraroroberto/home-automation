@@ -14,8 +14,9 @@
  * the status tokens so it matches the flow + cards:
  *   Generation = --on (success/green), Grid-supplied = --deficit (danger/red),
  *   Consumption = --muted (grey line).
- * NOTE: tokens are consumed as #rrggbb here (hexA parses hex). The P3 oklch layer
- * (issue #65) must add a gamut-safe resolver before --on/--deficit can be oklch.
+ * Series colours are resolved gamut-safely via alphaFill() (issue #65), so the
+ * P3 oklch layer in styles.css feeds --on/--deficit straight through — any CSS
+ * color syntax (hex, oklch, rgb, named) works.
  *
  * Chart.js is loaded as a vendored UMD global (window.Chart) by index.html. */
 
@@ -36,10 +37,24 @@ function palette() {
   };
 }
 
-// Hex (#rrggbb) → rgba string at the given alpha — for translucent fills.
-function hexA(hex, a) {
-  const n = parseInt(hex.slice(1), 16);
-  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+// Any CSS color string → rgba() at the given alpha, for translucent fills.
+// Painting onto a throwaway 1×1 canvas lets the browser normalise any input
+// syntax (hex, oklch, rgb, named) to sRGB bytes, so an oklch P3 token is safe
+// here: the line itself renders the true wide-gamut color via CSS; only this
+// alpha fill is the sRGB approximation (getImageData clamps to sRGB bytes).
+let _fillCtx = null;
+function alphaFill(color, a) {
+  if (!_fillCtx) {
+    const c = (typeof OffscreenCanvas !== 'undefined')
+      ? new OffscreenCanvas(1, 1)
+      : document.createElement('canvas');
+    _fillCtx = c.getContext('2d', { willReadFrequently: true });
+  }
+  _fillCtx.clearRect(0, 0, 1, 1);
+  _fillCtx.fillStyle = color;
+  _fillCtx.fillRect(0, 0, 1, 1);
+  const d = _fillCtx.getImageData(0, 0, 1, 1).data;
+  return 'rgba(' + d[0] + ',' + d[1] + ',' + d[2] + ',' + a + ')';
 }
 
 function baseScales(pal, unit) {
@@ -67,7 +82,7 @@ function area(label, color) {
     label: label,
     data: [],
     borderColor: color,
-    backgroundColor: hexA(color, 0.18),
+    backgroundColor: alphaFill(color, 0.18),
     fill: 'origin',
   };
 }
@@ -176,9 +191,9 @@ export function restyle(chart, unit) {
   chart.options.plugins.legend.labels.color = pal.ink;
   // Series colours track the theme's status tokens (--on / --deficit / --muted).
   chart.data.datasets[0].borderColor = pal.gen;
-  chart.data.datasets[0].backgroundColor = hexA(pal.gen, 0.18);
+  chart.data.datasets[0].backgroundColor = alphaFill(pal.gen, 0.18);
   chart.data.datasets[1].borderColor = pal.grid;
-  chart.data.datasets[1].backgroundColor = hexA(pal.grid, 0.18);
+  chart.data.datasets[1].backgroundColor = alphaFill(pal.grid, 0.18);
   chart.data.datasets[2].borderColor = pal.muted;
   chart.data.datasets[2].backgroundColor = pal.muted;
   Object.assign(chart.options.scales, baseScales(pal, unit));

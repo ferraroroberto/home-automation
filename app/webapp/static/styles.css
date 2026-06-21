@@ -4,9 +4,9 @@
    Fleet design system (~/.claude/design.md + design.dark.md, canonical spec
    ferraroroberto/fleet-config#178). Token *names* are this app's; their *values*
    are the spec's. Light = :root, dark = [data-theme="dark"].
-   P3 wide-gamut (oklch) twins are intentionally NOT wired here — see issue #63
-   follow-up: charts.js parses --on/--deficit as hex, so the @media
-   (color-gamut: p3) override layer needs a gamut-safe JS color path first. */
+   P3 wide-gamut (oklch) twins override the saturated tokens behind
+   @media (color-gamut: p3) below (issue #65). charts.js resolves --on/--deficit
+   gamut-safely (canvas resolver), so an oklch token is safe to feed the fills. */
 :root {
   /* colors — neutrals */
   --bg: #ffffff;            /* canvas (page background) */
@@ -100,6 +100,36 @@
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
   --tabbar-bg: rgba(22, 27, 34, 0.86);
   --tabbar-border: rgba(255, 255, 255, 0.13);
+}
+
+/* P3 wide-gamut twins — on a wide-gamut display the saturated tokens render the
+   richer oklch() value; sRGB displays keep the hex values above. Only saturated
+   tokens have twins; neutrals (canvas/card/border/text) are sRGB-only by design.
+   Values are the fleet spec's exact oklch: light from design.md, dark from
+   design.dark.md (ferraroroberto/fleet-config#178). */
+@media (color-gamut: p3) {
+  :root {
+    --accent: oklch(0.52 0.18 256);
+    --on: oklch(0.55 0.14 150);
+    --deficit: oklch(0.55 0.20 25);
+    --attention: oklch(0.55 0.11 80);
+    --tile-green: oklch(0.57 0.15 150);
+    --tile-blue: oklch(0.52 0.18 256);
+    --tile-purple: oklch(0.55 0.22 295);
+    --tile-orange: oklch(0.56 0.16 50);
+    --tile-yellow: oklch(0.66 0.13 85);
+  }
+  [data-theme="dark"] {
+    --accent: oklch(0.64 0.18 256);
+    --on: oklch(0.72 0.18 150);
+    --deficit: oklch(0.68 0.20 25);
+    --attention: oklch(0.77 0.13 85);
+    --tile-green: oklch(0.66 0.16 150);
+    --tile-blue: oklch(0.64 0.18 256);
+    --tile-purple: oklch(0.67 0.18 295);
+    --tile-orange: oklch(0.67 0.15 50);
+    --tile-yellow: oklch(0.77 0.13 85);
+  }
 }
 
 * { box-sizing: border-box; }
