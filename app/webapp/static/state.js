@@ -50,6 +50,7 @@ export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const els = {
   grid: document.getElementById('unitsGrid'),
   themeBtn: document.getElementById('themeBtn'),
+  settingsCard: document.getElementById('settingsCard'),
   toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
   // Tabs + panes
@@ -99,23 +100,21 @@ export const els = {
   acSummary: document.getElementById('acSummary'),
   // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.
   homeEnergyFlow: document.getElementById('homeEnergyFlow'),
-  homeFlowTime: document.getElementById('homeFlowTime'),
   homeFlowPv: document.getElementById('homeFlowPv'),
   homeFlowGrid: document.getElementById('homeFlowGrid'),
   homeFlowHouse: document.getElementById('homeFlowHouse'),
   homeFlowNodePv: document.getElementById('homeFlowNodePv'),
   homeWirePv: document.getElementById('homeWirePv'),
   homeWireGrid: document.getElementById('homeWireGrid'),
-  // Home-tab weather tile (GET /api/weather)
+  // Home-tab weather tile (GET /api/weather) + its inline theme toggle
   weatherTile: document.getElementById('weatherTile'),
-  wxTime: document.getElementById('wxTime'),
+  weatherThemeBtn: document.getElementById('weatherThemeBtn'),
   wxNowIcon: document.getElementById('wxNowIcon'),
   wxNowTemp: document.getElementById('wxNowTemp'),
   wxFcIcon: document.getElementById('wxFcIcon'),
   wxFcMin: document.getElementById('wxFcMin'),
   wxFcMax: document.getElementById('wxFcMax'),
   // Energy tab: flow diagram (live)
-  flowTime: document.getElementById('flowTime'),
   flowPv: document.getElementById('flowPv'),
   flowGrid: document.getElementById('flowGrid'),
   flowHouse: document.getElementById('flowHouse'),

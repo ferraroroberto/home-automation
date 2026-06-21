@@ -1,10 +1,10 @@
 /* Home Automation — Home-tab weather tile.
  *
  * Polls GET /api/weather at a slow cadence and fills the Home-tab weather
- * strip: current time · current weather (icon + temp) · today's forecast
- * (min/max + a forecast icon). Hidden until the first successful read; fails
- * quietly like the energy tile (weather is decorative, never load-bearing).
- * The clock ticks client-side once a minute, independent of the weather poll. */
+ * strip: current weather (icon + temp) · today's forecast (min/max + a forecast
+ * icon). Hidden until the first successful read; fails quietly like the energy
+ * tile (weather is decorative, never load-bearing). The clock was dropped — it
+ * just duplicated the phone's status-bar clock (issue #72). */
 
 'use strict';
 
@@ -12,7 +12,6 @@ import { els } from './state.js';
 import { jsonApi } from './api.js';
 
 const WEATHER_MS = 600_000;  // 10 min — weather barely moves
-const CLOCK_MS = 30_000;     // re-stamp the clock twice a minute
 
 // WMO weather-code → emoji. Day/night split only where it reads differently.
 // https://open-meteo.com/en/docs (WMO Weather interpretation codes)
@@ -34,18 +33,6 @@ function fmtTemp(v) {
   return v == null || v === '' ? '—' : Math.round(Number(v)) + '°';
 }
 
-// Local HH:MM in the browser's timezone (24-hour, zero-padded).
-function nowHHMM() {
-  const d = new Date();
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return hh + ':' + mm;
-}
-
-function tickClock() {
-  els.wxTime.textContent = nowHHMM();
-}
-
 function render(w) {
   if (!w || !w.available) return;  // stay hidden, keep last value
 
@@ -60,7 +47,6 @@ function render(w) {
   els.wxFcMin.textContent = fmtTemp(w.temp_min_c);
   els.wxFcMax.textContent = fmtTemp(w.temp_max_c);
 
-  tickClock();
   els.weatherTile.hidden = false;
 }
 
@@ -76,5 +62,4 @@ async function loadWeather() {
 export function startWeatherPolling() {
   loadWeather();
   setInterval(loadWeather, WEATHER_MS);
-  setInterval(tickClock, CLOCK_MS);
 }

@@ -239,14 +239,13 @@ html, body {
   .tabs {
     position: fixed;
     top: auto;
-    /* A touch more side inset than the bottom gap so the pill is a few px
-       narrower (issue #72) without changing its height off the bottom. */
-    left: max(calc(var(--bottom-tabs-margin) + 6px), env(safe-area-inset-left, 0));
-    right: max(calc(var(--bottom-tabs-margin) + 6px), env(safe-area-inset-right, 0));
-    /* Lift above the home-indicator safe area so the visible gap below the pill
-       matches the left/right gap (Telegram-style). Bare --bottom-tabs-margin
-       measured from the physical edge let the indicator zone crowd the bar. */
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin));
+    /* Equal spacing.gutter (12px) margins on left, right, and bottom, per the
+       design.md navigation contract — reads centred and breathes evenly. */
+    left: max(var(--bottom-tabs-margin), env(safe-area-inset-left, 0));
+    right: max(var(--bottom-tabs-margin), env(safe-area-inset-right, 0));
+    /* Sit at the original low position, measured from the physical bottom edge
+       (issue #72 — the user preferred it down, not lifted over the safe area). */
+    bottom: var(--bottom-tabs-margin);
     z-index: 120;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -320,7 +319,7 @@ html, body {
 }
 
 /* ----------------------------------------------------------- AC summary */
-.ac-summary { padding: 6px 12px; }
+.ac-summary { padding: 6px 12px; margin-bottom: var(--gap); }
 .ac-summary-empty { margin: 8px 0; }
 .ac-line {
   display: grid;
@@ -351,11 +350,9 @@ html, body {
 .ac-meta { color: var(--muted); font-size: var(--font-caption); }
 
 /* ------------------------------------------------- energy flow diagram */
+/* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
+   self-evident, and the time duplicated the phone clock — #74). */
 .flow-card { padding: 12px; margin-bottom: var(--gap); }
-/* Title removed (the Solar→Home←Grid row is self-evident, #72); the lone
-   last-updated timestamp sits right-aligned. */
-.flow-head { display: flex; align-items: baseline; justify-content: flex-end; }
-.flow-time { font-variant-numeric: tabular-nums; }
 
 /* One compact row: Solar · Home · Grid, each a small stacked node, joined by
    directional arrows. Far shorter than a stacked diagram. */
@@ -364,7 +361,6 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  margin-top: 10px;
 }
 .flow-node {
   display: flex;
@@ -556,27 +552,20 @@ html, body {
 .unit-card.is-off .unit-room .value,
 .unit-card.is-off .target-value { color: var(--muted); }
 
-/* Weather strip (Home tab): current time · current weather · today's forecast,
-   three equal groups on one row. Hidden until the first successful
-   /api/weather read. The location label is omitted (issue #57) — it's
-   obviously home — so the whole strip stays on a single line. */
+/* Weather strip (Home tab): current weather + today's forecast on the left, a
+   small transparent theme toggle on the right (issue #72). The clock was
+   dropped (it duplicated the phone status bar) and the location label is
+   omitted (issue #57) — it's obviously home — so the strip stays one line. */
 .weather-tile {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 12px 14px;
   margin-bottom: var(--gap);
 }
-.weather-now { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
-.weather-time {
-  font-size: var(--font-body);
-  font-weight: 650;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-.weather-current { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.weather-info { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.weather-current { display: flex; align-items: center; gap: 8px; }
 .weather-current-icon { font-size: 1.3rem; line-height: 1; }
 .weather-current-temp {
   font-size: var(--font-body);
@@ -587,16 +576,25 @@ html, body {
 .weather-forecast {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 6px;
-  /* min-width:0 keeps this a true 1fr track (matching the Net-grid column
-     below); nowrap holds the range on one line, overflowing left into the
-     empty space beside the centred temperature rather than wrapping. */
   min-width: 0;
   white-space: nowrap;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* Subtle, non-distracting theme toggle — transparent, muted, small. */
+.weather-theme-btn {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  opacity: 0.6;
+  padding: 4px;
+  cursor: pointer;
+}
+.weather-theme-btn:active { transform: scale(0.92); }
 .weather-fc-icon { font-size: 1.3rem; line-height: 1; }
 .weather-fc-range {
   font-size: var(--font-body);
@@ -722,7 +720,9 @@ html, body {
 
 /* ----------------------------------------------------- plugs (Smart Life) */
 /* Summary stats: devices · on · off · live watts, four cells in one row. */
-.plugs-summary { padding: 12px; margin-bottom: var(--gap); }
+/* Card padding follows design.md (spacing.md = 16px) so the single stat row
+   has the same breathing room as the taller cards (issue #72). */
+.plugs-summary { padding: var(--space-md); margin-bottom: var(--gap); }
 .plugs-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
