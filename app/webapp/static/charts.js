@@ -184,7 +184,71 @@ export function setAggData(chart, buckets) {
   chart.update('none');
 }
 
+// ------------------------------------------------------------ forecast
+// Expected generation is a dashed --muted line: it is an *estimate*, not a
+// measured state, so it stays neutral grey (status colours signal state only).
+// The day's actual generation is overlaid as the usual filled --on area, so the
+// two read distinctly. spanGaps:false so an asleep / not-yet-sampled hour in the
+// actual series draws a gap, never a misleading 0.
+export function createForecastChart(canvas) {
+  const pal = palette();
+  const expected = envelope('Expected', pal.muted);
+  expected.borderDash = [6, 4];
+  return new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        expected,
+        area('Actual', pal.gen),
+      ],
+    },
+    options: commonOptions(pal, 'kWh', false),
+  });
+}
+
+// Fixed 24-hour x axis ("00".."23"), so expected and actual align by hour.
+function hourLabels() {
+  const out = [];
+  for (let h = 0; h < 24; h++) out.push(h < 10 ? '0' + h : '' + h);
+  return out;
+}
+
+export function setForecastData(chart, expected, actual) {
+  const expMap = {};
+  (expected || []).forEach(function (p) { expMap[p.hour] = p.wh; });
+  const hasActual = Array.isArray(actual);
+  const actMap = {};
+  if (hasActual) actual.forEach(function (p) { actMap[p.hour] = p.wh; });
+
+  const labels = hourLabels();
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = labels.map(function (_, h) {
+    return h in expMap ? kwh(expMap[h]) : 0;
+  });
+  // No actuals (tomorrow) → empty series, so only the dashed forecast draws.
+  chart.data.datasets[1].data = hasActual
+    ? labels.map(function (_, h) {
+        const v = actMap[h];
+        return v == null ? null : kwh(v);   // null hour → gap (asleep / no sample)
+      })
+    : [];
+  chart.update('none');
+}
+
 // --------------------------------------------------------------- theming
+export function restyleForecast(chart) {
+  if (!chart) return;
+  const pal = palette();
+  chart.options.plugins.legend.labels.color = pal.ink;
+  chart.data.datasets[0].borderColor = pal.muted;   // expected (dashed estimate)
+  chart.data.datasets[0].backgroundColor = pal.muted;
+  chart.data.datasets[1].borderColor = pal.gen;      // actual (filled area)
+  chart.data.datasets[1].backgroundColor = alphaFill(pal.gen, 0.18);
+  Object.assign(chart.options.scales, baseScales(pal, 'kWh'));
+  chart.update('none');
+}
+
 export function restyle(chart, unit) {
   if (!chart) return;
   const pal = palette();

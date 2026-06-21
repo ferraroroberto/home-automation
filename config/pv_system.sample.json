@@ -1,0 +1,7 @@
+{
+  "_doc": "PV array parameters for the Energy-tab solar-forecast section (issue #39). Copy this file to config/pv_system.json (gitignored) and fill in YOUR array. The forecast scales Open-Meteo's hourly global tilted irradiance (GTI, W/m2) by the array size and a derate factor: expected_power_W = GTI / 1000 * kwp * performance_ratio, integrated to Wh per hour. It is a rough, clearly-labelled estimate, not a guarantee. Reuses config/location.json for lat/lon (the same file the weather tile uses); if that is absent the forecast simply reports 'not configured'. Azimuth follows Open-Meteo's convention: 0 = South, -90 = East, 90 = West, 180 = North. See docs/pv-forecast.md.",
+  "kwp": 5.0,
+  "tilt_deg": 30,
+  "azimuth_deg": 0,
+  "performance_ratio": 0.8
+}

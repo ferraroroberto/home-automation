@@ -56,7 +56,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, and `location.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, and `location.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -263,6 +263,30 @@ strip (it's obviously home), so the strip stays on a single line.
   never a 500. The tile stays hidden until the first successful read and fails
   quietly thereafter. The clock ticks client-side, independent of the poll.
 - **Cadence:** the frontend polls every ~10 minutes (weather barely moves).
+
+## Solar forecast (expected generation)
+
+The Energy tab's **Solar forecast** card shows an *expected generation* curve
+(dashed) with the day's measured generation overlaid (filled), a headline
+"Expected generation +X kWh", and a **Yesterday / Today / Tomorrow** toggle. It is
+read/visualisation only — a forecast to compare against reality, not a control
+input.
+
+- **Source:** one keyless **Open-Meteo** call for hourly *global tilted
+  irradiance* (the same host the weather tile uses), scaled by the array to an
+  expected-generation curve. Self-contained and approximate — see
+  [`docs/pv-forecast.md`](docs/pv-forecast.md) for the model.
+- **Config:** `config/pv_system.json` (gitignored) — copy
+  `config/pv_system.sample.json` and set `kwp`, `tilt_deg`, `azimuth_deg`
+  (Open-Meteo convention: 0 = South, −90 = East, 90 = West), and
+  `performance_ratio`. Coordinates are reused from `config/location.json` (the
+  weather tile's file) — there is no separate lat/lon.
+- **Endpoint:** `GET /api/energy/forecast?day=yesterday|today|tomorrow` returns
+  the hourly expected curve, the day's `expected_total_kwh`, and (for
+  today/yesterday) the measured `actual` overlay (`null` for tomorrow). When
+  `pv_system.json`/`location.json` is absent or Open-Meteo is unreachable it
+  returns `{available: false, reason}` with HTTP 200 — the card keeps a one-line
+  note and nothing else breaks.
 
 ## Tuya / Smart Life
 

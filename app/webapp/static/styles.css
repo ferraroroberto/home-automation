@@ -473,12 +473,25 @@ html, body {
 .cost-stat-value.cost-pos { color: var(--on); }
 .cost-note { margin: 10px 0 0; }
 
+/* ------------------------------------------------------- solar forecast */
+.forecast-card { padding: 12px; margin-bottom: 12px; }
+/* "Expected generation +X kWh" — neutral primary text (the green identity lives
+   on the chart's actual-generation area; the headline is informational). */
+.forecast-headline {
+  margin: 2px 0 10px;
+  font-size: var(--font-heading-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
 /* ----------------------------------------------------- energy charts */
 .chart-card { padding: 12px; margin-bottom: 12px; }
 .chart-title { margin: 0 0 8px; font-size: var(--font-label); }
 .chart-wrap { position: relative; width: 100%; }
 .chart-wrap-live { height: 200px; }
 .chart-wrap-agg { height: 230px; }
+.chart-wrap-forecast { height: 230px; }
 .chart-empty { margin: 8px 0 0; text-align: center; }
 
 .range-tabs { display: flex; gap: 5px; margin-bottom: 12px; }

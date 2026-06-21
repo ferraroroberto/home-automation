@@ -17,7 +17,14 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Query
 
-from src.energy_history import aggregate, framed_buckets, hourly_range, recent_samples
+from src.energy_history import (
+    aggregate,
+    framed_buckets,
+    hourly_day,
+    hourly_range,
+    recent_samples,
+)
+from src.pv_forecast import fetch_pv_forecast
 from src.sma_client import EnergyState, fetch_energy_state
 from src.tariff import cost_breakdown, load_tariff
 
@@ -144,3 +151,55 @@ async def get_energy_cost(
         raise HTTPException(status_code=502, detail=f"failed to build cost: {exc}")
     result["range"] = range
     return result
+
+
+# Day selector → offset from today, for reading that day's measured generation.
+_FORECAST_DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
+
+
+def _actual_curve(offset_days: int) -> List[Dict[str, Any]]:
+    """That day's measured generation as 24 hourly points (``wh`` ``None`` = no PV).
+
+    ``pv_missing`` hours (asleep inverter, or no sample yet) stay ``None`` so the
+    client draws a gap, never a misleading 0 — the same rule the live chart uses.
+    """
+    return [
+        {"hour": i, "wh": None if b["pv_missing"] else b["pv_wh"]}
+        for i, b in enumerate(hourly_day(offset_days))
+    ]
+
+
+@router.get("/api/energy/forecast")
+async def get_energy_forecast(
+    day: str = Query("today", pattern="^(yesterday|today|tomorrow)$"),
+) -> Dict[str, Any]:
+    """Expected-generation forecast curve for a day, with the actual overlay (issue #39).
+
+    Returns the hourly expected-generation curve (Wh) from Open-Meteo's tilted
+    irradiance scaled by the configured PV array, the day's expected total (kWh),
+    and — for today/yesterday — the measured generation as an overlay (``null``
+    for tomorrow, which has no actuals yet). Always 200: ``available=False`` with
+    a ``reason`` when the array/location is unconfigured or Open-Meteo is
+    unreachable, so the frontend simply keeps the card's "not configured" note.
+    """
+    try:
+        forecast = await fetch_pv_forecast(day)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001 — forecast is decorative, never a 500
+        logger.warning("⚠️  Failed to build PV forecast: %s", exc)
+        return {"available": False, "day": day, "reason": "error"}
+
+    if not forecast.available:
+        return {"available": False, "day": day, "reason": forecast.reason}
+
+    # Actuals only exist for days that have already (partly) happened.
+    actual = None if day == "tomorrow" else _actual_curve(_FORECAST_DAY_OFFSETS[day])
+
+    return {
+        "available": True,
+        "day": day,
+        "expected": forecast.expected,
+        "expected_total_kwh": round(forecast.expected_total_wh / 1000.0, 2),
+        "actual": actual,
+    }

@@ -33,10 +33,13 @@ export const state = {
   range: 'day',
   // Active range for the Energy-tab cost & savings breakdown table.
   costRange: 'day',
+  // Active day for the Energy-tab solar-forecast card: 'yesterday'|'today'|'tomorrow'.
+  forecastDay: 'today',
   // Live Chart.js instances (created lazily on the Energy tab); kept so the
   // theme toggle can restyle and the live poller can push points.
   liveChart: null,
   aggChart: null,
+  forecastChart: null,
 };
 
 // ----------------------------------------------------------------- DOM
@@ -145,6 +148,12 @@ export const els = {
   costEmpty: document.getElementById('costEmpty'),
   costNote: document.getElementById('costNote'),
   costRangeBtns: Array.from(document.querySelectorAll('#costRange .range-tab')),
+  // Energy tab: solar-forecast card
+  forecastMeta: document.getElementById('forecastMeta'),
+  forecastHeadline: document.getElementById('forecastHeadline'),
+  forecastChart: document.getElementById('forecastChart'),
+  forecastEmpty: document.getElementById('forecastEmpty'),
+  forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .range-tab')),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

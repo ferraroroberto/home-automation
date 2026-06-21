@@ -17,6 +17,7 @@ import { jsonApi } from './api.js';
 import {
   createLiveChart, setLiveData, pushLivePoint,
   createAggChart, setAggData, restyle,
+  createForecastChart, setForecastData, restyleForecast,
 } from './charts.js';
 
 const LIVE_MS = 5_000;
@@ -322,10 +323,52 @@ function setCostRange(range) {
   loadCost(range);
 }
 
+// --------------------------------------------------- solar forecast card
+// A clearer note per reason; the default HTML note covers the common case.
+const FORECAST_NOTES = {
+  not_configured: 'Solar forecast needs config/pv_system.json — copy the committed sample and fill in your array.',
+  no_location: 'Solar forecast needs config/location.json (the home coordinates).',
+};
+
+function renderForecast(body) {
+  const available = !!(body && body.available);
+  els.forecastEmpty.hidden = available;
+  if (!available) {
+    els.forecastEmpty.textContent =
+      FORECAST_NOTES[body && body.reason] || 'Solar forecast is unavailable right now.';
+    els.forecastHeadline.textContent = '—';
+    els.forecastMeta.textContent = '';
+    if (state.forecastChart) setForecastData(state.forecastChart, [], null);
+    return;
+  }
+  if (state.forecastChart) setForecastData(state.forecastChart, body.expected, body.actual);
+  const total = body.expected_total_kwh != null ? Number(body.expected_total_kwh).toFixed(1) : '—';
+  els.forecastHeadline.textContent = 'Expected generation +' + total + ' kWh';
+  els.forecastMeta.textContent = body.actual ? '· estimate vs actual' : '· estimate';
+}
+
+async function loadForecast(day) {
+  try {
+    const body = await jsonApi('/api/energy/forecast?day=' + encodeURIComponent(day));
+    renderForecast(body);
+  } catch (_) {
+    els.forecastEmpty.hidden = false;
+  }
+}
+
+function setForecastDay(day) {
+  state.forecastDay = day;
+  els.forecastDayBtns.forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.day === day);
+  });
+  loadForecast(day);
+}
+
 // --------------------------------------------------------------- charts
 function ensureCharts() {
   if (!state.liveChart) state.liveChart = createLiveChart(els.liveChart);
   if (!state.aggChart) state.aggChart = createAggChart(els.aggChart);
+  if (!state.forecastChart) state.forecastChart = createForecastChart(els.forecastChart);
 }
 
 async function loadLiveHistory() {
@@ -362,6 +405,9 @@ export function wireEnergyControls() {
   els.costRangeBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setCostRange(btn.dataset.crange); });
   });
+  els.forecastDayBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () { setForecastDay(btn.dataset.day); });
+  });
 }
 
 // --------------------------------------------------------- cadence + tabs
@@ -382,6 +428,7 @@ export function onEnergyTab(tab) {
     loadLiveHistory();
     loadAggregate(state.range);
     loadCost(state.costRange);  // cost & savings breakdown table
+    loadForecast(state.forecastDay);  // solar expected-generation forecast
     loadEnergy();          // immediate refresh on entry
     loadToday();           // today's split cards + savings
     schedule(LIVE_MS);
@@ -401,4 +448,5 @@ export function startEnergyPolling(initialTab) {
 export function restyleEnergyCharts() {
   restyle(state.liveChart, 'W');
   restyle(state.aggChart, 'kWh');
+  restyleForecast(state.forecastChart);
 }
