@@ -50,6 +50,7 @@ export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const els = {
   grid: document.getElementById('unitsGrid'),
   themeBtn: document.getElementById('themeBtn'),
+  settingsCard: document.getElementById('settingsCard'),
   toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
   // Tabs + panes
@@ -106,9 +107,9 @@ export const els = {
   homeFlowNodePv: document.getElementById('homeFlowNodePv'),
   homeWirePv: document.getElementById('homeWirePv'),
   homeWireGrid: document.getElementById('homeWireGrid'),
-  // Home-tab weather tile (GET /api/weather)
+  // Home-tab weather tile (GET /api/weather) + its inline theme toggle
   weatherTile: document.getElementById('weatherTile'),
-  wxTime: document.getElementById('wxTime'),
+  weatherThemeBtn: document.getElementById('weatherThemeBtn'),
   wxNowIcon: document.getElementById('wxNowIcon'),
   wxNowTemp: document.getElementById('wxNowTemp'),
   wxFcIcon: document.getElementById('wxFcIcon'),

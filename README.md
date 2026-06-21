@@ -246,11 +246,13 @@ documented in [`docs/tariff-model.md`](docs/tariff-model.md).
 
 ## Weather
 
-The **Home tab** shows a compact weather strip — current time, current weather
-(icon + temperature), and today's forecast (min / max + a forecast icon) — for
-the home location, read from **Open-Meteo** (keyless — no account, no API key).
-The `label` is still part of the API response but is **not** rendered on the
-strip (it's obviously home), so the strip stays on a single line.
+The **Home tab** shows a compact weather strip — current weather (icon +
+temperature) and today's forecast (min / max + a forecast icon) on the left, with
+a small transparent light/dark **theme toggle** on the right — for the home
+location, read from **Open-Meteo** (keyless — no account, no API key). The clock
+was dropped (it duplicated the phone's status bar) and the `label` is **not**
+rendered (it's obviously home), so the strip stays on a single line. Settings
+(incl. the other theme toggle) lives on the non-Home tabs to keep Home clean.
 
 - **Location config:** the home coordinates live in `config/location.json`
   (`lat` / `lon` / optional `label`). This file is **gitignored** — the repo is

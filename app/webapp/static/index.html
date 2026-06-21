@@ -84,21 +84,22 @@
            today's forecast (min/max + code). Home-tab only. Hidden until the
            first successful read; fails quietly like the energy tile. -->
       <section id="weatherTile" class="card weather-tile" aria-label="Weather" hidden>
-        <div class="weather-now">
-          <span class="weather-time" id="wxTime">—</span>
+        <div class="weather-info">
+          <div class="weather-current">
+            <span class="weather-current-icon" id="wxNowIcon">—</span>
+            <span class="weather-current-temp" id="wxNowTemp">—</span>
+          </div>
+          <div class="weather-forecast">
+            <span class="weather-fc-icon" id="wxFcIcon">—</span>
+            <span class="weather-fc-range">
+              <span class="weather-fc-min" id="wxFcMin">—</span>
+              <span class="weather-fc-sep">/</span>
+              <span class="weather-fc-max" id="wxFcMax">—</span>
+            </span>
+          </div>
         </div>
-        <div class="weather-current">
-          <span class="weather-current-icon" id="wxNowIcon">—</span>
-          <span class="weather-current-temp" id="wxNowTemp">—</span>
-        </div>
-        <div class="weather-forecast">
-          <span class="weather-fc-icon" id="wxFcIcon">—</span>
-          <span class="weather-fc-range">
-            <span class="weather-fc-min" id="wxFcMin">—</span>
-            <span class="weather-fc-sep">/</span>
-            <span class="weather-fc-max" id="wxFcMax">—</span>
-          </span>
-        </div>
+        <button id="weatherThemeBtn" type="button" class="weather-theme-btn"
+                title="Toggle theme" aria-label="Toggle dark mode">🌙</button>
       </section>
 
       <!-- Alarm controls (actionable) — the *same* component as the Security
@@ -415,7 +416,7 @@
     <!-- Settings: collapsible, mirrors app-launcher's ⚙️ Settings block.
          /install-ca is auth-exempt, so the link is a plain navigation that
          works over Tailscale without a token (no JS needed). -->
-    <details class="card settings-card">
+    <details id="settingsCard" class="card settings-card">
       <summary class="collapse-summary">
         <span class="collapse-main">
           <span class="collapse-icon" aria-hidden="true">⚙️</span>

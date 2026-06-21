@@ -349,9 +349,17 @@ async function saveDisplayName() {
 // --------------------------------------------------------------- theme toggle
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  els.themeBtn.textContent = dark ? '☀️' : '🌙';
+  const icon = dark ? '☀️' : '🌙';
+  // Two toggles share the state: the Settings one (other tabs) and the weather
+  // tile one (Home, which has no Settings card) — keep both icons in sync (#72).
+  els.themeBtn.textContent = icon;
+  if (els.weatherThemeBtn) els.weatherThemeBtn.textContent = icon;
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   restyleEnergyCharts();
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.dataset.theme !== 'dark');
 }
 
 (function initTheme() {
@@ -360,9 +368,8 @@ function applyTheme(dark) {
   applyTheme(stored ? stored === 'dark' : prefersDark);
 })();
 
-els.themeBtn.addEventListener('click', function () {
-  applyTheme(document.documentElement.dataset.theme !== 'dark');
-});
+els.themeBtn.addEventListener('click', toggleTheme);
+els.weatherThemeBtn.addEventListener('click', toggleTheme);
 
 els.detailClose.addEventListener('click', closeDetail);
 els.detail.addEventListener('click', function (ev) {
@@ -420,7 +427,11 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wirePlugDetail();
   // Energy, Plugs, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
-  onTabChange(function (tab) { onEnergyTab(tab); onPlugsTab(tab); onSecurityTab(tab); });
+  onTabChange(function (tab) {
+    onEnergyTab(tab); onPlugsTab(tab); onSecurityTab(tab);
+    // Keep Home clean — Settings lives on the other tabs only (issue #72).
+    els.settingsCard.hidden = tab === 'home';
+  });
   setTab(initialTab());
 
   loadUnits();
