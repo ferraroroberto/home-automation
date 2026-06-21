@@ -58,9 +58,9 @@ def test_home_shows_ac_summary_line_per_unit(
 
     lines = page.locator("#acSummary .ac-line")
     expect(lines).to_have_count(len(sample_units))
-    # One scannable line per unit: name + an ON/OFF state pill.
+    # One scannable line per unit: name + an actionable power toggle (issue #72).
     expect(page.locator("#acSummary")).to_contain_text("Office")
-    expect(page.locator("#acSummary .ac-state")).to_have_count(len(sample_units))
+    expect(page.locator("#acSummary .ac-line-toggle")).to_have_count(len(sample_units))
 
 
 def test_energy_tab_renders_flow_and_charts(

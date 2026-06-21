@@ -540,12 +540,37 @@ def _partition(partition: object) -> SecurityPartition:
     )
 
 
+# The RISCO panel stamps event times with a trailing "Z" but the clock is
+# fixed CET (UTC+1) and does *not* observe DST — so the value is panel-local,
+# not real UTC. Empirically verified: an event read at 17:32 UTC carried
+# "17:58:02Z" (impossible as real UTC), and the UI rendered events ~1h in the
+# future. We reinterpret the stamp as UTC+1 and re-emit a *true* UTC instant so
+# the UI can render it DST-aware in the viewer's timezone (Europe/Madrid → CEST
+# in summer, CET in winter) via the browser, with no hardcoded display offset.
+_PANEL_TZ = timezone(timedelta(hours=1))
+
+
+def _normalize_event_time(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return s
+    try:
+        naive = datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return s  # unrecognised format — leave untouched
+    return (
+        naive.replace(tzinfo=_PANEL_TZ)
+        .astimezone(timezone.utc)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
+
+
 def _event(event: object) -> SecurityEvent:
     type_name = getattr(event, "type_name", None)
     if isinstance(type_name, (list, tuple)):
         type_name = type_name[0] if type_name else None
     return SecurityEvent(
-        time=str(getattr(event, "time", "") or ""),
+        time=_normalize_event_time(str(getattr(event, "time", "") or "")),
         name=getattr(event, "name", None),
         text=getattr(event, "text", None),
         category=getattr(event, "category_name", None),

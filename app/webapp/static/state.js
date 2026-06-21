@@ -66,6 +66,9 @@ export const els = {
   // Security (RISCO alarm) tab
   securityState: document.getElementById('securityState'),
   securityActions: document.getElementById('securityActions'),
+  // Alarm controls mirrored onto the Home tab (actionable).
+  homeSecurityState: document.getElementById('homeSecurityState'),
+  homeSecurityActions: document.getElementById('homeSecurityActions'),
   securityEvents: document.getElementById('securityEvents'),
   securityEventsNote: document.getElementById('securityEventsNote'),
   securityZones: document.getElementById('securityZones'),
@@ -81,6 +84,12 @@ export const els = {
   plugStatOn: document.getElementById('plugStatOn'),
   plugStatOff: document.getElementById('plugStatOff'),
   plugStatWatts: document.getElementById('plugStatWatts'),
+  // Plug summary mirrored onto the Home tab (informative).
+  homePlugsStats: document.getElementById('homePlugsStats'),
+  homePlugStatTotal: document.getElementById('homePlugStatTotal'),
+  homePlugStatOn: document.getElementById('homePlugStatOn'),
+  homePlugStatOff: document.getElementById('homePlugStatOff'),
+  homePlugStatWatts: document.getElementById('homePlugStatWatts'),
   // Plug rename modal
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),

@@ -230,14 +230,13 @@ function esc(s) {
   });
 }
 
-function costRow(label, hours, rate, used, grid, solar, cost, saved, sym, cls) {
+function costRow(label, hours, rate, grid, solar, cost, saved, sym, cls) {
   const name = '<th scope="row"><span class="cost-period">' + esc(label) + '</span>'
     + (hours ? '<span class="cost-hours">' + esc(hours) + '</span>' : '') + '</th>';
   const rateCell = '<td class="cost-rate">' + (rate != null ? sym + Number(rate).toFixed(3) : '') + '</td>';
   return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>'
     + name
     + rateCell
-    + '<td>' + num2(used) + '</td>'
     + '<td>' + num2(grid) + '</td>'
     + '<td>' + num2(solar) + '</td>'
     + '<td>' + sym + num2(cost) + '</td>'
@@ -267,11 +266,11 @@ function renderCost(body) {
   }
 
   els.costBody.innerHTML = periods.map(function (p) {
-    return costRow(p.label, p.hours, p.rate_eur_kwh, p.consumption_kwh, p.grid_kwh,
+    return costRow(p.label, p.hours, p.rate_eur_kwh, p.grid_kwh,
       p.solar_kwh, p.grid_cost, p.savings, sym, '');
   }).join('');
   els.costFoot.innerHTML = totals
-    ? costRow('Total', '', null, totals.consumption_kwh, totals.grid_kwh, totals.solar_kwh,
+    ? costRow('Total', '', null, totals.grid_kwh, totals.solar_kwh,
         totals.grid_cost, totals.savings, sym, 'cost-total')
     : '';
 
