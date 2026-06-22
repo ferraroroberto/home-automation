@@ -10,23 +10,24 @@
 
 import { els } from './state.js';
 import { jsonApi } from './api.js';
+import { icon } from './icons.js';
 
 const WEATHER_MS = 600_000;  // 10 min — weather barely moves
 
-// WMO weather-code → emoji. Day/night split only where it reads differently.
-// https://open-meteo.com/en/docs (WMO Weather interpretation codes)
+// WMO weather-code → Lucide glyph name. Day/night split only where it reads
+// differently. https://open-meteo.com/en/docs (WMO Weather interpretation codes)
 function weatherIcon(code, isDay) {
-  if (code === 0) return isDay ? '☀️' : '🌙';            // clear
-  if (code === 1 || code === 2) return isDay ? '🌤' : '☁️'; // mainly/partly clear
-  if (code === 3) return '☁️';                            // overcast
-  if (code === 45 || code === 48) return '🌫';            // fog
-  if (code >= 51 && code <= 57) return '🌦';              // drizzle
-  if (code >= 61 && code <= 67) return '🌧';              // rain
-  if (code >= 71 && code <= 77) return '🌨';              // snow
-  if (code >= 80 && code <= 82) return '🌧';              // rain showers
-  if (code === 85 || code === 86) return '🌨';            // snow showers
-  if (code >= 95) return '⛈';                             // thunderstorm
-  return '🌡';                                            // fallback
+  if (code === 0) return isDay ? 'sun' : 'moon';                 // clear
+  if (code === 1 || code === 2) return isDay ? 'cloud-sun' : 'cloud-moon'; // mainly/partly clear
+  if (code === 3) return 'cloud';                                // overcast
+  if (code === 45 || code === 48) return 'cloud-fog';            // fog
+  if (code >= 51 && code <= 57) return 'cloud-drizzle';          // drizzle
+  if (code >= 61 && code <= 67) return 'cloud-rain';             // rain
+  if (code >= 71 && code <= 77) return 'cloud-snow';             // snow
+  if (code >= 80 && code <= 82) return 'cloud-rain';             // rain showers
+  if (code === 85 || code === 86) return 'cloud-snow';           // snow showers
+  if (code >= 95) return 'cloud-lightning';                      // thunderstorm
+  return 'thermometer';                                          // fallback
 }
 
 function fmtTemp(v) {
@@ -38,12 +39,12 @@ function render(w) {
 
   // Current weather — icon + temperature. The location label is intentionally
   // not shown (issue #57): it's obviously home, so the tile stays one line.
-  els.wxNowIcon.textContent = weatherIcon(Number(w.weather_code), w.is_day !== false);
+  els.wxNowIcon.innerHTML = icon(weatherIcon(Number(w.weather_code), w.is_day !== false));
   els.wxNowTemp.textContent = fmtTemp(w.temperature_c);
 
   // Today's forecast — daytime icon (the forecast describes the day) + min/max.
-  els.wxFcIcon.textContent =
-    w.forecast_code == null ? '—' : weatherIcon(Number(w.forecast_code), true);
+  els.wxFcIcon.innerHTML =
+    w.forecast_code == null ? '—' : icon(weatherIcon(Number(w.forecast_code), true));
   els.wxFcMin.textContent = fmtTemp(w.temp_min_c);
   els.wxFcMax.textContent = fmtTemp(w.temp_max_c);
 

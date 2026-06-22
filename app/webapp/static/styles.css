@@ -158,8 +158,28 @@ html, body {
   padding: calc(env(safe-area-inset-top) + var(--gap)) var(--gap) 24px;
 }
 
+/* ---------------------------------------------------- icons (Lucide) */
+/* Every app icon is <svg class="icon"><use href="#i-NAME"></use></svg>, drawn
+   from the inline sprite at the top of index.html (issue #77). Stroke styling
+   lives here and is inherited into the <use> shadow tree; fill:none lives on
+   each <symbol> so the few filled glyphs keep their fill. Size defaults to 1em
+   so an icon scales with the surrounding text unless a surface overrides it. */
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.15em;
+}
+/* Leading icon on a section title / heading. */
+.title-icon { width: 1.05em; height: 1.05em; margin-right: 0.4em; }
+
 /* ------------------------------------------------------ theme toggle */
-/* The 🌙/☀️ button (lives in the Settings block). */
+/* The moon/sun toggle button (lives in the Settings block). */
 .header-icon-btn {
   background: var(--card);
   color: var(--ink);
@@ -167,9 +187,12 @@ html, body {
   border-radius: var(--radius-md);
   width: 40px;
   height: 40px;
-  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
+.header-icon-btn .icon { width: 1.2rem; height: 1.2rem; }
 .header-icon-btn:active { transform: scale(0.94); }
 
 /* ----------------------------------------------------------- tabs */
@@ -200,10 +223,9 @@ html, body {
 }
 .tab.active { background: var(--card-off); color: var(--accent); }
 .tab:active { transform: scale(0.97); }
-/* Desktop shows the emoji + label exactly as before; the stroke SVG icon is
-   mobile-only (revealed in the coarse-pointer media query below). */
-.tab-icon { display: none; }
-.tab-emoji { margin-right: 0.35em; }
+/* Desktop: Lucide icon inline before the label (issue #77 — was emoji). The
+   mobile media query below stacks the icon above the label in the pill. */
+.tab-icon { width: 1.05em; height: 1.05em; margin-right: 0.35em; }
 @media (max-width: 430px) {
   .tab {
     min-width: 0;
@@ -294,13 +316,9 @@ html, body {
     display: block;
     width: 21px;
     height: 21px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    margin-right: 0;
+    vertical-align: baseline;
   }
-  .tab-emoji { display: none; }
   .tab-label {
     display: block;
     max-width: 100%;
@@ -336,6 +354,7 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ac-line-icon { width: 1.05em; height: 1.05em; margin-right: 2px; }
 /* Centred temperature column: room → target above, mode · fan beneath. */
 .ac-line-center {
   display: flex;
@@ -370,7 +389,7 @@ html, body {
   transition: opacity 0.2s ease;
 }
 .flow-node.is-idle { opacity: 0.4; }
-.flow-icon { font-size: 1.45rem; line-height: 1.1; }
+.flow-icon { width: 1.55rem; height: 1.55rem; color: var(--ink); }
 .flow-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 .flow-name { font-size: var(--font-caption); font-weight: 600; color: var(--muted); }
 
@@ -564,7 +583,7 @@ html, body {
 }
 .weather-info { display: flex; align-items: center; gap: 18px; min-width: 0; }
 .weather-current { display: flex; align-items: center; gap: 8px; }
-.weather-current-icon { font-size: 1.3rem; line-height: 1; }
+.weather-current-icon { font-size: 1.3rem; line-height: 1; color: var(--ink); }
 .weather-current-temp {
   font-size: var(--font-body);
   font-weight: 650;
@@ -586,14 +605,16 @@ html, body {
   background: transparent;
   border: none;
   color: var(--muted);
-  font-size: 1.15rem;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0.6;
   padding: 4px;
   cursor: pointer;
 }
+.weather-theme-btn .icon { width: 1.15rem; height: 1.15rem; }
 .weather-theme-btn:active { transform: scale(0.92); }
-.weather-fc-icon { font-size: 1.3rem; line-height: 1; }
+.weather-fc-icon { font-size: 1.3rem; line-height: 1; color: var(--ink); }
 .weather-fc-range {
   font-size: var(--font-body);
   color: var(--ink);
@@ -985,8 +1006,10 @@ html, body {
 .detail-header h2 { margin: 0; font-size: var(--font-heading-lg); }
 .detail-close {
   background: var(--close-bg); border: none; border-radius: var(--radius-md);
-  width: 34px; height: 34px; font-size: var(--font-body); cursor: pointer; color: var(--muted);
+  width: 34px; height: 34px; cursor: pointer; color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center;
 }
+.detail-close .icon { width: 18px; height: 18px; }
 .detail-card .row {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 12px 0; border-top: 1px solid var(--line);
@@ -1111,7 +1134,11 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   justify-content: space-between;
 }
 .settings-row span { color: var(--ink); font-weight: 550; }
-.install-ca-btn { text-align: center; text-decoration: none; }
+.install-ca-btn {
+  text-decoration: none;
+  display: flex; align-items: center; justify-content: center; gap: 0.45em;
+}
+.install-ca-btn .icon { width: 1.15em; height: 1.15em; }
 
 /* Build-identity footer (which build the PWA is running). */
 .page-foot {
