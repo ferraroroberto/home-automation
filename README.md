@@ -500,6 +500,31 @@ Print every device's live state:
 
 ## Tests
 
+Two suites, both run with the same interpreter and `pytest`.
+
+### Backend suite — fast, no network or browser
+
+A Python-level layer under `tests/` (excluding `tests/e2e/`) exercises the real
+backend in-process:
+
+- **API smoke** (`tests/api/`) drives `app.webapp.server:app` with FastAPI's
+  `TestClient` (presenting as a loopback caller, so the bearer gate is bypassed
+  exactly as it is for local probes). It asserts `/healthz`, `/api/version`, and
+  `/` answer, and that `/api/units` + `/api/energy` flatten their fetched data —
+  with the cloud fetchers **monkeypatched**, so it never calls
+  MELCloud Home / SMA / Tuya / Risco.
+- **Unit tests** cover the pure logic: `src.tariff` (tiered-rate cost/savings +
+  the 2.0TD calendar), `src.energy_history` (record → aggregate round-trip and
+  bucketing against a `tmp_path` SQLite DB with a fixed `now=`), and
+  `src.display_names` (atomic set/load/clear round-trip).
+
+```powershell
+& .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+& .\.venv\Scripts\python.exe -m pytest tests -p no:cacheprovider --ignore=tests/e2e
+```
+
+### Browser E2E suite
+
 A Playwright browser-E2E suite lives in `tests/e2e/`. It boots the real
 webapp (adopting a running one on :8447, else autobooting a disposable
 instance with the energy sampler off) and drives the PWA, **stubbing
