@@ -100,6 +100,13 @@ system-wide low battery, an amber **`⚠ Low battery`** badge appears on the
 flag is cleared. (The RISCO Cloud API does not expose per-detector battery —
 only this aggregate flag and a generic per-zone *trouble* boolean — so the badge
 is a "something needs attention → drill in" signal, not a per-detector readout.)
+
+**AC-power-lost alert (issue #99).** When the panel loses mains power and runs on
+backup battery, a red **`⚠ AC power lost`** badge appears on the same `Alarm
+state` line (Home + Security tiles) from the aggregate `ac_lost` flag, mirroring
+the low-battery badge and clearing when mains power returns. The red tint (vs the
+amber low-battery badge) marks the higher urgency; both can show together.
+
 Each detector row shows its flags inline (`Active`/`Bypass`/`Triggered` in their
 state colour, with `Trouble` always in the amber attention colour); the list is
 sorted A–Z by label. Tapping a detector's name opens a detail modal showing its
