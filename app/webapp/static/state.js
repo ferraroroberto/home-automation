@@ -177,17 +177,9 @@ export const els = {
   ruleEnabled: document.getElementById('ruleEnabled'),
   ruleCoolTarget: document.getElementById('ruleCoolTarget'),
   ruleHeatTarget: document.getElementById('ruleHeatTarget'),
-  // Detail modal — schedule section
-  schedEnabled: document.getElementById('schedEnabled'),
-  schedTime: document.getElementById('schedTime'),
-  schedPower: document.getElementById('schedPower'),
-  schedMode: document.getElementById('schedMode'),
-  schedTemp: document.getElementById('schedTemp'),
-  schedFan: document.getElementById('schedFan'),
-  schedVaneVertical: document.getElementById('schedVaneVertical'),
-  schedVaneHorizontal: document.getElementById('schedVaneHorizontal'),
-  schedVaneVerticalRow: document.getElementById('schedVaneVerticalRow'),
-  schedVaneHorizontalRow: document.getElementById('schedVaneHorizontalRow'),
+  // Detail modal — schedule-entry list
+  schedList: document.getElementById('schedList'),
+  schedAdd: document.getElementById('schedAdd'),
   // Login overlay
   loginOverlay: document.getElementById('loginOverlay'),
   loginForm: document.getElementById('loginForm'),

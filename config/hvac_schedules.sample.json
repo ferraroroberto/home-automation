@@ -1,12 +1,26 @@
 {
-  "12345": {
-    "enabled": true,
-    "time": "08:00",
-    "power": true,
-    "operation_mode": "Cool",
-    "set_temperature": 24.0,
-    "fan_speed": "Auto",
-    "vane_vertical_direction": "Auto",
-    "vane_horizontal_direction": "Auto"
-  }
+  "12345": [
+    {
+      "id": "morning-on",
+      "enabled": true,
+      "time": "08:00",
+      "power": true,
+      "operation_mode": "Cool",
+      "set_temperature": 24.0,
+      "fan_speed": "Auto",
+      "vane_vertical_direction": "Auto",
+      "vane_horizontal_direction": "Auto"
+    },
+    {
+      "id": "leave-off",
+      "enabled": true,
+      "time": "09:30",
+      "power": false,
+      "operation_mode": null,
+      "set_temperature": null,
+      "fan_speed": null,
+      "vane_vertical_direction": null,
+      "vane_horizontal_direction": null
+    }
+  ]
 }
