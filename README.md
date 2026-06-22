@@ -108,6 +108,19 @@ saved via `PUT /api/security/zones/{id}/display_name` to a gitignored
 `config/display_names.json` and plug `config/tuya_display_names.json`); a missing
 file is not an error, and the override wins over the RISCO name everywhere.
 
+**Resilient live read (issue #98).** A momentary panel-unreachable blip — RISCO
+returns a non-retryable result code such as `26` on the *live* state read even
+though the login, site, and PIN steps all succeed — no longer blacks out the
+tab. `fetch_security_state()` falls back to the **cloud-cached** snapshot
+(`fromControlPanel=False`), so the alarm state, the detector list, and the
+low-battery/trouble flags keep rendering and the action pills stay actionable.
+The response is flagged `assumed_control_panel_state=true` to mark it as cached
+rather than a fresh live read, an info-level breadcrumb logs each fallback, and
+only a failure of *both* the live and cached reads surfaces as an error. This
+mirrors the SMA stale-cloud energy fallback (issues #94 / #95). The write paths
+(arm/disarm, bypass) are unchanged — a live read after a command is correct
+there.
+
 The pills use translucent colour tints in three identities — **green** Disarm,
 **yellow** Partial/Perimeter, **red** Full — and only the actions you can
 actually take carry colour: when disarmed the three arm options are active and

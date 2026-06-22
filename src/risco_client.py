@@ -37,6 +37,8 @@ from urllib.parse import urljoin
 
 import aiohttp
 from dotenv import load_dotenv
+from pyrisco.cloud.alarm import Alarm
+from pyrisco.cloud.risco_cloud import STATE_URL as _CLOUD_STATE_URL
 from pyrisco.cloud.risco_cloud import RiscoCloud
 from pyrisco.common import (
     GROUP_ID_TO_NAME,
@@ -781,10 +783,54 @@ def _state_from_alarm(
 
 
 # --------------------------------------------------------------- reads
+# pyrisco's get_state() only falls back to the cloud cache (fromControlPanel=
+# False) for the retryable result code 72; a non-retryable "panel momentarily
+# unreachable" code such as 26 raises OperationError with no cache attempt. This
+# reaches for that same cached snapshot directly, reusing the authenticated
+# session, so a transient live-read blip doesn't black out the whole tab.
+async def _read_cloud_cached_state(risco: RiscoCloud) -> Alarm:
+    """Read the cloud-cached panel snapshot (``fromControlPanel=False``).
+
+    Returns an :class:`Alarm` flagged ``assumed_control_panel_state=True`` so
+    callers can tell it is a cached read rather than a fresh live one.
+    """
+    body = {"fromControlPanel": False, "sessionToken": risco._session_id}
+    resp = await risco._authenticated_post(_CLOUD_STATE_URL % risco._site_id, body)
+    return Alarm(risco, resp["state"]["status"], True)
+
+
 async def fetch_security_state() -> SecurityState:
-    """Read the live alarm snapshot: system state, partitions, and detectors."""
+    """Read the alarm snapshot: system state, partitions, and detectors.
+
+    Prefers a fresh live panel read. When that read is momentarily unreachable
+    (RISCO returns a non-retryable result code such as 26), fall back to the
+    cloud-cached snapshot rather than failing the whole tab - the cache still
+    carries the zones and the system battery/trouble flags, and the WebUI flags
+    below still supply the authoritative arm state. Mirrors the SMA stale-cloud
+    fallback (#94/#95). Only a failure of *both* reads surfaces as an error.
+    """
     async with _connect() as risco:
-        alarm = await risco.get_state()
+        try:
+            alarm = await risco.get_state()
+        except OperationError as exc:
+            logger.warning(
+                "⚠️ RISCO live panel read failed (%s) - falling back to cloud cache",
+                exc,
+            )
+            try:
+                alarm = await _read_cloud_cached_state(risco)
+            except (
+                OperationError,
+                UnauthorizedError,
+                CannotConnectError,
+                KeyError,
+                TypeError,
+                aiohttp.ClientError,
+            ) as cache_exc:
+                raise RiscoCommandError(
+                    "RISCO panel is temporarily unreachable and its cloud-cached "
+                    f"state could not be read either ({cache_exc})."
+                ) from cache_exc
     webui_flags: dict[str, Any] = {}
     try:
         webui_flags = await _webui_state_flags()
@@ -792,10 +838,11 @@ async def fetch_security_state() -> SecurityState:
         logger.info("RISCO WebUI state-flag read failed", exc_info=True)
     state = _state_from_alarm(alarm, webui_flags)
     logger.info(
-        "RISCO state: %s (%d partition(s), %d zone(s))",
+        "RISCO state: %s (%d partition(s), %d zone(s))%s",
         state.label,
         len(state.partitions),
         len(state.zones),
+        " [cached]" if state.assumed_control_panel_state else "",
     )
     return state
 
