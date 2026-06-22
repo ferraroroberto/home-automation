@@ -31,6 +31,8 @@ Config (from ``.env``):
 * ``SMA_INVERTER_HOST`` — inverter LAN IP/host (optional; blank → meter only)
 * ``SMA_INVERTER_ACCESS_METHOD`` — ``ennexos`` (default) or ``speedwireinvV2``
 * ``SMA_CLOUD_PLANT_ID`` — Sunny Portal plant/component ID (optional)
+* ``SMA_CLOUD_MAX_STALENESS_S`` — discard a cloud point older than this many
+  seconds and fall through to the live local sources (default 900)
 * ``SMA_USER`` / ``SMA_PASSWORD`` — SMA account, for cloud and ennexOS login
 * ``SMA_INVERTER_PASSWORD`` — local inverter password for Speedwire devices
 * ``SMA_INVERTER_GROUP`` — Speedwire group, ``user`` (default) or ``installer``
@@ -45,6 +47,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict, Optional
 
 import aiohttp
@@ -65,6 +68,12 @@ _EM_EXPORT_KWH = "metering_total_yield"     # cumulative grid export (kWh)
 # Inverter sensor names, best first. AC output is the power that actually
 # offsets the house load; DC generator power is a fallback when AC is absent.
 _INV_PV_POWER_KEYS = ("GridMs.TotW", "grid_power", "PvGen.PvW", "pv_power")
+
+# How old the cloud energy-balance point may be before it is treated as stale
+# and the read falls through to the live local sources (issue #94). Generous
+# enough for normal Sunny Portal lag and the widget's ~5-min resolution, tight
+# enough to catch a multi-hour freeze. Override with SMA_CLOUD_MAX_STALENESS_S.
+_DEFAULT_CLOUD_MAX_STALENESS_S = 900
 
 
 @dataclass
@@ -101,6 +110,7 @@ class EnergyConfig:
     access_method: str
     group: str
     cloud_plant_id: Optional[str]
+    cloud_max_staleness_s: int = _DEFAULT_CLOUD_MAX_STALENESS_S
 
 
 @dataclass
@@ -141,9 +151,44 @@ def _load_config() -> EnergyConfig:
         logger.warning("⚠️ Invalid SMA_INVERTER_GROUP=%s; using user", group)
         group = "user"
     cloud_plant_id = (os.getenv("SMA_CLOUD_PLANT_ID") or "").strip() or None
+    raw_staleness = (os.getenv("SMA_CLOUD_MAX_STALENESS_S") or "").strip()
+    try:
+        cloud_max_staleness_s = (
+            int(raw_staleness) if raw_staleness else _DEFAULT_CLOUD_MAX_STALENESS_S
+        )
+    except ValueError:
+        logger.warning(
+            "⚠️ Invalid SMA_CLOUD_MAX_STALENESS_S=%s; using %s",
+            raw_staleness, _DEFAULT_CLOUD_MAX_STALENESS_S,
+        )
+        cloud_max_staleness_s = _DEFAULT_CLOUD_MAX_STALENESS_S
     return EnergyConfig(
-        host, user, password, cloud_password, access_method, group, cloud_plant_id
+        host, user, password, cloud_password, access_method, group,
+        cloud_plant_id, cloud_max_staleness_s,
     )
+
+
+def _cloud_is_stale(payload_time: object, max_staleness_s: int) -> bool:
+    """True if the cloud widget's as-of timestamp is older than the freshness window.
+
+    The Sunny Portal ``energybalance`` widget echoes the timestamp of its latest
+    data point in ``time`` (naive local ISO, e.g. ``2026-06-22T13:30:00``). When
+    the Sunny Home Manager stops uploading, the widget keeps returning that same
+    point unchanged, so a frozen value looks "live" (issue #94). A missing or
+    unparseable timestamp is treated as fresh — staleness cannot be proven, so an
+    otherwise-good read is not discarded.
+    """
+    if not payload_time:
+        return False
+    try:
+        as_of = datetime.fromisoformat(str(payload_time))
+        # The widget timestamp is naive local; drop any tz so the subtraction
+        # against a naive ``now()`` never raises on a tz-aware variant.
+        age = (datetime.now() - as_of.replace(tzinfo=None)).total_seconds()
+    except (ValueError, TypeError):
+        logger.debug("SMA cloud time %r unparseable; treating as fresh", payload_time)
+        return False
+    return age > max_staleness_s
 
 
 async def _read_meter(state: EnergyState) -> None:
@@ -271,6 +316,19 @@ async def _read_cloud_energy(state: EnergyState, config: EnergyConfig) -> bool:
                 return False
             payload = await response.json()
 
+    # A frozen cloud point (Sunny Home Manager stopped uploading) keeps coming
+    # back unchanged and would be recorded as a fresh live sample, flat-lining
+    # the chart (issue #94). Honour the widget's own as-of timestamp: when it is
+    # stale, treat the cloud read as unavailable so we fall through to the live
+    # local Speedwire sources.
+    if _cloud_is_stale(payload.get("time"), config.cloud_max_staleness_s):
+        logger.warning(
+            "⚠️ SMA cloud data stale (as-of %s, older than %ds) — "
+            "falling back to local reads",
+            payload.get("time"), config.cloud_max_staleness_s,
+        )
+        return False
+
     state.grid_import_w = _as_float(payload.get("externalConsumption"))
     state.grid_export_w = _as_float(payload.get("feedIn"))
     state.pv_power_w = _as_float(payload.get("pvGeneration"))
@@ -283,8 +341,9 @@ async def _read_cloud_energy(state: EnergyState, config: EnergyConfig) -> bool:
     state.meter_reachable = state.grid_import_w is not None or state.grid_export_w is not None
     state.inverter_reachable = state.pv_power_w is not None
     logger.info(
-        "✅ SMA cloud plant %s: PV %s W, import %s W, consumption %s W",
+        "✅ SMA cloud plant %s (as-of %s): PV %s W, import %s W, consumption %s W",
         config.cloud_plant_id,
+        payload.get("time"),
         state.pv_power_w,
         state.grid_import_w,
         state.house_consumption_w,
