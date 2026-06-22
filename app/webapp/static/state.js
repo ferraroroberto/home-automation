@@ -215,13 +215,15 @@ export function toast(msg, kind) {
 }
 
 // ------------------------------------------------------ mode presentation
+// Mode → Lucide glyph name (rendered through icon() from icons.js at the call
+// sites; this returns the bare name, not markup).
 const MODE_ICONS = {
-  Heat: '🔥',
-  Cool: '❄️',
-  Automatic: '🔄',
-  Dry: '💧',
-  Fan: '🌀',
+  Heat: 'flame',
+  Cool: 'snowflake',
+  Automatic: 'refresh-cw',
+  Dry: 'droplets',
+  Fan: 'fan',
 };
 export function modeIcon(mode) {
-  return MODE_ICONS[mode] || '🌡';
+  return MODE_ICONS[mode] || 'thermometer';
 }

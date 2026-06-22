@@ -18,6 +18,7 @@ import {
   writeToken,
   THEME_KEY,
 } from './state.js';
+import { icon } from './icons.js';
 import { jsonApi, hideLogin } from './api.js';
 import { setTab, wireTabs, onTabChange, initialTab } from './tabs.js';
 import {
@@ -100,9 +101,9 @@ function renderCardInto(card, unit) {
   header.className = 'unit-header';
   header.title = 'Open settings';
   header.innerHTML =
-    '<span class="unit-mode-icon">' + modeIcon(unit.operation_mode) + '</span>' +
+    '<span class="unit-mode-icon">' + icon(modeIcon(unit.operation_mode)) + '</span>' +
     '<span class="unit-name"></span>' +
-    '<span class="unit-chevron">›</span>';
+    icon('chevron-right', 'unit-chevron');
   header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
   top.appendChild(header);
@@ -273,7 +274,8 @@ function renderAcSummary() {
 
     const name = document.createElement('span');
     name.className = 'ac-line-name';
-    name.textContent = modeIcon(u.operation_mode) + ' ' + (displayLabel(u) || 'Unit');
+    name.innerHTML = icon(modeIcon(u.operation_mode), 'ac-line-icon');
+    name.insertAdjacentText('beforeend', ' ' + (displayLabel(u) || 'Unit'));
 
     // Centred temperature column: room → target on top, mode · fan beneath, so
     // the readings line up down the card (issue #72).
@@ -349,11 +351,12 @@ async function saveDisplayName() {
 // --------------------------------------------------------------- theme toggle
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  const icon = dark ? '☀️' : '🌙';
+  // Show the glyph for the action: sun to switch to light, moon to switch to dark.
+  const mark = icon(dark ? 'sun' : 'moon');
   // Two toggles share the state: the Settings one (other tabs) and the weather
   // tile one (Home, which has no Settings card) — keep both icons in sync (#72).
-  els.themeBtn.textContent = icon;
-  if (els.weatherThemeBtn) els.weatherThemeBtn.textContent = icon;
+  els.themeBtn.innerHTML = mark;
+  if (els.weatherThemeBtn) els.weatherThemeBtn.innerHTML = mark;
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   restyleEnergyCharts();
 }
