@@ -38,6 +38,7 @@ optional bearer token. Three ways to reach it once running:
   - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
+  - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
   - `static_versioning.py` — build identity (git SHA) + content-hash (`?v=`) stamping of the PWA's `.js`/`.css` URLs so a mobile PWA never serves stale cached code.
 - **`app/webapp/`** — the FastAPI + PWA product.
@@ -164,6 +165,35 @@ Read-only smoke command:
 RISCO periodically blocks third-party clients. If login starts failing after
 credentials were known-good, check for a newer `pyrisco` release before changing
 the app code.
+
+## iCloud Find My presence spike
+
+Issue #86 adds a read-only spike for Apple Find My as a possible presence source for later HVAC automation. There is no official Apple Find My API; this repo uses `pyicloud` against iCloud's web Find My surface to test whether the data is live enough and operationally stable enough. This is a feasibility read, not an automation input yet.
+
+Config in `.env`:
+
+| Key | Meaning |
+|-----|---------|
+| `ICLOUD_EMAIL` | Apple Account email. |
+| `ICLOUD_PASSWORD` | Apple Account password. |
+| `ICLOUD_SESSION_DIR` | Optional session/cookie cache directory. Default: `webapp/icloud_session`. This contains live Apple auth material and is gitignored. |
+| `PRESENCE_HOME_RADIUS_M` | Radius around `config/location.json` used to classify located devices as home or away. Default: `200`. |
+
+Run the smoke command:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_presence
+```
+
+On a fresh or expired session Apple may require 2FA. If the command reports that, approve the sign-in on a trusted Apple device and rerun with the displayed code:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_presence --2fa-code 123456
+```
+
+The CLI prints each visible Find My entity's name, model/class, coordinates, accuracy, last-seen time, battery, and distance from `config/location.json` when the home location is configured. The app also exposes the same read as `GET /api/presence` and renders a minimal **Presence** card in the Security tab showing home / away / unknown counts plus the entity rows. Do not commit Apple credentials, session cookies, person names, coordinates, or location dumps; this repository is public.
+
+Spike recommendation: use this read path only if the session survives unattended for weeks and returns the two phones reliably. If 2FA/session expiry or missing shared-object data proves brittle, use iOS Shortcuts arrive/leave webhooks for the actual presence trigger and keep this client as an exploratory diagnostic. The follow-up HVAC actions should be separate: everyone away for a grace period powers off idle units; first arrival restores a saved profile. Lighting remains out of scope because this repo has no lighting backend.
 
 ## SMA solar / energy
 
@@ -548,6 +578,16 @@ Print every device's live state:
 
 ```bash
 ./.venv/bin/python -m src.list_devices                            # POSIX
+```
+
+Print visible iCloud Find My presence entities:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_presence                 # Windows
+```
+
+```bash
+./.venv/bin/python -m src.list_presence                           # POSIX
 ```
 
 ## Tests

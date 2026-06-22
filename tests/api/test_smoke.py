@@ -8,12 +8,14 @@ MELCloud Home / SMA backends.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import List
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.melcloud_client import DeviceInfo
+from src.presence_client import PresenceAuthError, PresenceConfig, PresenceEntity
 from src.risco_client import SecurityState, SecurityZone
 from src.sma_client import EnergyState
 
@@ -207,3 +209,96 @@ def test_security_zone_hidden_persists_and_merges(
     assert resp.status_code == 200
     assert resp.json() == {"zone_id": 4, "hidden": False}
     assert shd.load_hidden_zone_ids() == set()
+
+
+def test_presence_route_serializes_find_my_snapshot(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """``GET /api/presence`` returns counts + entities without real iCloud I/O."""
+    config = PresenceConfig(
+        email="fixture@example.com",
+        password="secret",
+        session_dir=tmp_path,
+        home_radius_m=200,
+    )
+    entities = [
+        PresenceEntity(
+            entity_id="home-phone",
+            name="Home Phone",
+            model="iPhone",
+            device_class="iPhone",
+            latitude=0.0,
+            longitude=0.0,
+            horizontal_accuracy_m=8.0,
+            last_seen=datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc),
+            battery_level_pct=80,
+            battery_status="Charging",
+            distance_from_home_m=50.0,
+            at_home=True,
+        ),
+        PresenceEntity(
+            entity_id="away-phone",
+            name="Away Phone",
+            model="iPhone",
+            device_class="iPhone",
+            latitude=0.1,
+            longitude=0.0,
+            horizontal_accuracy_m=12.0,
+            last_seen=None,
+            battery_level_pct=None,
+            battery_status=None,
+            distance_from_home_m=1000.0,
+            at_home=False,
+        ),
+        PresenceEntity(
+            entity_id="tag",
+            name="Keys",
+            model="AirTag",
+            device_class="Accessory",
+            latitude=None,
+            longitude=None,
+            horizontal_accuracy_m=None,
+            last_seen=None,
+            battery_level_pct=None,
+            battery_status=None,
+        ),
+    ]
+
+    monkeypatch.setattr("app.webapp.routers.presence.load_presence_config", lambda: config)
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.fetch_presence",
+        lambda *, config: entities,
+    )
+
+    resp = client.get("/api/presence")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["available"] is True
+    assert body["total_count"] == 3
+    assert body["located_count"] == 2
+    assert body["home_count"] == 1
+    assert body["away_count"] == 1
+    assert body["unknown_count"] == 1
+    assert body["all_away"] is False
+    assert body["home_radius_m"] == 200
+    assert body["entities"][0]["last_seen"] == "2026-06-22T10:00:00+00:00"
+
+
+def test_presence_route_returns_unavailable_when_icloud_needs_2fa(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    config = PresenceConfig(
+        email="fixture@example.com",
+        password="secret",
+        session_dir=tmp_path,
+    )
+
+    def fake_fetch_presence(*, config: PresenceConfig) -> list[PresenceEntity]:
+        raise PresenceAuthError("iCloud requires 2FA")
+
+    monkeypatch.setattr("app.webapp.routers.presence.load_presence_config", lambda: config)
+    monkeypatch.setattr("app.webapp.routers.presence.fetch_presence", fake_fetch_presence)
+
+    resp = client.get("/api/presence")
+    assert resp.status_code == 200
+    assert resp.json()["reason"] == "2fa_required"

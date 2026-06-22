@@ -30,6 +30,8 @@ export const state = {
   // When false (default), detectors marked hidden are filtered out of the list.
   // When true, they render (dimmed) so they can be un-hidden (issue #104).
   securityShowHidden: false,
+  // iCloud Find My presence spike from GET /api/presence.
+  presence: null,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'security'.
@@ -82,6 +84,9 @@ export const els = {
   securityZonesNote: document.getElementById('securityZonesNote'),
   securityHiddenCount: document.getElementById('securityHiddenCount'),
   securityHiddenToggle: document.getElementById('securityHiddenToggle'),
+  presenceSummary: document.getElementById('presenceSummary'),
+  presenceList: document.getElementById('presenceList'),
+  presenceNote: document.getElementById('presenceNote'),
   // Detector (zone) detail + rename modal
   zoneDialog: document.getElementById('zoneDialog'),
   zoneDetailName: document.getElementById('zoneDetailName'),

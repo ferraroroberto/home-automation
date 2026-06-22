@@ -9,7 +9,7 @@ renders and is driven against deterministic fixtures, never the cloud.
 Server lifecycle (adopt-or-autoboot):
 
 * If something already answers ``/healthz`` on :8447, the suite adopts
-  it (your dev `webapp.bat`).
+  it (your dev `webapp.bat`) unless ``E2E_FORCE_AUTOBOOT=1`` is set.
 * Otherwise it autoboots a disposable webapp on a free port (HTTPS when
   ``webapp/certificates/cert.pem`` exists, else HTTP). **Boot failure is
   a hard failure, never a skip** — a suite that skips when the app isn't
@@ -136,16 +136,17 @@ def pytest_configure(config: pytest.Config) -> None:
 @pytest.fixture(scope="session")
 def base_url() -> Iterator[str]:
     # Adopt a webapp already listening on :8447 (a dev webapp.bat).
-    adopt = f"https://127.0.0.1:{_ADOPT_PORT}"
-    if _healthz_ok(adopt):
-        logger.info("✅ adopting live webapp at %s", adopt)
-        yield adopt
-        return
-    adopt_http = f"http://127.0.0.1:{_ADOPT_PORT}"
-    if _healthz_ok(adopt_http):
-        logger.info("✅ adopting live webapp at %s", adopt_http)
-        yield adopt_http
-        return
+    if os.environ.get("E2E_FORCE_AUTOBOOT") != "1":
+        adopt = f"https://127.0.0.1:{_ADOPT_PORT}"
+        if _healthz_ok(adopt):
+            logger.info("✅ adopting live webapp at %s", adopt)
+            yield adopt
+            return
+        adopt_http = f"http://127.0.0.1:{_ADOPT_PORT}"
+        if _healthz_ok(adopt_http):
+            logger.info("✅ adopting live webapp at %s", adopt_http)
+            yield adopt_http
+            return
 
     # Otherwise autoboot a disposable instance on a free port.
     port = _free_tcp_port()
@@ -388,6 +389,114 @@ def mock_energy(page: Page) -> Callable[..., None]:
         }
         page.route("**/api/energy/cost*", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(cost_body)))
+
+    return _install
+
+
+@pytest.fixture
+def mock_security(page: Page) -> Callable[..., None]:
+    """Stub the RISCO Security API with a small detector fixture."""
+    def _install(snapshot: Optional[Dict] = None) -> None:
+        state = snapshot or {
+            "reachable": True,
+            "label": "Disarmed",
+            "mode": "disarmed",
+            "supported_actions": ["partial", "perimeter", "arm"],
+            "battery_low": False,
+            "ac_lost": False,
+            "assumed_control_panel_state": False,
+            "zones": [
+                {
+                    "id": 1,
+                    "name": "Front Door",
+                    "type": 1,
+                    "status": "closed",
+                    "active": False,
+                    "bypass": False,
+                    "triggered": False,
+                    "trouble": False,
+                    "display_name": None,
+                    "hidden": False,
+                },
+            ],
+        }
+
+        def handle(route: Route) -> None:
+            url = route.request.url
+            if "/api/security/events" in url:
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({"events": []}),
+                )
+                return
+            route.fulfill(status=200, content_type="application/json", body=_json(state))
+
+        page.route("**/api/security**", handle)
+
+    return _install
+
+
+@pytest.fixture
+def mock_presence(page: Page) -> Callable[..., None]:
+    """Stub the read-only iCloud presence API with deterministic entities."""
+    def _install(snapshot: Optional[Dict] = None) -> None:
+        body = snapshot or {
+            "available": True,
+            "total_count": 3,
+            "located_count": 2,
+            "home_count": 1,
+            "away_count": 1,
+            "unknown_count": 1,
+            "all_away": False,
+            "home_radius_m": 200,
+            "entities": [
+                {
+                    "entity_id": "home-phone",
+                    "name": "Home Phone",
+                    "model": "iPhone",
+                    "device_class": "iPhone",
+                    "latitude": 0.0,
+                    "longitude": 0.0,
+                    "horizontal_accuracy_m": 8.0,
+                    "last_seen": "2026-06-22T10:00:00+00:00",
+                    "battery_level_pct": 80,
+                    "battery_status": "Charging",
+                    "distance_from_home_m": 50.0,
+                    "at_home": True,
+                },
+                {
+                    "entity_id": "away-phone",
+                    "name": "Away Phone",
+                    "model": "iPhone",
+                    "device_class": "iPhone",
+                    "latitude": 0.1,
+                    "longitude": 0.0,
+                    "horizontal_accuracy_m": 12.0,
+                    "last_seen": "2026-06-22T09:45:00+00:00",
+                    "battery_level_pct": 60,
+                    "battery_status": "NotCharging",
+                    "distance_from_home_m": 1100.0,
+                    "at_home": False,
+                },
+                {
+                    "entity_id": "tag",
+                    "name": "Keys",
+                    "model": "AirTag",
+                    "device_class": "Accessory",
+                    "latitude": None,
+                    "longitude": None,
+                    "horizontal_accuracy_m": None,
+                    "last_seen": None,
+                    "battery_level_pct": None,
+                    "battery_status": None,
+                    "distance_from_home_m": None,
+                    "at_home": None,
+                },
+            ],
+        }
+        page.route("**/api/presence", lambda r: r.fulfill(
+            status=200, content_type="application/json", body=_json(body)))
 
     return _install
 
