@@ -8,10 +8,13 @@ to a gitignored ``config/*.json``, missing file → empty, committed
   thermostat. The unit's own setpoint is an unreliable black box (set it to
   27 °C in cool mode and the room overshoots to 25–26 °C), so we never trust
   it and never auto power-cycle the compressor (rapid cycling damages it).
-  Instead the rule holds a desired **room** temperature and the engine nudges
-  the unit's *setpoint* up/down each adjustment interval to drive the room
-  toward it — a slow integral loop wrapped around the unreliable thermostat.
-  Per-mode targets (``cool_target`` / ``heat_target``); the active one is
+  Instead the rule holds a desired **room** temperature and the engine steers
+  the unit's *setpoint* each adjustment interval to drive the room toward it.
+  The loop is asymmetric: while the room is still past the target it nudges one
+  step at a time (a slow integral drive), but the moment the room reaches the
+  target it jumps the setpoint to one degree on the satisfied side so the unit
+  idles immediately rather than overshooting deep and recovering one step at a
+  time. Per-mode targets (``cool_target`` / ``heat_target``); the active one is
   chosen by the unit's current operation mode. Dormant when the unit is off
   or in Auto/Fan (no meaningful setpoint to steer).
 
@@ -94,6 +97,12 @@ def target_for_mode(rule: TempRule, operation_mode: Optional[str]) -> Optional[f
     return None
 
 
+#: How far past the target the idle setpoint sits (°C). One degree on the
+#: satisfied side is enough for the unit's own thermostat to stop actively
+#: driving while the unit stays on.
+IDLE_OFFSET = 1.0
+
+
 def next_setpoint(
     *,
     operation_mode: Optional[str],
@@ -105,30 +114,43 @@ def next_setpoint(
     tmin: float,
     tmax: float,
 ) -> Optional[float]:
-    """One nudge of the unit's setpoint toward the desired room ``target``.
+    """One adjustment of the unit's setpoint toward the desired room ``target``.
 
-    Returns the new setpoint, or ``None`` to hold (room within ±``buffer`` of
-    target, an un-steerable mode, missing readings, or the nudge would not
-    change the clamped value). The setpoint moves by one ``step`` per call so
-    the slow-responding room has time to react before the next adjustment.
+    Asymmetric by design:
+
+    * **Drive-harder side** (room past the target by more than ``buffer``) moves
+      the setpoint one ``step`` per call, so the slow-responding room has time to
+      react before the next adjustment and a genuinely hot/cold room ramps in
+      steadily.
+    * **Satisfied side** (room has reached the target) jumps the setpoint
+      *immediately* to one ``IDLE_OFFSET`` degree on the satisfied side of the
+      target (Cool: ``target + 1``; Heat: ``target - 1``). The unit's own
+      thermostat then idles — it stays on but stops actively driving — instead of
+      clawing back one step at a time, which would park the setpoint at an
+      extreme and overshoot the room deep past the target during the slow
+      recovery.
+
+    Returns the new setpoint, or ``None`` to hold (room inside the deadband
+    between the target and ``target ± buffer``, an un-steerable mode, missing
+    readings, or the result already equals the current clamped setpoint).
     """
     if room_temperature is None or set_temperature is None or target is None:
         return None
 
     if operation_mode in COOL_MODES:
         if room_temperature > target + buffer:
-            new = set_temperature - step  # too warm → cool harder
-        elif room_temperature < target - buffer:
-            new = set_temperature + step  # overcooled → ease off
+            new = set_temperature - step  # too warm → cool harder (gradual)
+        elif room_temperature <= target:
+            new = target + IDLE_OFFSET  # reached target → idle immediately
         else:
-            return None
+            return None  # (target, target+buffer] deadband → hold
     elif operation_mode in HEAT_MODES:
         if room_temperature < target - buffer:
-            new = set_temperature + step  # too cold → heat harder
-        elif room_temperature > target + buffer:
-            new = set_temperature - step  # overheated → ease off
+            new = set_temperature + step  # too cold → heat harder (gradual)
+        elif room_temperature >= target:
+            new = target - IDLE_OFFSET  # reached target → idle immediately
         else:
-            return None
+            return None  # [target-buffer, target) deadband → hold
     else:
         return None
 
