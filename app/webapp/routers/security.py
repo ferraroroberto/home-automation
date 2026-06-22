@@ -29,6 +29,7 @@ from src.security_display_names import (
     load_security_display_names,
     set_security_display_name,
 )
+from src.security_hidden import load_hidden_zone_ids, set_zone_hidden
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,13 @@ def _state_payload(state: object) -> Dict[str, Any]:
     """
     payload = asdict(state)  # type: ignore[arg-type]
     overrides = load_security_display_names()
+    hidden = load_hidden_zone_ids()
     for zone in payload.get("zones") or []:
-        zone["display_name"] = overrides.get(str(zone.get("id"))) or None
+        zone_id = str(zone.get("id"))
+        zone["display_name"] = overrides.get(zone_id) or None
+        # Whether the user has parked this detector out of the default list
+        # (issue #104). The UI still renders it when "show hidden" is on.
+        zone["hidden"] = zone_id in hidden
     return payload
 
 
@@ -121,6 +127,22 @@ async def update_zone_display_name(
         logger.warning("⚠️  Failed to save detector name for %s: %s", zone_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to save display name: {exc}")
     return {"zone_id": zone_id, "display_name": name or None}
+
+
+class HiddenPayload(BaseModel):
+    hidden: bool
+
+
+@router.put("/api/security/zones/{zone_id}/hidden")
+async def update_zone_hidden(
+    zone_id: int, payload: HiddenPayload
+) -> Dict[str, Any]:
+    try:
+        set_zone_hidden(str(zone_id), payload.hidden)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save detector hidden flag for %s: %s", zone_id, exc)
+        raise HTTPException(status_code=500, detail=f"failed to save hidden flag: {exc}")
+    return {"zone_id": zone_id, "hidden": payload.hidden}
 
 
 async def _json_body(request: Request) -> Dict[str, Any]:

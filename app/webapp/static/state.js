@@ -27,6 +27,9 @@ export const state = {
   // RISCO alarm state and event log from GET /api/security.
   security: null,
   securityEvents: [],
+  // When false (default), detectors marked hidden are filtered out of the list.
+  // When true, they render (dimmed) so they can be un-hidden (issue #104).
+  securityShowHidden: false,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'security'.
@@ -48,6 +51,7 @@ export const state = {
 export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
 export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
+export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 
 export const els = {
   grid: document.getElementById('unitsGrid'),
@@ -76,6 +80,8 @@ export const els = {
   securityEventsNote: document.getElementById('securityEventsNote'),
   securityZones: document.getElementById('securityZones'),
   securityZonesNote: document.getElementById('securityZonesNote'),
+  securityHiddenCount: document.getElementById('securityHiddenCount'),
+  securityHiddenToggle: document.getElementById('securityHiddenToggle'),
   // Detector (zone) detail + rename modal
   zoneDialog: document.getElementById('zoneDialog'),
   zoneDetailName: document.getElementById('zoneDetailName'),
@@ -84,6 +90,8 @@ export const els = {
   zoneDetailStatus: document.getElementById('zoneDetailStatus'),
   zoneDetailTrouble: document.getElementById('zoneDetailTrouble'),
   zoneDisplayName: document.getElementById('zoneDisplayName'),
+  zoneOriginalName: document.getElementById('zoneOriginalName'),
+  zoneHiddenToggle: document.getElementById('zoneHiddenToggle'),
   // Plugs (Smart Life) tab
   plugsGrid: document.getElementById('plugsGrid'),
   plugsNote: document.getElementById('plugsNote'),
