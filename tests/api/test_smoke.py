@@ -135,6 +135,9 @@ def test_security_route_surfaces_battery_and_trouble(
     assert resp.status_code == 200
     body = resp.json()
     assert body["battery_low"] is True
+    # ac_lost is serialised alongside battery_low — it drives the AC-power-lost
+    # badge on the alarm-state line (issue #99), mirroring the battery badge.
+    assert body["ac_lost"] is False
     zones = body["zones"]
     assert zones[0]["trouble"] is True
     assert zones[1]["trouble"] is False

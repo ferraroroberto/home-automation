@@ -935,20 +935,30 @@ html, body {
 .security-state.is-alert .security-state-word { color: var(--deficit); }
 .security-state.is-partial .security-state-word { color: var(--attention); }
 .security-state.is-perimeter .security-state-word { color: var(--attention); }
-/* System-wide low-battery alert pill on the alarm-state line (issue #84). Amber
-   "needs attention" tint, matching the partial/perimeter colour identity. */
-.security-battery-badge {
+/* System-wide alert pills on the alarm-state line: low battery (issue #84) and
+   AC-power-lost (issue #99). Shared pill geometry; the tint carries the meaning —
+   amber "needs attention" for low battery (matching the partial/perimeter colour
+   identity), red "deficit" for AC lost (panel on backup power is more urgent). */
+.security-battery-badge,
+.security-aclost-badge {
   display: inline-flex;
   align-items: center;
   margin-left: 10px;
   padding: 2px 10px;
   border-radius: var(--radius-pill);
-  border: 1px solid color-mix(in srgb, var(--attention) 30%, transparent);
-  background: color-mix(in srgb, var(--attention) 16%, transparent);
-  color: var(--attention);
   font-size: var(--font-caption);
   font-weight: 700;
   white-space: nowrap;
+}
+.security-battery-badge {
+  border: 1px solid color-mix(in srgb, var(--attention) 30%, transparent);
+  background: color-mix(in srgb, var(--attention) 16%, transparent);
+  color: var(--attention);
+}
+.security-aclost-badge {
+  border: 1px solid color-mix(in srgb, var(--deficit) 30%, transparent);
+  background: color-mix(in srgb, var(--deficit) 16%, transparent);
+  color: var(--deficit);
 }
 
 /* Alarm actions: one full-width row of rounded pills using translucent colour

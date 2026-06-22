@@ -189,6 +189,17 @@ function renderStateInto(el) {
     badge.title = 'A detector reports a low battery — check the detectors list';
     el.appendChild(badge);
   }
+  // System-wide AC-power-lost alert (issue #99). Mirrors the low-battery badge:
+  // the same aggregate cloud flag, dual-rendered onto Home + Security, clearing
+  // when false. Red --deficit tint (vs the battery badge's amber) because the
+  // panel running on backup power is more urgent than a single low cell.
+  if (security && security.ac_lost) {
+    const badge = document.createElement('span');
+    badge.className = 'security-aclost-badge';
+    badge.textContent = '⚠ AC power lost';
+    badge.title = 'The alarm panel lost mains power and is running on backup battery';
+    el.appendChild(badge);
+  }
 }
 
 function renderState() {
