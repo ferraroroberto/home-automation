@@ -128,7 +128,9 @@ The dashboard shows the home's live energy flow (☀️ Solar · 🏠 House · �
 ♻️ Net) as the read-side foundation of the eventual solar load-balancing
 automation (shift HVAC load to match PV). When `SMA_CLOUD_PLANT_ID` is set, it
 uses the same Sunny Portal energy-balance values shown in the SMA Energy app.
-If cloud is not configured or unavailable, it falls back to local LAN reads:
+If cloud is not configured, unavailable, or **stale** (the widget keeps echoing
+its last point after the Sunny Home Manager stops uploading — see
+`SMA_CLOUD_MAX_STALENESS_S`), it falls back to local LAN reads:
 
 - **Sunny Home Manager 2.0 / energy meter** — read over **Speedwire** (UDP
   multicast) with **no credentials**. Gives grid import/export + cumulative
@@ -143,6 +145,7 @@ Config in `.env`:
 | Key | Meaning |
 |-----|---------|
 | `SMA_CLOUD_PLANT_ID` | Sunny Portal plant/component ID. When set, the app reads the same cloud energy-balance values shown in the SMA Energy app. |
+| `SMA_CLOUD_MAX_STALENESS_S` | Max age (seconds, default `900`) of a cloud energy-balance point before it is treated as stale and the read falls through to the live local sources — stops a frozen cloud value from flat-lining the live chart. |
 | `SMA_INVERTER_HOST` | Inverter LAN IP/host. Blank → read the meter only. |
 | `SMA_INVERTER_ACCESS_METHOD` | `ennexos` (default) or `speedwireinvV2` for Speedwire-only inverters. |
 | `SMA_INVERTER_GROUP` | Speedwire login group: `user` (default) or `installer`. |
