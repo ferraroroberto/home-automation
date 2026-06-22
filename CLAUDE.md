@@ -47,9 +47,10 @@ Windows / PowerShell:
 - CLI smoke: `& .\.venv\Scripts\python.exe -m src.list_devices` (HVAC) · `& .\.venv\Scripts\python.exe -m src.list_energy` (SMA energy)
 - Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8447` then `curl -k https://127.0.0.1:8447/healthz`, `…/api/units` and `…/api/energy` (loopback bypasses the token).
 - Streamlit spike boot check: `& .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py --server.headless true`
+- Backend suite (fast, no network/browser): `& .\.venv\Scripts\python.exe -m pytest tests -p no:cacheprovider --ignore=tests/e2e` — API smoke (FastAPI `TestClient` over the real app, loopback-bypass auth) under `tests/api/` + pure-logic unit tests for `src.tariff` / `src.energy_history` / `src.display_names`. Cloud fetchers are monkeypatched; nothing touches MELCloud/SMA/Tuya/Risco.
 - E2E suite: `& .\.venv\Scripts\python.exe -m pytest tests/e2e` — adopt-or-boot fixture; runs Chromium + WebKit projections. Faster dev loop: `--browser chromium`.
 
-There is no Python unit-test suite; the e2e suite under `tests/e2e/` is the regression gate — say so plainly rather than claiming "tests pass."
+Two regression gates: the fast backend layer (`tests/`, excluding `tests/e2e`) and the browser e2e suite (`tests/e2e/`). Run both before declaring done; report failures with the output rather than claiming "tests pass." Install the test deps with `& .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`.
 
 ## This repository
 Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahead of a **solar load-balancing automation** (the eventual goal: shift HVAC load to match PV generation — see the sister `pvgis` repo for the solar-output estimate side).
