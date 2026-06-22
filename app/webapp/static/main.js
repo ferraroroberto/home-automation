@@ -265,6 +265,18 @@ function populateDetail(unit) {
 
   fillSelect(els.detailMode, unit.operation_modes || [], unit.operation_mode);
 
+  els.detailFanSpeedRow.hidden = !unit.fan_speeds || !unit.fan_speeds.length;
+  if (unit.fan_speeds && unit.fan_speeds.length) {
+    els.detailFanSpeed.innerHTML = '';
+    unit.fan_speeds.forEach(function (f) {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = fanLabel(f);
+      if (f === unit.fan_speed) opt.selected = true;
+      els.detailFanSpeed.appendChild(opt);
+    });
+  }
+
   els.detailVaneVerticalRow.hidden = !unit.has_vane_vertical;
   if (unit.has_vane_vertical) {
     fillSelect(els.detailVaneVertical, unit.vane_vertical_options || [], unit.vane_vertical);
@@ -664,6 +676,9 @@ els.detailDisplayName.addEventListener('keydown', function (ev) {
 });
 els.detailMode.addEventListener('change', function () {
   if (state.selectedId) applyControl(state.selectedId, { operation_mode: els.detailMode.value });
+});
+els.detailFanSpeed.addEventListener('change', function () {
+  if (state.selectedId) applyControl(state.selectedId, { fan_speed: els.detailFanSpeed.value });
 });
 els.detailVaneVertical.addEventListener('change', function () {
   if (state.selectedId) applyControl(state.selectedId, { vane_vertical_direction: els.detailVaneVertical.value });
