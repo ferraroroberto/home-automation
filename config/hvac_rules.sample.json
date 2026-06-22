@@ -1,0 +1,7 @@
+{
+  "12345": {
+    "enabled": true,
+    "cool_target": 26.0,
+    "heat_target": 21.0
+  }
+}

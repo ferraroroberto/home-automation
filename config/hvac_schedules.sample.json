@@ -1,0 +1,12 @@
+{
+  "12345": {
+    "enabled": true,
+    "time": "08:00",
+    "power": true,
+    "operation_mode": "Cool",
+    "set_temperature": 24.0,
+    "fan_speed": "Auto",
+    "vane_vertical_direction": "Auto",
+    "vane_horizontal_direction": "Auto"
+  }
+}

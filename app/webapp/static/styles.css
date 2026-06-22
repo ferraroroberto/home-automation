@@ -656,18 +656,27 @@ html, body {
   white-space: nowrap;
 }
 .unit-chevron { color: var(--muted); font-size: 1.4rem; line-height: 1; flex: none; }
+.unit-schedule-icon {
+  color: var(--muted);
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
 
 /* readings band: room readout + target stepper */
 .unit-readings {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 14px;
 }
 
-.unit-room { display: flex; flex-direction: column; gap: 2px; }
+.unit-room,
+.unit-rule-target { display: flex; flex-direction: column; gap: 2px; }
 .unit-room .label,
-.unit-target .label {
+.unit-rule-target .label,
+.unit-target .label,
+.unit-fan-label {
   font-size: var(--font-caption);
   font-weight: 600;
   color: var(--muted);
@@ -676,13 +685,24 @@ html, body {
    scale — and sit on the same baseline, a symmetric "actual → target" pair
    (issue #80). The value box matches the stepper height (28px) so the plain
    Room number and the stepper's number align horizontally. */
-.unit-room .value {
+.unit-room .value,
+.unit-rule-target .value {
   font-size: var(--font-body);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
   min-height: 28px;
+}
+.unit-rule-target {
+  align-items: flex-start;
+  color: var(--accent);
+}
+.unit-rule-target .value { gap: 4px; }
+.unit-rule-icon {
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
 }
 
 /* power toggle */
@@ -717,7 +737,13 @@ html, body {
 .toggle.on .knob { transform: translateX(18px); }
 
 /* target stepper */
-.unit-target { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.unit-target {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+  margin-left: auto;
+}
 .stepper { display: inline-flex; align-items: center; gap: 6px; }
 .stepper .step {
   width: 28px; height: 28px;
@@ -743,7 +769,21 @@ html, body {
 }
 
 /* fan select — compact in the top band */
-.unit-fan { flex: none; max-width: 9ch; }
+.unit-fan-control {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-h);
+}
+.unit-fan { flex: none; max-width: 7ch; }
+.unit-fan-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  line-height: 1;
+  white-space: nowrap;
+}
 .select-native {
   height: var(--control-h);
   font-size: var(--font-label);
@@ -1043,6 +1083,21 @@ html, body {
   background: var(--input-bg);
   color: var(--ink);
   font-family: inherit;
+}
+
+/* Collapsible automation sections inside the detail modal (temperature rule +
+   schedule). Reuse the shared .collapse-summary chevron pattern; the summary
+   sits on its own top border like a .row, and the body indents the fields. */
+.detail-section { border-top: 1px solid var(--line); }
+.detail-section > .collapse-summary { padding: 12px 0; }
+.detail-section .detail-section-body { padding-bottom: 6px; }
+.detail-section .detail-section-body .row:first-child { border-top: none; }
+.detail-hint { margin: 8px 0 2px; }
+.checkbox-native {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 /* ----------------------------------------------------------- toast */

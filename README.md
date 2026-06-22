@@ -34,16 +34,18 @@ optional bearer token. Three ways to reach it once running:
   - `sma_client.py` — async read of the local SMA solar/energy devices (meter + inverter).
   - `list_energy.py` — CLI that prints the live energy flow.
   - `energy_history.py` — SQLite store + rollups for the energy dashboard history.
+  - `hvac_automation.py` — UI-free persistence + control law for per-unit dynamic temperature rules and daily schedules.
   - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `risco_client.py` — async RISCO Cloud alarm state, controls, event log, and detector bypass.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
   - `static_versioning.py` — build identity (git SHA) + content-hash (`?v=`) stamping of the PWA's `.js`/`.css` URLs so a mobile PWA never serves stale cached code.
 - **`app/webapp/`** — the FastAPI + PWA product.
-  - `server.py` — `create_app()`, middleware, caching static mount, routers, sampler lifespan.
+  - `server.py` — `create_app()`, middleware, caching static mount, routers, background-task lifespan.
   - `middleware.py` — bearer-token / loopback auth gate.
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
+  - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
   - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs switcher),
@@ -56,7 +58,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -454,6 +456,31 @@ that is shown in the card grid and the detail modal instead of the API name.
 
   Keys are unit IDs (strings); values are the display names. The file is
   optional — a missing file is silently treated as no overrides.
+
+## HVAC automation
+
+The unit detail modal has two optional automation sections:
+
+- **Temperature rule** — a dynamic setpoint controller, not an on/off thermostat.
+  The unit stays on only if you turned it on; while it is on in Cool/Dry or Heat,
+  the webapp nudges the unit setpoint every 15 minutes (default) to keep the
+  measured room temperature near the configured room target, with a 0.5 °C
+  buffer. Auto/Fan modes are not steered.
+- **Schedule** — one daily `HH:MM` profile per unit for now. It can apply power,
+  mode, target temperature, fan, and vanes at that time. Follow-up work tracks
+  multiple on/off schedule entries.
+
+Rules and schedules are evaluated server-side by the tray-owned webapp, so they
+work while the PWA is closed. Runtime files live in gitignored
+`config/hvac_rules.json` and `config/hvac_schedules.json`; committed samples show
+the shape. Optional `.env` knobs:
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `HVAC_AUTOMATION_ENABLED` | `true` | Master switch. Set `false`/`0` to disable the evaluator. |
+| `HVAC_POLL_INTERVAL_S` | `60` | How often the evaluator checks configured rules/schedules. With no config it does not hit MELCloud. |
+| `HVAC_ADJUST_INTERVAL_S` | `900` | Minimum time between dynamic setpoint nudges per unit. |
+| `HVAC_BUFFER_C` | `0.5` | Room-temperature hold band around the rule target. |
 
 ## CLI
 
