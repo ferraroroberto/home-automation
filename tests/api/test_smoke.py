@@ -161,3 +161,46 @@ def test_security_zone_rename_persists(
     assert resp.status_code == 200
     assert resp.json()["display_name"] is None
     assert sdn.load_security_display_names() == {}
+
+
+def test_security_zone_hidden_persists_and_merges(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """``PUT /api/security/zones/{id}/hidden`` persists, and GET merges the flag."""
+    import src.security_hidden as shd
+
+    store = tmp_path / "security_hidden.json"
+    monkeypatch.setattr(shd, "DEFAULT_PATH", store)
+
+    # Hide zone 4, then verify it round-trips on disk.
+    resp = client.put("/api/security/zones/4/hidden", json={"hidden": True})
+    assert resp.status_code == 200
+    assert resp.json() == {"zone_id": 4, "hidden": True}
+    assert shd.load_hidden_zone_ids() == {"4"}
+
+    # GET merges the hidden flag per zone (only the hidden one is True).
+    state = SecurityState(
+        reachable=True,
+        label="Disarmed",
+        mode="disarmed",
+        zones=[
+            SecurityZone(id=0, name="1", type=1),
+            SecurityZone(id=4, name="Garage", type=2),
+        ],
+    )
+
+    async def fake_fetch_security_state() -> SecurityState:
+        return state
+
+    monkeypatch.setattr(
+        "app.webapp.routers.security.fetch_security_state", fake_fetch_security_state
+    )
+    body = client.get("/api/security").json()
+    zones = {z["id"]: z["hidden"] for z in body["zones"]}
+    assert zones == {0: False, 4: True}
+
+    # Un-hiding clears the entry.
+    resp = client.put("/api/security/zones/4/hidden", json={"hidden": False})
+    assert resp.status_code == 200
+    assert resp.json() == {"zone_id": 4, "hidden": False}
+    assert shd.load_hidden_zone_ids() == set()

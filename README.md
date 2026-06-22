@@ -58,7 +58,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `security_display_names.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `security_display_names.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `security_display_names.json`, `security_hidden.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -100,13 +100,22 @@ system-wide low battery, an amber **`⚠ Low battery`** badge appears on the
 flag is cleared. (The RISCO Cloud API does not expose per-detector battery —
 only this aggregate flag and a generic per-zone *trouble* boolean — so the badge
 is a "something needs attention → drill in" signal, not a per-detector readout.)
-Each detector row shows a `Trouble` flag when set; tapping a detector's name
-opens a detail modal showing its type, status, and trouble state, plus a
-**Display name** field. Detectors arrive named `1`, `2`, … so a custom label is
-saved via `PUT /api/security/zones/{id}/display_name` to a gitignored
-`config/security_display_names.json` (zone id → label, parallel to the unit
-`config/display_names.json` and plug `config/tuya_display_names.json`); a missing
-file is not an error, and the override wins over the RISCO name everywhere.
+Each detector row shows its flags inline (`Active`/`Bypass`/`Triggered` in their
+state colour, with `Trouble` always in the amber attention colour); the list is
+sorted A–Z by label. Tapping a detector's name opens a detail modal showing its
+type, status, and trouble state, plus a **Display name** field with the original
+RISCO **system name** shown beneath it for correspondence. Detectors arrive named
+`1`, `2`, … so a custom label is saved via `PUT /api/security/zones/{id}/display_name`
+to a gitignored `config/security_display_names.json` (zone id → label, parallel to
+the unit `config/display_names.json` and plug `config/tuya_display_names.json`); a
+missing file is not an error, and the override wins over the RISCO name everywhere.
+
+**Hiding unused detectors (issue #104).** The detail modal also has a **Hidden**
+toggle that parks an unused detector out of the default list, saved via
+`PUT /api/security/zones/{id}/hidden` to a gitignored `config/security_hidden.json`
+(reusing the same atomic store as the display-name files). The Detectors card
+header then shows an `N hidden` counter and a **Show hidden / Hide** switch that
+reveals the hidden detectors (dimmed) on demand so they can be un-hidden.
 
 **Resilient live read (issue #98).** A momentary panel-unreachable blip — RISCO
 returns a non-retryable result code such as `26` on the *live* state read even

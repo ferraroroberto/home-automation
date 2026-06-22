@@ -8,6 +8,7 @@ config/webapp_config.json
 config/display_names.json
 config/tuya_display_names.json
 config/security_display_names.json
+config/security_hidden.json
 config/hvac_rules.json
 config/hvac_schedules.json
 config/location.json

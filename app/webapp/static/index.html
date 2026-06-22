@@ -568,8 +568,12 @@
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-satellite-dish"></use></svg>
             <h3 class="collapse-title">Detectors</h3>
+            <span id="securityHiddenCount" class="muted small security-hidden-count" hidden></span>
           </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          <span class="security-zones-tools">
+            <button id="securityHiddenToggle" type="button" class="range-tab" data-testid="detectors-show-hidden-toggle" hidden>Show hidden</button>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </span>
         </summary>
         <div id="securityZones" class="security-zones"></div>
         <p id="securityZonesNote" class="muted small security-note" hidden></p>
@@ -723,6 +727,16 @@
         <span>Display name</span>
         <input id="zoneDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
+      <!-- Original RISCO name, so a custom label can be matched back to the
+           physical detector (issue #104). -->
+      <p id="zoneOriginalName" class="muted small zone-original-name"></p>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="zoneHiddenToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide detector">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
     </div>
   </dialog>
 

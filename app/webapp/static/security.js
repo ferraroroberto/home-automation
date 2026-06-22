@@ -7,7 +7,14 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
+import {
+  state,
+  els,
+  toast,
+  reportFetchFailure,
+  reportFetchOk,
+  SECURITY_SHOW_HIDDEN_KEY,
+} from './state.js';
 import { jsonApi } from './api.js';
 
 const POLL_MS = 10_000;
@@ -166,7 +173,7 @@ function renderStateInto(el) {
   el.className = 'security-state ' + statusClass(mode);
   el.innerHTML = '';
   const prefix = document.createElement('span');
-  prefix.textContent = 'Alarm state: ';
+  prefix.textContent = 'Alarm state:';
   el.appendChild(prefix);
   const word = document.createElement('span');
   word.className = 'security-state-word';
@@ -228,22 +235,77 @@ function renderEvents() {
   });
 }
 
+// Build the flags row, rendering each flag as its own span so "Trouble" can
+// carry the amber attention colour (matching the low-battery badge) while
+// Active/Bypass/Triggered keep their state colour (issue #104).
+function renderZoneFlags(zone) {
+  const flags = document.createElement('span');
+  flags.className = 'security-zone-flags';
+  const parts = [];
+  if (zone.triggered) parts.push({ text: 'Triggered', cls: '' });
+  parts.push({ text: zone.bypassed ? 'Bypass' : 'Active', cls: '' });
+  if (zone.trouble) parts.push({ text: 'Trouble', cls: 'is-trouble' });
+  parts.forEach(function (part, i) {
+    if (i > 0) flags.appendChild(document.createTextNode(' · '));
+    const span = document.createElement('span');
+    span.className = 'security-zone-flag' + (part.cls ? ' ' + part.cls : '');
+    span.textContent = part.text;
+    flags.appendChild(span);
+  });
+  return flags;
+}
+
 function renderZones() {
   els.securityZones.innerHTML = '';
   const zones = (state.security && state.security.zones) || [];
   if (!zones.length) {
     els.securityZonesNote.hidden = false;
     els.securityZonesNote.textContent = 'No detectors.';
+    if (els.securityHiddenCount) els.securityHiddenCount.hidden = true;
+    if (els.securityHiddenToggle) els.securityHiddenToggle.hidden = true;
     return;
   }
   els.securityZonesNote.hidden = true;
 
-  zones.forEach(function (zone) {
+  // A–Z by display label (mirrors the plugs list); locale-aware so accented
+  // Spanish detector names sort naturally.
+  const sorted = zones.slice().sort(function (a, b) {
+    return zoneLabel(a).localeCompare(zoneLabel(b), undefined, { sensitivity: 'base' });
+  });
+
+  // Hidden detectors drop out unless "show hidden" is on, where they render
+  // dimmed so they can be un-hidden from the modal (issue #104).
+  const hiddenCount = sorted.filter(function (z) { return z.hidden; }).length;
+  const visible = state.securityShowHidden
+    ? sorted
+    : sorted.filter(function (z) { return !z.hidden; });
+
+  if (els.securityHiddenCount) {
+    if (hiddenCount > 0) {
+      els.securityHiddenCount.textContent = hiddenCount + ' hidden';
+      els.securityHiddenCount.hidden = false;
+    } else {
+      els.securityHiddenCount.hidden = true;
+    }
+  }
+  if (els.securityHiddenToggle) {
+    els.securityHiddenToggle.hidden = hiddenCount === 0;
+    els.securityHiddenToggle.textContent = state.securityShowHidden ? 'Hide' : 'Show hidden';
+    els.securityHiddenToggle.classList.toggle('active', state.securityShowHidden);
+  }
+
+  if (!visible.length) {
+    els.securityZonesNote.hidden = false;
+    els.securityZonesNote.textContent = 'All detectors hidden.';
+  }
+
+  visible.forEach(function (zone) {
     const row = document.createElement('div');
     row.className = 'security-zone';
     if (zone.triggered) row.classList.add('is-triggered');
     if (zone.bypassed) row.classList.add('is-bypassed');
     else row.classList.add('is-active');
+    if (zone.hidden) row.classList.add('is-hidden');
 
     const main = document.createElement('div');
     main.className = 'security-zone-main';
@@ -259,14 +321,7 @@ function renderZones() {
     name.addEventListener('click', function () { openZoneDetail(zone.id); });
     main.appendChild(name);
 
-    const flags = document.createElement('span');
-    flags.className = 'security-zone-flags';
-    const flagText = [];
-    if (zone.triggered) flagText.push('Triggered');
-    flagText.push(zone.bypassed ? 'Bypass' : 'Active');
-    if (zone.trouble) flagText.push('Trouble');
-    flags.textContent = flagText.join(' · ');
-    main.appendChild(flags);
+    main.appendChild(renderZoneFlags(zone));
     row.appendChild(main);
 
     const toggle = document.createElement('button');
@@ -314,9 +369,51 @@ function openZoneDetail(zoneId) {
   els.zoneDetailTrouble.textContent = zone.trouble ? '⚠ Yes' : 'No';
   els.zoneDisplayName.value = zone.display_name || '';
   els.zoneDisplayName.placeholder = zone.name || 'Custom label…';
+  // Original RISCO name, so the custom label maps back to the physical detector.
+  if (els.zoneOriginalName) {
+    els.zoneOriginalName.textContent = 'System name: ' + (zone.name || ('Zone ' + zone.id));
+  }
+  renderZoneHiddenToggle(zone);
   if (typeof els.zoneDialog.showModal === 'function') els.zoneDialog.showModal();
   else els.zoneDialog.setAttribute('open', '');
   els.zoneDisplayName.focus();
+}
+
+function renderZoneHiddenToggle(zone) {
+  const btn = els.zoneHiddenToggle;
+  if (!btn) return;
+  const hidden = !!zone.hidden;
+  btn.className = 'toggle' + (hidden ? ' on' : ' off');
+  btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
+  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+    (hidden ? 'ON' : 'OFF') + '</span>';
+}
+
+async function toggleZoneHidden() {
+  const id = state.selectedZoneId;
+  if (id === null || id === undefined) return;
+  const zone = zoneById(id);
+  if (!zone) return;
+  const next = !zone.hidden;
+  try {
+    await jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/hidden', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: next }),
+    });
+    if (state.security && Array.isArray(state.security.zones)) {
+      state.security.zones = state.security.zones.map(function (z) {
+        return z.id === id ? Object.assign({}, z, { hidden: next }) : z;
+      });
+    }
+    renderZoneHiddenToggle(zoneById(id) || zone);
+    renderZones();
+    toast(next ? 'Detector hidden' : 'Detector shown', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to update detector: ' + (exc.message || exc), 'error');
+    }
+  }
 }
 
 function closeZoneDetail() {
@@ -360,6 +457,31 @@ export function wireZoneDetail() {
   els.zoneDisplayName.addEventListener('blur', saveZoneName);
   els.zoneDisplayName.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); els.zoneDisplayName.blur(); }
+  });
+  if (els.zoneHiddenToggle) {
+    els.zoneHiddenToggle.addEventListener('click', toggleZoneHidden);
+  }
+}
+
+// Wire the "show hidden" detectors toggle in the Detectors header (issue #104).
+// The button lives in the <summary>, so swallow the click so it flips the filter
+// instead of collapsing the card.
+export function wireSecurityHiddenToggle() {
+  try {
+    if (localStorage.getItem(SECURITY_SHOW_HIDDEN_KEY) === 'true') {
+      state.securityShowHidden = true;
+    }
+  } catch (_) { /* private mode */ }
+
+  if (!els.securityHiddenToggle) return;
+  els.securityHiddenToggle.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    state.securityShowHidden = !state.securityShowHidden;
+    try {
+      localStorage.setItem(SECURITY_SHOW_HIDDEN_KEY, String(state.securityShowHidden));
+    } catch (_) { /* private mode */ }
+    renderZones();
   });
 }
 
