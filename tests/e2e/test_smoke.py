@@ -67,3 +67,25 @@ def test_off_unit_marked(
     off = page.locator('[data-unit-id="unit-2"]')
     expect(off).to_have_class("card unit-card is-off")
     expect(off.locator(".toggle")).to_have_attribute("aria-checked", "false")
+
+
+def test_detail_modal_adds_multiple_schedule_entries(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    mock_api(sample_units)
+    _boot(page, base_url)
+    page.locator("#tabAc").click()
+    page.locator('[data-unit-id="unit-1"] .unit-header').click()
+    page.get_by_text("Schedules", exact=True).click()
+
+    add = page.get_by_role("button", name="+ Add schedule")
+    add.click()
+    add.click()
+
+    entries = page.locator(".schedule-entry")
+    expect(entries).to_have_count(2)
+    entries.nth(1).locator(".sched-entry-power").select_option("false")
+    expect(entries.nth(1).locator(".schedule-profile")).to_be_hidden()
+
+    badge = page.locator('[data-unit-id="unit-1"] .unit-schedule-badge')
+    expect(badge).to_contain_text("2")

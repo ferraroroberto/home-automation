@@ -466,14 +466,15 @@ The unit detail modal has two optional automation sections:
   the webapp nudges the unit setpoint every 15 minutes (default) to keep the
   measured room temperature near the configured room target, with a 0.5 °C
   buffer. Auto/Fan modes are not steered.
-- **Schedule** — one daily `HH:MM` profile per unit for now. It can apply power,
-  mode, target temperature, fan, and vanes at that time. Follow-up work tracks
-  multiple on/off schedule entries.
+- **Schedules** — multiple daily `HH:MM` entries per unit. An entry can be a
+  simple off event, or an on event that applies a full profile (mode, target
+  temperature, fan, and vanes) at that time.
 
 Rules and schedules are evaluated server-side by the tray-owned webapp, so they
 work while the PWA is closed. Runtime files live in gitignored
 `config/hvac_rules.json` and `config/hvac_schedules.json`; committed samples show
-the shape. Optional `.env` knobs:
+the shape. Existing single-schedule config files are loaded as one-entry lists on
+upgrade. Optional `.env` knobs:
 
 | Key | Default | Meaning |
 |-----|---------|---------|

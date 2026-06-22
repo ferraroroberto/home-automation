@@ -242,6 +242,8 @@ def mock_api(page: Page) -> Callable[[List[Dict]], List[Dict]]:
     """
     def _install(units: List[Dict]) -> List[Dict]:
         store = {u["unit_id"]: u for u in units}
+        rule_store: Dict[str, Dict] = {}
+        schedule_store: Dict[str, List[Dict]] = {}
 
         # Map the client's control field names onto the snapshot fields.
         field_map = {
@@ -255,28 +257,53 @@ def mock_api(page: Page) -> Callable[[List[Dict]], List[Dict]]:
 
         def handle(route: Route) -> None:
             req = route.request
-            if req.method == "GET":
+            parts = req.url.split("/api/units", 1)[1].strip("/").split("/")
+            if parts == [""] or parts == []:
                 route.fulfill(
                     status=200,
                     content_type="application/json",
                     body=_json({"units": list(store.values())}),
                 )
                 return
-            # POST control → merge + echo back the updated snapshot.
-            uid = req.url.rstrip("/").split("/")[-1]
-            unit = store.get(uid)
-            if unit is None:
+
+            uid = parts[0]
+            if uid not in store:
                 route.fulfill(status=404, content_type="application/json",
                               body=_json({"detail": "not found"}))
                 return
+
+            if len(parts) > 1 and parts[1] == "rule":
+                if req.method == "GET":
+                    route.fulfill(status=200, content_type="application/json",
+                                  body=_json(rule_store.get(uid, {"enabled": False, "cool_target": None, "heat_target": None})))
+                    return
+                rule_store[uid] = req.post_data_json or {}
+                route.fulfill(status=200, content_type="application/json", body=_json(rule_store[uid]))
+                return
+
+            if len(parts) > 1 and parts[1] == "schedule":
+                if req.method == "GET":
+                    entries = schedule_store.get(uid, [])
+                    route.fulfill(status=200, content_type="application/json",
+                                  body=_json({"enabled": any(e.get("enabled") for e in entries), "count": sum(1 for e in entries if e.get("enabled")), "next_time": None, "time": None, "entries": entries}))
+                    return
+                body = req.post_data_json or {}
+                entries = body.get("entries", []) if isinstance(body, dict) else []
+                schedule_store[uid] = entries
+                enabled = [e for e in entries if e.get("enabled")]
+                route.fulfill(status=200, content_type="application/json",
+                              body=_json({"enabled": bool(enabled), "count": len(enabled), "next_time": enabled[0].get("time") if enabled else None, "time": enabled[0].get("time") if enabled else None, "entries": entries}))
+                return
+
+            # POST control → merge + echo back the updated snapshot.
             patch = req.post_data_json or {}
             for k, v in patch.items():
                 if k in field_map:
-                    unit[field_map[k]] = v
-            route.fulfill(status=200, content_type="application/json", body=_json(unit))
+                    store[uid][field_map[k]] = v
+            route.fulfill(status=200, content_type="application/json", body=_json(store[uid]))
 
         page.route("**/api/units", handle)
-        page.route("**/api/units/*", handle)
+        page.route("**/api/units/**", handle)
         return list(store.values())
 
     return _install

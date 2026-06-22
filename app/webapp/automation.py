@@ -5,10 +5,11 @@ A single asyncio task started in the FastAPI lifespan (mirrors
 tray owns — no separate daemon. Every ``poll_interval_s`` it reads every unit's
 live state once and, per unit:
 
-* **Schedule** — if the unit has an enabled schedule whose daily ``HH:MM`` just
-  came due (edge-triggered, once per local day, within a short grace window so a
-  midday restart does not replay the morning profile), apply its full profile
-  (power, mode, setpoint, fan, vanes) once.
+* **Schedule entries** — if the unit has enabled entries whose daily ``HH:MM``
+  just came due (edge-triggered, once per local day per entry, within a short
+  grace window so a midday restart does not replay the morning profile), apply
+  each entry once. Power-off entries send only ``power=False``; power-on entries
+  can apply the full profile (mode, setpoint, fan, vanes).
 * **Rule** — if the unit is **on** and its current mode is steerable, nudge the
   unit's setpoint one step toward the rule's desired *room* target, but no more
   often than ``adjust_interval_s`` (the room responds slowly; over-nudging would
@@ -114,11 +115,14 @@ def _mode_range(unit: DeviceInfo) -> tuple[float, float]:
 
 
 async def _apply_schedule(unit: DeviceInfo, sched) -> None:
-    """Write a schedule's full profile to one unit."""
-    logger.info("⏰ Applying schedule to '%s' (%s)", unit.name, sched.time)
+    """Write one schedule entry to one unit."""
+    logger.info("⏰ Applying schedule to '%s' (%s, %s)", unit.name, sched.time, sched.id)
+    if sched.power is False:
+        await set_device_state(unit.unit_id, power=False)
+        return
     await set_device_state(
         unit.unit_id,
-        power=sched.power,
+        power=True,
         operation_mode=sched.operation_mode,
         set_temperature=sched.set_temperature,
         fan_speed=sched.fan_speed,
@@ -143,9 +147,12 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     """One evaluation pass over every unit (schedules, then rule nudges)."""
     rules = load_rules()
     schedules = load_schedules()
-    # Nothing configured → don't even hit MELCloud. Keeps a 24/7 idle engine
-    # silent on the network until the user actually sets a rule or schedule.
-    if not rules and not schedules:
+    # Nothing active → don't even hit MELCloud. Keeps a 24/7 idle engine silent
+    # on the network until the user enables a rule or at least one schedule
+    # entry; disabled entries may still persist for later UI reactivation.
+    if not any(rule.enabled for rule in rules.values()) and not any(
+        entry.enabled for entries in schedules.values() for entry in entries
+    ):
         return
 
     devices = await fetch_devices()
@@ -156,17 +163,21 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     for unit in devices:
         uid = unit.unit_id
 
-        # --- Schedule: edge-triggered, once per local day. ---
-        sched = schedules.get(uid)
-        if sched is not None and sched.enabled and _schedule_due(sched, now, config.fire_grace_s):
-            if state.last_fire_day.get(uid) != today:
-                try:
-                    await _apply_schedule(unit, sched)
-                    state.last_fire_day[uid] = today
-                    state.last_adjust[uid] = monotonic
-                    continue  # the schedule just set the setpoint; skip a nudge
-                except Exception as exc:  # noqa: BLE001 — never kill the loop
-                    logger.warning("⚠️ Schedule apply failed for %s: %s", uid, exc)
+        # --- Schedules: edge-triggered, once per local day per entry. ---
+        applied_schedule = False
+        for sched in schedules.get(uid, []):
+            fire_key = f"{uid}:{sched.id}"
+            if sched.enabled and _schedule_due(sched, now, config.fire_grace_s):
+                if state.last_fire_day.get(fire_key) != today:
+                    try:
+                        await _apply_schedule(unit, sched)
+                        state.last_fire_day[fire_key] = today
+                        state.last_adjust[uid] = monotonic
+                        applied_schedule = True
+                    except Exception as exc:  # noqa: BLE001 — never kill the loop
+                        logger.warning("⚠️ Schedule apply failed for %s/%s: %s", uid, sched.id, exc)
+        if applied_schedule:
+            continue  # a schedule just changed power/profile; skip a same-tick nudge
 
         # --- Rule: dynamic setpoint nudge while the unit is on. ---
         rule = rules.get(uid)
@@ -210,7 +221,7 @@ class _EngineState:
     """In-memory timing/edge state, keyed by unit id (not persisted)."""
 
     last_adjust: Dict[str, float]  # monotonic ts of last setpoint write
-    last_fire_day: Dict[str, str]  # local date a schedule last fired
+    last_fire_day: Dict[str, str]  # local date a schedule entry last fired
 
 
 async def _run(config: AutomationConfig) -> None:

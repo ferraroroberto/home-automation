@@ -34,6 +34,7 @@ import { startWeatherPolling } from './weather.js';
 const DEFAULT_RANGE = [16, 31];
 const ASSET_HASH_KEY = 'home-automation.assetHash';
 const ASSET_RELOAD_KEY = 'home-automation.assetReloadedFor';
+let currentScheduleEntries = [];
 
 // --------------------------------------------------------------- helpers
 function unitById(id) {
@@ -70,9 +71,14 @@ function activeRuleTarget(unit) {
   return rule.enabled && rule.active_target != null ? rule.active_target : null;
 }
 
-function hasSchedule(unit) {
+function scheduleCount(unit) {
   const sched = unit.schedule || {};
-  return sched.enabled === true;
+  if (Number.isFinite(Number(sched.count))) return Number(sched.count);
+  return sched.enabled === true ? 1 : 0;
+}
+
+function hasSchedule(unit) {
+  return scheduleCount(unit) > 0;
 }
 
 // --------------------------------------------------- write + re-render
@@ -125,10 +131,12 @@ function renderCardInto(card, unit) {
   header.type = 'button';
   header.className = 'unit-header';
   header.title = 'Open settings';
+  const schedCount = scheduleCount(unit);
   header.innerHTML =
     '<span class="unit-mode-icon">' + icon(modeIcon(unit.operation_mode)) + '</span>' +
     '<span class="unit-name"></span>' +
-    (hasSchedule(unit) ? icon('clock', 'unit-schedule-icon') : '');
+    (schedCount ? '<span class="unit-schedule-badge" title="' + schedCount + ' schedule' + (schedCount === 1 ? '' : 's') + '">' +
+      icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '');
   header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
   top.appendChild(header);
@@ -266,21 +274,115 @@ function populateDetail(unit) {
     fillSelect(els.detailVaneHorizontal, unit.vane_horizontal_options || [], unit.vane_horizontal);
   }
 
-  // Schedule profile selects reuse the unit's capability lists; the vane rows
-  // mirror the basic-control vane rows' visibility.
-  fillSelect(els.schedMode, unit.operation_modes || [], unit.operation_mode);
-  fillSelect(els.schedFan, unit.fan_speeds || [], unit.fan_speed);
-  els.schedVaneVerticalRow.hidden = !unit.has_vane_vertical;
-  if (unit.has_vane_vertical) {
-    fillSelect(els.schedVaneVertical, unit.vane_vertical_options || [], unit.vane_vertical);
-  }
-  els.schedVaneHorizontalRow.hidden = !unit.has_vane_horizontal;
-  if (unit.has_vane_horizontal) {
-    fillSelect(els.schedVaneHorizontal, unit.vane_horizontal_options || [], unit.vane_horizontal);
-  }
+  currentScheduleEntries = [];
+  renderScheduleList(unit);
 }
 
-// Load the saved rule + schedule for the open unit and fill the two sections.
+function newScheduleId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return 'sched-' + window.crypto.randomUUID().slice(0, 8);
+  }
+  return 'sched-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+}
+
+function normalizeScheduleEntries(body) {
+  if (Array.isArray(body)) return body;
+  if (body && Array.isArray(body.entries)) return body.entries;
+  if (body && (body.enabled === true || body.time || body.operation_mode || body.set_temperature != null)) {
+    return [body];
+  }
+  return [];
+}
+
+function scheduleDefaults(unit) {
+  return {
+    id: newScheduleId(),
+    enabled: true,
+    time: '08:00',
+    power: true,
+    operation_mode: unit.operation_mode || null,
+    set_temperature: unit.set_temperature == null ? null : unit.set_temperature,
+    fan_speed: unit.fan_speed || null,
+    vane_vertical_direction: unit.has_vane_vertical ? (unit.vane_vertical || null) : null,
+    vane_horizontal_direction: unit.has_vane_horizontal ? (unit.vane_horizontal || null) : null,
+  };
+}
+
+function optionHtml(options, current) {
+  return (options || []).map(function (o) {
+    const selected = o === current ? ' selected' : '';
+    return '<option value="' + o + '"' + selected + '>' + o + '</option>';
+  }).join('');
+}
+
+function renderScheduleList(unit) {
+  if (!els.schedList) return;
+  els.schedList.innerHTML = '';
+  if (!currentScheduleEntries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted small schedule-empty';
+    empty.textContent = 'No schedules yet.';
+    els.schedList.appendChild(empty);
+    return;
+  }
+
+  currentScheduleEntries.forEach(function (entry, idx) {
+    const card = document.createElement('div');
+    card.className = 'schedule-entry' + (entry.power === false ? ' is-off-entry' : '');
+    card.dataset.index = String(idx);
+    card.innerHTML =
+      '<div class="schedule-entry-head">' +
+      '  <label class="schedule-enabled"><input type="checkbox" class="checkbox-native sched-entry-enabled"' + (entry.enabled ? ' checked' : '') + '> <span>Enabled</span></label>' +
+      '  <input type="time" class="input-native sched-entry-time" value="' + (entry.time || '08:00') + '">' +
+      '  <select class="select-native sched-entry-power"><option value="true"' + (entry.power === false ? '' : ' selected') + '>On</option><option value="false"' + (entry.power === false ? ' selected' : '') + '>Off</option></select>' +
+      '  <button type="button" class="schedule-delete" aria-label="Delete schedule">×</button>' +
+      '</div>' +
+      '<div class="schedule-profile"' + (entry.power === false ? ' hidden' : '') + '>' +
+      '  <label class="row"><span>Mode</span><select class="select-native sched-entry-mode">' + optionHtml(unit.operation_modes || [], entry.operation_mode || unit.operation_mode) + '</select></label>' +
+      '  <label class="row"><span>Target temp (°C)</span><input type="number" step="0.5" min="10" max="31" class="input-native sched-entry-temp" placeholder="—" value="' + (entry.set_temperature == null ? '' : entry.set_temperature) + '"></label>' +
+      '  <label class="row"><span>Fan</span><select class="select-native sched-entry-fan">' + optionHtml(unit.fan_speeds || [], entry.fan_speed || unit.fan_speed) + '</select></label>' +
+      (unit.has_vane_vertical ? '  <label class="row"><span>Vane — vertical</span><select class="select-native sched-entry-vv">' + optionHtml(unit.vane_vertical_options || [], entry.vane_vertical_direction || unit.vane_vertical) + '</select></label>' : '') +
+      (unit.has_vane_horizontal ? '  <label class="row"><span>Vane — horizontal</span><select class="select-native sched-entry-vh">' + optionHtml(unit.vane_horizontal_options || [], entry.vane_horizontal_direction || unit.vane_horizontal) + '</select></label>' : '') +
+      '</div>';
+
+    const saveFromCard = function () {
+      entry.enabled = card.querySelector('.sched-entry-enabled').checked;
+      entry.time = card.querySelector('.sched-entry-time').value || '08:00';
+      entry.power = card.querySelector('.sched-entry-power').value !== 'false';
+      const profile = card.querySelector('.schedule-profile');
+      profile.hidden = entry.power === false;
+      card.classList.toggle('is-off-entry', entry.power === false);
+      const mode = card.querySelector('.sched-entry-mode');
+      const temp = card.querySelector('.sched-entry-temp');
+      const fan = card.querySelector('.sched-entry-fan');
+      const vv = card.querySelector('.sched-entry-vv');
+      const vh = card.querySelector('.sched-entry-vh');
+      entry.operation_mode = mode ? mode.value || null : null;
+      entry.set_temperature = temp ? numOrNull(temp) : null;
+      entry.fan_speed = fan ? fan.value || null : null;
+      entry.vane_vertical_direction = vv ? vv.value || null : null;
+      entry.vane_horizontal_direction = vh ? vh.value || null : null;
+      saveSchedules();
+    };
+
+    card.querySelector('.sched-entry-enabled').addEventListener('change', saveFromCard);
+    card.querySelector('.sched-entry-time').addEventListener('blur', saveFromCard);
+    card.querySelector('.sched-entry-power').addEventListener('change', saveFromCard);
+    card.querySelector('.schedule-delete').addEventListener('click', function () {
+      currentScheduleEntries.splice(idx, 1);
+      renderScheduleList(unit);
+      saveSchedules();
+    });
+    card.querySelectorAll('.sched-entry-mode, .sched-entry-fan, .sched-entry-vv, .sched-entry-vh').forEach(function (el) {
+      el.addEventListener('change', saveFromCard);
+    });
+    const tempInput = card.querySelector('.sched-entry-temp');
+    if (tempInput) tempInput.addEventListener('blur', saveFromCard);
+    els.schedList.appendChild(card);
+  });
+}
+
+// Load the saved rule + schedules for the open unit and fill the two sections.
 // Failures stay quiet (auth overlay handles 401) — the fields just keep their
 // defaults.
 async function loadAutomation(unitId) {
@@ -294,14 +396,11 @@ async function loadAutomation(unitId) {
   }
   try {
     const sched = await jsonApi('/api/units/' + encodeURIComponent(unitId) + '/schedule');
-    els.schedEnabled.checked = sched.enabled === true;
-    els.schedTime.value = sched.time || '08:00';
-    els.schedPower.value = sched.power === false ? 'false' : 'true';
-    if (sched.operation_mode) els.schedMode.value = sched.operation_mode;
-    els.schedTemp.value = sched.set_temperature == null ? '' : sched.set_temperature;
-    if (sched.fan_speed) els.schedFan.value = sched.fan_speed;
-    if (sched.vane_vertical_direction) els.schedVaneVertical.value = sched.vane_vertical_direction;
-    if (sched.vane_horizontal_direction) els.schedVaneHorizontal.value = sched.vane_horizontal_direction;
+    currentScheduleEntries = normalizeScheduleEntries(sched).map(function (entry, idx) {
+      return Object.assign({ id: 'schedule-' + (idx + 1), enabled: true, time: '08:00', power: true }, entry);
+    });
+    const unit = unitById(unitId);
+    if (unit) renderScheduleList(unit);
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
   }
@@ -496,36 +595,35 @@ async function saveRule() {
   }
 }
 
-async function saveSchedule() {
+async function saveSchedules() {
   if (!state.selectedId) return;
-  const payload = {
-    enabled: els.schedEnabled.checked,
-    time: els.schedTime.value || '08:00',
-    power: els.schedPower.value !== 'false',
-    operation_mode: els.schedMode.value || null,
-    set_temperature: numOrNull(els.schedTemp),
-    fan_speed: els.schedFan.value || null,
-    vane_vertical_direction: els.schedVaneVerticalRow.hidden ? null : (els.schedVaneVertical.value || null),
-    vane_horizontal_direction: els.schedVaneHorizontalRow.hidden ? null : (els.schedVaneHorizontal.value || null),
-  };
+  const payload = { entries: currentScheduleEntries };
   try {
-    await jsonApi('/api/units/' + encodeURIComponent(state.selectedId) + '/schedule', {
+    const saved = await jsonApi('/api/units/' + encodeURIComponent(state.selectedId) + '/schedule', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    currentScheduleEntries = normalizeScheduleEntries(saved).map(function (entry, idx) {
+      return Object.assign({ id: 'schedule-' + (idx + 1), enabled: true, time: '08:00', power: true }, entry);
+    });
     state.units = state.units.map(function (u) {
       if (u.unit_id !== state.selectedId) return u;
       return Object.assign({}, u, {
-        schedule: { enabled: payload.enabled, time: payload.enabled ? payload.time : null },
+        schedule: {
+          enabled: saved.enabled === true,
+          count: Number(saved.count) || 0,
+          next_time: saved.next_time || null,
+          time: saved.time || saved.next_time || null,
+        },
       });
     });
     rerenderCard(state.selectedId);
     renderAcSummary();
-    toast('Schedule saved', 'success');
+    toast('Schedules saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
-      toast('Failed to save schedule: ' + (exc.message || exc), 'error');
+      toast('Failed to save schedules: ' + (exc.message || exc), 'error');
     }
   }
 }
@@ -580,15 +678,15 @@ els.ruleEnabled.addEventListener('change', saveRule);
 els.ruleCoolTarget.addEventListener('blur', saveRule);
 els.ruleHeatTarget.addEventListener('blur', saveRule);
 
-// Schedule — save on any field change; the time + temp inputs save on blur.
-els.schedEnabled.addEventListener('change', saveSchedule);
-els.schedTime.addEventListener('blur', saveSchedule);
-els.schedPower.addEventListener('change', saveSchedule);
-els.schedMode.addEventListener('change', saveSchedule);
-els.schedTemp.addEventListener('blur', saveSchedule);
-els.schedFan.addEventListener('change', saveSchedule);
-els.schedVaneVertical.addEventListener('change', saveSchedule);
-els.schedVaneHorizontal.addEventListener('change', saveSchedule);
+// Schedules — dynamic list; each row wires its own controls when rendered.
+els.schedAdd.addEventListener('click', function () {
+  if (!state.selectedId) return;
+  const unit = unitById(state.selectedId);
+  if (!unit) return;
+  currentScheduleEntries.push(scheduleDefaults(unit));
+  renderScheduleList(unit);
+  saveSchedules();
+});
 
 els.loginForm.addEventListener('submit', async function (ev) {
   ev.preventDefault();
