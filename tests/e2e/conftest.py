@@ -172,6 +172,10 @@ def base_url() -> Iterator[str]:
             # Never let the autobooted webapp hammer the real SMA devices — the
             # frontend is driven against stubbed energy fixtures, not the cloud.
             "ENERGY_SAMPLER_ENABLED": "0",
+            # Same for the HVAC automation engine: never drive real units from a
+            # test boot (the dormant-tick short-circuit makes it harmless with no
+            # config, but keep it explicitly off like the sampler).
+            "HVAC_AUTOMATION_ENABLED": "0",
         },
     )
     if sys.platform == "win32":

@@ -84,6 +84,10 @@
     <symbol id="i-thermometer" viewBox="0 0 24 24" fill="none">
       <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z" />
     </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </symbol>
     <symbol id="i-sun" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="4" />
       <path d="M12 2v2" />
@@ -637,6 +641,83 @@
         <span>Vane — horizontal</span>
         <select id="detailVaneHorizontal" class="select-native"></select>
       </label>
+
+      <!-- Dynamic-setpoint rule: hold a desired ROOM temperature by nudging
+           the unit's own (unreliable) setpoint each interval. Never powers the
+           unit on/off. Cool/heat targets; the active one follows current mode. -->
+      <details class="detail-section" id="detailRuleSection">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-thermometer"></use></svg>
+            <span class="collapse-title">Temperature rule</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="detail-section-body">
+          <label class="row">
+            <span>Enabled</span>
+            <input id="ruleEnabled" type="checkbox" class="checkbox-native">
+          </label>
+          <label class="row">
+            <span>Cool target (room °C)</span>
+            <input id="ruleCoolTarget" type="number" step="0.5" min="16" max="31" class="input-native" placeholder="—">
+          </label>
+          <label class="row">
+            <span>Heat target (room °C)</span>
+            <input id="ruleHeatTarget" type="number" step="0.5" min="10" max="31" class="input-native" placeholder="—">
+          </label>
+          <p class="muted small detail-hint">Keeps the unit on and steers its setpoint so the room reaches your target — the active target follows the unit's current mode.</p>
+        </div>
+      </details>
+
+      <!-- Schedule: apply a full settings profile once at a daily HH:MM. -->
+      <details class="detail-section" id="detailScheduleSection">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+            <span class="collapse-title">Schedule</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="detail-section-body">
+          <label class="row">
+            <span>Enabled</span>
+            <input id="schedEnabled" type="checkbox" class="checkbox-native">
+          </label>
+          <label class="row">
+            <span>Time (daily)</span>
+            <input id="schedTime" type="time" class="input-native">
+          </label>
+          <label class="row">
+            <span>Power</span>
+            <select id="schedPower" class="select-native">
+              <option value="true">On</option>
+              <option value="false">Off</option>
+            </select>
+          </label>
+          <label class="row">
+            <span>Mode</span>
+            <select id="schedMode" class="select-native"></select>
+          </label>
+          <label class="row">
+            <span>Target temp (°C)</span>
+            <input id="schedTemp" type="number" step="0.5" min="10" max="31" class="input-native" placeholder="—">
+          </label>
+          <label class="row">
+            <span>Fan</span>
+            <select id="schedFan" class="select-native"></select>
+          </label>
+          <label class="row" id="schedVaneVerticalRow" hidden>
+            <span>Vane — vertical</span>
+            <select id="schedVaneVertical" class="select-native"></select>
+          </label>
+          <label class="row" id="schedVaneHorizontalRow" hidden>
+            <span>Vane — horizontal</span>
+            <select id="schedVaneHorizontal" class="select-native"></select>
+          </label>
+          <p class="muted small detail-hint">Applies this full profile once each day at the set time. The temperature rule then steers the setpoint from there.</p>
+        </div>
+      </details>
     </div>
   </dialog>
 

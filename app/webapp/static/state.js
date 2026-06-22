@@ -173,6 +173,21 @@ export const els = {
   detailVaneVerticalRow: document.getElementById('detailVaneVerticalRow'),
   detailVaneHorizontalRow: document.getElementById('detailVaneHorizontalRow'),
   detailClose: document.getElementById('detailClose'),
+  // Detail modal — temperature rule (dynamic setpoint) section
+  ruleEnabled: document.getElementById('ruleEnabled'),
+  ruleCoolTarget: document.getElementById('ruleCoolTarget'),
+  ruleHeatTarget: document.getElementById('ruleHeatTarget'),
+  // Detail modal — schedule section
+  schedEnabled: document.getElementById('schedEnabled'),
+  schedTime: document.getElementById('schedTime'),
+  schedPower: document.getElementById('schedPower'),
+  schedMode: document.getElementById('schedMode'),
+  schedTemp: document.getElementById('schedTemp'),
+  schedFan: document.getElementById('schedFan'),
+  schedVaneVertical: document.getElementById('schedVaneVertical'),
+  schedVaneHorizontal: document.getElementById('schedVaneHorizontal'),
+  schedVaneVerticalRow: document.getElementById('schedVaneVerticalRow'),
+  schedVaneHorizontalRow: document.getElementById('schedVaneHorizontalRow'),
   // Login overlay
   loginOverlay: document.getElementById('loginOverlay'),
   loginForm: document.getElementById('loginForm'),

@@ -32,6 +32,8 @@ import { onSecurityTab } from './security.js';
 import { startWeatherPolling } from './weather.js';
 
 const DEFAULT_RANGE = [16, 31];
+const ASSET_HASH_KEY = 'home-automation.assetHash';
+const ASSET_RELOAD_KEY = 'home-automation.assetReloadedFor';
 
 // --------------------------------------------------------------- helpers
 function unitById(id) {
@@ -51,6 +53,28 @@ function fmtTemp(v) {
   return v == null ? '—' : Number(v).toFixed(1) + '°';
 }
 
+function fanLabel(v) {
+  const labels = { One: '1', Two: '2', Three: '3', Four: '4', Five: '5' };
+  return labels[v] || v || '—';
+}
+
+function ruleTargetForMode(rule, mode) {
+  if (!rule || rule.enabled !== true) return null;
+  if (mode === 'Cool' || mode === 'Dry') return rule.cool_target == null ? null : rule.cool_target;
+  if (mode === 'Heat') return rule.heat_target == null ? null : rule.heat_target;
+  return null;
+}
+
+function activeRuleTarget(unit) {
+  const rule = unit.temperature_rule || {};
+  return rule.enabled && rule.active_target != null ? rule.active_target : null;
+}
+
+function hasSchedule(unit) {
+  const sched = unit.schedule || {};
+  return sched.enabled === true;
+}
+
 // --------------------------------------------------- write + re-render
 async function applyControl(unitId, patch) {
   try {
@@ -65,6 +89,7 @@ async function applyControl(unitId, patch) {
     rerenderCard(updated.unit_id);
     renderAcSummary();
     if (state.selectedId === updated.unit_id) populateDetail(updated);
+    toast('Saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -103,7 +128,7 @@ function renderCardInto(card, unit) {
   header.innerHTML =
     '<span class="unit-mode-icon">' + icon(modeIcon(unit.operation_mode)) + '</span>' +
     '<span class="unit-name"></span>' +
-    icon('chevron-right', 'unit-chevron');
+    (hasSchedule(unit) ? icon('clock', 'unit-schedule-icon') : '');
   header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
   top.appendChild(header);
@@ -120,25 +145,28 @@ function renderCardInto(card, unit) {
     applyControl(unit.unit_id, { power: !on });
   });
 
-  // Fan speed — compact, label-less in the top band (aria-label for a11y).
-  // Built before the power toggle so the toggle appends last and pins to the
-  // row's right edge (platform-standard switch placement, issue #80); the
-  // dropdown then sits next to the name.
+  // Fan speed — labelled in the top band so it is clear what the compact
+  // selector controls. Native <select> options stay text-only; numbered speeds
+  // render as 1–5 while preserving the API values (One/Two/etc.).
   if (unit.fan_speeds && unit.fan_speeds.length) {
+    const fan = document.createElement('label');
+    fan.className = 'unit-fan-control';
+    fan.innerHTML = '<span class="unit-fan-label">Fan level</span>';
     const sel = document.createElement('select');
     sel.className = 'select-native unit-fan';
     sel.setAttribute('aria-label', 'Fan speed');
     unit.fan_speeds.forEach(function (f) {
       const opt = document.createElement('option');
       opt.value = f;
-      opt.textContent = f;
+      opt.textContent = fanLabel(f);
       if (f === unit.fan_speed) opt.selected = true;
       sel.appendChild(opt);
     });
     sel.addEventListener('change', function () {
       applyControl(unit.unit_id, { fan_speed: sel.value });
     });
-    top.appendChild(sel);
+    fan.appendChild(sel);
+    top.appendChild(fan);
   }
 
   // Power toggle appended last → right edge of the top band (issue #80).
@@ -156,6 +184,16 @@ function renderCardInto(card, unit) {
     '<span class="label">Room</span>' +
     '<span class="value">' + fmtTemp(unit.room_temperature) + '</span>';
   readings.appendChild(room);
+
+  const ruleTarget = activeRuleTarget(unit);
+  if (ruleTarget != null) {
+    const rule = document.createElement('div');
+    rule.className = 'unit-rule-target';
+    rule.innerHTML =
+      '<span class="label">Rule</span>' +
+      '<span class="value">' + icon('thermometer', 'unit-rule-icon') + fmtTemp(ruleTarget) + '</span>';
+    readings.appendChild(rule);
+  }
 
   // Target temperature (AJUSTAR A) with steppers.
   const target = document.createElement('div');
@@ -227,6 +265,46 @@ function populateDetail(unit) {
   if (unit.has_vane_horizontal) {
     fillSelect(els.detailVaneHorizontal, unit.vane_horizontal_options || [], unit.vane_horizontal);
   }
+
+  // Schedule profile selects reuse the unit's capability lists; the vane rows
+  // mirror the basic-control vane rows' visibility.
+  fillSelect(els.schedMode, unit.operation_modes || [], unit.operation_mode);
+  fillSelect(els.schedFan, unit.fan_speeds || [], unit.fan_speed);
+  els.schedVaneVerticalRow.hidden = !unit.has_vane_vertical;
+  if (unit.has_vane_vertical) {
+    fillSelect(els.schedVaneVertical, unit.vane_vertical_options || [], unit.vane_vertical);
+  }
+  els.schedVaneHorizontalRow.hidden = !unit.has_vane_horizontal;
+  if (unit.has_vane_horizontal) {
+    fillSelect(els.schedVaneHorizontal, unit.vane_horizontal_options || [], unit.vane_horizontal);
+  }
+}
+
+// Load the saved rule + schedule for the open unit and fill the two sections.
+// Failures stay quiet (auth overlay handles 401) — the fields just keep their
+// defaults.
+async function loadAutomation(unitId) {
+  try {
+    const rule = await jsonApi('/api/units/' + encodeURIComponent(unitId) + '/rule');
+    els.ruleEnabled.checked = rule.enabled === true;
+    els.ruleCoolTarget.value = rule.cool_target == null ? '' : rule.cool_target;
+    els.ruleHeatTarget.value = rule.heat_target == null ? '' : rule.heat_target;
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+  }
+  try {
+    const sched = await jsonApi('/api/units/' + encodeURIComponent(unitId) + '/schedule');
+    els.schedEnabled.checked = sched.enabled === true;
+    els.schedTime.value = sched.time || '08:00';
+    els.schedPower.value = sched.power === false ? 'false' : 'true';
+    if (sched.operation_mode) els.schedMode.value = sched.operation_mode;
+    els.schedTemp.value = sched.set_temperature == null ? '' : sched.set_temperature;
+    if (sched.fan_speed) els.schedFan.value = sched.fan_speed;
+    if (sched.vane_vertical_direction) els.schedVaneVertical.value = sched.vane_vertical_direction;
+    if (sched.vane_horizontal_direction) els.schedVaneHorizontal.value = sched.vane_horizontal_direction;
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+  }
 }
 
 function openDetail(unitId) {
@@ -234,6 +312,7 @@ function openDetail(unitId) {
   if (!unit) return;
   state.selectedId = unitId;
   populateDetail(unit);
+  loadAutomation(unitId);
   if (typeof els.detail.showModal === 'function') els.detail.showModal();
   else els.detail.setAttribute('open', '');
 }
@@ -245,6 +324,15 @@ function closeDetail() {
 }
 
 // --------------------------------------------------- build identity
+function fmtBuildTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).replace('T', ' ').slice(0, 16);
+  const pad = function (n) { return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
 async function fetchVersion() {
   // Visible proof of which build the PWA is running — confirms a tray
   // restart actually picked up new code. Uses jsonApi so the bearer token
@@ -252,7 +340,22 @@ async function fetchVersion() {
   try {
     const body = await jsonApi('/api/version');
     const sha = body.git_sha || 'unknown';
-    const ts = (body.built_at || '').replace('T', ' ').slice(0, 16);
+    const assetHash = body.asset_hash || '';
+    const previousHash = localStorage.getItem(ASSET_HASH_KEY) || '';
+    if (
+      assetHash && previousHash && previousHash !== assetHash &&
+      sessionStorage.getItem(ASSET_RELOAD_KEY) !== assetHash
+    ) {
+      // iOS standalone PWAs can cling to an old shell even with stamped asset
+      // URLs. Once a freshly-loaded JS has this guard, future deploys get one
+      // automatic reload instead of needing a home-screen reinstall.
+      localStorage.setItem(ASSET_HASH_KEY, assetHash);
+      sessionStorage.setItem(ASSET_RELOAD_KEY, assetHash);
+      window.location.reload();
+      return;
+    }
+    if (assetHash) localStorage.setItem(ASSET_HASH_KEY, assetHash);
+    const ts = fmtBuildTime(body.built_at || '');
     els.buildReadout.textContent = ts ? ('Build: ' + sha + ' · ' + ts) : ('Build: ' + sha);
   } catch (_) {
     els.buildReadout.textContent = '';
@@ -291,7 +394,7 @@ function renderAcSummary() {
     center.innerHTML =
       '<span class="ac-temp">' + room + ' → ' + target + '</span>' +
       '<span class="ac-meta">' + (u.operation_mode || '—') +
-        (u.fan_speed ? ' · ' + u.fan_speed : '') + '</span>';
+        (u.fan_speed ? ' · fan ' + fanLabel(u.fan_speed) : '') + '</span>';
 
     // Power toggle — the app's standard switch, actionable from Home (issue #72).
     const toggle = document.createElement('button');
@@ -353,6 +456,80 @@ async function saveDisplayName() {
   }
 }
 
+// A number input → a float, or null when blank/invalid (clears the target).
+function numOrNull(input) {
+  const raw = (input.value || '').trim();
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function saveRule() {
+  if (!state.selectedId) return;
+  const payload = {
+    enabled: els.ruleEnabled.checked,
+    cool_target: numOrNull(els.ruleCoolTarget),
+    heat_target: numOrNull(els.ruleHeatTarget),
+  };
+  try {
+    await jsonApi('/api/units/' + encodeURIComponent(state.selectedId) + '/rule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    state.units = state.units.map(function (u) {
+      if (u.unit_id !== state.selectedId) return u;
+      return Object.assign({}, u, {
+        temperature_rule: {
+          enabled: payload.enabled,
+          active_target: ruleTargetForMode(payload, u.operation_mode),
+        },
+      });
+    });
+    rerenderCard(state.selectedId);
+    renderAcSummary();
+    toast('Rule saved', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to save rule: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+async function saveSchedule() {
+  if (!state.selectedId) return;
+  const payload = {
+    enabled: els.schedEnabled.checked,
+    time: els.schedTime.value || '08:00',
+    power: els.schedPower.value !== 'false',
+    operation_mode: els.schedMode.value || null,
+    set_temperature: numOrNull(els.schedTemp),
+    fan_speed: els.schedFan.value || null,
+    vane_vertical_direction: els.schedVaneVerticalRow.hidden ? null : (els.schedVaneVertical.value || null),
+    vane_horizontal_direction: els.schedVaneHorizontalRow.hidden ? null : (els.schedVaneHorizontal.value || null),
+  };
+  try {
+    await jsonApi('/api/units/' + encodeURIComponent(state.selectedId) + '/schedule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    state.units = state.units.map(function (u) {
+      if (u.unit_id !== state.selectedId) return u;
+      return Object.assign({}, u, {
+        schedule: { enabled: payload.enabled, time: payload.enabled ? payload.time : null },
+      });
+    });
+    rerenderCard(state.selectedId);
+    renderAcSummary();
+    toast('Schedule saved', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to save schedule: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
 // --------------------------------------------------------------- theme toggle
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
@@ -396,6 +573,22 @@ els.detailVaneVertical.addEventListener('change', function () {
 els.detailVaneHorizontal.addEventListener('change', function () {
   if (state.selectedId) applyControl(state.selectedId, { vane_horizontal_direction: els.detailVaneHorizontal.value });
 });
+
+// Temperature rule — save on any change; number inputs also save on blur so a
+// typed value persists without needing Enter.
+els.ruleEnabled.addEventListener('change', saveRule);
+els.ruleCoolTarget.addEventListener('blur', saveRule);
+els.ruleHeatTarget.addEventListener('blur', saveRule);
+
+// Schedule — save on any field change; the time + temp inputs save on blur.
+els.schedEnabled.addEventListener('change', saveSchedule);
+els.schedTime.addEventListener('blur', saveSchedule);
+els.schedPower.addEventListener('change', saveSchedule);
+els.schedMode.addEventListener('change', saveSchedule);
+els.schedTemp.addEventListener('blur', saveSchedule);
+els.schedFan.addEventListener('change', saveSchedule);
+els.schedVaneVertical.addEventListener('change', saveSchedule);
+els.schedVaneHorizontal.addEventListener('change', saveSchedule);
 
 els.loginForm.addEventListener('submit', async function (ev) {
   ev.preventDefault();
@@ -447,4 +640,5 @@ els.loginForm.addEventListener('submit', async function (ev) {
   startWeatherPolling();
   fetchVersion();
   setInterval(loadUnits, 30_000);
+  setInterval(fetchVersion, 300_000);
 })();

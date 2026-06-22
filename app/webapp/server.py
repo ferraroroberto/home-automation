@@ -43,6 +43,7 @@ from starlette.types import Scope
 from app.webapp.middleware import BearerTokenMiddleware
 from app.webapp.routers import auth, energy, misc, security, tuya, units, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
+from app.webapp.automation import start_automation
 from app.webapp.sampler import start_sampler
 from src.webapp_config import load_webapp_config
 
@@ -106,13 +107,14 @@ class CachingStaticFiles(StaticFiles):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Own the background energy sampler for the life of the webapp process."""
-    task = start_sampler()
+    """Own the background energy sampler + HVAC automation for the process life."""
+    tasks = [t for t in (start_sampler(), start_automation()) if t is not None]
     try:
         yield
     finally:
-        if task is not None:
+        for task in tasks:
             task.cancel()
+        for task in tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
 
