@@ -548,9 +548,13 @@ The unit detail modal has two optional automation sections:
 
 - **Temperature rule** — a dynamic setpoint controller, not an on/off thermostat.
   The unit stays on only if you turned it on; while it is on in Cool/Dry or Heat,
-  the webapp nudges the unit setpoint every 15 minutes (default) to keep the
+  the webapp steers the unit setpoint every 15 minutes (default) to keep the
   measured room temperature near the configured room target, with a 0.5 °C
-  buffer. Auto/Fan modes are not steered.
+  buffer. The loop is asymmetric: while the room is still past the target it
+  nudges one step at a time, but the moment the room reaches the target it jumps
+  the setpoint to one degree on the satisfied side (Cool: target + 1; Heat:
+  target − 1) so the unit idles immediately instead of overshooting deep and
+  recovering one step at a time. Auto/Fan modes are not steered.
 - **Schedules** — multiple daily `HH:MM` entries per unit. An entry can be a
   simple off event, or an on event that applies a full profile (mode, target
   temperature, fan, and vanes) at that time.
