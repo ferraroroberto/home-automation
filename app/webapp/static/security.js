@@ -7,7 +7,7 @@
 
 'use strict';
 
-import { state, els, toast } from './state.js';
+import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 
 const POLL_MS = 10_000;
@@ -382,9 +382,12 @@ export async function loadSecurity() {
     ]);
     state.security = results[0];
     state.securityEvents = (results[1] && results[1].events) || [];
+    reportFetchOk('security');
     renderSecurity();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
+    // The inline note keeps the reason in place; the toast surfaces it once.
+    reportFetchFailure('security', exc, 'security');
     state.security = null;
     state.securityEvents = [];
     renderSecurity();

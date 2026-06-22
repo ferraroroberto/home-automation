@@ -10,7 +10,7 @@
 
 'use strict';
 
-import { state, els, toast, PLUGS_SHOW_ALL_KEY } from './state.js';
+import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY } from './state.js';
 import { jsonApi } from './api.js';
 
 const POLL_MS = 15_000;
@@ -295,11 +295,14 @@ export function wirePlugDetail() {
 export async function loadPlugs() {
   try {
     const body = await jsonApi('/api/tuya');
+    reportFetchOk('plugs');
     state.plugs = (body && body.devices) || [];
     renderPlugs();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    // Missing devices.json (503) or a read error — guide, don't crash.
+    // Missing devices.json (503) or a read error — guide, don't crash. The
+    // inline note stays for context; the toast surfaces the reason once.
+    reportFetchFailure('plugs', exc, 'plugs');
     els.plugsGrid.innerHTML = '';
     els.plugsNote.hidden = false;
     els.plugsNote.textContent = exc.message || 'Failed to load devices.';

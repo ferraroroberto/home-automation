@@ -167,6 +167,15 @@ its last point after the Sunny Home Manager stops uploading — see
   **power down at night**, so the inverter only appears on the network while
   producing; an asleep inverter is reported as such (PV unknown), not an error.
 
+**When live data is unavailable, the app says why (issue #101).** If the energy
+meter stops answering on the LAN (cloud stale *and* no Speedwire response), the
+live-flow tile shows an inline `Live unavailable — the energy meter is not
+responding on the LAN` note instead of bare `—`; the cumulative/history cards
+keep rendering from their own sources. More broadly, a hard data-fetch failure on
+the Energy, Plugs, or Security tab now raises a single error **toast** naming the
+source and reason — surfaced once per outage (the tabs poll every few seconds, so
+it does not repeat while a source stays down) and re-armed on recovery.
+
 Config in `.env`:
 
 | Key | Meaning |

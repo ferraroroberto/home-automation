@@ -219,6 +219,24 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// ------------------------------------------------ fetch-failure surfacing
+// Surface a failed data fetch as a single error toast per failure *transition*.
+// The tabs poll every few seconds, so toasting on every cycle while a source
+// stays down would spam — instead we track the last-known health per scope and
+// toast only when it goes healthy → failing, staying quiet until it recovers.
+// `auth required` is never surfaced (it routes to the login overlay instead).
+const fetchFailing = {};  // scope -> currently in a failed state
+export function reportFetchFailure(scope, exc, label) {
+  if (exc && String(exc.message) === 'auth required') return;
+  if (fetchFailing[scope]) return;  // already toasted for this outage
+  fetchFailing[scope] = true;
+  const reason = (exc && (exc.message || exc)) || 'unknown error';
+  toast("Couldn't load " + (label || scope) + ': ' + reason, 'error');
+}
+export function reportFetchOk(scope) {
+  fetchFailing[scope] = false;  // re-arm so the next outage toasts again
+}
+
 // ----------------------------------------------------------- toasts
 let toastTimer = null;
 export function toast(msg, kind) {

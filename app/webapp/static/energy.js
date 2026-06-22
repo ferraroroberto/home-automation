@@ -12,7 +12,7 @@
 
 'use strict';
 
-import { state, els } from './state.js';
+import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 import {
   createLiveChart, setLiveData, pushLivePoint,
@@ -129,13 +129,23 @@ export function renderEnergy(e) {
   els.liveSelfSuff.textContent = fmtPct(selfSufficiencyFrac(solar, e.house_consumption_w));
   els.liveSelfCons.textContent = fmtPct(selfConsumptionFrac(solar, e.house_consumption_w));
 
+  // --- live availability note ---
+  // The meter carries grid + house power; without it there is no live snapshot
+  // to plot (an asleep inverter alone is normal at night). Say *why* on the meta
+  // line instead of leaving the tiles at a bare "—" with no explanation.
+  const liveNote = e.meter_reachable === false
+    ? '· Live unavailable — the energy meter is not responding on the LAN'
+    : null;
+
   // --- append to the live chart (Generation / Grid-supplied / Consumption) ---
   if (state.liveChart) {
     pushLivePoint(
       state.liveChart, Math.floor(Date.now() / 1000),
       solar, e.grid_import_w, e.house_consumption_w, LIVE_MAX_POINTS,
     );
-    els.liveMeta.textContent = '· ' + nowLabel();
+    els.liveMeta.textContent = liveNote || ('· ' + nowLabel());
+  } else if (liveNote) {
+    els.liveMeta.textContent = liveNote;
   }
 }
 
@@ -150,10 +160,13 @@ function gridFlowW(e) {
 export async function loadEnergy() {
   try {
     const body = await jsonApi('/api/energy');
+    reportFetchOk('energy');
     if (body) renderEnergy(body);
-  } catch (_) {
-    // Energy is secondary to unit control — fail quietly, keeping the last
-    // rendered values (and staying hidden if it never loaded).
+  } catch (exc) {
+    // A hard fetch failure (network/500) is surfaced once per outage; the live
+    // values keep their last render. A successful fetch that simply has no live
+    // data (meter/inverter unreachable) is handled inline in renderEnergy.
+    reportFetchFailure('energy', exc, 'live energy');
   }
 }
 
