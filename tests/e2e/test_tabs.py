@@ -96,3 +96,24 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#costBody tr")).to_have_count(3)
     expect(page.locator("#costFoot")).to_contain_text("Total")
     expect(page.locator("#costFoot")).to_contain_text("€0.37")
+
+
+def test_security_tab_renders_presence_spike(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#paneSecurity")).to_be_visible()
+    expect(page.locator("#presenceSummary")).to_have_text("1 home · 1 away · 1 unknown")
+    expect(page.locator(".presence-row")).to_have_count(3)
+    expect(page.locator(".presence-row.is-home")).to_contain_text("Home Phone")
+    expect(page.locator(".presence-row.is-away")).to_contain_text("Away Phone")
+    expect(page.locator(".presence-row.is-unknown")).to_contain_text("Keys")

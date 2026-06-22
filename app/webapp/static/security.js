@@ -94,6 +94,92 @@ function fmtTime(value) {
   });
 }
 
+function fmtDistance(value) {
+  if (value === null || value === undefined) return 'unknown';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'unknown';
+  if (n >= 1000) return (n / 1000).toFixed(1) + ' km';
+  return Math.round(n) + ' m';
+}
+
+function presenceLabel(entity) {
+  if (entity.at_home === true) return 'Home';
+  if (entity.at_home === false) return 'Away';
+  return 'Unknown';
+}
+
+function renderPresence() {
+  if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
+  els.presenceList.innerHTML = '';
+  const presence = state.presence;
+  if (!presence) {
+    els.presenceSummary.textContent = '—';
+    els.presenceNote.hidden = true;
+    return;
+  }
+  if (presence.available === false) {
+    els.presenceSummary.textContent = 'Unavailable';
+    els.presenceNote.hidden = false;
+    els.presenceNote.textContent = presence.reason === '2fa_required'
+      ? 'iCloud needs 2FA; run the CLI once to refresh the trusted session.'
+      : (presence.detail || 'Presence is not configured.');
+    return;
+  }
+
+  const entities = presence.entities || [];
+  els.presenceSummary.textContent =
+    (presence.home_count || 0) + ' home · ' +
+    (presence.away_count || 0) + ' away · ' +
+    (presence.unknown_count || 0) + ' unknown';
+  els.presenceNote.hidden = entities.length > 0;
+  els.presenceNote.textContent = entities.length ? '' : 'No Find My entities.';
+
+  entities.slice()
+    .sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); })
+    .forEach(function (entity) {
+      const row = document.createElement('div');
+      row.className = 'presence-row';
+      if (entity.at_home === true) row.classList.add('is-home');
+      else if (entity.at_home === false) row.classList.add('is-away');
+      else row.classList.add('is-unknown');
+
+      const main = document.createElement('div');
+      main.className = 'presence-main';
+
+      const name = document.createElement('span');
+      name.className = 'presence-name';
+      name.textContent = entity.name || 'Unknown';
+      main.appendChild(name);
+
+      const meta = document.createElement('span');
+      meta.className = 'presence-meta';
+      meta.textContent = [
+        entity.device_class || entity.model || 'Device',
+        entity.last_seen ? fmtTime(entity.last_seen) : 'not located',
+      ].join(' · ');
+      main.appendChild(meta);
+      row.appendChild(main);
+
+      const status = document.createElement('span');
+      status.className = 'presence-status';
+      status.textContent = presenceLabel(entity) + ' · ' + fmtDistance(entity.distance_from_home_m);
+      row.appendChild(status);
+      els.presenceList.appendChild(row);
+    });
+}
+
+async function loadPresence() {
+  try {
+    state.presence = await jsonApi('/api/presence');
+    reportFetchOk('presence');
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+    reportFetchFailure('presence', exc, 'presence');
+    state.presence = { available: false, reason: 'error', detail: exc.message || String(exc) };
+  }
+  renderPresence();
+}
+
 // Toast wording for an action, evaluated before the POST.
 function actionToast(action) {
   if (action === 'disarm') return 'Disarming';
@@ -356,6 +442,7 @@ export function renderSecurity() {
   renderActions();
   renderEvents();
   renderZones();
+  renderPresence();
 }
 
 // --------------------------------------------------- detector detail + rename
@@ -539,6 +626,7 @@ export function onSecurityTab(tab) {
   // as well as on the Security tab (issue #72).
   if (tab === 'security' || tab === 'home') {
     loadSecurity();
+    if (tab === 'security') loadPresence();
     schedule(POLL_MS);
   } else {
     schedule(0);

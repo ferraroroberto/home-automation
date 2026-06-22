@@ -22,6 +22,10 @@ aiohttp>=3.9.0
 # releases and keep the pin on a known-good floor.
 pyrisco>=0.8.0
 
+# iCloud Find My presence spike (issue #86): read-only location proof-of-concept
+# for future presence-driven HVAC automation.
+pyicloud>=2.6.5
+
 # Self-signed CA + leaf cert generation for the HTTPS endpoint
 cryptography>=42.0.0
 
