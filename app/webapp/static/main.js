@@ -119,9 +119,11 @@ function renderCardInto(card, unit) {
   power.addEventListener('click', function () {
     applyControl(unit.unit_id, { power: !on });
   });
-  top.appendChild(power);
 
   // Fan speed — compact, label-less in the top band (aria-label for a11y).
+  // Built before the power toggle so the toggle appends last and pins to the
+  // row's right edge (platform-standard switch placement, issue #80); the
+  // dropdown then sits next to the name.
   if (unit.fan_speeds && unit.fan_speeds.length) {
     const sel = document.createElement('select');
     sel.className = 'select-native unit-fan';
@@ -138,6 +140,9 @@ function renderCardInto(card, unit) {
     });
     top.appendChild(sel);
   }
+
+  // Power toggle appended last → right edge of the top band (issue #80).
+  top.appendChild(power);
 
   // --- Readings band: room temperature + target stepper. ---
   const readings = document.createElement('div');

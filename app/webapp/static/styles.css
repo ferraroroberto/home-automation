@@ -623,13 +623,13 @@ html, body {
 }
 .weather-fc-sep { color: var(--muted); margin: 0 1px; }
 
-/* top band: name (opens modal) + power + fan, all on one row */
+/* top band: name (opens modal) + fan + power toggle, all on one row.
+   No bottom rule — the band reads as separate from the readings via spacing
+   alone, which also shortens the card (issue #80). */
 .unit-top {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-bottom: 5px;
-  border-bottom: 1px solid var(--line);
 }
 
 .unit-header {
@@ -665,14 +665,25 @@ html, body {
   gap: 10px;
 }
 
-.unit-room { display: flex; flex-direction: column; }
+.unit-room { display: flex; flex-direction: column; gap: 2px; }
 .unit-room .label,
 .unit-target .label {
   font-size: var(--font-caption);
   font-weight: 600;
   color: var(--muted);
 }
-.unit-room .value { font-size: var(--font-heading-lg); font-weight: 650; }
+/* Room actual and Set-to target render at the same size — the unit-name (title)
+   scale — and sit on the same baseline, a symmetric "actual → target" pair
+   (issue #80). The value box matches the stepper height (28px) so the plain
+   Room number and the stepper's number align horizontally. */
+.unit-room .value {
+  font-size: var(--font-body);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+}
 
 /* power toggle */
 /* shadcn-style switch: a compact track + sliding thumb, no text label.
@@ -723,7 +734,13 @@ html, body {
   color: var(--accent);
 }
 .stepper .step:active { transform: scale(0.92); }
-.target-value { font-size: var(--font-body); font-weight: 700; min-width: 3.4ch; text-align: center; }
+.target-value {
+  font-size: var(--font-body);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  min-width: 3.4ch;
+  text-align: center;
+}
 
 /* fan select — compact in the top band */
 .unit-fan { flex: none; max-width: 9ch; }
