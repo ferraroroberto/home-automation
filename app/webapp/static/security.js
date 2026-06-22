@@ -172,6 +172,16 @@ function renderStateInto(el) {
   word.className = 'security-state-word';
   word.textContent = label;
   el.appendChild(word);
+  // System-wide low-battery alert. The cloud exposes no per-detector battery, so
+  // this aggregate flag is the "something needs attention → drill in" signal on
+  // both the Home and Security tiles (issue #84). Clears when the flag is false.
+  if (security && security.battery_low) {
+    const badge = document.createElement('span');
+    badge.className = 'security-battery-badge';
+    badge.textContent = '⚠ Low battery';
+    badge.title = 'A detector reports a low battery — check the detectors list';
+    el.appendChild(badge);
+  }
 }
 
 function renderState() {
@@ -238,9 +248,15 @@ function renderZones() {
     const main = document.createElement('div');
     main.className = 'security-zone-main';
 
-    const name = document.createElement('span');
+    // The name opens the detector detail/rename modal (mirrors the AC/plug card
+    // header). A button keeps it keyboard-reachable without nesting interactive
+    // controls inside the bypass toggle.
+    const name = document.createElement('button');
+    name.type = 'button';
     name.className = 'security-zone-name';
-    name.textContent = zone.name || ('Zone ' + zone.id);
+    name.textContent = zoneLabel(zone);
+    name.title = 'Detector details · rename';
+    name.addEventListener('click', function () { openZoneDetail(zone.id); });
     main.appendChild(name);
 
     const flags = document.createElement('span');
@@ -248,6 +264,7 @@ function renderZones() {
     const flagText = [];
     if (zone.triggered) flagText.push('Triggered');
     flagText.push(zone.bypassed ? 'Bypass' : 'Active');
+    if (zone.trouble) flagText.push('Trouble');
     flags.textContent = flagText.join(' · ');
     main.appendChild(flags);
     row.appendChild(main);
@@ -258,7 +275,7 @@ function renderZones() {
     toggle.className = 'toggle security-bypass' + (active ? ' on' : ' off');
     toggle.setAttribute('role', 'switch');
     toggle.setAttribute('aria-checked', active ? 'true' : 'false');
-    toggle.setAttribute('aria-label', 'Detector active ' + (zone.name || ('zone ' + zone.id)));
+    toggle.setAttribute('aria-label', 'Detector active ' + zoneLabel(zone));
     toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
       (active ? 'ON' : 'OFF') + '</span>';
     toggle.addEventListener('click', function () { setBypass(zone, active); });
@@ -273,6 +290,77 @@ export function renderSecurity() {
   renderActions();
   renderEvents();
   renderZones();
+}
+
+// --------------------------------------------------- detector detail + rename
+function zoneLabel(zone) {
+  return zone.display_name || zone.name || ('Zone ' + zone.id);
+}
+
+function zoneById(zoneId) {
+  const zones = (state.security && state.security.zones) || [];
+  return zones.find(function (z) { return z.id === zoneId; }) || null;
+}
+
+function openZoneDetail(zoneId) {
+  const zone = zoneById(zoneId);
+  if (!zone) return;
+  state.selectedZoneId = zoneId;
+  els.zoneDetailName.textContent = zoneLabel(zone);
+  els.zoneDetailType.textContent = zone.type === null || zone.type === undefined
+    ? '—' : ('Type ' + zone.type);
+  els.zoneDetailStatus.textContent = zone.triggered
+    ? 'Triggered' : (zone.bypassed ? 'Bypassed' : 'Active');
+  els.zoneDetailTrouble.textContent = zone.trouble ? '⚠ Yes' : 'No';
+  els.zoneDisplayName.value = zone.display_name || '';
+  els.zoneDisplayName.placeholder = zone.name || 'Custom label…';
+  if (typeof els.zoneDialog.showModal === 'function') els.zoneDialog.showModal();
+  else els.zoneDialog.setAttribute('open', '');
+  els.zoneDisplayName.focus();
+}
+
+function closeZoneDetail() {
+  state.selectedZoneId = null;
+  if (typeof els.zoneDialog.close === 'function') els.zoneDialog.close();
+  else els.zoneDialog.removeAttribute('open');
+}
+
+async function saveZoneName() {
+  if (state.selectedZoneId === null || state.selectedZoneId === undefined) return;
+  const id = state.selectedZoneId;
+  const newName = els.zoneDisplayName.value.trim();
+  try {
+    await jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/display_name', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: newName }),
+    });
+    if (state.security && Array.isArray(state.security.zones)) {
+      state.security.zones = state.security.zones.map(function (z) {
+        return z.id === id ? Object.assign({}, z, { display_name: newName || null }) : z;
+      });
+    }
+    const zone = zoneById(id);
+    if (zone) els.zoneDetailName.textContent = zoneLabel(zone);
+    renderZones();
+    toast('Name saved', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to save name: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+// Wire the detector detail/rename modal once at boot (mirrors wirePlugDetail).
+export function wireZoneDetail() {
+  els.zoneDetailClose.addEventListener('click', closeZoneDetail);
+  els.zoneDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.zoneDialog) closeZoneDetail();  // backdrop click
+  });
+  els.zoneDisplayName.addEventListener('blur', saveZoneName);
+  els.zoneDisplayName.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); els.zoneDisplayName.blur(); }
+  });
 }
 
 async function loadSecurityState() {

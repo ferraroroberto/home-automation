@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.melcloud_client import DeviceInfo
+from src.risco_client import SecurityState, SecurityZone
 from src.sma_client import EnergyState
 
 
@@ -100,3 +101,63 @@ def test_energy_route_runs_with_monkeypatched_cloud(
     assert body["pv_power_w"] == 2500.0
     assert body["inverter_reachable"] is True
     assert body["meter_reachable"] is True
+
+
+def test_security_route_surfaces_battery_and_trouble(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/security`` serialises the system battery flag + per-zone trouble.
+
+    The cloud exposes no per-detector battery, so issue #84 surfaces the
+    system-wide ``battery_low`` flag (alert source) plus the per-zone generic
+    ``trouble`` flag. Cloud fetch is faked — no RISCO login.
+    """
+    state = SecurityState(
+        reachable=True,
+        label="Disarmed",
+        mode="disarmed",
+        zones=[
+            SecurityZone(id=0, name="1", type=1, trouble=True),
+            SecurityZone(id=4, name="Garage", type=2, trouble=False),
+        ],
+        battery_low=True,
+        ac_lost=False,
+    )
+
+    async def fake_fetch_security_state() -> SecurityState:
+        return state
+
+    monkeypatch.setattr(
+        "app.webapp.routers.security.fetch_security_state", fake_fetch_security_state
+    )
+
+    resp = client.get("/api/security")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["battery_low"] is True
+    zones = body["zones"]
+    assert zones[0]["trouble"] is True
+    assert zones[1]["trouble"] is False
+    # Display-name override is merged per zone (None when unset).
+    assert "display_name" in zones[0]
+
+
+def test_security_zone_rename_persists(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """``PUT /api/security/zones/{id}/display_name`` writes the override atomically."""
+    import src.security_display_names as sdn
+
+    store = tmp_path / "security_display_names.json"
+    monkeypatch.setattr(sdn, "DEFAULT_PATH", store)
+
+    resp = client.put("/api/security/zones/4/display_name", json={"display_name": "Garage"})
+    assert resp.status_code == 200
+    assert resp.json() == {"zone_id": 4, "display_name": "Garage"}
+    assert sdn.load_security_display_names() == {"4": "Garage"}
+
+    # Clearing removes the entry.
+    resp = client.put("/api/security/zones/4/display_name", json={"display_name": "  "})
+    assert resp.status_code == 200
+    assert resp.json()["display_name"] is None
+    assert sdn.load_security_display_names() == {}

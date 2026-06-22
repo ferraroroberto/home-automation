@@ -87,6 +87,12 @@ class SecurityZone:
     type: Optional[int] = None
     triggered: bool = False
     bypassed: bool = False
+    # Generic per-zone trouble flag from the cloud payload. The RISCO cloud API
+    # does not label *why* a detector is troubled (battery, tamper, comm-fault),
+    # so this is surfaced as a single "Trouble" indicator (issue #84). Per-zone
+    # battery state is not exposed by the cloud — see ``SecurityState.battery_low``
+    # for the system-wide low-battery flag that drives the UI alert.
+    trouble: bool = False
 
 
 @dataclass(frozen=True)
@@ -134,6 +140,11 @@ class SecurityState:
     system_status: Optional[int] = None
     system_ready: Optional[bool] = None
     trouble: Optional[bool] = None
+    # System-wide power/battery health from the cloud status payload. The cloud
+    # exposes these aggregate flags (not per-zone battery); ``battery_low`` drives
+    # the low-battery alert on the security summary tile (issue #84).
+    battery_low: Optional[bool] = None
+    ac_lost: Optional[bool] = None
     alarm_pending: Optional[bool] = None
     ongoing_alarm: Optional[bool] = None
     memory_alarm: Optional[bool] = None
@@ -505,6 +516,7 @@ def _zone(zone: object) -> SecurityZone:
         bypassed=bool(
             zone.get("status") == 2 if isinstance(zone, dict) else getattr(zone, "bypassed", False)
         ),
+        trouble=bool(_raw_or_attr(zone, "trouble", "trouble", False)),
     )
 
 
@@ -760,6 +772,8 @@ def _state_from_alarm(
         system_status=status.get("systemStatus"),
         system_ready=status.get("systemReady"),
         trouble=status.get("trouble"),
+        battery_low=status.get("batteryLow"),
+        ac_lost=status.get("acLost"),
         alarm_pending=status.get("alarmPending"),
         ongoing_alarm=webui_flags.get("ongoing_alarm"),
         memory_alarm=webui_flags.get("memory_alarm"),
