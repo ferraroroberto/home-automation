@@ -705,6 +705,27 @@
     </div>
   </dialog>
 
+  <!-- Detector (RISCO zone) detail + rename modal (issue #84). Mirrors the
+       plug rename dialog; also surfaces the read-only per-detector data the
+       cloud exposes (type, status, generic trouble flag). -->
+  <dialog id="zoneDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="zoneDetailName">Detector</h2>
+        <button id="zoneDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Type</span><span id="zoneDetailType" class="muted">—</span></div>
+      <div class="row"><span>Status</span><span id="zoneDetailStatus" class="muted">—</span></div>
+      <div class="row"><span>Trouble</span><span id="zoneDetailTrouble" class="muted">—</span></div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="zoneDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+    </div>
+  </dialog>
+
   <div id="loginOverlay" class="login-overlay" hidden>
     <form id="loginForm" class="login-card" autocomplete="off">
       <h2><svg class="icon title-icon" aria-hidden="true"><use href="#i-log-in"></use></svg>Sign in</h2>

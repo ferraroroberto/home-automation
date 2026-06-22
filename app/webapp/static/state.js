@@ -27,6 +27,8 @@ export const state = {
   // RISCO alarm state and event log from GET /api/security.
   security: null,
   securityEvents: [],
+  // zone id whose detector detail/rename modal is open (or null).
+  selectedZoneId: null,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
@@ -74,6 +76,14 @@ export const els = {
   securityEventsNote: document.getElementById('securityEventsNote'),
   securityZones: document.getElementById('securityZones'),
   securityZonesNote: document.getElementById('securityZonesNote'),
+  // Detector (zone) detail + rename modal
+  zoneDialog: document.getElementById('zoneDialog'),
+  zoneDetailName: document.getElementById('zoneDetailName'),
+  zoneDetailClose: document.getElementById('zoneDetailClose'),
+  zoneDetailType: document.getElementById('zoneDetailType'),
+  zoneDetailStatus: document.getElementById('zoneDetailStatus'),
+  zoneDetailTrouble: document.getElementById('zoneDetailTrouble'),
+  zoneDisplayName: document.getElementById('zoneDisplayName'),
   // Plugs (Smart Life) tab
   plugsGrid: document.getElementById('plugsGrid'),
   plugsNote: document.getElementById('plugsNote'),

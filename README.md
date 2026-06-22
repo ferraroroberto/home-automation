@@ -37,7 +37,7 @@ optional bearer token. Three ways to reach it once running:
   - `hvac_automation.py` — UI-free persistence + control law for per-unit dynamic temperature rules and daily schedules.
   - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
-  - `risco_client.py` — async RISCO Cloud alarm state, controls, event log, and detector bypass.
+  - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
   - `static_versioning.py` — build identity (git SHA) + content-hash (`?v=`) stamping of the PWA's `.js`/`.css` URLs so a mobile PWA never serves stale cached code.
 - **`app/webapp/`** — the FastAPI + PWA product.
@@ -58,7 +58,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `security_display_names.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `security_display_names.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -93,6 +93,20 @@ action pills (`Disarm` / `Partial` / `Perimeter` / `Full`), the recent event
 log, and a collapsible detector list with per-zone toggles (active = green,
 bypassed = red). The same alarm state + action pills are mirrored, actionable,
 on the **Home** tab.
+
+**Low-battery alert + detector data (issue #84).** When the panel reports a
+system-wide low battery, an amber **`⚠ Low battery`** badge appears on the
+`Alarm state` line on **both** the Home and Security tiles and clears when the
+flag is cleared. (The RISCO Cloud API does not expose per-detector battery —
+only this aggregate flag and a generic per-zone *trouble* boolean — so the badge
+is a "something needs attention → drill in" signal, not a per-detector readout.)
+Each detector row shows a `Trouble` flag when set; tapping a detector's name
+opens a detail modal showing its type, status, and trouble state, plus a
+**Display name** field. Detectors arrive named `1`, `2`, … so a custom label is
+saved via `PUT /api/security/zones/{id}/display_name` to a gitignored
+`config/security_display_names.json` (zone id → label, parallel to the unit
+`config/display_names.json` and plug `config/tuya_display_names.json`); a missing
+file is not an error, and the override wins over the RISCO name everywhere.
 
 The pills use translucent colour tints in three identities — **green** Disarm,
 **yellow** Partial/Perimeter, **red** Full — and only the actions you can
