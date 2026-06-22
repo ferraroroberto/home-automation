@@ -191,6 +191,8 @@ export const els = {
   detailName: document.getElementById('detailName'),
   detailDisplayName: document.getElementById('detailDisplayName'),
   detailMode: document.getElementById('detailMode'),
+  detailFanSpeed: document.getElementById('detailFanSpeed'),
+  detailFanSpeedRow: document.getElementById('detailFanSpeedRow'),
   detailVaneVertical: document.getElementById('detailVaneVertical'),
   detailVaneHorizontal: document.getElementById('detailVaneHorizontal'),
   detailVaneVerticalRow: document.getElementById('detailVaneVerticalRow'),
