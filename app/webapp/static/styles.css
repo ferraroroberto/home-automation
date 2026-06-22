@@ -993,13 +993,16 @@ html, body {
     padding-inline: 3px;
   }
 }
-.security-events-card:not([open]),
-.security-zones-card:not([open]) { padding-bottom: 12px; }
+.security-events-card,
+.security-zones-card,
+.presence-card { padding: 0; }
 .security-events,
-.security-zones {
+.security-zones,
+.presence-list {
   display: flex;
   flex-direction: column;
   gap: 0;
+  padding: 0 14px 14px;
 }
 .security-event,
 .security-zone {
@@ -1076,7 +1079,13 @@ button.security-zone-name:hover { text-decoration: underline; }
   align-items: center;
   gap: 10px;
 }
-.security-zones-tools .range-tab { flex: none; }
+.security-zones-tools .range-tab {
+  flex: none;
+  min-height: 24px;
+  padding: 4px 8px;
+  font-size: var(--font-caption);
+  line-height: 1;
+}
 /* Original RISCO name under the rename field in the detector modal (#104). */
 .zone-original-name { margin: 6px 0 0; }
 .security-bypass {
@@ -1090,29 +1099,8 @@ button.security-zone-name:hover { text-decoration: underline; }
 }
 .security-bypass.on .toggle-label,
 .security-bypass.off .toggle-label { color: var(--accent-fg); }
-.security-note { margin: 10px 0 0; }
-.presence-card { padding: 12px; }
-.presence-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.presence-title {
-  margin: 0;
-  font-size: var(--font-label);
-}
-.presence-summary {
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 700;
-  white-space: nowrap;
-}
-.presence-list {
-  display: flex;
-  flex-direction: column;
-}
+.security-note { margin: 10px 14px 14px; }
+.presence-summary { white-space: nowrap; }
 .presence-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1349,9 +1337,11 @@ button.security-zone-name:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  line-height: 1;
 }
 .collapse-icon { font-size: 1.1rem; line-height: 1; }
-.collapse-title { margin: 0; font-weight: 650; font-size: var(--font-body); }
+.collapse-title { margin: 0; font-weight: 650; font-size: var(--font-body); line-height: 1; }
 .collapse-chevron {
   grid-column: 2;
   justify-self: end;
@@ -1361,11 +1351,19 @@ button.security-zone-name:hover { text-decoration: underline; }
   transition: transform 0.15s ease;
 }
 details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); }
-/* Per-card padding: Settings card has no padding (summary supplies it); the
-   Security cards already pad 12px, so their summary only needs a bottom gap. */
-.settings-card > .collapse-summary { padding: 14px; }
-.settings-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
-.security-card > .collapse-summary { margin-bottom: 8px; }
+/* Collapsible cards share one closed height: the summary owns the padding so
+   Security and Settings headers align exactly. */
+.settings-card > .collapse-summary,
+.security-events-card > .collapse-summary,
+.security-zones-card > .collapse-summary,
+.presence-card > .collapse-summary {
+  height: 52px;
+  padding: 0 14px;
+}
+.settings-card[open] > .collapse-summary,
+.security-events-card[open] > .collapse-summary,
+.security-zones-card[open] > .collapse-summary,
+.presence-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
 .settings-body {
   padding: 14px;
   display: flex;
