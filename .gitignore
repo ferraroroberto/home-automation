@@ -9,6 +9,12 @@ config/display_names.json
 config/tuya_display_names.json
 config/security_display_names.json
 config/security_hidden.json
+config/presence_display_names.json
+config/presence_hidden.json
+config/presence_state.json
+config/presence_automation.json
+config/push_config.json
+config/push_subscriptions.json
 config/hvac_rules.json
 config/hvac_schedules.json
 config/location.json
@@ -17,6 +23,7 @@ config/pv_system.json
 webapp/certificates/
 webapp/icloud_session/
 webapp/*.log
+logs/*.jsonl
 # Energy-history store (server-side SQLite; per-machine runtime data)
 webapp/*.sqlite3
 webapp/*.sqlite3-*

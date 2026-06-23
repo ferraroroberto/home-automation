@@ -32,6 +32,12 @@ export const state = {
   securityShowHidden: false,
   // iCloud Find My presence spike from GET /api/presence.
   presence: null,
+  thisDevicePresence: null,
+  presencePlaces: {},
+  location: null,
+  presenceAutomation: null,
+  presenceShowHidden: false,
+  selectedPresenceId: null,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'security'.
@@ -54,6 +60,9 @@ export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
 export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
+export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
+export const THIS_DEVICE_PRESENCE_KEY = 'home-automation.thisDevicePresence';
+export const THIS_DEVICE_LOCATION_KEY = 'home-automation.thisDeviceLocation';
 
 export const els = {
   grid: document.getElementById('unitsGrid'),
@@ -85,8 +94,34 @@ export const els = {
   securityHiddenCount: document.getElementById('securityHiddenCount'),
   securityHiddenToggle: document.getElementById('securityHiddenToggle'),
   presenceSummary: document.getElementById('presenceSummary'),
+  presenceHiddenCount: document.getElementById('presenceHiddenCount'),
+  presenceHiddenToggle: document.getElementById('presenceHiddenToggle'),
   presenceList: document.getElementById('presenceList'),
   presenceNote: document.getElementById('presenceNote'),
+  presenceRefresh: document.getElementById('presenceRefresh'),
+  presenceRefreshNote: document.getElementById('presenceRefreshNote'),
+  locationLabel: document.getElementById('locationLabel'),
+  locationLat: document.getElementById('locationLat'),
+  locationLon: document.getElementById('locationLon'),
+  locationUseBrowser: document.getElementById('locationUseBrowser'),
+  presenceAutoEnabled: document.getElementById('presenceAutoEnabled'),
+  presenceArmMinutes: document.getElementById('presenceArmMinutes'),
+  presenceStaleMinutes: document.getElementById('presenceStaleMinutes'),
+  presenceDisarmOnArrival: document.getElementById('presenceDisarmOnArrival'),
+  pushSubscribe: document.getElementById('pushSubscribe'),
+  presenceDialog: document.getElementById('presenceDialog'),
+  presenceDetailName: document.getElementById('presenceDetailName'),
+  presenceDetailClose: document.getElementById('presenceDetailClose'),
+  presenceDetailStatus: document.getElementById('presenceDetailStatus'),
+  presenceDetailSource: document.getElementById('presenceDetailSource'),
+  presenceDetailLastSeen: document.getElementById('presenceDetailLastSeen'),
+  presenceDetailDistance: document.getElementById('presenceDetailDistance'),
+  presenceDetailPlace: document.getElementById('presenceDetailPlace'),
+  presenceMapLink: document.getElementById('presenceMapLink'),
+  presenceMapFrame: document.getElementById('presenceMapFrame'),
+  presenceDisplayName: document.getElementById('presenceDisplayName'),
+  presenceOriginalName: document.getElementById('presenceOriginalName'),
+  presenceHiddenDetailToggle: document.getElementById('presenceHiddenDetailToggle'),
   // Detector (zone) detail + rename modal
   zoneDialog: document.getElementById('zoneDialog'),
   zoneDetailName: document.getElementById('zoneDetailName'),

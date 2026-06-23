@@ -59,7 +59,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `security_display_names.json`, `security_hidden.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `security_display_names.json`, `security_hidden.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -194,6 +194,51 @@ On a fresh or expired session Apple may require 2FA. If the command reports that
 The CLI prints each visible Find My entity's name, model/class, coordinates, accuracy, last-seen time, battery, and distance from `config/location.json` when the home location is configured. The app also exposes the same read as `GET /api/presence` and renders a minimal **Presence** card in the Security tab showing home / away / unknown counts plus the entity rows. Do not commit Apple credentials, session cookies, person names, coordinates, or location dumps; this repository is public.
 
 Spike recommendation: use this read path only if the session survives unattended for weeks and returns the two phones reliably. If 2FA/session expiry or missing shared-object data proves brittle, use iOS Shortcuts arrive/leave webhooks for the actual presence trigger and keep this client as an exploratory diagnostic. The follow-up HVAC actions should be separate: everyone away for a grace period powers off idle units; first arrival restores a saved profile. Lighting remains out of scope because this repo has no lighting backend.
+
+## Presence webhooks, home location, and alarm automation
+
+Presence automation uses iOS Shortcuts webhooks as the write path. Find My/iCloud is now only a bounded server-side diagnostic refresh for distance/status enrichment, so opening the Security tab every few seconds does not perform a fresh Apple locate call.
+
+Set a shared webhook secret in `.env`:
+
+| Key | Meaning |
+|-----|---------|
+| `PRESENCE_WEBHOOK_SECRET` | Secret required by the iOS Shortcuts webhook endpoints. |
+| `PRESENCE_ICLOUD_REFRESH_ENABLED` | Optional, default `true`; set `0` to disable the cached Find My diagnostic refresher. |
+| `PRESENCE_ICLOUD_REFRESH_INTERVAL_S` | Optional, default `300`; minimum 60 seconds between Find My diagnostic refreshes. |
+| `PRESENCE_AUTOMATION_ENGINE_ENABLED` | Optional, default `true`; the persisted automation config still defaults off. |
+| `PRESENCE_AUTOMATION_POLL_INTERVAL_S` | Optional, default `10`; how often the alarm consumer evaluates webhook-backed state. |
+
+Shortcut endpoints:
+
+```powershell
+POST https://<host>:8447/api/presence/webhooks/roberto/home
+Authorization: Bearer <PRESENCE_WEBHOOK_SECRET>
+```
+
+Use `home` for the Arrive automation and `away` for the Leave automation. Create one stable person id per phone, for example `roberto` and `ana`. The Security tab's Presence card can rename those ids, hide non-household Find My entities behind Show hidden, edit `config/location.json`, and set the alarm automation thresholds. The automation defaults off and only acts on fresh webhook-backed people that are not hidden.
+
+Home location is editable in the Presence card. The **Use this device location** button asks the browser for the current GPS position and writes it to `config/location.json`; the latitude/longitude fields can also be typed manually. After saving, Find My diagnostics can be refreshed from the Presence card so distances recalculate from the new origin.
+
+Alarm behavior:
+
+- Everyone visible/confirmed away for the configured grace period → `control_system("arm")`.
+- First fresh confirmed arrival while armed → `control_system("disarm")`.
+- Stale/uncertain state never disarms.
+- Any manual alarm action in the UI suppresses automation until a later presence transition.
+- Each attempted transition appends a JSONL audit row to `logs/presence_triggers.jsonl` (gitignored).
+
+### Web Push setup
+
+Web Push is browser-native push for the installed PWA. The app stores a browser subscription locally and uses VAPID keys to send a notification from the server when a presence transition fires. There is no third-party notification account, but iOS requires the dashboard to be opened as an installed PWA from the home screen before push subscriptions work.
+
+Generate local VAPID keys:
+
+```powershell
+& .\.venv\Scripts\python.exe scripts\gen_web_push_keys.py mailto:you@example.com
+```
+
+Restart the webapp, open the installed PWA over HTTPS, go to Security → Presence, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`. Push delivery is best-effort; a failed notification never blocks arm/disarm.
 
 ## SMA solar / energy
 

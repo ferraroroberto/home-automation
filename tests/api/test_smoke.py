@@ -14,6 +14,8 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
+from app.webapp.presence_refresher import PresenceDiagnosticsCache
+from src.location_config import LocationConfig
 from src.melcloud_client import DeviceInfo
 from src.presence_client import PresenceAuthError, PresenceConfig, PresenceEntity
 from src.risco_client import SecurityState, SecurityZone
@@ -214,13 +216,7 @@ def test_security_zone_hidden_persists_and_merges(
 def test_presence_route_serializes_find_my_snapshot(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    """``GET /api/presence`` returns counts + entities without real iCloud I/O."""
-    config = PresenceConfig(
-        email="fixture@example.com",
-        password="secret",
-        session_dir=tmp_path,
-        home_radius_m=200,
-    )
+    """``GET /api/presence`` returns cached diagnostics without real iCloud I/O."""
     entities = [
         PresenceEntity(
             entity_id="home-phone",
@@ -264,10 +260,15 @@ def test_presence_route_serializes_find_my_snapshot(
         ),
     ]
 
-    monkeypatch.setattr("app.webapp.routers.presence.load_presence_config", lambda: config)
     monkeypatch.setattr(
-        "app.webapp.routers.presence.fetch_presence",
-        lambda *, config: entities,
+        "app.webapp.routers.presence.get_cache",
+        lambda: PresenceDiagnosticsCache(
+            entities=entities,
+            refreshed_at=datetime(2026, 6, 22, 10, 1, tzinfo=timezone.utc),
+            available=True,
+            reason="ok",
+            home_radius_m=200,
+        ),
     )
 
     resp = client.get("/api/presence")
@@ -282,23 +283,102 @@ def test_presence_route_serializes_find_my_snapshot(
     assert body["all_away"] is False
     assert body["home_radius_m"] == 200
     assert body["entities"][0]["last_seen"] == "2026-06-22T10:00:00+00:00"
+    assert body["diagnostics"]["available"] is True
 
 
 def test_presence_route_returns_unavailable_when_icloud_needs_2fa(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    config = PresenceConfig(
-        email="fixture@example.com",
-        password="secret",
-        session_dir=tmp_path,
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.get_cache",
+        lambda: PresenceDiagnosticsCache(
+            entities=[],
+            refreshed_at=datetime(2026, 6, 22, 10, 1, tzinfo=timezone.utc),
+            available=False,
+            reason="2fa_required",
+            detail="iCloud requires 2FA",
+        ),
     )
-
-    def fake_fetch_presence(*, config: PresenceConfig) -> list[PresenceEntity]:
-        raise PresenceAuthError("iCloud requires 2FA")
-
-    monkeypatch.setattr("app.webapp.routers.presence.load_presence_config", lambda: config)
-    monkeypatch.setattr("app.webapp.routers.presence.fetch_presence", fake_fetch_presence)
 
     resp = client.get("/api/presence")
     assert resp.status_code == 200
-    assert resp.json()["reason"] == "2fa_required"
+    assert resp.json()["diagnostics"]["reason"] == "2fa_required"
+
+
+def test_presence_hidden_and_display_name_persist(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import src.presence_display_names as pdn
+    import src.presence_hidden as ph
+
+    names = tmp_path / "presence_display_names.json"
+    hidden = tmp_path / "presence_hidden.json"
+    monkeypatch.setattr(pdn, "DEFAULT_PATH", names)
+    monkeypatch.setattr(ph, "DEFAULT_PATH", hidden)
+
+    resp = client.put(
+        "/api/presence/entity-display-name",
+        json={"entity_id": "ana", "display_name": "Ana"},
+    )
+    assert resp.status_code == 200
+    assert pdn.load_presence_display_names() == {"ana": "Ana"}
+
+    resp = client.put(
+        "/api/presence/entity-hidden",
+        json={"entity_id": "ana", "hidden": True},
+    )
+    assert resp.status_code == 200
+    assert ph.load_hidden_presence_ids() == {"ana"}
+
+    unsafe_id = "Find/My+Accessory/2"
+    resp = client.put(
+        "/api/presence/entity-hidden",
+        json={"entity_id": unsafe_id, "hidden": True},
+    )
+    assert resp.status_code == 200
+    assert unsafe_id in ph.load_hidden_presence_ids()
+
+
+def test_location_endpoint_persists(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    store = tmp_path / "location.json"
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.load_location_config",
+        lambda: LocationConfig(1.0, 2.0, "Old") if store.exists() else None,
+    )
+    saved = {}
+
+    def fake_save(location: LocationConfig) -> None:
+        saved["location"] = location
+        store.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr("app.webapp.routers.presence.save_location_config", fake_save)
+    resp = client.put("/api/location", json={"lat": 41.1, "lon": 2.1, "label": "Home"})
+    assert resp.status_code == 200
+    assert saved["location"] == LocationConfig(41.1, 2.1, "Home")
+
+
+def test_push_subscription_endpoint_accepts_first_subscription(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import src.push_notifications as push
+
+    store = tmp_path / "push_subscriptions.json"
+    monkeypatch.setattr(push, "SUBSCRIPTIONS_PATH", store)
+
+    resp = client.post(
+        "/api/push/subscriptions",
+        json={
+            "endpoint": "https://push.example/sub",
+            "keys": {"p256dh": "fixture", "auth": "secret"},
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True, "count": 1}
+    assert push.load_subscriptions() == [
+        {
+            "endpoint": "https://push.example/sub",
+            "keys": {"p256dh": "fixture", "auth": "secret"},
+        }
+    ]

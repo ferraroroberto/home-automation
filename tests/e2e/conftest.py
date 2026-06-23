@@ -177,6 +177,8 @@ def base_url() -> Iterator[str]:
             # test boot (the dormant-tick short-circuit makes it harmless with no
             # config, but keep it explicitly off like the sampler).
             "HVAC_AUTOMATION_ENABLED": "0",
+            "PRESENCE_ICLOUD_REFRESH_ENABLED": "0",
+            "PRESENCE_AUTOMATION_ENGINE_ENABLED": "0",
         },
     )
     if sys.platform == "win32":
@@ -464,6 +466,10 @@ def mock_presence(page: Page) -> Callable[..., None]:
                     "battery_status": "Charging",
                     "distance_from_home_m": 50.0,
                     "at_home": True,
+                    "display_name": None,
+                    "hidden": False,
+                    "source": "icloud",
+                    "stale": False,
                 },
                 {
                     "entity_id": "away-phone",
@@ -478,6 +484,10 @@ def mock_presence(page: Page) -> Callable[..., None]:
                     "battery_status": "NotCharging",
                     "distance_from_home_m": 1100.0,
                     "at_home": False,
+                    "display_name": None,
+                    "hidden": False,
+                    "source": "icloud",
+                    "stale": False,
                 },
                 {
                     "entity_id": "tag",
@@ -492,11 +502,20 @@ def mock_presence(page: Page) -> Callable[..., None]:
                     "battery_status": None,
                     "distance_from_home_m": None,
                     "at_home": None,
+                    "display_name": None,
+                    "hidden": False,
+                    "source": "icloud",
+                    "stale": False,
                 },
             ],
+            "diagnostics": {"available": True, "reason": "ok", "detail": "", "refreshed_at": "2026-06-22T10:00:00+00:00"},
+            "automation": {"enabled": False, "arm_away_after_s": 900, "stale_after_s": 3600, "disarm_on_arrival": True},
         }
         page.route("**/api/presence", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(body)))
+        page.route("**/api/location/reverse*", lambda r: r.fulfill(
+            status=200, content_type="application/json",
+            body=_json({"available": True, "label": "Fixture Place"})))
 
     return _install
 
