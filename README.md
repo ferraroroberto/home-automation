@@ -41,6 +41,9 @@ optional bearer token. Three ways to reach it once running:
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
   - `network_client.py` — async home-network spike core: internet/AP/router health + attached-device inventory + AP reboot (issue #125).
   - `list_network.py` — CLI that prints the live network state and inventory.
+  - `network_display_names.py` — MAC-keyed device rename store (issue #129 Phase 2); reuses `display_names.py` atomic load/save/set verbatim, parallel to the unit/plug/detector stores.
+  - `network_oui.py` — offline device identification: bundled trimmed OUI→vendor table, randomised-MAC detection, and a category/icon heuristic (no network call, render-time).
+  - `network_history.py` — per-MAC history store (SQLite, modeled on `energy_history.py`; issue #129 Phase 4): first/last/times-seen, the `important` flag, and the online/offline + new-device derivations. Recorded on each `/api/network` read (no background sampler — the AP read is expensive and tab-gated); randomised MACs are never tracked. Kept separate from the rename store; gitignored `webapp/network_history.sqlite3`.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
   - `static_versioning.py` — build identity (git SHA) + content-hash (`?v=`) stamping of the PWA's `.js`/`.css` URLs so a mobile PWA never serves stale cached code.
 - **`app/webapp/`** — the FastAPI + PWA product.
@@ -49,11 +52,11 @@ optional bearer token. Three ways to reach it once running:
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
-    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs switcher),
+    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Network/Security switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab),
-    `security.js` (RISCO alarm tab),
+    `security.js` (RISCO alarm tab), `network.js` (Network/LAN tab + reusable confirm dialog),
     `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
@@ -253,11 +256,14 @@ Generate local VAPID keys:
 
 Restart the webapp, open the installed PWA over HTTPS, go to Security → Presence, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`. Push delivery is best-effort; a failed notification never blocks arm/disarm.
 
-## Home-network spike
+## Home-network / Network tab
 
-Issue #125 adds a read-only spike for a future **Network** view: internet/WiFi/LAN health, the attached-device inventory named by MAC, network-quality alerts, and router/AP reboot — so the network can be watched and managed without logging into the vendor web UIs by hand. Full findings and the follow-up checklist are in [`docs/network-spike.md`](docs/network-spike.md).
+Issue #125 added a read-only spike for the **Network** view; issue #129 builds the tab itself, in phases. **Phase 1 (live now):** the **📶 Network** tab sits between Plugs and Security and shows internet/WiFi/LAN health, the attached-device inventory grouped by band (weakest signal first), network-quality alerts, AP/router health, and the confirm-gated **Reboot AP** — so the network can be watched and managed without logging into the vendor web UIs by hand. The router-reboot button is present but disabled until Phase 3 wires the router data-read. **Phase 2 (live now):** device identity + rename — each device row shows a category glyph and a friendly label (custom name → OUI vendor → reported hostname → MAC), and tapping it opens a detail modal (vendor, IP, band, signal, SSID, MAC) with a rename field. Vendor comes from a bundled, trimmed OUI table (offline, slightly stale — an unknown prefix just falls back to the hostname/MAC); modern phones rotate a randomised MAC per network, so those are flagged and left un-vendored. **Phase 3 (live now):** the router card fills in with the live **WAN/internet status** (WAN up/down, public IP, default gateway, DNS, connection name, link uptime) read from the ZTE web API, and the **Reboot** button is enabled (confirm-gated, ~5-min outage). **Phase 4 (live now):** device **history & smart alerts** — a per-MAC registry (`network_history.py`) remembers each device, so the list shows **online/offline** state with "last seen Xh ago" on absent devices, a **Show offline** toggle (persisted, only shown when there are offline devices), a **new** badge for devices first seen in the last 24 h, and a **Mark important** switch in the detail modal. Two derived alerts join the strip: a never-before-seen device joining, and an *important* device dropping offline. Randomised MACs aren't tracked (a rotating address isn't a stable device, and tracking it would spam the new-device alert). Full findings and the follow-up checklist are in [`docs/network-spike.md`](docs/network-spike.md).
 
-It reads three independent sources: the **NETGEAR R9000 access point** over the Netgear SOAP API (`pynetgear`) for the device inventory + AP health + reboot; the **Vodafone ZXHN F6600P router** (ZTE) over its SHA256 web login; and **internet health host-side** (OS ping latency/packet-loss + an optional `speedtest-cli` throughput run). The AP runs in access-point mode but still reports the whole wired+wireless LAN, so it carries the inventory on its own. The router's headless login is proven; its authenticated WAN-status reads and reboot are the documented follow-up.
+- **Endpoints:** `GET /api/network` (one snapshot — `internet` / `access_point` / `router` / `devices` / `alerts`; the `router` block carries `wan_online` / `public_ip` / `gateway` / `dns` / `connection_name` / `uptime_s`; per device the merged `display_name`, OUI `vendor`, `category`, `randomized` flag, plus the Phase-4 history fields `online` / `first_seen` / `last_seen` / `times_seen` / `important` / `is_new`, and synthesised `online:false` rows for known-but-absent devices; an unreachable AP or router is reported on its card, not an error), `GET /api/network?speedtest=1` (adds an opt-in `speedtest-cli` throughput run, ~13 s — never auto-run), `POST /api/network/access-point/reboot` (reboots the R9000; styled confirm, all clients drop ~1–2 min), `POST /api/network/router/reboot` (reboots the F6600P; styled confirm, ~5-min full outage), `PUT /api/network/devices/{mac}/display_name` (set/clear a device's custom label, persisted to a gitignored `config/network_display_names.json` keyed by normalised MAC), `POST /api/network/devices/{mac}/important` (mark/unmark a device important — the flag lives in the history registry and an important device is never auto-pruned).
+- **Cadence:** the tab refreshes every ~15 s **only while it is open** (the AP SOAP read + router WAN read are comparatively expensive) and stops polling when you leave it; the speed test is an explicit button, never on the poll.
+
+It reads three independent sources: the **NETGEAR R9000 access point** over the Netgear SOAP API (`pynetgear`) for the device inventory + AP health + reboot; the **Vodafone ZXHN F6600P router** (ZTE) over its SHA256 web login, with authenticated WAN-status reads and reboot riding the per-request session-token + RSA integrity (`Check`) scheme its web UI uses; and **internet health host-side** (OS ping latency/packet-loss + an optional `speedtest-cli` throughput run). The AP runs in access-point mode but still reports the whole wired+wireless LAN, so it carries the inventory on its own.
 
 Config in `.env`:
 
@@ -348,7 +354,8 @@ rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Cons
 live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
 breakdown** table (grid energy priced per time-of-use period, self-consumed PV
 valued at the avoided rate — see *Electricity tariff* below), and **🔌 Plugs** (the local Smart Life
-devices — see below), and **🛡️ Security** (RISCO alarm controls, event log, and
+devices — see below), **📶 Network** (LAN health, the attached-device inventory, and the AP reboot —
+see below), and **🛡️ Security** (RISCO alarm controls, event log, and
 detector bypass).
 
 On desktop the tabs are a top segmented control; on a phone / installed PWA they

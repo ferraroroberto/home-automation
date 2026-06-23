@@ -40,7 +40,14 @@ export const state = {
   selectedPresenceId: null,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
-  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'security'.
+  // Home-network (LAN) snapshot from GET /api/network (issue #129).
+  network: null,
+  // MAC of the device whose detail/rename modal is open (or null).
+  selectedNetDeviceMac: null,
+  // When false (default), offline (known-but-absent) devices are hidden; when
+  // true they render dimmed in a trailing "Offline" group (issue #129 Phase 4).
+  networkShowOffline: false,
+  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
   range: 'day',
@@ -61,6 +68,7 @@ export const TAB_KEY = 'home-automation.tab';
 export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
+export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
 export const THIS_DEVICE_PRESENCE_KEY = 'home-automation.thisDevicePresence';
 export const THIS_DEVICE_LOCATION_KEY = 'home-automation.thisDeviceLocation';
 
@@ -75,11 +83,13 @@ export const els = {
   tabAc: document.getElementById('tabAc'),
   tabEnergy: document.getElementById('tabEnergy'),
   tabPlugs: document.getElementById('tabPlugs'),
+  tabNetwork: document.getElementById('tabNetwork'),
   tabSecurity: document.getElementById('tabSecurity'),
   paneHome: document.getElementById('paneHome'),
   paneAc: document.getElementById('paneAc'),
   paneEnergy: document.getElementById('paneEnergy'),
   panePlugs: document.getElementById('panePlugs'),
+  paneNetwork: document.getElementById('paneNetwork'),
   paneSecurity: document.getElementById('paneSecurity'),
   // Security (RISCO alarm) tab
   securityState: document.getElementById('securityState'),
@@ -155,6 +165,47 @@ export const els = {
   plugDetailName: document.getElementById('plugDetailName'),
   plugDisplayName: document.getElementById('plugDisplayName'),
   plugDetailClose: document.getElementById('plugDetailClose'),
+  // Network (LAN) tab
+  netInternetStatus: document.getElementById('netInternetStatus'),
+  netInternetMeta: document.getElementById('netInternetMeta'),
+  netSpeedResult: document.getElementById('netSpeedResult'),
+  netSpeedBtn: document.getElementById('netSpeedBtn'),
+  netAlerts: document.getElementById('netAlerts'),
+  netApCard: document.getElementById('netApCard'),
+  netApName: document.getElementById('netApName'),
+  netApMeta: document.getElementById('netApMeta'),
+  netApReboot: document.getElementById('netApReboot'),
+  netRouterCard: document.getElementById('netRouterCard'),
+  netRouterName: document.getElementById('netRouterName'),
+  netRouterMeta: document.getElementById('netRouterMeta'),
+  netRouterReboot: document.getElementById('netRouterReboot'),
+  netStats: document.getElementById('netStats'),
+  netOfflineToggle: document.getElementById('netOfflineToggle'),
+  netDevices: document.getElementById('netDevices'),
+  netDevicesNote: document.getElementById('netDevicesNote'),
+  // Per-device detail + rename modal
+  netDeviceDialog: document.getElementById('netDeviceDialog'),
+  netDeviceDetailName: document.getElementById('netDeviceDetailName'),
+  netDeviceDetailClose: document.getElementById('netDeviceDetailClose'),
+  netDeviceStatus: document.getElementById('netDeviceStatus'),
+  netDeviceVendor: document.getElementById('netDeviceVendor'),
+  netDeviceIp: document.getElementById('netDeviceIp'),
+  netDeviceConn: document.getElementById('netDeviceConn'),
+  netDeviceSignal: document.getElementById('netDeviceSignal'),
+  netDeviceSsid: document.getElementById('netDeviceSsid'),
+  netDeviceSeen: document.getElementById('netDeviceSeen'),
+  netDeviceSeenRow: document.getElementById('netDeviceSeenRow'),
+  netDeviceDisplayName: document.getElementById('netDeviceDisplayName'),
+  netDeviceImportant: document.getElementById('netDeviceImportant'),
+  netDeviceImportantRow: document.getElementById('netDeviceImportantRow'),
+  netDeviceMac: document.getElementById('netDeviceMac'),
+  // Reusable confirm modal
+  confirmDialog: document.getElementById('confirmDialog'),
+  confirmTitle: document.getElementById('confirmTitle'),
+  confirmMessage: document.getElementById('confirmMessage'),
+  confirmClose: document.getElementById('confirmClose'),
+  confirmCancel: document.getElementById('confirmCancel'),
+  confirmOk: document.getElementById('confirmOk'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
   // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.

@@ -22,8 +22,8 @@ has the hard part (headless login) proven, with one well-understood detail left.
 | Internet health (up/down, latency, packet loss) | host-side ping | ✅ working |
 | WAN speed test (down/up Mbps) | host-side `speedtest-cli` | ✅ working (~13 s) |
 | Router headless login | ZTE web (SHA256) | ✅ working (`RouterClient.login`) |
-| Router WAN-status data read | ZTE web | ⛔ follow-up — needs ZTE session-token scheme |
-| Router reboot | ZTE web | ⛔ follow-up — same scheme |
+| Router WAN-status data read | ZTE web | ✅ working (`RouterClient.read_wan`, issue #129 Phase 3) |
+| Router reboot | ZTE web | ✅ working (`RouterClient.reboot`, issue #129 Phase 3) |
 
 ## Devices
 
@@ -72,12 +72,32 @@ in the live page's JS (`g_loginToken`):
 
 This is implemented and **verified working** in `RouterClient.login()`.
 
-**The remaining detail:** authenticated `menuData` reads (WAN status, DHCP list)
-return `IF_ERRORSTR=SessionTimeout` until each request carries ZTE's per-request
-session-token integrity parameter — the `sha256(sessionToken).slice(...)` logic
-visible in the same page JS. Wiring that (and the matching reboot POST) is the
-one reverse-engineering task deferred to the follow-up. It is a known shape, not
-an unknown: the login — the genuinely uncertain part — already works.
+**The data-read + reboot scheme (solved in issue #129 Phase 3).** Reverse-engineered
+off the live page JS and verified against the hardware:
+
+- **Page-gated feeds.** Each `menuData` feed is gated on the *current* menu page,
+  so a feed read returns `IF_ERRORSTR=SessionTimeout` unless its page was loaded
+  first. Sequence: `GET /?_type=menuView&_tag=<pageId>` (e.g. `ethWanStatus`), then
+  `GET /?_type=menuData&_tag=<feed>` with `Referer` = that page. The home-dashboard
+  widget feeds (`*_homepage_lua.lua`) are the exception — they read with the `SID`
+  cookie alone.
+- **WAN status.** Feed `wan_internetstatus_lua.lua&TypeUplink=2&pageType=1` returns
+  all WAN instances as `<Instance>` ParaName/ParaValue blocks; the live internet
+  connection is the one that is `Connected` with a non-`0.0.0.0` IPv4 (prefer
+  `IsDefGW=1`). Fields used: `ConnStatus`, `IPAddress`, `GateWay`, `DNS1/2`,
+  `WANCName`, `UpTime`, `Addressingtype`.
+- **Reboot (writes).** `commConf.IntegCheck` is **true**, so each POST carries the
+  rolling `_sessionTOKEN` (embedded in the page as `_sessionTmpToken`, `\xNN`
+  escaped) in the body *and* a `Check` header = `asyEncode(sha256(body))`, where
+  `asyEncode` is JSEncrypt RSA/PKCS1-v1.5 under the page's embedded PEM public key,
+  base64-encoded. Reboot body = `IF_ACTION=Restart&_sessionTOKEN=<token>` POSTed to
+  `devmgr_restartmgr_lua.lua` (after loading the `rebootAndReset` page). The device
+  resets the connection as it restarts, so a post-accept transport error counts as
+  success.
+
+All of this lives in `src/network_client.py` (`RouterClient.read_wan` /
+`RouterClient.reboot` + the `_parse_instances` / `_pick_internet_wan` /
+`_extract_token` / `_extract_pubkey` / `_asy_encode` helpers).
 
 Note: the router's **built-in** speed test is disabled in firmware
 (`commConf.diagnose.speedtest == 0`), so throughput is measured host-side
@@ -133,8 +153,10 @@ deliberate user action with a confirm — never automatic.
 
 ## Follow-up checklist
 
-- [ ] ZTE `menuData` session-token scheme → WAN/internet status read
-- [ ] ZTE reboot POST → `reboot_router()`
-- [ ] Optional router-DHCP merge for better device hostnames
-- [ ] `src/network_display_names.py` (MAC-keyed) + sample JSON
-- [ ] `GET /api/network` router + the Network tab UI
+- [x] ZTE `menuData` session-token scheme → WAN/internet status read (#129 Phase 3)
+- [x] ZTE reboot POST → `reboot_router()` (#129 Phase 3)
+- [x] MAC history store + online/offline, last-seen, new-device / important-offline alerts, mark-important, show-offline toggle (`src/network_history.py`, #129 Phase 4)
+- [ ] Optional router-DHCP merge for better device hostnames (still open)
+- [ ] Optional latency/throughput sparklines + scheduled nightly speed test (deferred from #129 Phase 4)
+- [x] `src/network_display_names.py` (MAC-keyed) + sample JSON (#129 Phase 2)
+- [x] `GET /api/network` router + the Network tab UI (#129 Phase 1)

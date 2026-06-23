@@ -1486,3 +1486,158 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   text-align: center;
 }
 .page-foot p { margin: 2px 0; }
+
+/* ----------------------------------------------------------- network (LAN) */
+/* Internet-health tile — modelled on the energy flow-card: a big status word,
+   a quiet latency/loss caption, the sticky last speed-test result, and the
+   opt-in speed-test button. */
+.net-internet { padding: var(--space-md); margin-bottom: var(--gap); }
+.net-internet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+.net-internet-label {
+  display: inline-flex; align-items: center; gap: 0.4em;
+  font-weight: 700; color: var(--ink);
+}
+.net-internet-label .title-icon { width: 1.1em; height: 1.1em; }
+.net-internet-status { font-size: var(--font-heading-lg); font-weight: 800; }
+.net-internet-status.is-online { color: var(--on); }
+.net-internet-status.is-offline { color: var(--deficit); }
+.net-internet-meta { margin: 6px 0 0; }
+.net-speed-result {
+  margin: 6px 0 0; font-weight: 650; font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.net-speed-btn {
+  margin-top: 12px; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45em;
+}
+.net-speed-btn .icon { width: 1.15em; height: 1.15em; }
+.net-speed-btn.is-busy { opacity: 0.7; cursor: progress; }
+
+/* Alerts strip — a slim attention-tinted banner, one row per alert. */
+.net-alerts { margin-bottom: var(--gap); display: flex; flex-direction: column; gap: 6px; }
+.net-alert {
+  background: var(--card-off);
+  border-left: 3px solid var(--attention);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: var(--font-label); font-weight: 600; color: var(--ink);
+}
+
+/* AP + router health row — two compact cards side by side. */
+.net-health-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+.net-health-card { padding: var(--space-md); display: flex; flex-direction: column; gap: 6px; }
+.net-health-title {
+  display: inline-flex; align-items: center; gap: 0.4em;
+  margin: 0; font-size: var(--font-body); font-weight: 700;
+}
+.net-health-title .title-icon { width: 1.05em; height: 1.05em; flex: none; }
+.net-health-meta { margin: 0; }
+.net-health-meta.is-error { color: var(--deficit); }
+.net-reboot-btn {
+  margin-top: auto; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4em;
+}
+.net-reboot-btn .icon { width: 1.05em; height: 1.05em; }
+.net-reboot-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Stat chips: Wired N · 5GHz N · 2.4GHz N · Weak N. */
+.net-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--gap); }
+.net-stat-chip {
+  background: var(--card-off);
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+  font-size: var(--font-caption); font-weight: 600; color: var(--muted);
+}
+.net-stat-chip .net-stat-num { color: var(--ink); font-weight: 800; }
+.net-stat-chip.is-weak { color: var(--attention); }
+.net-stat-chip.is-weak .net-stat-num { color: var(--attention); }
+
+/* Attached-device inventory, grouped by band. */
+.net-devices { display: flex; flex-direction: column; }
+.net-group-head {
+  margin: 14px 0 4px; font-size: var(--font-caption); font-weight: 700;
+  color: var(--muted); text-transform: none;
+}
+.net-group-head:first-child { margin-top: 2px; }
+.net-device {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name signal" "meta signal";
+  align-items: center;
+  column-gap: 10px;
+  padding: 9px 4px;
+  border-top: 1px solid var(--line);
+}
+/* The device name is a tappable button (opens the detail/rename modal), with a
+   leading category glyph and an ellipsising text span. Mirrors the detector /
+   presence name buttons. */
+button.net-device-name {
+  grid-area: name;
+  appearance: none; border: 0; background: none; padding: 0; margin: 0;
+  display: inline-flex; align-items: center; gap: 7px;
+  min-width: 0; max-width: 100%;
+  text-align: left; color: var(--ink); font: inherit; font-weight: 600;
+  cursor: pointer;
+}
+.net-device-icon { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
+.net-device-name-text {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.net-device-name:hover .net-device-name-text { text-decoration: underline; }
+.net-device.is-weak .net-device-icon { color: var(--attention); }
+.net-device-meta {
+  grid-area: meta; font-size: var(--font-caption); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.net-device-signal {
+  grid-area: signal; display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--font-caption); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.net-device.is-weak .net-device-signal { color: var(--attention); }
+.net-signal-bar {
+  display: inline-block; width: 44px; height: 6px;
+  background: var(--card-off); border-radius: var(--radius-pill); overflow: hidden;
+}
+.net-signal-fill {
+  display: block; height: 100%; background: var(--on);
+  border-radius: var(--radius-pill);
+}
+.net-device.is-weak .net-signal-fill { background: var(--attention); }
+.net-signal-pct { min-width: 2.6em; text-align: right; }
+.net-devices-note { margin: 12px 4px; }
+
+/* Device-list tools row — right-aligned "Show offline" toggle (Phase 4). */
+.net-devices-head { display: flex; justify-content: flex-end; min-height: 0; }
+.net-devices-head .range-tab:not([hidden]) { margin: 2px 0 -2px; }
+
+/* Offline (known-but-absent) devices render dimmed; the signal slot carries the
+   "last seen Xh ago" text instead of a live bar. */
+.net-device.is-offline { opacity: 0.55; }
+.net-device-signal.net-device-lastseen { font-style: italic; }
+
+/* "Important" star marker + the "new" pill on a device row (Phase 4). */
+.net-device-star { width: 13px; height: 13px; flex: 0 0 auto; color: var(--accent); }
+.net-device-new {
+  flex: 0 0 auto; margin-left: 2px;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: var(--radius-pill); padding: 1px 7px;
+  font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em;
+}
+button.net-device-name:hover .net-device-new { text-decoration: none; }
+/* Offline status line in the detail modal. */
+#netDeviceStatus.is-offline { color: var(--muted); }
+
+/* Reusable confirm modal (issue #129) — same shell as the detail dialogs, with
+   a side-by-side Cancel / confirm action row. */
+.confirm-message { margin: 4px 0 16px; }
+.confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirm-cancel { background: var(--card-off); color: var(--ink); }
+.confirm-ok.is-danger { background: var(--deficit); }
