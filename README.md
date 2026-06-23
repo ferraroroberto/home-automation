@@ -49,11 +49,11 @@ optional bearer token. Three ways to reach it once running:
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
-    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs switcher),
+    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Network/Security switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab),
-    `security.js` (RISCO alarm tab),
+    `security.js` (RISCO alarm tab), `network.js` (Network/LAN tab + reusable confirm dialog),
     `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
@@ -253,9 +253,12 @@ Generate local VAPID keys:
 
 Restart the webapp, open the installed PWA over HTTPS, go to Security → Presence, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`. Push delivery is best-effort; a failed notification never blocks arm/disarm.
 
-## Home-network spike
+## Home-network / Network tab
 
-Issue #125 adds a read-only spike for a future **Network** view: internet/WiFi/LAN health, the attached-device inventory named by MAC, network-quality alerts, and router/AP reboot — so the network can be watched and managed without logging into the vendor web UIs by hand. Full findings and the follow-up checklist are in [`docs/network-spike.md`](docs/network-spike.md).
+Issue #125 added a read-only spike for the **Network** view; issue #129 builds the tab itself, in phases. **Phase 1 (live now):** the **📶 Network** tab sits between Plugs and Security and shows internet/WiFi/LAN health, the attached-device inventory grouped by band (weakest signal first), network-quality alerts, AP/router health, and the confirm-gated **Reboot AP** — so the network can be watched and managed without logging into the vendor web UIs by hand. The router-reboot button is present but disabled (it needs the Phase-3 ZTE data-read). Full findings and the follow-up checklist are in [`docs/network-spike.md`](docs/network-spike.md).
+
+- **Endpoints:** `GET /api/network` (one snapshot — `internet` / `access_point` / `router` / `devices` / `alerts`; an unreachable AP or router is reported on its card, not an error), `GET /api/network?speedtest=1` (adds an opt-in `speedtest-cli` throughput run, ~13 s — never auto-run), `POST /api/network/access-point/reboot` (reboots the R9000; the UI gates it behind a styled confirm dialog warning that all clients drop ~1–2 min).
+- **Cadence:** the tab refreshes every ~15 s **only while it is open** (the AP SOAP read is comparatively expensive) and stops polling when you leave it; the speed test is an explicit button, never on the poll.
 
 It reads three independent sources: the **NETGEAR R9000 access point** over the Netgear SOAP API (`pynetgear`) for the device inventory + AP health + reboot; the **Vodafone ZXHN F6600P router** (ZTE) over its SHA256 web login; and **internet health host-side** (OS ping latency/packet-loss + an optional `speedtest-cli` throughput run). The AP runs in access-point mode but still reports the whole wired+wireless LAN, so it carries the inventory on its own. The router's headless login is proven; its authenticated WAN-status reads and reboot are the documented follow-up.
 
@@ -348,7 +351,8 @@ rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Cons
 live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
 breakdown** table (grid energy priced per time-of-use period, self-consumed PV
 valued at the avoided rate — see *Electricity tariff* below), and **🔌 Plugs** (the local Smart Life
-devices — see below), and **🛡️ Security** (RISCO alarm controls, event log, and
+devices — see below), **📶 Network** (LAN health, the attached-device inventory, and the AP reboot —
+see below), and **🛡️ Security** (RISCO alarm controls, event log, and
 detector bypass).
 
 On desktop the tabs are a top segmented control; on a phone / installed PWA they

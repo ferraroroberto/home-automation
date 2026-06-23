@@ -17,6 +17,13 @@ from fastapi.testclient import TestClient
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
 from src.location_config import LocationConfig
 from src.melcloud_client import DeviceInfo
+from src.network_client import (
+    AccessPointHealth,
+    InternetHealth,
+    NetDevice,
+    NetworkState,
+    RouterHealth,
+)
 from src.presence_client import PresenceAuthError, PresenceConfig, PresenceEntity
 from src.risco_client import SecurityState, SecurityZone
 from src.sma_client import EnergyState
@@ -211,6 +218,73 @@ def test_security_zone_hidden_persists_and_merges(
     assert resp.status_code == 200
     assert resp.json() == {"zone_id": 4, "hidden": False}
     assert shd.load_hidden_zone_ids() == set()
+
+
+def test_network_route_flattens_state_with_monkeypatched_core(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/network`` flattens a ``NetworkState`` — core faked, no LAN I/O.
+
+    An unreachable router stays 200 (reported on its card, not a 500), and
+    ``is_wireless`` is sent per device so the band-grouped list doesn't re-derive
+    the wired/wireless split client-side (issue #129).
+    """
+    state = NetworkState(
+        internet=InternetHealth(
+            online=True, gateway_ms=3.0, external_ms=12.0, packet_loss_pct=0.0
+        ),
+        access_point=AccessPointHealth(
+            reachable=True, model="R9000", firmware="1.0", mode="access_point", device_count=2
+        ),
+        router=RouterHealth(reachable=False, error="no response"),
+        devices=(
+            NetDevice(
+                mac="AA:BB", ip="192.168.0.5", name="iPad", conn_type="5GHz",
+                signal=28, link_rate=300, ssid="Home", source="ap",
+            ),
+            NetDevice(
+                mac="CC:DD", ip="192.168.0.10", name="NAS", conn_type="wired",
+                signal=None, link_rate=1000, ssid=None, source="ap",
+            ),
+        ),
+        alerts=("1 wireless client(s) on weak signal (<40%).",),
+    )
+
+    async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
+        assert include_speedtest is False  # plain poll never runs the speed test
+        return state
+
+    monkeypatch.setattr(
+        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+    )
+
+    resp = client.get("/api/network")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["internet"]["online"] is True
+    assert body["access_point"]["device_count"] == 2
+    assert body["router"]["reachable"] is False
+    assert [d["is_wireless"] for d in body["devices"]] == [True, False]
+    assert body["alerts"][0].startswith("1 wireless")
+
+
+def test_network_reboot_access_point_invokes_core(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``POST /api/network/access-point/reboot`` calls the core and returns ok."""
+    calls = {"n": 0}
+
+    def fake_reboot() -> None:
+        calls["n"] += 1
+
+    monkeypatch.setattr(
+        "app.webapp.routers.network.reboot_access_point", fake_reboot
+    )
+
+    resp = client.post("/api/network/access-point/reboot")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert calls["n"] == 1
 
 
 def test_presence_route_serializes_find_my_snapshot(

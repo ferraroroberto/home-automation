@@ -40,7 +40,9 @@ export const state = {
   selectedPresenceId: null,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
-  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'security'.
+  // Home-network (LAN) snapshot from GET /api/network (issue #129).
+  network: null,
+  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
   range: 'day',
@@ -75,11 +77,13 @@ export const els = {
   tabAc: document.getElementById('tabAc'),
   tabEnergy: document.getElementById('tabEnergy'),
   tabPlugs: document.getElementById('tabPlugs'),
+  tabNetwork: document.getElementById('tabNetwork'),
   tabSecurity: document.getElementById('tabSecurity'),
   paneHome: document.getElementById('paneHome'),
   paneAc: document.getElementById('paneAc'),
   paneEnergy: document.getElementById('paneEnergy'),
   panePlugs: document.getElementById('panePlugs'),
+  paneNetwork: document.getElementById('paneNetwork'),
   paneSecurity: document.getElementById('paneSecurity'),
   // Security (RISCO alarm) tab
   securityState: document.getElementById('securityState'),
@@ -155,6 +159,30 @@ export const els = {
   plugDetailName: document.getElementById('plugDetailName'),
   plugDisplayName: document.getElementById('plugDisplayName'),
   plugDetailClose: document.getElementById('plugDetailClose'),
+  // Network (LAN) tab
+  netInternetStatus: document.getElementById('netInternetStatus'),
+  netInternetMeta: document.getElementById('netInternetMeta'),
+  netSpeedResult: document.getElementById('netSpeedResult'),
+  netSpeedBtn: document.getElementById('netSpeedBtn'),
+  netAlerts: document.getElementById('netAlerts'),
+  netApCard: document.getElementById('netApCard'),
+  netApName: document.getElementById('netApName'),
+  netApMeta: document.getElementById('netApMeta'),
+  netApReboot: document.getElementById('netApReboot'),
+  netRouterCard: document.getElementById('netRouterCard'),
+  netRouterName: document.getElementById('netRouterName'),
+  netRouterMeta: document.getElementById('netRouterMeta'),
+  netRouterReboot: document.getElementById('netRouterReboot'),
+  netStats: document.getElementById('netStats'),
+  netDevices: document.getElementById('netDevices'),
+  netDevicesNote: document.getElementById('netDevicesNote'),
+  // Reusable confirm modal
+  confirmDialog: document.getElementById('confirmDialog'),
+  confirmTitle: document.getElementById('confirmTitle'),
+  confirmMessage: document.getElementById('confirmMessage'),
+  confirmClose: document.getElementById('confirmClose'),
+  confirmCancel: document.getElementById('confirmCancel'),
+  confirmOk: document.getElementById('confirmOk'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
   // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.

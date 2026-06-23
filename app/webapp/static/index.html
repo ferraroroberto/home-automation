@@ -212,6 +212,33 @@
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
     </symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24" fill="none">
+      <path d="M12 20h.01" />
+      <path d="M2 8.82a15 15 0 0 1 20 0" />
+      <path d="M5 12.859a10 10 0 0 1 14 0" />
+      <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+    </symbol>
+    <symbol id="i-router" viewBox="0 0 24 24" fill="none">
+      <rect width="20" height="8" x="2" y="14" rx="2" />
+      <path d="M6.01 18H6" />
+      <path d="M10.01 18H10" />
+      <path d="M15 10v4" />
+      <path d="M17.84 7.17a4 4 0 0 0-5.66 0" />
+      <path d="M20.66 4.34a8 8 0 0 0-11.31 0" />
+    </symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+      <path d="M2 12h20" />
+    </symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24" fill="none">
+      <path d="m12 14 4-4" />
+      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+    </symbol>
+    <symbol id="i-rotate-cw" viewBox="0 0 24 24" fill="none">
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+    </symbol>
   </svg>
 
   <main class="app">
@@ -240,6 +267,11 @@
               role="tab" aria-selected="false" aria-controls="panePlugs" tabindex="-1">
         <svg class="icon tab-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
         <span class="tab-label">Plugs</span>
+      </button>
+      <button id="tabNetwork" type="button" class="tab" data-tab="network"
+              role="tab" aria-selected="false" aria-controls="paneNetwork" tabindex="-1">
+        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+        <span class="tab-label">Network</span>
       </button>
       <button id="tabSecurity" type="button" class="tab" data-tab="security"
               role="tab" aria-selected="false" aria-controls="paneSecurity" tabindex="-1">
@@ -544,6 +576,59 @@
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
     </section>
 
+    <!-- ============================= NETWORK ============================ -->
+    <!-- Home-network (LAN) view: internet health + opt-in speed test, AP/router
+         health with the confirm-gated AP reboot, and the attached-device
+         inventory grouped by band (weakest signal first). Read-mostly; polls
+         only while open (the AP SOAP read is comparatively expensive). The
+         speed test never auto-runs — it is an explicit button (issue #129). -->
+    <section id="paneNetwork" class="pane" role="tabpanel" aria-labelledby="tabNetwork" aria-label="Network" hidden>
+      <!-- Internet-health tile — big online/offline word, latency + loss
+           caption, last speed-test result, and the opt-in "Run speed test". -->
+      <section class="card net-internet" aria-label="Internet health">
+        <div class="net-internet-head">
+          <span class="net-internet-label"><svg class="icon title-icon" aria-hidden="true"><use href="#i-globe"></use></svg>Internet</span>
+          <span id="netInternetStatus" class="net-internet-status">—</span>
+        </div>
+        <p id="netInternetMeta" class="muted small net-internet-meta">—</p>
+        <p id="netSpeedResult" class="net-speed-result" hidden>—</p>
+        <button id="netSpeedBtn" type="button" class="big-btn net-speed-btn" data-testid="net-speedtest">
+          <svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg>Run speed test
+        </button>
+      </section>
+
+      <!-- Network-quality alerts strip — rendered only when non-empty. -->
+      <div id="netAlerts" class="net-alerts" role="status" aria-label="Network alerts" hidden></div>
+
+      <!-- AP + router health row. The router Reboot stays disabled with a
+           "coming soon" title until Phase 3 wires reboot_router(). -->
+      <section class="net-health-row" aria-label="Devices health">
+        <section class="card net-health-card" id="netApCard">
+          <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-wifi"></use></svg><span id="netApName">Access point</span></h3>
+          <p id="netApMeta" class="muted small net-health-meta">—</p>
+          <button id="netApReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-ap-reboot" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot AP
+          </button>
+        </section>
+        <section class="card net-health-card" id="netRouterCard">
+          <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-router"></use></svg><span id="netRouterName">Router</span></h3>
+          <p id="netRouterMeta" class="muted small net-health-meta">—</p>
+          <button id="netRouterReboot" type="button" class="big-btn net-reboot-btn" disabled
+                  title="Router reboot — coming in a later update">
+            <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot
+          </button>
+        </section>
+      </section>
+
+      <!-- Stat chips: Wired N · 5GHz N · 2.4GHz N · Weak N — filled in JS. -->
+      <div id="netStats" class="net-stats" aria-label="Device counts" hidden></div>
+
+      <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz (weakest
+           signal first within each group). Built in network.js. -->
+      <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
+      <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
+    </section>
+
     <!-- ============================= SECURITY ============================ -->
     <section id="paneSecurity" class="pane" role="tabpanel" aria-labelledby="tabSecurity" aria-label="Security" hidden>
       <section class="card security-card" aria-label="Alarm controls">
@@ -835,6 +920,23 @@
         <button id="presenceHiddenDetailToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide presence entity">
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Reusable confirm modal (issue #129): a styled <dialog> for deliberate,
+       destructive-ish actions — currently the AP reboot, reused by the Phase-3
+       router reboot. Title + message + Cancel/confirm are set per-open in JS. -->
+  <dialog id="confirmDialog" class="detail-dialog confirm-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="confirmTitle">Confirm</h2>
+        <button id="confirmClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="confirmMessage" class="muted confirm-message">—</p>
+      <div class="confirm-actions">
+        <button id="confirmCancel" type="button" class="big-btn confirm-cancel">Cancel</button>
+        <button id="confirmOk" type="button" class="big-btn confirm-ok" data-testid="confirm-ok">Confirm</button>
       </div>
     </div>
   </dialog>
