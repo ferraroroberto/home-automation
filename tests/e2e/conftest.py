@@ -513,6 +513,9 @@ def mock_presence(page: Page) -> Callable[..., None]:
         }
         page.route("**/api/presence", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(body)))
+        page.route("**/api/location", lambda r: r.fulfill(
+            status=200, content_type="application/json",
+            body=_json({"lat": 0.0, "lon": 0.0, "label": "Home"})))
         page.route("**/api/location/reverse*", lambda r: r.fulfill(
             status=200, content_type="application/json",
             body=_json({"available": True, "label": "Fixture Place"})))

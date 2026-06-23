@@ -157,6 +157,10 @@ function presenceEntityLabel(entity) {
   return entity.display_name || entity.name || entity.entity_id || 'Unknown';
 }
 
+function isThisDevice(entity) {
+  return entity && entity.entity_id === '__this_device__';
+}
+
 function presenceById(entityId) {
   const entities = (state.presence && state.presence.entities) || [];
   if (state.thisDevicePresence && state.thisDevicePresence.entity_id === entityId) {
@@ -168,7 +172,7 @@ function presenceById(entityId) {
 function sourceLabel(entity) {
   if (entity.source === 'webhook') return 'Shortcut';
   if (entity.source === 'icloud') return 'Find My';
-  if (entity.source === 'browser') return 'This device';
+  if (entity.source === 'browser') return 'Browser GPS · diagnostic only';
   return entity.source || 'Unknown';
 }
 
@@ -196,14 +200,15 @@ function renderPresence() {
     if (b.entity_id === '__this_device__') return 1;
     return presenceEntityLabel(a).localeCompare(presenceEntityLabel(b), undefined, { sensitivity: 'base' });
   });
-  const hiddenCount = sorted.filter(function (e) { return e.hidden; }).length;
+  const hiddenCount = sorted.filter(function (e) { return e.hidden && !isThisDevice(e); }).length;
   const visible = state.presenceShowHidden
     ? sorted
-    : sorted.filter(function (e) { return !e.hidden; });
+    : sorted.filter(function (e) { return !e.hidden || isThisDevice(e); });
+  const counted = visible.filter(function (e) { return !isThisDevice(e); });
 
-  const homeCount = visible.filter(function (e) { return e.at_home === true; }).length;
-  const awayCount = visible.filter(function (e) { return e.at_home === false; }).length;
-  const unknownCount = visible.filter(function (e) { return e.at_home !== true && e.at_home !== false; }).length;
+  const homeCount = counted.filter(function (e) { return e.at_home === true; }).length;
+  const awayCount = counted.filter(function (e) { return e.at_home === false; }).length;
+  const unknownCount = counted.filter(function (e) { return e.at_home !== true && e.at_home !== false; }).length;
   els.presenceSummary.textContent =
     homeCount + ' home · ' + awayCount + ' away · ' + unknownCount + ' unknown';
   if (els.presenceHiddenCount) {
@@ -275,6 +280,7 @@ function renderPresence() {
     });
 
   renderPresenceRefreshNote();
+  renderPresenceAutomationNote();
 }
 
 function renderPresenceRefreshNote() {
@@ -284,7 +290,22 @@ function renderPresenceRefreshNote() {
   const last = diag.refreshed_at ? fmtTime(diag.refreshed_at) : 'not yet';
   els.presenceRefreshNote.textContent =
     'The open tab reloads the local snapshot every 10 s. Find My refreshes in the background about every ' + interval +
-    ' min; Refresh runs it now. This device uses browser GPS when permitted. Last Find My refresh: ' + last + '.';
+    ' min; Refresh runs it now. This device is browser GPS only: it updates only while this tab/PWA is open and is not used for alarm automation. Alarm automation uses Shortcut webhook people. Last Find My refresh: ' + last + '.';
+}
+
+function renderPresenceAutomationNote() {
+  if (!els.presenceAutomationNote || !els.presenceAutoEnabled) return;
+  const entities = (state.presence && state.presence.entities) || [];
+  const hasWebhookPerson = entities.some(function (entity) {
+    return entity.source === 'webhook' && !entity.hidden;
+  });
+  if (els.presenceAutoEnabled.checked && !hasWebhookPerson) {
+    els.presenceAutomationNote.textContent = 'Configure iOS Shortcut arrive/leave webhooks before enabling alarm automation. Browser GPS and Find My diagnostics do not drive arm/disarm.';
+    els.presenceAutomationNote.hidden = false;
+  } else {
+    els.presenceAutomationNote.hidden = true;
+    els.presenceAutomationNote.textContent = '';
+  }
 }
 
 async function loadPresence() {
@@ -481,6 +502,7 @@ async function loadPresenceAutomation() {
     els.presenceArmMinutes.value = Math.round((Number(cfg.arm_away_after_s) || 0) / 60);
     els.presenceStaleMinutes.value = Math.round((Number(cfg.stale_after_s) || 3600) / 60);
     els.presenceDisarmOnArrival.checked = cfg.disarm_on_arrival !== false;
+    renderPresenceAutomationNote();
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Automation settings failed: ' + (exc.message || exc), 'error');
@@ -501,6 +523,7 @@ async function savePresenceAutomation() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    renderPresenceAutomationNote();
     toast('Automation saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {

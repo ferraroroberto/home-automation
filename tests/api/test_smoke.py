@@ -260,6 +260,7 @@ def test_presence_route_serializes_find_my_snapshot(
         ),
     ]
 
+    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
     monkeypatch.setattr(
         "app.webapp.routers.presence.get_cache",
         lambda: PresenceDiagnosticsCache(
@@ -289,6 +290,7 @@ def test_presence_route_serializes_find_my_snapshot(
 def test_presence_route_returns_unavailable_when_icloud_needs_2fa(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
+    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
     monkeypatch.setattr(
         "app.webapp.routers.presence.get_cache",
         lambda: PresenceDiagnosticsCache(

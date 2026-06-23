@@ -105,6 +105,7 @@ export const els = {
   locationLon: document.getElementById('locationLon'),
   locationUseBrowser: document.getElementById('locationUseBrowser'),
   presenceAutoEnabled: document.getElementById('presenceAutoEnabled'),
+  presenceAutomationNote: document.getElementById('presenceAutomationNote'),
   presenceArmMinutes: document.getElementById('presenceArmMinutes'),
   presenceStaleMinutes: document.getElementById('presenceStaleMinutes'),
   presenceDisarmOnArrival: document.getElementById('presenceDisarmOnArrival'),

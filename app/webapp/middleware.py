@@ -20,7 +20,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
-_AUTH_EXEMPT_PREFIXES = ("/static/", "/healthz", "/install-ca")
+_AUTH_EXEMPT_PREFIXES = (
+    "/static/",
+    "/healthz",
+    "/install-ca",
+    "/api/presence/webhook",
+)
 _AUTH_EXEMPT_EXACT = frozenset({"/", "/healthz", "/install-ca", "/api/login"})
 
 
