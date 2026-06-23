@@ -117,3 +117,32 @@ def test_security_tab_renders_presence_spike(
     expect(page.locator(".presence-row.is-home")).to_contain_text("Home Phone")
     expect(page.locator(".presence-row.is-away")).to_contain_text("Away Phone")
     expect(page.locator(".presence-row.is-unknown")).to_contain_text("Keys")
+
+
+def test_this_device_presence_is_diagnostic_only(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    page.add_init_script("""
+        localStorage.setItem('home-automation.thisDevicePresence', 'true');
+        localStorage.setItem('home-automation.thisDeviceLocation', JSON.stringify({
+          lat: 0,
+          lon: 0,
+          accuracy: 8,
+          last_seen: new Date().toISOString(),
+        }));
+    """)
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#presenceSummary")).to_have_text("1 home · 1 away · 1 unknown")
+    expect(page.locator(".presence-row")).to_have_count(4)
+    expect(page.locator(".presence-row").first).to_contain_text("This device")
+    expect(page.locator(".presence-row").first).to_contain_text("Browser GPS · diagnostic only")
+    expect(page.locator("#presenceRefreshNote")).to_contain_text("not used for alarm automation")

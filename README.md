@@ -218,6 +218,17 @@ Authorization: Bearer <PRESENCE_WEBHOOK_SECRET>
 
 Use `home` for the Arrive automation and `away` for the Leave automation. Create one stable person id per phone, for example `roberto` and `ana`. The Security tab's Presence card can rename those ids, hide non-household Find My entities behind Show hidden, edit `config/location.json`, and set the alarm automation thresholds. The automation defaults off and only acts on fresh webhook-backed people that are not hidden.
 
+Set up each iPhone with two Personal Automations in Shortcuts:
+
+1. **Arrive**: Shortcuts → Automation → New Automation → Arrive → choose the home geofence → Run Immediately → Get Contents of URL.
+2. URL: `https://<host>:8447/api/presence/webhooks/<person_id>/home`; method: `POST`; header key: `Authorization`; header value: `Bearer <PRESENCE_WEBHOOK_SECRET>`. Do **not** use the dashboard `?token=` URL parameter here — the webhook uses its own secret.
+3. **Leave**: duplicate the automation with URL `https://<host>:8447/api/presence/webhooks/<person_id>/away`.
+4. Repeat with a different stable `<person_id>` for the other phone, for example `ana`.
+
+To test immediately, run the same **Get Contents of URL** action from a temporary normal Shortcut (or tap the automation's run/play control if iOS shows one). A successful call returns JSON like `{"ok": true, "person_id": "ana", "state": "away"}`; the Security → Presence card then shows that person as `Shortcut · Person`. Opening the URL in Safari is not a valid test because Safari sends `GET` and the endpoint intentionally accepts only `POST`.
+
+The browser-only **This device** row is diagnostic: it uses the browser Geolocation API and only updates while the dashboard tab/PWA is open. It is useful for setting/checking the home location, but it does not drive alarm automation. Find My/iCloud entries are also diagnostic enrichment; the reliable automation source is the Shortcut webhook state persisted in `config/presence_state.json`.
+
 Home location is editable in the Presence card. The **Use this device location** button asks the browser for the current GPS position and writes it to `config/location.json`; the latitude/longitude fields can also be typed manually. After saving, Find My diagnostics can be refreshed from the Presence card so distances recalculate from the new origin.
 
 Alarm behavior:
