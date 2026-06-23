@@ -1,4 +1,4 @@
-/* Tab switcher: Home | AC | Energy | Plugs | Network | Security.
+/* Tab switcher: Home | AC | Energy | Plugs | Lights | Network | Security.
  *
  * Mirrors app-launcher's nav.tabs pattern: .tab buttons get .active, .pane
  * sections toggle via [hidden]. The chosen tab is remembered in localStorage
@@ -9,13 +9,13 @@
 
 import { els, state, TAB_KEY } from './state.js';
 
-const TABS = ['home', 'ac', 'energy', 'plugs', 'network', 'security'];
+const TABS = ['home', 'ac', 'energy', 'plugs', 'lights', 'network', 'security'];
 // tab name → button el handle / pane el handle (in state.els).
 const TAB_ELS = {
-  home: 'tabHome', ac: 'tabAc', energy: 'tabEnergy', plugs: 'tabPlugs', network: 'tabNetwork', security: 'tabSecurity',
+  home: 'tabHome', ac: 'tabAc', energy: 'tabEnergy', plugs: 'tabPlugs', lights: 'tabLights', network: 'tabNetwork', security: 'tabSecurity',
 };
 const PANE_ELS = {
-  home: 'paneHome', ac: 'paneAc', energy: 'paneEnergy', plugs: 'panePlugs', network: 'paneNetwork', security: 'paneSecurity',
+  home: 'paneHome', ac: 'paneAc', energy: 'paneEnergy', plugs: 'panePlugs', lights: 'paneLights', network: 'paneNetwork', security: 'paneSecurity',
 };
 let onChange = function () {};
 

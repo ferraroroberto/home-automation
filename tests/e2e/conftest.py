@@ -33,6 +33,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from urllib.parse import unquote
 from pathlib import Path
 from typing import Callable, Dict, IO, Iterator, List, Optional
 
@@ -578,6 +579,84 @@ def sample_plugs_with_no_ip(sample_plugs: List[Dict]) -> List[Dict]:
         "error": "No local IP — refresh devices.json on the home network.",
     })
     return devices
+
+
+@pytest.fixture
+def sample_lights() -> List[Dict]:
+    """Two deterministic Elgato lights: one reachable and one offline."""
+    return [
+        {
+            "light_id": "192.0.2.10:9123",
+            "host": "192.0.2.10",
+            "port": 9123,
+            "name": "Fixture Key Light",
+            "product_name": "Elgato Key Light",
+            "firmware": "1.0",
+            "on": True,
+            "brightness": 42,
+            "temperature": 200,
+            "temperature_k": 5000,
+            "supports_temperature": True,
+            "reachable": True,
+            "error": None,
+        },
+        {
+            "light_id": "192.0.2.11:9123",
+            "host": "192.0.2.11",
+            "port": 9123,
+            "name": "Fixture Offline",
+            "product_name": None,
+            "firmware": None,
+            "on": False,
+            "brightness": 0,
+            "temperature": 0,
+            "temperature_k": 0,
+            "supports_temperature": False,
+            "reachable": False,
+            "error": "192.0.2.11:9123 timed out",
+        },
+    ]
+
+
+@pytest.fixture
+def mock_lights(page: Page) -> Callable[[List[Dict]], List[Dict]]:
+    """Stub the Elgato lights API on ``page``."""
+    def _install(lights: List[Dict]) -> List[Dict]:
+        store = {item["light_id"]: item for item in lights}
+
+        def handle(route: Route) -> None:
+            req = route.request
+            if req.method == "GET":
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({"lights": list(store.values())}),
+                )
+                return
+            light_id = unquote(req.url.rstrip("/").split("/")[-1])
+            light = store.get(light_id)
+            if light is None:
+                route.fulfill(
+                    status=404,
+                    content_type="application/json",
+                    body=_json({"detail": "not found"}),
+                )
+                return
+            body = req.post_data_json or {}
+            if "on" in body:
+                light["on"] = bool(body["on"])
+            if "brightness" in body:
+                light["brightness"] = int(body["brightness"])
+            if "temperature_k" in body:
+                light["temperature_k"] = int(body["temperature_k"])
+                light["temperature"] = round(1_000_000 / light["temperature_k"])
+            route.fulfill(status=200, content_type="application/json", body=_json(light))
+
+        page.route("**/api/lights", handle)
+        page.route("**/api/lights/**", handle)
+        return list(store.values())
+
+    return _install
 
 
 @pytest.fixture

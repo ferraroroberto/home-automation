@@ -28,6 +28,7 @@ import {
   restyleEnergyCharts,
 } from './energy.js';
 import { onPlugsTab, wirePlugsToggle, wirePlugDetail } from './plugs.js';
+import { onLightsTab } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wirePresenceControls } from './security.js';
 import { onNetworkTab, wireNetworkControls } from './network.js';
 import { startWeatherPolling } from './weather.js';
@@ -744,10 +745,10 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireSecurityHiddenToggle();
   wirePresenceControls();
   wireNetworkControls();
-  // Energy, Plugs, Network, and Security adjust their own polling cadence on tab
-  // change, so fan the single switcher hook out to each controller.
+  // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
+  // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
-    onEnergyTab(tab); onPlugsTab(tab); onNetworkTab(tab); onSecurityTab(tab);
+    onEnergyTab(tab); onPlugsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab);
     // Keep Home clean — Settings lives on the other tabs only (issue #72).
     els.settingsCard.hidden = tab === 'home';
   });

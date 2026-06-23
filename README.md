@@ -37,6 +37,7 @@ optional bearer token. Three ways to reach it once running:
   - `hvac_automation.py` — UI-free persistence + control law for per-unit dynamic temperature rules and daily schedules.
   - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
+  - `elgato_client.py` — Elgato lights discovery/read/control over the local LAN HTTP API.
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
   - `network_client.py` — async home-network spike core: internet/AP/router health + attached-device inventory + AP reboot (issue #125).
@@ -52,10 +53,10 @@ optional bearer token. Three ways to reach it once running:
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
-    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Network/Security switcher),
-    `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab),
+    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Lights/Network/Security switcher),
+    `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `lights.js` (Elgato tab),
     `security.js` (RISCO alarm tab), `network.js` (Network/LAN tab + reusable confirm dialog),
     `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
@@ -341,7 +342,7 @@ then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 
 ## Energy monitoring & history
 
-The PWA splits into five tabs: **Home** (a consolidated dashboard — weather strip,
+The PWA splits into seven tabs: **Home** (a consolidated dashboard — weather strip,
 the actionable alarm tile, a one-line-per-unit AC summary with inline power
 toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
 card as the Energy tab; alarm + AC act, the rest inform),
@@ -353,8 +354,8 @@ cards, a savings estimate (€ saved on self-consumed PV at the configured tiere
 rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Consumption
 live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
 breakdown** table (grid energy priced per time-of-use period, self-consumed PV
-valued at the avoided rate — see *Electricity tariff* below), and **🔌 Plugs** (the local Smart Life
-devices — see below), **📶 Network** (LAN health, the attached-device inventory, and the AP reboot —
+valued at the avoided rate — see *Electricity tariff* below), **🔌 Plugs** (the local Smart Life
+devices — see below), **💡 Lights** (Elgato lights — see below), **📶 Network** (LAN health, the attached-device inventory, and the AP reboot —
 see below), and **🛡️ Security** (RISCO alarm controls, event log, and
 detector bypass).
 
@@ -518,6 +519,40 @@ The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tu
   & .\.venv\Scripts\python.exe -m tinytuya wizard      # full re-pair (new devices / keys)
   & .\.venv\Scripts\python.exe -m tinytuya snapshot    # quick IP/state refresh of known devices
   ```
+
+## Elgato lights
+
+The **Lights** tab controls Elgato Key Light style devices directly over the
+local LAN HTTP API. It is cloud-free at runtime: the backend tries Bonjour/mDNS
+discovery for `_elg._tcp.local.` and also supports an explicit host fallback
+for networks where discovery is blocked. Spike findings and the implementation
+choice are recorded in [`docs/elgato-lights.md`](docs/elgato-lights.md).
+
+Optional config in `.env`:
+
+| Key | Meaning |
+|-----|---------|
+| `ELGATO_LIGHT_HOSTS` | Optional comma-separated `host[:port]` list. Leave blank to try mDNS discovery only. The default port is `9123`. |
+
+Endpoints:
+
+- `GET /api/lights` — list Elgato lights with reachability, power, brightness,
+  and color temperature.
+- `POST /api/lights/{id}` — set `{"on": true|false}`,
+  `{"brightness": 3..100}`, `{"temperature": 143..344}`, or
+  `{"temperature_k": 2900..7000}`; the response is the live read-back.
+
+Smoke command:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_elgato_lights
+& .\.venv\Scripts\python.exe -m src.list_elgato_lights --id 192.168.0.50:9123 --on on --brightness 40 --kelvin 4000
+```
+
+Do not commit real light hostnames/IPs, room names, or screenshots containing
+private room names; this repository is public. If discovery finds nothing but
+the Elgato phone app works, set `ELGATO_LIGHT_HOSTS` to the light's LAN IP and
+restart the webapp.
 
 ## Run the webapp (the product)
 
