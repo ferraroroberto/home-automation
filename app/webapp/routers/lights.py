@@ -16,6 +16,7 @@ from src.elgato_client import (
     fetch_lights,
     set_light_state,
 )
+from src.elgato_display_names import load_elgato_display_names, set_elgato_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,13 @@ def _http_error(exc: Exception) -> HTTPException:
 @router.get("/api/lights")
 async def list_lights() -> Dict[str, Any]:
     try:
-        return {"lights": [asdict(light) for light in await fetch_lights()]}
+        display_names = load_elgato_display_names()
+        lights = []
+        for light in await fetch_lights():
+            data = asdict(light)
+            data["display_name"] = display_names.get(light.light_id)
+            lights.append(data)
+        return {"lights": lights}
     except (ElgatoConfigError, ElgatoDiscoveryError, ElgatoCommandError) as exc:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
@@ -48,6 +55,10 @@ class LightControlPayload(BaseModel):
     temperature_k: Optional[int] = None
 
 
+class LightDisplayNamePayload(BaseModel):
+    display_name: str = ""
+
+
 @router.post("/api/lights/{light_id}")
 async def control_light(light_id: str, payload: LightControlPayload) -> Dict[str, Any]:
     try:
@@ -58,8 +69,22 @@ async def control_light(light_id: str, payload: LightControlPayload) -> Dict[str
             temperature=payload.temperature,
             temperature_k=payload.temperature_k,
         )
-        return asdict(light)
+        data = asdict(light)
+        data["display_name"] = load_elgato_display_names().get(light.light_id)
+        return data
     except (ElgatoConfigError, ElgatoDiscoveryError, ElgatoCommandError) as exc:
         raise _http_error(exc)
+    except Exception as exc:  # noqa: BLE001
+        raise _http_error(exc)
+
+
+@router.put("/api/lights/{light_id}/display_name")
+async def set_light_display_name(
+    light_id: str, payload: LightDisplayNamePayload
+) -> Dict[str, Any]:
+    try:
+        display_name = payload.display_name.strip()
+        set_elgato_display_name(light_id, display_name)
+        return {"light_id": light_id, "display_name": display_name or None}
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)

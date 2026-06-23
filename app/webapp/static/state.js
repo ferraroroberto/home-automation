@@ -40,6 +40,8 @@ export const state = {
   presenceAutomation: null,
   presenceShowHidden: false,
   selectedPresenceId: null,
+  // Elgato light id whose detail/rename modal is open (or null).
+  selectedLightId: null,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
   // Home-network (LAN) snapshot from GET /api/network (issue #129).
@@ -170,8 +172,19 @@ export const els = {
   plugDisplayName: document.getElementById('plugDisplayName'),
   plugDetailClose: document.getElementById('plugDetailClose'),
   // Elgato Lights tab
+  lightsAllOn: document.getElementById('lightsAllOn'),
+  lightsAllOff: document.getElementById('lightsAllOff'),
   lightsGrid: document.getElementById('lightsGrid'),
   lightsNote: document.getElementById('lightsNote'),
+  lightDialog: document.getElementById('lightDialog'),
+  lightDetailName: document.getElementById('lightDetailName'),
+  lightDetailClose: document.getElementById('lightDetailClose'),
+  lightDisplayName: document.getElementById('lightDisplayName'),
+  lightOriginalName: document.getElementById('lightOriginalName'),
+  lightProduct: document.getElementById('lightProduct'),
+  lightHost: document.getElementById('lightHost'),
+  lightPort: document.getElementById('lightPort'),
+  lightMac: document.getElementById('lightMac'),
   // Network (LAN) tab
   netInternetStatus: document.getElementById('netInternetStatus'),
   netInternetMeta: document.getElementById('netInternetMeta'),

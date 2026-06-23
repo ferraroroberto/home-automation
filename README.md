@@ -55,7 +55,7 @@ optional bearer token. Three ways to reach it once running:
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
   - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
-    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Lights/Network/Security switcher),
+    Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `lights.js` (Elgato tab),
     `security.js` (RISCO alarm tab), `network.js` (Network/LAN tab + reusable confirm dialog),
     `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
@@ -65,7 +65,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `security_display_names.json`, `security_hidden.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `security_display_names.json`, `security_hidden.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -355,8 +355,8 @@ rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Cons
 live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
 breakdown** table (grid energy priced per time-of-use period, self-consumed PV
 valued at the avoided rate — see *Electricity tariff* below), **🔌 Plugs** (the local Smart Life
-devices — see below), **💡 Lights** (Elgato lights — see below), **📶 Network** (LAN health, the attached-device inventory, and the AP reboot —
-see below), and **🛡️ Security** (RISCO alarm controls, event log, and
+devices — see below), **💡 Light** (Elgato lights — see below), **📶 Net** (LAN health, the attached-device inventory, and the AP reboot —
+see below), and **🛡️ Alarm** (RISCO alarm controls, event log, and
 detector bypass).
 
 On desktop the tabs are a top segmented control; on a phone / installed PWA they
@@ -522,11 +522,14 @@ The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tu
 
 ## Elgato lights
 
-The **Lights** tab controls Elgato Key Light style devices directly over the
+The **Light** tab controls Elgato Key Light style devices directly over the
 local LAN HTTP API. It is cloud-free at runtime: the backend tries Bonjour/mDNS
 discovery for `_elg._tcp.local.` and also supports an explicit host fallback
-for networks where discovery is blocked. Spike findings and the implementation
-choice are recorded in [`docs/elgato-lights.md`](docs/elgato-lights.md).
+for networks where discovery is blocked. It has per-light power, brightness,
+and warmth controls, exact numeric entry beside each slider, all-on/all-off
+buttons for reachable lights, and a detail modal that saves a custom label in
+gitignored `config/elgato_display_names.json`. Spike findings and the
+implementation choice are recorded in [`docs/elgato-lights.md`](docs/elgato-lights.md).
 
 Optional config in `.env`:
 
@@ -536,11 +539,13 @@ Optional config in `.env`:
 
 Endpoints:
 
-- `GET /api/lights` — list Elgato lights with reachability, power, brightness,
-  and color temperature.
+- `GET /api/lights` — list Elgato lights with reachability, display-name
+  override, original name, product, firmware, host/port, optional MAC metadata,
+  power, brightness, and color temperature.
 - `POST /api/lights/{id}` — set `{"on": true|false}`,
   `{"brightness": 3..100}`, `{"temperature": 143..344}`, or
   `{"temperature_k": 2900..7000}`; the response is the live read-back.
+- `PUT /api/lights/{id}/display_name` — save or clear the local label override.
 
 Smoke command:
 

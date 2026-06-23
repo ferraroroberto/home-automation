@@ -590,8 +590,10 @@ def sample_lights() -> List[Dict]:
             "host": "192.0.2.10",
             "port": 9123,
             "name": "Fixture Key Light",
+            "display_name": None,
             "product_name": "Elgato Key Light",
             "firmware": "1.0",
+            "mac_address": "AA:BB:CC:DD:EE:FF",
             "on": True,
             "brightness": 42,
             "temperature": 200,
@@ -605,8 +607,10 @@ def sample_lights() -> List[Dict]:
             "host": "192.0.2.11",
             "port": 9123,
             "name": "Fixture Offline",
+            "display_name": None,
             "product_name": None,
             "firmware": None,
+            "mac_address": None,
             "on": False,
             "brightness": 0,
             "temperature": 0,
@@ -633,7 +637,9 @@ def mock_lights(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                     body=_json({"lights": list(store.values())}),
                 )
                 return
-            light_id = unquote(req.url.rstrip("/").split("/")[-1])
+            parts = req.url.rstrip("/").split("/")
+            verb = parts[-1]
+            light_id = unquote(parts[-2] if verb == "display_name" else verb)
             light = store.get(light_id)
             if light is None:
                 route.fulfill(
@@ -643,6 +649,15 @@ def mock_lights(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                 )
                 return
             body = req.post_data_json or {}
+            if verb == "display_name":
+                name = (body.get("display_name") or "").strip()
+                light["display_name"] = name or None
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({"light_id": light_id, "display_name": name or None}),
+                )
+                return
             if "on" in body:
                 light["on"] = bool(body["on"])
             if "brightness" in body:

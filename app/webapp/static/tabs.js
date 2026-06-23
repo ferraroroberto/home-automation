@@ -1,4 +1,4 @@
-/* Tab switcher: Home | AC | Energy | Plugs | Lights | Network | Security.
+/* Tab switcher: Home | AC | Energy | Plugs | Light | Net | Alarm.
  *
  * Mirrors app-launcher's nav.tabs pattern: .tab buttons get .active, .pane
  * sections toggle via [hidden]. The chosen tab is remembered in localStorage

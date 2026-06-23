@@ -28,7 +28,7 @@ import {
   restyleEnergyCharts,
 } from './energy.js';
 import { onPlugsTab, wirePlugsToggle, wirePlugDetail } from './plugs.js';
-import { onLightsTab } from './lights.js';
+import { onLightsTab, wireLightControls } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wirePresenceControls } from './security.js';
 import { onNetworkTab, wireNetworkControls } from './network.js';
 import { startWeatherPolling } from './weather.js';
@@ -741,6 +741,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireEnergyControls();
   wirePlugsToggle();
   wirePlugDetail();
+  wireLightControls();
   wireZoneDetail();
   wireSecurityHiddenToggle();
   wirePresenceControls();
