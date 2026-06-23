@@ -26,6 +26,9 @@ pyrisco>=0.8.0
 # for future presence-driven HVAC automation.
 pyicloud>=2.6.5
 
+# Browser Web Push notifications for best-effort presence transition alerts.
+pywebpush>=2.0.0
+
 # Self-signed CA + leaf cert generation for the HTTPS endpoint
 cryptography>=42.0.0
 

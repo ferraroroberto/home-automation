@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from src.presence_engine import note_manual_alarm_action
 from src.risco_client import (
     ACTIONS,
     RiscoCommandError,
@@ -94,7 +95,9 @@ async def post_security_action(action: str) -> Dict[str, Any]:
     if action not in ACTIONS:
         raise HTTPException(status_code=400, detail=f"unknown action '{action}'")
     try:
-        return _state_payload(await control_system(action))
+        state = await control_system(action)
+        note_manual_alarm_action(action)
+        return _state_payload(state)
     except (RiscoConfigError, RiscoCommandError) as exc:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001

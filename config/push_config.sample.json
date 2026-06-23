@@ -1,0 +1,5 @@
+{
+  "public_key": "base64url-vapid-public-key",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "subject": "mailto:you@example.com"
+}

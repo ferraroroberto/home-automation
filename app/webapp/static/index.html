@@ -584,12 +584,61 @@
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
             <h3 class="collapse-title">Presence</h3>
-            <span id="presenceSummary" class="muted small presence-summary">—</span>
           </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          <span class="security-zones-tools">
+            <button id="presenceHiddenToggle" type="button" class="range-tab" data-testid="presence-show-hidden-toggle" hidden>Show hidden</button>
+            <button id="presenceRefresh" type="button" class="range-tab" title="Refresh Find My diagnostics">Refresh</button>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </span>
         </summary>
+        <p class="muted small presence-body-summary">
+          <span id="presenceSummary">—</span>
+          <span id="presenceHiddenCount" class="security-hidden-count" hidden></span>
+        </p>
         <div id="presenceList" class="presence-list"></div>
         <p id="presenceNote" class="muted small security-note" hidden></p>
+        <p id="presenceRefreshNote" class="muted small security-note"></p>
+        <details class="presence-settings-card">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+              <span class="collapse-title">Presence settings</span>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="presence-settings">
+            <label class="row">
+              <span>Home label</span>
+              <input id="locationLabel" type="text" class="input-native" placeholder="Home">
+            </label>
+            <label class="row">
+              <span>Latitude</span>
+              <input id="locationLat" type="number" step="0.000001" class="input-native" placeholder="—">
+            </label>
+            <label class="row">
+              <span>Longitude</span>
+              <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
+            </label>
+            <button id="locationUseBrowser" type="button" class="big-btn">Use this device location</button>
+            <label class="row">
+              <span>Auto arm/disarm</span>
+              <input id="presenceAutoEnabled" type="checkbox" class="checkbox-native">
+            </label>
+            <label class="row">
+              <span>Away minutes before arm</span>
+              <input id="presenceArmMinutes" type="number" min="0" step="1" class="input-native" value="15">
+            </label>
+            <label class="row">
+              <span>Stale after minutes</span>
+              <input id="presenceStaleMinutes" type="number" min="1" step="1" class="input-native" value="60">
+            </label>
+            <label class="row">
+              <span>Disarm on first arrival</span>
+              <input id="presenceDisarmOnArrival" type="checkbox" class="checkbox-native">
+            </label>
+            <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
+          </div>
+        </details>
       </details>
     </section>
 
@@ -752,6 +801,37 @@
       <div class="row">
         <span>Hidden</span>
         <button id="zoneHiddenToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide detector">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Presence entity/person detail + rename/hide modal. -->
+  <dialog id="presenceDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="presenceDetailName">Presence</h2>
+        <button id="presenceDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Status</span><span id="presenceDetailStatus" class="muted">—</span></div>
+      <div class="row"><span>Source</span><span id="presenceDetailSource" class="muted">—</span></div>
+      <div class="row"><span>Last seen</span><span id="presenceDetailLastSeen" class="muted">—</span></div>
+      <div class="row"><span>Distance</span><span id="presenceDetailDistance" class="muted">—</span></div>
+      <div class="row"><span>Place</span><span id="presenceDetailPlace" class="muted">—</span></div>
+      <a id="presenceMapLink" class="presence-map-link" target="_blank" rel="noreferrer">Open map</a>
+      <iframe id="presenceMapFrame" class="presence-map-frame" loading="lazy" title="Presence map"></iframe>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="presenceDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <p id="presenceOriginalName" class="muted small zone-original-name"></p>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="presenceHiddenDetailToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide presence entity">
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
       </div>

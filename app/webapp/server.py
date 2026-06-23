@@ -17,7 +17,7 @@ Routes (split across ``app/webapp/routers/``):
     POST /api/tuya/{id}/cover    → open/close/stop a blind     (tuya)
     GET  /api/security           → RISCO alarm state           (security)
     POST /api/security/{action}  → arm/disarm/perimeter alarm  (security)
-    GET  /api/presence           → iCloud Find My presence     (presence)
+    GET  /api/presence           → local + cached presence     (presence)
 
 Run with::
 
@@ -42,9 +42,11 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
-from app.webapp.routers import auth, energy, misc, presence, security, tuya, units, weather
+from app.webapp.routers import auth, energy, misc, presence, push, security, tuya, units, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
+from app.webapp.presence_automation import start_presence_automation
+from app.webapp.presence_refresher import start_presence_refresher
 from app.webapp.sampler import start_sampler
 from src.webapp_config import load_webapp_config
 
@@ -108,8 +110,16 @@ class CachingStaticFiles(StaticFiles):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Own the background energy sampler + HVAC automation for the process life."""
-    tasks = [t for t in (start_sampler(), start_automation()) if t is not None]
+    """Own background tasks for the process life."""
+    tasks = [
+        t for t in (
+            start_sampler(),
+            start_automation(),
+            start_presence_refresher(),
+            start_presence_automation(),
+        )
+        if t is not None
+    ]
     try:
         yield
     finally:
@@ -151,6 +161,7 @@ def create_app() -> FastAPI:
     app.include_router(tuya.router)
     app.include_router(security.router)
     app.include_router(presence.router)
+    app.include_router(push.router)
 
     logger.info(
         "ℹ️  webapp build %s (fleet %s) built %s",

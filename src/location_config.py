@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -68,3 +69,22 @@ def load_location_config(path: Optional[Path] = None) -> Optional[LocationConfig
         return None
 
     return LocationConfig(lat=lat, lon=lon, label=str(raw.get("label", "")))
+
+
+def save_location_config(location: LocationConfig, path: Optional[Path] = None) -> None:
+    """Atomically persist the user-authored home location."""
+    target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
+    if not (-90.0 <= location.lat <= 90.0 and -180.0 <= location.lon <= 180.0):
+        raise ValueError("lat/lon out of range")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps(
+            {"lat": location.lat, "lon": location.lon, "label": location.label},
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    os.replace(tmp, target)
+    logger.info("💾 Saved home location to %s", target)
