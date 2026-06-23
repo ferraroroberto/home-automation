@@ -191,8 +191,16 @@ def _ping(host: str, count: int = 4, timeout_s: int = 2) -> tuple[Optional[float
     else:
         cmd = ["ping", "-c", str(count), "-W", str(timeout_s), host]
     try:
+        run_kwargs: dict[str, object] = {
+            "capture_output": True,
+            "text": True,
+            "timeout": count * timeout_s + 5,
+            "stdin": subprocess.DEVNULL,
+        }
+        if sys.platform.startswith("win"):
+            run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         out = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=count * timeout_s + 5
+            cmd, **run_kwargs
         ).stdout
     except (subprocess.SubprocessError, OSError) as exc:
         logger.warning("⚠️ ping %s failed: %s", host, exc)

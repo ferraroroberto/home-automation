@@ -51,6 +51,7 @@ def test_network_tab_groups_devices_and_switches_sort(
     page.locator("#netSortSignal").click()
     expect(names.nth(0)).to_have_text("Zebra Phone")
     expect(page.locator("#netSortSignal")).to_have_class("net-sort-btn active")
+    expect(page.locator("#netSortAlpha")).to_have_class("net-sort-btn")
 
     page.locator("details.net-devices-card > summary").click()
     expect(page.locator("#netDevices")).to_be_hidden()
