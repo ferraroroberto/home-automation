@@ -19,6 +19,7 @@ Routes (split across ``app/webapp/routers/``):
     POST /api/security/{action}  → arm/disarm/perimeter alarm  (security)
     GET  /api/network            → LAN health + device list    (network)
     POST /api/network/access-point/reboot → reboot the AP      (network)
+    POST /api/network/router/reboot → reboot the router        (network)
     PUT  /api/network/devices/{mac}/display_name → rename device (network)
     GET  /api/presence           → local + cached presence     (presence)
 

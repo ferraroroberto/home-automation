@@ -273,6 +273,9 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     assert body["internet"]["online"] is True
     assert body["access_point"]["device_count"] == 2
     assert body["router"]["reachable"] is False
+    # An unreachable router carries no WAN detail (all Phase-3 fields null).
+    assert body["router"]["wan_online"] is None
+    assert body["router"]["public_ip"] is None
     assert [d["is_wireless"] for d in body["devices"]] == [True, False]
     assert body["alerts"][0].startswith("1 wireless")
 
@@ -303,6 +306,68 @@ def test_network_reboot_access_point_invokes_core(
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
     assert calls["n"] == 1
+
+
+def test_network_reboot_router_invokes_core(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``POST /api/network/router/reboot`` calls the core and returns ok (Phase 3)."""
+    calls = {"n": 0}
+
+    def fake_reboot() -> None:
+        calls["n"] += 1
+
+    monkeypatch.setattr("app.webapp.routers.network.reboot_router", fake_reboot)
+    resp = client.post("/api/network/router/reboot")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert calls["n"] == 1
+
+
+def test_router_wan_parse_picks_live_internet_connection() -> None:
+    """``_pick_internet_wan`` skips disconnected/0.0.0.0 instances, prefers default-GW."""
+    from src.network_client import _parse_instances, _pick_internet_wan
+
+    xml = (
+        "<root>"
+        "<Instance><ParaName>WANCName</ParaName><ParaValue>FTTH-TV</ParaValue>"
+        "<ParaName>ConnStatus</ParaName><ParaValue>Connected</ParaValue>"
+        "<ParaName>IPAddress</ParaName><ParaValue>0.0.0.0</ParaValue>"
+        "<ParaName>IsDefGW</ParaName><ParaValue>0</ParaValue></Instance>"
+        "<Instance><ParaName>WANCName</ParaName><ParaValue>FTTH-Data</ParaValue>"
+        "<ParaName>ConnStatus</ParaName><ParaValue>Connected</ParaValue>"
+        "<ParaName>IPAddress</ParaName><ParaValue>188.87.72.66</ParaValue>"
+        "<ParaName>GateWay</ParaName><ParaValue>87.235.0.10</ParaValue>"
+        "<ParaName>IsDefGW</ParaName><ParaValue>1</ParaValue>"
+        "<ParaName>UpTime</ParaName><ParaValue>1298319</ParaValue></Instance>"
+        "</root>"
+    )
+    insts = _parse_instances(xml)
+    assert len(insts) == 2
+    wan = _pick_internet_wan(insts)
+    assert wan["WANCName"] == "FTTH-Data"  # TV (0.0.0.0) skipped; default-GW chosen
+    assert wan["IPAddress"] == "188.87.72.66"
+    # No connected real-IP instance → {} (router up, internet down).
+    assert _pick_internet_wan([{"ConnStatus": "Disconnected", "IPAddress": "0.0.0.0"}]) == {}
+
+
+def test_router_asy_encode_is_rsa_pkcs1v15_base64() -> None:
+    """``_asy_encode`` mirrors JSEncrypt: RSA/PKCS1v15 of the digest, base64-encoded."""
+    import base64
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+    from src.network_client import _asy_encode
+
+    priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = priv.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+    encoded = _asy_encode(pem, "deadbeef")
+    # The matching private key recovers the source → the encrypt path is correct.
+    assert priv.decrypt(base64.b64decode(encoded), padding.PKCS1v15()) == b"deadbeef"
 
 
 def test_network_device_rename_persists(

@@ -32,6 +32,7 @@ from src.network_client import (
     NetworkState,
     fetch_network_state,
     reboot_access_point,
+    reboot_router,
 )
 from src.network_display_names import (
     load_network_display_names,
@@ -100,6 +101,15 @@ def _network_dict(s: NetworkState, overrides: Mapping[str, str]) -> Dict[str, An
             "authenticated": r.authenticated,
             "model": r.model,
             "error": r.error,
+            # WAN/internet status from the authenticated ZTE read (Phase 3);
+            # null when the router is unreachable / login failed / read rejected.
+            "wan_online": r.wan_online,
+            "public_ip": r.public_ip,
+            "gateway": r.gateway,
+            "dns": r.dns,
+            "connection_name": r.connection_name,
+            "uptime_s": r.uptime_s,
+            "addressing": r.addressing,
         },
         "devices": [_device_dict(d, overrides) for d in s.devices],
         "alerts": list(s.alerts),
@@ -138,6 +148,24 @@ async def post_access_point_reboot() -> Dict[str, Any]:
 
 class DisplayNamePayload(BaseModel):
     display_name: str
+
+
+@router.post("/api/network/router/reboot")
+async def post_router_reboot() -> Dict[str, Any]:
+    """Reboot the Vodafone router (the UI gates this behind a styled confirm).
+
+    Drops all connections for ~5 min; strictly a deliberate user action (Phase 3).
+    """
+    try:
+        await asyncio.to_thread(reboot_router)
+    except NetworkConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except NetworkCommandError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Router reboot failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"reboot failed: {exc}")
+    return {"ok": True}
 
 
 @router.put("/api/network/devices/{mac}/display_name")

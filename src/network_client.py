@@ -31,7 +31,9 @@ Credentials come from ``.env`` (loopback LAN, never committed)::
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
+import html
 import logging
 import os
 import re
@@ -98,16 +100,26 @@ class AccessPointHealth:
 
 @dataclass(frozen=True)
 class RouterHealth:
-    """Vodafone ZXHN F6600P reachability + login state.
+    """Vodafone ZXHN F6600P reachability, login state, and WAN/internet status.
 
-    WAN/internet detail is the issue #125 follow-up (ZTE data-read token scheme);
-    today this proves the headless login works end to end.
+    The headless login (`RouterClient.login`) and the authenticated WAN-status
+    read (issue #129 Phase 3) are both wired. The WAN fields stay ``None`` when
+    the router is unreachable, login fails, or the read is rejected — only a
+    successful authenticated read populates them.
     """
 
     reachable: bool
     authenticated: bool = False
     model: str = "ZXHN F6600P"
     error: Optional[str] = None
+    # WAN/internet status from the authenticated ZTE data read (Phase 3).
+    wan_online: Optional[bool] = None
+    public_ip: Optional[str] = None
+    gateway: Optional[str] = None
+    dns: Optional[str] = None
+    connection_name: Optional[str] = None
+    uptime_s: Optional[int] = None
+    addressing: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -371,20 +383,172 @@ class RouterClient:
             s.get(base + "/", timeout=timeout)  # land the authenticated session
         return ok
 
+    # ---- authenticated data read + reboot (issue #129 Phase 3) ------------- #
+    _WAN_FEED = (
+        "/?_type=menuData&_tag=wan_internetstatus_lua.lua&TypeUplink=2&pageType=1"
+    )
+    _REBOOT_FEED = "/?_type=menuData&_tag=devmgr_restartmgr_lua.lua"
+
+    def _menu_view(self, tag: str, timeout: int = 10) -> str:
+        """Load a menu page so its data feed is unlocked server-side.
+
+        The firmware gates each ``menuData`` feed on the *current* menu page, so a
+        feed read returns ``SessionTimeout`` unless that page was loaded first.
+        """
+        return self._session.get(
+            f"{self._base}/?_type=menuView&_tag={tag}",
+            headers={"Referer": self._base + "/"},
+            timeout=timeout,
+        ).text
+
+    def read_wan(self, timeout: int = 10) -> dict:
+        """Return the live internet WAN instance as a dict, or ``{}`` if none up.
+
+        Requires an authenticated session (call :meth:`login` first). Raises
+        :class:`NetworkCommandError` if the read itself is rejected.
+        """
+        self._menu_view("ethWanStatus", timeout)
+        body = self._session.get(
+            self._base + self._WAN_FEED,
+            headers={"Referer": f"{self._base}/?_type=menuView&_tag=ethWanStatus"},
+            timeout=timeout,
+        ).text
+        if "SessionTimeout" in body or "404 Not Found" in body:
+            raise NetworkCommandError("router WAN read rejected (session/page)")
+        return _pick_internet_wan(_parse_instances(body))
+
+    def reboot(self, timeout: int = 10) -> None:
+        """Reboot the router via the authenticated POST + RSA integrity header.
+
+        The web UI gates writes behind ``commConf.IntegCheck``: each POST carries
+        the rolling ``_sessionTOKEN`` in the body plus a ``Check`` header =
+        base64(RSA-PKCS1v15(sha256(body))) under the page's embedded public key.
+        The device drops the connection as it restarts, so a post-accept transport
+        error is treated as success, not failure.
+        """
+        s, base = self._session, self._base
+        home = s.get(base + "/", timeout=timeout).text
+        pubkey = _extract_pubkey(home)  # the PEM lives only on the home frame
+        # Loading the reboot page ROTATES the session token: the POST must carry
+        # the token embedded in *that* page's response, not the earlier home one
+        # (using the stale token gets "this page has expired"). Verified live.
+        page = self._menu_view("rebootAndReset", timeout)
+        token = _extract_token(page) or _extract_token(home)
+        if not token or not pubkey:
+            raise NetworkCommandError("router reboot: missing session token or key")
+        body = f"IF_ACTION=Restart&_sessionTOKEN={token}"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": f"{base}/?_type=menuView&_tag=rebootAndReset",
+            "Check": _asy_encode(pubkey, hashlib.sha256(body.encode()).hexdigest()),
+        }
+        try:
+            text = s.post(base + self._REBOOT_FEED, data=body, headers=headers,
+                          timeout=timeout).text
+        except requests.RequestException as exc:
+            logger.info("ℹ️ router connection dropped during reboot (%s) — treating as accepted", exc)
+            return
+        if "SessionTimeout" in text:
+            raise NetworkCommandError("router rejected reboot (session/token)")
+        err = re.search(r"<IF_ERRORSTR>(.*?)</IF_ERRORSTR>", text)
+        if err and err.group(1) != "SUCC":
+            raise NetworkCommandError(f"router rejected reboot: {err.group(1)}")
+
+
+# --------------------------------------------------------------------------- #
+# Router parsing + integrity helpers (issue #129 Phase 3)                     #
+# --------------------------------------------------------------------------- #
+def _parse_instances(xml: str) -> list[dict]:
+    """Parse ``<Instance>`` blocks into ParaName→ParaValue dicts (XML-unescaped)."""
+    out: list[dict] = []
+    for block in re.findall(r"<Instance>(.*?)</Instance>", xml, re.DOTALL):
+        names = re.findall(r"<ParaName>(.*?)</ParaName>", block)
+        vals = re.findall(r"<ParaValue>(.*?)</ParaValue>", block)
+        if len(names) == len(vals):
+            out.append({n: html.unescape(v) for n, v in zip(names, vals)})
+    return out
+
+
+def _pick_internet_wan(instances: list[dict]) -> dict:
+    """The live internet WAN = connected with a real IPv4; prefer default-gateway."""
+    live = [
+        d for d in instances
+        if d.get("ConnStatus") == "Connected"
+        and d.get("IPAddress", "0.0.0.0") not in ("", "0.0.0.0")
+    ]
+    if not live:
+        return {}
+    live.sort(key=lambda d: d.get("IsDefGW") == "1", reverse=True)
+    return live[0]
+
+
+def _extract_token(html_text: str) -> Optional[str]:
+    """The rolling per-request session token the page embeds as ``\\xNN`` escapes."""
+    m = re.search(r'_sessionTmpToken\s*=\s*"((?:\\x[0-9a-fA-F]{2})+)"', html_text)
+    if not m:
+        return None
+    return bytes(int(h, 16) for h in re.findall(r"\\x([0-9a-fA-F]{2})", m.group(1))).decode("latin-1")
+
+
+def _extract_pubkey(html_text: str) -> Optional[str]:
+    """The PEM RSA public key embedded in ``asyEncode()`` (``\\n`` → real newlines)."""
+    m = re.search(
+        r'pubKey\s*=\s*"(-----BEGIN PUBLIC KEY-----.*?-----END PUBLIC KEY-----)"',
+        html_text, re.DOTALL,
+    )
+    return m.group(1).replace("\\n", "\n") if m else None
+
+
+def _asy_encode(pem: str, src: str) -> str:
+    """``asyEncode``: RSA PKCS#1 v1.5 encrypt of *src* under *pem*, base64 (JSEncrypt)."""
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
+
+    key = load_pem_public_key(pem.encode())
+    return base64.b64encode(key.encrypt(src.encode(), padding.PKCS1v15())).decode()
+
+
+def _wan_dns(wan: dict) -> Optional[str]:
+    parts = [p for p in (wan.get("DNS1"), wan.get("DNS2")) if p and p not in ("0.0.0.0", "::")]
+    return ", ".join(parts) or None
+
+
+def _to_int(value: Optional[str]) -> Optional[int]:
+    try:
+        return int(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
 
 def _fetch_router_sync() -> RouterHealth:
     host, user, pwd = _router_creds()
-    try:
-        client = RouterClient(host, user, pwd)
-    except NetworkConfigError:
-        raise
+    client = RouterClient(host, user, pwd)
     try:
         authed = client.login()
     except NetworkCommandError as exc:
         return RouterHealth(reachable=True, authenticated=False, error=str(exc))
     except requests.RequestException as exc:
         return RouterHealth(reachable=False, error=str(exc))
-    return RouterHealth(reachable=True, authenticated=authed)
+    if not authed:
+        return RouterHealth(reachable=True, authenticated=False)
+    # Authenticated → layer on the WAN/internet status (best-effort: a read
+    # failure leaves the WAN fields None rather than dropping the login signal).
+    try:
+        wan = client.read_wan()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ router WAN read failed: %s", exc)
+        return RouterHealth(reachable=True, authenticated=True)
+    return RouterHealth(
+        reachable=True,
+        authenticated=True,
+        wan_online=bool(wan),
+        public_ip=wan.get("IPAddress") or None,
+        gateway=wan.get("GateWay") or None,
+        dns=_wan_dns(wan),
+        connection_name=wan.get("WANCName") or None,
+        uptime_s=_to_int(wan.get("UpTime")),
+        addressing=wan.get("Addressingtype") or None,
+    )
 
 
 async def fetch_router() -> RouterHealth:
@@ -399,11 +563,18 @@ async def fetch_router() -> RouterHealth:
 
 
 def reboot_router() -> None:
-    """Reboot the router. Not wired yet - issue #125 follow-up."""
-    raise NotImplementedError(
-        "router reboot needs the ZTE session-token POST scheme - issue #125 "
-        "follow-up (see docs/network-spike.md). The AP reboot is reboot_access_point()."
-    )
+    """Reboot the Vodafone ZXHN F6600P over its authenticated web API (Phase 3).
+
+    Logs in, then issues the integrity-checked restart POST. The device drops all
+    connections and takes ~5 min to come back — strictly a deliberate, confirmed
+    user action (the UI gates it behind a styled confirm).
+    """
+    host, user, pwd = _router_creds()
+    client = RouterClient(host, user, pwd)
+    if not client.login():
+        raise NetworkCommandError("router login failed; cannot reboot")
+    client.reboot()
+    logger.info("ℹ️ router reboot command accepted")
 
 
 # --------------------------------------------------------------------------- #

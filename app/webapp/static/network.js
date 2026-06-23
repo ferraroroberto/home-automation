@@ -54,6 +54,15 @@ let lastSpeed = null;
 function fmtMs(v) { return v == null ? '—' : Math.round(Number(v)) + ' ms'; }
 function fmtPct(v) { return v == null ? '—' : Math.round(Number(v)) + '%'; }
 function fmtMbps(v) { return v == null ? '—' : Math.round(Number(v)) + ' Mbps'; }
+function fmtUptime(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + 'm';
+}
 
 // --------------------------------------------------- reusable confirm dialog
 // A styled <dialog> confirm (issue #129) returning a Promise<boolean>. Exported
@@ -162,15 +171,36 @@ function renderHealth(ap, router) {
     els.netApReboot.hidden = true;  // can't reboot what we can't reach
   }
 
-  // Router — reachability + login signal only (WAN detail is Phase 3).
+  // Router — reachability, login, and the Phase-3 WAN/internet status.
   els.netRouterName.textContent = (router && router.model) || 'Router';
-  if (router && router.reachable) {
-    els.netRouterMeta.textContent = 'Reachable · ' +
-      (router.authenticated ? 'login OK' : 'login failed');
-    els.netRouterMeta.classList.toggle('is-error', !router.authenticated);
-  } else {
+  const routerReachable = !!(router && router.reachable);
+  const routerAuthed = !!(router && router.authenticated);
+  if (!routerReachable) {
     els.netRouterMeta.textContent = 'Unreachable' + (router && router.error ? ': ' + router.error : '');
     els.netRouterMeta.classList.add('is-error');
+  } else if (!routerAuthed) {
+    els.netRouterMeta.textContent = 'Reachable · login failed';
+    els.netRouterMeta.classList.add('is-error');
+  } else if (router.wan_online === true) {
+    const bits = ['WAN up'];
+    if (router.public_ip) bits.push(router.public_ip);
+    if (router.uptime_s != null) bits.push('up ' + fmtUptime(router.uptime_s));
+    els.netRouterMeta.textContent = bits.join(' · ');
+    els.netRouterMeta.classList.remove('is-error');
+  } else if (router.wan_online === false) {
+    els.netRouterMeta.textContent = 'WAN down · login OK';
+    els.netRouterMeta.classList.add('is-error');
+  } else {
+    // Authenticated but WAN read unavailable (rare): keep the login signal.
+    els.netRouterMeta.textContent = 'Reachable · login OK';
+    els.netRouterMeta.classList.remove('is-error');
+  }
+  // Reboot is only possible once we can authenticate to the router.
+  if (els.netRouterReboot) {
+    els.netRouterReboot.disabled = !routerAuthed;
+    els.netRouterReboot.title = routerAuthed
+      ? 'Reboot the router (drops the internet ~5 min)'
+      : 'Router login required to reboot';
   }
 }
 
@@ -451,11 +481,31 @@ async function rebootAccessPoint() {
   }
 }
 
+async function rebootRouter() {
+  const ok = await confirmAction({
+    title: 'Reboot router?',
+    message: 'The internet and every connection drop for about 5 minutes while the router restarts.',
+    okLabel: 'Reboot',
+    danger: true,
+  });
+  if (!ok) return;
+  toast('Rebooting the router…');
+  try {
+    await jsonApi('/api/network/router/reboot', { method: 'POST' });
+    toast('Reboot command accepted — the router will be down ~5 min', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Reboot failed: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
 export function wireNetworkControls() {
   wireConfirmDialog();
   wireNetDeviceDetail();
   if (els.netSpeedBtn) els.netSpeedBtn.addEventListener('click', runSpeedTest);
   if (els.netApReboot) els.netApReboot.addEventListener('click', rebootAccessPoint);
+  if (els.netRouterReboot) els.netRouterReboot.addEventListener('click', rebootRouter);
 }
 
 // --------------------------------------------------------- cadence + tabs
