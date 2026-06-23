@@ -29,6 +29,13 @@ pyicloud>=2.6.5
 # Browser Web Push notifications for best-effort presence transition alerts.
 pywebpush>=2.0.0
 
+# Network view spike (issue #125): NETGEAR R9000 access point (attached-device
+# inventory + reboot) over the Netgear SOAP API. The Vodafone ZXHN F6600P router
+# is reached with stdlib + requests (no library exists for its web login); the
+# optional WAN speed test uses speedtest-cli.
+pynetgear>=0.10.10
+speedtest-cli>=2.1.3
+
 # Self-signed CA + leaf cert generation for the HTTPS endpoint
 cryptography>=42.0.0
 

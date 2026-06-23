@@ -39,6 +39,8 @@ optional bearer token. Three ways to reach it once running:
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
+  - `network_client.py` — async home-network spike core: internet/AP/router health + attached-device inventory + AP reboot (issue #125).
+  - `list_network.py` — CLI that prints the live network state and inventory.
   - `webapp_config.py` — webapp host/port + auth secrets loader.
   - `static_versioning.py` — build identity (git SHA) + content-hash (`?v=`) stamping of the PWA's `.js`/`.css` URLs so a mobile PWA never serves stale cached code.
 - **`app/webapp/`** — the FastAPI + PWA product.
@@ -250,6 +252,33 @@ Generate local VAPID keys:
 ```
 
 Restart the webapp, open the installed PWA over HTTPS, go to Security → Presence, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`. Push delivery is best-effort; a failed notification never blocks arm/disarm.
+
+## Home-network spike
+
+Issue #125 adds a read-only spike for a future **Network** view: internet/WiFi/LAN health, the attached-device inventory named by MAC, network-quality alerts, and router/AP reboot — so the network can be watched and managed without logging into the vendor web UIs by hand. Full findings and the follow-up checklist are in [`docs/network-spike.md`](docs/network-spike.md).
+
+It reads three independent sources: the **NETGEAR R9000 access point** over the Netgear SOAP API (`pynetgear`) for the device inventory + AP health + reboot; the **Vodafone ZXHN F6600P router** (ZTE) over its SHA256 web login; and **internet health host-side** (OS ping latency/packet-loss + an optional `speedtest-cli` throughput run). The AP runs in access-point mode but still reports the whole wired+wireless LAN, so it carries the inventory on its own. The router's headless login is proven; its authenticated WAN-status reads and reboot are the documented follow-up.
+
+Config in `.env`:
+
+| Key | Meaning |
+|-----|---------|
+| `NETWORK_AP_HOST` | Access-point LAN IP. |
+| `NETWORK_AP_USERNAME` | AP web-admin user (usually `admin`). |
+| `NETWORK_AP_PASSWORD` | AP web-admin password. |
+| `NETWORK_ROUTER_HOST` | Router (gateway) LAN IP. |
+| `NETWORK_ROUTER_USERNAME` | Router web user (usually `user`). |
+| `NETWORK_ROUTER_PASSWORD` | Router web password. |
+
+Run the smoke command:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_network              # health + inventory
+& .\.venv\Scripts\python.exe -m src.list_network --speedtest  # + WAN throughput (~15 s)
+& .\.venv\Scripts\python.exe -m src.list_network --reboot-ap   # reboot the AP (drops WiFi ~1-2 min)
+```
+
+The CLI prints internet health (up/down, latency, packet loss, optional speed), AP and router health, and the attached-device list (MAC, IP, band, signal %, name) with weak-signal/offline alerts. Do not commit device credentials, the WiFi SSID/password, LAN IPs, or MAC/device dumps; this repository is public.
 
 ## SMA solar / energy
 
