@@ -62,10 +62,19 @@
   /* elevation — cards lean on surface + hairline border; the floating nav and
      toasts are the only elements with a real shadow. */
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
-  /* Mobile floating bottom tab bar (issue #57 — app-launcher nav style). */
-  --bottom-tabs-height: 56px;
-  --bottom-tabs-margin: 12px;
-  --bottom-tabs-pill-height: 48px;
+  /* Mobile floating bottom tab bar.
+     Measured from the supplied iPhone reference screenshots in issue #118
+     (1290px-wide captures, ~3x CSS pixels): GitHub/VLC nav outer x=64px,
+     bottom≈63px, height≈184px -> 21px side/bottom inset and 61px height;
+     active pill height≈160px -> 53px; label≈34px -> 11px. Keep the app's
+     colour tokens, but match the native-app geometry. */
+  --bottom-tabs-height: 61px;
+  --bottom-tabs-margin: 21px;
+  --bottom-tabs-pill-height: 53px;
+  --bottom-tabs-padding: 4px;
+  --bottom-tabs-gap: 4px;
+  --bottom-tabs-icon: 20px;
+  --bottom-tabs-label: 11px;
   --tabbar-bg: rgba(255, 255, 255, 0.85);
   --tabbar-border: rgba(31, 35, 40, 0.12);
   color-scheme: light dark;
@@ -268,15 +277,15 @@ html, body {
     bottom: var(--bottom-tabs-margin);
     z-index: 120;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     grid-auto-rows: var(--bottom-tabs-pill-height);
     align-content: center;
     align-items: center;
-    gap: 4px;
+    gap: var(--bottom-tabs-gap);
     height: var(--bottom-tabs-height);
     max-width: 480px;
     margin: 0 auto;
-    padding: 4px;
+    padding: var(--bottom-tabs-padding);
     background: var(--tabbar-bg);
     border: 1px solid var(--tabbar-border);
     border-radius: var(--radius-nav);
@@ -295,10 +304,10 @@ html, body {
     gap: 3px;
     min-width: 0;
     height: var(--bottom-tabs-pill-height);
-    padding: 6px 2px 5px;
+    padding: 7px 2px 6px;
     border-radius: var(--radius-pill);
     border: 1px solid transparent;
-    font-size: 11px;
+    font-size: var(--bottom-tabs-label);
     font-weight: 600;
     line-height: 1.1;
     color: var(--muted);
@@ -314,8 +323,8 @@ html, body {
 
   .tab-icon {
     display: block;
-    width: 21px;
-    height: 21px;
+    width: var(--bottom-tabs-icon);
+    height: var(--bottom-tabs-icon);
     margin-right: 0;
     vertical-align: baseline;
   }
