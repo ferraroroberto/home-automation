@@ -34,6 +34,9 @@
   --toggle-knob: #ffffff;
   --toggle-label: var(--muted);
   --close-bg: var(--card-off);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
+  --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
   /* radii (rounded scale) */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -314,8 +317,8 @@ html, body {
     transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
   }
   .tab.active {
-    background: var(--card-off);
-    border-color: var(--line);
+    background: var(--bg);
+    border-color: var(--tabbar-border);
     color: var(--accent);
     box-shadow: none;
   }
@@ -546,7 +549,11 @@ html, body {
   font-weight: 600;
   cursor: pointer;
 }
-.range-tab.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.range-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border-strong);
+}
 .range-tab:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1577,9 +1584,9 @@ button.presence-name:hover { text-decoration: underline; }
   border: 1px solid var(--line); background: var(--input-bg);
 }
 .big-btn {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  background: var(--accent-soft);
   color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border: 1px solid var(--accent-border-soft);
   border-radius: var(--radius-md); padding: 13px; min-height: 48px;
   font-size: var(--font-body); font-weight: 650; cursor: pointer;
 }
@@ -1736,12 +1743,20 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-devices-body { padding: 12px 14px 14px; }
 
 /* Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N. */
-.net-stats { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-bottom: 10px; }
+.net-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
 .net-stat-chip {
   background: var(--card-off);
   border-radius: var(--radius-pill);
-  padding: 5px 13px;
+  padding: 5px 6px;
+  min-width: 0;
+  text-align: center;
   font-size: var(--font-caption); font-weight: 600; color: var(--muted);
+  white-space: nowrap;
 }
 .net-stat-chip .net-stat-num { color: var(--ink); font-weight: 800; }
 .net-stat-chip.is-weak { color: var(--attention); }
@@ -1805,19 +1820,20 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 
 /* Device-list tools row — small sort control plus optional Show offline toggle. */
 .net-devices-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   min-height: 28px;
   margin-bottom: 4px;
 }
 .net-devices-head .range-tab:not([hidden]) {
-  flex: none;
+  justify-self: stretch;
   min-height: 28px;
-  padding: 5px 9px;
-  font-size: var(--font-caption);
+  padding: 5px 6px;
+  font-size: 0.68rem;
   line-height: 1;
+  white-space: nowrap;
 }
 .net-sort {
   display: inline-flex;
@@ -1832,18 +1848,18 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   appearance: none;
   min-height: 26px;
   padding: 4px 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--accent-border-soft);
   border-radius: var(--radius-pill);
-  background: var(--card-off);
-  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
   font: inherit;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
 }
 .net-sort-btn.active {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: var(--accent-soft);
+  border-color: var(--accent-border-strong);
   color: var(--accent);
 }
 

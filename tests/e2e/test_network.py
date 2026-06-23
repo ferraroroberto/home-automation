@@ -54,3 +54,61 @@ def test_network_tab_groups_devices_and_switches_sort(
 
     page.locator("details.net-devices-card > summary").click()
     expect(page.locator("#netDevices")).to_be_hidden()
+
+
+def test_network_header_uses_equal_chips_and_compact_offline_toggle(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    snapshot = mock_network()
+    snapshot["devices"].append({
+        "mac": "AA:00:00:00:00:05",
+        "ip": "192.0.2.15",
+        "name": "Offline Tablet",
+        "display_name": "Offline Tablet",
+        "vendor": "Fixture",
+        "category": "tablet",
+        "conn_type": "5GHz",
+        "is_wireless": True,
+        "signal": None,
+        "link_rate": None,
+        "ssid": "TestNet-5",
+        "source": "history",
+        "online": False,
+        "important": True,
+        "is_new": False,
+        "randomized": False,
+        "first_seen": 1_700_000_000,
+        "last_seen": 1_700_000_100,
+        "times_seen": 4,
+    })
+    _boot(page, base_url)
+
+    page.locator("#tabNetwork").click()
+
+    chips = page.locator("#netStats .net-stat-chip")
+    expect(chips).to_have_count(4)
+    widths = chips.evaluate_all(
+        "(nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().width))"
+    )
+    assert len(set(widths)) == 1
+
+    offline = page.locator("#netOfflineToggle")
+    expect(offline).to_have_text("Show offline")
+    head_box = page.locator(".net-devices-head").bounding_box()
+    offline_box = offline.bounding_box()
+    assert head_box is not None
+    assert offline_box is not None
+    assert abs(
+        (offline_box["x"] + offline_box["width"]) -
+        (head_box["x"] + head_box["width"])
+    ) <= 1
+
+    offline.click()
+    expect(offline).to_have_text("Hide offline")
