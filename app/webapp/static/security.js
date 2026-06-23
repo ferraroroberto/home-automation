@@ -94,6 +94,7 @@ function fmtTime(value) {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
   });
 }
 
@@ -256,7 +257,18 @@ function renderPresence() {
 
       const status = document.createElement('span');
       status.className = 'presence-status';
-      status.textContent = presenceLabel(entity) + ' · ' + presenceLocationText(entity);
+      const statusLine = document.createElement('span');
+      statusLine.className = 'presence-status-line';
+      const dist = fmtDistance(entity.distance_from_home_m);
+      statusLine.textContent = presenceLabel(entity) + (dist !== 'unknown' ? ' · ' + dist : '');
+      status.appendChild(statusLine);
+      const place = placeLabel(entity);
+      if (place) {
+        const addrLine = document.createElement('span');
+        addrLine.className = 'presence-status-addr';
+        addrLine.textContent = place;
+        status.appendChild(addrLine);
+      }
       row.appendChild(status);
       els.presenceList.appendChild(row);
       ensurePlaceLabel(entity);
