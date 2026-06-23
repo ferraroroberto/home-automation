@@ -51,6 +51,8 @@ export const state = {
   // When false (default), offline (known-but-absent) devices are hidden; when
   // true they render dimmed in a trailing "Offline" group (issue #129 Phase 4).
   networkShowOffline: false,
+  // Device row sort inside each Network group: A-Z by default, or weakest signal.
+  networkDeviceSort: 'az',
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'lights' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
@@ -73,6 +75,7 @@ export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
 export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
+export const NETWORK_DEVICE_SORT_KEY = 'home-automation.networkDeviceSort';
 export const THIS_DEVICE_PRESENCE_KEY = 'home-automation.thisDevicePresence';
 export const THIS_DEVICE_LOCATION_KEY = 'home-automation.thisDeviceLocation';
 
@@ -203,6 +206,8 @@ export const els = {
   netRouterMeta: document.getElementById('netRouterMeta'),
   netRouterReboot: document.getElementById('netRouterReboot'),
   netStats: document.getElementById('netStats'),
+  netSortAlpha: document.getElementById('netSortAlpha'),
+  netSortSignal: document.getElementById('netSortSignal'),
   netOfflineToggle: document.getElementById('netOfflineToggle'),
   netDevices: document.getElementById('netDevices'),
   netDevicesNote: document.getElementById('netDevicesNote'),

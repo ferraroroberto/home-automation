@@ -1577,7 +1577,9 @@ button.presence-name:hover { text-decoration: underline; }
   border: 1px solid var(--line); background: var(--input-bg);
 }
 .big-btn {
-  background: var(--accent); color: var(--accent-fg); border: none;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
   border-radius: var(--radius-md); padding: 13px; min-height: 48px;
   font-size: var(--font-body); font-weight: 650; cursor: pointer;
 }
@@ -1624,14 +1626,16 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .settings-card > .collapse-summary,
 .security-events-card > .collapse-summary,
 .security-zones-card > .collapse-summary,
-.presence-card > .collapse-summary {
+.presence-card > .collapse-summary,
+.net-devices-card > .collapse-summary {
   height: 52px;
   padding: 0 14px;
 }
 .settings-card[open] > .collapse-summary,
 .security-events-card[open] > .collapse-summary,
 .security-zones-card[open] > .collapse-summary,
-.presence-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
+.presence-card[open] > .collapse-summary,
+.net-devices-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
 .settings-body {
   padding: 14px;
   display: flex;
@@ -1672,7 +1676,12 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   font-weight: 700; color: var(--ink);
 }
 .net-internet-label .title-icon { width: 1.1em; height: 1.1em; }
-.net-internet-status { font-size: var(--font-heading-lg); font-weight: 800; }
+.net-internet-status {
+  flex: none;
+  font-size: var(--font-body);
+  font-weight: 700;
+  text-align: right;
+}
 .net-internet-status.is-online { color: var(--on); }
 .net-internet-status.is-offline { color: var(--deficit); }
 .net-internet-meta { margin: 6px 0 0; }
@@ -1702,13 +1711,18 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
   margin-bottom: var(--gap);
 }
-.net-health-card { padding: var(--space-md); display: flex; flex-direction: column; gap: 6px; }
+.net-health-card { padding: var(--space-md); display: flex; flex-direction: column; gap: 7px; }
 .net-health-title {
   display: inline-flex; align-items: center; gap: 0.4em;
   margin: 0; font-size: var(--font-body); font-weight: 700;
 }
 .net-health-title .title-icon { width: 1.05em; height: 1.05em; flex: none; }
-.net-health-meta { margin: 0; }
+.net-health-meta { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.net-health-meta-line {
+  display: block;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
 .net-health-meta.is-error { color: var(--deficit); }
 .net-reboot-btn {
   margin-top: auto; width: 100%;
@@ -1717,12 +1731,16 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-reboot-btn .icon { width: 1.05em; height: 1.05em; }
 .net-reboot-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Stat chips: Wired N · 5GHz N · 2.4GHz N · Weak N. */
-.net-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--gap); }
+/* Settings-style collapsible card for counts, ordering, offline toggle and list. */
+.net-devices-card { padding: 0; margin-bottom: var(--gap); }
+.net-devices-body { padding: 12px 14px 14px; }
+
+/* Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N. */
+.net-stats { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-bottom: 10px; }
 .net-stat-chip {
   background: var(--card-off);
   border-radius: var(--radius-pill);
-  padding: 5px 12px;
+  padding: 5px 13px;
   font-size: var(--font-caption); font-weight: 600; color: var(--muted);
 }
 .net-stat-chip .net-stat-num { color: var(--ink); font-weight: 800; }
@@ -1741,8 +1759,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "name signal" "meta signal";
   align-items: center;
-  column-gap: 10px;
-  padding: 9px 4px;
+  column-gap: 12px;
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 /* The device name is a tappable button (opens the detail/rename modal), with a
@@ -1785,9 +1803,49 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-signal-pct { min-width: 2.6em; text-align: right; }
 .net-devices-note { margin: 12px 4px; }
 
-/* Device-list tools row — right-aligned "Show offline" toggle (Phase 4). */
-.net-devices-head { display: flex; justify-content: flex-end; min-height: 0; }
-.net-devices-head .range-tab:not([hidden]) { margin: 2px 0 -2px; }
+/* Device-list tools row — small sort control plus optional Show offline toggle. */
+.net-devices-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 4px;
+}
+.net-devices-head .range-tab:not([hidden]) {
+  flex: none;
+  min-height: 28px;
+  padding: 5px 9px;
+  font-size: var(--font-caption);
+  line-height: 1;
+}
+.net-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--font-caption);
+  color: var(--muted);
+}
+.net-sort-label { font-weight: 600; margin-right: 2px; }
+.net-sort-btn {
+  appearance: none;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card-off);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.net-sort-btn.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--accent);
+}
 
 /* Offline (known-but-absent) devices render dimmed; the signal slot carries the
    "last seen Xh ago" text instead of a live bar. */
@@ -1811,4 +1869,8 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .confirm-message { margin: 4px 0 16px; }
 .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .confirm-cancel { background: var(--card-off); color: var(--ink); }
-.confirm-ok.is-danger { background: var(--deficit); }
+.confirm-ok.is-danger {
+  background: color-mix(in srgb, var(--deficit) 18%, transparent);
+  border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
+  color: var(--deficit);
+}
