@@ -547,6 +547,10 @@ html, body {
   cursor: pointer;
 }
 .range-tab.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.range-tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 /* ----------------------------------------------------------- grid */
 .units-grid {
@@ -933,8 +937,8 @@ html, body {
 }
 .lights-note { margin: 10px 4px; }
 .lights-toolbar {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 10px;
 }
@@ -942,7 +946,7 @@ html, body {
 .light-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   padding: 12px;
   min-width: 0;
   transition: opacity 0.15s ease;
@@ -985,90 +989,109 @@ html, body {
 .light-controls {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
 }
 .light-control-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.light-control-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  column-gap: 9px;
+}
+.light-control-label {
   color: var(--muted);
   font-size: var(--font-caption);
-}
-.light-control-value {
-  color: var(--ink);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 .light-slider {
   appearance: none;
   width: 100%;
   min-width: 0;
-  height: 28px;
+  height: 24px;
   accent-color: var(--accent);
   background: linear-gradient(
     to right,
     var(--accent) 0%,
     var(--accent) var(--light-slider-pct, 0%),
-    color-mix(in srgb, var(--muted) 20%, transparent) var(--light-slider-pct, 0%),
-    color-mix(in srgb, var(--muted) 20%, transparent) 100%
+    color-mix(in srgb, var(--line) 80%, transparent) var(--light-slider-pct, 0%),
+    color-mix(in srgb, var(--line) 80%, transparent) 100%
   );
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 100% 6px;
+  background-size: 100% 5px;
   border-radius: 999px;
 }
 .light-range-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 9px;
   align-items: center;
 }
-.light-number {
-  width: 76px;
+.light-value-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  height: var(--control-h);
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  min-width: 0;
+}
+.light-value-edit .light-number {
+  width: 100%;
+  height: 100%;
   min-width: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.light-value-edit:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.light-value-edit .light-number:focus { outline: none; }
+.light-value-unit {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 650;
 }
 .light-slider::-webkit-slider-runnable-track {
-  height: 6px;
+  height: 5px;
   border-radius: 999px;
   background: transparent;
 }
 .light-slider::-webkit-slider-thumb {
   appearance: none;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--muted) 18%, transparent);
+  border: 1px solid var(--line);
   background: var(--card);
-  box-shadow: var(--shadow-1);
-  margin-top: -7px;
+  box-shadow: 0 2px 8px rgba(31, 35, 40, 0.18);
+  margin-top: -8.5px;
 }
 .light-slider::-moz-range-track {
-  height: 6px;
+  height: 5px;
   border-radius: 999px;
-  background: transparent;
+  background: color-mix(in srgb, var(--line) 80%, transparent);
 }
 .light-slider::-moz-range-progress {
-  height: 6px;
+  height: 5px;
   border-radius: 999px;
   background: var(--accent);
 }
 .light-slider::-moz-range-thumb {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--muted) 18%, transparent);
+  border: 1px solid var(--line);
   background: var(--card);
-  box-shadow: var(--shadow-1);
+  box-shadow: 0 2px 8px rgba(31, 35, 40, 0.18);
 }
-.light-foot { text-align: right; }
 
 /* -------------------------------------------------------- security tab */
 .security-card {

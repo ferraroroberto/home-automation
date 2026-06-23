@@ -526,10 +526,12 @@ The **Light** tab controls Elgato Key Light style devices directly over the
 local LAN HTTP API. It is cloud-free at runtime: the backend tries Bonjour/mDNS
 discovery for `_elg._tcp.local.` and also supports an explicit host fallback
 for networks where discovery is blocked. It has per-light power, brightness,
-and warmth controls, exact numeric entry beside each slider, all-on/all-off
-buttons for reachable lights, and a detail modal that saves a custom label in
-gitignored `config/elgato_display_names.json`. Spike findings and the
-implementation choice are recorded in [`docs/elgato-lights.md`](docs/elgato-lights.md).
+and warmth controls, exact numeric entry beside each slider, state-aware
+all-on/all-off buttons for reachable lights, and a detail modal that saves a
+custom label in gitignored `config/elgato_display_names.json` while showing the
+original Elgato identity, LAN address, MAC metadata when available, firmware,
+and colour-temperature readback. Spike findings and the implementation choice
+are recorded in [`docs/elgato-lights.md`](docs/elgato-lights.md).
 
 Optional config in `.env`:
 

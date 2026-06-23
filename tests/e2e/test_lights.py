@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
@@ -66,14 +67,66 @@ def test_lights_controls_round_trip(
     brightness = card.locator('input[aria-label="Brightness exact value for Fixture Key Light"]')
     brightness.fill("55")
     brightness.dispatch_event("change")
-    expect(card.locator(".light-control-value").first).to_have_text("55%")
+    expect(brightness).to_have_value("55")
+    expect(card.locator(".light-control-value")).to_have_count(0)
+    expect(card.locator(".light-value-edit")).to_have_count(2)
 
     card = page.locator('[data-light-id="192.0.2.10:9123"]')
     warmth = card.locator('input[aria-label="Warmth exact value for Fixture Key Light"]')
     expect(warmth).to_have_value("5000")
     warmth.fill("4000")
     warmth.dispatch_event("change")
-    expect(card.locator(".light-control-value").nth(1)).to_have_text("4000 K")
+    expect(warmth).to_have_value("4000")
+
+
+def test_lights_bulk_buttons_follow_reachable_state_and_show_progress(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    sample_lights: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_lights: Callable,
+) -> None:
+    lights = copy.deepcopy(sample_lights)
+    lights[1].update(
+        {
+            "name": "Fixture Strip",
+            "product_name": "Elgato Light Strip",
+            "reachable": True,
+            "error": None,
+            "on": False,
+            "brightness": 75,
+        }
+    )
+    store = mock_lights(lights)
+    mock_api(sample_units)
+    mock_energy()
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    page.locator("#tabLights").click()
+    page.wait_for_selector("#paneLights", state="visible")
+
+    all_on = page.get_by_test_id("lights-all-on")
+    all_off = page.get_by_test_id("lights-all-off")
+    expect(all_on).to_be_enabled()
+    expect(all_off).to_be_enabled()
+
+    all_on.click()
+    expect(page.locator("#toast")).to_have_text("Activating 1 light")
+    expect(page.locator("#toast")).to_have_text("Fixture Strip on")
+    expect(all_on).to_be_disabled()
+    expect(all_off).to_be_enabled()
+    assert store[0]["on"] is True
+    assert store[1]["on"] is True
+
+    all_off.click()
+    expect(page.locator("#toast")).to_have_text("Deactivating 2 lights")
+    expect(page.locator("#toast")).to_have_text("Fixture Strip off")
+    expect(all_on).to_be_enabled()
+    expect(all_off).to_be_disabled()
+    assert store[0]["on"] is False
+    assert store[1]["on"] is False
 
 
 def test_lights_bulk_controls_and_detail_rename(
@@ -93,10 +146,18 @@ def test_lights_bulk_controls_and_detail_rename(
     page.locator("#tabLights").click()
     page.wait_for_selector("#paneLights", state="visible")
 
+    expect(page.get_by_test_id("lights-all-on")).to_be_disabled()
+    expect(page.get_by_test_id("lights-all-off")).to_be_enabled()
     page.get_by_test_id("lights-all-off").click()
+    expect(page.locator("#toast")).to_have_text("Fixture Key Light off")
+    expect(page.get_by_test_id("lights-all-on")).to_be_enabled()
+    expect(page.get_by_test_id("lights-all-off")).to_be_disabled()
     assert store[0]["on"] is False
     assert store[1]["on"] is False
     page.get_by_test_id("lights-all-on").click()
+    expect(page.locator("#toast")).to_have_text("Fixture Key Light on")
+    expect(page.get_by_test_id("lights-all-on")).to_be_disabled()
+    expect(page.get_by_test_id("lights-all-off")).to_be_enabled()
     assert store[0]["on"] is True
     assert store[1]["on"] is False
 
@@ -108,6 +169,9 @@ def test_lights_bulk_controls_and_detail_rename(
     expect(page.locator("#lightHost")).to_have_text("192.0.2.10")
     expect(page.locator("#lightPort")).to_have_text("9123")
     expect(page.locator("#lightMac")).to_have_text("AA:BB:CC:DD:EE:FF")
+    expect(page.locator("#lightFirmware")).to_have_text("1.0")
+    expect(page.locator("#lightTemperatureMeta")).to_have_text("200 mired · 5000 K")
+    expect(page.locator("#lightIdentifier")).to_have_text("192.0.2.10:9123")
 
     page.locator("#lightDisplayName").fill("Desk left")
     page.locator("#lightDisplayName").press("Enter")
