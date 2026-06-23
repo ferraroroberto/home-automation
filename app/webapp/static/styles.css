@@ -932,6 +932,12 @@ html, body {
   .lights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .lights-note { margin: 10px 4px; }
+.lights-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 0 10px;
+}
 
 .light-card {
   display: flex;
@@ -957,13 +963,20 @@ html, body {
   gap: 3px;
 }
 .light-name {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
   color: var(--ink);
   font-weight: 650;
   font-size: var(--font-body);
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
+.light-name:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .light-meta,
 .light-unavailable {
   color: var(--muted);
@@ -993,8 +1006,67 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 .light-slider {
+  appearance: none;
   width: 100%;
+  min-width: 0;
+  height: 28px;
   accent-color: var(--accent);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--light-slider-pct, 0%),
+    color-mix(in srgb, var(--muted) 20%, transparent) var(--light-slider-pct, 0%),
+    color-mix(in srgb, var(--muted) 20%, transparent) 100%
+  );
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 6px;
+  border-radius: 999px;
+}
+.light-range-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 10px;
+  align-items: center;
+}
+.light-number {
+  width: 76px;
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.light-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+.light-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--muted) 18%, transparent);
+  background: var(--card);
+  box-shadow: var(--shadow-1);
+  margin-top: -7px;
+}
+.light-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+.light-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.light-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--muted) 18%, transparent);
+  background: var(--card);
+  box-shadow: var(--shadow-1);
 }
 .light-foot { text-align: right; }
 

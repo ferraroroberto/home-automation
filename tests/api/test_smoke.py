@@ -131,17 +131,24 @@ def test_lights_route_runs_with_monkeypatched_lan(
         temperature=200,
         temperature_k=5000,
         supports_temperature=True,
+        mac_address="AA:BB:CC:DD:EE:FF",
     )
 
     async def fake_fetch_lights() -> List[ElgatoLight]:
         return [light]
 
     monkeypatch.setattr("app.webapp.routers.lights.fetch_lights", fake_fetch_lights)
+    monkeypatch.setattr(
+        "app.webapp.routers.lights.load_elgato_display_names",
+        lambda: {"192.0.2.10:9123": "Desk left"},
+    )
 
     resp = client.get("/api/lights")
     assert resp.status_code == 200
     body = resp.json()
     assert body["lights"][0]["light_id"] == "192.0.2.10:9123"
+    assert body["lights"][0]["display_name"] == "Desk left"
+    assert body["lights"][0]["mac_address"] == "AA:BB:CC:DD:EE:FF"
     assert body["lights"][0]["brightness"] == 42
     assert body["lights"][0]["temperature_k"] == 5000
     assert body["lights"][0]["supports_temperature"] is True
@@ -190,6 +197,30 @@ def test_lights_control_route_reads_back(
         },
     }
     assert resp.json()["on"] is False
+
+
+def test_lights_display_name_route_persists_override(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``PUT /api/lights/{id}/display_name`` stores the local label override."""
+    calls = {}
+
+    def fake_set_display_name(light_id: str, display_name: str) -> None:
+        calls["light_id"] = light_id
+        calls["display_name"] = display_name
+
+    monkeypatch.setattr(
+        "app.webapp.routers.lights.set_elgato_display_name", fake_set_display_name
+    )
+
+    resp = client.put(
+        "/api/lights/192.0.2.10:9123/display_name",
+        json={"display_name": " Desk left "},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"light_id": "192.0.2.10:9123", "display_name": "Desk left"}
+    assert calls == {"light_id": "192.0.2.10:9123", "display_name": "Desk left"}
 
 
 def test_security_route_surfaces_battery_and_trouble(

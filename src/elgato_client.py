@@ -75,6 +75,8 @@ class ElgatoLight:
     temperature: int
     temperature_k: int
     supports_temperature: bool
+    display_name: Optional[str] = None
+    mac_address: Optional[str] = None
     reachable: bool = True
     error: Optional[str] = None
 
@@ -228,6 +230,14 @@ def _first_light(payload: dict[str, Any], endpoint: ElgatoEndpoint) -> dict[str,
     return lights[0]
 
 
+def _first_text(payload: dict[str, Any], keys: tuple[str, ...]) -> Optional[str]:
+    for key in keys:
+        value = payload.get(key)
+        if value:
+            return str(value)
+    return None
+
+
 async def read_light(endpoint: ElgatoEndpoint) -> ElgatoLight:
     """Read one Elgato light endpoint."""
     timeout = aiohttp.ClientTimeout(total=_HTTP_TIMEOUT_S)
@@ -248,6 +258,10 @@ async def read_light(endpoint: ElgatoEndpoint) -> ElgatoLight:
         or info.get("productName")
         or f"Elgato {endpoint.host}"
     )
+    mac_address = _first_text(
+        info,
+        ("macAddress", "macaddress", "mac_address", "wifiMacAddress"),
+    )
     return ElgatoLight(
         light_id=endpoint.light_id,
         host=endpoint.host,
@@ -260,6 +274,7 @@ async def read_light(endpoint: ElgatoEndpoint) -> ElgatoLight:
         temperature=temperature,
         temperature_k=temperature_to_kelvin(temperature) if supports_temperature else 0,
         supports_temperature=supports_temperature,
+        mac_address=mac_address,
     )
 
 

@@ -316,17 +316,17 @@
       <button id="tabLights" type="button" class="tab" data-tab="lights"
               role="tab" aria-selected="false" aria-controls="paneLights" tabindex="-1">
         <svg class="icon tab-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
-        <span class="tab-label">Lights</span>
+        <span class="tab-label">Light</span>
       </button>
       <button id="tabNetwork" type="button" class="tab" data-tab="network"
               role="tab" aria-selected="false" aria-controls="paneNetwork" tabindex="-1">
         <svg class="icon tab-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
-        <span class="tab-label">Network</span>
+        <span class="tab-label">Net</span>
       </button>
       <button id="tabSecurity" type="button" class="tab" data-tab="security"
               role="tab" aria-selected="false" aria-controls="paneSecurity" tabindex="-1">
         <svg class="icon tab-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
-        <span class="tab-label">Security</span>
+        <span class="tab-label">Alarm</span>
       </button>
     </nav>
 
@@ -628,6 +628,10 @@
 
     <!-- ============================== LIGHTS ============================= -->
     <section id="paneLights" class="pane" role="tabpanel" aria-labelledby="tabLights" aria-label="Elgato lights" hidden>
+      <div class="lights-toolbar" aria-label="Light group controls">
+        <button id="lightsAllOn" type="button" class="range-tab" data-testid="lights-all-on">All on</button>
+        <button id="lightsAllOff" type="button" class="range-tab" data-testid="lights-all-off">All off</button>
+      </div>
       <section id="lightsGrid" class="lights-grid" aria-label="Elgato lights"></section>
       <p id="lightsNote" class="muted small lights-note" hidden></p>
     </section>
@@ -906,6 +910,27 @@
           <p class="muted small detail-hint">Each enabled entry runs once per day. Off entries only turn the unit off; on entries can apply a full profile before the temperature rule resumes steering.</p>
         </div>
       </details>
+    </div>
+  </dialog>
+
+  <!-- Elgato light detail + rename modal. Mirrors the plug rename flow while
+       surfacing the read-only LAN identity needed to map physical lights. -->
+  <dialog id="lightDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="lightDetailName">Light</h2>
+        <button id="lightDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="lightDisplayName" type="text" class="input-native" placeholder="Custom label...">
+      </label>
+      <div class="row"><span>Original name</span><span id="lightOriginalName" class="muted">—</span></div>
+      <div class="row"><span>Product</span><span id="lightProduct" class="muted">—</span></div>
+      <div class="row"><span>IP / host</span><span id="lightHost" class="muted">—</span></div>
+      <div class="row"><span>Port</span><span id="lightPort" class="muted">—</span></div>
+      <div class="row"><span>MAC</span><span id="lightMac" class="muted">—</span></div>
     </div>
   </dialog>
 
