@@ -19,6 +19,8 @@ export const state = {
   selectedId: null,
   // Local Tuya / Smart Life device cards from GET /api/tuya.
   plugs: [],
+  // Elgato light cards from GET /api/lights.
+  lights: [],
   // device_id whose rename modal is open (or null).
   selectedPlugId: null,
   // When false (default), only cards with has_valid_ip===true are shown.
@@ -47,7 +49,7 @@ export const state = {
   // When false (default), offline (known-but-absent) devices are hidden; when
   // true they render dimmed in a trailing "Offline" group (issue #129 Phase 4).
   networkShowOffline: false,
-  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'network' | 'security'.
+  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'lights' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
   range: 'day',
@@ -83,12 +85,14 @@ export const els = {
   tabAc: document.getElementById('tabAc'),
   tabEnergy: document.getElementById('tabEnergy'),
   tabPlugs: document.getElementById('tabPlugs'),
+  tabLights: document.getElementById('tabLights'),
   tabNetwork: document.getElementById('tabNetwork'),
   tabSecurity: document.getElementById('tabSecurity'),
   paneHome: document.getElementById('paneHome'),
   paneAc: document.getElementById('paneAc'),
   paneEnergy: document.getElementById('paneEnergy'),
   panePlugs: document.getElementById('panePlugs'),
+  paneLights: document.getElementById('paneLights'),
   paneNetwork: document.getElementById('paneNetwork'),
   paneSecurity: document.getElementById('paneSecurity'),
   // Security (RISCO alarm) tab
@@ -165,6 +169,9 @@ export const els = {
   plugDetailName: document.getElementById('plugDetailName'),
   plugDisplayName: document.getElementById('plugDisplayName'),
   plugDetailClose: document.getElementById('plugDetailClose'),
+  // Elgato Lights tab
+  lightsGrid: document.getElementById('lightsGrid'),
+  lightsNote: document.getElementById('lightsNote'),
   // Network (LAN) tab
   netInternetStatus: document.getElementById('netInternetStatus'),
   netInternetMeta: document.getElementById('netInternetMeta'),

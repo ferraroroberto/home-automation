@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
+from src.elgato_client import ElgatoLight
 from src.location_config import LocationConfig
 from src.melcloud_client import DeviceInfo
 from src.network_client import (
@@ -112,6 +113,83 @@ def test_energy_route_runs_with_monkeypatched_cloud(
     assert body["pv_power_w"] == 2500.0
     assert body["inverter_reachable"] is True
     assert body["meter_reachable"] is True
+
+
+def test_lights_route_runs_with_monkeypatched_lan(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/lights`` serialises Elgato state — fetcher faked, no LAN."""
+    light = ElgatoLight(
+        light_id="192.0.2.10:9123",
+        host="192.0.2.10",
+        port=9123,
+        name="Fixture Key Light",
+        product_name="Elgato Key Light",
+        firmware="1.0",
+        on=True,
+        brightness=42,
+        temperature=200,
+        temperature_k=5000,
+        supports_temperature=True,
+    )
+
+    async def fake_fetch_lights() -> List[ElgatoLight]:
+        return [light]
+
+    monkeypatch.setattr("app.webapp.routers.lights.fetch_lights", fake_fetch_lights)
+
+    resp = client.get("/api/lights")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["lights"][0]["light_id"] == "192.0.2.10:9123"
+    assert body["lights"][0]["brightness"] == 42
+    assert body["lights"][0]["temperature_k"] == 5000
+    assert body["lights"][0]["supports_temperature"] is True
+
+
+def test_lights_control_route_reads_back(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``POST /api/lights/{id}`` returns the accepted read-back state."""
+    calls = {}
+    accepted = ElgatoLight(
+        light_id="192.0.2.10:9123",
+        host="192.0.2.10",
+        port=9123,
+        name="Fixture Key Light",
+        product_name="Elgato Key Light",
+        firmware="1.0",
+        on=False,
+        brightness=30,
+        temperature=250,
+        temperature_k=4000,
+        supports_temperature=True,
+    )
+
+    async def fake_set_light_state(light_id: str, **kwargs) -> ElgatoLight:
+        calls["light_id"] = light_id
+        calls["kwargs"] = kwargs
+        return accepted
+
+    monkeypatch.setattr(
+        "app.webapp.routers.lights.set_light_state", fake_set_light_state
+    )
+
+    resp = client.post(
+        "/api/lights/192.0.2.10:9123",
+        json={"on": False, "brightness": 30, "temperature_k": 4000},
+    )
+    assert resp.status_code == 200
+    assert calls == {
+        "light_id": "192.0.2.10:9123",
+        "kwargs": {
+            "on": False,
+            "brightness": 30,
+            "temperature": None,
+            "temperature_k": 4000,
+        },
+    }
+    assert resp.json()["on"] is False
 
 
 def test_security_route_surfaces_battery_and_trouble(

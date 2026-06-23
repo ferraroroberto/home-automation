@@ -922,6 +922,82 @@ html, body {
 
 .plug-unavailable { color: var(--muted); font-size: var(--font-caption); }
 
+/* ----------------------------------------------------- lights (Elgato) */
+.lights-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--gap);
+}
+@media (min-width: 520px) {
+  .lights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.lights-note { margin: 10px 4px; }
+
+.light-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  min-width: 0;
+  transition: opacity 0.15s ease;
+}
+.light-card.is-off { background: var(--card-off); }
+.light-card.is-unavailable { background: var(--card-off); opacity: 0.65; }
+
+.light-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.light-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.light-name {
+  color: var(--ink);
+  font-weight: 650;
+  font-size: var(--font-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.light-meta,
+.light-unavailable {
+  color: var(--muted);
+  font-size: var(--font-caption);
+}
+.light-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.light-control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.light-control-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+}
+.light-control-value {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.light-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.light-foot { text-align: right; }
+
 /* -------------------------------------------------------- security tab */
 .security-card {
   padding: 12px;
