@@ -1151,14 +1151,27 @@ button.security-zone-name:hover { text-decoration: underline; }
 }
 .presence-status {
   justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+}
+.presence-status-line {
   font-size: var(--font-caption);
   font-weight: 800;
   white-space: nowrap;
-  text-align: right;
 }
-.presence-row.is-home .presence-status { color: var(--on); }
-.presence-row.is-away .presence-status { color: var(--deficit); }
-.presence-row.is-unknown .presence-status { color: var(--muted); }
+.presence-status-addr {
+  font-size: var(--font-caption);
+  font-weight: 400;
+  color: var(--muted);
+  white-space: normal;
+  word-break: break-word;
+}
+.presence-row.is-home .presence-status-line { color: var(--on); }
+.presence-row.is-away .presence-status-line { color: var(--deficit); }
+.presence-row.is-unknown .presence-status-line { color: var(--muted); }
 .presence-row.is-hidden { opacity: 0.55; }
 .presence-row.is-stale .presence-meta { color: var(--attention); }
 button.presence-name {
@@ -1226,8 +1239,8 @@ button.presence-name:hover { text-decoration: underline; }
   }
   .presence-status {
     justify-self: start;
+    align-items: flex-start;
     text-align: left;
-    white-space: normal;
   }
   .presence-card .security-zones-tools {
     gap: 6px;
