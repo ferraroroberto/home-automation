@@ -25,6 +25,24 @@ const GROUPS = [
   { key: '2.4GHz', label: '2.4 GHz' },
   { key: 'wired', label: 'Wired' },
 ];
+// Coarse device category (from the backend heuristic) → Lucide sprite glyph.
+// 'unknown' falls back to a neutral device glyph so every row is iconed alike.
+const CATEGORY_ICONS = {
+  phone: 'smartphone',
+  computer: 'laptop',
+  tv: 'tv',
+  iot: 'cpu',
+  nas: 'hard-drive',
+  printer: 'printer',
+  router: 'router',
+  unknown: 'monitor-smartphone',
+};
+// Human band/connection label for the detail modal.
+const CONN_LABELS = { '5GHz': '5 GHz', '2.4GHz': '2.4 GHz', wired: 'Wired' };
+
+function categoryIcon(category) {
+  return CATEGORY_ICONS[category] || CATEGORY_ICONS.unknown;
+}
 
 let networkTimer = null;
 let speedtestRunning = false;
@@ -184,8 +202,11 @@ function renderStats(devices) {
   els.netStats.hidden = false;
 }
 
+// Identity precedence: custom label → OUI vendor → reported hostname → MAC
+// (issue #129 Phase 2). Most clients report an 'n/a' hostname, so the vendor
+// and the rename are what make the list legible.
 function deviceLabel(d) {
-  return d.name || d.mac || '(unknown)';
+  return d.display_name || d.vendor || d.name || d.mac || '(unknown)';
 }
 
 // Weakest signal first within a group; nulls (e.g. wired) sort last, then by name.
@@ -202,15 +223,29 @@ function buildDeviceRow(d) {
   const weak = d.is_wireless && d.signal != null && d.signal < WEAK_SIGNAL_PCT;
   if (weak) row.classList.add('is-weak');
 
-  const name = document.createElement('span');
+  const label = deviceLabel(d);
+  // The name is a button that opens the detail/rename modal — mirrors the
+  // detector/plug/presence rows. A leading category glyph gives identity at a
+  // glance; the text ellipsises so long labels don't push the signal off-row.
+  const name = document.createElement('button');
+  name.type = 'button';
   name.className = 'net-device-name';
-  name.textContent = deviceLabel(d);
+  name.title = 'Device details · rename';
+  name.innerHTML = '<svg class="icon net-device-icon" aria-hidden="true"><use href="#i-' +
+    categoryIcon(d.category) + '"></use></svg>';
+  const text = document.createElement('span');
+  text.className = 'net-device-name-text';
+  text.textContent = label;
+  name.appendChild(text);
+  name.addEventListener('click', function () { openNetDeviceDetail(d.mac); });
   row.appendChild(name);
 
   const meta = document.createElement('span');
   meta.className = 'net-device-meta';
+  // IP, plus the vendor when it isn't already the shown label (avoids "Apple ·
+  // Apple"). SSID lives in the detail modal to keep the row uncluttered.
   const metaBits = [d.ip || '—'];
-  if (d.ssid) metaBits.push(d.ssid);
+  if (d.vendor && label !== d.vendor) metaBits.push(d.vendor);
   meta.textContent = metaBits.join(' · ');
   row.appendChild(meta);
 
@@ -274,6 +309,89 @@ function renderNetwork() {
   renderDevices(net ? net.devices : []);
 }
 
+// ------------------------------------------------- device detail + rename
+function deviceByMac(mac) {
+  const list = (state.network && state.network.devices) || [];
+  return list.find(function (d) { return d.mac === mac; }) || null;
+}
+
+function connText(d) {
+  const base = CONN_LABELS[d.conn_type] || d.conn_type || '—';
+  return d.link_rate ? base + ' · ' + d.link_rate + ' Mbps' : base;
+}
+
+function signalText(d) {
+  if (d.signal != null) return d.signal + '%';
+  return d.conn_type === 'wired' ? 'Wired' : '—';
+}
+
+function openNetDeviceDetail(mac) {
+  const d = deviceByMac(mac);
+  if (!d) return;
+  state.selectedNetDeviceMac = mac;
+  els.netDeviceDetailName.textContent = deviceLabel(d);
+  els.netDeviceVendor.textContent = d.vendor || '—';
+  els.netDeviceIp.textContent = d.ip || '—';
+  els.netDeviceConn.textContent = connText(d);
+  els.netDeviceSignal.textContent = signalText(d);
+  els.netDeviceSsid.textContent = d.ssid || '—';
+  els.netDeviceDisplayName.value = d.display_name || '';
+  els.netDeviceDisplayName.placeholder = d.vendor || d.name || 'Custom label…';
+  // The MAC is the stable key the label maps back to; flag randomised ones so a
+  // missing vendor / churning row is explained rather than mysterious.
+  els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
+    (d.randomized ? ' · randomised address' : '');
+  if (typeof els.netDeviceDialog.showModal === 'function') els.netDeviceDialog.showModal();
+  else els.netDeviceDialog.setAttribute('open', '');
+  els.netDeviceDisplayName.focus();
+}
+
+function closeNetDeviceDetail() {
+  state.selectedNetDeviceMac = null;
+  if (typeof els.netDeviceDialog.close === 'function') els.netDeviceDialog.close();
+  else els.netDeviceDialog.removeAttribute('open');
+}
+
+async function saveNetDeviceName() {
+  const mac = state.selectedNetDeviceMac;
+  if (!mac) return;
+  const newName = els.netDeviceDisplayName.value.trim();
+  try {
+    await jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/display_name', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: newName }),
+    });
+    // Optimistic local update so the list + modal title reflect it without a
+    // refetch (the next poll re-merges the same override server-side anyway).
+    if (state.network && Array.isArray(state.network.devices)) {
+      state.network.devices = state.network.devices.map(function (d) {
+        return d.mac === mac ? Object.assign({}, d, { display_name: newName || null }) : d;
+      });
+    }
+    const d = deviceByMac(mac);
+    if (d) els.netDeviceDetailName.textContent = deviceLabel(d);
+    renderNetwork();
+    toast('Name saved', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to save name: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+function wireNetDeviceDetail() {
+  if (!els.netDeviceDialog) return;
+  els.netDeviceDetailClose.addEventListener('click', closeNetDeviceDetail);
+  els.netDeviceDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.netDeviceDialog) closeNetDeviceDetail();  // backdrop
+  });
+  els.netDeviceDisplayName.addEventListener('blur', saveNetDeviceName);
+  els.netDeviceDisplayName.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); els.netDeviceDisplayName.blur(); }
+  });
+}
+
 // ----------------------------------------------------------------- load
 async function loadNetwork(opts) {
   const speedtest = !!(opts && opts.speedtest);
@@ -335,6 +453,7 @@ async function rebootAccessPoint() {
 
 export function wireNetworkControls() {
   wireConfirmDialog();
+  wireNetDeviceDetail();
   if (els.netSpeedBtn) els.netSpeedBtn.addEventListener('click', runSpeedTest);
   if (els.netApReboot) els.netApReboot.addEventListener('click', rebootAccessPoint);
 }

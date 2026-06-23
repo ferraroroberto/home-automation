@@ -227,7 +227,9 @@ def test_network_route_flattens_state_with_monkeypatched_core(
 
     An unreachable router stays 200 (reported on its card, not a 500), and
     ``is_wireless`` is sent per device so the band-grouped list doesn't re-derive
-    the wired/wireless split client-side (issue #129).
+    the wired/wireless split client-side (issue #129). Phase-2 identity is layered
+    on at render time: the OUI ``vendor``, a coarse ``category``, the ``randomized``
+    flag, and the per-MAC ``display_name`` override.
     """
     state = NetworkState(
         internet=InternetHealth(
@@ -238,12 +240,14 @@ def test_network_route_flattens_state_with_monkeypatched_core(
         ),
         router=RouterHealth(reachable=False, error="no response"),
         devices=(
+            # Espressif IoT chip with no hostname — vendor + category make it legible.
             NetDevice(
-                mac="AA:BB", ip="192.168.0.5", name="iPad", conn_type="5GHz",
+                mac="5C:CF:7F:AA:BB:CC", ip="192.168.0.5", name=None, conn_type="5GHz",
                 signal=28, link_rate=300, ssid="Home", source="ap",
             ),
+            # Wired host carrying a custom label (override merged below).
             NetDevice(
-                mac="CC:DD", ip="192.168.0.10", name="NAS", conn_type="wired",
+                mac="B8:27:EB:11:22:33", ip="192.168.0.10", name="nas", conn_type="wired",
                 signal=None, link_rate=1000, ssid=None, source="ap",
             ),
         ),
@@ -257,6 +261,11 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     monkeypatch.setattr(
         "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
     )
+    # A custom label for the wired host, keyed by the normalised MAC.
+    monkeypatch.setattr(
+        "app.webapp.routers.network.load_network_display_names",
+        lambda: {"B8:27:EB:11:22:33": "Office Pi"},
+    )
 
     resp = client.get("/api/network")
     assert resp.status_code == 200
@@ -266,6 +275,15 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     assert body["router"]["reachable"] is False
     assert [d["is_wireless"] for d in body["devices"]] == [True, False]
     assert body["alerts"][0].startswith("1 wireless")
+
+    iot, wired = body["devices"]
+    assert iot["vendor"] == "Espressif"
+    assert iot["category"] == "iot"
+    assert iot["randomized"] is False
+    assert iot["display_name"] is None
+    assert wired["vendor"] == "Raspberry Pi"
+    assert wired["display_name"] == "Office Pi"
+    assert wired["category"] == "nas"  # hostname "nas" keyword wins
 
 
 def test_network_reboot_access_point_invokes_core(
@@ -285,6 +303,62 @@ def test_network_reboot_access_point_invokes_core(
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
     assert calls["n"] == 1
+
+
+def test_network_device_rename_persists(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """``PUT /api/network/devices/{mac}/display_name`` writes the override atomically.
+
+    The MAC is normalised (upper-cased) before it becomes the store key, so a
+    rename keyed under any casing round-trips (issue #129 Phase 2).
+    """
+    import src.network_display_names as ndn
+
+    store = tmp_path / "network_display_names.json"
+    monkeypatch.setattr(ndn, "DEFAULT_PATH", store)
+
+    resp = client.put(
+        "/api/network/devices/a4:cf:12:aa:bb:cc/display_name",
+        json={"display_name": "Garage sensor"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"mac": "A4:CF:12:AA:BB:CC", "display_name": "Garage sensor"}
+    assert ndn.load_network_display_names() == {"A4:CF:12:AA:BB:CC": "Garage sensor"}
+
+    # Clearing removes the entry.
+    resp = client.put(
+        "/api/network/devices/A4:CF:12:AA:BB:CC/display_name",
+        json={"display_name": "  "},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["display_name"] is None
+    assert ndn.load_network_display_names() == {}
+
+
+def test_network_oui_vendor_and_category_heuristics() -> None:
+    """The bundled OUI table + heuristics: known prefix, miss, and randomised MAC."""
+    from src.network_oui import (
+        category_for_device,
+        is_randomized_mac,
+        vendor_for_mac,
+    )
+
+    # A known prefix resolves regardless of casing/separators; an unknown one is None.
+    assert vendor_for_mac("5c:cf:7f:11:22:33") == "Espressif"
+    assert vendor_for_mac("B8-27-EB-44-55-66") == "Raspberry Pi"
+    assert vendor_for_mac("02:00:00:00:00:01") is None  # unknown + locally-administered
+
+    # Locally-administered (randomised) addresses are flagged and never vendored.
+    assert is_randomized_mac("DA:A1:19:00:00:01") is True   # 0xDA bit-1 set
+    assert is_randomized_mac("B8:27:EB:00:00:01") is False  # universally administered
+    assert vendor_for_mac("DA:A1:19:00:00:01") is None
+
+    # Category: hostname keyword wins; vendor is the weak fallback; else unknown.
+    assert category_for_device("Kitchen-iPad", "Apple", "5GHz") == "phone"
+    assert category_for_device(None, "Espressif", "5GHz") == "iot"
+    assert category_for_device("office-laserjet", None, "wired") == "printer"
+    assert category_for_device(None, None, "wired") == "unknown"
 
 
 def test_presence_route_serializes_find_my_snapshot(

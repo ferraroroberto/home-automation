@@ -239,6 +239,40 @@
       <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
       <path d="M21 3v5h-5" />
     </symbol>
+    <!-- Device-category glyphs (issue #129 Phase 2) — the Network device list -->
+    <symbol id="i-laptop" viewBox="0 0 24 24" fill="none">
+      <path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z" />
+      <path d="M20.054 15.987H3.946" />
+    </symbol>
+    <symbol id="i-tv" viewBox="0 0 24 24" fill="none">
+      <path d="m17 2-5 5-5-5" />
+      <rect width="20" height="15" x="2" y="7" rx="2" />
+    </symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24" fill="none">
+      <path d="M12 20v2" /><path d="M12 2v2" /><path d="M17 20v2" /><path d="M17 2v2" />
+      <path d="M2 12h2" /><path d="M2 17h2" /><path d="M2 7h2" />
+      <path d="M20 12h2" /><path d="M20 17h2" /><path d="M20 7h2" />
+      <path d="M7 20v2" /><path d="M7 2v2" />
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <rect x="8" y="8" width="8" height="8" rx="1" />
+    </symbol>
+    <symbol id="i-hard-drive" viewBox="0 0 24 24" fill="none">
+      <path d="M10 16h.01" />
+      <path d="M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+      <path d="M21.946 12.013H2.054" />
+      <path d="M6 16h.01" />
+    </symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none">
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" />
+      <rect x="6" y="14" width="12" height="8" rx="1" />
+    </symbol>
+    <symbol id="i-monitor-smartphone" viewBox="0 0 24 24" fill="none">
+      <path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" />
+      <path d="M10 19v-3.96 3.15" />
+      <path d="M7 19h5" />
+      <rect width="6" height="10" x="16" y="12" rx="2" />
+    </symbol>
   </svg>
 
   <main class="app">
@@ -921,6 +955,33 @@
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- Attached-device detail + rename modal (issue #129 Phase 2). Mirrors the
+       detector/plug rename dialogs; surfaces the read-only identity the AP
+       reports (vendor, IP, band, signal, link rate, SSID) plus the MAC, so a
+       custom label can be matched back to the physical device. -->
+  <dialog id="netDeviceDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="netDeviceDetailName">Device</h2>
+        <button id="netDeviceDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Vendor</span><span id="netDeviceVendor" class="muted">—</span></div>
+      <div class="row"><span>IP address</span><span id="netDeviceIp" class="muted">—</span></div>
+      <div class="row"><span>Connection</span><span id="netDeviceConn" class="muted">—</span></div>
+      <div class="row"><span>Signal</span><span id="netDeviceSignal" class="muted">—</span></div>
+      <div class="row"><span>SSID</span><span id="netDeviceSsid" class="muted">—</span></div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="netDeviceDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <!-- The MAC is the stable identifier the label maps back to; flagged when
+           it's a randomised (locally-administered) address. -->
+      <p id="netDeviceMac" class="muted small zone-original-name"></p>
     </div>
   </dialog>
 

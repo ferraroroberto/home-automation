@@ -42,6 +42,8 @@ export const state = {
   selectedZoneId: null,
   // Home-network (LAN) snapshot from GET /api/network (issue #129).
   network: null,
+  // MAC of the device whose detail/rename modal is open (or null).
+  selectedNetDeviceMac: null,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
@@ -176,6 +178,17 @@ export const els = {
   netStats: document.getElementById('netStats'),
   netDevices: document.getElementById('netDevices'),
   netDevicesNote: document.getElementById('netDevicesNote'),
+  // Per-device detail + rename modal
+  netDeviceDialog: document.getElementById('netDeviceDialog'),
+  netDeviceDetailName: document.getElementById('netDeviceDetailName'),
+  netDeviceDetailClose: document.getElementById('netDeviceDetailClose'),
+  netDeviceVendor: document.getElementById('netDeviceVendor'),
+  netDeviceIp: document.getElementById('netDeviceIp'),
+  netDeviceConn: document.getElementById('netDeviceConn'),
+  netDeviceSignal: document.getElementById('netDeviceSignal'),
+  netDeviceSsid: document.getElementById('netDeviceSsid'),
+  netDeviceDisplayName: document.getElementById('netDeviceDisplayName'),
+  netDeviceMac: document.getElementById('netDeviceMac'),
   // Reusable confirm modal
   confirmDialog: document.getElementById('confirmDialog'),
   confirmTitle: document.getElementById('confirmTitle'),

@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from src.network_client import (
     NetDevice,
@@ -32,15 +33,28 @@ from src.network_client import (
     fetch_network_state,
     reboot_access_point,
 )
+from src.network_display_names import (
+    load_network_display_names,
+    normalize_mac,
+    set_network_display_name,
+)
+from src.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def _device_dict(d: NetDevice) -> Dict[str, Any]:
-    """Flatten one attached client; ``is_wireless`` is sent so the band-grouped
-    list doesn't have to re-derive the wired/wireless split client-side."""
+def _device_dict(d: NetDevice, overrides: Mapping[str, str]) -> Dict[str, Any]:
+    """Flatten one attached client for the band-grouped list.
+
+    ``is_wireless`` is sent so the client doesn't re-derive the wired/wireless
+    split. Identity is layered on at render time (issue #129 Phase 2): the
+    custom ``display_name`` override (keyed by normalised MAC, like the
+    units/plugs/detectors stores), the OUI ``vendor``, a coarse ``category`` for
+    the row glyph, and ``randomized`` for a locally-administered (rotating) MAC.
+    """
+    vendor = vendor_for_mac(d.mac or "")
     return {
         "mac": d.mac,
         "ip": d.ip,
@@ -51,10 +65,14 @@ def _device_dict(d: NetDevice) -> Dict[str, Any]:
         "ssid": d.ssid,
         "source": d.source,
         "is_wireless": d.is_wireless,
+        "display_name": overrides.get(normalize_mac(d.mac or "")) or None,
+        "vendor": vendor,
+        "category": category_for_device(d.name, vendor, d.conn_type),
+        "randomized": is_randomized_mac(d.mac or ""),
     }
 
 
-def _network_dict(s: NetworkState) -> Dict[str, Any]:
+def _network_dict(s: NetworkState, overrides: Mapping[str, str]) -> Dict[str, Any]:
     """Flatten a :class:`NetworkState` into a JSON-serialisable dict."""
     net = s.internet
     ap = s.access_point
@@ -83,7 +101,7 @@ def _network_dict(s: NetworkState) -> Dict[str, Any]:
             "model": r.model,
             "error": r.error,
         },
-        "devices": [_device_dict(d) for d in s.devices],
+        "devices": [_device_dict(d, overrides) for d in s.devices],
         "alerts": list(s.alerts),
     }
 
@@ -100,7 +118,7 @@ async def get_network(
     except Exception as exc:  # noqa: BLE001 — surface any unexpected error
         logger.warning("⚠️  Failed to read network state: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to read network: {exc}")
-    return _network_dict(state)
+    return _network_dict(state, load_network_display_names())
 
 
 @router.post("/api/network/access-point/reboot")
@@ -116,3 +134,26 @@ async def post_access_point_reboot() -> Dict[str, Any]:
         logger.warning("⚠️  Access-point reboot failed: %s", exc)
         raise HTTPException(status_code=502, detail=f"reboot failed: {exc}")
     return {"ok": True}
+
+
+class DisplayNamePayload(BaseModel):
+    display_name: str
+
+
+@router.put("/api/network/devices/{mac}/display_name")
+async def update_device_display_name(
+    mac: str, payload: DisplayNamePayload
+) -> Dict[str, Any]:
+    """Set or clear a custom label for one attached device, keyed by MAC.
+
+    Most clients report an ``n/a`` hostname, so this is the only way to tell them
+    apart in the list (issue #129 Phase 2). Mirrors the detector/plug rename
+    endpoints; the store is the MAC-keyed parallel of those display-name stores.
+    """
+    name = payload.display_name.strip()
+    try:
+        set_network_display_name(mac, name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save device name for %s: %s", mac, exc)
+        raise HTTPException(status_code=500, detail=f"failed to save display name: {exc}")
+    return {"mac": normalize_mac(mac), "display_name": name or None}

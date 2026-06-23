@@ -1574,10 +1574,23 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   padding: 9px 4px;
   border-top: 1px solid var(--line);
 }
-.net-device-name {
-  grid-area: name; font-weight: 600; color: var(--ink);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+/* The device name is a tappable button (opens the detail/rename modal), with a
+   leading category glyph and an ellipsising text span. Mirrors the detector /
+   presence name buttons. */
+button.net-device-name {
+  grid-area: name;
+  appearance: none; border: 0; background: none; padding: 0; margin: 0;
+  display: inline-flex; align-items: center; gap: 7px;
+  min-width: 0; max-width: 100%;
+  text-align: left; color: var(--ink); font: inherit; font-weight: 600;
+  cursor: pointer;
 }
+.net-device-icon { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
+.net-device-name-text {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.net-device-name:hover .net-device-name-text { text-decoration: underline; }
+.net-device.is-weak .net-device-icon { color: var(--attention); }
 .net-device-meta {
   grid-area: meta; font-size: var(--font-caption); color: var(--muted);
   font-variant-numeric: tabular-nums;

@@ -7,6 +7,7 @@ tinytuya.json
 config/webapp_config.json
 config/display_names.json
 config/tuya_display_names.json
+config/network_display_names.json
 config/security_display_names.json
 config/security_hidden.json
 config/presence_display_names.json
