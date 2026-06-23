@@ -185,6 +185,9 @@ export const els = {
   lightHost: document.getElementById('lightHost'),
   lightPort: document.getElementById('lightPort'),
   lightMac: document.getElementById('lightMac'),
+  lightFirmware: document.getElementById('lightFirmware'),
+  lightTemperatureMeta: document.getElementById('lightTemperatureMeta'),
+  lightIdentifier: document.getElementById('lightIdentifier'),
   // Network (LAN) tab
   netInternetStatus: document.getElementById('netInternetStatus'),
   netInternetMeta: document.getElementById('netInternetMeta'),

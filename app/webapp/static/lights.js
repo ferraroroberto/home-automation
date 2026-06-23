@@ -29,6 +29,35 @@ function fmtTemperature(light) {
   return '—';
 }
 
+function fmtTemperatureDetail(light) {
+  if (!light.supports_temperature) return 'Brightness only';
+  if (light.temperature && light.temperature_k) {
+    return light.temperature + ' mired · ' + light.temperature_k + ' K';
+  }
+  return fmtTemperature(light);
+}
+
+function reachableLights() {
+  return state.lights.filter(function (light) { return light.reachable; });
+}
+
+function bulkTargets(on) {
+  return reachableLights().filter(function (light) { return light.on !== on; });
+}
+
+function updateBulkControls() {
+  if (!els.lightsAllOn || !els.lightsAllOff) return;
+  const reachable = reachableLights();
+  const allOn = reachable.length > 0 && reachable.every(function (light) { return light.on === true; });
+  const allOff = reachable.length > 0 && reachable.every(function (light) { return light.on !== true; });
+  els.lightsAllOn.disabled = !reachable.length || allOn;
+  els.lightsAllOff.disabled = !reachable.length || allOff;
+}
+
+function wait(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
 async function applyLight(light, patch) {
   try {
     const updated = await jsonApi('/api/lights/' + encodeURIComponent(light.light_id), {
@@ -48,13 +77,16 @@ async function applyLight(light, patch) {
 }
 
 async function applyAllLights(on) {
-  const reachable = state.lights.filter(function (light) { return light.reachable; });
-  if (!reachable.length) {
+  const targets = bulkTargets(on);
+  if (!reachableLights().length) {
     toast('No reachable lights', 'error');
     return;
   }
+  if (!targets.length) return;
+  toast((on ? 'Activating ' : 'Deactivating ') + targets.length + ' light' + (targets.length === 1 ? '' : 's'));
+  await wait(250);
   let failures = 0;
-  for (const light of reachable) {
+  for (const light of targets) {
     try {
       const updated = await jsonApi('/api/lights/' + encodeURIComponent(light.light_id), {
         method: 'POST',
@@ -64,21 +96,27 @@ async function applyAllLights(on) {
       state.lights = state.lights.map(function (item) {
         return item.light_id === updated.light_id ? Object.assign({}, item, updated) : item;
       });
+      renderLights();
+      toast(label(updated) + (on ? ' on' : ' off'));
+      await wait(250);
     } catch (exc) {
       failures += 1;
+      if (String(exc.message) !== 'auth required') {
+        toast('Failed: ' + label(light) + ': ' + (exc.message || exc), 'error');
+        await wait(250);
+      }
     }
   }
   await loadLights();
   if (failures) toast(failures + ' light command(s) failed', 'error');
-  else toast(on ? 'Lights on' : 'Lights off', 'good');
 }
 
 function buildSlider(light, key, min, max, value, suffix) {
   const row = document.createElement('div');
   row.className = 'light-control-row';
-  const valueText = suffix === 'K' ? String(value) + ' K' : String(value) + suffix;
-  row.innerHTML =
-    '<span class="light-control-head"><span>' + key + '</span><span class="light-control-value">' + valueText + '</span></span>';
+  const labelEl = document.createElement('span');
+  labelEl.className = 'light-control-label';
+  labelEl.textContent = key;
   const controls = document.createElement('div');
   controls.className = 'light-range-control';
   const slider = document.createElement('input');
@@ -96,7 +134,11 @@ function buildSlider(light, key, min, max, value, suffix) {
   number.value = String(value);
   number.className = 'input-native light-number';
   number.setAttribute('aria-label', key + ' exact value for ' + label(light));
-  const output = row.querySelector('.light-control-value');
+  const valueEdit = document.createElement('label');
+  valueEdit.className = 'light-value-edit';
+  const unit = document.createElement('span');
+  unit.className = 'light-value-unit';
+  unit.textContent = suffix === 'K' ? 'K' : suffix;
   const paintSlider = function (next) {
     const pct = ((Number(next) - min) / (max - min)) * 100;
     slider.style.setProperty('--light-slider-pct', Math.max(0, Math.min(100, pct)) + '%');
@@ -104,7 +146,6 @@ function buildSlider(light, key, min, max, value, suffix) {
   const sync = function (next) {
     slider.value = String(next);
     number.value = String(next);
-    output.textContent = suffix === 'K' ? next + ' K' : next + suffix;
     paintSlider(next);
   };
   const commit = function (raw) {
@@ -124,8 +165,11 @@ function buildSlider(light, key, min, max, value, suffix) {
     if (ev.key === 'Enter') { ev.preventDefault(); number.blur(); }
   });
   sync(value);
+  valueEdit.appendChild(number);
+  valueEdit.appendChild(unit);
+  row.appendChild(labelEl);
   controls.appendChild(slider);
-  controls.appendChild(number);
+  controls.appendChild(valueEdit);
   row.appendChild(controls);
   return row;
 }
@@ -195,13 +239,6 @@ function buildCard(light) {
   }
   card.appendChild(controls);
 
-  const foot = document.createElement('div');
-  foot.className = 'light-foot muted small';
-  foot.textContent = light.supports_temperature
-    ? 'Elgato ' + light.temperature + ' mired · ' + fmtTemperature(light)
-    : 'Elgato light · brightness only';
-  card.appendChild(foot);
-
   return card;
 }
 
@@ -217,6 +254,9 @@ function openLightDetail(lightId) {
   els.lightHost.textContent = light.host || '—';
   els.lightPort.textContent = light.port == null ? '—' : String(light.port);
   els.lightMac.textContent = light.mac_address || 'Unavailable';
+  els.lightFirmware.textContent = light.firmware || '—';
+  els.lightIdentifier.textContent = light.light_id || '—';
+  els.lightTemperatureMeta.textContent = fmtTemperatureDetail(light);
   if (typeof els.lightDialog.showModal === 'function') els.lightDialog.showModal();
   else els.lightDialog.setAttribute('open', '');
   els.lightDisplayName.focus();
@@ -255,6 +295,7 @@ async function saveLightName() {
 export function renderLights() {
   els.lightsGrid.innerHTML = '';
   if (!state.lights.length) {
+    updateBulkControls();
     els.lightsNote.hidden = false;
     els.lightsNote.textContent =
       'No Elgato lights found. Add ELGATO_LIGHT_HOSTS=host[:9123] to .env or enable Bonjour/mDNS.';
@@ -265,6 +306,7 @@ export function renderLights() {
     return label(a).localeCompare(label(b));
   });
   sorted.forEach(function (light) { els.lightsGrid.appendChild(buildCard(light)); });
+  updateBulkControls();
 }
 
 export async function loadLights() {
@@ -278,6 +320,7 @@ export async function loadLights() {
     reportFetchFailure('lights', exc, 'lights');
     state.lights = [];
     els.lightsGrid.innerHTML = '';
+    updateBulkControls();
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = exc.message || 'Failed to load Elgato lights.';
   }
