@@ -726,6 +726,132 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
     return _install
 
 
+@pytest.fixture
+def mock_network(page: Page) -> Callable[..., Dict]:
+    """Stub the Network tab API with deterministic LAN health + devices."""
+    def _install(snapshot: Optional[Dict] = None) -> Dict:
+        body = snapshot or {
+            "internet": {
+                "online": True,
+                "external_ms": 14,
+                "gateway_ms": 0,
+                "packet_loss_pct": 0,
+                "download_mbps": None,
+                "upload_mbps": None,
+                "speedtest_server": None,
+            },
+            "access_point": {
+                "reachable": True,
+                "model": "R9000",
+                "mode": "access_point",
+                "firmware": "V1.0.5.42",
+                "device_count": 4,
+                "error": None,
+            },
+            "router": {
+                "reachable": True,
+                "authenticated": True,
+                "model": "ZXHN F6600P",
+                "wan_online": True,
+                "public_ip": "203.0.113.24",
+                "uptime_s": 19_380,
+                "error": None,
+            },
+            "alerts": ["1 wireless client(s) on weak signal (<40%)."],
+            "devices": [
+                {
+                    "mac": "AA:00:00:00:00:01",
+                    "ip": "192.0.2.11",
+                    "name": "Zebra Phone",
+                    "display_name": "Zebra Phone",
+                    "vendor": "Apple",
+                    "category": "phone",
+                    "conn_type": "5GHz",
+                    "is_wireless": True,
+                    "signal": 30,
+                    "link_rate": 300,
+                    "ssid": "TestNet-5",
+                    "source": "ap",
+                    "online": True,
+                    "important": False,
+                    "is_new": False,
+                    "randomized": False,
+                    "first_seen": 1_700_000_000,
+                    "last_seen": 1_700_000_000,
+                    "times_seen": 3,
+                },
+                {
+                    "mac": "AA:00:00:00:00:02",
+                    "ip": "192.0.2.12",
+                    "name": "Alpha Laptop",
+                    "display_name": "Alpha Laptop",
+                    "vendor": "Asus",
+                    "category": "computer",
+                    "conn_type": "5GHz",
+                    "is_wireless": True,
+                    "signal": 72,
+                    "link_rate": 866,
+                    "ssid": "TestNet-5",
+                    "source": "ap",
+                    "online": True,
+                    "important": False,
+                    "is_new": False,
+                    "randomized": False,
+                    "first_seen": 1_700_000_000,
+                    "last_seen": 1_700_000_000,
+                    "times_seen": 2,
+                },
+                {
+                    "mac": "AA:00:00:00:00:03",
+                    "ip": "192.0.2.13",
+                    "name": "Kitchen Speaker",
+                    "display_name": "Kitchen Speaker",
+                    "vendor": "Amazon",
+                    "category": "iot",
+                    "conn_type": "2.4GHz",
+                    "is_wireless": True,
+                    "signal": 55,
+                    "link_rate": 72,
+                    "ssid": "TestNet-IoT",
+                    "source": "ap",
+                    "online": True,
+                    "important": False,
+                    "is_new": False,
+                    "randomized": False,
+                    "first_seen": 1_700_000_000,
+                    "last_seen": 1_700_000_000,
+                    "times_seen": 1,
+                },
+                {
+                    "mac": "AA:00:00:00:00:04",
+                    "ip": "192.0.2.14",
+                    "name": "NAS",
+                    "display_name": "NAS",
+                    "vendor": "Synology",
+                    "category": "nas",
+                    "conn_type": "wired",
+                    "is_wireless": False,
+                    "signal": None,
+                    "link_rate": 1000,
+                    "ssid": None,
+                    "source": "ap",
+                    "online": True,
+                    "important": False,
+                    "is_new": False,
+                    "randomized": False,
+                    "first_seen": 1_700_000_000,
+                    "last_seen": 1_700_000_000,
+                    "times_seen": 1,
+                },
+            ],
+        }
+        page.route("**/api/network**", lambda r: r.fulfill(
+            status=200, content_type="application/json", body=_json(body)))
+        return body
+
+    return _install
+
+
 def _json(obj) -> str:
     import json
     return json.dumps(obj)

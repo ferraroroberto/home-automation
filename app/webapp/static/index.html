@@ -657,7 +657,8 @@
         </button>
       </section>
 
-      <!-- Network-quality alerts strip — rendered only when non-empty. -->
+      <!-- Network-quality alerts are intentionally not surfaced as a separate
+           strip here; weak clients are already counted and highlighted below. -->
       <div id="netAlerts" class="net-alerts" role="status" aria-label="Network alerts" hidden></div>
 
       <!-- AP + router health row. The router Reboot stays disabled with a
@@ -680,20 +681,33 @@
         </section>
       </section>
 
-      <!-- Stat chips: Wired N · 5GHz N · 2.4GHz N · Weak N — filled in JS. -->
-      <div id="netStats" class="net-stats" aria-label="Device counts" hidden></div>
+      <details class="card net-devices-card" open>
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
+            <span class="collapse-title">Attached devices</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="net-devices-body">
+          <!-- Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N — filled in JS. -->
+          <div id="netStats" class="net-stats" aria-label="Device counts" hidden></div>
 
-      <!-- Device-list tools: the "Show offline" toggle (Phase 4) appears only
-           when there are known-but-absent devices; state persists in localStorage. -->
-      <div class="net-devices-head">
-        <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Show offline</button>
-      </div>
+          <div class="net-devices-head">
+            <div class="net-sort" role="group" aria-label="Sort attached devices">
+              <span class="net-sort-label">Order</span>
+              <button id="netSortAlpha" type="button" class="net-sort-btn active" data-sort="az">A-Z</button>
+              <button id="netSortSignal" type="button" class="net-sort-btn" data-sort="signal">Signal</button>
+            </div>
+            <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Show offline</button>
+          </div>
 
-      <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz (weakest
-           signal first within each group), with offline devices last when
-           shown. Built in network.js. -->
-      <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
-      <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
+          <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz, with
+               the selected sort applied inside each group. Built in network.js. -->
+          <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
+          <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
+        </div>
+      </details>
     </section>
 
     <!-- ============================= SECURITY ============================ -->

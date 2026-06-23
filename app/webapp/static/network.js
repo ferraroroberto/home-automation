@@ -19,6 +19,7 @@ import {
   reportFetchFailure,
   reportFetchOk,
   NETWORK_SHOW_OFFLINE_KEY,
+  NETWORK_DEVICE_SORT_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
 
@@ -169,19 +170,18 @@ function renderInternet(net) {
   }
 }
 
-function renderAlerts(alerts) {
-  const list = alerts || [];
+function renderAlerts(_alerts) {
   els.netAlerts.innerHTML = '';
-  if (!list.length) {
-    els.netAlerts.hidden = true;
-    return;
-  }
-  els.netAlerts.hidden = false;
-  list.forEach(function (text) {
-    const row = document.createElement('div');
-    row.className = 'net-alert';
-    row.textContent = '⚠ ' + text;
-    els.netAlerts.appendChild(row);
+  els.netAlerts.hidden = true;
+}
+
+function setMetaLines(el, lines) {
+  el.innerHTML = '';
+  lines.forEach(function (text) {
+    const line = document.createElement('span');
+    line.className = 'net-health-meta-line';
+    line.textContent = text;
+    el.appendChild(line);
   });
 }
 
@@ -189,11 +189,12 @@ function renderHealth(ap, router) {
   // Access point.
   els.netApName.textContent = (ap && ap.model) || 'Access point';
   if (ap && ap.reachable) {
-    const bits = [];
-    if (ap.mode) bits.push(ap.mode.replace('_', ' '));
-    if (ap.firmware) bits.push('FW ' + ap.firmware);
-    bits.push(ap.device_count + (ap.device_count === 1 ? ' device' : ' devices'));
-    els.netApMeta.textContent = bits.join(' · ');
+    const top = [];
+    const bottom = [];
+    if (ap.mode) top.push(ap.mode.replace('_', ' '));
+    if (ap.firmware) bottom.push('FW ' + ap.firmware);
+    bottom.push(ap.device_count + (ap.device_count === 1 ? ' device' : ' devices'));
+    setMetaLines(els.netApMeta, [top.join(' · ') || 'Access point', bottom.join(' · ')]);
     els.netApMeta.classList.remove('is-error');
     els.netApReboot.hidden = false;
   } else {
@@ -213,10 +214,10 @@ function renderHealth(ap, router) {
     els.netRouterMeta.textContent = 'Reachable · login failed';
     els.netRouterMeta.classList.add('is-error');
   } else if (router.wan_online === true) {
-    const bits = ['WAN up'];
-    if (router.public_ip) bits.push(router.public_ip);
-    if (router.uptime_s != null) bits.push('up ' + fmtUptime(router.uptime_s));
-    els.netRouterMeta.textContent = bits.join(' · ');
+    const top = ['WAN up'];
+    if (router.public_ip) top.push(router.public_ip);
+    const bottom = router.uptime_s != null ? 'up ' + fmtUptime(router.uptime_s) : 'login OK';
+    setMetaLines(els.netRouterMeta, [top.join(' · '), bottom]);
     els.netRouterMeta.classList.remove('is-error');
   } else if (router.wan_online === false) {
     els.netRouterMeta.textContent = 'WAN down · login OK';
@@ -249,8 +250,8 @@ function renderStats(devices) {
   });
   const chips = [
     ['Wired', counts.wired],
-    ['5GHz', counts['5GHz']],
-    ['2.4GHz', counts['2.4GHz']],
+    ['5 GHz', counts['5GHz']],
+    ['2.4 GHz', counts['2.4GHz']],
     ['Weak', weak],
   ];
   els.netStats.innerHTML = '';
@@ -270,12 +271,34 @@ function deviceLabel(d) {
   return d.display_name || d.vendor || d.name || d.mac || '(unknown)';
 }
 
+function byNameThenSignal(a, b) {
+  const label = deviceLabel(a).localeCompare(deviceLabel(b), undefined, { sensitivity: 'base' });
+  if (label !== 0) return label;
+  return bySignalThenName(a, b);
+}
+
 // Weakest signal first within a group; nulls (e.g. wired) sort last, then by name.
 function bySignalThenName(a, b) {
   const sa = a.signal == null ? 1000 : a.signal;
   const sb = b.signal == null ? 1000 : b.signal;
   if (sa !== sb) return sa - sb;
   return deviceLabel(a).localeCompare(deviceLabel(b), undefined, { sensitivity: 'base' });
+}
+
+function sortDevices(list) {
+  return list.slice().sort(state.networkDeviceSort === 'signal' ? bySignalThenName : byNameThenSignal);
+}
+
+function renderSortControls() {
+  const isSignal = state.networkDeviceSort === 'signal';
+  if (els.netSortAlpha) {
+    els.netSortAlpha.classList.toggle('active', !isSignal);
+    els.netSortAlpha.setAttribute('aria-pressed', isSignal ? 'false' : 'true');
+  }
+  if (els.netSortSignal) {
+    els.netSortSignal.classList.toggle('active', isSignal);
+    els.netSortSignal.setAttribute('aria-pressed', isSignal ? 'true' : 'false');
+  }
 }
 
 function buildDeviceRow(d) {
@@ -317,9 +340,10 @@ function buildDeviceRow(d) {
 
   const meta = document.createElement('span');
   meta.className = 'net-device-meta';
-  // IP, plus the vendor when it isn't already the shown label (avoids "Apple ·
-  // Apple"). SSID lives in the detail modal to keep the row uncluttered.
+  // IP, SSID for wireless clients, plus the vendor when it isn't already the
+  // shown label (avoids "Apple · Apple").
   const metaBits = [d.ip || '—'];
+  if (d.is_wireless && d.ssid) metaBits.push('Wi-Fi ' + d.ssid);
   if (d.vendor && label !== d.vendor) metaBits.push(d.vendor);
   meta.textContent = metaBits.join(' · ');
   row.appendChild(meta);
@@ -368,6 +392,7 @@ function renderOfflineToggle(offlineCount) {
 function renderDevices(devices) {
   const list = devices || [];
   els.netDevices.innerHTML = '';
+  renderSortControls();
   const online = list.filter(function (d) { return d.online !== false; });
   const offline = list.filter(function (d) { return d.online === false; });
   renderOfflineToggle(offline.length);
@@ -385,11 +410,11 @@ function renderDevices(devices) {
     const members = online.filter(function (d) { return d.conn_type === group.key; });
     members.forEach(function (d) { seen.add(d); });
     if (!members.length) return;
-    appendGroup(group.label, members.slice().sort(bySignalThenName));
+    appendGroup(group.label, sortDevices(members));
   });
   // Anything online with an unknown/missing conn_type lands in a trailing "Other".
   const other = online.filter(function (d) { return !seen.has(d); });
-  if (other.length) appendGroup('Other', other.slice().sort(bySignalThenName));
+  if (other.length) appendGroup('Other', sortDevices(other));
 
   // Offline (known-but-absent) devices, newest-last-seen first, only when toggled.
   if (showingOffline) appendGroup('Offline', offline.slice().sort(byLastSeenDesc));
@@ -568,6 +593,22 @@ function initShowOfflinePref() {
   catch (_e) { state.networkShowOffline = false; }
 }
 
+function setDeviceSort(sort) {
+  state.networkDeviceSort = sort === 'signal' ? 'signal' : 'az';
+  try { localStorage.setItem(NETWORK_DEVICE_SORT_KEY, state.networkDeviceSort); }
+  catch (_e) { /* private mode — in-memory only */ }
+  renderNetwork();
+}
+
+function initDeviceSortPref() {
+  try {
+    state.networkDeviceSort =
+      localStorage.getItem(NETWORK_DEVICE_SORT_KEY) === 'signal' ? 'signal' : 'az';
+  } catch (_e) {
+    state.networkDeviceSort = 'az';
+  }
+}
+
 // ----------------------------------------------------------------- load
 async function loadNetwork(opts) {
   const speedtest = !!(opts && opts.speedtest);
@@ -648,12 +689,15 @@ async function rebootRouter() {
 
 export function wireNetworkControls() {
   initShowOfflinePref();
+  initDeviceSortPref();
   wireConfirmDialog();
   wireNetDeviceDetail();
   if (els.netSpeedBtn) els.netSpeedBtn.addEventListener('click', runSpeedTest);
   if (els.netApReboot) els.netApReboot.addEventListener('click', rebootAccessPoint);
   if (els.netRouterReboot) els.netRouterReboot.addEventListener('click', rebootRouter);
   if (els.netOfflineToggle) els.netOfflineToggle.addEventListener('click', toggleShowOffline);
+  if (els.netSortAlpha) els.netSortAlpha.addEventListener('click', function () { setDeviceSort('az'); });
+  if (els.netSortSignal) els.netSortSignal.addEventListener('click', function () { setDeviceSort('signal'); });
 }
 
 // --------------------------------------------------------- cadence + tabs
