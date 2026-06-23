@@ -155,6 +155,8 @@ deliberate user action with a confirm — never automatic.
 
 - [x] ZTE `menuData` session-token scheme → WAN/internet status read (#129 Phase 3)
 - [x] ZTE reboot POST → `reboot_router()` (#129 Phase 3)
+- [x] MAC history store + online/offline, last-seen, new-device / important-offline alerts, mark-important, show-offline toggle (`src/network_history.py`, #129 Phase 4)
 - [ ] Optional router-DHCP merge for better device hostnames (still open)
+- [ ] Optional latency/throughput sparklines + scheduled nightly speed test (deferred from #129 Phase 4)
 - [x] `src/network_display_names.py` (MAC-keyed) + sample JSON (#129 Phase 2)
 - [x] `GET /api/network` router + the Network tab UI (#129 Phase 1)

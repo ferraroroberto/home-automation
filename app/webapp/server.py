@@ -21,6 +21,7 @@ Routes (split across ``app/webapp/routers/``):
     POST /api/network/access-point/reboot → reboot the AP      (network)
     POST /api/network/router/reboot → reboot the router        (network)
     PUT  /api/network/devices/{mac}/display_name → rename device (network)
+    POST /api/network/devices/{mac}/important → mark device important (network)
     GET  /api/presence           → local + cached presence     (presence)
 
 Run with::

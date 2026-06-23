@@ -44,6 +44,9 @@ export const state = {
   network: null,
   // MAC of the device whose detail/rename modal is open (or null).
   selectedNetDeviceMac: null,
+  // When false (default), offline (known-but-absent) devices are hidden; when
+  // true they render dimmed in a trailing "Offline" group (issue #129 Phase 4).
+  networkShowOffline: false,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
@@ -65,6 +68,7 @@ export const TAB_KEY = 'home-automation.tab';
 export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
+export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
 export const THIS_DEVICE_PRESENCE_KEY = 'home-automation.thisDevicePresence';
 export const THIS_DEVICE_LOCATION_KEY = 'home-automation.thisDeviceLocation';
 
@@ -176,18 +180,24 @@ export const els = {
   netRouterMeta: document.getElementById('netRouterMeta'),
   netRouterReboot: document.getElementById('netRouterReboot'),
   netStats: document.getElementById('netStats'),
+  netOfflineToggle: document.getElementById('netOfflineToggle'),
   netDevices: document.getElementById('netDevices'),
   netDevicesNote: document.getElementById('netDevicesNote'),
   // Per-device detail + rename modal
   netDeviceDialog: document.getElementById('netDeviceDialog'),
   netDeviceDetailName: document.getElementById('netDeviceDetailName'),
   netDeviceDetailClose: document.getElementById('netDeviceDetailClose'),
+  netDeviceStatus: document.getElementById('netDeviceStatus'),
   netDeviceVendor: document.getElementById('netDeviceVendor'),
   netDeviceIp: document.getElementById('netDeviceIp'),
   netDeviceConn: document.getElementById('netDeviceConn'),
   netDeviceSignal: document.getElementById('netDeviceSignal'),
   netDeviceSsid: document.getElementById('netDeviceSsid'),
+  netDeviceSeen: document.getElementById('netDeviceSeen'),
+  netDeviceSeenRow: document.getElementById('netDeviceSeenRow'),
   netDeviceDisplayName: document.getElementById('netDeviceDisplayName'),
+  netDeviceImportant: document.getElementById('netDeviceImportant'),
+  netDeviceImportantRow: document.getElementById('netDeviceImportantRow'),
   netDeviceMac: document.getElementById('netDeviceMac'),
   // Reusable confirm modal
   confirmDialog: document.getElementById('confirmDialog'),

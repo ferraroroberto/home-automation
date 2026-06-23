@@ -29,6 +29,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def _isolate_network_history(tmp_path, monkeypatch) -> None:
+    """Point the network-history SQLite store at a per-test temp DB.
+
+    ``GET /api/network`` records the seen devices into this registry (Phase 4),
+    so without redirection every test hitting that route would write to the real
+    ``webapp/network_history.sqlite3``. A fresh DB per test also keeps the
+    new-device / offline derivations deterministic.
+    """
+    import src.network_history as nh
+
+    monkeypatch.setattr(nh, "DEFAULT_DB_PATH", tmp_path / "network_history.sqlite3")
+
+
 @pytest.fixture(scope="session")
 def client() -> TestClient:
     """A ``TestClient`` over the real app, with lifespan intentionally not run.

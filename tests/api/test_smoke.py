@@ -287,6 +287,11 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     assert wired["vendor"] == "Raspberry Pi"
     assert wired["display_name"] == "Office Pi"
     assert wired["category"] == "nas"  # hostname "nas" keyword wins
+    # Phase-4 history fields ride along: a live device is online, not important by
+    # default, and the cold-start seed read never flags the whole inventory "new".
+    assert iot["online"] is True and wired["online"] is True
+    assert iot["important"] is False
+    assert iot["is_new"] is False
 
 
 def test_network_reboot_access_point_invokes_core(
@@ -424,6 +429,102 @@ def test_network_oui_vendor_and_category_heuristics() -> None:
     assert category_for_device(None, "Espressif", "5GHz") == "iot"
     assert category_for_device("office-laserjet", None, "wired") == "printer"
     assert category_for_device(None, None, "wired") == "unknown"
+
+
+def test_network_history_store_seeds_then_flags_new_and_prunes(tmp_path) -> None:
+    """The MAC registry: silent cold-start seed, later-arrival ``new``, 180-day prune."""
+    from src.network_history import (
+        is_new,
+        load_network_history,
+        record_and_snapshot,
+        set_important,
+    )
+
+    db = tmp_path / "net_history.sqlite3"
+    one = "AA:BB:CC:00:00:01"
+    two = "AA:BB:CC:00:00:02"
+
+    # First populated read seeds the registry — nothing is "new" (no alert spam).
+    new, snap = record_and_snapshot([{"mac": one, "ip": "10.0.0.1", "name": "a"}], now=1000, path=db)
+    assert new == []
+    assert snap[one]["times_seen"] == 1
+    assert is_new(snap[one], now=1000) is False  # a seed is never badged new
+
+    # Second read: known device seen again + a brand-new MAC → only the new one alerts.
+    new, snap = record_and_snapshot(
+        [{"mac": one, "ip": "10.0.0.1", "name": "a"}, {"mac": two, "ip": "10.0.0.2", "name": "b"}],
+        now=2000, path=db,
+    )
+    assert new == [two]
+    assert snap[one]["times_seen"] == 2
+    assert is_new(snap[two], now=2000) is True       # genuine later arrival → badged
+    assert is_new(snap[two], now=2000 + 200_000) is False  # outside the 24 h window
+
+    # Important survives a long absence; a non-important long-absent device prunes.
+    set_important(one, True, now=2000, path=db)
+    far = 2000 + 200 * 24 * 3600
+    _new, snap = record_and_snapshot([], now=far, path=db)
+    assert one in snap and snap[one]["important"] is True
+    assert two not in snap  # pruned after 180 days unseen
+    assert load_network_history(path=db) == snap
+
+
+def test_network_route_tracks_offline_and_important(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/network`` derives online/offline + the important-offline alert.
+
+    A device present in one read then absent from the next is synthesised as an
+    ``online=false`` row; marking it important makes its disappearance alert.
+    """
+    dev_a = NetDevice(
+        mac="5C:CF:7F:AA:BB:CC", ip="192.168.0.5", name=None, conn_type="5GHz",
+        signal=60, link_rate=300, ssid="Home", source="ap",
+    )
+    dev_b = NetDevice(
+        mac="B8:27:EB:11:22:33", ip="192.168.0.10", name="nas", conn_type="wired",
+        signal=None, link_rate=1000, ssid=None, source="ap",
+    )
+    base = dict(
+        internet=InternetHealth(online=True),
+        access_point=AccessPointHealth(reachable=True, model="R9000", device_count=2),
+        router=RouterHealth(reachable=False),
+        alerts=(),
+    )
+    holder = {"state": NetworkState(devices=(dev_a, dev_b), **base)}
+
+    async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
+        return holder["state"]
+
+    monkeypatch.setattr(
+        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+    )
+
+    # First read seeds the registry: both online, no new-device alert.
+    body = client.get("/api/network").json()
+    by_mac = {d["mac"]: d for d in body["devices"]}
+    assert by_mac["5C:CF:7F:AA:BB:CC"]["online"] is True
+    assert by_mac["B8:27:EB:11:22:33"]["online"] is True
+    assert not any("New device" in a for a in body["alerts"])
+
+    # Mark the wired host important (lower-case MAC normalises to the store key).
+    resp = client.post(
+        "/api/network/devices/b8:27:eb:11:22:33/important", json={"important": True}
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"mac": "B8:27:EB:11:22:33", "important": True}
+
+    # Next read: the important device drops off → offline row + offline alert.
+    holder["state"] = NetworkState(devices=(dev_a,), **base)
+    body = client.get("/api/network").json()
+    by_mac = {d["mac"]: d for d in body["devices"]}
+    assert by_mac["5C:CF:7F:AA:BB:CC"]["online"] is True
+    offline = by_mac["B8:27:EB:11:22:33"]
+    assert offline["online"] is False
+    assert offline["important"] is True
+    assert offline["source"] == "history"
+    assert offline["ip"] == "192.168.0.10"  # last-known IP retained
+    assert any("Important device offline" in a for a in body["alerts"])
 
 
 def test_presence_route_serializes_find_my_snapshot(

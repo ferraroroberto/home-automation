@@ -226,6 +226,9 @@
       <path d="M17.84 7.17a4 4 0 0 0-5.66 0" />
       <path d="M20.66 4.34a8 8 0 0 0-11.31 0" />
     </symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" fill="none">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </symbol>
     <symbol id="i-globe" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" />
       <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
@@ -657,8 +660,15 @@
       <!-- Stat chips: Wired N · 5GHz N · 2.4GHz N · Weak N — filled in JS. -->
       <div id="netStats" class="net-stats" aria-label="Device counts" hidden></div>
 
+      <!-- Device-list tools: the "Show offline" toggle (Phase 4) appears only
+           when there are known-but-absent devices; state persists in localStorage. -->
+      <div class="net-devices-head">
+        <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Show offline</button>
+      </div>
+
       <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz (weakest
-           signal first within each group). Built in network.js. -->
+           signal first within each group), with offline devices last when
+           shown. Built in network.js. -->
       <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
       <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
     </section>
@@ -969,16 +979,29 @@
         <button id="netDeviceDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
+      <div class="row"><span>Status</span><span id="netDeviceStatus" class="muted">—</span></div>
       <div class="row"><span>Vendor</span><span id="netDeviceVendor" class="muted">—</span></div>
       <div class="row"><span>IP address</span><span id="netDeviceIp" class="muted">—</span></div>
       <div class="row"><span>Connection</span><span id="netDeviceConn" class="muted">—</span></div>
       <div class="row"><span>Signal</span><span id="netDeviceSignal" class="muted">—</span></div>
       <div class="row"><span>SSID</span><span id="netDeviceSsid" class="muted">—</span></div>
+      <!-- History (Phase 4) — hidden for randomised MACs, which aren't tracked. -->
+      <div class="row" id="netDeviceSeenRow"><span>Seen</span><span id="netDeviceSeen" class="muted">—</span></div>
 
       <label class="row">
         <span>Display name</span>
         <input id="netDeviceDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
+
+      <!-- Mark important: alerts when this device drops offline (Phase 4). Hidden
+           for randomised MACs (a rotating address can't be tracked). -->
+      <div class="row" id="netDeviceImportantRow">
+        <span>Important</span>
+        <button id="netDeviceImportant" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Mark device important">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
       <!-- The MAC is the stable identifier the label maps back to; flagged when
            it's a randomised (locally-administered) address. -->
       <p id="netDeviceMac" class="muted small zone-original-name"></p>

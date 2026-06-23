@@ -12,7 +12,14 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
+import {
+  state,
+  els,
+  toast,
+  reportFetchFailure,
+  reportFetchOk,
+  NETWORK_SHOW_OFFLINE_KEY,
+} from './state.js';
 import { jsonApi } from './api.js';
 
 const POLL_MS = 15_000;
@@ -62,6 +69,30 @@ function fmtUptime(seconds) {
   if (d > 0) return d + 'd ' + h + 'h';
   if (h > 0) return h + 'h ' + m + 'm';
   return m + 'm';
+}
+// "last seen Xh ago" from an epoch-seconds timestamp (Phase 4). Coarse on
+// purpose — the registry updates only while the tab is open, so minute-level
+// precision would be misleading.
+function fmtAgo(epochSeconds) {
+  if (epochSeconds == null) return 'unknown';
+  const secs = Math.max(0, Math.floor(Date.now() / 1000) - Number(epochSeconds));
+  if (secs < 90) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return hours + 'h ago';
+  return Math.round(hours / 24) + 'd ago';
+}
+// Absolute-ish date for the detail modal's first-seen line.
+function fmtDate(epochSeconds) {
+  if (epochSeconds == null) return '—';
+  try {
+    return new Date(Number(epochSeconds) * 1000).toLocaleDateString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+    });
+  } catch (_e) {
+    return '—';
+  }
 }
 
 // --------------------------------------------------- reusable confirm dialog
@@ -248,10 +279,12 @@ function bySignalThenName(a, b) {
 }
 
 function buildDeviceRow(d) {
+  const offline = d.online === false;
   const row = document.createElement('div');
   row.className = 'net-device';
-  const weak = d.is_wireless && d.signal != null && d.signal < WEAK_SIGNAL_PCT;
+  const weak = !offline && d.is_wireless && d.signal != null && d.signal < WEAK_SIGNAL_PCT;
   if (weak) row.classList.add('is-weak');
+  if (offline) row.classList.add('is-offline');
 
   const label = deviceLabel(d);
   // The name is a button that opens the detail/rename modal — mirrors the
@@ -261,12 +294,24 @@ function buildDeviceRow(d) {
   name.type = 'button';
   name.className = 'net-device-name';
   name.title = 'Device details · rename';
-  name.innerHTML = '<svg class="icon net-device-icon" aria-hidden="true"><use href="#i-' +
+  let inner = '<svg class="icon net-device-icon" aria-hidden="true"><use href="#i-' +
     categoryIcon(d.category) + '"></use></svg>';
+  // A star marks a "mark important" device; appears on both online + offline rows.
+  if (d.important) {
+    inner += '<svg class="icon net-device-star" aria-hidden="true"><use href="#i-star"></use></svg>';
+  }
+  name.innerHTML = inner;
   const text = document.createElement('span');
   text.className = 'net-device-name-text';
   text.textContent = label;
   name.appendChild(text);
+  // A small "new" pill for a device first seen in the last 24 h (Phase 4).
+  if (d.is_new) {
+    const pill = document.createElement('span');
+    pill.className = 'net-device-new';
+    pill.textContent = 'new';
+    name.appendChild(pill);
+  }
   name.addEventListener('click', function () { openNetDeviceDetail(d.mac); });
   row.appendChild(name);
 
@@ -281,7 +326,11 @@ function buildDeviceRow(d) {
 
   const signal = document.createElement('span');
   signal.className = 'net-device-signal';
-  if (d.signal != null) {
+  if (offline) {
+    // No live signal for an absent device — show how long ago it was last seen.
+    signal.classList.add('net-device-lastseen');
+    signal.textContent = fmtAgo(d.last_seen);
+  } else if (d.signal != null) {
     const bar = document.createElement('span');
     bar.className = 'net-signal-bar';
     const fill = document.createElement('span');
@@ -300,10 +349,31 @@ function buildDeviceRow(d) {
   return row;
 }
 
+// Most-recently-seen first — the sort for the trailing "Offline" group.
+function byLastSeenDesc(a, b) {
+  return (b.last_seen || 0) - (a.last_seen || 0);
+}
+
+// The "Show offline" toggle is shown only when there are known-but-absent
+// devices; it carries the count and mirrors the security/plugs toggle styling.
+function renderOfflineToggle(offlineCount) {
+  const btn = els.netOfflineToggle;
+  if (!btn) return;
+  btn.hidden = offlineCount === 0;
+  btn.textContent = (state.networkShowOffline ? 'Hide offline' : 'Show offline') +
+    (offlineCount ? ' (' + offlineCount + ')' : '');
+  btn.classList.toggle('active', state.networkShowOffline);
+}
+
 function renderDevices(devices) {
   const list = devices || [];
   els.netDevices.innerHTML = '';
-  if (!list.length) {
+  const online = list.filter(function (d) { return d.online !== false; });
+  const offline = list.filter(function (d) { return d.online === false; });
+  renderOfflineToggle(offline.length);
+
+  const showingOffline = state.networkShowOffline && offline.length > 0;
+  if (!online.length && !showingOffline) {
     els.netDevicesNote.hidden = false;
     els.netDevicesNote.textContent = state.network ? 'No attached devices reported.' : '—';
     return;
@@ -312,14 +382,17 @@ function renderDevices(devices) {
 
   const seen = new Set();
   GROUPS.forEach(function (group) {
-    const members = list.filter(function (d) { return d.conn_type === group.key; });
+    const members = online.filter(function (d) { return d.conn_type === group.key; });
     members.forEach(function (d) { seen.add(d); });
     if (!members.length) return;
     appendGroup(group.label, members.slice().sort(bySignalThenName));
   });
-  // Anything with an unknown/missing conn_type lands in a trailing "Other" group.
-  const other = list.filter(function (d) { return !seen.has(d); });
+  // Anything online with an unknown/missing conn_type lands in a trailing "Other".
+  const other = online.filter(function (d) { return !seen.has(d); });
   if (other.length) appendGroup('Other', other.slice().sort(bySignalThenName));
+
+  // Offline (known-but-absent) devices, newest-last-seen first, only when toggled.
+  if (showingOffline) appendGroup('Offline', offline.slice().sort(byLastSeenDesc));
 }
 
 function appendGroup(label, members) {
@@ -355,18 +428,47 @@ function signalText(d) {
   return d.conn_type === 'wired' ? 'Wired' : '—';
 }
 
+// Render the Important switch from a device dict (Phase 4). Hidden for
+// randomised MACs, which aren't tracked, so the flag would be meaningless.
+function renderImportantToggle(d) {
+  const btn = els.netDeviceImportant;
+  if (!btn) return;
+  if (els.netDeviceImportantRow) els.netDeviceImportantRow.hidden = !!d.randomized;
+  const on = !!d.important;
+  btn.className = 'toggle' + (on ? ' on' : ' off');
+  btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+    (on ? 'ON' : 'OFF') + '</span>';
+}
+
 function openNetDeviceDetail(mac) {
   const d = deviceByMac(mac);
   if (!d) return;
   state.selectedNetDeviceMac = mac;
   els.netDeviceDetailName.textContent = deviceLabel(d);
+  // Status: online, or offline with how long since it was last on the network.
+  els.netDeviceStatus.textContent = d.online === false
+    ? 'Offline · last seen ' + fmtAgo(d.last_seen)
+    : 'Online';
+  els.netDeviceStatus.classList.toggle('is-offline', d.online === false);
   els.netDeviceVendor.textContent = d.vendor || '—';
   els.netDeviceIp.textContent = d.ip || '—';
   els.netDeviceConn.textContent = connText(d);
   els.netDeviceSignal.textContent = signalText(d);
   els.netDeviceSsid.textContent = d.ssid || '—';
+  // First-seen + times-seen history (Phase 4); hidden for untracked randomised MACs.
+  if (els.netDeviceSeenRow) {
+    const tracked = !d.randomized && d.first_seen != null;
+    els.netDeviceSeenRow.hidden = !tracked;
+    if (tracked) {
+      const times = d.times_seen != null ? d.times_seen + '×' : '';
+      els.netDeviceSeen.textContent = 'since ' + fmtDate(d.first_seen) +
+        (times ? ' · ' + times : '');
+    }
+  }
   els.netDeviceDisplayName.value = d.display_name || '';
   els.netDeviceDisplayName.placeholder = d.vendor || d.name || 'Custom label…';
+  renderImportantToggle(d);
   // The MAC is the stable key the label maps back to; flag randomised ones so a
   // missing vendor / churning row is explained rather than mysterious.
   els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
@@ -410,6 +512,36 @@ async function saveNetDeviceName() {
   }
 }
 
+// Flip the Important flag for the open device (Phase 4). Optimistic: update the
+// switch + local state immediately, then POST; the next poll re-merges the same
+// flag server-side, and an offline important device starts alerting.
+async function toggleImportant() {
+  const mac = state.selectedNetDeviceMac;
+  if (!mac) return;
+  const d = deviceByMac(mac);
+  if (!d || d.randomized) return;
+  const next = !d.important;
+  try {
+    await jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/important', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ important: next }),
+    });
+    if (state.network && Array.isArray(state.network.devices)) {
+      state.network.devices = state.network.devices.map(function (x) {
+        return x.mac === mac ? Object.assign({}, x, { important: next }) : x;
+      });
+    }
+    renderImportantToggle(deviceByMac(mac) || d);
+    renderNetwork();
+    toast(next ? 'Marked important' : 'Unmarked', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to update: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
 function wireNetDeviceDetail() {
   if (!els.netDeviceDialog) return;
   els.netDeviceDetailClose.addEventListener('click', closeNetDeviceDetail);
@@ -420,6 +552,20 @@ function wireNetDeviceDetail() {
   els.netDeviceDisplayName.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); els.netDeviceDisplayName.blur(); }
   });
+  if (els.netDeviceImportant) els.netDeviceImportant.addEventListener('click', toggleImportant);
+}
+
+// Persisted "show offline" preference (localStorage), like plugs/security toggles.
+function toggleShowOffline() {
+  state.networkShowOffline = !state.networkShowOffline;
+  try { localStorage.setItem(NETWORK_SHOW_OFFLINE_KEY, state.networkShowOffline ? '1' : '0'); }
+  catch (_e) { /* private mode — in-memory only */ }
+  renderNetwork();
+}
+
+function initShowOfflinePref() {
+  try { state.networkShowOffline = localStorage.getItem(NETWORK_SHOW_OFFLINE_KEY) === '1'; }
+  catch (_e) { state.networkShowOffline = false; }
 }
 
 // ----------------------------------------------------------------- load
@@ -501,11 +647,13 @@ async function rebootRouter() {
 }
 
 export function wireNetworkControls() {
+  initShowOfflinePref();
   wireConfirmDialog();
   wireNetDeviceDetail();
   if (els.netSpeedBtn) els.netSpeedBtn.addEventListener('click', runSpeedTest);
   if (els.netApReboot) els.netApReboot.addEventListener('click', rebootAccessPoint);
   if (els.netRouterReboot) els.netRouterReboot.addEventListener('click', rebootRouter);
+  if (els.netOfflineToggle) els.netOfflineToggle.addEventListener('click', toggleShowOffline);
 }
 
 // --------------------------------------------------------- cadence + tabs

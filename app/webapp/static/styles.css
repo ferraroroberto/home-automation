@@ -1614,6 +1614,27 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-signal-pct { min-width: 2.6em; text-align: right; }
 .net-devices-note { margin: 12px 4px; }
 
+/* Device-list tools row — right-aligned "Show offline" toggle (Phase 4). */
+.net-devices-head { display: flex; justify-content: flex-end; min-height: 0; }
+.net-devices-head .range-tab:not([hidden]) { margin: 2px 0 -2px; }
+
+/* Offline (known-but-absent) devices render dimmed; the signal slot carries the
+   "last seen Xh ago" text instead of a live bar. */
+.net-device.is-offline { opacity: 0.55; }
+.net-device-signal.net-device-lastseen { font-style: italic; }
+
+/* "Important" star marker + the "new" pill on a device row (Phase 4). */
+.net-device-star { width: 13px; height: 13px; flex: 0 0 auto; color: var(--accent); }
+.net-device-new {
+  flex: 0 0 auto; margin-left: 2px;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: var(--radius-pill); padding: 1px 7px;
+  font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em;
+}
+button.net-device-name:hover .net-device-new { text-decoration: none; }
+/* Offline status line in the detail modal. */
+#netDeviceStatus.is-offline { color: var(--muted); }
+
 /* Reusable confirm modal (issue #129) — same shell as the detail dialogs, with
    a side-by-side Cancel / confirm action row. */
 .confirm-message { margin: 4px 0 16px; }
