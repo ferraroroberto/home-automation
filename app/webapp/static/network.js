@@ -384,8 +384,7 @@ function renderOfflineToggle(offlineCount) {
   const btn = els.netOfflineToggle;
   if (!btn) return;
   btn.hidden = offlineCount === 0;
-  btn.textContent = (state.networkShowOffline ? 'Hide offline' : 'Show offline') +
-    (offlineCount ? ' (' + offlineCount + ')' : '');
+  btn.textContent = state.networkShowOffline ? 'Hide offline' : 'Show offline';
   btn.classList.toggle('active', state.networkShowOffline);
 }
 
