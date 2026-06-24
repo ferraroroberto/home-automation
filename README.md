@@ -575,33 +575,41 @@ private room names; this repository is public. If discovery finds nothing but
 the Elgato phone app works, set `ELGATO_LIGHT_HOSTS` to the light's LAN IP and
 restart the webapp.
 
-## Cameras (spike)
+## Cameras
 
-Issue #89 spikes replacing the YI camera fleet with **open** cameras that speak
-**standalone RTSP + ONVIF on the device** — no vendor cloud, hub, or
-subscription (path 2 from the #85 feasibility study). A throwaway script,
-`spike/camera_spike.py`, validates one camera (a **Reolink E1 Outdoor Pro**)
-end-to-end from Python: ONVIF discovery + device info + media profiles, RTSP
-main/substream URIs pulled from ONVIF, an ffmpeg snapshot + short clip off the
-RTSP stream, and PTZ. It is not the product — the real `src/camera_client.py` +
-webapp tile is a follow-up once the spike records a go.
+The **Security** tab has a collapsible **📹 Cameras** tile for open
+RTSP/ONVIF cameras (a **Reolink E1 Outdoor Pro** today) — no vendor cloud, hub,
+or subscription (path 2 from the #85 feasibility study; the #89 spike findings
+and go/no-go are in [`docs/camera-spike.md`](docs/camera-spike.md)). Each camera
+is a row showing its model and reachability; tapping it opens a detail modal with
+a **fresh snapshot** (grabbed at open time) and a rename field, and an **Open live
+view** button. The full-screen live view streams MJPEG, with a **PTZ d-pad**
+(pan/tilt + zoom, press-and-hold), a **screenshot** button (downloads a still),
+and a **record** toggle (server-side mp4). Cameras are accessed the same
+vendor-neutral way the rest of the fleet is: ONVIF for discovery/profiles/PTZ,
+RTSP + **ffmpeg** for the snapshot/stream/recording. The eventual goal is
+alarm-triggered scene capture with AI analysis.
 
-```powershell
-& .\.venv\Scripts\python.exe -m spike.camera_spike                 # Windows
-& .\.venv\Scripts\python.exe -m spike.camera_spike --no-ptz         # skip PTZ
-```
+- **Config:** declare cameras in gitignored `config/cameras.json` — copy
+  `config/cameras.sample.json` and fill in each camera's `id`, `host`,
+  `onvif_port` (Reolink default 8000), `rtsp_port` (554), `username`, and
+  `password` (the on-device **device account**, NOT the cloud login). Custom
+  labels persist to gitignored `config/camera_display_names.json`.
+- **Prerequisite:** **enable RTSP + ONVIF on the camera first** — Reolink ships
+  them off (app: Settings → Network → Advanced → Server Settings).
+- **Endpoints:** `GET /api/cameras` (list), `GET /api/cameras/{id}/snapshot`
+  (fresh JPEG), `GET /api/cameras/{id}/stream` (live MJPEG; reachable from the PWA
+  via `?token=`), `POST /api/cameras/{id}/ptz` (`{action: start|stop, direction,
+  zoom}`), `POST /api/cameras/{id}/record` (`{action: start|stop}` → mp4 in
+  gitignored `webapp/camera_captures/`), `PUT /api/cameras/{id}/display_name`.
+- **Needs ffmpeg on PATH.** Smoke command:
 
-Config comes from the gitignored `.env` (copy the `CAMERA_*` block from
-`.env.example`): `CAMERA_HOST`, `CAMERA_USERNAME`/`CAMERA_PASSWORD` (the
-on-device **device account**, not the cloud login), `CAMERA_ONVIF_PORT`
-(default 8000), `CAMERA_RTSP_PORT` (default 554). Needs **ffmpeg on PATH**.
+  ```powershell
+  & .\.venv\Scripts\python.exe -m src.list_cameras
+  ```
 
-**Enable RTSP + ONVIF on the camera first** — Reolink ships them off (app:
-Settings → Network → Advanced → Server Settings). Captures are written to
-gitignored `webapp/camera_captures/` (an outdoor frame can reveal the location).
-Do not commit camera IPs, the device-account password, the UID/MAC, or location
-names; this repository is public. Full findings, prerequisites, the acceptance
-checklist, and the go/no-go record are in [`docs/camera-spike.md`](docs/camera-spike.md).
+Do not commit camera IPs, the device-account password, the UID/MAC, captured
+frames, or location names; this repository is public.
 
 ## Run the webapp (the product)
 

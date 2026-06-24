@@ -220,6 +220,20 @@
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
     </symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24" fill="none">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+      <circle cx="12" cy="13" r="3" />
+    </symbol>
+    <symbol id="i-video" viewBox="0 0 24 24" fill="none">
+      <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+    </symbol>
+    <symbol id="i-maximize" viewBox="0 0 24 24" fill="none">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </symbol>
     <symbol id="i-wifi" viewBox="0 0 24 24" fill="none">
       <path d="M12 20h.01" />
       <path d="M2 8.82a15 15 0 0 1 20 0" />
@@ -779,6 +793,18 @@
         <p id="securityEventsNote" class="muted small security-note" hidden></p>
       </details>
 
+      <details class="card security-card cameras-card">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
+            <h3 class="collapse-title">Cameras</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div id="camerasList" class="cameras-list"></div>
+        <p id="camerasNote" class="muted small security-note" hidden></p>
+      </details>
+
       <details class="card security-card security-zones-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
@@ -1044,6 +1070,52 @@
         <button id="zoneHiddenToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide detector">
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Camera detail: last snapshot (taken on open) + rename + open live view. -->
+  <dialog id="cameraDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="cameraDetailName">Camera</h2>
+        <button id="cameraDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <img id="cameraSnapshot" class="camera-snapshot" alt="Camera snapshot">
+      <div class="row"><span>Status</span><span id="cameraDetailStatus" class="muted">—</span></div>
+      <label class="row">
+        <span>Display name</span>
+        <input id="cameraDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <button id="cameraLiveBtn" type="button" class="big-btn camera-live-open">
+        <svg class="icon" aria-hidden="true"><use href="#i-maximize"></use></svg> Open live view
+      </button>
+    </div>
+  </dialog>
+
+  <!-- Full-screen live view: MJPEG stream + PTZ d-pad + snapshot + record. -->
+  <dialog id="cameraLiveDialog" class="detail-dialog camera-live-dialog">
+    <div class="detail-card camera-live-card">
+      <div class="detail-header">
+        <h2 id="cameraLiveName">Camera</h2>
+        <button id="cameraLiveClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="camera-live-stage">
+        <img id="cameraLiveImg" class="camera-live-img" alt="Live camera view">
+      </div>
+      <div class="camera-live-controls">
+        <div class="camera-dpad" role="group" aria-label="Pan and tilt">
+          <button id="cameraPtzUp" type="button" class="camera-ptz-btn ptz-up" aria-label="Tilt up"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="cameraPtzLeft" type="button" class="camera-ptz-btn ptz-left" aria-label="Pan left"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="cameraPtzRight" type="button" class="camera-ptz-btn ptz-right" aria-label="Pan right"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="cameraPtzDown" type="button" class="camera-ptz-btn ptz-down" aria-label="Tilt down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+        </div>
+        <div class="camera-live-actions">
+          <button id="cameraZoomOut" type="button" class="range-tab camera-zoom" aria-label="Zoom out">−</button>
+          <button id="cameraZoomIn" type="button" class="range-tab camera-zoom" aria-label="Zoom in">+</button>
+          <button id="cameraSnapBtn" type="button" class="range-tab" aria-label="Take screenshot"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg></button>
+          <button id="cameraRecBtn" type="button" class="range-tab camera-rec" aria-label="Record video"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg></button>
+        </div>
       </div>
     </div>
   </dialog>

@@ -2124,3 +2124,69 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
   color: var(--deficit);
 }
+
+/* ----------------------------------------------------------- cameras (#161) */
+.cameras-list { display: flex; flex-direction: column; }
+.camera-row .security-zone-name { text-align: left; }
+.camera-row-live {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; padding: 6px 10px;
+}
+.camera-row-live .icon { width: 18px; height: 18px; }
+
+/* Detail modal snapshot — the still grabbed at open time. */
+.camera-snapshot {
+  width: 100%; display: block; border-radius: var(--radius-md);
+  background: #000; aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: 4px;
+}
+.camera-snapshot.is-loading { opacity: 0.4; }
+.camera-live-open {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin-top: 14px;
+}
+.camera-live-open .icon { width: 18px; height: 18px; }
+
+/* Full-screen live view: bigger shell, MJPEG stage, PTZ d-pad + actions. */
+.camera-live-dialog { width: min(96vw, 760px); }
+.camera-live-stage {
+  background: #000; border-radius: var(--radius-md); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 16 / 9; max-height: 60vh;
+}
+.camera-live-img {
+  width: 100%; height: 100%; object-fit: contain; display: block; background: #000;
+}
+.camera-live-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-top: 14px; flex-wrap: wrap;
+}
+.camera-dpad {
+  display: grid; gap: 6px;
+  grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px);
+  grid-template-areas: ". up ." "left . right" ". down .";
+}
+.camera-ptz-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); background: var(--card-off); color: var(--ink);
+  border-radius: var(--radius-md); cursor: pointer; touch-action: none;
+}
+.camera-ptz-btn:active { transform: scale(0.94); background: var(--accent-soft); }
+.camera-ptz-btn .icon { width: 20px; height: 20px; }
+.camera-ptz-btn.ptz-up { grid-area: up; }
+.camera-ptz-btn.ptz-down { grid-area: down; }
+.camera-ptz-btn.ptz-left { grid-area: left; }
+.camera-ptz-btn.ptz-right { grid-area: right; }
+.camera-ptz-btn.ptz-up .icon { transform: rotate(-90deg); }
+.camera-ptz-btn.ptz-down .icon { transform: rotate(90deg); }
+.camera-ptz-btn.ptz-left .icon { transform: rotate(180deg); }
+.camera-live-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.camera-live-actions .range-tab {
+  min-width: 44px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+}
+.camera-live-actions .icon { width: 20px; height: 20px; }
+.camera-zoom { font-size: 1.4rem; font-weight: 650; line-height: 1; }
+.camera-rec.active {
+  background: color-mix(in srgb, var(--deficit) 18%, transparent);
+  border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
+  color: var(--deficit);
+}

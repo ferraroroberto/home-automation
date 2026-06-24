@@ -26,6 +26,8 @@ config/hvac_schedules.json
 config/location.json
 config/tariff.json
 config/pv_system.json
+config/cameras.json
+config/camera_display_names.json
 webapp/certificates/
 webapp/icloud_session/
 webapp/*.log
