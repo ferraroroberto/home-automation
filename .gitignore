@@ -9,6 +9,9 @@ config/display_names.json
 config/tuya_display_names.json
 config/elgato_display_names.json
 config/network_display_names.json
+config/network_hidden.json
+config/network_wifi_display_names.json
+config/network_wifi_hidden.json
 config/security_display_names.json
 config/security_hidden.json
 config/security_schedules.json

@@ -341,7 +341,7 @@ export function setWifiChannelData(chart, bssids) {
     .map(function (b, i) {
       const color = b.connected ? pal.accent : wifiColor(pal, i);
       return {
-        label: (b.connected ? 'Current · ' : '') + (b.ssid || '(hidden)'),
+        label: (b.connected ? 'Current · ' : '') + (b.display_name || b.ssid || '(hidden)'),
         data: wifiCurvePoints(b),
         borderColor: color,
         backgroundColor: alphaFill(color, b.connected ? 0.24 : 0.14),

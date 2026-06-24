@@ -117,6 +117,93 @@ def test_energy_route_runs_with_monkeypatched_cloud(
     assert body["meter_reachable"] is True
 
 
+def test_network_visibility_and_wifi_rename_persist_and_merge(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Network hidden/name stores persist, and ``GET /api/network`` merges them."""
+    import src.network_hidden as nh
+    import src.network_wifi_display_names as wdn
+
+    monkeypatch.setattr(nh, "DEVICE_DEFAULT_PATH", tmp_path / "network_hidden.json")
+    monkeypatch.setattr(nh, "WIFI_DEFAULT_PATH", tmp_path / "network_wifi_hidden.json")
+    monkeypatch.setattr(wdn, "DEFAULT_PATH", tmp_path / "network_wifi_display_names.json")
+    monkeypatch.setattr(
+        "app.webapp.routers.network.record_and_snapshot",
+        lambda _seen, _now: ([], {}),
+    )
+
+    network_state = NetworkState(
+        internet=InternetHealth(online=True),
+        access_point=AccessPointHealth(reachable=True, device_count=1),
+        router=RouterHealth(reachable=True, authenticated=True),
+        devices=(
+            NetDevice(
+                mac="AA:00:00:00:00:01",
+                ip="192.0.2.11",
+                name="Fixture Phone",
+                conn_type="5GHz",
+                signal=70,
+                link_rate=300,
+                ssid="Home",
+                source="ap",
+            ),
+        ),
+        wifi=WifiDiagnostics(
+            available=True,
+            current_ssid="Home",
+            current_bssid="AA:BB:CC:DD:EE:01",
+            bssids=(
+                WifiBssid(
+                    ssid="Home",
+                    bssid="AA:BB:CC:DD:EE:01",
+                    signal=86,
+                    rssi_dbm=-57,
+                    channel=44,
+                    band="5GHz",
+                    radio_type="802.11ac",
+                    authentication="WPA2-Personal",
+                    encryption="CCMP",
+                    connected=True,
+                ),
+            ),
+        ),
+        alerts=(),
+    )
+
+    async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
+        return network_state
+
+    monkeypatch.setattr(
+        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+    )
+
+    resp = client.put("/api/network/devices/AA:00:00:00:00:01/hidden", json={"hidden": True})
+    assert resp.status_code == 200
+    assert resp.json() == {"mac": "AA:00:00:00:00:01", "hidden": True}
+
+    resp = client.put(
+        "/api/network/wifi/display_name",
+        json={"wifi_id": "AA:BB:CC:DD:EE:01", "display_name": "Main AP"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"wifi_id": "AA:BB:CC:DD:EE:01", "display_name": "Main AP"}
+
+    resp = client.put(
+        "/api/network/wifi/hidden",
+        json={"wifi_id": "AA:BB:CC:DD:EE:01", "hidden": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"wifi_id": "AA:BB:CC:DD:EE:01", "hidden": True}
+
+    body = client.get("/api/network").json()
+    assert body["devices"][0]["hidden"] is True
+    wifi = body["wifi"]["bssids"][0]
+    assert wifi["wifi_id"] == "AA:BB:CC:DD:EE:01"
+    assert wifi["display_name"] == "Main AP"
+    assert wifi["original_name"] == "Home"
+    assert wifi["hidden"] is True
+
+
 def test_lights_route_runs_with_monkeypatched_lan(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
