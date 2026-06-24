@@ -56,6 +56,13 @@ const CATEGORY_ICONS = {
 // Human band/connection label for the detail modal.
 const CONN_LABELS = { '5GHz': '5 GHz', '2.4GHz': '2.4 GHz', wired: 'Wired' };
 const WIFI_BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
+// Which source reported a device (issue #169) — shown only in the detail modal.
+const SOURCE_LABELS = {
+  ap: 'Access point',
+  router: 'Router (DHCP)',
+  both: 'Access point + Router',
+  history: 'Last seen (offline)',
+};
 
 function categoryIcon(category) {
   return CATEGORY_ICONS[category] || CATEGORY_ICONS.unknown;
@@ -743,6 +750,7 @@ function openNetDeviceDetail(mac) {
   els.netDeviceConn.textContent = connText(d);
   els.netDeviceSignal.textContent = signalText(d);
   els.netDeviceSsid.textContent = d.ssid || '—';
+  els.netDeviceSource.textContent = SOURCE_LABELS[d.source] || d.source || '—';
   // First-seen + times-seen history (Phase 4); hidden for untracked randomised MACs.
   if (els.netDeviceSeenRow) {
     const tracked = !d.randomized && d.first_seen != null;
