@@ -225,7 +225,7 @@ export function renderPlugs() {
 
   // Update toggle button label to reflect current state.
   if (els.plugsToggleBtn) {
-    els.plugsToggleBtn.textContent = state.plugsShowAll ? 'Hide unregistered' : 'Show all';
+    els.plugsToggleBtn.textContent = state.plugsShowAll ? 'Reachable only' : 'Show all devices';
     els.plugsToggleBtn.classList.toggle('active', state.plugsShowAll);
   }
 
@@ -248,7 +248,7 @@ export function renderPlugs() {
     return (a.name || '').localeCompare(b.name || '');
   });
 
-  // When "show all" is off (default), hide devices without a valid LAN IP.
+  // When "show all" is off, hide devices without a valid LAN IP.
   // Registered-but-offline devices (has_valid_ip=true, reachable=false) still show.
   const visible = state.plugsShowAll
     ? sorted
@@ -257,8 +257,7 @@ export function renderPlugs() {
   const hiddenCount = sorted.length - visible.length;
   if (els.plugsHiddenCount) {
     if (!state.plugsShowAll && hiddenCount > 0) {
-      els.plugsHiddenCount.textContent =
-        hiddenCount + ' unregistered hidden';
+      els.plugsHiddenCount.textContent = hiddenCount + ' no-IP hidden';
       els.plugsHiddenCount.hidden = false;
     } else {
       els.plugsHiddenCount.hidden = true;
@@ -274,6 +273,7 @@ export function wirePlugsToggle() {
   try {
     const stored = localStorage.getItem(PLUGS_SHOW_ALL_KEY);
     if (stored === 'true') state.plugsShowAll = true;
+    else if (stored === 'false') state.plugsShowAll = false;
   } catch (_) { /* private mode */ }
 
   if (!els.plugsToggleBtn) return;
@@ -283,6 +283,29 @@ export function wirePlugsToggle() {
       localStorage.setItem(PLUGS_SHOW_ALL_KEY, String(state.plugsShowAll));
     } catch (_) { /* private mode */ }
     renderPlugs();
+  });
+}
+
+export function wirePlugsRefresh() {
+  if (!els.plugsRefresh) return;
+  els.plugsRefresh.addEventListener('click', async function () {
+    els.plugsRefresh.disabled = true;
+    try {
+      const body = await jsonApi('/api/tuya/refresh', { method: 'POST' });
+      reportFetchOk('plugs');
+      saveSnapshot('plugs', body);
+      state.plugs = (body && body.devices) || [];
+      renderPlugs();
+      toast('Plugs refreshed', 'good');
+    } catch (exc) {
+      if (String(exc.message) !== 'auth required') {
+        reportFetchFailure('plugs', exc, 'plugs');
+        els.plugsNote.hidden = false;
+        els.plugsNote.textContent = exc.message || 'Failed to refresh devices.';
+      }
+    } finally {
+      els.plugsRefresh.disabled = false;
+    }
   });
 }
 

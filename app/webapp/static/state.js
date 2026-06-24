@@ -23,9 +23,9 @@ export const state = {
   lights: [],
   // device_id whose rename modal is open (or null).
   selectedPlugId: null,
-  // When false (default), only cards with has_valid_ip===true are shown.
-  // When true, all cards render (including unregistered/no-IP adapters).
-  plugsShowAll: false,
+  // When true (default), all source-visible devices render, including no-IP
+  // adapters. When false, only cards with has_valid_ip===true are shown.
+  plugsShowAll: true,
   // RISCO alarm state and event log from GET /api/security.
   security: null,
   securityEvents: [],
@@ -199,6 +199,7 @@ export const els = {
   // Plugs (Smart Life) tab
   plugsGrid: document.getElementById('plugsGrid'),
   plugsNote: document.getElementById('plugsNote'),
+  plugsRefresh: document.getElementById('plugsRefresh'),
   plugsToggleBtn: document.getElementById('plugsToggleBtn'),
   plugsHiddenCount: document.getElementById('plugsHiddenCount'),
   // Plugs summary stats
@@ -221,6 +222,7 @@ export const els = {
   // Elgato Lights tab
   lightsAllOn: document.getElementById('lightsAllOn'),
   lightsAllOff: document.getElementById('lightsAllOff'),
+  lightsRefresh: document.getElementById('lightsRefresh'),
   lightsGrid: document.getElementById('lightsGrid'),
   lightsNote: document.getElementById('lightsNote'),
   lightDialog: document.getElementById('lightDialog'),

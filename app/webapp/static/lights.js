@@ -272,18 +272,19 @@ function closeLightDetail() {
 async function saveLightName() {
   if (!state.selectedLightId) return;
   const lightId = state.selectedLightId;
+  const displayKey = (lightById(lightId) || {}).display_key || lightId;
   const displayName = els.lightDisplayName.value.trim();
   try {
     await jsonApi('/api/lights/' + encodeURIComponent(lightId) + '/display_name', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: displayName }),
+      body: JSON.stringify({ display_name: displayName, display_key: displayKey }),
     });
     state.lights = state.lights.map(function (light) {
       return light.light_id === lightId ? Object.assign({}, light, { display_name: displayName || null }) : light;
     });
-    const light = lightById(lightId);
-    if (light) els.lightDetailName.textContent = label(light);
+    const updatedLight = lightById(lightId);
+    if (updatedLight) els.lightDetailName.textContent = label(updatedLight);
     renderLights();
     toast('Name saved', 'good');
   } catch (exc) {
@@ -328,7 +329,9 @@ export async function loadLights() {
     if (!state.lights.length) els.lightsGrid.innerHTML = '';
     updateBulkControls();
     els.lightsNote.hidden = false;
-    els.lightsNote.textContent = exc.message || 'Failed to load Elgato lights.';
+    els.lightsNote.textContent = state.lights.length
+      ? 'Showing last successful light data. Refresh failed: ' + (exc.message || 'Failed to load Elgato lights.')
+      : (exc.message || 'Failed to load Elgato lights.');
   }
 }
 
@@ -354,6 +357,29 @@ export function onLightsTab(tab) {
 }
 
 export function wireLightControls() {
+  if (els.lightsRefresh) {
+    els.lightsRefresh.addEventListener('click', async function () {
+      els.lightsRefresh.disabled = true;
+      try {
+        const body = await jsonApi('/api/lights/refresh', { method: 'POST' });
+        reportFetchOk('lights');
+        saveSnapshot('lights', body);
+        state.lights = (body && body.lights) || [];
+        renderLights();
+        toast('Lights refreshed', 'good');
+      } catch (exc) {
+        if (String(exc.message) !== 'auth required') {
+          reportFetchFailure('lights', exc, 'lights');
+          els.lightsNote.hidden = false;
+          els.lightsNote.textContent = state.lights.length
+            ? 'Showing last successful light data. Refresh failed: ' + (exc.message || 'Failed to load Elgato lights.')
+            : (exc.message || 'Failed to load Elgato lights.');
+        }
+      } finally {
+        els.lightsRefresh.disabled = false;
+      }
+    });
+  }
   if (els.lightsAllOn) {
     els.lightsAllOn.addEventListener('click', function () { applyAllLights(true); });
   }

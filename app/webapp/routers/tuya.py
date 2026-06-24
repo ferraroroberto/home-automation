@@ -67,6 +67,10 @@ def _base_card(
         "name": info.name,
         "display_name": names.get(info.device_id) or None,
         "category": info.category,
+        "ip": info.ip,
+        "mac": info.mac,
+        "uuid": info.uuid,
+        "sn": info.sn,
         "has_switch": info.switch_dps is not None,
         "has_cover": info.cover_control_dps is not None,
         "metered": bool(info.energy_dps),
@@ -91,7 +95,10 @@ def _read_one(
     """
     card = _base_card(info, overrides)
     if not info.has_valid_ip or not info.has_local_key:
-        card["error"] = "No local IP — refresh devices.json on the home network."
+        card["error"] = (
+            "No local IP — run `python -m tinytuya snapshot` on the home network, "
+            "then refresh this tab."
+        )
         return card
     try:
         state = read_device_state(info.device_id)
@@ -130,6 +137,25 @@ async def list_tuya() -> Dict[str, Any]:
 
     cards = await asyncio.gather(*(_bounded(info) for info in infos))
     return {"devices": list(cards)}
+
+
+@router.post("/api/tuya/refresh")
+async def refresh_tuya() -> Dict[str, Any]:
+    """Explicit UI refresh path for local Tuya state.
+
+    This reloads ``devices.json`` and retries safe LAN reads. TinyTuya's
+    wizard/snapshot can rewrite secret-bearing local metadata, so that operator
+    action remains a CLI step instead of a browser-triggered mutation.
+    """
+    body = await list_tuya()
+    body["refresh"] = {
+        "safe": True,
+        "detail": (
+            "Reloaded devices.json and retried LAN reads. If devices still have no "
+            "IP, run `python -m tinytuya snapshot` on the home network first."
+        ),
+    }
+    return body
 
 
 @router.post("/api/tuya/{device_id}/switch")

@@ -28,7 +28,7 @@ import {
   restyleEnergyCharts,
   restoreEnergySnapshots,
 } from './energy.js';
-import { onPlugsTab, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
+import { onPlugsTab, wirePlugsRefresh, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls } from './security.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
@@ -760,6 +760,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireTabs();
   wireEnergyControls();
   wirePlugsToggle();
+  wirePlugsRefresh();
   wirePlugDetail();
   wireLightControls();
   wireZoneDetail();

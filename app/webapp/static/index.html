@@ -633,7 +633,8 @@
         </div>
       </section>
       <div class="plugs-toolbar">
-        <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Show all</button>
+        <button id="plugsRefresh" type="button" class="range-tab" data-testid="plugs-refresh">Refresh</button>
+        <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Reachable only</button>
         <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
       </div>
       <section id="plugsGrid" class="plugs-grid" aria-label="Devices"></section>
@@ -643,6 +644,7 @@
     <!-- ============================== LIGHTS ============================= -->
     <section id="paneLights" class="pane" role="tabpanel" aria-labelledby="tabLights" aria-label="Elgato lights" hidden>
       <div class="lights-toolbar" aria-label="Light group controls">
+        <button id="lightsRefresh" type="button" class="range-tab" data-testid="lights-refresh">Refresh</button>
         <button id="lightsAllOn" type="button" class="range-tab" data-testid="lights-all-on">All on</button>
         <button id="lightsAllOff" type="button" class="range-tab" data-testid="lights-all-off">All off</button>
       </div>
