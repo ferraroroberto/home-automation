@@ -747,6 +747,22 @@
         <div id="securityActions" class="security-actions" aria-label="Alarm actions"></div>
       </section>
 
+      <details class="card security-card security-schedules-card" aria-label="Alarm schedules">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+            <h3 class="collapse-title">Schedules</h3>
+            <span id="securitySchedulesCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="security-schedules-body">
+          <div id="securitySchedules" class="alarm-schedule-list"></div>
+          <p id="securitySchedulesNote" class="muted small security-note" hidden></p>
+          <button id="securityScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+        </div>
+      </details>
+
       <details class="card security-card security-events-card">
         <summary class="collapse-summary">
           <span class="collapse-main">

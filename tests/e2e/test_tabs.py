@@ -119,6 +119,32 @@ def test_security_tab_renders_presence_spike(
     expect(page.locator(".presence-row.is-unknown")).to_contain_text("Keys")
 
 
+def test_security_tab_adds_alarm_schedule(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+
+    page.locator("#tabSecurity").click()
+    page.locator("#paneSecurity .security-schedules-card > summary").click()
+    page.locator("#securityScheduleAdd").click()
+
+    entry = page.locator(".alarm-schedule-entry")
+    expect(entry).to_have_count(1)
+    entry.locator(".alarm-schedule-time").fill("22:30")
+    entry.locator(".alarm-schedule-action").select_option("perimeter")
+    entry.locator(".alarm-schedule-day", has_text="Sat").click()
+    entry.locator(".alarm-schedule-day", has_text="Sun").click()
+
+    expect(entry.locator(".alarm-schedule-action")).to_have_value("perimeter")
+    expect(page.locator("#securitySchedulesCount")).to_contain_text("1 active")
+
+
 def test_this_device_presence_is_diagnostic_only(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,

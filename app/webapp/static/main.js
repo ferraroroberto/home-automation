@@ -29,7 +29,7 @@ import {
 } from './energy.js';
 import { onPlugsTab, wirePlugsToggle, wirePlugDetail } from './plugs.js';
 import { onLightsTab, wireLightControls } from './lights.js';
-import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wirePresenceControls } from './security.js';
+import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls } from './security.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts } from './network.js';
 import { startWeatherPolling } from './weather.js';
 
@@ -745,6 +745,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireLightControls();
   wireZoneDetail();
   wireSecurityHiddenToggle();
+  wireSecuritySchedules();
   wirePresenceControls();
   wireNetworkControls();
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,

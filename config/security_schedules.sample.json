@@ -1,0 +1,23 @@
+[
+  {
+    "id": "weeknight-full",
+    "enabled": true,
+    "time": "21:00",
+    "days": ["mon", "tue", "wed", "thu", "fri"],
+    "action": "arm"
+  },
+  {
+    "id": "weekend-full",
+    "enabled": true,
+    "time": "23:00",
+    "days": ["sat", "sun"],
+    "action": "arm"
+  },
+  {
+    "id": "weekday-disarm",
+    "enabled": true,
+    "time": "07:30",
+    "days": ["mon", "tue", "wed", "thu", "fri"],
+    "action": "disarm"
+  }
+]

@@ -26,6 +26,7 @@ from src.risco_client import (
     fetch_security_state,
     set_zone_bypass,
 )
+from src.security_schedules import load_security_schedules, set_security_schedules
 from src.security_display_names import (
     load_security_display_names,
     set_security_display_name,
@@ -35,6 +36,15 @@ from src.security_hidden import load_hidden_zone_ids, set_zone_hidden
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _schedule_payload(entries: List[object]) -> Dict[str, Any]:
+    active = [entry for entry in entries if getattr(entry, "enabled", False)]
+    return {
+        "enabled": bool(active),
+        "count": len(active),
+        "entries": [asdict(entry) for entry in entries],
+    }
 
 
 def _state_payload(state: object) -> Dict[str, Any]:
@@ -88,6 +98,28 @@ async def get_security_events(count: int = 50) -> Dict[str, Any]:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
+
+
+@router.get("/api/security/schedules")
+async def get_security_schedules() -> Dict[str, Any]:
+    try:
+        return _schedule_payload(load_security_schedules())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to load alarm schedules: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to load schedules: {exc}")
+
+
+@router.put("/api/security/schedules")
+async def update_security_schedules(request: Request) -> Dict[str, Any]:
+    body = await _json_body(request)
+    entries = body.get("entries")
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=400, detail="'entries' must be a list")
+    try:
+        return _schedule_payload(set_security_schedules(entries))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save alarm schedules: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to save schedules: {exc}")
 
 
 @router.post("/api/security/{action}")

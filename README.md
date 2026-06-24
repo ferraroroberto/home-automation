@@ -39,6 +39,7 @@ optional bearer token. Three ways to reach it once running:
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `elgato_client.py` — Elgato lights discovery/read/control over the local LAN HTTP API.
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
+  - `security_schedules.py` — UI-free persistence and due-window checks for weekly alarm schedules.
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
   - `network_client.py` — async home-network spike core: internet/AP/router health + attached-device inventory + AP reboot (issue #125).
   - `list_network.py` — CLI that prints the live network state and inventory.
@@ -53,6 +54,7 @@ optional bearer token. Three ways to reach it once running:
   - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
+  - `security_automation.py` — background weekly alarm-schedule evaluator owned by the webapp lifecycle.
   - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, CA profile).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
@@ -65,7 +67,7 @@ optional bearer token. Three ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `security_display_names.json`, `security_hidden.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `security_display_names.json`, `security_hidden.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -152,6 +154,16 @@ the `Alarm state` line, not by a highlighted pill. Tapping Disarm also clears a
 trouble/alarm-memory condition. Every action shows an optimistic neutral
 frosted toast on tap, then re-renders from the panel's live state.
 
+**Weekly alarm schedules.** The Alarm tab includes a collapsible **Schedules**
+card for multiple local weekly schedule entries. Each entry can be enabled,
+assigned to any weekday combination, given a time, and set to `Disarm`,
+`Partial`, `Perimeter`, or `Full`. The tray-owned webapp evaluates these entries
+server-side, fires each entry at most once per calendar day, and logs failed
+alarm commands without stopping the scheduler so a transient RISCO error can be
+retried on the next poll. The entries live in gitignored
+`config/security_schedules.json`; copy `config/security_schedules.sample.json`
+for the persisted shape if editing by hand.
+
 Config in `.env`:
 
 | Key | Meaning |
@@ -161,6 +173,8 @@ Config in `.env`:
 | `RISCO_PIN` | Panel PIN used by RISCO Cloud/WebUI commands. |
 | `RISCO_PERIMETER_GROUP` | Optional group letter used only to label partially-set states more precisely. |
 | `RISCO_PARTIAL_GROUP` | Optional group letter used only to label partially-set states more precisely. |
+| `SECURITY_SCHEDULES_ENABLED` | Optional, default `true`; set `0` to disable the weekly alarm-schedule evaluator while keeping the UI/API available. |
+| `SECURITY_SCHEDULES_POLL_INTERVAL_S` | Optional, default `60`; how often the tray-owned webapp checks due alarm schedules. |
 
 Read-only smoke command:
 
