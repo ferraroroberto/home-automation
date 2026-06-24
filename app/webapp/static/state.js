@@ -29,6 +29,7 @@ export const state = {
   // RISCO alarm state and event log from GET /api/security.
   security: null,
   securityEvents: [],
+  securitySchedules: [],
   // When false (default), detectors marked hidden are filtered out of the list.
   // When true, they render (dimmed) so they can be un-hidden (issue #104).
   securityShowHidden: false,
@@ -111,6 +112,10 @@ export const els = {
   homeSecurityActions: document.getElementById('homeSecurityActions'),
   securityEvents: document.getElementById('securityEvents'),
   securityEventsNote: document.getElementById('securityEventsNote'),
+  securitySchedules: document.getElementById('securitySchedules'),
+  securitySchedulesNote: document.getElementById('securitySchedulesNote'),
+  securitySchedulesCount: document.getElementById('securitySchedulesCount'),
+  securityScheduleAdd: document.getElementById('securityScheduleAdd'),
   securityZones: document.getElementById('securityZones'),
   securityZonesNote: document.getElementById('securityZonesNote'),
   securityHiddenCount: document.getElementById('securityHiddenCount'),

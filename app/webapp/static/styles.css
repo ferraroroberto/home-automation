@@ -1185,6 +1185,7 @@ html, body {
   }
 }
 .security-events-card,
+.security-schedules-card,
 .security-zones-card,
 .presence-card { padding: 0; }
 .security-events,
@@ -1291,6 +1292,66 @@ button.security-zone-name:hover { text-decoration: underline; }
 .security-bypass.on .toggle-label,
 .security-bypass.off .toggle-label { color: var(--accent-fg); }
 .security-note { margin: 10px 14px 14px; }
+.security-schedules-body {
+  padding: 12px 14px 14px;
+}
+.alarm-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.alarm-schedule-entry .schedule-entry-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.alarm-schedule-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 8px;
+}
+.alarm-schedule-day {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  cursor: pointer;
+}
+.alarm-schedule-day.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border-strong);
+  color: var(--accent);
+}
+.alarm-schedule-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.alarm-schedule-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 650;
+}
+.alarm-schedule-fields .input-native,
+.alarm-schedule-fields .select-native {
+  width: 100%;
+}
+.security-schedules-body .schedule-add-btn {
+  margin-top: 10px;
+}
+@media (max-width: 420px) {
+  .alarm-schedule-entry .schedule-entry-head { grid-template-columns: 1fr auto; }
+  .alarm-schedule-entry .schedule-enabled { grid-column: 1 / -1; }
+  .alarm-schedule-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .alarm-schedule-fields { grid-template-columns: 1fr; }
+}
 .presence-body-summary {
   display: flex;
   align-items: center;
@@ -1631,6 +1692,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 /* Collapsible cards share one closed height: the summary owns the padding so
    Security and Settings headers align exactly. */
 .settings-card > .collapse-summary,
+.security-schedules-card > .collapse-summary,
 .security-events-card > .collapse-summary,
 .security-zones-card > .collapse-summary,
 .presence-card > .collapse-summary,
@@ -1640,6 +1702,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   padding: 0 14px;
 }
 .settings-card[open] > .collapse-summary,
+.security-schedules-card[open] > .collapse-summary,
 .security-events-card[open] > .collapse-summary,
 .security-zones-card[open] > .collapse-summary,
 .presence-card[open] > .collapse-summary,

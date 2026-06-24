@@ -331,6 +331,55 @@ def test_security_zone_hidden_persists_and_merges(
     assert shd.load_hidden_zone_ids() == set()
 
 
+def test_security_schedules_endpoint_persists_normalized_entries(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """``GET/PUT /api/security/schedules`` edits the local weekly alarm schedule list."""
+    import src.security_schedules as schedules
+
+    store = tmp_path / "security_schedules.json"
+    monkeypatch.setattr(schedules, "SCHEDULES_PATH", store)
+
+    resp = client.get("/api/security/schedules")
+    assert resp.status_code == 200
+    assert resp.json() == {"enabled": False, "count": 0, "entries": []}
+
+    resp = client.put(
+        "/api/security/schedules",
+        json={
+            "entries": [
+                {
+                    "id": "Weekend full",
+                    "enabled": True,
+                    "time": "22:30",
+                    "days": ["sat", "sun"],
+                    "action": "arm",
+                },
+                {
+                    "id": "weekday-disarm",
+                    "enabled": False,
+                    "time": "07:15",
+                    "days": ["mon", "tue", "wed", "thu", "fri"],
+                    "action": "disarm",
+                },
+            ]
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["enabled"] is True
+    assert body["count"] == 1
+    assert body["entries"][0] == {
+        "id": "Weekend-full",
+        "enabled": True,
+        "time": "22:30",
+        "days": ["sat", "sun"],
+        "action": "arm",
+    }
+    assert schedules.load_security_schedules(path=store)[1].enabled is False
+
+
 def test_network_route_flattens_state_with_monkeypatched_core(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

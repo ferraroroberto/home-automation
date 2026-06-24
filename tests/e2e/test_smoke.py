@@ -76,7 +76,7 @@ def test_detail_modal_adds_multiple_schedule_entries(
     _boot(page, base_url)
     page.locator("#tabAc").click()
     page.locator('[data-unit-id="unit-1"] .unit-header').click()
-    page.get_by_text("Schedules", exact=True).click()
+    page.locator("#detailScheduleSection > summary").click()
 
     add = page.get_by_role("button", name="+ Add schedule")
     add.click()

@@ -178,6 +178,7 @@ def base_url() -> Iterator[str]:
             # test boot (the dormant-tick short-circuit makes it harmless with no
             # config, but keep it explicitly off like the sampler).
             "HVAC_AUTOMATION_ENABLED": "0",
+            "SECURITY_SCHEDULES_ENABLED": "0",
             "PRESENCE_ICLOUD_REFRESH_ENABLED": "0",
             "PRESENCE_AUTOMATION_ENGINE_ENABLED": "0",
         },
@@ -423,9 +424,29 @@ def mock_security(page: Page) -> Callable[..., None]:
                 },
             ],
         }
+        schedule_store: List[Dict] = []
 
         def handle(route: Route) -> None:
-            url = route.request.url
+            req = route.request
+            url = req.url
+            if "/api/security/schedules" in url:
+                if req.method == "GET":
+                    enabled = [e for e in schedule_store if e.get("enabled") is not False]
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"enabled": bool(enabled), "count": len(enabled), "entries": schedule_store}),
+                    )
+                    return
+                body = req.post_data_json or {}
+                schedule_store[:] = body.get("entries", []) if isinstance(body, dict) else []
+                enabled = [e for e in schedule_store if e.get("enabled") is not False]
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({"enabled": bool(enabled), "count": len(enabled), "entries": schedule_store}),
+                )
+                return
             if "/api/security/events" in url:
                 route.fulfill(
                     status=200,

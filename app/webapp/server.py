@@ -19,6 +19,7 @@ Routes (split across ``app/webapp/routers/``):
     POST /api/lights/{id}        → Elgato light controls       (lights)
     GET  /api/security           → RISCO alarm state           (security)
     POST /api/security/{action}  → arm/disarm/perimeter alarm  (security)
+    GET  /api/security/schedules → weekly alarm schedules      (security)
     GET  /api/network            → LAN health + device list    (network)
     POST /api/network/access-point/reboot → reboot the AP      (network)
     POST /api/network/router/reboot → reboot the router        (network)
@@ -54,6 +55,7 @@ from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
+from app.webapp.security_automation import start_security_schedules
 from app.webapp.sampler import start_sampler
 from src.webapp_config import load_webapp_config
 
@@ -124,6 +126,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             start_automation(),
             start_presence_refresher(),
             start_presence_automation(),
+            start_security_schedules(),
         )
         if t is not None
     ]
