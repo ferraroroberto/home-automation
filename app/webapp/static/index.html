@@ -1173,6 +1173,9 @@
       <!-- Which source reported the device: the access point, the router DHCP
            table, or both (issue #169). -->
       <div class="row"><span>Seen by</span><span id="netDeviceSource" class="muted">—</span></div>
+      <!-- The AP/router-reported hostname, kept visible as a data point even when
+           a custom display name overrides the label (issue #173). -->
+      <div class="row"><span>Hostname</span><span id="netDeviceHostname" class="muted">—</span></div>
       <!-- History (Phase 4) — hidden for randomised MACs, which aren't tracked. -->
       <div class="row" id="netDeviceSeenRow"><span>Seen</span><span id="netDeviceSeen" class="muted">—</span></div>
 
