@@ -256,12 +256,12 @@ function wifiSignalClass(signal) {
 }
 
 function wifiSummary(wifi) {
-  if (!wifi || !wifi.available) return 'Unavailable';
+  if (!wifi || !wifi.available) return '';
   const parts = [];
   if (wifi.current_ssid) parts.push(wifi.current_ssid);
   if (wifi.current_band) parts.push(bandLabel(wifi.current_band));
   if (wifi.current_channel != null) parts.push('ch ' + wifi.current_channel);
-  return parts.join(' · ') || 'Scan available';
+  return parts.join(' · ');
 }
 
 function ensureWifiCharts() {
@@ -358,7 +358,7 @@ function renderWifiList(bssids) {
 function renderWifi(wifi) {
   const available = !!(wifi && wifi.available);
   const signal = wifi ? wifi.current_signal : null;
-  els.netWifiStatus.textContent = signal != null ? signal + '%' : (available ? 'Scan' : 'Unavailable');
+  els.netWifiStatus.textContent = signal != null ? signal + '%' : '';
   els.netWifiStatus.className = 'net-wifi-status' + wifiSignalClass(signal);
   els.netWifiSummary.textContent = wifiSummary(wifi);
 

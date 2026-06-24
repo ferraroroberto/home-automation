@@ -126,3 +126,66 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
 
     offline.click()
     expect(offline).to_have_text("Hide offline")
+
+
+def test_network_wifi_header_stays_quiet_when_scan_unavailable(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    snapshot = mock_network()
+    snapshot["wifi"] = {
+        "available": False,
+        "interface_name": "Wi-Fi",
+        "adapter_description": "Fixture WLAN",
+        "current_ssid": None,
+        "current_bssid": None,
+        "current_signal": None,
+        "current_channel": None,
+        "current_band": None,
+        "current_radio_type": None,
+        "recommendations": [],
+        "error": "Wi-Fi diagnostics are unavailable in this fixture.",
+        "bssids": [],
+    }
+    _boot(page, base_url)
+
+    page.locator("#tabNetwork").click()
+
+    expect(page.locator("#netWifiStatus")).to_have_text("")
+    expect(page.locator("#netWifiSummary")).to_have_text("")
+    header_text = page.locator("details.net-wifi-card > summary").inner_text()
+    assert "Scan" not in header_text
+    assert "Scan available" not in header_text
+    assert "Unavailable" not in header_text
+
+    page.locator("details.net-wifi-card > summary").click()
+    expect(page.locator("#netWifiNote")).to_contain_text(
+        "Wi-Fi diagnostics are unavailable in this fixture."
+    )
+
+
+def test_network_tab_retries_after_first_load_failure(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_network(failures_before_success=1)
+    _boot(page, base_url)
+
+    page.locator("#tabNetwork").click()
+
+    expect(page.locator("#netDevicesNote")).to_contain_text("Temporary network read failure")
+    expect(page.locator("#netInternetStatus")).to_have_text("Online", timeout=20_000)
+    expect(page.locator("#netDevicesNote")).to_be_hidden()
+    expect(page.locator("#netDevices .net-device-name-text").first).to_have_text("Alpha Laptop")
