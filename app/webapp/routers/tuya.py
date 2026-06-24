@@ -28,6 +28,7 @@ from src.tuya_client import (
     TuyaDeviceNotFoundError,
     list_devices,
     read_device_state,
+    rescan_addresses,
     set_cover,
     set_switch,
 )
@@ -94,16 +95,21 @@ def _read_one(
     a network attempt (a missing IP would otherwise trigger a slow scan).
     """
     card = _base_card(info, overrides)
-    if not info.has_valid_ip or not info.has_local_key:
+    # Distinct reasons for distinct conditions: a missing local key needs the
+    # one-time wizard, a missing IP means the device didn't answer the LAN scan,
+    # and a present-but-unreadable IP means it's powered off / off-network.
+    if not info.has_local_key:
+        card["error"] = "No local key — run `python -m tinytuya wizard` once to capture it."
+        return card
+    if not info.has_valid_ip:
         card["error"] = (
-            "No local IP — run `python -m tinytuya snapshot` on the home network, "
-            "then refresh this tab."
+            "No local IP — didn't answer the LAN scan (powered off or on another network?)."
         )
         return card
     try:
         state = read_device_state(info.device_id)
     except (TuyaCommandError, TuyaConfigError) as exc:
-        card["error"] = "Offline — refresh devices.json if this persists."
+        card["error"] = "Offline — no response on the LAN (powered off?)."
         logger.info("ℹ️ Tuya device %s unreachable: %s", info.device_id, exc)
         return card
     card.update(
@@ -141,20 +147,41 @@ async def list_tuya() -> Dict[str, Any]:
 
 @router.post("/api/tuya/refresh")
 async def refresh_tuya() -> Dict[str, Any]:
-    """Explicit UI refresh path for local Tuya state.
+    """Explicit UI refresh path: live LAN rescan, then read back state.
 
-    This reloads ``devices.json`` and retries safe LAN reads. TinyTuya's
-    wizard/snapshot can rewrite secret-bearing local metadata, so that operator
-    action remains a CLI step instead of a browser-triggered mutation.
+    A plug that took a new DHCP lease has a stale IP in ``devices.json``, so
+    merely re-reading the file leaves it offline forever. This runs a TinyTuya
+    UDP broadcast scan (no Tuya Cloud, no local keys), reconciles the discovered
+    LAN addresses into ``devices.json`` by device id, then retries the per-device
+    reads. The scan is gated to this explicit action because a broadcast scan
+    takes several seconds — page-load reads stay fast off the stored file.
     """
+    try:
+        summary = await asyncio.to_thread(rescan_addresses)
+    except TuyaConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001 — surface scan failure, keep serving
+        logger.warning("⚠️  Tuya LAN rescan failed: %s", exc)
+        summary = {"found": 0, "updated": [], "addresses": {}, "error": str(exc)}
+
     body = await list_tuya()
-    body["refresh"] = {
-        "safe": True,
-        "detail": (
-            "Reloaded devices.json and retried LAN reads. If devices still have no "
-            "IP, run `python -m tinytuya snapshot` on the home network first."
-        ),
-    }
+    found = summary.get("found", 0)
+    updated = summary.get("updated", [])
+    if summary.get("error"):
+        detail = f"LAN scan failed ({summary['error']}); showing last-known state."
+    elif updated:
+        detail = (
+            f"LAN scan found {found} device(s); recovered {len(updated)} stale "
+            "address(es) and refreshed live state."
+        )
+    elif found:
+        detail = f"LAN scan found {found} device(s); stored addresses already current."
+    else:
+        detail = (
+            "LAN scan found no devices — make sure you're on the home network "
+            "and the plugs are powered on."
+        )
+    body["refresh"] = {"safe": True, "found": found, "updated": updated, "detail": detail}
     return body
 
 

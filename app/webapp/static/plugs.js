@@ -289,14 +289,19 @@ export function wirePlugsToggle() {
 export function wirePlugsRefresh() {
   if (!els.plugsRefresh) return;
   els.plugsRefresh.addEventListener('click', async function () {
+    // A refresh runs a LAN broadcast scan server-side (~8s), so signal that the
+    // wait is expected rather than a hang.
     els.plugsRefresh.disabled = true;
+    els.plugsRefresh.textContent = 'Scanning…';
     try {
       const body = await jsonApi('/api/tuya/refresh', { method: 'POST' });
       reportFetchOk('plugs');
       saveSnapshot('plugs', body);
       state.plugs = (body && body.devices) || [];
       renderPlugs();
-      toast('Plugs refreshed', 'good');
+      const info = (body && body.refresh) || {};
+      const recovered = (info.updated && info.updated.length) || 0;
+      toast(info.detail || 'Plugs refreshed', recovered ? 'good' : '');
     } catch (exc) {
       if (String(exc.message) !== 'auth required') {
         reportFetchFailure('plugs', exc, 'plugs');
@@ -305,6 +310,7 @@ export function wirePlugsRefresh() {
       }
     } finally {
       els.plugsRefresh.disabled = false;
+      els.plugsRefresh.textContent = 'Refresh';
     }
   });
 }

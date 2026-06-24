@@ -16,17 +16,23 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Optional
 
 import tinytuya
+from tinytuya import scanner as tuya_scanner
 
 logger = logging.getLogger("tuya")
 
 _DEVICE_FILE = Path("devices.json")
 _LOCAL_TIMEOUT_SECONDS = 1.0
 _LOCAL_RETRY_LIMIT = 1
+# UDP broadcast scan window for a Refresh-triggered LAN rediscovery. Long enough
+# for sleepy plugs to emit at least one beacon, short enough for an interactive
+# button press; gated to the explicit Refresh action (never a page-load read).
+_SCAN_TIME_SECONDS = 8.0
 
 _SWITCH_CODES = ("switch_1", "switch", "switch_led")
 _COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
@@ -346,6 +352,105 @@ def list_devices() -> list[TuyaDeviceInfo]:
     devices = [_sanitize(device) for device in _load_device_entries()]
     logger.info("✅ Loaded %d local Tuya device(s)", len(devices))
     return devices
+
+
+def _scan_lan(scan_time: float) -> dict[str, dict[str, Any]]:
+    """Return ``{device_id: {"ip", "version"}}`` from a TinyTuya UDP scan.
+
+    Listens for the plaintext UDP beacons every Tuya device broadcasts on the
+    LAN — no Tuya Cloud and no local keys are needed — so it recovers the
+    current address of any powered-on device even when ``devices.json`` is
+    stale. Blocking socket I/O; run it in a worker thread from async code.
+    """
+    logger.info("ℹ️ Scanning LAN for Tuya devices (%.0fs)…", scan_time)
+    raw = tuya_scanner.devices(
+        verbose=False, scantime=scan_time, color=False, poll=False, byID=True
+    )
+    result: dict[str, dict[str, Any]] = {}
+    for device_id, info in (raw or {}).items():
+        if not isinstance(info, dict):
+            continue
+        ip = info.get("ip")
+        if not isinstance(ip, str) or not _has_valid_ip({"ip": ip}):
+            continue
+        result[str(device_id)] = {
+            "ip": ip.strip(),
+            "version": _version(info.get("version", info.get("ver"))),
+        }
+    return result
+
+
+def _save_payload(payload: Any) -> None:
+    """Atomically rewrite ``devices.json`` (temp-file swap, as display_names)."""
+    tmp = _DEVICE_FILE.with_suffix(_DEVICE_FILE.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, _DEVICE_FILE)
+
+
+def _apply_discovered_addresses(discovered: dict[str, dict[str, Any]]) -> list[str]:
+    """Merge scanned IPs into ``devices.json`` by device id; return updated ids.
+
+    Rewrites only the address (and protocol version) of rows whose IP actually
+    changed — local keys and DPS mappings are preserved untouched, and an
+    unchanged scan never rewrites the file. A device may have several rows
+    (snapshot + wizard); every matching row is reconciled to the same address.
+    """
+    if not _DEVICE_FILE.exists():
+        raise TuyaConfigError("Missing devices.json; cannot persist rescanned addresses")
+    with _DEVICE_FILE.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    entries = payload.get("devices", []) if isinstance(payload, dict) else payload
+    if not isinstance(entries, list):
+        raise TuyaConfigError("devices.json has no device list to update")
+
+    updated: list[str] = []
+    changed = False
+    for device in entries:
+        if not isinstance(device, dict):
+            continue
+        device_id = str(device.get("id") or device.get("dev_id") or "")
+        match = discovered.get(device_id)
+        if not match:
+            continue
+        new_ip = match["ip"]
+        if (device.get("ip") or device.get("address") or "") == new_ip:
+            continue
+        device["ip"] = new_ip
+        if "address" in device:  # keep the legacy field aligned where present
+            device["address"] = new_ip
+        if match.get("version"):
+            device["version"] = match["version"]
+        changed = True
+        if device_id not in updated:
+            updated.append(device_id)
+
+    if changed:
+        _save_payload(payload)
+        logger.info("💾 Reconciled %d Tuya address(es) in devices.json", len(updated))
+    return updated
+
+
+def rescan_addresses(scan_time: float = _SCAN_TIME_SECONDS) -> dict[str, Any]:
+    """Broadcast-scan the LAN and reconcile stale ``devices.json`` addresses.
+
+    The Plugs Refresh path calls this so a plug that took a new DHCP lease
+    becomes locally controllable again without a manual ``tinytuya snapshot``.
+    Returns a summary: total responders found, the device ids whose stored IP
+    was updated, and the current ``{device_id: ip}`` map. Blocking; call via a
+    worker thread.
+    """
+    discovered = _scan_lan(scan_time)
+    updated = _apply_discovered_addresses(discovered) if discovered else []
+    logger.info(
+        "✅ Tuya LAN rescan: %d responder(s), %d address(es) reconciled",
+        len(discovered),
+        len(updated),
+    )
+    return {
+        "found": len(discovered),
+        "updated": updated,
+        "addresses": {device_id: info["ip"] for device_id, info in discovered.items()},
+    }
 
 
 def read_device_state(device_id: str) -> dict[str, Any]:
