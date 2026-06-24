@@ -58,6 +58,32 @@ def _print_state(state: NetworkState) -> None:
         + (f"  ({r.error})" if r.error else "")
     )
 
+    wifi = state.wifi
+    print("\n=== Wi-Fi diagnostics (host PC) ===")
+    if wifi.available:
+        summary = [
+            wifi.current_ssid or "-",
+            _pct(wifi.current_signal),
+            _band(wifi.current_band),
+            f"ch={wifi.current_channel}" if wifi.current_channel is not None else "ch=-",
+        ]
+        print(f"  current: {'  '.join(summary)}")
+        print(f"  interface: {wifi.interface_name or '-'}")
+        for tip in wifi.recommendations:
+            print(f"  tip: {tip}")
+        ordered_bssids = sorted(
+            wifi.bssids,
+            key=lambda b: (_band(b.band), -(b.signal or 0), b.ssid),
+        )
+        for b in ordered_bssids:
+            mark = "*" if b.connected else " "
+            print(
+                f" {mark} {b.ssid or '(hidden)':24} {_pct(b.signal):>4}  "
+                f"{_band(b.band):7} ch={b.channel or '-':>3}  {b.bssid}"
+            )
+    else:
+        print(f"  unavailable: {wifi.error or 'no Wi-Fi scan data'}")
+
     print(f"\n=== Attached devices ({len(state.devices)}) ===")
     if not state.devices:
         print("  (none)")
@@ -88,6 +114,10 @@ def _ms(value: float | None) -> str:
 
 def _pct(value: float | None) -> str:
     return f"{value:.0f}%" if value is not None else "-"
+
+
+def _band(value: str | None) -> str:
+    return {"2.4GHz": "2.4 GHz", "5GHz": "5 GHz", "6GHz": "6 GHz"}.get(value or "", value or "-")
 
 
 def _yn(value: bool) -> str:

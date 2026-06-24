@@ -43,6 +43,19 @@ def test_network_tab_groups_devices_and_switches_sort(
     expect(router_meta.nth(0)).to_have_text("WAN up · 203.0.113.24")
     expect(router_meta.nth(1)).to_have_text("up 5h 23m")
 
+    expect(page.locator("#netWifiStatus")).to_have_text("86%")
+    expect(page.locator("#netWifiSummary")).to_contain_text("TestNet-5")
+    page.locator("details.net-wifi-card > summary").click()
+    expect(page.locator("#netWifiMeta")).to_contain_text("Fixture WLAN")
+    expect(page.locator("#netWifiRecommendations")).to_contain_text("strong")
+    expect(page.locator("#netWifiList .net-wifi-row")).to_have_count(2)
+    current_wifi = page.locator("#netWifiList .net-wifi-row").filter(has_text="TestNet-5")
+    expect(current_wifi).to_contain_text("current")
+    wifi_canvas_sizes = page.locator(".net-wifi-chart canvas").evaluate_all(
+        "(nodes) => nodes.map((node) => ({ width: node.width, height: node.height }))"
+    )
+    assert all(size["width"] > 0 and size["height"] > 0 for size in wifi_canvas_sizes)
+
     names = page.locator("#netDevices .net-device-name-text")
     expect(names.nth(0)).to_have_text("Alpha Laptop")
     expect(page.locator("#netDevices .net-device-meta").nth(0)).to_contain_text("Wi-Fi TestNet-5")

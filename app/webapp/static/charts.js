@@ -32,6 +32,8 @@ function palette() {
     ink: cssVar('--ink', '#1f2328'),
     muted: cssVar('--muted', '#656d76'),
     line: cssVar('--line', '#d1d9e0'),
+    accent: cssVar('--accent', '#0969da'),
+    attention: cssVar('--attention', '#9a6700'),
     gen: cssVar('--on', '#1a7f37'),
     grid: cssVar('--deficit', '#cf222e'),
   };
@@ -243,6 +245,126 @@ export function setForecastData(chart, expected, actual) {
         return v == null ? null : kwh(v);   // null hour → gap (asleep / no sample)
       })
     : [];
+  chart.update('none');
+}
+
+// ---------------------------------------------------------- Wi-Fi channels
+function wifiColor(pal, i) {
+  return [pal.accent, pal.gen, pal.attention, pal.grid, pal.muted][i % 5];
+}
+
+function wifiSpanChannels(b) {
+  const width = Number(b.channel_width_mhz || 0);
+  if (b.band === '2.4GHz') return 4.5;      // roughly one 20/22 MHz channel footprint
+  if (width >= 80) return 16;
+  if (width >= 40) return 8;
+  return 4;
+}
+
+function wifiCurvePoints(b) {
+  const center = Number(b.channel);
+  const signal = Number(b.signal || 0);
+  const span = wifiSpanChannels(b);
+  const sigma = span / 2.6;
+  const points = [];
+  for (let i = 0; i <= 24; i++) {
+    const x = center - span + (2 * span * i / 24);
+    const y = signal * Math.exp(-0.5 * Math.pow((x - center) / sigma, 2));
+    points.push({ x: Number(x.toFixed(2)), y: Number(y.toFixed(1)) });
+  }
+  return points;
+}
+
+function wifiChartOptions(pal, band) {
+  const suggested = band === '2.4GHz' ? { min: 1, max: 14 } : { min: 32, max: 180 };
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    parsing: false,
+    interaction: { mode: 'nearest', intersect: false },
+    elements: { point: { radius: 0 }, line: { tension: 0.35, borderWidth: 2 } },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          title: function (items) {
+            return items.length ? items[0].dataset.label : '';
+          },
+          label: function (item) {
+            const raw = item.dataset._wifi || {};
+            const bits = [];
+            if (raw.signal != null) bits.push(raw.signal + '%');
+            if (raw.channel != null) bits.push('ch ' + raw.channel);
+            if (raw.bssid) bits.push(raw.bssid);
+            return bits.join(' · ');
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        type: 'linear',
+        min: suggested.min,
+        max: suggested.max,
+        title: { display: true, text: 'Channel', color: pal.muted },
+        ticks: { color: pal.muted, precision: 0, maxRotation: 0 },
+        grid: { display: false },
+      },
+      y: {
+        beginAtZero: true,
+        suggestedMax: 100,
+        max: 100,
+        title: { display: true, text: 'Signal %', color: pal.muted },
+        ticks: { color: pal.muted },
+        grid: { color: pal.line },
+      },
+    },
+  };
+}
+
+export function createWifiChannelChart(canvas, band) {
+  const pal = palette();
+  return new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets: [] },
+    options: wifiChartOptions(pal, band),
+  });
+}
+
+export function setWifiChannelData(chart, bssids) {
+  const pal = palette();
+  chart.data.datasets = (bssids || [])
+    .filter(function (b) { return b.channel != null && b.signal != null; })
+    .slice()
+    .sort(function (a, b) { return (b.signal || 0) - (a.signal || 0); })
+    .map(function (b, i) {
+      const color = b.connected ? pal.accent : wifiColor(pal, i);
+      return {
+        label: (b.connected ? 'Current · ' : '') + (b.ssid || '(hidden)'),
+        data: wifiCurvePoints(b),
+        borderColor: color,
+        backgroundColor: alphaFill(color, b.connected ? 0.24 : 0.14),
+        fill: 'origin',
+        _wifi: b,
+      };
+    });
+  chart.update('none');
+}
+
+export function restyleWifiChannelChart(chart) {
+  if (!chart) return;
+  const pal = palette();
+  chart.options.scales.x.title.color = pal.muted;
+  chart.options.scales.x.ticks.color = pal.muted;
+  chart.options.scales.y.title.color = pal.muted;
+  chart.options.scales.y.ticks.color = pal.muted;
+  chart.options.scales.y.grid.color = pal.line;
+  chart.data.datasets.forEach(function (d, i) {
+    const color = d._wifi && d._wifi.connected ? pal.accent : wifiColor(pal, i);
+    d.borderColor = color;
+    d.backgroundColor = alphaFill(color, d._wifi && d._wifi.connected ? 0.24 : 0.14);
+  });
   chart.update('none');
 }
 

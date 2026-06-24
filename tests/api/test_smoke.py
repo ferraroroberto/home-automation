@@ -24,6 +24,8 @@ from src.network_client import (
     NetDevice,
     NetworkState,
     RouterHealth,
+    WifiBssid,
+    WifiDiagnostics,
 )
 from src.presence_client import PresenceAuthError, PresenceConfig, PresenceEntity
 from src.risco_client import SecurityState, SecurityZone
@@ -348,6 +350,30 @@ def test_network_route_flattens_state_with_monkeypatched_core(
             reachable=True, model="R9000", firmware="1.0", mode="access_point", device_count=2
         ),
         router=RouterHealth(reachable=False, error="no response"),
+        wifi=WifiDiagnostics(
+            available=True,
+            interface_name="Wi-Fi",
+            adapter_description="Fixture WLAN",
+            current_ssid="Home",
+            current_bssid="AA:BB:CC:DD:EE:01",
+            current_signal=86,
+            current_channel=44,
+            current_band="5GHz",
+            current_radio_type="802.11ac",
+            bssids=(
+                WifiBssid(
+                    ssid="Home", bssid="AA:BB:CC:DD:EE:01", signal=86, rssi_dbm=-57,
+                    channel=44, band="5GHz", radio_type="802.11ac",
+                    authentication="WPA2-Personal", encryption="CCMP", connected=True,
+                ),
+                WifiBssid(
+                    ssid="Neighbour", bssid="AA:BB:CC:DD:EE:02", signal=42, rssi_dbm=-79,
+                    channel=6, band="2.4GHz", radio_type="802.11n",
+                    authentication="WPA2-Personal", encryption="CCMP",
+                ),
+            ),
+            recommendations=("Current Wi-Fi signal is strong (86%).",),
+        ),
         devices=(
             # Espressif IoT chip with no hostname — vendor + category make it legible.
             NetDevice(
@@ -382,6 +408,11 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     assert body["internet"]["online"] is True
     assert body["access_point"]["device_count"] == 2
     assert body["router"]["reachable"] is False
+    assert body["wifi"]["available"] is True
+    assert body["wifi"]["current_ssid"] == "Home"
+    assert body["wifi"]["current_signal"] == 86
+    assert body["wifi"]["bssids"][0]["connected"] is True
+    assert body["wifi"]["bssids"][1]["band"] == "2.4GHz"
     # An unreachable router carries no WAN detail (all Phase-3 fields null).
     assert body["router"]["wan_online"] is None
     assert body["router"]["public_ip"] is None
@@ -401,6 +432,42 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     assert iot["online"] is True and wired["online"] is True
     assert iot["important"] is False
     assert iot["is_new"] is False
+
+
+def test_network_route_surfaces_wifi_unavailable(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Wi-Fi diagnostics failure stays local to the ``wifi`` block."""
+    state = NetworkState(
+        internet=InternetHealth(online=True),
+        access_point=AccessPointHealth(reachable=True, model="R9000", device_count=0),
+        router=RouterHealth(reachable=True, authenticated=True),
+        wifi=WifiDiagnostics(
+            available=False,
+            interface_name="Wi-Fi",
+            adapter_description="Fixture WLAN",
+            error="No Wi-Fi networks visible.",
+        ),
+        devices=(),
+        alerts=(),
+    )
+
+    async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
+        return state
+
+    monkeypatch.setattr(
+        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+    )
+
+    resp = client.get("/api/network")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["wifi"]["available"] is False
+    assert body["wifi"]["interface_name"] == "Wi-Fi"
+    assert body["wifi"]["bssids"] == []
+    assert body["wifi"]["error"] == "No Wi-Fi networks visible."
+    assert body["devices"] == []
 
 
 def test_network_reboot_access_point_invokes_core(
@@ -598,6 +665,7 @@ def test_network_route_tracks_offline_and_important(
         internet=InternetHealth(online=True),
         access_point=AccessPointHealth(reachable=True, model="R9000", device_count=2),
         router=RouterHealth(reachable=False),
+        wifi=WifiDiagnostics(available=False, error="No Wi-Fi adapter"),
         alerts=(),
     )
     holder = {"state": NetworkState(devices=(dev_a, dev_b), **base)}
