@@ -524,9 +524,10 @@ The wizard writes `devices.json` in the project root. That file contains device 
 The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tuya devices: a dense mobile grid showing every captured device at once, with each tile a single **name · wattage · on/off** row (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app), and open/stop/close controls for covers. A **summary block** at the top totals devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json` plus local LAN status only.
 
 - **Rename a socket:** tap a plug's name to open a rename modal (same UX as the AC-unit rename). The custom label is saved via `PUT /api/tuya/{id}/display_name` to a gitignored `config/tuya_display_names.json` (`device_id` → label, parallel to the unit `config/display_names.json`); a missing file is not an error. The override wins over the Tuya device name everywhere in the UI.
+- **Refresh local status:** tap **Refresh** to reload `devices.json` and retry the safe LAN reads. This does not run TinyTuya's writer from the web process; if devices still show `No local IP`, run `python -m tinytuya snapshot` on the home network first, then tap **Refresh**.
 - **Endpoints:** `GET /api/tuya` (device cards with switch state, reachability, live energy fields, and the `display_name` override — the per-device LAN reads run in parallel), `POST /api/tuya/{id}/switch` (`{"on": true|false}`), `POST /api/tuya/{id}/cover` (`{"action": "open"|"close"|"stop"}`), `PUT /api/tuya/{id}/display_name` (`{"display_name": "…"}`; empty clears the override).
 - **Cadence:** the tab refreshes every ~15 s **only while it is open** (LAN reads are comparatively expensive), and stops polling when you leave it.
-- **Offline devices:** a powered-off plug or one without a usable LAN IP renders as **Unavailable** without blocking the reachable devices from updating or being controlled.
+- **Offline / stale-IP devices:** a powered-off plug or one without a usable LAN IP renders as **Unavailable** without blocking reachable devices from updating or being controlled. No-IP devices are visible by default with the captured non-secret identity fields (MAC/UUID/SN when TinyTuya provides them); use **Reachable only** to temporarily filter them out.
 - **Missing or stale devices?** Re-run the TinyTuya wizard/snapshot **on the home network** to refresh `devices.json` (new IPs, new devices, updated local keys) — never the cloud:
 
   ```powershell
@@ -542,10 +543,12 @@ discovery for `_elg._tcp.local.` and also supports an explicit host fallback
 for networks where discovery is blocked. It has per-light power, brightness,
 and warmth controls, exact numeric entry beside each slider, state-aware
 all-on/all-off buttons for reachable lights, and a detail modal that saves a
-custom label in gitignored `config/elgato_display_names.json` while showing the
-original Elgato identity, LAN address, MAC metadata when available, firmware,
-and colour-temperature readback. Spike findings and the implementation choice
-are recorded in [`docs/elgato-lights.md`](docs/elgato-lights.md).
+custom label in gitignored `config/elgato_display_names.json`. Labels are keyed
+by reported MAC address when available, so they survive DHCP/IP changes; older
+host:port labels still load as a fallback until the next save migrates them.
+The detail modal shows the original Elgato identity, LAN address, MAC metadata
+when available, firmware, and colour-temperature readback. Spike findings and
+the implementation choice are recorded in [`docs/elgato-lights.md`](docs/elgato-lights.md).
 
 Optional config in `.env`:
 
@@ -556,8 +559,12 @@ Optional config in `.env`:
 Endpoints:
 
 - `GET /api/lights` — list Elgato lights with reachability, display-name
-  override, original name, product, firmware, host/port, optional MAC metadata,
-  power, brightness, and color temperature.
+  override, durable `display_key`, original name, product, firmware, host/port,
+  optional MAC metadata, power, brightness, and color temperature.
+- `POST /api/lights/refresh` — re-run mDNS/configured-host discovery and retry
+  each light endpoint. If a refresh fails while previous cards are still
+  rendered, the tab keeps those cards and reports the failure as partial/stale
+  data rather than saying no lights exist.
 - `POST /api/lights/{id}` — set `{"on": true|false}`,
   `{"brightness": 3..100}`, `{"temperature": 143..344}`, or
   `{"temperature_k": 2900..7000}`; the response is the live read-back.
@@ -595,6 +602,10 @@ alarm-triggered scene capture with AI analysis.
   `onvif_port` (Reolink default 8000), `rtsp_port` (554), `username`, and
   `password` (the on-device **device account**, NOT the cloud login). Custom
   labels persist to gitignored `config/camera_display_names.json`.
+- **Address recovery model:** cameras are explicit-host only today. The app
+  retries the configured host and marks the camera unreachable when ONVIF/RTSP
+  fails; it does not guess a replacement address from the network table because
+  `config/cameras.json` does not yet store a stable MAC/UID correlation.
 - **Prerequisite:** **enable RTSP + ONVIF on the camera first** — Reolink ships
   them off (app: Settings → Network → Advanced → Server Settings).
 - **Endpoints:** `GET /api/cameras` (list), `GET /api/cameras/{id}/snapshot`

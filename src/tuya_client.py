@@ -69,6 +69,9 @@ class TuyaDeviceInfo:
     product_id: Optional[str] = None
     product_name: Optional[str] = None
     model: Optional[str] = None
+    mac: Optional[str] = None
+    uuid: Optional[str] = None
+    sn: Optional[str] = None
     ip: Optional[str] = None
     version: float = 3.3
     has_valid_ip: bool = False
@@ -244,6 +247,9 @@ def _sanitize(device: dict[str, Any]) -> TuyaDeviceInfo:
         product_id=device.get("product_id") or device.get("productId"),
         product_name=device.get("product_name") or device.get("productName"),
         model=device.get("model"),
+        mac=device.get("mac") or device.get("mac_address") or device.get("macAddress"),
+        uuid=device.get("uuid"),
+        sn=device.get("sn"),
         ip=device.get("ip") or device.get("address"),
         version=_version(device.get("version", device.get("ver"))),
         has_valid_ip=_has_valid_ip(device),

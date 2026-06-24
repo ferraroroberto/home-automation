@@ -177,3 +177,30 @@ def test_lights_bulk_controls_and_detail_rename(
     page.locator("#lightDisplayName").press("Enter")
     expect(page.locator("#lightDetailName")).to_have_text("Desk left")
     expect(card.locator(".light-name")).to_have_text("Desk left")
+
+
+def test_lights_refresh_failure_keeps_partial_data_note(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    sample_lights: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_lights: Callable,
+) -> None:
+    _boot_lights(page, base_url, sample_units, sample_lights, mock_api, mock_energy, mock_lights)
+
+    page.route(
+        "**/api/lights/refresh",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"No Elgato lights found. Add ELGATO_LIGHT_HOSTS=host[:9123] to .env."}',
+        ),
+    )
+
+    page.get_by_test_id("lights-refresh").click()
+
+    expect(page.locator(".light-card")).to_have_count(2)
+    expect(page.locator("#lightsNote")).to_contain_text("Showing last successful light data")
+    expect(page.locator("#lightsNote")).to_contain_text("No Elgato lights found")

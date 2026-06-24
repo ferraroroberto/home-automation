@@ -588,7 +588,7 @@ def sample_plugs() -> List[Dict]:
 @pytest.fixture
 def sample_plugs_with_no_ip(sample_plugs: List[Dict]) -> List[Dict]:
     """sample_plugs plus one no-IP adapter (has_valid_ip=False).
-    Used to verify the default-filter and show-all toggle behaviour."""
+    Used to verify stale-address visibility and the reachable-only toggle."""
     import copy
     devices = copy.deepcopy(sample_plugs)
     devices.append({
@@ -597,7 +597,7 @@ def sample_plugs_with_no_ip(sample_plugs: List[Dict]) -> List[Dict]:
         "has_valid_ip": False, "reachable": False, "switch_on": None,
         "power_w": None, "current_ma": None, "voltage_v": None,
         "energy_kwh": None,
-        "error": "No local IP — refresh devices.json on the home network.",
+        "error": "No local IP — run `python -m tinytuya snapshot` on the home network, then refresh this tab.",
     })
     return devices
 
@@ -611,6 +611,7 @@ def sample_lights() -> List[Dict]:
             "host": "192.0.2.10",
             "port": 9123,
             "name": "Fixture Key Light",
+            "display_key": "mac:AA:BB:CC:DD:EE:FF",
             "display_name": None,
             "product_name": "Elgato Key Light",
             "firmware": "1.0",
@@ -628,6 +629,7 @@ def sample_lights() -> List[Dict]:
             "host": "192.0.2.11",
             "port": 9123,
             "name": "Fixture Offline",
+            "display_key": "192.0.2.11:9123",
             "display_name": None,
             "product_name": None,
             "firmware": None,
@@ -660,6 +662,13 @@ def mock_lights(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                 return
             parts = req.url.rstrip("/").split("/")
             verb = parts[-1]
+            if verb == "refresh":
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({"lights": list(store.values()), "refresh": {"safe": True}}),
+                )
+                return
             light_id = unquote(parts[-2] if verb == "display_name" else verb)
             light = store.get(light_id)
             if light is None:
@@ -676,7 +685,11 @@ def mock_lights(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                 route.fulfill(
                     status=200,
                     content_type="application/json",
-                    body=_json({"light_id": light_id, "display_name": name or None}),
+                    body=_json({
+                        "light_id": light_id,
+                        "display_key": body.get("display_key") or light_id,
+                        "display_name": name or None,
+                    }),
                 )
                 return
             if "on" in body:
@@ -719,6 +732,13 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
             # POST .../switch|.../cover or PUT .../display_name on /api/tuya/{id}/{verb}
             parts = req.url.rstrip("/").split("/")
             verb, did = parts[-1], parts[-2]
+            if verb == "refresh":
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({"devices": list(store.values()), "refresh": {"safe": True}}),
+                )
+                return
             device = store.get(did)
             if device is None:
                 route.fulfill(status=404, content_type="application/json",

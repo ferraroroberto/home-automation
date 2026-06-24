@@ -3,8 +3,7 @@
 Drives the Plugs tab against stubbed local-Tuya fixtures (no LAN, no cloud) on
 both the Chromium-desktop and WebKit/iPhone projections. Covers a metered plug
 card, a switch round-trip, cover controls, an unavailable device that must not
-block the reachable ones, and the show-all toggle that hides/reveals no-IP
-adapters.
+block the reachable ones, and the reachable-only toggle for no-IP adapters.
 """
 
 from __future__ import annotations
@@ -122,29 +121,28 @@ def test_offline_device_unavailable_without_blocking_others(
     expect(page.locator('[data-device-id="plug-1"] .toggle')).to_be_visible()
 
 
-def test_default_filter_hides_no_ip_adapters(
+def test_default_view_shows_no_ip_adapters(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs_with_no_ip: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
-    """By default only has_valid_ip=True cards render; no-IP adapters are hidden."""
+    """By default source-visible no-IP adapters render with an unavailable reason."""
     _boot_plugs(
         page, base_url, sample_units, sample_plugs_with_no_ip,
         mock_api, mock_energy, mock_tuya,
     )
 
-    # The no-IP adapter must not appear by default.
-    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(0)
-    # All four registered devices (including the offline-but-registered one) still show.
-    expect(page.locator(".plug-card")).to_have_count(4)
-    # Hidden-count label is visible.
-    expect(page.locator("#plugsHiddenCount")).to_be_visible()
+    no_ip = page.locator('[data-device-id="plug-noip"]')
+    expect(no_ip).to_be_visible()
+    expect(no_ip.locator(".plug-unavailable")).to_contain_text("tinytuya snapshot")
+    expect(page.locator(".plug-card")).to_have_count(5)
+    expect(page.locator("#plugsHiddenCount")).to_be_hidden()
 
 
-def test_show_all_toggle_reveals_no_ip_adapters(
+def test_reachable_only_toggle_hides_no_ip_adapters(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs_with_no_ip: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
-    """Clicking the toggle reveals no-IP adapters; clicking again hides them."""
+    """Clicking the toggle hides no-IP adapters; clicking again restores them."""
     _boot_plugs(
         page, base_url, sample_units, sample_plugs_with_no_ip,
         mock_api, mock_energy, mock_tuya,
@@ -153,15 +151,26 @@ def test_show_all_toggle_reveals_no_ip_adapters(
     toggle = page.locator('[data-testid="plugs-show-all-toggle"]')
     expect(toggle).to_be_visible()
 
-    # Default: no-IP hidden.
-    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(0)
+    # Default: no-IP visible.
+    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(1)
 
-    # Click "Show all" → all 5 devices visible.
+    # Click "Reachable only" → no-IP hidden.
+    toggle.click()
+    expect(page.locator(".plug-card")).to_have_count(4)
+    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(0)
+    expect(page.locator("#plugsHiddenCount")).to_contain_text("1 no-IP hidden")
+
+    # Click again ("Show all devices") → back to 5.
     toggle.click()
     expect(page.locator(".plug-card")).to_have_count(5)
     expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(1)
 
-    # Click again ("Hide unregistered") → back to 4.
-    toggle.click()
-    expect(page.locator(".plug-card")).to_have_count(4)
-    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(0)
+
+def test_refresh_button_reloads_plugs(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
+
+    page.get_by_test_id("plugs-refresh").click()
+    expect(page.locator("#toast")).to_have_text("Plugs refreshed")

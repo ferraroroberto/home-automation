@@ -232,18 +232,89 @@ def test_lights_route_runs_with_monkeypatched_lan(
     monkeypatch.setattr("app.webapp.routers.lights.fetch_lights", fake_fetch_lights)
     monkeypatch.setattr(
         "app.webapp.routers.lights.load_elgato_display_names",
-        lambda: {"192.0.2.10:9123": "Desk left"},
+        lambda: {"mac:AA:BB:CC:DD:EE:FF": "Desk left"},
     )
 
     resp = client.get("/api/lights")
     assert resp.status_code == 200
     body = resp.json()
     assert body["lights"][0]["light_id"] == "192.0.2.10:9123"
+    assert body["lights"][0]["display_key"] == "mac:AA:BB:CC:DD:EE:FF"
     assert body["lights"][0]["display_name"] == "Desk left"
     assert body["lights"][0]["mac_address"] == "AA:BB:CC:DD:EE:FF"
     assert body["lights"][0]["brightness"] == 42
     assert body["lights"][0]["temperature_k"] == 5000
     assert body["lights"][0]["supports_temperature"] is True
+
+
+def test_lights_route_keeps_legacy_host_display_name_fallback(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Existing host-keyed labels still apply until a MAC-keyed save migrates them."""
+    light = ElgatoLight(
+        light_id="192.0.2.30:9123",
+        host="192.0.2.30",
+        port=9123,
+        name="Fixture Key Light",
+        product_name="Elgato Key Light",
+        firmware="1.0",
+        on=True,
+        brightness=42,
+        temperature=200,
+        temperature_k=5000,
+        supports_temperature=True,
+        mac_address="AA:BB:CC:DD:EE:FF",
+    )
+
+    async def fake_fetch_lights() -> List[ElgatoLight]:
+        return [light]
+
+    monkeypatch.setattr("app.webapp.routers.lights.fetch_lights", fake_fetch_lights)
+    monkeypatch.setattr(
+        "app.webapp.routers.lights.load_elgato_display_names",
+        lambda: {"192.0.2.30:9123": "Legacy desk"},
+    )
+
+    body = client.get("/api/lights").json()
+    assert body["lights"][0]["display_key"] == "mac:AA:BB:CC:DD:EE:FF"
+    assert body["lights"][0]["display_name"] == "Legacy desk"
+
+
+def test_tuya_route_surfaces_no_ip_identity_and_refresh(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No-IP Tuya rows stay visible with stable non-secret identity metadata."""
+    from src.tuya_client import TuyaDeviceInfo
+
+    info = TuyaDeviceInfo(
+        device_id="plug-noip",
+        name="Fixture Plug",
+        category="cz",
+        mac="AA:BB:CC:DD:EE:FF",
+        uuid="uuid-fixture",
+        sn="sn-fixture",
+        ip="Auto",
+        has_valid_ip=False,
+        has_local_key=True,
+        switch_dps="1",
+    )
+
+    monkeypatch.setattr("app.webapp.routers.tuya.list_devices", lambda: [info])
+    monkeypatch.setattr("app.webapp.routers.tuya.load_tuya_display_names", lambda: {})
+
+    body = client.get("/api/tuya").json()
+    card = body["devices"][0]
+    assert card["device_id"] == "plug-noip"
+    assert card["mac"] == "AA:BB:CC:DD:EE:FF"
+    assert card["uuid"] == "uuid-fixture"
+    assert card["sn"] == "sn-fixture"
+    assert card["ip"] == "Auto"
+    assert card["reachable"] is False
+    assert "tinytuya snapshot" in card["error"]
+
+    refreshed = client.post("/api/tuya/refresh")
+    assert refreshed.status_code == 200
+    assert refreshed.json()["refresh"]["safe"] is True
 
 
 def test_cameras_route_runs_with_monkeypatched_onvif(
@@ -375,12 +446,16 @@ def test_lights_display_name_route_persists_override(
 
     resp = client.put(
         "/api/lights/192.0.2.10:9123/display_name",
-        json={"display_name": " Desk left "},
+        json={"display_name": " Desk left ", "display_key": "mac:AA:BB:CC:DD:EE:FF"},
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"light_id": "192.0.2.10:9123", "display_name": "Desk left"}
-    assert calls == {"light_id": "192.0.2.10:9123", "display_name": "Desk left"}
+    assert resp.json() == {
+        "light_id": "192.0.2.10:9123",
+        "display_key": "mac:AA:BB:CC:DD:EE:FF",
+        "display_name": "Desk left",
+    }
+    assert calls == {"light_id": "mac:AA:BB:CC:DD:EE:FF", "display_name": "Desk left"}
 
 
 def test_security_route_surfaces_battery_and_trouble(
