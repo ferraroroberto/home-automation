@@ -1634,6 +1634,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .security-events-card > .collapse-summary,
 .security-zones-card > .collapse-summary,
 .presence-card > .collapse-summary,
+.net-wifi-card > .collapse-summary,
 .net-devices-card > .collapse-summary {
   height: 52px;
   padding: 0 14px;
@@ -1642,6 +1643,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .security-events-card[open] > .collapse-summary,
 .security-zones-card[open] > .collapse-summary,
 .presence-card[open] > .collapse-summary,
+.net-wifi-card[open] > .collapse-summary,
 .net-devices-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
 .settings-body {
   padding: 14px;
@@ -1737,6 +1739,135 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 }
 .net-reboot-btn .icon { width: 1.05em; height: 1.05em; }
 .net-reboot-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Host-side Wi-Fi diagnostics: compact signal summary in the disclosure header,
+   with channel charts and the visible BSSID list inside. */
+.net-wifi-card { padding: 0; margin-bottom: var(--gap); }
+.net-wifi-summary {
+  grid-column: 2;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.net-wifi-status {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.net-wifi-status.is-strong { color: var(--on); }
+.net-wifi-status.is-weak { color: var(--attention); }
+#netWifiSummary {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.net-wifi-body {
+  padding: 12px 14px 14px;
+}
+.net-wifi-meta {
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+.net-wifi-recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.net-wifi-tip {
+  background: var(--card-off);
+  border-left: 3px solid var(--attention);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  font-size: var(--font-caption);
+  font-weight: 650;
+}
+.net-wifi-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  margin-bottom: 12px;
+}
+.net-wifi-chart-title {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 800;
+}
+.net-wifi-chart-wrap {
+  height: 170px;
+  min-width: 0;
+}
+.net-wifi-list {
+  display: flex;
+  flex-direction: column;
+}
+.net-wifi-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main signal" "mac mac";
+  align-items: center;
+  column-gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.net-wifi-row-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.net-wifi-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.net-wifi-row-meta,
+.net-wifi-row-mac {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+}
+.net-wifi-row-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.net-wifi-row-mac {
+  grid-area: mac;
+  overflow-wrap: anywhere;
+}
+.net-wifi-row-signal { grid-area: signal; }
+.net-wifi-row.is-current .net-wifi-row-name { color: var(--accent); }
+.net-wifi-row.is-weak .net-wifi-row-signal { color: var(--attention); }
+.net-wifi-row.is-weak .net-signal-fill { background: var(--attention); }
+.net-wifi-current {
+  align-self: flex-start;
+  margin-top: 3px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border-soft);
+  color: var(--accent);
+  border-radius: var(--radius-pill);
+  padding: 1px 7px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.net-wifi-note { margin: 10px 0 0; }
+@media (max-width: 560px) {
+  #netWifiSummary { max-width: 128px; }
+  .net-wifi-charts { grid-template-columns: 1fr; }
+  .net-wifi-chart-wrap { height: 185px; }
+}
 
 /* Settings-style collapsible card for counts, ordering, offline toggle and list. */
 .net-devices-card { padding: 0; margin-bottom: var(--gap); }

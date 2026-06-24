@@ -37,6 +37,8 @@ from src.network_client import (
     NetworkCommandError,
     NetworkConfigError,
     NetworkState,
+    WifiBssid,
+    WifiDiagnostics,
     fetch_network_state,
     reboot_access_point,
     reboot_router,
@@ -146,6 +148,41 @@ def _offline_device_dict(
     }
 
 
+def _wifi_bssid_dict(b: WifiBssid) -> Dict[str, Any]:
+    """Serialise one host-visible BSSID for the Wi-Fi diagnostics card."""
+    return {
+        "ssid": b.ssid,
+        "bssid": b.bssid,
+        "signal": b.signal,
+        "rssi_dbm": b.rssi_dbm,
+        "channel": b.channel,
+        "band": b.band,
+        "radio_type": b.radio_type,
+        "authentication": b.authentication,
+        "encryption": b.encryption,
+        "connected": b.connected,
+        "channel_width_mhz": b.channel_width_mhz,
+    }
+
+
+def _wifi_dict(w: WifiDiagnostics) -> Dict[str, Any]:
+    """Flatten best-effort host-side Wi-Fi diagnostics."""
+    return {
+        "available": w.available,
+        "interface_name": w.interface_name,
+        "adapter_description": w.adapter_description,
+        "current_ssid": w.current_ssid,
+        "current_bssid": w.current_bssid,
+        "current_signal": w.current_signal,
+        "current_channel": w.current_channel,
+        "current_band": w.current_band,
+        "current_radio_type": w.current_radio_type,
+        "bssids": [_wifi_bssid_dict(b) for b in w.bssids],
+        "recommendations": list(w.recommendations),
+        "error": w.error,
+    }
+
+
 def _history_alerts(
     known: Mapping[str, Mapping[str, Any]],
     online_macs: Set[str],
@@ -220,6 +257,7 @@ def _network_dict(
             "uptime_s": r.uptime_s,
             "addressing": r.addressing,
         },
+        "wifi": _wifi_dict(s.wifi),
         "devices": devices,
         "alerts": alerts,
     }

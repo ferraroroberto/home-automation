@@ -22,6 +22,11 @@ import {
   NETWORK_DEVICE_SORT_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
+import {
+  createWifiChannelChart,
+  setWifiChannelData,
+  restyleWifiChannelChart,
+} from './charts.js';
 
 const POLL_MS = 15_000;
 // Mirrors src.network_client._WEAK_SIGNAL_PCT — a wireless client below this is
@@ -47,6 +52,7 @@ const CATEGORY_ICONS = {
 };
 // Human band/connection label for the detail modal.
 const CONN_LABELS = { '5GHz': '5 GHz', '2.4GHz': '2.4 GHz', wired: 'Wired' };
+const WIFI_BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
 
 function categoryIcon(category) {
   return CATEGORY_ICONS[category] || CATEGORY_ICONS.unknown;
@@ -54,6 +60,7 @@ function categoryIcon(category) {
 
 let networkTimer = null;
 let speedtestRunning = false;
+let networkLoading = false;
 // Last successful speed-test result, kept across polls (a normal poll returns
 // null Mbps, which would otherwise wipe the displayed figure each cycle).
 let lastSpeed = null;
@@ -234,6 +241,161 @@ function renderHealth(ap, router) {
       ? 'Reboot the router (drops the internet ~5 min)'
       : 'Router login required to reboot';
   }
+}
+
+function bandLabel(band) {
+  return WIFI_BAND_LABELS[band] || band || '—';
+}
+
+function wifiSignalClass(signal) {
+  if (signal == null) return '';
+  if (signal < 60) return ' is-weak';
+  if (signal >= 80) return ' is-strong';
+  return '';
+}
+
+function wifiSummary(wifi) {
+  if (!wifi || !wifi.available) return 'Unavailable';
+  const parts = [];
+  if (wifi.current_ssid) parts.push(wifi.current_ssid);
+  if (wifi.current_band) parts.push(bandLabel(wifi.current_band));
+  if (wifi.current_channel != null) parts.push('ch ' + wifi.current_channel);
+  return parts.join(' · ') || 'Scan available';
+}
+
+function ensureWifiCharts() {
+  if (!els.netWifiChart24 || !els.netWifiChart5) return;
+  if (!state.wifiChart24) state.wifiChart24 = createWifiChannelChart(els.netWifiChart24, '2.4GHz');
+  if (!state.wifiChart5) state.wifiChart5 = createWifiChannelChart(els.netWifiChart5, '5GHz');
+}
+
+function renderWifiRecommendations(items) {
+  const list = items || [];
+  els.netWifiRecommendations.innerHTML = '';
+  if (!list.length) {
+    els.netWifiRecommendations.hidden = true;
+    return;
+  }
+  list.forEach(function (text) {
+    const row = document.createElement('div');
+    row.className = 'net-wifi-tip';
+    row.textContent = text;
+    els.netWifiRecommendations.appendChild(row);
+  });
+  els.netWifiRecommendations.hidden = false;
+}
+
+function wifiRow(b) {
+  const row = document.createElement('div');
+  row.className = 'net-wifi-row' + (b.connected ? ' is-current' : '') +
+    wifiSignalClass(b.signal);
+
+  const main = document.createElement('div');
+  main.className = 'net-wifi-row-main';
+  const name = document.createElement('span');
+  name.className = 'net-wifi-row-name';
+  name.textContent = b.ssid || '(hidden)';
+  main.appendChild(name);
+  if (b.connected) {
+    const pill = document.createElement('span');
+    pill.className = 'net-wifi-current';
+    pill.textContent = 'current';
+    main.appendChild(pill);
+  }
+  const meta = document.createElement('span');
+  meta.className = 'net-wifi-row-meta';
+  const metaBits = [bandLabel(b.band)];
+  if (b.channel != null) metaBits.push('ch ' + b.channel);
+  if (b.radio_type) metaBits.push(b.radio_type);
+  if (b.authentication) metaBits.push(b.authentication);
+  meta.textContent = metaBits.filter(Boolean).join(' · ');
+  main.appendChild(meta);
+  row.appendChild(main);
+
+  const sig = document.createElement('span');
+  sig.className = 'net-device-signal net-wifi-row-signal';
+  if (b.signal != null) {
+    const bar = document.createElement('span');
+    bar.className = 'net-signal-bar';
+    const fill = document.createElement('span');
+    fill.className = 'net-signal-fill';
+    fill.style.width = Math.max(0, Math.min(100, b.signal)) + '%';
+    bar.appendChild(fill);
+    sig.appendChild(bar);
+    const pct = document.createElement('span');
+    pct.className = 'net-signal-pct';
+    pct.textContent = b.signal + '%';
+    sig.appendChild(pct);
+  } else {
+    sig.textContent = '—';
+  }
+  row.appendChild(sig);
+
+  const mac = document.createElement('span');
+  mac.className = 'net-wifi-row-mac';
+  mac.textContent = b.bssid || '—';
+  row.appendChild(mac);
+  return row;
+}
+
+function renderWifiList(bssids) {
+  const list = (bssids || []).slice().sort(function (a, b) {
+    const band = bandLabel(a.band).localeCompare(bandLabel(b.band));
+    if (band !== 0) return band;
+    return (b.signal || 0) - (a.signal || 0);
+  });
+  els.netWifiList.innerHTML = '';
+  if (!list.length) {
+    els.netWifiNote.hidden = false;
+    els.netWifiNote.textContent = 'No visible Wi-Fi radios reported by this PC.';
+    return;
+  }
+  els.netWifiNote.hidden = true;
+  list.forEach(function (b) { els.netWifiList.appendChild(wifiRow(b)); });
+}
+
+function renderWifi(wifi) {
+  const available = !!(wifi && wifi.available);
+  const signal = wifi ? wifi.current_signal : null;
+  els.netWifiStatus.textContent = signal != null ? signal + '%' : (available ? 'Scan' : 'Unavailable');
+  els.netWifiStatus.className = 'net-wifi-status' + wifiSignalClass(signal);
+  els.netWifiSummary.textContent = wifiSummary(wifi);
+
+  if (!wifi) {
+    els.netWifiMeta.textContent = '—';
+    els.netWifiRecommendations.hidden = true;
+    els.netWifiList.innerHTML = '';
+    return;
+  }
+
+  const meta = [];
+  if (wifi.interface_name) meta.push(wifi.interface_name);
+  if (wifi.adapter_description && wifi.adapter_description !== wifi.interface_name) {
+    meta.push(wifi.adapter_description);
+  }
+  if (wifi.current_radio_type) meta.push(wifi.current_radio_type);
+  els.netWifiMeta.textContent = meta.length ? meta.join(' · ') : (wifi.error || 'Wi-Fi scan unavailable.');
+
+  if (!available) {
+    renderWifiRecommendations([]);
+    els.netWifiList.innerHTML = '';
+    els.netWifiNote.hidden = false;
+    els.netWifiNote.textContent = wifi.error || 'Wi-Fi diagnostics are unavailable on this PC.';
+    if (state.wifiChart24) setWifiChannelData(state.wifiChart24, []);
+    if (state.wifiChart5) setWifiChannelData(state.wifiChart5, []);
+    return;
+  }
+
+  ensureWifiCharts();
+  const bssids = wifi.bssids || [];
+  if (state.wifiChart24) {
+    setWifiChannelData(state.wifiChart24, bssids.filter(function (b) { return b.band === '2.4GHz'; }));
+  }
+  if (state.wifiChart5) {
+    setWifiChannelData(state.wifiChart5, bssids.filter(function (b) { return b.band === '5GHz'; }));
+  }
+  renderWifiRecommendations(wifi.recommendations || []);
+  renderWifiList(bssids);
 }
 
 function renderStats(devices) {
@@ -432,6 +594,7 @@ function renderNetwork() {
   renderInternet(net ? net.internet : null);
   renderAlerts(net ? net.alerts : []);
   renderHealth(net ? net.access_point : null, net ? net.router : null);
+  renderWifi(net ? net.wifi : null);
   renderStats(net ? net.devices : []);
   renderDevices(net ? net.devices : []);
 }
@@ -611,17 +774,23 @@ function initDeviceSortPref() {
 // ----------------------------------------------------------------- load
 async function loadNetwork(opts) {
   const speedtest = !!(opts && opts.speedtest);
+  if (networkLoading) return false;
+  networkLoading = true;
   try {
     const url = speedtest ? '/api/network?speedtest=1' : '/api/network';
     state.network = await jsonApi(url);
     reportFetchOk('network');
     renderNetwork();
+    return true;
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     reportFetchFailure('network', exc, 'network');
     // Keep any last-good render in place; surface the reason in the device note.
     els.netDevicesNote.hidden = false;
     els.netDevicesNote.textContent = exc.message || 'Failed to load network.';
+    return false;
+  } finally {
+    networkLoading = false;
   }
 }
 
@@ -634,8 +803,7 @@ async function runSpeedTest() {
   const original = els.netSpeedBtn.innerHTML;
   els.netSpeedBtn.textContent = 'Testing… (~13 s)';
   try {
-    await loadNetwork({ speedtest: true });
-    toast('Speed test complete', 'success');
+    if (await loadNetwork({ speedtest: true })) toast('Speed test complete', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Speed test failed: ' + (exc.message || exc), 'error');
@@ -713,4 +881,9 @@ export function onNetworkTab(tab) {
   } else {
     schedule(0);
   }
+}
+
+export function restyleNetworkCharts() {
+  restyleWifiChannelChart(state.wifiChart24);
+  restyleWifiChannelChart(state.wifiChart5);
 }

@@ -40,7 +40,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from typing import Mapping, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -55,6 +55,13 @@ _WEAK_SIGNAL_PCT = 40
 _HIGH_LOSS_PCT = 5.0
 # NETGEAR get_info DeviceMode -> human label (best-effort; 1 == AP here).
 _AP_DEVICE_MODE = {"0": "router", "1": "access_point", "2": "bridge", "3": "repeater"}
+# Keep the aggregate API under the browser's 30 s request budget even if one
+# device API stalls. The individual source tasks still run concurrently.
+_INTERNET_TIMEOUT_S = 24.0
+_INTERNET_FAST_TIMEOUT_S = 10.0
+_ACCESS_POINT_TIMEOUT_S = 12.0
+_ROUTER_TIMEOUT_S = 18.0
+_WIFI_TIMEOUT_S = 6.0
 
 
 class NetworkConfigError(RuntimeError):
@@ -136,12 +143,48 @@ class InternetHealth:
 
 
 @dataclass(frozen=True)
+class WifiBssid:
+    """One visible Wi-Fi radio, as seen by the server PC's WLAN adapter."""
+
+    ssid: str
+    bssid: str
+    signal: Optional[int]
+    rssi_dbm: Optional[int]
+    channel: Optional[int]
+    band: Optional[str]  # "2.4GHz" | "5GHz" | "6GHz"
+    radio_type: Optional[str]
+    authentication: Optional[str]
+    encryption: Optional[str]
+    connected: bool = False
+    channel_width_mhz: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class WifiDiagnostics:
+    """Best-effort host-side Wi-Fi scan from the machine running the webapp."""
+
+    available: bool
+    interface_name: Optional[str] = None
+    adapter_description: Optional[str] = None
+    current_ssid: Optional[str] = None
+    current_bssid: Optional[str] = None
+    current_signal: Optional[int] = None
+    current_channel: Optional[int] = None
+    current_band: Optional[str] = None
+    current_radio_type: Optional[str] = None
+    bssids: tuple[WifiBssid, ...] = ()
+    recommendations: tuple[str, ...] = ()
+    error: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class NetworkState:
     """Everything the Network view needs in one snapshot."""
 
     internet: InternetHealth
     access_point: AccessPointHealth
     router: RouterHealth
+    wifi: WifiDiagnostics
     devices: tuple[NetDevice, ...]
     alerts: tuple[str, ...]
 
@@ -233,6 +276,21 @@ def _run_speedtest() -> tuple[Optional[float], Optional[float], Optional[str]]:
         return None, None, None
 
 
+def _run_quiet(cmd: list[str], timeout: int = 12) -> str:
+    """Run a short OS probe without flashing a console window on Windows."""
+    kwargs: dict[str, object] = {
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "timeout": timeout,
+        "stdin": subprocess.DEVNULL,
+    }
+    if sys.platform.startswith("win"):
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    return subprocess.run(cmd, **kwargs).stdout
+
+
 async def fetch_internet_health(
     include_speedtest: bool = False, gateway: Optional[str] = None
 ) -> InternetHealth:
@@ -259,6 +317,267 @@ async def fetch_internet_health(
         upload_mbps=up,
         speedtest_server=server,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Wi-Fi diagnostics (host-side WLAN adapter via netsh)                         #
+# --------------------------------------------------------------------------- #
+def _normalise_mac(mac: Optional[str]) -> Optional[str]:
+    if not mac:
+        return None
+    hexes = re.findall(r"[0-9a-fA-F]{2}", mac)
+    return ":".join(h.upper() for h in hexes) if len(hexes) == 6 else mac.strip().upper()
+
+
+def _pct(text: Optional[str]) -> Optional[int]:
+    if not text:
+        return None
+    m = re.search(r"(\d{1,3})", text)
+    if not m:
+        return None
+    return max(0, min(100, int(m.group(1))))
+
+
+def _int_field(text: Optional[str]) -> Optional[int]:
+    if not text:
+        return None
+    m = re.search(r"\d+", text)
+    return int(m.group(0)) if m else None
+
+
+def _quality_to_rssi(signal: Optional[int]) -> Optional[int]:
+    # Microsoft WLAN quality is 0..100; this approximation is the conventional
+    # analyzer mapping used when the CLI does not expose raw RSSI.
+    return int(signal / 2 - 100) if signal is not None else None
+
+
+def _band_from_channel(channel: Optional[int], raw_band: Optional[str] = None) -> Optional[str]:
+    text = (raw_band or "").lower()
+    if "6" in text and "ghz" in text:
+        return "6GHz"
+    if "5" in text and "ghz" in text:
+        return "5GHz"
+    if "2" in text and ("ghz" in text or "mhz" in text):
+        return "2.4GHz"
+    if channel is None:
+        return None
+    if 1 <= channel <= 14:
+        return "2.4GHz"
+    if 30 <= channel <= 177:
+        return "5GHz"
+    return None
+
+
+def _parse_key_value_lines(text: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        if ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        key = key.strip().lower()
+        if key:
+            out[key] = val.strip()
+    return out
+
+
+def _parse_wifi_interfaces(text: str) -> dict[str, str]:
+    fields = _parse_key_value_lines(text)
+    # English netsh labels. If Windows is localised, this returns mostly empty
+    # and the diagnostics degrades to a clear unavailable note.
+    return {
+        "name": fields.get("name") or fields.get("interface name"),
+        "description": fields.get("description"),
+        "state": fields.get("state"),
+        "ssid": fields.get("ssid"),
+        "bssid": _normalise_mac(fields.get("bssid")) or None,
+        "signal": fields.get("signal"),
+        "channel": fields.get("channel"),
+        "radio_type": fields.get("radio type"),
+    }
+
+
+def _parse_wifi_networks(text: str, current: dict[str, str]) -> list[WifiBssid]:
+    networks: list[WifiBssid] = []
+    ssid: Optional[str] = None
+    auth: Optional[str] = None
+    encryption: Optional[str] = None
+    current_bssid = _normalise_mac(current.get("bssid"))
+
+    pending: dict[str, Optional[str]] | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        ssid_match = re.match(r"SSID\s+\d+\s*:\s*(.*)", line, re.IGNORECASE)
+        if ssid_match:
+            ssid = ssid_match.group(1).strip()
+            auth = None
+            encryption = None
+            pending = None
+            continue
+        if line.lower().startswith("authentication") and ":" in line:
+            auth = line.split(":", 1)[1].strip()
+            continue
+        if line.lower().startswith("encryption") and ":" in line:
+            encryption = line.split(":", 1)[1].strip()
+            continue
+        bssid_match = re.match(r"BSSID\s+\d+\s*:\s*(.*)", line, re.IGNORECASE)
+        if bssid_match:
+            pending = {
+                "ssid": ssid or "(hidden)",
+                "bssid": _normalise_mac(bssid_match.group(1).strip()),
+                "authentication": auth,
+                "encryption": encryption,
+                "signal": None,
+                "radio_type": None,
+                "band": None,
+                "channel": None,
+            }
+            networks.append(_wifi_from_pending(pending, current_bssid))
+            continue
+        if pending is None or ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        key = key.strip().lower()
+        val = val.strip()
+        if key == "signal":
+            pending["signal"] = val
+        elif key == "radio type":
+            pending["radio_type"] = val
+        elif key == "band":
+            pending["band"] = val
+        elif key == "channel":
+            pending["channel"] = val
+        networks[-1] = _wifi_from_pending(pending, current_bssid)
+    return networks
+
+
+def _wifi_from_pending(
+    raw: Mapping[str, Optional[str]],
+    current_bssid: Optional[str],
+) -> WifiBssid:
+    signal = _pct(raw.get("signal"))
+    channel = _int_field(raw.get("channel"))
+    bssid = raw.get("bssid") or ""
+    return WifiBssid(
+        ssid=raw.get("ssid") or "(hidden)",
+        bssid=bssid,
+        signal=signal,
+        rssi_dbm=_quality_to_rssi(signal),
+        channel=channel,
+        band=_band_from_channel(channel, raw.get("band")),
+        radio_type=raw.get("radio_type") or None,
+        authentication=raw.get("authentication") or None,
+        encryption=raw.get("encryption") or None,
+        connected=bool(current_bssid and _normalise_mac(bssid) == current_bssid),
+    )
+
+
+def _wifi_recommendations(
+    current_signal: Optional[int],
+    current_band: Optional[str],
+    bssids: list[WifiBssid],
+) -> list[str]:
+    tips: list[str] = []
+    if current_signal is not None:
+        if current_signal < 60:
+            tips.append(f"Current Wi-Fi signal is weak ({current_signal}%).")
+        elif current_signal >= 80:
+            tips.append(f"Current Wi-Fi signal is strong ({current_signal}%).")
+
+    by_band: dict[str, list[WifiBssid]] = {"2.4GHz": [], "5GHz": [], "6GHz": []}
+    for b in bssids:
+        if b.band in by_band:
+            by_band[b.band].append(b)
+
+    if len(by_band["2.4GHz"]) >= 6:
+        tips.append(
+            f"2.4 GHz is crowded ({len(by_band['2.4GHz'])} radios visible); prefer 5 GHz for fixed clients."
+        )
+    if current_band:
+        current = [b for b in by_band.get(current_band, []) if b.connected]
+        if current:
+            channel = current[0].channel
+            competing = [
+                b for b in by_band.get(current_band, [])
+                if not b.connected and b.channel == channel
+            ]
+            if competing:
+                strongest = max(competing, key=lambda b: b.signal or 0)
+                tips.append(
+                    f"Channel {channel} has {len(competing)} competing radio(s); strongest is {strongest.ssid}."
+                )
+    return tips[:3]
+
+
+def _fetch_wifi_diagnostics_sync() -> WifiDiagnostics:
+    if not sys.platform.startswith("win"):
+        return WifiDiagnostics(available=False, error="Wi-Fi diagnostics are only implemented on Windows.")
+    try:
+        interfaces = _run_quiet(["netsh", "wlan", "show", "interfaces"])
+    except (subprocess.SubprocessError, OSError) as exc:
+        return WifiDiagnostics(available=False, error=f"netsh wlan show interfaces failed: {exc}")
+
+    current = _parse_wifi_interfaces(interfaces)
+    state = (current.get("state") or "").lower()
+    if not current.get("name"):
+        return WifiDiagnostics(available=False, error="No Wi-Fi interface reported by Windows.")
+
+    try:
+        networks = _run_quiet(["netsh", "wlan", "show", "networks", "mode=bssid"])
+    except (subprocess.SubprocessError, OSError) as exc:
+        return WifiDiagnostics(
+            available=False,
+            interface_name=current.get("name"),
+            adapter_description=current.get("description"),
+            error=f"netsh wlan show networks failed: {exc}",
+        )
+
+    current_signal = _pct(current.get("signal"))
+    current_channel = _int_field(current.get("channel"))
+    current_band = _band_from_channel(current_channel)
+    bssids = _parse_wifi_networks(networks, current)
+    if current.get("bssid") and not any(b.connected for b in bssids):
+        current_mac = current.get("bssid") or ""
+        bssids.append(
+            WifiBssid(
+                ssid=current.get("ssid") or "(current)",
+                bssid=current_mac,
+                signal=current_signal,
+                rssi_dbm=_quality_to_rssi(current_signal),
+                channel=current_channel,
+                band=current_band,
+                radio_type=current.get("radio_type") or None,
+                authentication=None,
+                encryption=None,
+                connected=True,
+            )
+        )
+
+    available = bool(bssids or "connected" in state)
+    return WifiDiagnostics(
+        available=available,
+        interface_name=current.get("name"),
+        adapter_description=current.get("description"),
+        current_ssid=current.get("ssid") or None,
+        current_bssid=current.get("bssid") or None,
+        current_signal=current_signal,
+        current_channel=current_channel,
+        current_band=current_band,
+        current_radio_type=current.get("radio_type") or None,
+        bssids=tuple(sorted(bssids, key=lambda b: (b.band or "", -(b.signal or 0), b.ssid))),
+        recommendations=tuple(_wifi_recommendations(current_signal, current_band, bssids)),
+        error=None if available else "No Wi-Fi networks visible.",
+    )
+
+
+async def fetch_wifi_diagnostics() -> WifiDiagnostics:
+    """Read the server PC's own Wi-Fi view; failures stay local to this block."""
+    try:
+        return await asyncio.to_thread(_fetch_wifi_diagnostics_sync)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ Wi-Fi diagnostics failed: %s", exc)
+        return WifiDiagnostics(available=False, error=str(exc))
 
 
 # --------------------------------------------------------------------------- #
@@ -611,22 +930,58 @@ def _derive_alerts(
     return alerts
 
 
+async def _with_timeout(label: str, coro, timeout_s: float, fallback):
+    """Return *fallback* if one source exceeds its budget.
+
+    ``asyncio.to_thread`` work cannot be force-killed, but bounding the awaited
+    result keeps ``GET /api/network`` responsive and lets faster sources render.
+    """
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_s)
+    except asyncio.TimeoutError:
+        logger.warning("⚠️ %s read timed out after %.0f s", label, timeout_s)
+        return fallback
+
+
 async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
     """One snapshot: internet health + AP + router + device inventory + alerts.
 
     The three sources are independent, so they run concurrently. A speed test is
     opt-in (it takes ~10-15 s and saturates the link).
     """
-    internet, (ap, devices), router = await asyncio.gather(
-        fetch_internet_health(include_speedtest=include_speedtest),
-        fetch_access_point(),
-        fetch_router(),
+    internet_timeout = _INTERNET_TIMEOUT_S if include_speedtest else _INTERNET_FAST_TIMEOUT_S
+    internet, (ap, devices), router, wifi = await asyncio.gather(
+        _with_timeout(
+            "internet health",
+            fetch_internet_health(include_speedtest=include_speedtest),
+            internet_timeout,
+            InternetHealth(online=False),
+        ),
+        _with_timeout(
+            "access-point",
+            fetch_access_point(),
+            _ACCESS_POINT_TIMEOUT_S,
+            (AccessPointHealth(reachable=False, error="read timed out"), []),
+        ),
+        _with_timeout(
+            "router",
+            fetch_router(),
+            _ROUTER_TIMEOUT_S,
+            RouterHealth(reachable=False, error="read timed out"),
+        ),
+        _with_timeout(
+            "Wi-Fi diagnostics",
+            fetch_wifi_diagnostics(),
+            _WIFI_TIMEOUT_S,
+            WifiDiagnostics(available=False, error="read timed out"),
+        ),
     )
     alerts = _derive_alerts(internet, ap, router, devices)
     return NetworkState(
         internet=internet,
         access_point=ap,
         router=router,
+        wifi=wifi,
         devices=tuple(devices),
         alerts=tuple(alerts),
     )

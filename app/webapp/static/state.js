@@ -53,6 +53,9 @@ export const state = {
   networkShowOffline: false,
   // Device row sort inside each Network group: A-Z by default, or weakest signal.
   networkDeviceSort: 'az',
+  // Wi-Fi diagnostics channel charts on the Network tab.
+  wifiChart24: null,
+  wifiChart5: null,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'lights' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
@@ -205,6 +208,14 @@ export const els = {
   netRouterName: document.getElementById('netRouterName'),
   netRouterMeta: document.getElementById('netRouterMeta'),
   netRouterReboot: document.getElementById('netRouterReboot'),
+  netWifiStatus: document.getElementById('netWifiStatus'),
+  netWifiSummary: document.getElementById('netWifiSummary'),
+  netWifiMeta: document.getElementById('netWifiMeta'),
+  netWifiRecommendations: document.getElementById('netWifiRecommendations'),
+  netWifiChart24: document.getElementById('netWifiChart24'),
+  netWifiChart5: document.getElementById('netWifiChart5'),
+  netWifiList: document.getElementById('netWifiList'),
+  netWifiNote: document.getElementById('netWifiNote'),
   netStats: document.getElementById('netStats'),
   netSortAlpha: document.getElementById('netSortAlpha'),
   netSortSignal: document.getElementById('netSortSignal'),

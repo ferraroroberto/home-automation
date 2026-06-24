@@ -681,6 +681,36 @@
         </section>
       </section>
 
+      <details class="card net-wifi-card">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+            <span class="collapse-title">Wi-Fi diagnostics</span>
+          </span>
+          <span class="net-wifi-summary">
+            <span id="netWifiStatus" class="net-wifi-status">—</span>
+            <span id="netWifiSummary" class="muted small">—</span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </span>
+        </summary>
+        <div class="net-wifi-body">
+          <p id="netWifiMeta" class="muted small net-wifi-meta">—</p>
+          <div id="netWifiRecommendations" class="net-wifi-recommendations" hidden></div>
+          <div class="net-wifi-charts" aria-label="Wi-Fi channel charts">
+            <section class="net-wifi-chart-card">
+              <h4 class="net-wifi-chart-title">2.4 GHz</h4>
+              <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart24"></canvas></div>
+            </section>
+            <section class="net-wifi-chart-card">
+              <h4 class="net-wifi-chart-title">5 GHz</h4>
+              <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart5"></canvas></div>
+            </section>
+          </div>
+          <section id="netWifiList" class="net-wifi-list" aria-label="Visible Wi-Fi radios"></section>
+          <p id="netWifiNote" class="muted small net-wifi-note" hidden></p>
+        </div>
+      </details>
+
       <details class="card net-devices-card" open>
         <summary class="collapse-summary">
           <span class="collapse-main">

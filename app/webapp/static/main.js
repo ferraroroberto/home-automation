@@ -30,7 +30,7 @@ import {
 import { onPlugsTab, wirePlugsToggle, wirePlugDetail } from './plugs.js';
 import { onLightsTab, wireLightControls } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wirePresenceControls } from './security.js';
-import { onNetworkTab, wireNetworkControls } from './network.js';
+import { onNetworkTab, wireNetworkControls, restyleNetworkCharts } from './network.js';
 import { startWeatherPolling } from './weather.js';
 
 const DEFAULT_RANGE = [16, 31];
@@ -653,6 +653,7 @@ function applyTheme(dark) {
   if (els.weatherThemeBtn) els.weatherThemeBtn.innerHTML = mark;
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   restyleEnergyCharts();
+  restyleNetworkCharts();
 }
 
 function toggleTheme() {
