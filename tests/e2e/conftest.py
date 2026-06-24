@@ -792,8 +792,12 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                 "error": None,
                 "bssids": [
                     {
+                        "wifi_id": "AA:BB:CC:DD:EE:01",
                         "ssid": "TestNet-5",
+                        "original_name": "TestNet-5",
                         "bssid": "AA:BB:CC:DD:EE:01",
+                        "display_name": None,
+                        "hidden": False,
                         "signal": 86,
                         "rssi_dbm": -57,
                         "channel": 44,
@@ -805,8 +809,12 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                         "channel_width_mhz": None,
                     },
                     {
+                        "wifi_id": "AA:BB:CC:DD:EE:02",
                         "ssid": "TestNet-IoT",
+                        "original_name": "TestNet-IoT",
                         "bssid": "AA:BB:CC:DD:EE:02",
+                        "display_name": None,
+                        "hidden": False,
                         "signal": 55,
                         "rssi_dbm": -73,
                         "channel": 6,
@@ -836,6 +844,7 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "source": "ap",
                     "online": True,
                     "important": False,
+                    "hidden": False,
                     "is_new": False,
                     "randomized": False,
                     "first_seen": 1_700_000_000,
@@ -857,6 +866,7 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "source": "ap",
                     "online": True,
                     "important": False,
+                    "hidden": False,
                     "is_new": False,
                     "randomized": False,
                     "first_seen": 1_700_000_000,
@@ -878,6 +888,7 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "source": "ap",
                     "online": True,
                     "important": False,
+                    "hidden": False,
                     "is_new": False,
                     "randomized": False,
                     "first_seen": 1_700_000_000,
@@ -899,6 +910,7 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "source": "ap",
                     "online": True,
                     "important": False,
+                    "hidden": False,
                     "is_new": False,
                     "randomized": False,
                     "first_seen": 1_700_000_000,
@@ -918,6 +930,58 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     body=_json({"detail": "Temporary network read failure"}),
                 )
                 return
+            method = route.request.method.upper()
+            url = route.request.url
+            if method in {"PUT", "POST"}:
+                body_json = route.request.post_data_json or {}
+                if "/api/network/devices/" in url and url.endswith("/display_name"):
+                    mac = unquote(url.split("/api/network/devices/", 1)[1].split("/", 1)[0])
+                    name = (body_json.get("display_name") or "").strip()
+                    for device in body["devices"]:
+                        if device["mac"] == mac:
+                            device["display_name"] = name or None
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"mac": mac, "display_name": name or None}),
+                    )
+                    return
+                if "/api/network/devices/" in url and url.endswith("/hidden"):
+                    mac = unquote(url.split("/api/network/devices/", 1)[1].split("/", 1)[0])
+                    hidden = bool(body_json.get("hidden"))
+                    for device in body["devices"]:
+                        if device["mac"] == mac:
+                            device["hidden"] = hidden
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"mac": mac, "hidden": hidden}),
+                    )
+                    return
+                if url.endswith("/api/network/wifi/display_name"):
+                    wifi_id = body_json.get("wifi_id")
+                    name = (body_json.get("display_name") or "").strip()
+                    for bssid in body["wifi"]["bssids"]:
+                        if bssid["wifi_id"] == wifi_id:
+                            bssid["display_name"] = name or None
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"wifi_id": wifi_id, "display_name": name or None}),
+                    )
+                    return
+                if url.endswith("/api/network/wifi/hidden"):
+                    wifi_id = body_json.get("wifi_id")
+                    hidden = bool(body_json.get("hidden"))
+                    for bssid in body["wifi"]["bssids"]:
+                        if bssid["wifi_id"] == wifi_id:
+                            bssid["hidden"] = hidden
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"wifi_id": wifi_id, "hidden": hidden}),
+                    )
+                    return
             route.fulfill(status=200, content_type="application/json", body=_json(body))
 
         page.route("**/api/network**", handle)

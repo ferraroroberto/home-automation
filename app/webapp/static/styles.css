@@ -1831,6 +1831,13 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   gap: 8px;
   min-width: 0;
 }
+.net-wifi-summary .range-tab:not([hidden]) {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  line-height: 1;
+  white-space: nowrap;
+}
 .net-wifi-status {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -1901,13 +1908,23 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   flex-direction: column;
   min-width: 0;
 }
-.net-wifi-row-name {
+button.net-wifi-row-name {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 650;
+  cursor: pointer;
 }
+button.net-wifi-row-name:hover { text-decoration: underline; }
 .net-wifi-row-meta,
 .net-wifi-row-mac {
   color: var(--muted);
@@ -1927,6 +1944,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-wifi-row.is-current .net-wifi-row-name { color: var(--accent); }
 .net-wifi-row.is-weak .net-wifi-row-signal { color: var(--attention); }
 .net-wifi-row.is-weak .net-signal-fill { background: var(--attention); }
+.net-wifi-row.is-hidden { opacity: 0.55; }
 .net-wifi-current {
   align-self: flex-start;
   margin-top: 3px;
@@ -1942,7 +1960,13 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 }
 .net-wifi-note { margin: 10px 0 0; }
 @media (max-width: 560px) {
-  #netWifiSummary { max-width: 128px; }
+  #netWifiSummary { display: none; }
+  .net-wifi-summary {
+    gap: 6px;
+  }
+  .net-wifi-summary .range-tab:not([hidden]) {
+    padding-inline: 7px;
+  }
   .net-wifi-charts { grid-template-columns: 1fr; }
   .net-wifi-chart-wrap { height: 185px; }
 }
@@ -2029,15 +2053,14 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 
 /* Device-list tools row — small sort control plus optional Show offline toggle. */
 .net-devices-head {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  display: flex;
   align-items: center;
   gap: 8px;
   min-height: 28px;
   margin-bottom: 4px;
 }
 .net-devices-head .range-tab:not([hidden]) {
-  justify-self: stretch;
+  flex: 0 0 auto;
   min-height: 28px;
   padding: 5px 6px;
   font-size: 0.68rem;
@@ -2048,6 +2071,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex: 1 1 auto;
   min-width: 0;
   font-size: var(--font-caption);
   color: var(--muted);
@@ -2074,7 +2098,8 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 
 /* Offline (known-but-absent) devices render dimmed; the signal slot carries the
    "last seen Xh ago" text instead of a live bar. */
-.net-device.is-offline { opacity: 0.55; }
+.net-device.is-offline,
+.net-device.is-hidden { opacity: 0.55; }
 .net-device-signal.net-device-lastseen { font-style: italic; }
 
 /* "Important" star marker + the "new" pill on a device row (Phase 4). */

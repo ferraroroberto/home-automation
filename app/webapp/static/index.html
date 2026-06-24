@@ -686,10 +686,12 @@
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
             <span class="collapse-title">Wi-Fi diagnostics</span>
+            <span id="netWifiHiddenCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <span class="net-wifi-summary">
             <span id="netWifiStatus" class="net-wifi-status">—</span>
             <span id="netWifiSummary" class="muted small">—</span>
+            <button id="netWifiHiddenToggle" type="button" class="range-tab" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
             <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </span>
         </summary>
@@ -716,6 +718,7 @@
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
             <span class="collapse-title">Attached devices</span>
+            <span id="netHiddenCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
@@ -730,6 +733,7 @@
               <button id="netSortSignal" type="button" class="net-sort-btn" data-sort="signal">Signal</button>
             </div>
             <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Show offline</button>
+            <button id="netHiddenToggle" type="button" class="range-tab" data-testid="net-show-hidden" hidden>Show hidden</button>
           </div>
 
           <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz, with
@@ -1109,9 +1113,46 @@
         </button>
       </div>
 
+      <div class="row">
+        <span>Hidden</span>
+        <button id="netDeviceHiddenToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide network device">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
       <!-- The MAC is the stable identifier the label maps back to; flagged when
            it's a randomised (locally-administered) address. -->
       <p id="netDeviceMac" class="muted small zone-original-name"></p>
+    </div>
+  </dialog>
+
+  <!-- Wi-Fi radio detail + rename/hide modal. BSSID is the stable key when
+       present; SSID fallback is shown only for scan rows without a BSSID. -->
+  <dialog id="netWifiDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="netWifiDetailName">Wi-Fi</h2>
+        <button id="netWifiDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Status</span><span id="netWifiDetailStatus" class="muted">—</span></div>
+      <div class="row"><span>Band</span><span id="netWifiDetailBand" class="muted">—</span></div>
+      <div class="row"><span>Channel</span><span id="netWifiDetailChannel" class="muted">—</span></div>
+      <div class="row"><span>Signal</span><span id="netWifiDetailSignal" class="muted">—</span></div>
+      <div class="row"><span>Security</span><span id="netWifiDetailSecurity" class="muted">—</span></div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="netWifiDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <p id="netWifiOriginalName" class="muted small zone-original-name"></p>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="netWifiHiddenDetailToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide Wi-Fi radio">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
     </div>
   </dialog>
 

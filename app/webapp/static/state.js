@@ -52,6 +52,11 @@ export const state = {
   snapshotUpdatedAt: {},
   // MAC of the device whose detail/rename modal is open (or null).
   selectedNetDeviceMac: null,
+  // Wi-Fi identity whose detail/rename modal is open (or null).
+  selectedNetWifiId: null,
+  // Hidden Network rows render dimmed only when these filters are active.
+  networkShowHiddenDevices: false,
+  networkShowHiddenWifi: false,
   // When false (default), offline (known-but-absent) devices are hidden; when
   // true they render dimmed in a trailing "Offline" group (issue #129 Phase 4).
   networkShowOffline: false,
@@ -83,6 +88,8 @@ export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
 export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
 export const NETWORK_DEVICE_SORT_KEY = 'home-automation.networkDeviceSort';
+export const NETWORK_SHOW_HIDDEN_DEVICES_KEY = 'home-automation.networkShowHiddenDevices';
+export const NETWORK_SHOW_HIDDEN_WIFI_KEY = 'home-automation.networkShowHiddenWifi';
 export const THIS_DEVICE_PRESENCE_KEY = 'home-automation.thisDevicePresence';
 export const THIS_DEVICE_LOCATION_KEY = 'home-automation.thisDeviceLocation';
 
@@ -224,10 +231,14 @@ export const els = {
   netWifiChart5: document.getElementById('netWifiChart5'),
   netWifiList: document.getElementById('netWifiList'),
   netWifiNote: document.getElementById('netWifiNote'),
+  netWifiHiddenCount: document.getElementById('netWifiHiddenCount'),
+  netWifiHiddenToggle: document.getElementById('netWifiHiddenToggle'),
   netStats: document.getElementById('netStats'),
   netSortAlpha: document.getElementById('netSortAlpha'),
   netSortSignal: document.getElementById('netSortSignal'),
   netOfflineToggle: document.getElementById('netOfflineToggle'),
+  netHiddenCount: document.getElementById('netHiddenCount'),
+  netHiddenToggle: document.getElementById('netHiddenToggle'),
   netDevices: document.getElementById('netDevices'),
   netDevicesNote: document.getElementById('netDevicesNote'),
   // Per-device detail + rename modal
@@ -245,7 +256,20 @@ export const els = {
   netDeviceDisplayName: document.getElementById('netDeviceDisplayName'),
   netDeviceImportant: document.getElementById('netDeviceImportant'),
   netDeviceImportantRow: document.getElementById('netDeviceImportantRow'),
+  netDeviceHiddenToggle: document.getElementById('netDeviceHiddenToggle'),
   netDeviceMac: document.getElementById('netDeviceMac'),
+  // Per-Wi-Fi-radio detail + rename modal
+  netWifiDialog: document.getElementById('netWifiDialog'),
+  netWifiDetailName: document.getElementById('netWifiDetailName'),
+  netWifiDetailClose: document.getElementById('netWifiDetailClose'),
+  netWifiDetailStatus: document.getElementById('netWifiDetailStatus'),
+  netWifiDetailBand: document.getElementById('netWifiDetailBand'),
+  netWifiDetailChannel: document.getElementById('netWifiDetailChannel'),
+  netWifiDetailSignal: document.getElementById('netWifiDetailSignal'),
+  netWifiDetailSecurity: document.getElementById('netWifiDetailSecurity'),
+  netWifiDisplayName: document.getElementById('netWifiDisplayName'),
+  netWifiOriginalName: document.getElementById('netWifiOriginalName'),
+  netWifiHiddenDetailToggle: document.getElementById('netWifiHiddenDetailToggle'),
   // Reusable confirm modal
   confirmDialog: document.getElementById('confirmDialog'),
   confirmTitle: document.getElementById('confirmTitle'),

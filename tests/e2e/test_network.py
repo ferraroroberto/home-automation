@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
@@ -126,6 +127,60 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
 
     offline.click()
     expect(offline).to_have_text("Hide offline")
+
+
+def test_network_rename_and_hide_wifi_and_attached_device(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    _boot(page, base_url)
+
+    page.locator("#tabNetwork").click()
+    page.locator("details.net-wifi-card > summary").click()
+
+    wifi_row = page.locator("#netWifiList .net-wifi-row").filter(has_text="TestNet-IoT")
+    wifi_row.locator(".net-wifi-row-name").click()
+    expect(page.locator("#netWifiDialog")).to_be_visible()
+    expect(page.locator("#netWifiOriginalName")).to_contain_text("Original SSID: TestNet-IoT")
+    page.locator("#netWifiDisplayName").fill("Neighbour AP")
+    page.locator("#netWifiDisplayName").press("Enter")
+    expect(page.locator("#netWifiList .net-wifi-row").filter(has_text="Neighbour AP")).to_have_count(1)
+
+    page.locator("#netWifiHiddenDetailToggle").click()
+    page.locator("#netWifiDetailClose").click()
+    expect(page.locator("#netWifiHiddenCount")).to_have_text("1 hidden")
+    expect(page.locator("#netWifiHiddenToggle")).to_have_text("Show hidden")
+    expect(page.locator("#netWifiList .net-wifi-row").filter(has_text="Neighbour AP")).to_have_count(0)
+
+    page.locator("#netWifiHiddenToggle").click()
+    hidden_wifi = page.locator("#netWifiList .net-wifi-row").filter(has_text="Neighbour AP")
+    expect(hidden_wifi).to_have_count(1)
+    expect(hidden_wifi).to_have_class(re.compile(".*is-hidden.*"))
+
+    device_button = page.locator("#netDevices .net-device-name").filter(has_text="Alpha Laptop")
+    device_button.click()
+    expect(page.locator("#netDeviceDialog")).to_be_visible()
+    page.locator("#netDeviceDisplayName").fill("Office Laptop")
+    page.locator("#netDeviceDisplayName").press("Enter")
+    expect(page.locator("#netDevices .net-device-name-text").filter(has_text="Office Laptop")).to_have_count(1)
+
+    page.locator("#netDeviceHiddenToggle").click()
+    page.locator("#netDeviceDetailClose").click()
+    expect(page.locator("#netHiddenCount")).to_have_text("1 hidden")
+    expect(page.locator("#netHiddenToggle")).to_have_text("Show hidden")
+    expect(page.locator("#netDevices .net-device-name-text").filter(has_text="Office Laptop")).to_have_count(0)
+
+    page.locator("#netHiddenToggle").click()
+    hidden_device = page.locator("#netDevices .net-device").filter(has_text="Office Laptop")
+    expect(hidden_device).to_have_count(1)
+    expect(hidden_device).to_have_class(re.compile(".*is-hidden.*"))
 
 
 def test_network_wifi_header_stays_quiet_when_scan_unavailable(

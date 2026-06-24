@@ -20,6 +20,8 @@ import {
   reportFetchOk,
   NETWORK_SHOW_OFFLINE_KEY,
   NETWORK_DEVICE_SORT_KEY,
+  NETWORK_SHOW_HIDDEN_DEVICES_KEY,
+  NETWORK_SHOW_HIDDEN_WIFI_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
@@ -248,6 +250,15 @@ function bandLabel(band) {
   return WIFI_BAND_LABELS[band] || band || '—';
 }
 
+function wifiLabel(b) {
+  return b.display_name || b.ssid || '(hidden)';
+}
+
+function wifiId(b) {
+  if (!b) return '';
+  return b.wifi_id || b.bssid || (b.ssid ? 'SSID:' + b.ssid : '');
+}
+
 function wifiSignalClass(signal) {
   if (signal == null) return '';
   if (signal < 60) return ' is-weak';
@@ -287,15 +298,20 @@ function renderWifiRecommendations(items) {
 }
 
 function wifiRow(b) {
+  const hidden = !!b.hidden;
   const row = document.createElement('div');
   row.className = 'net-wifi-row' + (b.connected ? ' is-current' : '') +
     wifiSignalClass(b.signal);
+  if (hidden) row.classList.add('is-hidden');
 
   const main = document.createElement('div');
   main.className = 'net-wifi-row-main';
-  const name = document.createElement('span');
+  const name = document.createElement('button');
+  name.type = 'button';
   name.className = 'net-wifi-row-name';
-  name.textContent = b.ssid || '(hidden)';
+  name.title = 'Wi-Fi details · rename';
+  name.textContent = wifiLabel(b);
+  name.addEventListener('click', function () { openNetWifiDetail(wifiId(b)); });
   main.appendChild(name);
   if (b.connected) {
     const pill = document.createElement('span');
@@ -339,8 +355,25 @@ function wifiRow(b) {
   return row;
 }
 
+function renderWifiHiddenToggle(hiddenCount) {
+  if (els.netWifiHiddenCount) {
+    els.netWifiHiddenCount.hidden = hiddenCount === 0;
+    els.netWifiHiddenCount.textContent = hiddenCount + ' hidden';
+  }
+  if (!els.netWifiHiddenToggle) return;
+  els.netWifiHiddenToggle.hidden = hiddenCount === 0;
+  els.netWifiHiddenToggle.textContent = state.networkShowHiddenWifi ? 'Hide' : 'Show hidden';
+  els.netWifiHiddenToggle.classList.toggle('active', state.networkShowHiddenWifi);
+  els.netWifiHiddenToggle.setAttribute('aria-pressed', state.networkShowHiddenWifi ? 'true' : 'false');
+}
+
 function renderWifiList(bssids) {
-  const list = (bssids || []).slice().sort(function (a, b) {
+  const all = bssids || [];
+  const hiddenCount = all.filter(function (b) { return !!b.hidden; }).length;
+  renderWifiHiddenToggle(hiddenCount);
+  const list = all.filter(function (b) {
+    return state.networkShowHiddenWifi || !b.hidden;
+  }).slice().sort(function (a, b) {
     const band = bandLabel(a.band).localeCompare(bandLabel(b.band));
     if (band !== 0) return band;
     return (b.signal || 0) - (a.signal || 0);
@@ -348,7 +381,9 @@ function renderWifiList(bssids) {
   els.netWifiList.innerHTML = '';
   if (!list.length) {
     els.netWifiNote.hidden = false;
-    els.netWifiNote.textContent = 'No visible Wi-Fi radios reported by this PC.';
+    els.netWifiNote.textContent = hiddenCount
+      ? 'All Wi-Fi radios are hidden.'
+      : 'No visible Wi-Fi radios reported by this PC.';
     return;
   }
   els.netWifiNote.hidden = true;
@@ -366,6 +401,7 @@ function renderWifi(wifi) {
     els.netWifiMeta.textContent = '—';
     els.netWifiRecommendations.hidden = true;
     els.netWifiList.innerHTML = '';
+    renderWifiHiddenToggle(0);
     return;
   }
 
@@ -380,6 +416,7 @@ function renderWifi(wifi) {
   if (!available) {
     renderWifiRecommendations([]);
     els.netWifiList.innerHTML = '';
+    renderWifiHiddenToggle(0);
     els.netWifiNote.hidden = false;
     els.netWifiNote.textContent = wifi.error || 'Wi-Fi diagnostics are unavailable on this PC.';
     if (state.wifiChart24) setWifiChannelData(state.wifiChart24, []);
@@ -389,11 +426,20 @@ function renderWifi(wifi) {
 
   ensureWifiCharts();
   const bssids = wifi.bssids || [];
+  const chartBssids = bssids.filter(function (b) {
+    return state.networkShowHiddenWifi || !b.hidden;
+  });
   if (state.wifiChart24) {
-    setWifiChannelData(state.wifiChart24, bssids.filter(function (b) { return b.band === '2.4GHz'; }));
+    setWifiChannelData(
+      state.wifiChart24,
+      chartBssids.filter(function (b) { return b.band === '2.4GHz'; })
+    );
   }
   if (state.wifiChart5) {
-    setWifiChannelData(state.wifiChart5, bssids.filter(function (b) { return b.band === '5GHz'; }));
+    setWifiChannelData(
+      state.wifiChart5,
+      chartBssids.filter(function (b) { return b.band === '5GHz'; })
+    );
   }
   renderWifiRecommendations(wifi.recommendations || []);
   renderWifiList(bssids);
@@ -471,6 +517,7 @@ function buildDeviceRow(d) {
   const weak = !offline && d.is_wireless && d.signal != null && d.signal < WEAK_SIGNAL_PCT;
   if (weak) row.classList.add('is-weak');
   if (offline) row.classList.add('is-offline');
+  if (d.hidden) row.classList.add('is-hidden');
 
   const label = deviceLabel(d);
   // The name is a button that opens the detail/rename modal — mirrors the
@@ -551,20 +598,38 @@ function renderOfflineToggle(offlineCount) {
   btn.classList.toggle('active', state.networkShowOffline);
 }
 
+function renderDeviceHiddenToggle(hiddenCount) {
+  if (els.netHiddenCount) {
+    els.netHiddenCount.hidden = hiddenCount === 0;
+    els.netHiddenCount.textContent = hiddenCount + ' hidden';
+  }
+  const btn = els.netHiddenToggle;
+  if (!btn) return;
+  btn.hidden = hiddenCount === 0;
+  btn.textContent = state.networkShowHiddenDevices ? 'Hide' : 'Show hidden';
+  btn.classList.toggle('active', state.networkShowHiddenDevices);
+  btn.setAttribute('aria-pressed', state.networkShowHiddenDevices ? 'true' : 'false');
+}
+
 function renderDevices(devices) {
-  const list = devices || [];
+  const all = devices || [];
+  const hiddenCount = all.filter(function (d) { return !!d.hidden; }).length;
+  const list = all.filter(function (d) {
+    return state.networkShowHiddenDevices || !d.hidden;
+  });
   els.netDevices.innerHTML = '';
   renderSortControls();
   const online = list.filter(function (d) { return d.online !== false; });
   const offline = list.filter(function (d) { return d.online === false; });
   renderOfflineToggle(offline.length);
+  renderDeviceHiddenToggle(hiddenCount);
 
   const showingOffline = state.networkShowOffline && offline.length > 0;
   if (!online.length && !showingOffline) {
     els.netDevicesNote.hidden = false;
     els.netDevicesNote.textContent = isSnapshotRestored('network')
       ? snapshotLabel('network')
-      : (state.network ? 'No attached devices reported.' : '—');
+      : (hiddenCount ? 'All attached devices are hidden.' : (state.network ? 'No attached devices reported.' : '—'));
     return;
   }
   if (isSnapshotRestored('network')) {
@@ -603,7 +668,9 @@ function renderNetwork() {
   renderAlerts(net ? net.alerts : []);
   renderHealth(net ? net.access_point : null, net ? net.router : null);
   renderWifi(net ? net.wifi : null);
-  renderStats(net ? net.devices : []);
+  renderStats(net
+    ? (net.devices || []).filter(function (d) { return state.networkShowHiddenDevices || !d.hidden; })
+    : []);
   renderDevices(net ? net.devices : []);
 }
 
@@ -611,6 +678,11 @@ function renderNetwork() {
 function deviceByMac(mac) {
   const list = (state.network && state.network.devices) || [];
   return list.find(function (d) { return d.mac === mac; }) || null;
+}
+
+function wifiById(targetWifiId) {
+  const list = (state.network && state.network.wifi && state.network.wifi.bssids) || [];
+  return list.find(function (b) { return targetWifiId === wifiId(b); }) || null;
 }
 
 function connText(d) {
@@ -630,6 +702,26 @@ function renderImportantToggle(d) {
   if (!btn) return;
   if (els.netDeviceImportantRow) els.netDeviceImportantRow.hidden = !!d.randomized;
   const on = !!d.important;
+  btn.className = 'toggle' + (on ? ' on' : ' off');
+  btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+    (on ? 'ON' : 'OFF') + '</span>';
+}
+
+function renderNetDeviceHiddenToggle(d) {
+  const btn = els.netDeviceHiddenToggle;
+  if (!btn) return;
+  const on = !!d.hidden;
+  btn.className = 'toggle' + (on ? ' on' : ' off');
+  btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+    (on ? 'ON' : 'OFF') + '</span>';
+}
+
+function renderNetWifiHiddenToggle(b) {
+  const btn = els.netWifiHiddenDetailToggle;
+  if (!btn) return;
+  const on = !!b.hidden;
   btn.className = 'toggle' + (on ? ' on' : ' off');
   btn.setAttribute('aria-checked', on ? 'true' : 'false');
   btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
@@ -664,6 +756,7 @@ function openNetDeviceDetail(mac) {
   els.netDeviceDisplayName.value = d.display_name || '';
   els.netDeviceDisplayName.placeholder = d.vendor || d.name || 'Custom label…';
   renderImportantToggle(d);
+  renderNetDeviceHiddenToggle(d);
   // The MAC is the stable key the label maps back to; flag randomised ones so a
   // missing vendor / churning row is explained rather than mysterious.
   els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
@@ -677,6 +770,32 @@ function closeNetDeviceDetail() {
   state.selectedNetDeviceMac = null;
   if (typeof els.netDeviceDialog.close === 'function') els.netDeviceDialog.close();
   else els.netDeviceDialog.removeAttribute('open');
+}
+
+function openNetWifiDetail(wifiId) {
+  const b = wifiById(wifiId);
+  if (!b) return;
+  state.selectedNetWifiId = wifiId;
+  els.netWifiDetailName.textContent = wifiLabel(b);
+  els.netWifiDetailStatus.textContent = b.connected ? 'Current network' : 'Visible';
+  els.netWifiDetailBand.textContent = bandLabel(b.band);
+  els.netWifiDetailChannel.textContent = b.channel != null ? 'ch ' + b.channel : '—';
+  els.netWifiDetailSignal.textContent = b.signal != null ? b.signal + '%' : '—';
+  els.netWifiDetailSecurity.textContent = [b.authentication, b.encryption].filter(Boolean).join(' · ') || '—';
+  els.netWifiDisplayName.value = b.display_name || '';
+  els.netWifiDisplayName.placeholder = b.ssid || 'Custom label…';
+  els.netWifiOriginalName.textContent = 'Original SSID: ' + (b.original_name || b.ssid || '—') +
+    ' · BSSID: ' + (b.bssid || '—') + (b.bssid ? '' : ' · key ' + (b.wifi_id || '—'));
+  renderNetWifiHiddenToggle(b);
+  if (typeof els.netWifiDialog.showModal === 'function') els.netWifiDialog.showModal();
+  else els.netWifiDialog.setAttribute('open', '');
+  els.netWifiDisplayName.focus();
+}
+
+function closeNetWifiDetail() {
+  state.selectedNetWifiId = null;
+  if (typeof els.netWifiDialog.close === 'function') els.netWifiDialog.close();
+  else els.netWifiDialog.removeAttribute('open');
 }
 
 async function saveNetDeviceName() {
@@ -698,6 +817,32 @@ async function saveNetDeviceName() {
     }
     const d = deviceByMac(mac);
     if (d) els.netDeviceDetailName.textContent = deviceLabel(d);
+    renderNetwork();
+    toast('Name saved', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to save name: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+async function saveNetWifiName() {
+  const targetWifiId = state.selectedNetWifiId;
+  if (!targetWifiId) return;
+  const newName = els.netWifiDisplayName.value.trim();
+  try {
+    await jsonApi('/api/network/wifi/display_name', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wifi_id: targetWifiId, display_name: newName }),
+    });
+    if (state.network && state.network.wifi && Array.isArray(state.network.wifi.bssids)) {
+      state.network.wifi.bssids = state.network.wifi.bssids.map(function (b) {
+        return targetWifiId === wifiId(b) ? Object.assign({}, b, { display_name: newName || null }) : b;
+      });
+    }
+    const b = wifiById(targetWifiId);
+    if (b) els.netWifiDetailName.textContent = wifiLabel(b);
     renderNetwork();
     toast('Name saved', 'success');
   } catch (exc) {
@@ -737,6 +882,60 @@ async function toggleImportant() {
   }
 }
 
+async function toggleDeviceHidden() {
+  const mac = state.selectedNetDeviceMac;
+  if (!mac) return;
+  const d = deviceByMac(mac);
+  if (!d) return;
+  const next = !d.hidden;
+  try {
+    await jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/hidden', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: next }),
+    });
+    if (state.network && Array.isArray(state.network.devices)) {
+      state.network.devices = state.network.devices.map(function (x) {
+        return x.mac === mac ? Object.assign({}, x, { hidden: next }) : x;
+      });
+    }
+    renderNetDeviceHiddenToggle(deviceByMac(mac) || d);
+    renderNetwork();
+    toast(next ? 'Hidden' : 'Restored', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to update: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+async function toggleWifiHidden() {
+  const targetWifiId = state.selectedNetWifiId;
+  if (!targetWifiId) return;
+  const b = wifiById(targetWifiId);
+  if (!b) return;
+  const next = !b.hidden;
+  try {
+    await jsonApi('/api/network/wifi/hidden', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wifi_id: targetWifiId, hidden: next }),
+    });
+    if (state.network && state.network.wifi && Array.isArray(state.network.wifi.bssids)) {
+      state.network.wifi.bssids = state.network.wifi.bssids.map(function (x) {
+        return targetWifiId === wifiId(x) ? Object.assign({}, x, { hidden: next }) : x;
+      });
+    }
+    renderNetWifiHiddenToggle(wifiById(targetWifiId) || b);
+    renderNetwork();
+    toast(next ? 'Hidden' : 'Restored', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to update: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
 function wireNetDeviceDetail() {
   if (!els.netDeviceDialog) return;
   els.netDeviceDetailClose.addEventListener('click', closeNetDeviceDetail);
@@ -748,6 +947,22 @@ function wireNetDeviceDetail() {
     if (ev.key === 'Enter') { ev.preventDefault(); els.netDeviceDisplayName.blur(); }
   });
   if (els.netDeviceImportant) els.netDeviceImportant.addEventListener('click', toggleImportant);
+  if (els.netDeviceHiddenToggle) els.netDeviceHiddenToggle.addEventListener('click', toggleDeviceHidden);
+}
+
+function wireNetWifiDetail() {
+  if (!els.netWifiDialog) return;
+  els.netWifiDetailClose.addEventListener('click', closeNetWifiDetail);
+  els.netWifiDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.netWifiDialog) closeNetWifiDetail();
+  });
+  els.netWifiDisplayName.addEventListener('blur', saveNetWifiName);
+  els.netWifiDisplayName.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); els.netWifiDisplayName.blur(); }
+  });
+  if (els.netWifiHiddenDetailToggle) {
+    els.netWifiHiddenDetailToggle.addEventListener('click', toggleWifiHidden);
+  }
 }
 
 // Persisted "show offline" preference (localStorage), like plugs/security toggles.
@@ -758,9 +973,50 @@ function toggleShowOffline() {
   renderNetwork();
 }
 
+function toggleShowHiddenDevices(ev) {
+  if (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+  state.networkShowHiddenDevices = !state.networkShowHiddenDevices;
+  try {
+    localStorage.setItem(
+      NETWORK_SHOW_HIDDEN_DEVICES_KEY,
+      state.networkShowHiddenDevices ? '1' : '0'
+    );
+  } catch (_e) { /* private mode — in-memory only */ }
+  renderNetwork();
+}
+
+function toggleShowHiddenWifi(ev) {
+  if (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+  state.networkShowHiddenWifi = !state.networkShowHiddenWifi;
+  try {
+    localStorage.setItem(NETWORK_SHOW_HIDDEN_WIFI_KEY, state.networkShowHiddenWifi ? '1' : '0');
+  } catch (_e) { /* private mode — in-memory only */ }
+  renderNetwork();
+}
+
 function initShowOfflinePref() {
   try { state.networkShowOffline = localStorage.getItem(NETWORK_SHOW_OFFLINE_KEY) === '1'; }
   catch (_e) { state.networkShowOffline = false; }
+}
+
+function initShowHiddenPrefs() {
+  try {
+    state.networkShowHiddenDevices =
+      localStorage.getItem(NETWORK_SHOW_HIDDEN_DEVICES_KEY) === '1';
+  } catch (_e) {
+    state.networkShowHiddenDevices = false;
+  }
+  try {
+    state.networkShowHiddenWifi = localStorage.getItem(NETWORK_SHOW_HIDDEN_WIFI_KEY) === '1';
+  } catch (_e) {
+    state.networkShowHiddenWifi = false;
+  }
 }
 
 function setDeviceSort(sort) {
@@ -872,13 +1128,19 @@ async function rebootRouter() {
 
 export function wireNetworkControls() {
   initShowOfflinePref();
+  initShowHiddenPrefs();
   initDeviceSortPref();
   wireConfirmDialog();
   wireNetDeviceDetail();
+  wireNetWifiDetail();
   if (els.netSpeedBtn) els.netSpeedBtn.addEventListener('click', runSpeedTest);
   if (els.netApReboot) els.netApReboot.addEventListener('click', rebootAccessPoint);
   if (els.netRouterReboot) els.netRouterReboot.addEventListener('click', rebootRouter);
   if (els.netOfflineToggle) els.netOfflineToggle.addEventListener('click', toggleShowOffline);
+  if (els.netHiddenToggle) els.netHiddenToggle.addEventListener('click', toggleShowHiddenDevices);
+  if (els.netWifiHiddenToggle) {
+    els.netWifiHiddenToggle.addEventListener('click', toggleShowHiddenWifi);
+  }
   if (els.netSortAlpha) els.netSortAlpha.addEventListener('click', function () { setDeviceSort('az'); });
   if (els.netSortSignal) els.netSortSignal.addEventListener('click', function () { setDeviceSort('signal'); });
 }

@@ -48,13 +48,23 @@ from src.network_display_names import (
     normalize_mac,
     set_network_display_name,
 )
+from src.network_hidden import (
+    load_hidden_device_macs,
+    load_hidden_wifi_ids,
+    normalize_wifi_id,
+    set_device_hidden,
+    set_wifi_hidden,
+)
 from src.network_history import (
     is_new,
-    load_network_history,
     record_and_snapshot,
     set_important,
 )
 from src.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
+from src.network_wifi_display_names import (
+    load_network_wifi_display_names,
+    set_network_wifi_display_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +83,7 @@ def _device_label(mac: str, name: str | None, vendor: str | None, overrides: Map
 def _device_dict(
     d: NetDevice,
     overrides: Mapping[str, str],
+    hidden_macs: Set[str],
     known: Mapping[str, Mapping[str, Any]],
     now: int,
 ) -> Dict[str, Any]:
@@ -108,6 +119,7 @@ def _device_dict(
         "last_seen": rec["last_seen"] if rec else None,
         "times_seen": rec["times_seen"] if rec else None,
         "important": bool(rec["important"]) if rec else False,
+        "hidden": mac_key in hidden_macs,
         # ``is_new`` is the 24 h "recently appeared" badge (persists across polls);
         # ``new_macs`` (this exact cycle) drives the one-shot alert instead.
         "is_new": is_new(rec, now) if rec else False,
@@ -115,7 +127,10 @@ def _device_dict(
 
 
 def _offline_device_dict(
-    mac: str, rec: Mapping[str, Any], overrides: Mapping[str, str]
+    mac: str,
+    rec: Mapping[str, Any],
+    overrides: Mapping[str, str],
+    hidden_macs: Set[str],
 ) -> Dict[str, Any]:
     """Synthesise a row for a known device absent from the current AP read.
 
@@ -144,15 +159,25 @@ def _offline_device_dict(
         "last_seen": rec.get("last_seen"),
         "times_seen": rec.get("times_seen"),
         "important": bool(rec.get("important")),
+        "hidden": mac in hidden_macs,
         "is_new": False,
     }
 
 
-def _wifi_bssid_dict(b: WifiBssid) -> Dict[str, Any]:
+def _wifi_bssid_dict(
+    b: WifiBssid,
+    wifi_overrides: Mapping[str, str],
+    hidden_wifi_ids: Set[str],
+) -> Dict[str, Any]:
     """Serialise one host-visible BSSID for the Wi-Fi diagnostics card."""
+    wifi_id = normalize_wifi_id(b.bssid, b.ssid)
     return {
+        "wifi_id": wifi_id,
         "ssid": b.ssid,
+        "original_name": b.ssid,
         "bssid": b.bssid,
+        "display_name": wifi_overrides.get(wifi_id) or None,
+        "hidden": wifi_id in hidden_wifi_ids,
         "signal": b.signal,
         "rssi_dbm": b.rssi_dbm,
         "channel": b.channel,
@@ -165,7 +190,11 @@ def _wifi_bssid_dict(b: WifiBssid) -> Dict[str, Any]:
     }
 
 
-def _wifi_dict(w: WifiDiagnostics) -> Dict[str, Any]:
+def _wifi_dict(
+    w: WifiDiagnostics,
+    wifi_overrides: Mapping[str, str],
+    hidden_wifi_ids: Set[str],
+) -> Dict[str, Any]:
     """Flatten best-effort host-side Wi-Fi diagnostics."""
     return {
         "available": w.available,
@@ -177,7 +206,7 @@ def _wifi_dict(w: WifiDiagnostics) -> Dict[str, Any]:
         "current_channel": w.current_channel,
         "current_band": w.current_band,
         "current_radio_type": w.current_radio_type,
-        "bssids": [_wifi_bssid_dict(b) for b in w.bssids],
+        "bssids": [_wifi_bssid_dict(b, wifi_overrides, hidden_wifi_ids) for b in w.bssids],
         "recommendations": list(w.recommendations),
         "error": w.error,
     }
@@ -206,6 +235,9 @@ def _history_alerts(
 def _network_dict(
     s: NetworkState,
     overrides: Mapping[str, str],
+    hidden_macs: Set[str],
+    wifi_overrides: Mapping[str, str],
+    hidden_wifi_ids: Set[str],
     known: Mapping[str, Mapping[str, Any]],
     new_macs: Set[str],
     now: int,
@@ -216,11 +248,11 @@ def _network_dict(
     r = s.router
 
     online_macs = {normalize_mac(d.mac or "") for d in s.devices if d.mac}
-    devices = [_device_dict(d, overrides, known, now) for d in s.devices]
+    devices = [_device_dict(d, overrides, hidden_macs, known, now) for d in s.devices]
     # Append offline rows for known devices not in the current read (Phase 4).
     for mac in sorted(known):
         if mac not in online_macs:
-            devices.append(_offline_device_dict(mac, known[mac], overrides))
+            devices.append(_offline_device_dict(mac, known[mac], overrides, hidden_macs))
 
     alerts = list(s.alerts) + _history_alerts(known, online_macs, new_macs, overrides)
 
@@ -257,7 +289,7 @@ def _network_dict(
             "uptime_s": r.uptime_s,
             "addressing": r.addressing,
         },
-        "wifi": _wifi_dict(s.wifi),
+        "wifi": _wifi_dict(s.wifi, wifi_overrides, hidden_wifi_ids),
         "devices": devices,
         "alerts": alerts,
     }
@@ -277,6 +309,9 @@ async def get_network(
         raise HTTPException(status_code=502, detail=f"failed to read network: {exc}")
 
     overrides = load_network_display_names()
+    hidden_macs = load_hidden_device_macs()
+    wifi_overrides = load_network_wifi_display_names()
+    hidden_wifi_ids = load_hidden_wifi_ids()
     now = int(time.time())
     # Record the live, non-randomised devices and get back the new-this-cycle
     # MACs + the full registry snapshot. Best-effort: a history failure must not
@@ -291,7 +326,16 @@ async def get_network(
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  network history update failed: %s", exc)
         new_list, known = [], {}
-    return _network_dict(state, overrides, known, set(new_list), now)
+    return _network_dict(
+        state,
+        overrides,
+        hidden_macs,
+        wifi_overrides,
+        hidden_wifi_ids,
+        known,
+        set(new_list),
+        now,
+    )
 
 
 @router.post("/api/network/access-point/reboot")
@@ -335,6 +379,20 @@ class ImportantPayload(BaseModel):
     important: bool
 
 
+class HiddenPayload(BaseModel):
+    hidden: bool
+
+
+class WifiDisplayNamePayload(BaseModel):
+    wifi_id: str
+    display_name: str
+
+
+class WifiHiddenPayload(BaseModel):
+    wifi_id: str
+    hidden: bool
+
+
 @router.put("/api/network/devices/{mac}/display_name")
 async def update_device_display_name(
     mac: str, payload: DisplayNamePayload
@@ -354,6 +412,17 @@ async def update_device_display_name(
     return {"mac": normalize_mac(mac), "display_name": name or None}
 
 
+@router.put("/api/network/devices/{mac}/hidden")
+async def update_device_hidden(mac: str, payload: HiddenPayload) -> Dict[str, Any]:
+    """Persist whether an attached device is hidden from the default list."""
+    try:
+        set_device_hidden(mac, payload.hidden)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to set hidden for %s: %s", mac, exc)
+        raise HTTPException(status_code=500, detail=f"failed to set hidden: {exc}")
+    return {"mac": normalize_mac(mac), "hidden": payload.hidden}
+
+
 @router.post("/api/network/devices/{mac}/important")
 async def update_device_important(
     mac: str, payload: ImportantPayload
@@ -369,3 +438,28 @@ async def update_device_important(
         logger.warning("⚠️  Failed to set important for %s: %s", mac, exc)
         raise HTTPException(status_code=500, detail=f"failed to set important: {exc}")
     return {"mac": normalize_mac(mac), "important": payload.important}
+
+
+@router.put("/api/network/wifi/display_name")
+async def update_wifi_display_name(payload: WifiDisplayNamePayload) -> Dict[str, Any]:
+    """Set or clear a custom label for one host-visible Wi-Fi radio/network."""
+    wifi_id = normalize_wifi_id(payload.wifi_id)
+    name = payload.display_name.strip()
+    try:
+        set_network_wifi_display_name(wifi_id, name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save Wi-Fi name for %s: %s", wifi_id, exc)
+        raise HTTPException(status_code=500, detail=f"failed to save display name: {exc}")
+    return {"wifi_id": wifi_id, "display_name": name or None}
+
+
+@router.put("/api/network/wifi/hidden")
+async def update_wifi_hidden(payload: WifiHiddenPayload) -> Dict[str, Any]:
+    """Persist whether a Wi-Fi radio/network is hidden from the default list."""
+    wifi_id = normalize_wifi_id(payload.wifi_id)
+    try:
+        set_wifi_hidden(wifi_id, payload.hidden)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to set Wi-Fi hidden for %s: %s", wifi_id, exc)
+        raise HTTPException(status_code=500, detail=f"failed to set hidden: {exc}")
+    return {"wifi_id": wifi_id, "hidden": payload.hidden}
