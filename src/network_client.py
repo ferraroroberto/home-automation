@@ -160,6 +160,36 @@ class WifiBssid:
 
 
 @dataclass(frozen=True)
+class WifiChannelScore:
+    """Interference score for one candidate Wi-Fi channel.
+
+    Lower is cleaner. The score is based on visible BSSID signal strength and
+    channel overlap from the host PC's scan location, so it is a recommendation
+    input rather than an RF-site-survey truth.
+    """
+
+    channel: int
+    score: float
+    visible_radios: int
+    strongest_signal: Optional[int] = None
+    strongest_ssid: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WifiChannelInsight:
+    """Structured channel decision data for one band."""
+
+    band: str
+    source: str
+    recommended_channel: Optional[int]
+    recommended_width_mhz: Optional[int]
+    coordinated_channels: tuple[int, ...]
+    candidate_scores: tuple[WifiChannelScore, ...]
+    rationale: tuple[str, ...] = ()
+    apply_supported: bool = False
+
+
+@dataclass(frozen=True)
 class WifiDiagnostics:
     """Best-effort host-side Wi-Fi scan from the machine running the webapp."""
 
@@ -174,6 +204,7 @@ class WifiDiagnostics:
     current_radio_type: Optional[str] = None
     bssids: tuple[WifiBssid, ...] = ()
     recommendations: tuple[str, ...] = ()
+    insights: tuple[WifiChannelInsight, ...] = ()
     error: Optional[str] = None
 
 
@@ -473,10 +504,136 @@ def _wifi_from_pending(
     )
 
 
+def _wifi_candidate_channels(band: str) -> tuple[int, ...]:
+    if band == "2.4GHz":
+        # ETSI domain: channels 1-13 are usable in Spain. The scorer still makes
+        # the 20 MHz width assumption explicit in the resulting insight.
+        return tuple(range(1, 14))
+    if band == "5GHz":
+        # Common 20 MHz primary channels, including the DFS range currently used
+        # by the REDWIFI radio in this home. We do not auto-apply DFS choices.
+        return (
+            36, 40, 44, 48,
+            52, 56, 60, 64,
+            100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140,
+        )
+    return ()
+
+
+def _wifi_overlap_weight(band: str, candidate: int, observed: int) -> float:
+    distance = abs(candidate - observed)
+    if band == "2.4GHz":
+        # A 20/22 MHz 2.4 GHz channel spills roughly +/- 4 channel numbers.
+        return max(0.0, (5 - distance) / 5) if distance <= 4 else 0.0
+    if band == "5GHz":
+        if distance == 0:
+            return 1.0
+        # Without channel-width data, adjacent 20 MHz primaries may or may not
+        # share an 80 MHz block. Penalise them lightly but prefer separation.
+        return 0.35 if distance <= 4 else 0.0
+    return 0.0
+
+
+def _wifi_channel_scores(band: str, bssids: list[WifiBssid]) -> tuple[WifiChannelScore, ...]:
+    scores: list[WifiChannelScore] = []
+    radios = [b for b in bssids if b.band == band and b.channel is not None]
+    for channel in _wifi_candidate_channels(band):
+        score = 0.0
+        visible_radios = 0
+        strongest_signal: Optional[int] = None
+        strongest_ssid: Optional[str] = None
+        for b in radios:
+            assert b.channel is not None
+            signal = b.signal or 0
+            weight = _wifi_overlap_weight(band, channel, b.channel)
+            if weight <= 0:
+                continue
+            visible_radios += 1
+            score += signal * weight
+            if strongest_signal is None or signal > strongest_signal:
+                strongest_signal = signal
+                strongest_ssid = b.ssid
+        scores.append(
+            WifiChannelScore(
+                channel=channel,
+                score=round(score, 1),
+                visible_radios=visible_radios,
+                strongest_signal=strongest_signal,
+                strongest_ssid=strongest_ssid,
+            )
+        )
+    return tuple(scores)
+
+
+def _best_coordinated_channels(
+    scores: tuple[WifiChannelScore, ...],
+    band: str,
+    count: int = 2,
+) -> tuple[int, ...]:
+    if count <= 1 or len(scores) < count:
+        return ()
+    min_distance = 5 if band == "2.4GHz" else 16
+    best: tuple[float, tuple[int, ...]] | None = None
+
+    def walk(start: int, selected: tuple[WifiChannelScore, ...]) -> None:
+        nonlocal best
+        if len(selected) == count:
+            channels = tuple(s.channel for s in selected)
+            total = round(sum(s.score for s in selected), 1)
+            if best is None or (total, channels) < best:
+                best = (total, channels)
+            return
+        for index in range(start, len(scores)):
+            candidate = scores[index]
+            if all(abs(candidate.channel - chosen.channel) >= min_distance for chosen in selected):
+                walk(index + 1, selected + (candidate,))
+
+    walk(0, ())
+    return best[1] if best else ()
+
+
+def _wifi_channel_insights(bssids: list[WifiBssid]) -> tuple[WifiChannelInsight, ...]:
+    insights: list[WifiChannelInsight] = []
+    for band in ("2.4GHz", "5GHz"):
+        scores = _wifi_channel_scores(band, bssids)
+        if not scores:
+            continue
+        best = min(scores, key=lambda s: (s.score, s.channel))
+        visible = [b for b in bssids if b.band == band and b.channel is not None]
+        width = 20 if band == "2.4GHz" else 40
+        coordinated = _best_coordinated_channels(scores, band, 2)
+        rationale = [
+            f"Scored {len(scores)} candidate channels from {len(visible)} visible {band} radio(s).",
+            "Lower score means less visible signal overlapping that channel.",
+            "Apply is read-only for now; router/AP channel writes are a separate guarded feature.",
+        ]
+        if band == "2.4GHz":
+            rationale.append("Use 20 MHz width on 2.4 GHz to avoid widening overlap.")
+        else:
+            rationale.append("Prefer 40 MHz on 5 GHz when stability matters; wider 80 MHz blocks can overlap neighbours.")
+        insights.append(
+            WifiChannelInsight(
+                band=band,
+                source="windows_netsh",
+                recommended_channel=best.channel,
+                recommended_width_mhz=width,
+                coordinated_channels=coordinated,
+                candidate_scores=tuple(sorted(scores, key=lambda s: (s.score, s.channel))[:8]),
+                rationale=tuple(rationale),
+            )
+        )
+    return tuple(insights)
+
+
+def _is_dfs_5ghz_channel(channel: Optional[int]) -> bool:
+    return channel is not None and 52 <= channel <= 144
+
+
 def _wifi_recommendations(
     current_signal: Optional[int],
     current_band: Optional[str],
     bssids: list[WifiBssid],
+    insights: tuple[WifiChannelInsight, ...] = (),
 ) -> list[str]:
     tips: list[str] = []
     if current_signal is not None:
@@ -507,7 +664,23 @@ def _wifi_recommendations(
                 tips.append(
                     f"Channel {channel} has {len(competing)} competing radio(s); strongest is {strongest.ssid}."
                 )
-    return tips[:3]
+    channel_recs: list[str] = []
+    for insight in insights:
+        if insight.recommended_channel is None:
+            continue
+        text = (
+            f"{insight.band} ch {insight.recommended_channel} "
+            f"at {insight.recommended_width_mhz or 20} MHz"
+        )
+        if insight.band == "5GHz" and _is_dfs_5ghz_channel(insight.recommended_channel):
+            text += " (DFS; confirm router/client support)"
+        if insight.coordinated_channels:
+            text += " (pair " + " + ".join(str(c) for c in insight.coordinated_channels) + ")"
+        channel_recs.append(text)
+    if channel_recs:
+        tips.append("Least-crowded channels: " + "; ".join(channel_recs) + ".")
+    return tips[:5]
+
 
 
 def _fetch_wifi_diagnostics_sync() -> WifiDiagnostics:
@@ -554,6 +727,7 @@ def _fetch_wifi_diagnostics_sync() -> WifiDiagnostics:
             )
         )
 
+    insights = _wifi_channel_insights(bssids)
     available = bool(bssids or "connected" in state)
     return WifiDiagnostics(
         available=available,
@@ -566,7 +740,8 @@ def _fetch_wifi_diagnostics_sync() -> WifiDiagnostics:
         current_band=current_band,
         current_radio_type=current.get("radio_type") or None,
         bssids=tuple(sorted(bssids, key=lambda b: (b.band or "", -(b.signal or 0), b.ssid))),
-        recommendations=tuple(_wifi_recommendations(current_signal, current_band, bssids)),
+        recommendations=tuple(_wifi_recommendations(current_signal, current_band, bssids, insights)),
+        insights=insights,
         error=None if available else "No Wi-Fi networks visible.",
     )
 

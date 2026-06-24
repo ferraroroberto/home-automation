@@ -38,6 +38,8 @@ from src.network_client import (
     NetworkConfigError,
     NetworkState,
     WifiBssid,
+    WifiChannelInsight,
+    WifiChannelScore,
     WifiDiagnostics,
     fetch_network_state,
     reboot_access_point,
@@ -190,6 +192,31 @@ def _wifi_bssid_dict(
     }
 
 
+def _wifi_channel_score_dict(score: WifiChannelScore) -> Dict[str, Any]:
+    return {
+        "channel": score.channel,
+        "score": score.score,
+        "visible_radios": score.visible_radios,
+        "strongest_signal": score.strongest_signal,
+        "strongest_ssid": score.strongest_ssid,
+    }
+
+
+def _wifi_channel_insight_dict(insight: WifiChannelInsight) -> Dict[str, Any]:
+    return {
+        "band": insight.band,
+        "source": insight.source,
+        "recommended_channel": insight.recommended_channel,
+        "recommended_width_mhz": insight.recommended_width_mhz,
+        "coordinated_channels": list(insight.coordinated_channels),
+        "candidate_scores": [
+            _wifi_channel_score_dict(score) for score in insight.candidate_scores
+        ],
+        "rationale": list(insight.rationale),
+        "apply_supported": insight.apply_supported,
+    }
+
+
 def _wifi_dict(
     w: WifiDiagnostics,
     wifi_overrides: Mapping[str, str],
@@ -208,6 +235,7 @@ def _wifi_dict(
         "current_radio_type": w.current_radio_type,
         "bssids": [_wifi_bssid_dict(b, wifi_overrides, hidden_wifi_ids) for b in w.bssids],
         "recommendations": list(w.recommendations),
+        "insights": [_wifi_channel_insight_dict(insight) for insight in w.insights],
         "error": w.error,
     }
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import sys
 
 from src.network_client import (
     NetworkConfigError,
@@ -81,6 +82,23 @@ def _print_state(state: NetworkState) -> None:
                 f" {mark} {b.ssid or '(hidden)':24} {_pct(b.signal):>4}  "
                 f"{_band(b.band):7} ch={b.channel or '-':>3}  {b.bssid}"
             )
+        if wifi.insights:
+            print("  channel insights:")
+            for insight in wifi.insights:
+                width = f"{insight.recommended_width_mhz} MHz" if insight.recommended_width_mhz else "auto width"
+                pair = (
+                    "  pair=" + "+".join(str(c) for c in insight.coordinated_channels)
+                    if insight.coordinated_channels else ""
+                )
+                print(
+                    f"    {_band(insight.band):7} best=ch {insight.recommended_channel or '-'} "
+                    f"({width}){pair}"
+                )
+                scores = ", ".join(
+                    f"ch {s.channel}:{s.score:g}" for s in insight.candidate_scores[:5]
+                )
+                if scores:
+                    print(f"      scores: {scores}")
     else:
         print(f"  unavailable: {wifi.error or 'no Wi-Fi scan data'}")
 
@@ -125,6 +143,10 @@ def _yn(value: bool) -> str:
 
 
 async def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(description="Live home-network probe (issue #125)")
     parser.add_argument("--speedtest", action="store_true", help="run an Ookla speed test (~15 s)")
     parser.add_argument("--reboot-ap", action="store_true", help="reboot the access point and exit")

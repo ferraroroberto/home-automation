@@ -82,6 +82,81 @@ SSID 1 : HomeNet
     assert bssids[1].band == "2.4GHz"
 
 
+def test_wifi_channel_insights_rank_candidates_and_coordinate_pairs() -> None:
+    bssids = [
+        network_client.WifiBssid(
+            ssid="REDWIFI",
+            bssid="AA:BB:CC:DD:EE:08",
+            signal=80,
+            rssi_dbm=-60,
+            channel=8,
+            band="2.4GHz",
+            radio_type="802.11ax",
+            authentication="WPA3-Personal",
+            encryption="CCMP",
+        ),
+        network_client.WifiBssid(
+            ssid="MOVISTAR",
+            bssid="AA:BB:CC:DD:EE:13",
+            signal=57,
+            rssi_dbm=-71,
+            channel=13,
+            band="2.4GHz",
+            radio_type="802.11ac",
+            authentication="WPA2-Personal",
+            encryption="CCMP",
+        ),
+        network_client.WifiBssid(
+            ssid="Printer",
+            bssid="AA:BB:CC:DD:EE:14",
+            signal=85,
+            rssi_dbm=-57,
+            channel=13,
+            band="2.4GHz",
+            radio_type="802.11n",
+            authentication="WPA2-Personal",
+            encryption="CCMP",
+        ),
+        network_client.WifiBssid(
+            ssid="Neighbour",
+            bssid="AA:BB:CC:DD:EE:03",
+            signal=66,
+            rssi_dbm=-67,
+            channel=3,
+            band="2.4GHz",
+            radio_type="802.11n",
+            authentication="WPA2-Personal",
+            encryption="CCMP",
+        ),
+        network_client.WifiBssid(
+            ssid="Neighbour-5",
+            bssid="AA:BB:CC:DD:EE:48",
+            signal=45,
+            rssi_dbm=-77,
+            channel=48,
+            band="5GHz",
+            radio_type="802.11ac",
+            authentication="WPA2-Personal",
+            encryption="CCMP",
+        ),
+    ]
+
+    insights = network_client._wifi_channel_insights(bssids)
+
+    insight_24 = next(i for i in insights if i.band == "2.4GHz")
+    assert insight_24.recommended_width_mhz == 20
+    assert insight_24.recommended_channel == 1
+    assert insight_24.coordinated_channels == (1, 6)
+    assert insight_24.candidate_scores[0].channel == 1
+    assert insight_24.apply_supported is False
+
+    tips = network_client._wifi_recommendations(None, None, bssids, insights)
+    channel_tips = [tip for tip in tips if tip.startswith("Least-crowded channels:")]
+    assert len(channel_tips) == 1
+    assert "2.4GHz ch 1 at 20 MHz" in channel_tips[0]
+    assert "5GHz ch" in channel_tips[0]
+
+
 def test_fetch_network_state_returns_partial_data_when_source_times_out(monkeypatch) -> None:
     async def fake_internet_health(include_speedtest: bool = False):
         return network_client.InternetHealth(online=True, external_ms=12)

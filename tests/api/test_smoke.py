@@ -26,6 +26,8 @@ from src.network_client import (
     NetworkState,
     RouterHealth,
     WifiBssid,
+    WifiChannelInsight,
+    WifiChannelScore,
     WifiDiagnostics,
 )
 from src.presence_client import PresenceAuthError, PresenceConfig, PresenceEntity
@@ -578,6 +580,25 @@ def test_network_route_flattens_state_with_monkeypatched_core(
                 ),
             ),
             recommendations=("Current Wi-Fi signal is strong (86%).",),
+            insights=(
+                WifiChannelInsight(
+                    band="2.4GHz",
+                    source="windows_netsh",
+                    recommended_channel=1,
+                    recommended_width_mhz=20,
+                    coordinated_channels=(1, 8),
+                    candidate_scores=(
+                        WifiChannelScore(
+                            channel=1,
+                            score=12.5,
+                            visible_radios=1,
+                            strongest_signal=42,
+                            strongest_ssid="Neighbour",
+                        ),
+                    ),
+                    rationale=("Lower score means cleaner.",),
+                ),
+            ),
         ),
         devices=(
             # Espressif IoT chip with no hostname — vendor + category make it legible.
@@ -618,6 +639,24 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     assert body["wifi"]["current_signal"] == 86
     assert body["wifi"]["bssids"][0]["connected"] is True
     assert body["wifi"]["bssids"][1]["band"] == "2.4GHz"
+    assert body["wifi"]["insights"][0] == {
+        "band": "2.4GHz",
+        "source": "windows_netsh",
+        "recommended_channel": 1,
+        "recommended_width_mhz": 20,
+        "coordinated_channels": [1, 8],
+        "candidate_scores": [
+            {
+                "channel": 1,
+                "score": 12.5,
+                "visible_radios": 1,
+                "strongest_signal": 42,
+                "strongest_ssid": "Neighbour",
+            }
+        ],
+        "rationale": ["Lower score means cleaner."],
+        "apply_supported": False,
+    }
     # An unreachable router carries no WAN detail (all Phase-3 fields null).
     assert body["router"]["wan_online"] is None
     assert body["router"]["public_ip"] is None
