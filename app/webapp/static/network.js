@@ -22,6 +22,7 @@ import {
   NETWORK_DEVICE_SORT_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
+import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
   createWifiChannelChart,
   setWifiChannelData,
@@ -561,10 +562,17 @@ function renderDevices(devices) {
   const showingOffline = state.networkShowOffline && offline.length > 0;
   if (!online.length && !showingOffline) {
     els.netDevicesNote.hidden = false;
-    els.netDevicesNote.textContent = state.network ? 'No attached devices reported.' : '—';
+    els.netDevicesNote.textContent = isSnapshotRestored('network')
+      ? snapshotLabel('network')
+      : (state.network ? 'No attached devices reported.' : '—');
     return;
   }
-  els.netDevicesNote.hidden = true;
+  if (isSnapshotRestored('network')) {
+    els.netDevicesNote.hidden = false;
+    els.netDevicesNote.textContent = snapshotLabel('network');
+  } else {
+    els.netDevicesNote.hidden = true;
+  }
 
   const seen = new Set();
   GROUPS.forEach(function (group) {
@@ -780,6 +788,7 @@ async function loadNetwork(opts) {
     const url = speedtest ? '/api/network?speedtest=1' : '/api/network';
     state.network = await jsonApi(url);
     reportFetchOk('network');
+    if (!speedtest) saveSnapshot('network', state.network);
     renderNetwork();
     return true;
   } catch (exc) {
@@ -792,6 +801,13 @@ async function loadNetwork(opts) {
   } finally {
     networkLoading = false;
   }
+}
+
+export function restoreNetworkSnapshot() {
+  const body = restoreSnapshot('network');
+  if (!body) return;
+  state.network = body;
+  renderNetwork();
 }
 
 // ----------------------------------------------------------------- actions

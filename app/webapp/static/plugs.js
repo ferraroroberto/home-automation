@@ -12,6 +12,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY } from './state.js';
 import { jsonApi } from './api.js';
+import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 
 const POLL_MS = 15_000;
 
@@ -236,7 +237,12 @@ export function renderPlugs() {
     if (els.plugsHiddenCount) els.plugsHiddenCount.hidden = true;
     return;
   }
-  els.plugsNote.hidden = true;
+  if (isSnapshotRestored('plugs')) {
+    els.plugsNote.hidden = false;
+    els.plugsNote.textContent = snapshotLabel('plugs');
+  } else {
+    els.plugsNote.hidden = true;
+  }
 
   const sorted = state.plugs.slice().sort(function (a, b) {
     return (a.name || '').localeCompare(b.name || '');
@@ -296,6 +302,7 @@ export async function loadPlugs() {
   try {
     const body = await jsonApi('/api/tuya');
     reportFetchOk('plugs');
+    saveSnapshot('plugs', body);
     state.plugs = (body && body.devices) || [];
     renderPlugs();
   } catch (exc) {
@@ -303,10 +310,17 @@ export async function loadPlugs() {
     // Missing devices.json (503) or a read error — guide, don't crash. The
     // inline note stays for context; the toast surfaces the reason once.
     reportFetchFailure('plugs', exc, 'plugs');
-    els.plugsGrid.innerHTML = '';
+    if (!state.plugs.length) els.plugsGrid.innerHTML = '';
     els.plugsNote.hidden = false;
     els.plugsNote.textContent = exc.message || 'Failed to load devices.';
   }
+}
+
+export function restorePlugsSnapshot() {
+  const body = restoreSnapshot('plugs');
+  if (!body) return;
+  state.plugs = (body && body.devices) || [];
+  renderPlugs();
 }
 
 // --------------------------------------------------------- cadence + tabs

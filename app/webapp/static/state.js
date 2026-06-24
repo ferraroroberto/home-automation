@@ -47,6 +47,9 @@ export const state = {
   selectedZoneId: null,
   // Home-network (LAN) snapshot from GET /api/network (issue #129).
   network: null,
+  // Browser-restored API snapshots keyed by allowlisted scope (issue #148).
+  snapshotRestored: {},
+  snapshotUpdatedAt: {},
   // MAC of the device whose detail/rename modal is open (or null).
   selectedNetDeviceMac: null,
   // When false (default), offline (known-but-absent) devices are hidden; when
