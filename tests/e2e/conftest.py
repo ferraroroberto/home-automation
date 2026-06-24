@@ -750,7 +750,7 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
 @pytest.fixture
 def mock_network(page: Page) -> Callable[..., Dict]:
     """Stub the Network tab API with deterministic LAN health + devices."""
-    def _install(snapshot: Optional[Dict] = None) -> Dict:
+    def _install(snapshot: Optional[Dict] = None, failures_before_success: int = 0) -> Dict:
         body = snapshot or {
             "internet": {
                 "online": True,
@@ -907,8 +907,20 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                 },
             ],
         }
-        page.route("**/api/network**", lambda r: r.fulfill(
-            status=200, content_type="application/json", body=_json(body)))
+        attempts = {"count": 0}
+
+        def handle(route: Route) -> None:
+            attempts["count"] += 1
+            if attempts["count"] <= failures_before_success:
+                route.fulfill(
+                    status=503,
+                    content_type="application/json",
+                    body=_json({"detail": "Temporary network read failure"}),
+                )
+                return
+            route.fulfill(status=200, content_type="application/json", body=_json(body))
+
+        page.route("**/api/network**", handle)
         return body
 
     return _install
