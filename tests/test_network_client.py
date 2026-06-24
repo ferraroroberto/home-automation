@@ -177,7 +177,7 @@ def test_fetch_network_state_returns_partial_data_when_source_times_out(monkeypa
         ]
 
     async def fake_router():
-        return network_client.RouterHealth(reachable=True, authenticated=True)
+        return network_client.RouterHealth(reachable=True, authenticated=True), []
 
     async def fake_wifi():
         return network_client.WifiDiagnostics(
@@ -213,3 +213,51 @@ def test_fetch_network_state_returns_partial_data_when_source_times_out(monkeypa
     assert state.wifi.available is True
     assert state.wifi.bssids[0].ssid == "HomeNet"
     assert state.devices == ()
+
+
+def _ap_device(mac: str, name, **kw) -> "network_client.NetDevice":
+    base = dict(
+        ip="192.168.0.10", name=name, conn_type="5GHz", signal=70,
+        link_rate=866, ssid="HomeNet", source="ap",
+    )
+    base.update(kw)
+    return network_client.NetDevice(mac=mac, **base)
+
+
+def test_merge_router_leases_fills_names_and_adds_router_only() -> None:
+    devices = [
+        _ap_device("AA:BB:CC:00:00:01", None),                 # no name → fill it
+        _ap_device("AA:BB:CC:00:00:02", "Laptop"),             # has name → keep it
+    ]
+    leases = [
+        {"mac": "aa:bb:cc:00:00:01", "ip": "192.168.0.58", "hostname": "SMA1930031140"},
+        {"mac": "aa:bb:cc:00:00:02", "ip": "192.168.0.59", "hostname": "router-name"},
+        {"mac": "34:5a:60:d3:59:53", "ip": "192.168.0.66", "hostname": "tower"},  # router-only
+        {"mac": "02:0f:b5:eb:fb:fd", "ip": "192.168.0.99", "hostname": None},     # router-only, no host
+    ]
+
+    merged = network_client._merge_router_leases(devices, leases)
+    by_mac = {network_client._normalise_mac(d.mac): d for d in merged}
+
+    # Lowercase router MAC dedups against the uppercase AP MAC (no duplicate row).
+    assert len(merged) == 4
+    # Missing AP name filled from the router hostname; corroborated → "both".
+    filled = by_mac["AA:BB:CC:00:00:01"]
+    assert filled.name == "SMA1930031140"
+    assert filled.source == "both"
+    # An AP-reported name is never overwritten, but the device is still "both".
+    kept = by_mac["AA:BB:CC:00:00:02"]
+    assert kept.name == "Laptop"
+    assert kept.source == "both"
+    # Router-only device added with source="router" and unknown conn/signal.
+    router_only = by_mac["34:5A:60:D3:59:53"]
+    assert router_only.name == "tower"
+    assert router_only.source == "router"
+    assert router_only.conn_type is None and router_only.signal is None
+    # A hostname-less router-only lease still lands (name None).
+    assert by_mac["02:0F:B5:EB:FB:FD"].name is None
+
+
+def test_merge_router_leases_empty_passthrough() -> None:
+    devices = [_ap_device("AA:BB:CC:00:00:01", "Phone")]
+    assert network_client._merge_router_leases(devices, []) == devices

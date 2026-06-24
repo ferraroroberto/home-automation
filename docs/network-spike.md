@@ -133,7 +133,20 @@ expected**: the R9000 already returns the full wired+wireless list with IPs, so
 the AP alone is a complete-enough inventory for v1. The router's DHCP table is
 only worth merging later for **better hostnames** (many AP `name`s are `n/a`);
 that is an enhancement, not a blocker, and depends on the router data-read work
-above. The merge key, when added, is the MAC.
+above. The merge key is the MAC.
+
+**Done (#169).** `RouterClient.read_dhcp_leases()` reads the router's LAN
+allocated-address table — `menuData` feed `accessdev_landevs_lua.lua`, page-gated
+behind the `localNetStatus` `menuView` exactly like the WAN read — returning
+`{mac, ip, hostname}` per client. `_merge_router_leases()` folds it into the AP
+inventory keyed by normalized MAC: a missing AP `name` is filled from the router
+hostname (never overwriting an AP-reported name) and the device is marked
+`source="both"`; a lease with no AP match is added as a router-only `NetDevice`
+(`source="router"` — the wired clients the AP can't see). The read is
+best-effort, so a router failure leaves the AP inventory intact. The `source`
+attribution surfaces in the device detail modal (`Seen by`), not the list. This
+firmware exposes **no** DHCP port / lease-time feed (every candidate 404s), so
+only host/ip/mac are available.
 
 ## Naming devices by MAC (follow-up)
 
@@ -156,7 +169,7 @@ deliberate user action with a confirm — never automatic.
 - [x] ZTE `menuData` session-token scheme → WAN/internet status read (#129 Phase 3)
 - [x] ZTE reboot POST → `reboot_router()` (#129 Phase 3)
 - [x] MAC history store + online/offline, last-seen, new-device / important-offline alerts, mark-important, show-offline toggle (`src/network_history.py`, #129 Phase 4)
-- [ ] Optional router-DHCP merge for better device hostnames (still open)
+- [x] Optional router-DHCP merge for better device hostnames (#169)
 - [ ] Optional latency/throughput sparklines + scheduled nightly speed test (deferred from #129 Phase 4)
 - [x] `src/network_display_names.py` (MAC-keyed) + sample JSON (#129 Phase 2)
 - [x] `GET /api/network` router + the Network tab UI (#129 Phase 1)

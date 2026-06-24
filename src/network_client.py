@@ -39,7 +39,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping, Optional
 
 import requests
@@ -86,7 +86,7 @@ class NetDevice:
     signal: Optional[int]  # percent (wired reports 100 / None)
     link_rate: Optional[int]  # Mbps as the device reports it
     ssid: Optional[str]
-    source: str  # which device reported it: "ap" | "router"
+    source: str  # which device(s) reported it: "ap" | "router" | "both"
 
     @property
     def is_wireless(self) -> bool:
@@ -890,6 +890,10 @@ class RouterClient:
         "/?_type=menuData&_tag=wan_internetstatus_lua.lua&TypeUplink=2&pageType=1"
     )
     _REBOOT_FEED = "/?_type=menuData&_tag=devmgr_restartmgr_lua.lua"
+    # The LAN attached/allocated-address table — same page-gated menuData pattern
+    # as the WAN feed, gated behind the "localNetStatus" menu page. It carries the
+    # router-side hostnames (HostName/IPAddress/MACAddress) the AP read lacks.
+    _LAN_DEVS_FEED = "/?_type=menuData&_tag=accessdev_landevs_lua.lua"
 
     def _menu_view(self, tag: str, timeout: int = 10) -> str:
         """Load a menu page so its data feed is unlocked server-side.
@@ -918,6 +922,35 @@ class RouterClient:
         if "SessionTimeout" in body or "404 Not Found" in body:
             raise NetworkCommandError("router WAN read rejected (session/page)")
         return _pick_internet_wan(_parse_instances(body))
+
+    def read_dhcp_leases(self, timeout: int = 10) -> list[dict]:
+        """Return the router's LAN allocated-address table for hostname enrichment.
+
+        Each entry is ``{mac, ip, hostname}`` (an empty ``HostName`` → ``None``).
+        Requires an authenticated session (call :meth:`login` first); page-gated
+        exactly like :meth:`read_wan`. Raises :class:`NetworkCommandError` if the
+        read itself is rejected. The ZTE firmware exposes no DHCP port / lease-time
+        feed (every candidate 404s), so only host/ip/mac are available.
+        """
+        self._menu_view("localNetStatus", timeout)
+        body = self._session.get(
+            self._base + self._LAN_DEVS_FEED,
+            headers={"Referer": f"{self._base}/?_type=menuView&_tag=localNetStatus"},
+            timeout=timeout,
+        ).text
+        if "SessionTimeout" in body or "404 Not Found" in body:
+            raise NetworkCommandError("router DHCP read rejected (session/page)")
+        leases: list[dict] = []
+        for inst in _parse_instances(body):
+            mac = inst.get("MACAddress")
+            if not mac:
+                continue
+            leases.append({
+                "mac": mac,
+                "ip": inst.get("IPAddress") or None,
+                "hostname": inst.get("HostName") or None,
+            })
+        return leases
 
     def reboot(self, timeout: int = 10) -> None:
         """Reboot the router via the authenticated POST + RSA integrity header.
@@ -971,6 +1004,44 @@ def _parse_instances(xml: str) -> list[dict]:
     return out
 
 
+def _merge_router_leases(
+    devices: list[NetDevice], leases: list[dict]
+) -> list[NetDevice]:
+    """Fold the router DHCP table into the AP inventory, keyed by normalized MAC.
+
+    For a device seen by both the AP and the router: fill a missing ``name`` from
+    the router hostname and mark ``source="both"`` (the AP never overwrites a name
+    it already reported). A lease with no AP match becomes a router-only
+    ``NetDevice`` (``conn_type``/``signal`` unknown, ``source="router"``) — these
+    are the wired clients the AP can't see.
+    """
+    merged = list(devices)
+    by_mac = {_normalise_mac(d.mac): i for i, d in enumerate(merged) if d.mac}
+    for lease in leases:
+        key = _normalise_mac(lease.get("mac"))
+        if not key:
+            continue
+        host = lease.get("hostname") or None
+        idx = by_mac.get(key)
+        if idx is not None:
+            d = merged[idx]
+            merged[idx] = replace(
+                d, name=d.name if d.name else host, source="both"
+            )
+        else:
+            merged.append(NetDevice(
+                mac=lease.get("mac"),
+                ip=lease.get("ip"),
+                name=host,
+                conn_type=None,
+                signal=None,
+                link_rate=None,
+                ssid=None,
+                source="router",
+            ))
+    return merged
+
+
 def _pick_internet_wan(instances: list[dict]) -> dict:
     """The live internet WAN = connected with a real IPv4; prefer default-gateway."""
     live = [
@@ -1022,25 +1093,25 @@ def _to_int(value: Optional[str]) -> Optional[int]:
         return None
 
 
-def _fetch_router_sync() -> RouterHealth:
+def _fetch_router_sync() -> tuple[RouterHealth, list[dict]]:
     host, user, pwd = _router_creds()
     client = RouterClient(host, user, pwd)
     try:
         authed = client.login()
     except NetworkCommandError as exc:
-        return RouterHealth(reachable=True, authenticated=False, error=str(exc))
+        return RouterHealth(reachable=True, authenticated=False, error=str(exc)), []
     except requests.RequestException as exc:
-        return RouterHealth(reachable=False, error=str(exc))
+        return RouterHealth(reachable=False, error=str(exc)), []
     if not authed:
-        return RouterHealth(reachable=True, authenticated=False)
+        return RouterHealth(reachable=True, authenticated=False), []
     # Authenticated → layer on the WAN/internet status (best-effort: a read
     # failure leaves the WAN fields None rather than dropping the login signal).
     try:
         wan = client.read_wan()
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ router WAN read failed: %s", exc)
-        return RouterHealth(reachable=True, authenticated=True)
-    return RouterHealth(
+        wan = {}
+    health = RouterHealth(
         reachable=True,
         authenticated=True,
         wan_online=bool(wan),
@@ -1051,17 +1122,25 @@ def _fetch_router_sync() -> RouterHealth:
         uptime_s=_to_int(wan.get("UpTime")),
         addressing=wan.get("Addressingtype") or None,
     )
+    # DHCP lease table for hostname enrichment (best-effort, same authenticated
+    # session: a read failure leaves the inventory AP-only, never drops it).
+    try:
+        leases = client.read_dhcp_leases()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ router DHCP-lease read failed: %s", exc)
+        leases = []
+    return health, leases
 
 
-async def fetch_router() -> RouterHealth:
-    """Async wrapper: prove the router login works headlessly."""
+async def fetch_router() -> tuple[RouterHealth, list[dict]]:
+    """Async wrapper: router health + its DHCP lease table for hostname merge."""
     try:
         return await asyncio.to_thread(_fetch_router_sync)
     except NetworkConfigError:
         raise
     except Exception as exc:
         logger.warning("⚠️ router read failed: %s", exc)
-        return RouterHealth(reachable=False, error=str(exc))
+        return RouterHealth(reachable=False, error=str(exc)), []
 
 
 def reboot_router() -> None:
@@ -1125,7 +1204,7 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
     opt-in (it takes ~10-15 s and saturates the link).
     """
     internet_timeout = _INTERNET_TIMEOUT_S if include_speedtest else _INTERNET_FAST_TIMEOUT_S
-    internet, (ap, devices), router, wifi = await asyncio.gather(
+    internet, (ap, devices), (router, leases), wifi = await asyncio.gather(
         _with_timeout(
             "internet health",
             fetch_internet_health(include_speedtest=include_speedtest),
@@ -1142,7 +1221,7 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
             "router",
             fetch_router(),
             _ROUTER_TIMEOUT_S,
-            RouterHealth(reachable=False, error="read timed out"),
+            (RouterHealth(reachable=False, error="read timed out"), []),
         ),
         _with_timeout(
             "Wi-Fi diagnostics",
@@ -1151,6 +1230,9 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
             WifiDiagnostics(available=False, error="read timed out"),
         ),
     )
+    # Fold the router DHCP hostnames into the AP inventory (issue #169). A failed
+    # or empty router read leaves `leases` empty, so the AP list passes through.
+    devices = _merge_router_leases(devices, leases)
     alerts = _derive_alerts(internet, ap, router, devices)
     return NetworkState(
         internet=internet,
