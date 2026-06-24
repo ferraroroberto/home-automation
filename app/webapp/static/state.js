@@ -280,6 +280,7 @@ export const els = {
   netDeviceSignal: document.getElementById('netDeviceSignal'),
   netDeviceSsid: document.getElementById('netDeviceSsid'),
   netDeviceSource: document.getElementById('netDeviceSource'),
+  netDeviceHostname: document.getElementById('netDeviceHostname'),
   netDeviceSeen: document.getElementById('netDeviceSeen'),
   netDeviceSeenRow: document.getElementById('netDeviceSeenRow'),
   netDeviceDisplayName: document.getElementById('netDeviceDisplayName'),

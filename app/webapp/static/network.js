@@ -751,6 +751,8 @@ function openNetDeviceDetail(mac) {
   els.netDeviceSignal.textContent = signalText(d);
   els.netDeviceSsid.textContent = d.ssid || '—';
   els.netDeviceSource.textContent = SOURCE_LABELS[d.source] || d.source || '—';
+  // Reported hostname stays visible even when a custom display name is set.
+  els.netDeviceHostname.textContent = d.name || '—';
   // First-seen + times-seen history (Phase 4); hidden for untracked randomised MACs.
   if (els.netDeviceSeenRow) {
     const tracked = !d.randomized && d.first_seen != null;
