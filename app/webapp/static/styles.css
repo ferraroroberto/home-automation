@@ -1861,12 +1861,10 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   margin-bottom: 10px;
 }
 .net-wifi-tip {
-  background: var(--card-off);
-  border-left: 3px solid var(--attention);
-  border-radius: var(--radius-sm);
-  padding: 7px 9px;
+  color: var(--muted);
   font-size: var(--font-caption);
-  font-weight: 650;
+  font-weight: 600;
+  line-height: 1.35;
 }
 .net-wifi-charts {
   display: grid;
