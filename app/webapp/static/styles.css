@@ -349,6 +349,8 @@ html, body {
 /* ----------------------------------------------------------- AC summary */
 .ac-summary { padding: 6px 12px; margin-bottom: var(--gap); }
 .ac-summary-empty { margin: 8px 0; }
+.snapshot-note { margin: 10px 0 0; }
+.ac-snapshot-note { padding-top: 8px; border-top: 1px solid var(--line); }
 .ac-line {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -684,6 +686,21 @@ html, body {
   font-size: var(--font-caption);
   font-weight: 700;
   flex: none;
+}
+.snapshot-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  color: var(--attention);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: normal;
 }
 .unit-schedule-icon {
   color: var(--muted);

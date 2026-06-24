@@ -60,7 +60,7 @@ optional bearer token. Three ways to reach it once running:
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `lights.js` (Elgato tab),
     `security.js` (RISCO alarm tab), `network.js` (Network/LAN tab + reusable confirm dialog),
-    `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
+    `snapshots.js` (allowlisted last-good browser snapshots), `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
   - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
@@ -655,6 +655,8 @@ On Android, Chrome offers "Install app"; the CA is also served as DER at `/stati
 
 Both layers are optional. With nothing configured the API is open (fine on a
 trusted tailnet). Loopback callers always bypass the gate.
+
+The PWA keeps a browser-local, versioned last-good snapshot of selected read-only API responses (AC units, live/today energy, plugs, lights, and network) so a reload can paint the last useful state before fresh live reads finish. Successful live reads replace the snapshot; failed reads leave the last-good snapshot intact. Security state, presence/location diagnostics, event logs, auth responses, edit forms, and command responses are intentionally excluded.
 
 ```powershell
 & .\.venv\Scripts\python.exe scripts\gen_token.py            # set a bearer token

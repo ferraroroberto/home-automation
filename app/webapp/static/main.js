@@ -26,12 +26,14 @@ import {
   wireEnergyControls,
   onEnergyTab,
   restyleEnergyCharts,
+  restoreEnergySnapshots,
 } from './energy.js';
-import { onPlugsTab, wirePlugsToggle, wirePlugDetail } from './plugs.js';
-import { onLightsTab, wireLightControls } from './lights.js';
+import { onPlugsTab, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
+import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls } from './security.js';
-import { onNetworkTab, wireNetworkControls, restyleNetworkCharts } from './network.js';
+import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
 import { startWeatherPolling } from './weather.js';
+import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 
 const DEFAULT_RANGE = [16, 31];
 const ASSET_HASH_KEY = 'home-automation.assetHash';
@@ -138,7 +140,8 @@ function renderCardInto(card, unit) {
     '<span class="unit-mode-icon">' + icon(modeIcon(unit.operation_mode)) + '</span>' +
     '<span class="unit-name"></span>' +
     (schedCount ? '<span class="unit-schedule-badge" title="' + schedCount + ' schedule' + (schedCount === 1 ? '' : 's') + '">' +
-      icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '');
+      icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '') +
+    (isSnapshotRestored('units') ? '<span class="snapshot-badge">' + snapshotLabel('units') + '</span>' : '');
   header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
   top.appendChild(header);
@@ -527,12 +530,19 @@ function renderAcSummary() {
     row.appendChild(toggle);
     els.acSummary.appendChild(row);
   });
+  if (isSnapshotRestored('units')) {
+    const note = document.createElement('p');
+    note.className = 'muted small snapshot-note ac-snapshot-note';
+    note.textContent = snapshotLabel('units');
+    els.acSummary.appendChild(note);
+  }
 }
 
 // --------------------------------------------------------------- boot
 async function loadUnits() {
   try {
     const body = await jsonApi('/api/units');
+    saveSnapshot('units', body);
     state.units = (body && body.units) || [];
     renderAll();
     renderAcSummary();
@@ -541,6 +551,14 @@ async function loadUnits() {
     if (String(exc.message) === 'auth required') return;
     toast('Load failed: ' + (exc.message || exc), 'error');
   }
+}
+
+function restoreUnitsSnapshot() {
+  const body = restoreSnapshot('units');
+  if (!body) return;
+  state.units = (body && body.units) || [];
+  renderAll();
+  renderAcSummary();
 }
 
 // --------------------------------------------------------------- wire up
@@ -748,6 +766,11 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireSecuritySchedules();
   wirePresenceControls();
   wireNetworkControls();
+  restoreUnitsSnapshot();
+  restoreEnergySnapshots();
+  restorePlugsSnapshot();
+  restoreLightsSnapshot();
+  restoreNetworkSnapshot();
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {

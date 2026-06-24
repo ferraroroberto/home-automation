@@ -14,6 +14,7 @@
 
 import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
   createLiveChart, setLiveData, pushLivePoint,
   createAggChart, setAggData, restyle,
@@ -143,9 +144,11 @@ export function renderEnergy(e) {
       state.liveChart, Math.floor(Date.now() / 1000),
       solar, e.grid_import_w, e.house_consumption_w, LIVE_MAX_POINTS,
     );
-    els.liveMeta.textContent = liveNote || ('· ' + nowLabel());
+    els.liveMeta.textContent = liveNote || (isSnapshotRestored('energyLive') ? '· ' + snapshotLabel('energyLive') : '· ' + nowLabel());
   } else if (liveNote) {
     els.liveMeta.textContent = liveNote;
+  } else if (isSnapshotRestored('energyLive')) {
+    els.liveMeta.textContent = '· ' + snapshotLabel('energyLive');
   }
 }
 
@@ -161,6 +164,7 @@ export async function loadEnergy() {
   try {
     const body = await jsonApi('/api/energy');
     reportFetchOk('energy');
+    saveSnapshot('energyLive', body);
     if (body) renderEnergy(body);
   } catch (exc) {
     // A hard fetch failure (network/500) is surfaced once per outage; the live
@@ -220,11 +224,19 @@ function renderToday(b) {
 async function loadToday() {
   try {
     const body = await jsonApi('/api/energy/today');
+    saveSnapshot('energyToday', body);
     renderToday(body && body.bucket);
   } catch (_) {
     // Secondary — keep whatever the last successful read rendered.
   }
   loadSavingsEur();  // tiered € for the savings card (today, all-in avoided cost)
+}
+
+export function restoreEnergySnapshots() {
+  const live = restoreSnapshot('energyLive');
+  if (live) renderEnergy(live);
+  const today = restoreSnapshot('energyToday');
+  if (today) renderToday(today && today.bucket);
 }
 
 // --------------------------------------------------- cost & savings table

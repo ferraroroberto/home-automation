@@ -7,6 +7,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 
 const POLL_MS = 15_000;
 let lightsTimer = null;
@@ -301,7 +302,12 @@ export function renderLights() {
       'No Elgato lights found. Add ELGATO_LIGHT_HOSTS=host[:9123] to .env or enable Bonjour/mDNS.';
     return;
   }
-  els.lightsNote.hidden = true;
+  if (isSnapshotRestored('lights')) {
+    els.lightsNote.hidden = false;
+    els.lightsNote.textContent = snapshotLabel('lights');
+  } else {
+    els.lightsNote.hidden = true;
+  }
   const sorted = state.lights.slice().sort(function (a, b) {
     return label(a).localeCompare(label(b));
   });
@@ -313,17 +319,24 @@ export async function loadLights() {
   try {
     const body = await jsonApi('/api/lights');
     reportFetchOk('lights');
+    saveSnapshot('lights', body);
     state.lights = (body && body.lights) || [];
     renderLights();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     reportFetchFailure('lights', exc, 'lights');
-    state.lights = [];
-    els.lightsGrid.innerHTML = '';
+    if (!state.lights.length) els.lightsGrid.innerHTML = '';
     updateBulkControls();
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = exc.message || 'Failed to load Elgato lights.';
   }
+}
+
+export function restoreLightsSnapshot() {
+  const body = restoreSnapshot('lights');
+  if (!body) return;
+  state.lights = (body && body.lights) || [];
+  renderLights();
 }
 
 function schedule(ms) {

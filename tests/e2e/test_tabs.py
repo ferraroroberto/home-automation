@@ -7,6 +7,8 @@ fixtures — on both the Chromium-desktop and WebKit/iPhone projections.
 
 from __future__ import annotations
 
+import copy
+import json
 from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
@@ -61,6 +63,53 @@ def test_home_shows_ac_summary_line_per_unit(
     # One scannable line per unit: name + an actionable power toggle (issue #72).
     expect(page.locator("#acSummary")).to_contain_text("Office")
     expect(page.locator("#acSummary .ac-line-toggle")).to_have_count(len(sample_units))
+
+
+def test_units_snapshot_paints_before_live_refresh(
+    page: Page, base_url: str, sample_units: List[Dict], mock_energy: Callable,
+) -> None:
+    cached_units = copy.deepcopy(sample_units)
+    live_units = copy.deepcopy(sample_units)
+    cached_units[0]["name"] = "Snapshot Office"
+    live_units[0]["name"] = "Live Office"
+    snapshot_store = {
+        "version": 1,
+        "snapshots": {
+            "units": {
+                "saved_at": "2026-06-24T20:15:00.000Z",
+                "body": {"units": cached_units},
+            },
+        },
+    }
+    page.add_init_script("""
+        const snapshotStore = %s;
+        const liveUnits = %s;
+        localStorage.setItem('home-automation.apiSnapshots.v1', JSON.stringify(snapshotStore));
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/units' || url.endsWith('/api/units')) {
+            return new Promise(function(resolve) {
+              setTimeout(function() {
+                resolve(new Response(JSON.stringify({units: liveUnits}), {
+                  status: 200,
+                  headers: {'Content-Type': 'application/json'},
+                }));
+              }, 1000);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """ % (json.dumps(snapshot_store), json.dumps(live_units)))
+    mock_energy()
+    _boot(page, base_url)
+
+    expect(page.locator("#acSummary")).to_contain_text("Snapshot Office")
+    expect(page.locator(".snapshot-badge").first).to_contain_text("Last saved")
+
+    expect(page.locator("#acSummary")).to_contain_text("Live Office", timeout=4000)
+    expect(page.locator("#acSummary")).not_to_contain_text("Snapshot Office")
+    expect(page.locator(".snapshot-badge")).to_have_count(0)
 
 
 def test_energy_tab_renders_flow_and_charts(
