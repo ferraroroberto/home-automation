@@ -31,6 +31,7 @@ import {
 import { onPlugsTab, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls } from './security.js';
+import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
 import { startWeatherPolling } from './weather.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
@@ -765,6 +766,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireSecurityHiddenToggle();
   wireSecuritySchedules();
   wirePresenceControls();
+  wireCameras();
   wireNetworkControls();
   restoreUnitsSnapshot();
   restoreEnergySnapshots();
@@ -774,7 +776,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
-    onEnergyTab(tab); onPlugsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab);
+    onEnergyTab(tab); onPlugsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
     // Keep Home clean — Settings lives on the other tabs only (issue #72).
     els.settingsCard.hidden = tab === 'home';
   });

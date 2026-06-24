@@ -39,10 +39,10 @@ pywebpush>=2.0.0
 pynetgear>=0.10.10
 speedtest-cli>=2.1.3
 
-# Camera spike (issue #89): validate an open WiFi RTSP/ONVIF camera (Reolink E1
-# Outdoor Pro) end-to-end from Python over the generic vendor-neutral path —
-# ONVIF for discovery/profiles/PTZ, RTSP for the stream (grabbed via ffmpeg).
-# Throwaway spike under spike/camera_spike.py; no runtime/product dependency.
+# Cameras (issues #89 spike, #161 product): open WiFi RTSP/ONVIF cameras
+# (Reolink E1 Outdoor Pro) over the generic vendor-neutral path — ONVIF for
+# discovery/profiles/PTZ, RTSP for snapshot/stream/record (grabbed via ffmpeg,
+# which must be on PATH). Behind the Security-tab Cameras tile.
 onvif-zeep-async>=4.2.0
 wsdiscovery>=2.1.0
 

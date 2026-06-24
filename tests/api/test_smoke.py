@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
+from src.camera_client import CameraInfo
 from src.elgato_client import ElgatoLight
 from src.location_config import LocationConfig
 from src.melcloud_client import DeviceInfo
@@ -241,6 +242,74 @@ def test_lights_route_runs_with_monkeypatched_lan(
     assert body["lights"][0]["brightness"] == 42
     assert body["lights"][0]["temperature_k"] == 5000
     assert body["lights"][0]["supports_temperature"] is True
+
+
+def test_cameras_route_runs_with_monkeypatched_onvif(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/cameras`` serialises camera state — ONVIF faked, no live camera."""
+    cam = CameraInfo(
+        id="garden",
+        host="192.0.2.20",
+        reachable=True,
+        manufacturer="REOLINK",
+        model="E1 Outdoor Pro",
+        firmware="v3.1.0",
+        ptz_capable=True,
+    )
+
+    async def fake_fetch_cameras() -> List[CameraInfo]:
+        return [cam]
+
+    monkeypatch.setattr("app.webapp.routers.cameras.fetch_cameras", fake_fetch_cameras)
+    monkeypatch.setattr(
+        "app.webapp.routers.cameras.load_camera_display_names",
+        lambda: {"garden": "Garden"},
+    )
+    monkeypatch.setattr("app.webapp.routers.cameras.is_recording", lambda _id: False)
+
+    resp = client.get("/api/cameras")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["cameras"][0]["id"] == "garden"
+    assert body["cameras"][0]["display_name"] == "Garden"
+    assert body["cameras"][0]["model"] == "E1 Outdoor Pro"
+    assert body["cameras"][0]["ptz_capable"] is True
+    assert body["cameras"][0]["recording"] is False
+
+
+def test_camera_ptz_route(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``POST /api/cameras/{id}/ptz`` start/stop drive the client without a camera."""
+    calls: List[str] = []
+
+    async def fake_start(camera_id: str, **_kw) -> None:
+        calls.append("start:" + camera_id)
+
+    async def fake_stop(camera_id: str, **_kw) -> None:
+        calls.append("stop:" + camera_id)
+
+    monkeypatch.setattr("app.webapp.routers.cameras.ptz_start", fake_start)
+    monkeypatch.setattr("app.webapp.routers.cameras.ptz_stop", fake_stop)
+
+    started = client.post("/api/cameras/garden/ptz", json={"action": "start", "direction": "left"})
+    stopped = client.post("/api/cameras/garden/ptz", json={"action": "stop"})
+    assert started.status_code == 200 and stopped.status_code == 200
+    assert calls == ["start:garden", "stop:garden"]
+
+
+def test_camera_display_name_route(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``PUT /api/cameras/{id}/display_name`` persists via the rename store."""
+    saved: dict = {}
+    monkeypatch.setattr(
+        "app.webapp.routers.cameras.set_camera_display_name",
+        lambda cid, name: saved.update({cid: name}),
+    )
+    resp = client.put("/api/cameras/garden/display_name", json={"display_name": "Patio"})
+    assert resp.status_code == 200
+    assert resp.json()["display_name"] == "Patio"
+    assert saved == {"garden": "Patio"}
 
 
 def test_lights_control_route_reads_back(

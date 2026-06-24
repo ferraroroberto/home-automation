@@ -45,6 +45,10 @@ export const state = {
   selectedLightId: null,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
+  // Camera cards from GET /api/cameras (issue #161).
+  cameras: [],
+  // camera id whose detail/live modal is open (or null).
+  selectedCameraId: null,
   // Home-network (LAN) snapshot from GET /api/network (issue #129).
   network: null,
   // Browser-restored API snapshots keyed by allowlisted scope (issue #148).
@@ -170,6 +174,28 @@ export const els = {
   zoneDisplayName: document.getElementById('zoneDisplayName'),
   zoneOriginalName: document.getElementById('zoneOriginalName'),
   zoneHiddenToggle: document.getElementById('zoneHiddenToggle'),
+  // Cameras tile (Security tab) + detail / live-view modals (issue #161)
+  camerasList: document.getElementById('camerasList'),
+  camerasNote: document.getElementById('camerasNote'),
+  cameraDialog: document.getElementById('cameraDialog'),
+  cameraDetailName: document.getElementById('cameraDetailName'),
+  cameraDetailClose: document.getElementById('cameraDetailClose'),
+  cameraSnapshot: document.getElementById('cameraSnapshot'),
+  cameraDetailStatus: document.getElementById('cameraDetailStatus'),
+  cameraDisplayName: document.getElementById('cameraDisplayName'),
+  cameraLiveBtn: document.getElementById('cameraLiveBtn'),
+  cameraLiveDialog: document.getElementById('cameraLiveDialog'),
+  cameraLiveName: document.getElementById('cameraLiveName'),
+  cameraLiveClose: document.getElementById('cameraLiveClose'),
+  cameraLiveImg: document.getElementById('cameraLiveImg'),
+  cameraSnapBtn: document.getElementById('cameraSnapBtn'),
+  cameraRecBtn: document.getElementById('cameraRecBtn'),
+  cameraPtzUp: document.getElementById('cameraPtzUp'),
+  cameraPtzDown: document.getElementById('cameraPtzDown'),
+  cameraPtzLeft: document.getElementById('cameraPtzLeft'),
+  cameraPtzRight: document.getElementById('cameraPtzRight'),
+  cameraZoomIn: document.getElementById('cameraZoomIn'),
+  cameraZoomOut: document.getElementById('cameraZoomOut'),
   // Plugs (Smart Life) tab
   plugsGrid: document.getElementById('plugsGrid'),
   plugsNote: document.getElementById('plugsNote'),

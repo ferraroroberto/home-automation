@@ -1,0 +1,10 @@
+[
+  {
+    "id": "garden",
+    "host": "192.168.0.x",
+    "onvif_port": 8000,
+    "rtsp_port": 554,
+    "username": "admin",
+    "password": "your-device-account-password"
+  }
+]
