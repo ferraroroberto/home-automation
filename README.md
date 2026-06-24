@@ -575,6 +575,34 @@ private room names; this repository is public. If discovery finds nothing but
 the Elgato phone app works, set `ELGATO_LIGHT_HOSTS` to the light's LAN IP and
 restart the webapp.
 
+## Cameras (spike)
+
+Issue #89 spikes replacing the YI camera fleet with **open** cameras that speak
+**standalone RTSP + ONVIF on the device** — no vendor cloud, hub, or
+subscription (path 2 from the #85 feasibility study). A throwaway script,
+`spike/camera_spike.py`, validates one camera (a **Reolink E1 Outdoor Pro**)
+end-to-end from Python: ONVIF discovery + device info + media profiles, RTSP
+main/substream URIs pulled from ONVIF, an ffmpeg snapshot + short clip off the
+RTSP stream, and PTZ. It is not the product — the real `src/camera_client.py` +
+webapp tile is a follow-up once the spike records a go.
+
+```powershell
+& .\.venv\Scripts\python.exe -m spike.camera_spike                 # Windows
+& .\.venv\Scripts\python.exe -m spike.camera_spike --no-ptz         # skip PTZ
+```
+
+Config comes from the gitignored `.env` (copy the `CAMERA_*` block from
+`.env.example`): `CAMERA_HOST`, `CAMERA_USERNAME`/`CAMERA_PASSWORD` (the
+on-device **device account**, not the cloud login), `CAMERA_ONVIF_PORT`
+(default 8000), `CAMERA_RTSP_PORT` (default 554). Needs **ffmpeg on PATH**.
+
+**Enable RTSP + ONVIF on the camera first** — Reolink ships them off (app:
+Settings → Network → Advanced → Server Settings). Captures are written to
+gitignored `webapp/camera_captures/` (an outdoor frame can reveal the location).
+Do not commit camera IPs, the device-account password, the UID/MAC, or location
+names; this repository is public. Full findings, prerequisites, the acceptance
+checklist, and the go/no-go record are in [`docs/camera-spike.md`](docs/camera-spike.md).
+
 ## Run the webapp (the product)
 
 ### Via the tray (the always-on way)

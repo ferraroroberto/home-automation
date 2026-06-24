@@ -40,6 +40,10 @@ app/webapp/static/*.mobileconfig
 # never commit (public repo).
 .launcher-tmp/
 
+# Camera-spike captures (issue #89): snapshots / clips grabbed from the camera
+# can reveal the home/location — never commit (public repo).
+webapp/camera_captures/
+
 # Virtual env
 .venv/
 venv/
