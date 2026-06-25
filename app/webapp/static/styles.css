@@ -1714,7 +1714,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .security-zones-card > .collapse-summary,
 .presence-card > .collapse-summary,
 .net-wifi-card > .collapse-summary,
-.net-devices-card > .collapse-summary {
+.net-devices-card > .collapse-summary,
+.net-dhcp-card > .collapse-summary {
   height: 52px;
   padding: 0 14px;
 }
@@ -1724,7 +1725,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .security-zones-card[open] > .collapse-summary,
 .presence-card[open] > .collapse-summary,
 .net-wifi-card[open] > .collapse-summary,
-.net-devices-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
+.net-devices-card[open] > .collapse-summary,
+.net-dhcp-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
 .settings-body {
   padding: 14px;
   display: flex;
@@ -1974,6 +1976,8 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 /* Settings-style collapsible card for counts, ordering, offline toggle and list. */
 .net-devices-card { padding: 0; margin-bottom: var(--gap); }
 .net-devices-body { padding: 12px 14px 14px; }
+.net-dhcp-card { padding: 0; }
+.net-dhcp-body { padding: 12px 14px 14px; }
 
 /* Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N. */
 .net-stats {
