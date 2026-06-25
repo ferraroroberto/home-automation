@@ -25,6 +25,7 @@ Two devices + one host-side probe feed the state:
 Credentials come from ``.env`` (loopback LAN, never committed)::
 
     NETWORK_AP_HOST / NETWORK_AP_USERNAME / NETWORK_AP_PASSWORD
+    NETWORK_AP_MAC (optional) — stable MAC of the AP; enables auto-rediscovery
     NETWORK_ROUTER_HOST / NETWORK_ROUTER_USERNAME / NETWORK_ROUTER_PASSWORD
 """
 
@@ -62,8 +63,14 @@ _AP_DEVICE_MODE = {"0": "router", "1": "access_point", "2": "bridge", "3": "repe
 _INTERNET_TIMEOUT_S = 24.0
 _INTERNET_FAST_TIMEOUT_S = 10.0
 _ACCESS_POINT_TIMEOUT_S = 12.0
+_ACCESS_POINT_REDISCOVER_TIMEOUT_S = 5.0
 _ROUTER_TIMEOUT_S = 18.0
 _WIFI_TIMEOUT_S = 6.0
+
+# In-memory runtime override for the AP host. None means "use NETWORK_AP_HOST".
+# Updated to the last IP that successfully answered; survives within the process
+# lifetime so a rediscovered address sticks without touching .env.
+_ap_runtime_host: Optional[str] = None
 
 
 class NetworkConfigError(RuntimeError):
@@ -260,6 +267,28 @@ def _ap_creds() -> tuple[str, str, str]:
         _require("NETWORK_AP_USERNAME"),
         _require("NETWORK_AP_PASSWORD"),
     )
+
+
+def _ap_effective_host() -> str:
+    """Return the runtime-discovered host if one is set, else the configured host."""
+    global _ap_runtime_host
+    return _ap_runtime_host or _require("NETWORK_AP_HOST")
+
+
+def _ap_mac() -> Optional[str]:
+    """Return the normalised NETWORK_AP_MAC if configured, else None."""
+    load_dotenv(override=True)
+    raw = (os.getenv("NETWORK_AP_MAC") or "").strip()
+    return _normalise_mac(raw) if raw else None
+
+
+def _rediscover_ap_host(mac: str, leases: list[dict]) -> Optional[str]:
+    """Return the IP for *mac* found in *leases*, or None if not present."""
+    target = _normalise_mac(mac)
+    for lease in leases:
+        if _normalise_mac(lease.get("mac")) == target:
+            return lease.get("ip") or None
+    return None
 
 
 def _router_creds() -> tuple[str, str, str]:
@@ -778,11 +807,13 @@ async def fetch_wifi_diagnostics() -> WifiDiagnostics:
 # --------------------------------------------------------------------------- #
 # Access point (NETGEAR R9000 via pynetgear)                                  #
 # --------------------------------------------------------------------------- #
-def _fetch_ap_sync() -> tuple[AccessPointHealth, list[NetDevice]]:
+def _fetch_ap_sync(host_override: Optional[str] = None) -> tuple[AccessPointHealth, list[NetDevice]]:
     """Blocking pynetgear read: AP identity + the full attached-device list."""
+    global _ap_runtime_host
     from pynetgear import Netgear
 
-    host, user, pwd = _ap_creds()
+    _, user, pwd = _ap_creds()
+    host = host_override or _ap_effective_host()
     # This R9000 serves the SOAP API on :80 (pynetgear defaults to :5000).
     ng = Netgear(password=pwd, host=host, user=user, port=80)
 
@@ -816,6 +847,9 @@ def _fetch_ap_sync() -> tuple[AccessPointHealth, list[NetDevice]]:
         mode=_AP_DEVICE_MODE.get(str(info.get("DeviceMode")), info.get("DeviceMode")),
         device_count=len(devices),
     )
+    # Cache the working host so subsequent requests skip the configured IP if
+    # it was stale and this was a rediscovery probe with a different address.
+    _ap_runtime_host = host
     return health, devices
 
 
@@ -834,7 +868,8 @@ def reboot_access_point() -> None:
     """Reboot the NETGEAR R9000 (proven working via pynetgear)."""
     from pynetgear import Netgear
 
-    host, user, pwd = _ap_creds()
+    _, user, pwd = _ap_creds()
+    host = _ap_effective_host()
     ng = Netgear(password=pwd, host=host, user=user, port=80)
     if not ng.reboot():
         raise NetworkCommandError("access point rejected the reboot command")
@@ -1572,6 +1607,30 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
             WifiDiagnostics(available=False, error="read timed out"),
         ),
     )
+    # When the AP is unreachable and NETWORK_AP_MAC is configured, attempt
+    # rediscovery via the router's lease table (already fetched above). This
+    # handles the common case where the AP received a new DHCP address: we look
+    # up the stable MAC in the lease table, verify the candidate with a short
+    # pynetgear login, and update the in-memory runtime host on success.
+    if not ap.reachable and leases:
+        ap_mac = _ap_mac()
+        if ap_mac:
+            candidate = _rediscover_ap_host(ap_mac, leases)
+            if candidate:
+                logger.info(
+                    "ℹ️ AP unreachable at configured host; trying discovered IP %s (MAC %s)",
+                    candidate, ap_mac,
+                )
+                try:
+                    ap, devices = await asyncio.wait_for(
+                        asyncio.to_thread(_fetch_ap_sync, candidate),
+                        timeout=_ACCESS_POINT_REDISCOVER_TIMEOUT_S,
+                    )
+                    if ap.reachable:
+                        logger.info("✅ AP rediscovered at %s", candidate)
+                except (asyncio.TimeoutError, Exception) as exc:
+                    logger.warning("⚠️ AP rediscovery probe at %s failed: %s", candidate, exc)
+
     # Fold the router DHCP hostnames into the AP inventory (issue #169). A failed
     # or empty router read leaves `leases` empty, so the AP list passes through.
     devices = _merge_router_leases(devices, leases)
