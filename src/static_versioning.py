@@ -39,8 +39,7 @@ logger = logging.getLogger(__name__)
 _HASH_LEN = 8
 
 # Suffixes under static/ that get hashed + ``?v=`` stamped. Everything
-# else (icons, manifest, mobileconfig, ca.crt) is cached conservatively
-# by the static mount itself.
+# else (icons, manifest) is cached conservatively by the static mount itself.
 _HASHED_SUFFIXES = (".js", ".css")
 
 # Subdirectories under static/ skipped entirely — third-party bundles

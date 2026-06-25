@@ -86,6 +86,29 @@ def cert_paths(project_root: Optional[Path] = None) -> Optional[tuple[Path, Path
     return None
 
 
+def _renew_tailscale_cert() -> None:
+    """Best-effort auto-renew of the Tailscale (Let's Encrypt) cert before spawn.
+
+    Mirrors the ``webapp.bat`` ``--check`` hook so the tray-owned boot path also
+    self-heals a cert expiring within 30 days. No-op when the cert is missing or
+    is not a ``.ts.net`` cert; never raises, so a renewal hiccup can't block the
+    webapp from starting.
+    """
+    script = PROJECT_ROOT / "scripts" / "gen_tailscale_cert.py"
+    if not script.exists():
+        return
+    try:
+        subprocess.run(
+            [sys.executable, str(script), "--check"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("⚠️  Tailscale cert renew check failed: %s", exc)
+
+
 def _probe_url(scheme: str, host: str, port: int) -> str:
     return f"{scheme}://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
 
@@ -96,8 +119,9 @@ class WebappManager:
     def __init__(self, config: Optional[WebappManagerConfig] = None) -> None:
         self.config = config or WebappManagerConfig()
         self._proc: Optional[subprocess.Popen] = None
-        # The HTTPS endpoint uses a self-signed CA, so verification is off for
-        # the loopback health probe (we are the server, not a remote client).
+        # Verification is off for the loopback health probe regardless of cert
+        # source (we are the server, not a remote client; the Tailscale cert is
+        # issued for the .ts.net name, not 127.0.0.1).
         self._ssl_ctx = ssl.create_default_context()
         self._ssl_ctx.check_hostname = False
         self._ssl_ctx.verify_mode = ssl.CERT_NONE
@@ -175,6 +199,7 @@ class WebappManager:
                 logger.info(f"🔗 Adopting external webapp at {current.base_url}")
                 return current
 
+            _renew_tailscale_cert()
             cmd = self._build_command()
             logger.info(f"🚀 Starting webapp: {' '.join(cmd)}")
 

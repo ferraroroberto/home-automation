@@ -99,8 +99,6 @@ export const THIS_DEVICE_LOCATION_KEY = 'home-automation.thisDeviceLocation';
 
 export const els = {
   grid: document.getElementById('unitsGrid'),
-  themeBtn: document.getElementById('themeBtn'),
-  settingsCard: document.getElementById('settingsCard'),
   toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
   // Tabs + panes

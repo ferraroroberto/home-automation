@@ -37,8 +37,6 @@ logs/*.jsonl
 # Energy-history store (server-side SQLite; per-machine runtime data)
 webapp/*.sqlite3
 webapp/*.sqlite3-*
-app/webapp/static/ca.crt
-app/webapp/static/*.mobileconfig
 
 # Pasted-image / scratch temp dir (e.g. screenshots dropped into chat) —
 # never commit (public repo).

@@ -1,10 +1,9 @@
-"""Page boot, liveness probe, iOS CA profile, and build identity.
+"""Page boot, liveness probe, and build identity.
 
-Most routes here are unauthenticated entry points (``/``, ``/healthz``,
-``/install-ca``). ``/api/version`` is the exception — it is auth-gated like
-the rest of the API (loopback bypasses; the PWA attaches the bearer via
-``jsonApi``) so the running build's git SHA isn't exposed to unauthenticated
-remote callers.
+Most routes here are unauthenticated entry points (``/``, ``/healthz``).
+``/api/version`` is the exception — it is auth-gated like the rest of the API
+(loopback bypasses; the PWA attaches the bearer via ``jsonApi``) so the running
+build's git SHA isn't exposed to unauthenticated remote callers.
 """
 
 from __future__ import annotations
@@ -12,13 +11,11 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 
 router = APIRouter()
-
-_MOBILECONFIG = "home-automation-ca.mobileconfig"
 
 
 @router.get("/")
@@ -45,21 +42,3 @@ async def healthz() -> Dict[str, Any]:
 async def version() -> Dict[str, str]:
     """Build identity for the PWA footer. Stable across requests; cached at load."""
     return BUILD_INFO.as_dict()
-
-
-@router.get("/install-ca")
-async def install_ca() -> FileResponse:
-    profile = STATIC_DIR / _MOBILECONFIG
-    if not profile.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "CA profile not generated yet. Run "
-                "`scripts/gen_ssl_cert.py` from the project root."
-            ),
-        )
-    return FileResponse(
-        str(profile),
-        media_type="application/x-apple-aspen-config",
-        filename=_MOBILECONFIG,
-    )

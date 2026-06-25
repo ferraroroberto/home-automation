@@ -14,13 +14,12 @@ load-balancing automation on top of it.
 The product is a **FastAPI + static PWA**: a card grid showing every unit at
 once, each card carrying the everyday controls inline (on/off, target
 temperature, fan speed, room-temperature readout); a per-unit detail modal
-holds the rest (operation mode + the two vanes). It is reachable on the LAN
-and over **Tailscale**, behind a self-signed-CA HTTPS endpoint and an
-optional bearer token. Three ways to reach it once running:
+holds the rest (operation mode + the two vanes). It is reachable over
+**Tailscale**, behind a real Let's Encrypt HTTPS endpoint (`tailscale cert`)
+and an optional bearer token. Two ways to reach it once running:
 
-- **Local** (same Wi-Fi): `https://<pc-hostname>:8447`
-- **Tailscale** (anywhere on the tailnet): `https://<pc>.<tailnet>.ts.net:8447`
-- **Loopback** (the PC itself): `https://127.0.0.1:8447`
+- **Tailscale** (anywhere on the tailnet, including this PC): `https://<pc>.<tailnet>.ts.net:8447` — trusted cert, no per-device setup
+- **Loopback** (plain desktop access on the PC): `http://localhost:8447` — HTTP, no cert (the cert is for the `.ts.net` name, so `https://localhost` would warn)
 
 > The **Streamlit app is a POC spike** (`spike/streamlit_app.py`) — a
 > throwaway data/debug view, independent from the product. See
@@ -57,7 +56,7 @@ optional bearer token. Three ways to reach it once running:
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
   - `security_automation.py` — background weekly alarm-schedule evaluator owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, CA profile).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, build identity).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `lights.js` (Elgato tab),
@@ -67,7 +66,7 @@ optional bearer token. Three ways to reach it once running:
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
   - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
-- **`scripts/`** — `gen_ssl_cert.py` (HTTPS CA+leaf), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
+- **`scripts/`** — `gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
 - **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
@@ -665,10 +664,11 @@ dashboard is up from login without a console window. Drop a shortcut to
   picked up (run it after editing `src/` or `app/`).
 - Tray menu: **Open** the dashboard, **Copy local/Tailscale URL** (token
   appended), **Restart webapp**, **Status**, **Quit** (stops the webapp
-  cleanly — no orphaned process on `:8447`). **Copy Tailscale URL** copies the
-  full tailnet FQDN (`https://<pc>.<tailnet>.ts.net:8447?token=…`) — the only
-  form that resolves over MagicDNS from a phone — falling back to the `100.x`
-  tailnet IP; both are covered by the cert SANs.
+  cleanly — no orphaned process on `:8447`). **Open** and **Copy Tailscale URL**
+  both target the full tailnet FQDN
+  (`https://<pc>.<tailnet>.ts.net:8447?token=…`) — the name the Let's Encrypt
+  cert is issued for, so the lock is green on this PC too with no certificate
+  fuss — falling back to the loopback URL only when no tailnet host resolves.
 
 The tray launches `python -m app.tray`; detection/kill is scoped to *this*
 repo's `.venv` by command line, so sister-app trays are never touched.
@@ -680,7 +680,7 @@ repo's `.venv` by command line, so sister-app trays are never touched.
 ```
 
 `webapp.bat` binds `0.0.0.0:8447` and serves **HTTPS** when
-`webapp/certificates/cert.pem` exists (see [HTTPS](#https-self-signed-ca)),
+`webapp/certificates/cert.pem` exists (see [HTTPS](#https-tailscale-cert)),
 otherwise plain HTTP. Invoke uvicorn directly if you prefer:
 
 ```powershell
@@ -690,37 +690,41 @@ otherwise plain HTTP. Invoke uvicorn directly if you prefer:
 
 The signal that new code is live is the unit grid rendering (6 units).
 
-## HTTPS (self-signed CA)
+## HTTPS (Tailscale cert)
 
-Generate a local CA + leaf cert. The leaf's SANs auto-include loopback, the
-machine hostname, LAN IPs, and — when Tailscale is installed — the tailnet
-MagicDNS name + `100.x` address, so the same cert is trusted over LAN and
-Tailscale alike:
+The webapp is reached over Tailscale, so HTTPS uses a **real Let's Encrypt
+certificate** issued for the tailnet MagicDNS name via `tailscale cert`. Every
+device already on the tailnet trusts Let's Encrypt, so there are **no
+per-device trust steps** — no CA to install, no iOS profile, no Chrome restart.
+
+**One-time setup (per tailnet):** enable HTTPS in the Tailscale admin console —
+[**DNS → HTTPS Certificates**](https://login.tailscale.com/admin/dns). Then
+provision the cert (auto-detects this machine's MagicDNS name):
 
 ```powershell
-& .\.venv\Scripts\python.exe scripts\gen_ssl_cert.py
+& .\.venv\Scripts\python.exe scripts\gen_tailscale_cert.py
 ```
 
-On Windows this also installs the CA into `CurrentUser\Root` so Edge/Chrome
-on the PC trust it (use `--skip-install` to skip).
+This writes `cert.pem` / `key.pem` into `webapp/certificates/`; restart the
+webapp (`tray.bat --restart`, or `webapp.bat`) and open
+`https://<pc>.<tailnet>.ts.net:8447`.
 
-> **TLS renewal — regenerate before ~July 2027.** The leaf cert is capped at
-> 396 days because Apple/WebKit reject server certs valid > 398 days. After
-> ~13 months Safari shows "Not Secure" again — that's the leaf expiring, not
-> a regression. Re-run `gen_ssl_cert.py` (it reuses the existing CA, so no
-> device re-trust is needed) and restart the webapp.
+> **Auto-renew (no calendar reminder needed).** A Let's Encrypt leaf is valid
+> ~90 days, so renewal is automated rather than manual: both boot paths run
+> `gen_tailscale_cert.py --check` on startup, which re-issues the cert only
+> when it is a `.ts.net` cert expiring within 30 days (a no-op otherwise). The
+> tray-owned webapp self-heals on its next restart; `webapp.bat` does the same.
+
+Plain desktop access on the PC itself uses `http://localhost:8447`
+(`https://localhost:8447` would warn — the cert is for the `.ts.net` name, not
+loopback). The tray's **🏠 Open** action opens the trusted `.ts.net` URL
+directly, so the lock is green with no certificate fuss.
 
 ### Phone install (PWA)
 
-The webapp installs to the iPhone/Android home screen as a full-screen app.
-Because the cert is self-signed, first-time iOS setup is a short detour:
-
-1. In the dashboard, expand **⚙️ Settings** → tap **📲 Install certificate** (or open `https://<pc-hostname>:8447/install-ca` directly) in Safari → **Allow** to download the profile.
-2. **Settings → General → VPN & Device Management** → tap the profile → **Install**.
-3. **Settings → General → About → Certificate Trust Settings** → toggle the CA **ON**.
-4. Force-quit Safari, reopen the URL (the lock icon should be solid), then **Share → Add to Home Screen**.
-
-On Android, Chrome offers "Install app"; the CA is also served as DER at `/static/ca.crt`.
+The webapp installs to the iPhone/Android home screen as a full-screen app:
+open `https://<pc>.<tailnet>.ts.net:8447` in Safari/Chrome — the lock is solid
+on first visit (no profile to install) — then **Share → Add to Home Screen**.
 
 ## Auth (token + password)
 
