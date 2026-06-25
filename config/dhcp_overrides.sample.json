@@ -1,0 +1,4 @@
+{
+  "_doc": "Per-MAC DHCP category overrides set from the webapp's DHCP reservation card (issue #176). Copy this file to config/dhcp_overrides.json (gitignored — it would expose your device inventory in a public repo), or just let the webapp create it: assigning a device to a group in the DHCP card writes here. Keys are upper-case, colon-separated MACs; each value must equal one of the category range labels in config/dhcp_plan.json. These are folded OVER config/dhcp_plan.json's static 'overrides' (a webapp choice wins) and beat the keyword rules. Clearing a group in the UI removes the entry. A missing file is not an error (no overrides).",
+  "AA:BB:CC:DD:EE:FF": "Infrastructure"
+}

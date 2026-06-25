@@ -39,8 +39,10 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, replace
 from typing import Mapping, Optional
+from urllib.parse import quote
 
 import requests
 from dotenv import load_dotenv
@@ -70,6 +72,24 @@ class NetworkConfigError(RuntimeError):
 
 class NetworkCommandError(RuntimeError):
     """A device rejected a command or returned an unusable response."""
+
+
+class DhcpBindingTableFull(NetworkCommandError):
+    """The router's fixed-size static DHCP-binding table is full (firmware cap).
+
+    A subclass so the batch apply can catch it specifically — stop attempting
+    further *new* reservations (every one will fail the same way) while still
+    letting slot-neutral replaces through — and report the real reason rather
+    than a generic "rejected".
+    """
+
+
+# The F6600P firmware caps its static "DHCP Binding" table at this many rows: the
+# (N+1)th create returns ``IF_ERRORID -12`` ("the number of entries has reached
+# the maximum limit"). Empirically confirmed against the live unit 2026-06-25.
+# Used only to pre-flight the free-slot budget + message; the ``-12`` detection in
+# ``_check_binding_result`` is the authoritative backstop if a firmware differs.
+DHCP_BIND_MAX = 10
 
 
 # --------------------------------------------------------------------------- #
@@ -952,25 +972,155 @@ class RouterClient:
             })
         return leases
 
-    # ---- DHCP binding write-back — phase 2 seam (issue #170) ---------------- #
-    # The reservation *planner* (src.dhcp_plan) is read-only: it computes a
-    # MAC→IP assignment the user applies by hand in the router's "DHCP Binding"
-    # form. Pushing those bindings to the F6600P automatically — the risky live-
-    # gateway mutation — is an explicit phase 2, deliberately deferred. The seam
-    # is reserved here (the integrity-checked write path is already proven by
-    # :meth:`reboot`) but intentionally unimplemented.
+    # ---- DHCP binding write-back — phase 2 (issue #176) -------------------- #
+    # The reservation *planner* (src.dhcp_plan) computes a MAC→IP assignment; this
+    # is the opt-in write-back that pushes it to the router's static "DHCP Binding"
+    # table. The table lives on the lanMgrIpv4 LAN page, feed
+    # Localnet_LanMgrIpv4_DHCPStaticRule_lua.lua, object OBJ_DHCPBIND_ID. Reads are
+    # page-gated exactly like read_dhcp_leases; writes reuse the commConf.IntegCheck
+    # POST proven by reboot() (create = IF_ACTION=Apply with _InstID=-1; delete =
+    # IF_ACTION=Delete by the row's _InstID path; rolling _sessionTOKEN + RSA Check
+    # header). Verified live with an add→read→delete round-trip on the F6600P.
+    _DHCP_BIND_PAGE = "lanMgrIpv4"
+    _DHCP_BIND_FEED = (
+        "/?_type=menuData&_tag=Localnet_LanMgrIpv4_DHCPStaticRule_lua.lua"
+    )
+    # encodeURIComponent's unreserved set — the web UI signs the URL-encoded body,
+    # so we must encode field values exactly as the browser would before hashing.
+    _URI_UNRESERVED = "-_.!~*'()"
+
     def read_dhcp_bindings(self, timeout: int = 10) -> list[dict]:
-        """Return the router's existing static DHCP bindings. **Phase 2 — stub.**"""
-        raise NotImplementedError(
-            "DHCP binding read-back is phase 2 (issue #170, out of scope)."
-        )
+        """Return the router's existing static DHCP bindings.
+
+        Each entry is ``{name, mac, ip, inst_id}`` — ``inst_id`` is the firmware's
+        instance path (e.g. ``DEV.V4DP.Sr.Pl1.Bd1``) needed to delete/replace the
+        row. Requires an authenticated session (call :meth:`login` first); page-
+        gated exactly like :meth:`read_dhcp_leases`. Raises
+        :class:`NetworkCommandError` if the read itself is rejected.
+        """
+        self._menu_view(self._DHCP_BIND_PAGE, timeout)
+        body = self._session.get(
+            self._base + self._DHCP_BIND_FEED,
+            headers={"Referer": f"{self._base}/?_type=menuView&_tag={self._DHCP_BIND_PAGE}"},
+            timeout=timeout,
+        ).text
+        if "SessionTimeout" in body or "404 Not Found" in body:
+            raise NetworkCommandError("router DHCP-binding read rejected (session/page)")
+        out: list[dict] = []
+        for inst in _parse_instances(body):
+            mac, ip = inst.get("MACAddr"), inst.get("IPAddr")
+            if not mac or not ip:
+                continue
+            out.append({
+                "name": inst.get("Name") or None,
+                "mac": mac,
+                "ip": ip,
+                "inst_id": inst.get("_InstID") or None,
+            })
+        return out
 
     def write_dhcp_binding(
         self, name: str, mac: str, ip: str, timeout: int = 10
     ) -> bool:
-        """Add/replace one Name/MAC/IP static binding. **Phase 2 — stub.**"""
-        raise NotImplementedError(
-            "DHCP binding write-back is phase 2 (issue #170, out of scope)."
+        """Add (or replace) one Name/MAC/IP static binding via the integrity POST.
+
+        Creates a new reservation (``_InstID=-1``). If the MAC already has a
+        binding its row is deleted first, so the write is an idempotent replace.
+        Returns ``True`` on the firmware's ``SUCC``; raises
+        :class:`NetworkCommandError` with a **distinct** message for a session/
+        token failure vs a field-validation reject.
+        """
+        norm = _normalise_mac(mac)
+        prior = next(
+            (
+                b
+                for b in self.read_dhcp_bindings(timeout)
+                if _normalise_mac(b["mac"]) == norm and b.get("inst_id")
+            ),
+            None,
+        )
+        return self._write_binding(name, mac, ip, prior, timeout)
+
+    def _write_binding(
+        self,
+        name: str,
+        mac: str,
+        ip: str,
+        prior: Optional[Mapping[str, str]],
+        timeout: int = 10,
+    ) -> bool:
+        """Create one binding, first deleting ``prior`` (the existing row for this
+        MAC) when given — an idempotent replace. The caller passes ``prior`` from a
+        table read it already did, so the batch apply re-reads the table once, not
+        once per row (the firmware is slow; per-row reads are what made a bulk apply
+        "wait a lot"). Raises :class:`DhcpBindingTableFull` when the table is full.
+        """
+        if prior and prior.get("inst_id"):
+            self._delete_dhcp_binding(prior["inst_id"], timeout)
+        body = (
+            "IF_ACTION=Apply&_InstID=-1"
+            f"&Name={quote(name, safe=self._URI_UNRESERVED)}"
+            f"&MACAddr={quote(mac, safe=self._URI_UNRESERVED)}"
+            f"&IPAddr={quote(ip, safe=self._URI_UNRESERVED)}"
+        )
+        return self._check_binding_result(self._binding_post(body, timeout), "write")
+
+    def _delete_dhcp_binding(self, inst_id: str, timeout: int = 10) -> bool:
+        """Delete one static binding by its firmware ``_InstID`` path."""
+        body = f"IF_ACTION=Delete&_InstID={inst_id}"
+        return self._check_binding_result(self._binding_post(body, timeout), "delete")
+
+    def _binding_post(self, body: str, timeout: int = 10) -> str:
+        """Integrity-checked POST to the DHCP-binding feed (create / delete).
+
+        Reuses the ``commConf.IntegCheck`` scheme proven by :meth:`reboot`: load
+        the LAN page (which rotates ``_sessionTOKEN``), sign ``body`` + the rolling
+        token with the RSA ``Check`` header, POST to the static-rule feed, and
+        return the raw response text.
+        """
+        s, base = self._session, self._base
+        home = s.get(base + "/", timeout=timeout).text
+        pubkey = _extract_pubkey(home)  # the PEM lives on the home frame
+        page = self._menu_view(self._DHCP_BIND_PAGE, timeout)  # rotates the token
+        token = _extract_token(page) or _extract_token(home)
+        if not token or not pubkey:
+            raise NetworkCommandError("router binding write: missing session token or key")
+        full = f"{body}&_sessionTOKEN={token}"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": f"{base}/?_type=menuView&_tag={self._DHCP_BIND_PAGE}",
+            "Check": _asy_encode(pubkey, hashlib.sha256(full.encode()).hexdigest()),
+        }
+        return s.post(
+            base + self._DHCP_BIND_FEED, data=full, headers=headers, timeout=timeout
+        ).text
+
+    @staticmethod
+    def _check_binding_result(text: str, action: str) -> bool:
+        """Map a binding POST response to True / a distinct ``NetworkCommandError``.
+
+        Distinguishes the conditions that need different handling: a session/token
+        expiry, the firmware's full-table cap (``IF_ERRORID -12`` →
+        :class:`DhcpBindingTableFull`, so the batch stops hammering), and any other
+        field-validation reject. The ``IF_ERRORSTR`` is HTML-unescaped so the
+        surfaced message is readable (the firmware encodes spaces as ``&#32;``).
+        """
+        if "SessionTimeout" in text:
+            raise NetworkCommandError(
+                f"router rejected DHCP-binding {action} (session/token expired)"
+            )
+        err = re.search(r"<IF_ERRORSTR>(.*?)</IF_ERRORSTR>", text)
+        code = html.unescape(err.group(1)).strip() if err else ""
+        if code == "SUCC":
+            return True
+        err_id = re.search(r"<IF_ERRORID>(-?\d+)</IF_ERRORID>", text)
+        if (err_id and err_id.group(1) == "-12") or "maximum limit" in code.lower():
+            raise DhcpBindingTableFull(
+                f"router's DHCP reservation table is full — the router holds at "
+                f"most {DHCP_BIND_MAX} reservations; delete some to add more"
+            )
+        raise NetworkCommandError(
+            f"router rejected DHCP-binding {action}: {code or 'no IF_ERRORSTR in response'}"
         )
 
     def reboot(self, timeout: int = 10) -> None:
@@ -1177,6 +1327,177 @@ def reboot_router() -> None:
         raise NetworkCommandError("router login failed; cannot reboot")
     client.reboot()
     logger.info("ℹ️ router reboot command accepted")
+
+
+# --------------------------------------------------------------------------- #
+# DHCP reservation write-back (issue #176)                                    #
+# --------------------------------------------------------------------------- #
+def _fetch_dhcp_bindings_sync() -> list[dict]:
+    host, user, pwd = _router_creds()
+    # Retry once on failure: the F6600P tolerates only so many concurrent logins,
+    # and the 15 s Network-tab poll logs in on its own cadence — so a binding read
+    # fired at the same moment can lose the race. A fresh login after a short pause
+    # almost always wins the second time. Without this, a transient miss degrades the
+    # whole plan to "bindings unknown" (no reservation list, misleading status).
+    last_exc: Optional[Exception] = None
+    for attempt in range(2):
+        client = RouterClient(host, user, pwd)
+        try:
+            if not client.login():
+                raise NetworkCommandError("router login failed; cannot read DHCP bindings")
+            return client.read_dhcp_bindings()
+        except (NetworkCommandError, requests.RequestException) as exc:
+            last_exc = exc
+            logger.warning("⚠️ DHCP-binding read attempt %d/2 failed: %s", attempt + 1, exc)
+            if attempt == 0:
+                time.sleep(1.5)
+    raise last_exc if last_exc else NetworkCommandError("DHCP-binding read failed")
+
+
+async def fetch_dhcp_bindings() -> list[dict]:
+    """Async: the router's static-binding table (``[{name, mac, ip, inst_id}]``).
+
+    Raises on a login/read failure — the planner falls back to a binding-less plan
+    rather than presenting a misleading one as already-applied.
+    """
+    return await asyncio.to_thread(_fetch_dhcp_bindings_sync)
+
+
+def _add_bindings_on_client(
+    client: "RouterClient", rows: list[Mapping[str, str]]
+) -> list[dict]:
+    """Write each ``{name, mac, ip}`` add-row on an **already-logged-in** client.
+
+    Reads the table ONCE, up front (reused to find a MAC's existing row so a replace
+    is delete+add, and to know free slots), then writes cap-aware: a create that
+    can't fit is skipped rather than hammered. Shared by the single-batch apply and
+    the combined remove+add apply (issue #176) — the latter calls this *after* its
+    deletes, so the freed slots are already reflected in this fresh table read.
+    """
+    existing = client.read_dhcp_bindings()
+    by_mac = {_normalise_mac(b["mac"]): b for b in existing if b.get("mac")}
+    free = max(0, DHCP_BIND_MAX - len(existing))
+    table_full = free <= 0
+    results: list[dict] = []
+    for row in rows:
+        name, mac, ip = row.get("name") or "", row.get("mac") or "", row.get("ip") or ""
+        norm = _normalise_mac(mac)
+        prior = by_mac.get(norm)
+        # A replace (MAC already bound) deletes then re-adds — slot-neutral. Only a
+        # genuinely new reservation consumes a slot, so only it can hit the cap.
+        is_create = not (prior and prior.get("inst_id"))
+        if is_create and table_full:
+            results.append({
+                "mac": mac, "ip": ip, "ok": False, "skipped": True,
+                "error": (
+                    f"router reservation table is full — it holds at most "
+                    f"{DHCP_BIND_MAX} reservations; delete some to add more"
+                ),
+            })
+            continue
+        try:
+            client._write_binding(name, mac, ip, prior)
+            results.append({"mac": mac, "ip": ip, "ok": True, "error": None})
+            by_mac[norm] = {"name": name, "mac": mac, "ip": ip, "inst_id": None}
+            if is_create:
+                free -= 1
+            logger.info("ℹ️ DHCP binding written: %s → %s", mac, ip)
+        except DhcpBindingTableFull as exc:
+            # The cap was reached (lower than our estimate, or the table grew under
+            # us). Record the honest reason, stop attempting *new* reservations, but
+            # keep going so any remaining slot-neutral replaces still apply.
+            table_full = True
+            results.append({"mac": mac, "ip": ip, "ok": False, "error": str(exc)})
+            logger.warning("⚠️ DHCP table full at %s → %s: %s", mac, ip, exc)
+        except NetworkCommandError as exc:
+            # One bad row never aborts the batch — record it and keep going.
+            results.append({"mac": mac, "ip": ip, "ok": False, "error": str(exc)})
+            logger.warning("⚠️ DHCP binding failed for %s → %s: %s", mac, ip, exc)
+    return results
+
+
+def _apply_dhcp_bindings_sync(rows: list[Mapping[str, str]]) -> list[dict]:
+    host, user, pwd = _router_creds()
+    client = RouterClient(host, user, pwd)
+    if not client.login():
+        raise NetworkCommandError("router login failed; cannot apply DHCP bindings")
+    return _add_bindings_on_client(client, rows)
+
+
+async def apply_dhcp_bindings(rows: list[Mapping[str, str]]) -> list[dict]:
+    """Async: write each ``{name, mac, ip}`` binding row-by-row, never auto.
+
+    Logs in once and applies the rows on that one session. Returns a per-row
+    ``[{mac, ip, ok, error}]`` result; a mid-batch failure is recorded, not raised,
+    so a single rejected row can't silently drop the rest. **Only ever called from
+    an explicit, confirm-gated user action** — never on a poll.
+    """
+    return await asyncio.to_thread(_apply_dhcp_bindings_sync, rows)
+
+
+def _apply_dhcp_changes_sync(
+    remove_inst_ids: list[str], add_rows: list[Mapping[str, str]]
+) -> list[dict]:
+    host, user, pwd = _router_creds()
+    client = RouterClient(host, user, pwd)
+    if not client.login():
+        raise NetworkCommandError("router login failed; cannot apply DHCP changes")
+    results: list[dict] = []
+    # Deletes FIRST, on this one session: each frees a slot, so the add pass (which
+    # re-reads the table) sees the freed space and a create that previously wouldn't
+    # fit now does. A failed delete is recorded, not raised — the adds still run.
+    for inst_id in remove_inst_ids:
+        try:
+            client._delete_dhcp_binding(inst_id)
+            results.append({"op": "remove", "inst_id": inst_id, "ok": True, "error": None})
+            logger.info("ℹ️ DHCP binding deleted: %s", inst_id)
+        except NetworkCommandError as exc:
+            results.append({"op": "remove", "inst_id": inst_id, "ok": False, "error": str(exc)})
+            logger.warning("⚠️ DHCP delete failed for %s: %s", inst_id, exc)
+    add_results = _add_bindings_on_client(client, add_rows)
+    for r in add_results:
+        r.setdefault("op", "add")
+    results.extend(add_results)
+    return results
+
+
+async def apply_dhcp_changes(
+    remove_inst_ids: list[str], add_rows: list[Mapping[str, str]]
+) -> list[dict]:
+    """Async: apply a staged batch of reservation changes in one router session.
+
+    Deletes ``remove_inst_ids`` first (freeing slots), then writes ``add_rows``
+    (``{name, mac, ip}``) cap-aware — so the whole "remove these, add those" plan
+    goes in one sequence rather than the user juggling per-row writes (issue #176).
+    Returns a combined per-op result list (each row tagged ``op`` = ``remove`` /
+    ``add``); a single failure is recorded, not raised. **Only ever called from an
+    explicit, confirm-gated user action** — never on a poll.
+    """
+    return await asyncio.to_thread(
+        _apply_dhcp_changes_sync, list(remove_inst_ids), list(add_rows)
+    )
+
+
+def _delete_dhcp_binding_sync(inst_id: str) -> bool:
+    host, user, pwd = _router_creds()
+    client = RouterClient(host, user, pwd)
+    if not client.login():
+        raise NetworkCommandError("router login failed; cannot delete DHCP binding")
+    ok = client._delete_dhcp_binding(inst_id)
+    logger.info("ℹ️ DHCP binding deleted: %s", inst_id)
+    return ok
+
+
+async def delete_dhcp_binding(inst_id: str) -> bool:
+    """Async: delete one static reservation by its firmware ``_InstID`` path.
+
+    Frees a slot in the fixed-size binding table so a new reservation can be
+    written — the user-facing answer to the 10-entry cap (delete a row held by an
+    offline/retired device, then add a new one). **Only ever called from an
+    explicit, confirm-gated user action** — never on a poll. Raises
+    :class:`NetworkCommandError` on a login/reject.
+    """
+    return await asyncio.to_thread(_delete_dhcp_binding_sync, inst_id)
 
 
 # --------------------------------------------------------------------------- #

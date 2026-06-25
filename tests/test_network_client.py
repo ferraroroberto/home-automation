@@ -6,6 +6,8 @@ import asyncio
 import subprocess
 from typing import Any
 
+import pytest
+
 from src import network_client
 
 
@@ -261,3 +263,151 @@ def test_merge_router_leases_fills_names_and_adds_router_only() -> None:
 def test_merge_router_leases_empty_passthrough() -> None:
     devices = [_ap_device("AA:BB:CC:00:00:01", "Phone")]
     assert network_client._merge_router_leases(devices, []) == devices
+
+
+# --- DHCP-binding write-back: full-table cap handling (issue #176) ----------- #
+# The F6600P caps its static-binding table; the (N+1)th create returns this exact
+# IF_ERRORID -12 body (spaces as &#32;). We must classify it as "table full", not a
+# generic reject, and never as success — note the decoy <IF_ERRORPARAM>SUCC.
+_FULL_TABLE_XML = (
+    "<ajax_response_xml_root><INSTIDENTITY></INSTIDENTITY>"
+    "<IF_ERRORID>-12</IF_ERRORID><IF_ERRORTYPE>1</IF_ERRORTYPE>"
+    "<IF_ERRORSTR>The&#32;number&#32;of&#32;entries&#32;has&#32;reached&#32;the&#32;"
+    "maximum&#32;limit,&#32;please&#32;delete&#32;some&#32;entries&#32;and&#32;input&#32;"
+    "again.&#32;</IF_ERRORSTR><IF_ERRORPARAM>SUCC</IF_ERRORPARAM><_InstID></_InstID>"
+    "</ajax_response_xml_root>"
+)
+
+
+def test_check_binding_result_flags_full_table() -> None:
+    with pytest.raises(network_client.DhcpBindingTableFull):
+        network_client.RouterClient._check_binding_result(_FULL_TABLE_XML, "write")
+
+
+def test_check_binding_result_success_and_generic_reject() -> None:
+    assert network_client.RouterClient._check_binding_result(
+        "<IF_ERRORSTR>SUCC</IF_ERRORSTR>", "write"
+    ) is True
+    with pytest.raises(network_client.NetworkCommandError) as exc:
+        network_client.RouterClient._check_binding_result(
+            "<IF_ERRORSTR>Invalid&#32;IP&#32;address</IF_ERRORSTR>", "write"
+        )
+    # A non-cap reject is generic and its message is HTML-unescaped (readable).
+    assert not isinstance(exc.value, network_client.DhcpBindingTableFull)
+    assert "Invalid IP address" in str(exc.value)
+
+
+class _FakeFullRouter:
+    """A RouterClient stand-in whose binding table is already full."""
+
+    def __init__(self, *_a: Any, **_k: Any) -> None:
+        self.written: list[tuple[str, str, bool]] = []
+        # Exactly DHCP_BIND_MAX existing rows → zero free slots.
+        self._existing = [
+            {
+                "name": f"d{i}",
+                "mac": f"00:00:00:00:00:{i:02x}",
+                "ip": f"192.168.0.{i}",
+                "inst_id": f"B{i}",
+            }
+            for i in range(network_client.DHCP_BIND_MAX)
+        ]
+
+    def login(self) -> bool:
+        return True
+
+    def read_dhcp_bindings(self, timeout: int = 10) -> list:
+        return list(self._existing)
+
+    def _write_binding(self, name, mac, ip, prior, timeout: int = 10) -> bool:
+        self.written.append((mac, ip, bool(prior)))
+        return True
+
+
+def test_apply_skips_creates_when_table_full_but_keeps_replaces(monkeypatch) -> None:
+    """A full table skips new reservations without hammering the router, yet a
+    slot-neutral replace (MAC already bound) still applies (issue #176)."""
+    fake = _FakeFullRouter()
+    monkeypatch.setattr(network_client, "_router_creds", lambda: ("h", "u", "p"))
+    monkeypatch.setattr(network_client, "RouterClient", lambda *a, **k: fake)
+
+    rows = [
+        {"name": "new cam", "mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.50"},   # create
+        {"name": "moved", "mac": "00:00:00:00:00:00", "ip": "192.168.0.200"},    # replace
+    ]
+    results = network_client._apply_dhcp_bindings_sync(rows)
+    by_mac = {r["mac"]: r for r in results}
+
+    # The create can't fit → recorded as skipped, with no write attempted for it.
+    assert by_mac["AA:BB:CC:DD:EE:FF"]["ok"] is False
+    assert by_mac["AA:BB:CC:DD:EE:FF"]["skipped"] is True
+    assert all(w[0] != "AA:BB:CC:DD:EE:FF" for w in fake.written)
+
+    # The replace is slot-neutral → still written (delete prior + add).
+    assert by_mac["00:00:00:00:00:00"]["ok"] is True
+    assert ("00:00:00:00:00:00", "192.168.0.200", True) in fake.written
+
+
+def test_delete_dhcp_binding_sync_logs_in_and_deletes(monkeypatch) -> None:
+    """``delete_dhcp_binding`` logs in once and removes the row by its inst_id (#176)."""
+    captured: dict = {}
+
+    class _Fake:
+        def __init__(self, *_a: Any, **_k: Any) -> None:
+            pass
+
+        def login(self) -> bool:
+            return True
+
+        def _delete_dhcp_binding(self, inst_id: str, timeout: int = 10) -> bool:
+            captured["inst_id"] = inst_id
+            return True
+
+    monkeypatch.setattr(network_client, "_router_creds", lambda: ("h", "u", "p"))
+    monkeypatch.setattr(network_client, "RouterClient", _Fake)
+
+    assert network_client._delete_dhcp_binding_sync("DEV.V4DP.Sr.Pl1.Bd2") is True
+    assert captured["inst_id"] == "DEV.V4DP.Sr.Pl1.Bd2"
+
+
+def test_apply_changes_deletes_then_adds_on_one_session(monkeypatch) -> None:
+    """The staged batch deletes first, then adds — on one login (issue #176 redesign).
+
+    Deleting before the add pass frees a slot, and the add pass re-reads the table,
+    so a create that wouldn't have fit now does. Each op is tagged for the caller.
+    """
+
+    class _Fake:
+        def __init__(self, *_a: Any, **_k: Any) -> None:
+            self.deleted: list[str] = []
+            self.written: list[tuple[str, str]] = []
+            # One existing row that gets deleted, freeing the only slot for the add.
+            self._existing = [
+                {"name": "x", "mac": "00:00:00:00:00:01", "ip": "192.168.0.1", "inst_id": "B1"}
+            ]
+
+        def login(self) -> bool:
+            return True
+
+        def _delete_dhcp_binding(self, inst_id: str, timeout: int = 10) -> bool:
+            self.deleted.append(inst_id)
+            return True
+
+        def read_dhcp_bindings(self, timeout: int = 10) -> list:
+            return list(self._existing)
+
+        def _write_binding(self, name, mac, ip, prior, timeout: int = 10) -> bool:
+            self.written.append((mac, ip))
+            return True
+
+    fake = _Fake()
+    monkeypatch.setattr(network_client, "_router_creds", lambda: ("h", "u", "p"))
+    monkeypatch.setattr(network_client, "RouterClient", lambda *a, **k: fake)
+
+    results = network_client._apply_dhcp_changes_sync(
+        ["B1"], [{"name": "cam", "mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.50"}]
+    )
+    assert fake.deleted == ["B1"]
+    assert ("AA:BB:CC:DD:EE:FF", "192.168.0.50") in fake.written
+    assert {r["op"] for r in results} == {"remove", "add"}
+    assert all(r["ok"] for r in results)

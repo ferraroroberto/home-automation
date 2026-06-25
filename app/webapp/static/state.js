@@ -269,12 +269,26 @@ export const els = {
   netHiddenToggle: document.getElementById('netHiddenToggle'),
   netDevices: document.getElementById('netDevices'),
   netDevicesNote: document.getElementById('netDevicesNote'),
-  // DHCP reservation plan (issue #170) — read-only, lazy-loaded section
+  // DHCP reservation plan (issue #170 + #176) — lazy-loaded; "Apply" writes
   netDhcpCard: document.getElementById('netDhcpCard'),
   netDhcpRefresh: document.getElementById('netDhcpRefresh'),
+  netDhcpApply: document.getElementById('netDhcpApply'),
   netDhcpWarnings: document.getElementById('netDhcpWarnings'),
   netDhcpPlan: document.getElementById('netDhcpPlan'),
   netDhcpNote: document.getElementById('netDhcpNote'),
+  // Staged reservation manager (#176): existing rows, manual staging, apply bar.
+  netDhcpExistingWrap: document.getElementById('netDhcpExistingWrap'),
+  netDhcpExistingHead: document.getElementById('netDhcpExistingHead'),
+  netDhcpExisting: document.getElementById('netDhcpExisting'),
+  netDhcpManual: document.getElementById('netDhcpManual'),
+  netDhcpManualMac: document.getElementById('netDhcpManualMac'),
+  netDhcpManualIp: document.getElementById('netDhcpManualIp'),
+  netDhcpManualName: document.getElementById('netDhcpManualName'),
+  netDhcpManualAdd: document.getElementById('netDhcpManualAdd'),
+  netDhcpManualStaged: document.getElementById('netDhcpManualStaged'),
+  netDhcpApplyBar: document.getElementById('netDhcpApplyBar'),
+  netDhcpBudget: document.getElementById('netDhcpBudget'),
+  netDhcpClear: document.getElementById('netDhcpClear'),
   // Per-device detail + rename modal
   netDeviceDialog: document.getElementById('netDeviceDialog'),
   netDeviceDetailName: document.getElementById('netDeviceDetailName'),

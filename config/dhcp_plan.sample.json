@@ -10,7 +10,8 @@
     { "label": "Cameras", "start": 21, "end": 30 },
     { "label": "Smart plugs", "start": 31, "end": 40 },
     { "label": "Lights", "start": 41, "end": 50 },
-    { "label": "Computers", "start": 51, "end": 70 }
+    { "label": "Computers", "start": 51, "end": 70 },
+    { "label": "Alexa & Echo", "start": 71, "end": 80 }
   ],
 
   "_doc_rules": "How a device auto-classifies into a category. Each rule's `match` is a list of lowercase substrings tested against the device's \"display-name hostname vendor\" text; the FIRST rule with any hit wins. `category` must equal one of the range labels above. Reorder rules so the more specific ones come first.",
@@ -20,7 +21,8 @@
     { "category": "Cameras", "match": ["camera", "webcam", "-cam", "reolink", "tapo", "hikvision", "dahua", "eufy"] },
     { "category": "Smart plugs", "match": ["plug", "tuya", "smartlife", "sonoff", "shelly"] },
     { "category": "Lights", "match": ["elgato", "light", "bulb", "hue", "lamp", "lifx", "nanoleaf"] },
-    { "category": "Computers", "match": ["macbook", "imac", "laptop", "desktop", "thinkpad", "surface", "-pc", "workstation", "notebook"] }
+    { "category": "Computers", "match": ["macbook", "imac", "laptop", "desktop", "thinkpad", "surface", "-pc", "workstation", "notebook"] },
+    { "category": "Alexa & Echo", "match": ["alexa", "echo", "amazon"] }
   ],
 
   "_doc_overrides": "Manual per-MAC escape hatch (highest priority — beats the rules). MAC keys are upper-case, colon-separated. Value must equal one of the range labels above. Use this for devices the keyword rules can't classify (e.g. a generic n/a hostname).",

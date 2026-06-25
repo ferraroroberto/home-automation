@@ -220,6 +220,17 @@
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
     </symbol>
+    <symbol id="i-trash-2" viewBox="0 0 24 24" fill="none">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" x2="10" y1="11" y2="17" />
+      <line x1="14" x2="14" y1="11" y2="17" />
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none">
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </symbol>
     <symbol id="i-camera" viewBox="0 0 24 24" fill="none">
       <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
       <circle cx="12" cy="13" r="3" />
@@ -759,8 +770,10 @@
         </div>
       </details>
 
-      <!-- DHCP reservation plan (issue #170) — read-only: a copy-ready MAC→IP
-           assignment grouped by category. Lazy-loads on open; no router writes. -->
+      <!-- DHCP reservation plan (issue #170 + #176) — a MAC→IP assignment grouped
+           by category, marking each row reserved / create / change against the
+           router's bindings. Lazy-loads on open. "Apply plan" is a confirm-gated
+           write of the create/change rows to the router (never automatic). -->
       <details class="card net-dhcp-card" id="netDhcpCard">
         <summary class="collapse-summary">
           <span class="collapse-main">
@@ -771,13 +784,51 @@
         </summary>
         <div class="net-dhcp-body">
           <div class="net-dhcp-head">
-            <p class="muted small net-dhcp-intro">Suggested MAC→IP reservations by category — apply them by hand in the router's DHCP Binding form.</p>
-            <button id="netDhcpRefresh" type="button" class="range-tab" data-testid="net-dhcp-refresh">
-              <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh
-            </button>
+            <p class="muted small net-dhcp-intro">Mark reservations to remove and tick suggestions to add, then apply everything at once. The router holds 10 reservations.</p>
+            <div class="net-dhcp-actions">
+              <button id="netDhcpRefresh" type="button" class="range-tab" data-testid="net-dhcp-refresh">
+                <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh
+              </button>
+            </div>
           </div>
           <div id="netDhcpWarnings" class="net-dhcp-warnings" role="status" hidden></div>
+
+          <!-- On the router now (#176): the current reservations, listed even when
+               their device is offline; tick one to stage its removal (frees a slot). -->
+          <section id="netDhcpExistingWrap" class="net-dhcp-existing-wrap" hidden>
+            <h4 class="net-group-head" id="netDhcpExistingHead">On the router now</h4>
+            <div id="netDhcpExisting" class="net-dhcp-existing" aria-label="Reservations on the router"></div>
+          </section>
+
+          <!-- Suggested adds, unassigned (assignable) + randomised (un-reservable). -->
           <section id="netDhcpPlan" class="net-dhcp-plan" aria-label="DHCP reservation plan"></section>
+
+          <!-- Manual reservation (#176): stage a binding for a device the rules
+               can't place, or one not in the live inventory at all. -->
+          <details class="net-dhcp-manual" id="netDhcpManual">
+            <summary class="net-dhcp-manual-summary">Add a reservation manually</summary>
+            <div class="net-dhcp-manual-form">
+              <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="MAC (AA:BB:CC:DD:EE:FF)" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
+              <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="IP (192.168.0.x)" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
+              <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
+              <button id="netDhcpManualAdd" type="button" class="range-tab net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> Stage
+              </button>
+            </div>
+          </details>
+          <div id="netDhcpManualStaged" class="net-dhcp-manual-staged"></div>
+
+          <!-- One Apply for the whole staged batch (#176): removes first, then adds. -->
+          <div id="netDhcpApplyBar" class="net-dhcp-applybar" hidden>
+            <span id="netDhcpBudget" class="net-dhcp-budget"></span>
+            <div class="net-dhcp-applybar-actions">
+              <button id="netDhcpClear" type="button" class="range-tab net-dhcp-clear" data-testid="net-dhcp-clear">Clear</button>
+              <button id="netDhcpApply" type="button" class="range-tab net-dhcp-apply" data-testid="net-dhcp-apply">
+                <svg class="icon" aria-hidden="true"><use href="#i-router"></use></svg> Apply changes
+              </button>
+            </div>
+          </div>
+
           <p id="netDhcpNote" class="muted small net-dhcp-note">Open to compute the plan.</p>
         </div>
       </details>
