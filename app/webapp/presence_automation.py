@@ -14,8 +14,10 @@ from src.presence_engine import (
     append_trigger_log,
     evaluate_alarm_decision,
     load_automation_config,
+    load_kids_home_override,
     load_people,
     mark_decision_applied,
+    set_kids_home_override,
 )
 from src.presence_hidden import load_hidden_presence_ids
 from src.push_notifications import send_push
@@ -59,6 +61,7 @@ async def tick() -> None:
         security_mode=security.mode,
         config=config,
         at=datetime.now(timezone.utc),
+        override_perimeter=load_kids_home_override(),
     )
     if decision is None:
         return
@@ -68,6 +71,10 @@ async def tick() -> None:
         updated = await control_system(decision.action)
         outcome = updated.mode
         mark_decision_applied(decision, outcome)
+        # Someone arrived and the system disarmed: clear the transient kids-home
+        # override so the next away-cycle defaults back to a full arm.
+        if decision.kind == "disarm":
+            set_kids_home_override(False)
         logger.info("✅ Presence automation %s -> %s", decision.reason, decision.action)
         send_push("Presence automation", f"{decision.reason}: {decision.action}")
     except Exception as exc:  # noqa: BLE001

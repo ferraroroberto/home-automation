@@ -210,7 +210,15 @@ function sourceLabel(entity) {
   return entity.source || 'Unknown';
 }
 
+function renderKidsHomeToggle() {
+  if (!els.presenceKidsHome) return;
+  const on = !!(state.presence && state.presence.kids_home_override);
+  els.presenceKidsHome.classList.toggle('active', on);
+  els.presenceKidsHome.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 function renderPresence() {
+  renderKidsHomeToggle();
   if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
   els.presenceList.innerHTML = '';
   const presence = state.presence;
@@ -324,7 +332,7 @@ function renderPresenceRefreshNote() {
   const last = diag.refreshed_at ? fmtTime(diag.refreshed_at) : 'not yet';
   els.presenceRefreshNote.textContent =
     'The open tab reloads the local snapshot every 10 s. Find My refreshes in the background about every ' + interval +
-    ' min; Refresh runs it now. This device is browser GPS only: it updates only while this tab/PWA is open and is not used for alarm automation. Alarm automation uses Shortcut webhook people. Last Find My refresh: ' + last + '.';
+    ' min. This device is browser GPS only: it updates only while this tab/PWA is open and is not used for alarm automation. Alarm automation uses Shortcut webhook people. Last Find My refresh: ' + last + '.';
 }
 
 function renderPresenceAutomationNote() {
@@ -458,6 +466,9 @@ function refreshThisDeviceLocation() {
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
 
+// Re-fetch Find My diagnostics on demand. No longer wired to a button (the
+// background refresher owns the cadence); still called after a home-location
+// change so the new distances appear immediately.
 async function refreshPresenceDiagnostics() {
   try {
     await jsonApi('/api/presence/refresh', { method: 'POST' });
@@ -466,6 +477,25 @@ async function refreshPresenceDiagnostics() {
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Presence refresh failed: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+// "Kids home" override: when on, the everyone-away webhook arms perimeter
+// instead of full. Auto-resets server-side on the next disarm-on-arrival.
+async function toggleKidsHome() {
+  const next = !(state.presence && state.presence.kids_home_override);
+  try {
+    await jsonApi('/api/presence/kids_home_override', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: next }),
+    });
+    await loadPresence();
+    toast(next ? 'Kids home on · perimeter when away' : 'Kids home off', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Kids home toggle failed: ' + (exc.message || exc), 'error');
     }
   }
 }
@@ -1296,11 +1326,13 @@ export function wirePresenceControls() {
       renderPresence();
     });
   }
-  if (els.presenceRefresh) {
-    els.presenceRefresh.addEventListener('click', function (ev) {
+  if (els.presenceKidsHome) {
+    // The button lives in the <summary>, so swallow the click to toggle the
+    // override instead of collapsing the card.
+    els.presenceKidsHome.addEventListener('click', function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
-      refreshPresenceDiagnostics();
+      toggleKidsHome();
     });
   }
   if (els.locationUseBrowser) els.locationUseBrowser.addEventListener('click', useBrowserLocation);

@@ -139,7 +139,7 @@ export const els = {
   presenceHiddenToggle: document.getElementById('presenceHiddenToggle'),
   presenceList: document.getElementById('presenceList'),
   presenceNote: document.getElementById('presenceNote'),
-  presenceRefresh: document.getElementById('presenceRefresh'),
+  presenceKidsHome: document.getElementById('presenceKidsHome'),
   presenceRefreshNote: document.getElementById('presenceRefreshNote'),
   locationLabel: document.getElementById('locationLabel'),
   locationLat: document.getElementById('locationLat'),

@@ -23,9 +23,11 @@ from src.presence_display_names import (
 from src.presence_engine import (
     PresenceAutomationConfig,
     load_automation_config,
+    load_kids_home_override,
     load_people,
     now_utc,
     save_automation_config,
+    set_kids_home_override,
     set_person_state,
 )
 from src.presence_hidden import load_hidden_presence_ids, set_presence_hidden
@@ -122,9 +124,10 @@ def _presence_payload(entities: list[PresenceEntity]) -> Dict[str, Any]:
             "reason": cache.reason,
             "detail": cache.detail,
             "refreshed_at": cache.refreshed_at.isoformat() if cache.refreshed_at else None,
-            "refresh_interval_s": max(60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", 300)),
+            "refresh_interval_s": max(60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", 900)),
         },
         "automation": asdict(load_automation_config()),
+        "kids_home_override": load_kids_home_override(),
     }
 
 
@@ -281,6 +284,21 @@ async def update_presence_automation(payload: PresenceAutomationPayload) -> Dict
     )
     save_automation_config(config)
     return asdict(config)
+
+
+@router.get("/api/presence/kids_home_override")
+async def get_kids_home_override() -> Dict[str, Any]:
+    return {"active": load_kids_home_override()}
+
+
+class KidsHomeOverridePayload(BaseModel):
+    active: bool = False
+
+
+@router.put("/api/presence/kids_home_override")
+async def update_kids_home_override(payload: KidsHomeOverridePayload) -> Dict[str, Any]:
+    set_kids_home_override(payload.active)
+    return {"active": load_kids_home_override()}
 
 
 @router.post("/api/presence/refresh")
