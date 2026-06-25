@@ -1136,6 +1136,118 @@ async function rebootRouter() {
   }
 }
 
+// ------------------------------------------------- DHCP reservation plan (#170)
+// Read-only section: lazy-loads GET /api/network/dhcp-plan on first open (the
+// underlying read is the same ~slow AP/router fetch), then on demand via Refresh.
+let dhcpPlanLoading = false;
+let dhcpPlanLoaded = false;
+
+function dhcpRow(a) {
+  const row = document.createElement('div');
+  row.className = 'net-dhcp-row';
+  if (a.randomized) row.classList.add('net-dhcp-row-warn');
+
+  const mac = document.createElement('span');
+  mac.className = 'net-dhcp-mac mono';
+  mac.textContent = a.mac || '??';
+
+  const name = document.createElement('span');
+  name.className = 'net-dhcp-name';
+  name.textContent = a.label || '(unnamed)';
+
+  const move = document.createElement('span');
+  move.className = 'net-dhcp-move';
+  const current = a.current_ip || '—';
+  if (!a.planned_ip) {
+    move.textContent = current + ' → —';
+    move.classList.add('net-dhcp-unplaced');
+  } else if (a.planned_ip === a.current_ip) {
+    move.textContent = a.planned_ip;          // already correctly placed
+    move.classList.add('net-dhcp-stable');
+  } else {
+    move.textContent = current + ' → ' + a.planned_ip;
+    move.classList.add('net-dhcp-change');
+  }
+
+  row.appendChild(mac);
+  row.appendChild(name);
+  row.appendChild(move);
+  return row;
+}
+
+function dhcpGroup(label, assignments) {
+  const head = document.createElement('h4');
+  head.className = 'net-group-head';
+  head.textContent = label + ' · ' + assignments.length;
+  els.netDhcpPlan.appendChild(head);
+  assignments.forEach(function (a) { els.netDhcpPlan.appendChild(dhcpRow(a)); });
+}
+
+function renderDhcpPlan(plan) {
+  els.netDhcpPlan.innerHTML = '';
+  els.netDhcpWarnings.innerHTML = '';
+
+  const cats = (plan && plan.categories) || [];
+  const placed = cats.reduce(function (n, c) {
+    return n + c.assignments.filter(function (a) { return !!a.planned_ip; }).length;
+  }, 0);
+
+  cats.forEach(function (c) {
+    if (!c.assignments.length) return;   // hide empty ranges
+    dhcpGroup(c.label + '  (' + c.start + '–' + c.end + ')', c.assignments);
+  });
+  if (plan && plan.unassigned && plan.unassigned.length) {
+    dhcpGroup('Unassigned', plan.unassigned);
+  }
+
+  const warnings = (plan && plan.warnings) || [];
+  els.netDhcpWarnings.hidden = warnings.length === 0;
+  warnings.forEach(function (w) {
+    const p = document.createElement('p');
+    p.className = 'net-dhcp-warning';
+    p.textContent = '⚠️ ' + w;
+    els.netDhcpWarnings.appendChild(p);
+  });
+
+  els.netDhcpNote.hidden = false;
+  els.netDhcpNote.textContent = els.netDhcpPlan.children.length
+    ? placed + ' reservation(s) planned — apply them in the router’s DHCP Binding form.'
+    : 'No devices to plan.';
+}
+
+async function loadDhcpPlan() {
+  if (dhcpPlanLoading) return;
+  dhcpPlanLoading = true;
+  els.netDhcpNote.hidden = false;
+  els.netDhcpNote.textContent = 'Computing plan…';
+  try {
+    const plan = await jsonApi('/api/network/dhcp-plan');
+    renderDhcpPlan(plan);
+    dhcpPlanLoaded = true;
+  } catch (exc) {
+    els.netDhcpPlan.innerHTML = '';
+    els.netDhcpWarnings.hidden = true;
+    els.netDhcpNote.hidden = false;
+    els.netDhcpNote.textContent = 'Could not compute plan: ' + (exc && exc.message ? exc.message : exc);
+  } finally {
+    dhcpPlanLoading = false;
+  }
+}
+
+function wireDhcpPlan() {
+  if (els.netDhcpCard) {
+    els.netDhcpCard.addEventListener('toggle', function () {
+      if (els.netDhcpCard.open && !dhcpPlanLoaded) loadDhcpPlan();
+    });
+  }
+  if (els.netDhcpRefresh) {
+    els.netDhcpRefresh.addEventListener('click', function (e) {
+      e.preventDefault();            // the button sits inside <details>; don't toggle
+      loadDhcpPlan();
+    });
+  }
+}
+
 export function wireNetworkControls() {
   initShowOfflinePref();
   initShowHiddenPrefs();
@@ -1153,6 +1265,7 @@ export function wireNetworkControls() {
   }
   if (els.netSortAlpha) els.netSortAlpha.addEventListener('click', function () { setDeviceSort('az'); });
   if (els.netSortSignal) els.netSortSignal.addEventListener('click', function () { setDeviceSort('signal'); });
+  wireDhcpPlan();
 }
 
 // --------------------------------------------------------- cadence + tabs

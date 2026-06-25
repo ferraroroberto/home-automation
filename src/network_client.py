@@ -952,6 +952,27 @@ class RouterClient:
             })
         return leases
 
+    # ---- DHCP binding write-back — phase 2 seam (issue #170) ---------------- #
+    # The reservation *planner* (src.dhcp_plan) is read-only: it computes a
+    # MAC→IP assignment the user applies by hand in the router's "DHCP Binding"
+    # form. Pushing those bindings to the F6600P automatically — the risky live-
+    # gateway mutation — is an explicit phase 2, deliberately deferred. The seam
+    # is reserved here (the integrity-checked write path is already proven by
+    # :meth:`reboot`) but intentionally unimplemented.
+    def read_dhcp_bindings(self, timeout: int = 10) -> list[dict]:
+        """Return the router's existing static DHCP bindings. **Phase 2 — stub.**"""
+        raise NotImplementedError(
+            "DHCP binding read-back is phase 2 (issue #170, out of scope)."
+        )
+
+    def write_dhcp_binding(
+        self, name: str, mac: str, ip: str, timeout: int = 10
+    ) -> bool:
+        """Add/replace one Name/MAC/IP static binding. **Phase 2 — stub.**"""
+        raise NotImplementedError(
+            "DHCP binding write-back is phase 2 (issue #170, out of scope)."
+        )
+
     def reboot(self, timeout: int = 10) -> None:
         """Reboot the router via the authenticated POST + RSA integrity header.
 

@@ -1033,6 +1033,74 @@ def test_network_route_tracks_offline_and_important(
     assert any("Important device offline" in a for a in body["alerts"])
 
 
+def test_dhcp_plan_route_classifies_and_assigns(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/network/dhcp-plan`` groups devices by category with planned IPs.
+
+    Core fetch + config are faked — no LAN I/O, no on-disk config. The route folds
+    the display-name overrides + OUI vendor into the classifier (issue #170).
+    """
+    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
+
+    state = NetworkState(
+        internet=InternetHealth(online=True),
+        access_point=AccessPointHealth(reachable=True, device_count=2),
+        router=RouterHealth(reachable=True, authenticated=True),
+        wifi=WifiDiagnostics(available=False, error="no scan"),
+        devices=(
+            NetDevice(
+                mac="B8:27:EB:11:22:33", ip="192.168.0.50", name="nas",
+                conn_type="wired", signal=None, link_rate=1000, ssid=None, source="ap",
+            ),
+            NetDevice(
+                mac="5C:CF:7F:AA:BB:CC", ip=None, name="front-camera",
+                conn_type="5GHz", signal=60, link_rate=300, ssid="Home", source="ap",
+            ),
+            NetDevice(
+                mac="00:11:22:33:44:55", ip="192.168.0.9", name="mystery",
+                conn_type="wired", signal=None, link_rate=100, ssid=None, source="ap",
+            ),
+        ),
+        alerts=(),
+    )
+
+    async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
+        return state
+
+    config = DhcpPlanConfig(
+        subnet_prefix="192.168.0",
+        ranges=(CategoryRange("Infra", 2, 10), CategoryRange("Cameras", 21, 30)),
+        rules=(("Infra", ("router", "nas")), ("Cameras", ("camera",))),
+        overrides={},
+    )
+
+    monkeypatch.setattr(
+        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+    )
+    monkeypatch.setattr(
+        "app.webapp.routers.network.load_network_display_names", lambda: {}
+    )
+    monkeypatch.setattr(
+        "app.webapp.routers.network.load_dhcp_plan_config", lambda: config
+    )
+
+    resp = client.get("/api/network/dhcp-plan")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    cats = {c["label"]: c for c in body["categories"]}
+    infra = {a["mac"]: a for a in cats["Infra"]["assignments"]}
+    cams = {a["mac"]: a for a in cats["Cameras"]["assignments"]}
+    # The NAS sits at .50 (out of Infra range) → moves to the lowest free .2.
+    assert infra["B8:27:EB:11:22:33"]["planned_ip"] == "192.168.0.2"
+    # The camera has no IP → lowest free in its range.
+    assert cams["5C:CF:7F:AA:BB:CC"]["planned_ip"] == "192.168.0.21"
+    # The unclassified host lands in unassigned, never assigned an IP.
+    assert [a["mac"] for a in body["unassigned"]] == ["00:11:22:33:44:55"]
+    assert body["unassigned"][0]["planned_ip"] is None
+
+
 def test_presence_route_serializes_find_my_snapshot(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

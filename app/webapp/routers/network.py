@@ -32,6 +32,13 @@ from typing import Any, Dict, List, Mapping, Set
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from src.dhcp_plan import (
+    Assignment,
+    DhcpPlan,
+    build_plan,
+    device_inputs_from_inventory,
+    load_dhcp_plan_config,
+)
 from src.network_client import (
     NetDevice,
     NetworkCommandError,
@@ -364,6 +371,59 @@ async def get_network(
         set(new_list),
         now,
     )
+
+
+def _assignment_dict(a: Assignment) -> Dict[str, Any]:
+    return {
+        "mac": a.mac,
+        "label": a.label,
+        "category": a.category,
+        "current_ip": a.current_ip,
+        "planned_ip": a.planned_ip,
+        "randomized": a.randomized,
+    }
+
+
+def _dhcp_plan_dict(plan: DhcpPlan) -> Dict[str, Any]:
+    """Serialise a :class:`DhcpPlan` for the read-only Network-tab section."""
+    return {
+        "categories": [
+            {
+                "label": c.label,
+                "start": c.start,
+                "end": c.end,
+                "assignments": [_assignment_dict(a) for a in c.assignments],
+            }
+            for c in plan.categories
+        ],
+        "unassigned": [_assignment_dict(a) for a in plan.unassigned],
+        "warnings": list(plan.warnings),
+    }
+
+
+@router.get("/api/network/dhcp-plan")
+async def get_dhcp_plan() -> Dict[str, Any]:
+    """Compute the ordered DHCP reservation plan (issue #170) — **read-only**.
+
+    Reads the live inventory, classifies each device into a category range from
+    ``config/dhcp_plan.json``, and returns the per-category MAC→IP assignment the
+    user applies by hand in the router's DHCP Binding form. No router writes
+    happen here (binding write-back is phase 2). Mirrors ``get_network``'s error
+    handling: 503 on missing ``NETWORK_*``, 502 on an unexpected read failure.
+    """
+    try:
+        state = await fetch_network_state()
+    except NetworkConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001 — surface any unexpected error
+        logger.warning("⚠️  Failed to read network for DHCP plan: %s", exc)
+        raise HTTPException(status_code=502, detail=f"failed to read network: {exc}")
+
+    overrides = load_network_display_names()
+    config = load_dhcp_plan_config()
+    devices = device_inputs_from_inventory(state.devices, overrides)
+    plan = build_plan(devices, config)
+    return _dhcp_plan_dict(plan)
 
 
 @router.post("/api/network/access-point/reboot")

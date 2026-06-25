@@ -758,6 +758,29 @@
           <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
         </div>
       </details>
+
+      <!-- DHCP reservation plan (issue #170) — read-only: a copy-ready MAC→IP
+           assignment grouped by category. Lazy-loads on open; no router writes. -->
+      <details class="card net-dhcp-card" id="netDhcpCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-router"></use></svg>
+            <span class="collapse-title">DHCP reservation plan</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="net-dhcp-body">
+          <div class="net-dhcp-head">
+            <p class="muted small net-dhcp-intro">Suggested MAC→IP reservations by category — apply them by hand in the router's DHCP Binding form.</p>
+            <button id="netDhcpRefresh" type="button" class="range-tab" data-testid="net-dhcp-refresh">
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh
+            </button>
+          </div>
+          <div id="netDhcpWarnings" class="net-dhcp-warnings" role="status" hidden></div>
+          <section id="netDhcpPlan" class="net-dhcp-plan" aria-label="DHCP reservation plan"></section>
+          <p id="netDhcpNote" class="muted small net-dhcp-note">Open to compute the plan.</p>
+        </div>
+      </details>
     </section>
 
     <!-- ============================= SECURITY ============================ -->
