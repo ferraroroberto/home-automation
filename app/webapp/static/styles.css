@@ -880,49 +880,57 @@ html, body {
 .plugs-toolbar .range-tab { flex: none; }
 .plugs-hidden-count { line-height: 1; }
 
-.plugs-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--gap);
-}
-@media (min-width: 520px) {
-  .plugs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 .plugs-note { margin: 10px 4px; }
 
-.plug-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  min-width: 0;
-  /* Uniform tile height regardless of metering/cover content (grid stretches
-     cards in a row; this floors the bare switch tiles to the metered height). */
-  min-height: 72px;
-  justify-content: center;
-  transition: opacity 0.15s ease;
-}
-.plug-card.is-off { background: var(--card-off); }
-.plug-card.is-unavailable { background: var(--card-off); opacity: 0.6; }
+/* Plugs / Blinds collapsible row lists — mirror the Network "Attached devices"
+   card: the card owns no padding (the summary + body do), rows are divider-
+   separated and vertically centered. */
+.device-list-card { padding: 0; margin-bottom: var(--gap); }
+.device-list-body { padding: 2px 14px 8px; }
+.device-list { display: flex; flex-direction: column; }
 
-.plug-top {
+.device-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 46px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  transition: opacity 0.15s ease;
 }
+.device-row:first-child { border-top: 0; }
+.device-row.is-off { color: var(--muted); }
+.device-row.is-unavailable { opacity: 0.6; }
+
 /* Name is a button (tap to rename) but reads as plain text. */
-.plug-name {
+button.device-row-name {
   flex: 1 1 auto;
   min-width: 0;
+  appearance: none;
   background: none;
   border: 0;
   padding: 0;
+  margin: 0;
   text-align: left;
   color: var(--ink);
   font: inherit;
-  font-weight: 650;
-  font-size: var(--font-body);
+  font-weight: 600;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.device-row-name:hover { text-decoration: underline; }
+
+/* Offline / no-IP reason — a muted caption right of the name. The name keeps
+   priority (grows); the note holds its content width and ellipsises, so device
+   identity stays readable rather than the reason squeezing the name out. */
+.device-row-note {
+  flex: 0 1 auto;
+  min-width: 4em;
+  text-align: right;
+  color: var(--muted);
+  font-size: var(--font-caption);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -937,22 +945,23 @@ html, body {
   color: var(--accent);
 }
 
-/* Cover controls: open / stop / close, three equal buttons. */
-.plug-cover { display: flex; gap: 6px; }
-.cover-btn {
-  flex: 1;
+/* Blind controls: up / stop / down icon buttons. */
+.blind-controls { flex: none; display: inline-flex; gap: 6px; }
+.blind-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 32px;
   background: var(--card-off);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 8px;
   color: var(--ink);
-  font-size: var(--font-caption);
-  font-weight: 600;
   cursor: pointer;
 }
-.cover-btn:active { transform: scale(0.96); }
-
-.plug-unavailable { color: var(--muted); font-size: var(--font-caption); }
+.blind-btn:active { transform: scale(0.96); }
+.blind-btn .icon { width: 18px; height: 18px; }
 
 /* ----------------------------------------------------- lights (Elgato) */
 .lights-grid {
@@ -1717,7 +1726,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .presence-card > .collapse-summary,
 .net-wifi-card > .collapse-summary,
 .net-devices-card > .collapse-summary,
-.net-dhcp-card > .collapse-summary {
+.net-dhcp-card > .collapse-summary,
+.device-list-card > .collapse-summary {
   height: 52px;
   padding: 0 14px;
 }
@@ -1727,7 +1737,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .presence-card[open] > .collapse-summary,
 .net-wifi-card[open] > .collapse-summary,
 .net-devices-card[open] > .collapse-summary,
-.net-dhcp-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
+.net-dhcp-card[open] > .collapse-summary,
+.device-list-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
 
 /* Build-identity footer (which build the PWA is running). */
 .page-foot {

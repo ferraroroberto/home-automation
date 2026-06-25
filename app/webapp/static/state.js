@@ -194,8 +194,13 @@ export const els = {
   cameraPtzRight: document.getElementById('cameraPtzRight'),
   cameraZoomIn: document.getElementById('cameraZoomIn'),
   cameraZoomOut: document.getElementById('cameraZoomOut'),
-  // Plugs (Smart Life) tab
-  plugsGrid: document.getElementById('plugsGrid'),
+  // Plugs (Smart Life) tab — split into two collapsible row-list cards.
+  plugsCard: document.getElementById('plugsCard'),
+  plugsList: document.getElementById('plugsList'),
+  plugsCount: document.getElementById('plugsCount'),
+  blindsCard: document.getElementById('blindsCard'),
+  blindsList: document.getElementById('blindsList'),
+  blindsCount: document.getElementById('blindsCount'),
   plugsNote: document.getElementById('plugsNote'),
   plugsRefresh: document.getElementById('plugsRefresh'),
   plugsToggleBtn: document.getElementById('plugsToggleBtn'),
