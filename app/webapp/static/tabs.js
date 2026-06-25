@@ -45,6 +45,46 @@ export function wireTabs() {
   TABS.forEach(function (name) {
     els[TAB_ELS[name]].addEventListener('click', function () { setTab(name); });
   });
+  const nav = els.tabHome.closest('.tabs');
+  if (nav) pinNavToVisualViewport(nav);
+}
+
+/* Keep the floating bottom-tab pill pinned to the *visual* viewport on mobile.
+ *
+ * styles.css positions the mobile bar `fixed; bottom: …` against the *layout*
+ * viewport. iOS Safari's dynamic bottom toolbar collapses on scroll-down and
+ * re-expands on scroll-up, resizing the layout viewport, which drags a fixed
+ * bottom-anchored element up then down — the bar rides loose instead of staying
+ * locked (issue #179). The VisualViewport API reports the actually-visible rect;
+ * we translate the bar up by the slice of layout viewport hidden below it so it
+ * rides the visible bottom edge.
+ *
+ * Gated to the coarse-pointer / narrow floating-bar mode (desktop renders .tabs
+ * as a sticky top control, where a transform would be wrong) and feature-gated
+ * on window.visualViewport (older browsers keep the CSS-only behaviour — no
+ * error). Self-correcting: the transform is cleared whenever the media query
+ * stops matching or nothing is hidden.
+ *
+ * Mirror of project-scaffolding's _vendored/nav/nav-tabs.js (issue #92) until
+ * this app adopts that vendored component. */
+function pinNavToVisualViewport(nav) {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const mq = window.matchMedia('(pointer: coarse) and (max-width: 520px)');
+
+  function update() {
+    if (!mq.matches) { nav.style.transform = ''; return; }
+    // Height of the layout viewport currently hidden below the visual viewport
+    // (Safari's collapsing toolbar / any off-screen slice). Pull the bar up by
+    // exactly that so its CSS `bottom` inset is measured from the *visible* edge.
+    const hidden = window.innerHeight - vv.height - vv.offsetTop;
+    nav.style.transform = hidden > 1 ? 'translateY(' + -hidden + 'px)' : '';
+  }
+
+  vv.addEventListener('resize', update);
+  vv.addEventListener('scroll', update);
+  if (mq.addEventListener) mq.addEventListener('change', update);
+  update();
 }
 
 export function initialTab() {

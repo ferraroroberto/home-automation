@@ -162,6 +162,10 @@ html, body {
   /* No pinch / double-tap zoom — fixed-scale app, paired with the
      maximum-scale=1, user-scalable=no viewport meta. */
   touch-action: manipulation;
+  /* Kill rubber-band overscroll drag at the document edges so the floating
+     bottom-tab bar can't be tugged loose during momentum scroll (issue #179);
+     pairs with the VisualViewport pinning in tabs.js. */
+  overscroll-behavior: none;
 }
 
 .app {
