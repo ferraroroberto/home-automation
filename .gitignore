@@ -28,6 +28,7 @@ config/tariff.json
 config/pv_system.json
 config/cameras.json
 config/camera_display_names.json
+config/camera_presets.json
 config/dhcp_plan.json
 config/dhcp_overrides.json
 webapp/certificates/

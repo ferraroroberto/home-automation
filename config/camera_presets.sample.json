@@ -1,0 +1,6 @@
+{
+  "garden": [
+    { "token": "1", "name": "Position 1", "pan": -0.5, "tilt": 0.2, "zoom": 0.0 },
+    { "token": "2", "name": "Driveway", "pan": 0.4, "tilt": 0.1, "zoom": 0.3 }
+  ]
+}

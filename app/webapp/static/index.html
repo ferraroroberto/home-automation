@@ -1184,12 +1184,39 @@
           <button id="cameraPtzDown" type="button" class="camera-ptz-btn ptz-down" aria-label="Tilt down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
         </div>
         <div class="camera-live-actions">
+          <button id="cameraPtzModeBtn" type="button" class="range-tab camera-mode-toggle" aria-pressed="true" title="One click = one step (precise) vs press-and-hold">Step</button>
           <button id="cameraZoomOut" type="button" class="range-tab camera-zoom" aria-label="Zoom out">−</button>
           <button id="cameraZoomIn" type="button" class="range-tab camera-zoom" aria-label="Zoom in">+</button>
           <button id="cameraSnapBtn" type="button" class="range-tab" aria-label="Take screenshot"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg></button>
           <button id="cameraRecBtn" type="button" class="range-tab camera-rec" aria-label="Record video"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg></button>
         </div>
       </div>
+      <!-- Saved position presets (issue #190). Hidden when the camera has no preset support. -->
+      <div id="cameraPresetsRow" class="camera-presets" hidden>
+        <span class="camera-controls-label">Presets</span>
+        <div id="cameraPresetsList" class="camera-presets-list"></div>
+        <button id="cameraPresetSave" type="button" class="range-tab camera-preset-save">+ Save</button>
+      </div>
+      <!-- Manual coordinates (issue #190). Hidden unless the camera supports absolute moves. -->
+      <div id="cameraCoordsRow" class="camera-coords" hidden>
+        <span class="camera-controls-label">Position</span>
+        <label class="camera-coord"><span>Pan</span><input id="cameraPanInput" type="number" step="0.01" class="input-native"></label>
+        <label class="camera-coord"><span>Tilt</span><input id="cameraTiltInput" type="number" step="0.01" class="input-native"></label>
+        <label class="camera-coord camera-coord-zoom"><span>Zoom</span><input id="cameraZoomInput" type="number" step="0.01" class="input-native"></label>
+        <button id="cameraCoordsRefresh" type="button" class="range-tab" aria-label="Read current position">↻</button>
+        <button id="cameraCoordsGo" type="button" class="range-tab camera-coords-go">Go</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Snapshot zoom: the persisted last frame at full size (issue #190). -->
+  <dialog id="cameraZoomDialog" class="detail-dialog camera-zoom-dialog">
+    <div class="detail-card camera-zoom-card">
+      <div class="detail-header">
+        <h2 id="cameraZoomName">Camera</h2>
+        <button id="cameraZoomClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <img id="cameraZoomImg" class="camera-zoom-img" alt="Last camera snapshot">
     </div>
   </dialog>
 

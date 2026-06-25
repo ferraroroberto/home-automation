@@ -226,6 +226,28 @@ def _ap_device(mac: str, name, **kw) -> "network_client.NetDevice":
     return network_client.NetDevice(mac=mac, **base)
 
 
+def test_resolve_ip_by_mac_finds_current_address(monkeypatch) -> None:
+    async def fake_access_point():
+        return object(), [
+            _ap_device("AA:BB:CC:00:00:01", "phone", ip="192.168.0.11"),
+            _ap_device("B0:6B:11:F8:37:7F", "camera", ip="192.168.0.23"),
+        ]
+
+    monkeypatch.setattr(network_client, "fetch_access_point", fake_access_point)
+    # Case-/separator-insensitive match returns the live IP.
+    assert asyncio.run(network_client.resolve_ip_by_mac("b0:6b:11:f8:37:7f")) == "192.168.0.23"
+    # A MAC not in the table → None (caller leaves the device unreachable).
+    assert asyncio.run(network_client.resolve_ip_by_mac("00:00:00:00:00:00")) is None
+
+
+def test_resolve_ip_by_mac_returns_none_when_ap_unavailable(monkeypatch) -> None:
+    async def boom():
+        raise network_client.NetworkConfigError("no AP creds")
+
+    monkeypatch.setattr(network_client, "fetch_access_point", boom)
+    assert asyncio.run(network_client.resolve_ip_by_mac("b0:6b:11:f8:37:7f")) is None
+
+
 def test_merge_router_leases_fills_names_and_adds_router_only() -> None:
     devices = [
         _ap_device("AA:BB:CC:00:00:01", None),                 # no name → fill it

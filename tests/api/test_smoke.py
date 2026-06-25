@@ -395,6 +395,99 @@ def test_camera_display_name_route(
     assert saved == {"garden": "Patio"}
 
 
+def test_camera_last_snapshot_route(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET …/last_snapshot`` serves the persisted frame, 404 when there's none."""
+    monkeypatch.setattr(
+        "app.webapp.routers.cameras.read_last_snapshot",
+        lambda cid: b"\xff\xd8jpeg" if cid == "garden" else None,
+    )
+    hit = client.get("/api/cameras/garden/last_snapshot")
+    assert hit.status_code == 200
+    assert hit.headers["content-type"] == "image/jpeg"
+    assert hit.content == b"\xff\xd8jpeg"
+    miss = client.get("/api/cameras/attic/last_snapshot")
+    assert miss.status_code == 404
+
+
+def test_camera_ptz_step_route(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``POST …/ptz`` with action 'step' drives a single fixed nudge."""
+    calls: List[dict] = []
+
+    async def fake_step(camera_id: str, **kw) -> None:
+        calls.append({"id": camera_id, **kw})
+
+    monkeypatch.setattr("app.webapp.routers.cameras.ptz_step", fake_step)
+    resp = client.post("/api/cameras/garden/ptz", json={"action": "step", "direction": "up"})
+    assert resp.status_code == 200
+    assert calls and calls[0]["id"] == "garden"
+    # 'up' maps to a positive tilt at the gentler step speed, no pan.
+    assert calls[0]["pan"] == 0.0 and calls[0]["tilt"] > 0.0
+
+
+def test_camera_ptz_status_and_absolute_routes(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET …/ptz/status`` reports coordinates; ``POST …/ptz/absolute`` moves."""
+    moves: List[dict] = []
+
+    async def fake_status(camera_id: str) -> dict:
+        return {"pan": 0.1, "tilt": -0.2, "zoom": 0.0, "absolute": True,
+                "pan_range": [-1.0, 1.0], "tilt_range": [-1.0, 1.0], "zoom_range": [0.0, 1.0]}
+
+    async def fake_absolute(camera_id: str, **kw) -> None:
+        moves.append({"id": camera_id, **kw})
+
+    monkeypatch.setattr("app.webapp.routers.cameras.get_ptz_status", fake_status)
+    monkeypatch.setattr("app.webapp.routers.cameras.ptz_absolute", fake_absolute)
+
+    status = client.get("/api/cameras/garden/ptz/status")
+    assert status.status_code == 200 and status.json()["pan"] == 0.1
+    moved = client.post(
+        "/api/cameras/garden/ptz/absolute", json={"pan": 0.5, "tilt": -0.3, "zoom": 0.2}
+    )
+    assert moved.status_code == 200
+    assert moves == [{"id": "garden", "pan": 0.5, "tilt": -0.3, "zoom": 0.2}]
+
+
+def test_camera_preset_routes(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Presets list / save / goto / delete drive the client without a camera."""
+    store: List[dict] = [{"token": "1", "name": "Position 1"}]
+    events: List[str] = []
+
+    async def fake_list(camera_id: str) -> List[dict]:
+        return store
+
+    async def fake_set(camera_id: str, name: str) -> dict:
+        events.append("set:" + name)
+        return {"token": "2", "name": name}
+
+    async def fake_goto(camera_id: str, token: str) -> None:
+        events.append("goto:" + token)
+
+    async def fake_remove(camera_id: str, token: str) -> None:
+        events.append("remove:" + token)
+
+    monkeypatch.setattr("app.webapp.routers.cameras.list_presets", fake_list)
+    monkeypatch.setattr("app.webapp.routers.cameras.set_preset", fake_set)
+    monkeypatch.setattr("app.webapp.routers.cameras.goto_preset", fake_goto)
+    monkeypatch.setattr("app.webapp.routers.cameras.remove_preset", fake_remove)
+
+    listed = client.get("/api/cameras/garden/presets")
+    assert listed.status_code == 200 and listed.json()["presets"] == store
+    saved = client.post("/api/cameras/garden/presets", json={"name": "Position 2"})
+    assert saved.status_code == 200 and saved.json()["token"] == "2"
+    gone = client.post("/api/cameras/garden/presets/1/goto")
+    removed = client.delete("/api/cameras/garden/presets/1")
+    assert gone.status_code == 200 and removed.status_code == 200
+    assert events == ["set:Position 2", "goto:1", "remove:1"]
+
+
 def test_lights_control_route_reads_back(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

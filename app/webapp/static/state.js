@@ -49,6 +49,11 @@ export const state = {
   cameras: [],
   // camera id whose detail/live modal is open (or null).
   selectedCameraId: null,
+  // PTZ d-pad mode (issue #190): 'step' = one click → one fixed nudge (precise),
+  // 'hold' = press-and-hold continuous move.
+  cameraPtzMode: 'step',
+  // Saved presets for the camera in the open live modal.
+  cameraPresets: [],
   // Home-network (LAN) snapshot from GET /api/network (issue #129).
   network: null,
   // Browser-restored API snapshots keyed by allowlisted scope (issue #148).
@@ -194,6 +199,21 @@ export const els = {
   cameraPtzRight: document.getElementById('cameraPtzRight'),
   cameraZoomIn: document.getElementById('cameraZoomIn'),
   cameraZoomOut: document.getElementById('cameraZoomOut'),
+  // Precise-PTZ + presets + snapshot zoom (issue #190)
+  cameraPtzModeBtn: document.getElementById('cameraPtzModeBtn'),
+  cameraPresetsRow: document.getElementById('cameraPresetsRow'),
+  cameraPresetsList: document.getElementById('cameraPresetsList'),
+  cameraPresetSave: document.getElementById('cameraPresetSave'),
+  cameraCoordsRow: document.getElementById('cameraCoordsRow'),
+  cameraPanInput: document.getElementById('cameraPanInput'),
+  cameraTiltInput: document.getElementById('cameraTiltInput'),
+  cameraZoomInput: document.getElementById('cameraZoomInput'),
+  cameraCoordsRefresh: document.getElementById('cameraCoordsRefresh'),
+  cameraCoordsGo: document.getElementById('cameraCoordsGo'),
+  cameraZoomDialog: document.getElementById('cameraZoomDialog'),
+  cameraZoomName: document.getElementById('cameraZoomName'),
+  cameraZoomClose: document.getElementById('cameraZoomClose'),
+  cameraZoomImg: document.getElementById('cameraZoomImg'),
   // Plugs (Smart Life) tab — split into two collapsible row-list cards.
   plugsCard: document.getElementById('plugsCard'),
   plugsList: document.getElementById('plugsList'),
