@@ -65,15 +65,15 @@
   /* elevation — cards lean on surface + hairline border; the floating nav and
      toasts are the only elements with a real shadow. */
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
-  /* Mobile floating bottom tab bar — geometry from the fleet design.md
-     `nav-bar` contract (issue #188): height 56px (nav-bar), 12px side/bottom
-     margin (== spacing.gutter / --gap, so the floating bar lines up with the
-     card grid), active pill 48px (nav-tab). Supersedes the earlier #118
-     native-iPhone measurement (61/21/53); the 7-tab nav fits comfortably here
-     and the gutter now matches the rest of the layout. */
-  --bottom-tabs-height: 56px;
-  --bottom-tabs-margin: 12px;
-  --bottom-tabs-pill-height: 48px;
+  /* Mobile floating bottom tab bar.
+     Measured from the supplied iPhone reference screenshots in issue #118
+     (1290px-wide captures, ~3x CSS pixels): GitHub/VLC nav outer x=64px,
+     bottom≈63px, height≈184px -> 21px side/bottom inset and 61px height;
+     active pill height≈160px -> 53px; label≈34px -> 11px. Keep the app's
+     colour tokens, but match the native-app geometry. */
+  --bottom-tabs-height: 61px;
+  --bottom-tabs-margin: 21px;
+  --bottom-tabs-pill-height: 53px;
   --bottom-tabs-padding: 4px;
   --bottom-tabs-gap: 4px;
   --bottom-tabs-icon: 20px;
