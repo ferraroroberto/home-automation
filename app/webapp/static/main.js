@@ -666,9 +666,8 @@ function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   // Show the glyph for the action: sun to switch to light, moon to switch to dark.
   const mark = icon(dark ? 'sun' : 'moon');
-  // Two toggles share the state: the Settings one (other tabs) and the weather
-  // tile one (Home, which has no Settings card) — keep both icons in sync (#72).
-  els.themeBtn.innerHTML = mark;
+  // The theme toggle lives only on the Home weather tile now (#186) — the
+  // redundant Settings-card duplicate was removed.
   if (els.weatherThemeBtn) els.weatherThemeBtn.innerHTML = mark;
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   restyleEnergyCharts();
@@ -685,7 +684,6 @@ function toggleTheme() {
   applyTheme(stored ? stored === 'dark' : prefersDark);
 })();
 
-els.themeBtn.addEventListener('click', toggleTheme);
 els.weatherThemeBtn.addEventListener('click', toggleTheme);
 
 els.detailClose.addEventListener('click', closeDetail);
@@ -778,8 +776,6 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
     onEnergyTab(tab); onPlugsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
-    // Keep Home clean — Settings lives on the other tabs only (issue #72).
-    els.settingsCard.hidden = tab === 'home';
   });
   setTab(initialTab());
 

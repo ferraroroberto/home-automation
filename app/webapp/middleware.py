@@ -4,8 +4,8 @@ Mirrors the sibling fleet apps (photo-ocr, app-launcher):
 
 - Empty configured token → short-circuit, no gate.
 - Loopback callers bypass (local probes keep working tokenless).
-- ``/``, ``/static/*``, ``/healthz``, ``/install-ca``, ``/api/login``
-  stay reachable so the page can boot and swap a password for the token.
+- ``/``, ``/static/*``, ``/healthz``, ``/api/login`` stay reachable so the
+  page can boot and swap a password for the token.
 - Otherwise accept the token from ``Authorization: Bearer …`` or
   ``?token=…``.
 """
@@ -23,10 +23,9 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 _AUTH_EXEMPT_PREFIXES = (
     "/static/",
     "/healthz",
-    "/install-ca",
     "/api/presence/webhook",
 )
-_AUTH_EXEMPT_EXACT = frozenset({"/", "/healthz", "/install-ca", "/api/login"})
+_AUTH_EXEMPT_EXACT = frozenset({"/", "/healthz", "/api/login"})
 
 
 class BearerTokenMiddleware(BaseHTTPMiddleware):

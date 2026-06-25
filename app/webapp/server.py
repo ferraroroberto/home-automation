@@ -6,7 +6,6 @@ Routes (split across ``app/webapp/routers/``):
     GET  /static/{file}          → CSS / JS / icons          (static mount)
     GET  /healthz                → liveness probe            (misc)
     GET  /api/version            → build identity (git_sha)  (misc)
-    GET  /install-ca             → iOS .mobileconfig         (misc)
     POST /api/login              → password → bearer token   (auth)
     GET  /api/units              → live state of every unit  (units)
     POST /api/units/{id}         → write controls + read back (units)

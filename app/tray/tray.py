@@ -188,6 +188,22 @@ def _tailscale_hostname() -> Optional[str]:
     return None
 
 
+def _tailscale_url(port: int, token: str) -> Optional[str]:
+    """Token-bearing tailnet URL for this app, or None if no tailnet host.
+
+    The ``.ts.net`` hostname is what the Tailscale (Let's Encrypt) cert is
+    issued for, so opening this URL gives a valid, already-trusted cert on
+    every device — including this PC — with **no** per-device trust step.
+    Reaching the app over the tailnet interface is a non-loopback call, so the
+    bearer token is appended (loopback would bypass the gate, the tailnet won't).
+    """
+    host = _tailscale_hostname()
+    if not host:
+        return None
+    scheme = "https" if cert_paths() else "http"
+    return append_auth_token(f"{scheme}://{host}:{port}", token)
+
+
 def _notify(title: str, message: str) -> None:
     """Surface a tray message. pythonw has no console, so this also logs."""
     logger.info(f"🔔 {title}: {message}")
@@ -230,8 +246,18 @@ def run_tray() -> int:
 
     threading.Thread(target=_start, daemon=True).start()
 
-    def open_local(icon, item):  # noqa: ARG001
-        webbrowser.open(manager.base_url)
+    def _open_app() -> None:
+        """Open the dashboard, preferring the trusted tailnet URL.
+
+        On this PC the Tailscale cert is issued for the ``.ts.net`` host, not
+        loopback, so opening ``manager.base_url`` (127.0.0.1) would throw a
+        cert-hostname-mismatch warning. The tailnet URL is valid everywhere and
+        needs no certificate trust; fall back to the loopback URL only when no
+        tailnet host resolves.
+        """
+        webapp_cfg = load_webapp_config()
+        url = _tailscale_url(manager.config.port, webapp_cfg.auth_token)
+        webbrowser.open(url or manager.base_url)
 
     def copy_local(icon, item):  # noqa: ARG001
         webapp_cfg = load_webapp_config()
@@ -242,17 +268,14 @@ def run_tray() -> int:
             _notify("Local URL", url)
 
     def copy_tailscale(icon, item):  # noqa: ARG001
-        host = _tailscale_hostname()
-        if not host:
+        webapp_cfg = load_webapp_config()
+        url = _tailscale_url(manager.config.port, webapp_cfg.auth_token)
+        if not url:
             _notify(
                 "Tailscale not available",
                 "Couldn't resolve a tailnet hostname (is `tailscale` installed and logged in?).",
             )
             return
-        scheme = "https" if cert_paths() else "http"
-        url = f"{scheme}://{host}:{manager.config.port}"
-        webapp_cfg = load_webapp_config()
-        url = append_auth_token(url, webapp_cfg.auth_token)
         if _clipboard_copy(url):
             _notify("Copied Tailscale URL", url)
         else:
@@ -284,7 +307,7 @@ def run_tray() -> int:
         icon.stop()
 
     def on_left_click(icon, item):  # noqa: ARG001
-        webbrowser.open(manager.base_url)
+        _open_app()
 
     menu = Menu(
         MenuItem("🏠 Open home automation", on_left_click, default=True),

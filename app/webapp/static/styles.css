@@ -1677,10 +1677,9 @@ button.presence-name:hover { text-decoration: underline; }
 .muted { color: var(--muted); }
 .small { font-size: var(--font-caption); }
 
-/* ----------------------------------------------------------- settings */
-.settings-card { padding: 0; margin-top: 16px; }
+/* ----------------------------------------------------- collapsible cards */
 /* Unified collapsible summary (issue #57): a left-aligned icon + title with a
-   disclosure chevron pinned to the right, shared by Settings and the Security
+   disclosure chevron pinned to the right, shared by the Security and Network
    sections so every collapsible reads the same. */
 .collapse-summary {
   display: grid;
@@ -1711,8 +1710,7 @@ button.presence-name:hover { text-decoration: underline; }
 }
 details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); }
 /* Collapsible cards share one closed height: the summary owns the padding so
-   Security and Settings headers align exactly. */
-.settings-card > .collapse-summary,
+   the Security and Network headers align exactly. */
 .security-schedules-card > .collapse-summary,
 .security-events-card > .collapse-summary,
 .security-zones-card > .collapse-summary,
@@ -1723,7 +1721,6 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   height: 52px;
   padding: 0 14px;
 }
-.settings-card[open] > .collapse-summary,
 .security-schedules-card[open] > .collapse-summary,
 .security-events-card[open] > .collapse-summary,
 .security-zones-card[open] > .collapse-summary,
@@ -1731,24 +1728,6 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-wifi-card[open] > .collapse-summary,
 .net-devices-card[open] > .collapse-summary,
 .net-dhcp-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
-.settings-body {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.settings-body h3 { margin: 0; font-size: var(--font-body); }
-.settings-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.settings-row span { color: var(--ink); font-weight: 550; }
-.install-ca-btn {
-  text-decoration: none;
-  display: flex; align-items: center; justify-content: center; gap: 0.45em;
-}
-.install-ca-btn .icon { width: 1.15em; height: 1.15em; }
 
 /* Build-identity footer (which build the PWA is running). */
 .page-foot {
