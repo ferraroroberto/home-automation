@@ -73,38 +73,56 @@ async function coverAction(device, action) {
   }
 }
 
-// ------------------------------------------------------------- card DOM
-function buildCard(device) {
-  const on = device.switch_on === true;
-  const card = document.createElement('article');
-  card.className = 'card plug-card';
-  card.dataset.deviceId = device.device_id;
-  if (!device.reachable) card.classList.add('is-unavailable');
-  else if (device.has_switch && !on) card.classList.add('is-off');
-
-  // --- Top band: one row — name (tap to rename) · wattage · toggle. The
-  //     wattage sits immediately left of the toggle so metered and unmetered
-  //     tiles share the same row shape (and thus the same height). ---
-  const top = document.createElement('div');
-  top.className = 'plug-top';
-
+// ------------------------------------------------------------- row DOM
+// Plugs and blinds render as compact divider-separated rows (the Network
+// "Attached devices" style), not chunky sub-cards. The name is a button that
+// opens the rename/detail modal — shared by both row kinds.
+function nameButton(device) {
   const name = document.createElement('button');
   name.type = 'button';
-  name.className = 'plug-name';
+  name.className = 'device-row-name';
   name.title = 'Rename';
   name.textContent = plugLabel(device) || 'Device';
   name.addEventListener('click', function () { openPlugDetail(device.device_id); });
-  top.appendChild(name);
+  return name;
+}
 
-  // Live wattage on metered, reachable plugs — just left of the toggle.
-  if (device.metered && device.reachable && device.power_w != null) {
+// A compact status word keeps the device name readable in the row; the full
+// reason (often a long sentence) lives in the hover title rather than crushing
+// the name to an ellipsis.
+function unavailableNote(device) {
+  const note = document.createElement('span');
+  note.className = 'device-row-note plug-unavailable';
+  note.textContent = device.has_valid_ip === false ? 'No IP' : 'Offline';
+  if (device.error) note.title = device.error;
+  return note;
+}
+
+function buildPlugRow(device) {
+  const on = device.switch_on === true;
+  const row = document.createElement('div');
+  row.className = 'device-row plug-row';
+  row.dataset.deviceId = device.device_id;
+
+  row.appendChild(nameButton(device));
+
+  // Offline / no-IP: just the name + the reason, no controls.
+  if (!device.reachable) {
+    row.classList.add('is-unavailable');
+    row.appendChild(unavailableNote(device));
+    return row;
+  }
+  if (device.has_switch && !on) row.classList.add('is-off');
+
+  // Live wattage on metered plugs — sits just left of the toggle.
+  if (device.metered && device.power_w != null) {
     const watts = document.createElement('span');
     watts.className = 'plug-watts';
     watts.textContent = fmtW(device.power_w);
-    top.appendChild(watts);
+    row.appendChild(watts);
   }
 
-  if (device.has_switch && device.reachable) {
+  if (device.has_switch) {
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'toggle' + (on ? ' on' : '');
@@ -114,35 +132,57 @@ function buildCard(device) {
     toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
       (on ? 'ON' : 'OFF') + '</span>';
     toggle.addEventListener('click', function () { toggleSwitch(device); });
-    top.appendChild(toggle);
+    row.appendChild(toggle);
   }
-  card.appendChild(top);
+  return row;
+}
 
-  // --- Cover controls (open / stop / close). ---
-  if (device.has_cover && device.reachable) {
-    const cover = document.createElement('div');
-    cover.className = 'plug-cover';
-    [['open', '▲ Open'], ['stop', '■ Stop'], ['close', '▼ Close']].forEach(function (pair) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'cover-btn';
-      btn.dataset.action = pair[0];
-      btn.textContent = pair[1];
-      btn.addEventListener('click', function () { coverAction(device, pair[0]); });
-      cover.appendChild(btn);
-    });
-    card.appendChild(cover);
-  }
+// Up · Stop · Down icon buttons. Covers expose only open/stop/close on the LAN
+// (no native position), so these are the full control surface.
+const BLIND_CONTROLS = [
+  ['open', 'Open', 'i-chevron-up'],
+  ['stop', 'Stop', 'i-square'],
+  ['close', 'Close', 'i-chevron-down'],
+];
 
-  // --- Unavailable note (offline / no local IP). ---
+function buildBlindRow(device) {
+  const row = document.createElement('div');
+  row.className = 'device-row blind-row';
+  row.dataset.deviceId = device.device_id;
+
+  row.appendChild(nameButton(device));
+
   if (!device.reachable) {
-    const note = document.createElement('div');
-    note.className = 'plug-unavailable';
-    note.textContent = device.error || 'Unavailable';
-    card.appendChild(note);
+    row.classList.add('is-unavailable');
+    row.appendChild(unavailableNote(device));
+    return row;
   }
 
-  return card;
+  const controls = document.createElement('div');
+  controls.className = 'blind-controls';
+  BLIND_CONTROLS.forEach(function (spec) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'blind-btn';
+    btn.dataset.action = spec[0];
+    btn.title = spec[1];
+    btn.setAttribute('aria-label', spec[1] + ' ' + (plugLabel(device) || 'blind'));
+    btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#' + spec[2] + '"></use></svg>';
+    btn.addEventListener('click', function () { coverAction(device, spec[0]); });
+    controls.appendChild(btn);
+  });
+  row.appendChild(controls);
+  return row;
+}
+
+// Hide a list card entirely when it holds no devices; otherwise show the
+// per-card count badge in its summary.
+function setListCard(card, countEl, n) {
+  if (card) card.hidden = n === 0;
+  if (countEl) {
+    countEl.textContent = String(n);
+    countEl.hidden = n === 0;
+  }
 }
 
 // --------------------------------------------------------- rename modal
@@ -220,7 +260,8 @@ function renderStats() {
 }
 
 export function renderPlugs() {
-  els.plugsGrid.innerHTML = '';
+  els.plugsList.innerHTML = '';
+  els.blindsList.innerHTML = '';
   renderStats();
 
   // Update toggle button label to reflect current state.
@@ -235,6 +276,8 @@ export function renderPlugs() {
       'No Smart Life devices. Refresh devices.json on the home network ' +
       '(python -m tinytuya wizard) to capture them.';
     if (els.plugsHiddenCount) els.plugsHiddenCount.hidden = true;
+    setListCard(els.plugsCard, els.plugsCount, 0);
+    setListCard(els.blindsCard, els.blindsCount, 0);
     return;
   }
   if (isSnapshotRestored('plugs')) {
@@ -264,7 +307,13 @@ export function renderPlugs() {
     }
   }
 
-  visible.forEach(function (d) { els.plugsGrid.appendChild(buildCard(d)); });
+  // Split: covers → Blinds card, everything else → Plugs card.
+  const plugs = visible.filter(function (d) { return d.has_cover !== true; });
+  const blinds = visible.filter(function (d) { return d.has_cover === true; });
+  plugs.forEach(function (d) { els.plugsList.appendChild(buildPlugRow(d)); });
+  blinds.forEach(function (d) { els.blindsList.appendChild(buildBlindRow(d)); });
+  setListCard(els.plugsCard, els.plugsCount, plugs.length);
+  setListCard(els.blindsCard, els.blindsCount, blinds.length);
 }
 
 // ------------------------------------------------------- toggle wiring
@@ -339,7 +388,10 @@ export async function loadPlugs() {
     // Missing devices.json (503) or a read error — guide, don't crash. The
     // inline note stays for context; the toast surfaces the reason once.
     reportFetchFailure('plugs', exc, 'plugs');
-    if (!state.plugs.length) els.plugsGrid.innerHTML = '';
+    if (!state.plugs.length) {
+      els.plugsList.innerHTML = '';
+      els.blindsList.innerHTML = '';
+    }
     els.plugsNote.hidden = false;
     els.plugsNote.textContent = exc.message || 'Failed to load devices.';
   }

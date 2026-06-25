@@ -205,6 +205,15 @@
     <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none">
       <path d="m9 18 6-6-6-6" />
     </symbol>
+    <symbol id="i-chevron-up" viewBox="0 0 24 24" fill="none">
+      <path d="m18 15-6-6-6 6" />
+    </symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none">
+      <path d="m6 9 6 6 6-6" />
+    </symbol>
+    <symbol id="i-square" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+    </symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="none">
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
@@ -637,7 +646,37 @@
         <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Reachable only</button>
         <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
       </div>
-      <section id="plugsGrid" class="plugs-grid" aria-label="Devices"></section>
+      <!-- Plugs and blinds are split into two collapsible cards (collapsed by
+           default), each rendering its devices as a compact divider-separated
+           row list — the same low-chrome style as the Network "Attached
+           devices" list, not chunky sub-cards. -->
+      <details class="card device-list-card" id="plugsCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
+            <span class="collapse-title">Plugs</span>
+            <span id="plugsCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="device-list-body">
+          <section id="plugsList" class="device-list" aria-label="Plugs"></section>
+        </div>
+      </details>
+
+      <details class="card device-list-card" id="blindsCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+            <span class="collapse-title">Blinds</span>
+            <span id="blindsCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="device-list-body">
+          <section id="blindsList" class="device-list" aria-label="Blinds"></section>
+        </div>
+      </details>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
     </section>
 
