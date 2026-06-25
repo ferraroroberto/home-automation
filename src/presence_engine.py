@@ -202,6 +202,29 @@ def note_manual_alarm_action(action: str, *, at: Optional[datetime] = None) -> N
     _save_state(raw)
 
 
+def set_kids_home_override(active: bool, *, at: Optional[datetime] = None) -> None:
+    """Persist the transient 'kids home' override (arm perimeter, not full).
+
+    Lives in the runtime ``automation`` meta — not the persisted config knobs —
+    because it is auto-reset on the next disarm-on-arrival.
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    meta["kids_home_override"] = bool(active)
+    meta["kids_home_override_at"] = _iso(at or now_utc())
+    _save_state(raw)
+
+
+def load_kids_home_override() -> bool:
+    """Return the transient 'kids home' override flag (defaults off)."""
+
+    meta = _load_state().get("automation", {})
+    if not isinstance(meta, dict):
+        return False
+    return bool(meta.get("kids_home_override", False))
+
+
 def mark_decision_applied(decision: PresenceDecision, outcome: str) -> None:
     """Remember an applied decision key to keep actions edge-triggered."""
 
@@ -244,8 +267,13 @@ def evaluate_alarm_decision(
     security_mode: str,
     config: PresenceAutomationConfig,
     at: Optional[datetime] = None,
+    override_perimeter: bool = False,
 ) -> Optional[PresenceDecision]:
-    """Return the next alarm action, or ``None`` when no action is safe."""
+    """Return the next alarm action, or ``None`` when no action is safe.
+
+    ``override_perimeter`` (the "kids home" toggle) arms perimeter instead of
+    full on the everyone-away trigger; the disarm path is unaffected.
+    """
 
     stamp = at or now_utc()
     if not config.enabled:
@@ -282,9 +310,13 @@ def evaluate_alarm_decision(
         if key != _last_key("arm") and not _manual_after(all_away_since):
             return PresenceDecision(
                 kind="arm",
-                action=config.arm_action,
+                action="perimeter" if override_perimeter else config.arm_action,
                 key=key,
-                reason="everyone away past grace",
+                reason=(
+                    "everyone away past grace (kids-home override)"
+                    if override_perimeter
+                    else "everyone away past grace"
+                ),
                 transition_at=all_away_since,
             )
     return None

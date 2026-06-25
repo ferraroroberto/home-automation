@@ -126,5 +126,5 @@ def start_presence_refresher() -> Optional[asyncio.Task]:
     if not _env_bool("PRESENCE_ICLOUD_REFRESH_ENABLED", True):
         logger.info("ℹ️ Presence diagnostics refresher disabled")
         return None
-    interval_s = max(60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", 300))
+    interval_s = max(60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", 900))
     return asyncio.create_task(_run(interval_s), name="presence-refresher")
