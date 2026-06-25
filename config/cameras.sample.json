@@ -2,6 +2,7 @@
   {
     "id": "garden",
     "host": "192.168.0.x",
+    "mac": "aa:bb:cc:dd:ee:ff",
     "onvif_port": 8000,
     "rtsp_port": 554,
     "username": "admin",

@@ -1216,10 +1216,12 @@ button.device-row-name:hover { text-decoration: underline; }
 }
 .security-events-card,
 .security-schedules-card,
+.cameras-card,
 .security-zones-card,
 .presence-card { padding: 0; }
 .security-events,
 .security-zones,
+.cameras-list,
 .presence-list {
   display: flex;
   flex-direction: column;
@@ -1722,6 +1724,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
    the Security and Network headers align exactly. */
 .security-schedules-card > .collapse-summary,
 .security-events-card > .collapse-summary,
+.cameras-card > .collapse-summary,
 .security-zones-card > .collapse-summary,
 .presence-card > .collapse-summary,
 .net-wifi-card > .collapse-summary,
@@ -1733,6 +1736,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 }
 .security-schedules-card[open] > .collapse-summary,
 .security-events-card[open] > .collapse-summary,
+.cameras-card[open] > .collapse-summary,
 .security-zones-card[open] > .collapse-summary,
 .presence-card[open] > .collapse-summary,
 .net-wifi-card[open] > .collapse-summary,
@@ -2296,13 +2300,33 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-applybar .range-tab .icon { width: 13px; height: 13px; }
 
 /* ----------------------------------------------------------- cameras (#161) */
-.cameras-list { display: flex; flex-direction: column; }
+/* .cameras-list layout (flex column + 14px inset) is shared with the other
+   collapsible Security card bodies above, so the closed-card height matches. */
+/* Leading thumbnail + name + live button: the thumbnail is the row's "icon",
+   lining the names up under the card title's icon+text (issue #190). */
+.camera-row { grid-template-columns: auto minmax(0, 1fr) auto; }
 .camera-row .security-zone-name { text-align: left; }
+.camera-thumb {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 36px; padding: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: #000; cursor: zoom-in;
+}
+.camera-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.camera-thumb.is-empty { background: var(--card-off); cursor: default; }
+.camera-thumb-glyph { width: 18px; height: 18px; color: var(--muted); }
 .camera-row-live {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 40px; padding: 6px 10px;
 }
 .camera-row-live .icon { width: 18px; height: 18px; }
+
+/* Snapshot zoom: the persisted last frame at full size. */
+.camera-zoom-dialog { width: min(96vw, 880px); }
+.camera-zoom-img {
+  width: 100%; display: block; border-radius: var(--radius-md);
+  background: #000; aspect-ratio: 16 / 9; object-fit: contain;
+}
 
 /* Detail modal snapshot — the still grabbed at open time. */
 .camera-snapshot {
@@ -2360,3 +2384,42 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
   color: var(--deficit);
 }
+
+/* Precise-PTZ controls: mode toggle, presets, manual coordinates (issue #190). */
+.camera-mode-toggle { min-width: 56px; font-weight: 650; }
+.camera-mode-toggle[aria-pressed="true"] {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+}
+.camera-controls-label {
+  font-size: var(--font-caption); color: var(--muted); font-weight: 650;
+  flex: none; align-self: center;
+}
+.camera-presets, .camera-coords {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+}
+.camera-presets-list { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.camera-presets-empty { font-size: var(--font-caption); }
+.camera-preset {
+  display: inline-flex; align-items: stretch; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--card-off);
+}
+.camera-preset-go {
+  appearance: none; border: 0; background: none; color: var(--ink);
+  font: inherit; font-weight: 600; padding: 6px 10px; cursor: pointer;
+}
+.camera-preset-go:hover { background: var(--accent-soft); }
+.camera-preset-del {
+  appearance: none; border: 0; border-left: 1px solid var(--line);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 1.1rem; line-height: 1; padding: 0 8px;
+}
+.camera-preset-del:hover { color: var(--deficit); }
+.camera-preset-save { font-weight: 650; }
+.camera-coord {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--font-caption); color: var(--muted);
+}
+.camera-coord input {
+  width: 84px; padding: 6px 8px; font-variant-numeric: tabular-nums;
+}
+.camera-coords-go { font-weight: 650; }

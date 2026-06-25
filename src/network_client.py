@@ -864,6 +864,28 @@ async def fetch_access_point() -> tuple[AccessPointHealth, list[NetDevice]]:
         return AccessPointHealth(reachable=False, error=str(exc)), []
 
 
+async def resolve_ip_by_mac(mac: str) -> Optional[str]:
+    """Best-effort current IP for a device MAC, from the AP's attached devices.
+
+    Lets other domains (e.g. cameras, issue #190) self-heal a stale configured
+    IP the way the AP and Tuya plugs already do. Returns None when the AP read
+    fails, isn't configured, or the MAC isn't present — callers treat that as
+    "no recovery available" and leave the device flagged unreachable.
+    """
+    target = _normalise_mac(mac)
+    if not target:
+        return None
+    try:
+        _health, devices = await fetch_access_point()
+    except Exception as exc:  # noqa: BLE001 — recovery is best-effort, never fatal
+        logger.info("ℹ️ MAC→IP resolve via AP failed: %s", exc)
+        return None
+    for dev in devices:
+        if _normalise_mac(dev.mac) == target and dev.ip:
+            return dev.ip
+    return None
+
+
 def reboot_access_point() -> None:
     """Reboot the NETGEAR R9000 (proven working via pynetgear)."""
     from pynetgear import Netgear
