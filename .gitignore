@@ -29,6 +29,7 @@ config/pv_system.json
 config/cameras.json
 config/camera_display_names.json
 config/dhcp_plan.json
+config/dhcp_overrides.json
 webapp/certificates/
 webapp/icloud_session/
 webapp/*.log

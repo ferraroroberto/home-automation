@@ -81,6 +81,11 @@ class Assignment:
     current_ip: Optional[str]
     planned_ip: Optional[str]
     randomized: bool
+    # Action this row implies against the router's static-binding table (phase 2,
+    # issue #176): "reserved" already bound to planned_ip (no-op), "create" not yet
+    # bound, "change" bound to a different IP, "none" nothing to write (unplaced /
+    # randomised / unassigned). "none" whenever the real bindings aren't known.
+    status: str = "none"
 
 
 @dataclass(frozen=True)
@@ -158,6 +163,24 @@ def device_label(d: DeviceInput) -> str:
     the same way the Network list does.
     """
     return d.display_name or d.vendor or d.name or d.mac
+
+
+def binding_name(label: str, mac: str) -> str:
+    """A router-safe binding ``Name`` (1–32 chars) derived from a device label.
+
+    The F6600P's *DHCP Binding* form caps the name at 1–32 chars; this keeps
+    alnum/space/.-_, collapses the rest, truncates to 32, and falls back to
+    ``dev-<last-4-hex>`` so the length rule is always satisfied. Shared by the CLI
+    ``--apply`` path and the webapp apply endpoint so both name rows identically.
+    """
+    import re
+
+    cleaned = re.sub(r"[^A-Za-z0-9 ._-]+", " ", label or "").strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)[:32].strip()
+    if cleaned:
+        return cleaned
+    tail = re.sub(r"[^A-Za-z0-9]", "", mac or "")[-4:] or "0000"
+    return f"dev-{tail}"
 
 
 # --------------------------------------------------------------------------- #
@@ -273,6 +296,20 @@ def _current_octet(ip: Optional[str], prefix: str) -> Optional[int]:
     return octet if 0 <= octet <= 255 else None
 
 
+def _binding_status(reserved_ip: Optional[str], planned_ip: Optional[str]) -> str:
+    """The write action a planned row implies given its current reservation.
+
+    ``reserved_ip`` is the device's IP in the router's static-binding table (or
+    ``None`` if it has no reservation / the table is unknown). See
+    :class:`Assignment.status`.
+    """
+    if planned_ip is None:
+        return "none"
+    if reserved_ip is None:
+        return "create"
+    return "reserved" if reserved_ip == planned_ip else "change"
+
+
 def _overlap_warnings(ranges: Sequence[CategoryRange]) -> List[str]:
     """Warn on overlapping category windows — two ranges sharing an octet would
     let devices in different categories be assigned the *same* IP (a collision).
@@ -293,6 +330,8 @@ def _assign_category(
     devices: Sequence[DeviceInput],
     prefix: str,
     warnings: List[str],
+    bindings: Dict[str, str],
+    bindings_known: bool,
 ) -> List[Assignment]:
     """Place one category's devices: keep stable in-range IPs, then fill the gaps.
 
@@ -300,10 +339,29 @@ def _assign_category(
     (minimises churn). Pass 2 hands every remaining device the lowest free octet.
     Randomised MACs are never assigned (a rotating address can't be reserved).
     Overflow and in-range collisions are recorded as warnings.
+
+    The stability anchor in pass 1 is the device's **existing router reservation**
+    (``bindings``: normalised MAC → reserved IP) when known, else its current
+    observed IP — so once #176 supplies the real binding table the planner keeps
+    already-reserved devices exactly where the router has them.
     """
     ordered = sorted(devices, key=lambda d: normalize_mac(d.mac))
     available = set(range(rng.start, rng.end + 1))
     planned: Dict[str, Optional[int]] = {}
+
+    # An octet already reserved on the router for a device that ISN'T being placed
+    # here (typically an offline device absent from the live inventory) is occupied
+    # — never plan a new device onto it, or applying that row collides with the
+    # existing reservation (issue #176: an offline iPad's .11 was being re-suggested
+    # for a different device). Pass 1 below still anchors a placed device on its own
+    # reservation; this only removes IPs owned by *others*.
+    placed = {normalize_mac(d.mac) for d in devices}
+    for mac, ip in bindings.items():
+        if mac in placed:
+            continue
+        taken = _current_octet(ip, prefix)
+        if taken is not None and rng.start <= taken <= rng.end:
+            available.discard(taken)
 
     reservable = [d for d in ordered if not d.randomized]
     for d in ordered:
@@ -314,9 +372,11 @@ def _assign_category(
                 f"its Private Wi-Fi Address before it can hold a reservation."
             )
 
-    # Pass 1 — respect a device already correctly placed inside this range.
+    # Pass 1 — respect a device already correctly placed inside this range. Prefer
+    # the existing reservation as the anchor; fall back to the observed lease IP.
     for d in reservable:
-        octet = _current_octet(d.ip, prefix)
+        anchor = bindings.get(normalize_mac(d.mac)) or d.ip
+        octet = _current_octet(anchor, prefix)
         if octet is not None and octet in available:
             available.discard(octet)
             planned[normalize_mac(d.mac)] = octet
@@ -340,14 +400,20 @@ def _assign_category(
     result: List[Assignment] = []
     for d in ordered:
         octet = planned.get(normalize_mac(d.mac))
+        planned_ip = f"{prefix}.{octet}" if octet is not None else None
         result.append(
             Assignment(
                 mac=d.mac,
                 label=device_label(d),
                 category=rng.label,
                 current_ip=d.ip,
-                planned_ip=f"{prefix}.{octet}" if octet is not None else None,
+                planned_ip=planned_ip,
                 randomized=d.randomized,
+                status=(
+                    _binding_status(bindings.get(normalize_mac(d.mac)), planned_ip)
+                    if bindings_known
+                    else "none"
+                ),
             )
         )
     # Show in planned-IP order (unplaced rows sink to the bottom).
@@ -355,7 +421,11 @@ def _assign_category(
     return result
 
 
-def build_plan(devices: Sequence[DeviceInput], config: DhcpPlanConfig) -> DhcpPlan:
+def build_plan(
+    devices: Sequence[DeviceInput],
+    config: DhcpPlanConfig,
+    bindings: Optional[Dict[str, str]] = None,
+) -> DhcpPlan:
     """Compute the full reservation plan from the inventory + category config.
 
     Each device is classified, then placed into its category's range by
@@ -363,9 +433,20 @@ def build_plan(devices: Sequence[DeviceInput], config: DhcpPlanConfig) -> DhcpPl
     an unknown category) become *unassigned*. Warnings are emitted in a stable
     order: per-category (overflow / randomised / collisions), then a single
     unassigned summary, then the empty-config notice.
+
+    ``bindings`` is the router's static-binding table (normalised MAC → reserved
+    IP, from :meth:`src.network_client.RouterClient.read_dhcp_bindings`). When it is
+    a dict it both anchors stability and drives each :class:`Assignment.status`
+    (reserved / create / change) — an **empty** dict means the table is known-empty,
+    so every placed row reads as ``create``. ``None`` means the table is *unknown*
+    (no router read / a read failure): every row is ``status="none"`` and the
+    planner falls back to the observed lease IP (the phase-1 behaviour), so a failed
+    read never misleadingly offers to "create" reservations that may already exist.
     """
     warnings: List[str] = []
     valid = set(config.labels)
+    bindings_known = bindings is not None
+    binds = {normalize_mac(k): v for k, v in (bindings or {}).items() if v}
 
     if not config.ranges:
         warnings.append(
@@ -385,7 +466,9 @@ def build_plan(devices: Sequence[DeviceInput], config: DhcpPlanConfig) -> DhcpPl
 
     categories: List[CategoryPlan] = []
     for rng in config.ranges:
-        assignments = _assign_category(rng, buckets[rng.label], config.subnet_prefix, warnings)
+        assignments = _assign_category(
+            rng, buckets[rng.label], config.subnet_prefix, warnings, binds, bindings_known
+        )
         categories.append(
             CategoryPlan(
                 label=rng.label, start=rng.start, end=rng.end, assignments=tuple(assignments)

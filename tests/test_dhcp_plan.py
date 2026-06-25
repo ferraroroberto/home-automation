@@ -15,6 +15,7 @@ from src.dhcp_plan import (
     CategoryRange,
     DeviceInput,
     DhcpPlanConfig,
+    binding_name,
     build_plan,
     classify,
     device_inputs_from_inventory,
@@ -201,3 +202,82 @@ def test_device_inputs_from_inventory_folds_vendor_override_and_randomized() -> 
     assert out[0].randomized is False
     assert out[1].randomized is True
     assert out[1].vendor is None  # randomised MAC is never vendored
+
+
+# -------------------------------------------- bindings → status (issue #176)
+def _status_of(plan, mac: str) -> str:
+    for c in plan.categories:
+        for a in c.assignments:
+            if a.mac == mac:
+                return a.status
+    raise AssertionError(f"{mac} not placed in any category")
+
+
+def test_bindings_drive_reserved_create_change_status() -> None:
+    config = _config()  # Phones range is .11–.20
+    devices = [
+        DeviceInput(mac="00:00:00:00:00:01", name="iphone-a"),  # reserved in-range @ .11
+        DeviceInput(mac="00:00:00:00:00:02", name="iphone-b"),  # no binding → create
+        DeviceInput(mac="00:00:00:00:00:03", name="iphone-c"),  # bound out-of-range → change
+    ]
+    bindings = {
+        "00:00:00:00:00:01": "192.168.0.11",  # already inside the Phones range → kept
+        "00:00:00:00:00:03": "192.168.0.50",  # outside Phones range → must move in
+    }
+    plan = build_plan(devices, config, bindings)
+    assert _status_of(plan, "00:00:00:00:00:01") == "reserved"
+    assert _status_of(plan, "00:00:00:00:00:02") == "create"
+    assert _status_of(plan, "00:00:00:00:00:03") == "change"
+
+
+def test_binding_is_the_stability_anchor_over_lease_ip() -> None:
+    config = _config()
+    # Device's live lease says .18, but its reservation pins .15 — keep the
+    # reservation (the plan must not churn an already-reserved address).
+    d = DeviceInput(mac="00:00:00:00:00:01", ip="192.168.0.18", name="iphone-a")
+    plan = build_plan([d], config, {"00:00:00:00:00:01": "192.168.0.15"})
+    assert _status_of(plan, "00:00:00:00:00:01") == "reserved"
+    phones = next(c for c in plan.categories if c.label == "Phones")
+    assert phones.assignments[0].planned_ip == "192.168.0.15"
+
+
+def test_no_bindings_means_status_none() -> None:
+    config = _config()
+    plan = build_plan([DeviceInput(mac="00:00:00:00:00:01", name="iphone-a")], config)
+    assert _status_of(plan, "00:00:00:00:00:01") == "none"
+
+
+def test_plan_skips_ip_reserved_by_an_offline_device() -> None:
+    """A planned IP must never collide with a reservation held by a device that
+    isn't in the live inventory (issue #176): an offline iPad/iPhone hold .11/.12,
+    so a newly-placed device must get .13, not re-use a taken slot.
+    """
+    config = _config()  # Phones range is .11–.20, rule matches "iphone"/"ipad"
+    # Only the PC is online; it classifies into Phones via an override. The iPad and
+    # iPhone are offline (absent from `devices`) but HOLD .11 and .12 on the router.
+    config = DhcpPlanConfig(
+        subnet_prefix=config.subnet_prefix,
+        ranges=config.ranges,
+        rules=config.rules,
+        overrides={"34:5A:60:D3:59:53": "Phones"},
+    )
+    devices = [DeviceInput(mac="34:5A:60:D3:59:53", ip="192.168.0.66", name="pc tower")]
+    bindings = {
+        "00:8A:76:A2:43:04": "192.168.0.11",  # offline iPad's reservation
+        "64:48:42:8D:3F:CA": "192.168.0.12",  # offline iPhone's reservation
+    }
+    plan = build_plan(devices, config, bindings)
+    phones = next(c for c in plan.categories if c.label == "Phones")
+    a = next(x for x in phones.assignments if x.mac == "34:5A:60:D3:59:53")
+    assert a.planned_ip == "192.168.0.13"  # not .11/.12 (held by offline devices)
+    assert a.status == "create"
+
+
+def test_binding_name_sanitizes_and_truncates() -> None:
+    assert binding_name("Living-Room iPad", "AA:BB:CC:DD:EE:01") == "Living-Room iPad"
+    # control/odd chars collapse to a space; result trimmed
+    assert binding_name("café\t📷 cam!!", "AA:BB:CC:DD:EE:02") == "caf cam"
+    # >32 chars truncates
+    assert len(binding_name("x" * 50, "AA:BB:CC:DD:EE:03")) == 32
+    # empty label → MAC-derived fallback
+    assert binding_name("", "AA:BB:CC:DD:EE:04") == "dev-EE04"
