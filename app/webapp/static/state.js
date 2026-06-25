@@ -269,6 +269,12 @@ export const els = {
   netHiddenToggle: document.getElementById('netHiddenToggle'),
   netDevices: document.getElementById('netDevices'),
   netDevicesNote: document.getElementById('netDevicesNote'),
+  // DHCP reservation plan (issue #170) — read-only, lazy-loaded section
+  netDhcpCard: document.getElementById('netDhcpCard'),
+  netDhcpRefresh: document.getElementById('netDhcpRefresh'),
+  netDhcpWarnings: document.getElementById('netDhcpWarnings'),
+  netDhcpPlan: document.getElementById('netDhcpPlan'),
+  netDhcpNote: document.getElementById('netDhcpNote'),
   // Per-device detail + rename modal
   netDeviceDialog: document.getElementById('netDeviceDialog'),
   netDeviceDetailName: document.getElementById('netDeviceDetailName'),

@@ -2125,6 +2125,48 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   color: var(--deficit);
 }
 
+/* ------------------------------------------------ DHCP reservation plan (#170)
+   Read-only section: a category-grouped MAC→IP list, copy-ready for the router's
+   DHCP Binding form. Reuses .net-group-head for the category headers. */
+.net-dhcp-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px;
+}
+.net-dhcp-intro { flex: 1 1 auto; margin: 0; }
+.net-dhcp-head .range-tab { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
+.net-dhcp-head .range-tab .icon { width: 13px; height: 13px; }
+.net-dhcp-plan { display: flex; flex-direction: column; }
+.net-dhcp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name move" "mac move";
+  align-items: center; column-gap: 12px;
+  padding: 8px 0; border-top: 1px solid var(--line);
+}
+.net-dhcp-name {
+  grid-area: name; font-weight: 600; color: var(--ink);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.net-dhcp-mac {
+  grid-area: mac; font-size: var(--font-caption); color: var(--muted);
+}
+.net-dhcp-mac.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.net-dhcp-move {
+  grid-area: move; font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+}
+.net-dhcp-move.net-dhcp-stable { color: var(--muted); }
+.net-dhcp-move.net-dhcp-change { color: var(--accent); font-weight: 700; }
+.net-dhcp-move.net-dhcp-unplaced { color: var(--attention); font-weight: 700; }
+.net-dhcp-row-warn .net-dhcp-name { color: var(--attention); }
+.net-dhcp-warnings { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.net-dhcp-warning {
+  margin: 0; font-size: var(--font-caption); color: var(--attention);
+}
+.net-dhcp-note { margin: 12px 4px 2px; }
+
 /* ----------------------------------------------------------- cameras (#161) */
 .cameras-list { display: flex; flex-direction: column; }
 .camera-row .security-zone-name { text-align: left; }

@@ -1,0 +1,30 @@
+{
+  "_doc": "Ordered DHCP reservation plan for the F6600P (issue #170, phase 1 = planner only, no router writes). Copy this file to config/dhcp_plan.json (gitignored — it would expose your device inventory in a public repo) and edit the ranges/rules to taste. The planner (src/dhcp_plan.py) reads it to assign each known LAN device a stable IP inside its category range; you apply the result manually in the router's DHCP Binding form. When config/dhcp_plan.json is absent the planner returns an empty plan (every device unassigned) with a warning rather than failing.",
+
+  "subnet_prefix": "192.168.0",
+
+  "_doc_ranges": "Ordered category ranges. Only the last octet is planned; each range is inclusive [start, end]. Keep them within the router's DHCP pool (192.168.0.10–192.168.0.250). A device gets the lowest free IP in its category's range, so an IP tells you what a device is.",
+  "ranges": [
+    { "label": "Infrastructure", "start": 2, "end": 10 },
+    { "label": "Phones & tablets", "start": 11, "end": 20 },
+    { "label": "Cameras", "start": 21, "end": 30 },
+    { "label": "Smart plugs", "start": 31, "end": 40 },
+    { "label": "Lights", "start": 41, "end": 50 },
+    { "label": "Computers", "start": 51, "end": 70 }
+  ],
+
+  "_doc_rules": "How a device auto-classifies into a category. Each rule's `match` is a list of lowercase substrings tested against the device's \"display-name hostname vendor\" text; the FIRST rule with any hit wins. `category` must equal one of the range labels above. Reorder rules so the more specific ones come first.",
+  "rules": [
+    { "category": "Infrastructure", "match": ["router", "gateway", "netgear", "ubiquiti", "unifi", "synology", "diskstation", "nas", "-ap", "raspberry", "homeassistant", "hub"] },
+    { "category": "Phones & tablets", "match": ["iphone", "ipad", "pixel", "galaxy", "oneplus", "redmi", "android", "-phone"] },
+    { "category": "Cameras", "match": ["camera", "webcam", "-cam", "reolink", "tapo", "hikvision", "dahua", "eufy"] },
+    { "category": "Smart plugs", "match": ["plug", "tuya", "smartlife", "sonoff", "shelly"] },
+    { "category": "Lights", "match": ["elgato", "light", "bulb", "hue", "lamp", "lifx", "nanoleaf"] },
+    { "category": "Computers", "match": ["macbook", "imac", "laptop", "desktop", "thinkpad", "surface", "-pc", "workstation", "notebook"] }
+  ],
+
+  "_doc_overrides": "Manual per-MAC escape hatch (highest priority — beats the rules). MAC keys are upper-case, colon-separated. Value must equal one of the range labels above. Use this for devices the keyword rules can't classify (e.g. a generic n/a hostname).",
+  "overrides": {
+    "AA:BB:CC:DD:EE:FF": "Infrastructure"
+  }
+}

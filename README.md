@@ -43,6 +43,8 @@ optional bearer token. Three ways to reach it once running:
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
   - `network_client.py` — async home-network spike core: internet/AP/router health + attached-device inventory + AP reboot (issue #125).
   - `list_network.py` — CLI that prints the live network state and inventory.
+  - `dhcp_plan.py` — UI-free, network-free DHCP reservation planner (#170): classifies each device into a category range from `config/dhcp_plan.json` and assigns the lowest free IP, respecting existing in-range placements; warns on overflow/overlap/unclassified/randomised-MAC. Read-only — no router writes (phase 2).
+  - `list_dhcp_plan.py` — CLI that prints the categorised reservation plan (mirrors `list_network.py`).
   - `network_display_names.py` / `network_wifi_display_names.py` / `network_hidden.py` — Network-tab label and hidden-state stores for attached devices and Wi-Fi radios; reuse `display_names.py` atomic load/save/set verbatim, parallel to the unit/plug/detector stores.
   - `network_oui.py` — offline device identification: bundled trimmed OUI→vendor table, randomised-MAC detection, and a category/icon heuristic (no network call, render-time).
   - `network_history.py` — per-MAC history store (SQLite, modeled on `energy_history.py`; issue #129 Phase 4): first/last/times-seen, the `important` flag, and the online/offline + new-device derivations. Recorded on each `/api/network` read (no background sampler — the AP read is expensive and tab-gated); randomised MACs are never tracked. Kept separate from the rename/hidden stores; gitignored `webapp/network_history.sqlite3`.
@@ -297,9 +299,18 @@ Run the smoke command:
 & .\.venv\Scripts\python.exe -m src.list_network              # health + inventory
 & .\.venv\Scripts\python.exe -m src.list_network --speedtest  # + WAN throughput (~15 s)
 & .\.venv\Scripts\python.exe -m src.list_network --reboot-ap   # reboot the AP (drops WiFi ~1-2 min)
+& .\.venv\Scripts\python.exe -m src.list_dhcp_plan            # categorised DHCP reservation plan (#170)
 ```
 
 The CLI prints internet health (up/down, latency, packet loss, optional speed), AP and router health, host-PC Wi-Fi diagnostics, and the attached-device list (MAC, IP, band, signal %, name) with weak-signal/offline alerts. Do not commit device credentials, the WiFi SSID/password, visible SSID/BSSID scan dumps, LAN IPs, or MAC/device dumps; this repository is public.
+
+### DHCP reservation plan (#170)
+
+The F6600P hands out pool addresses in arbitrary order, so a device drifts across IPs over time and the LAN is hard to read at a glance. The **reservation planner** computes a tidy, permanent MAC→IP assignment grouped by category — e.g. `2–10` infrastructure, `11–20` phones/tablets, `21–30` cameras, `31–40` plugs, `41–50` lights — so an IP tells you what a device is. It is **read-only / advisory**: you apply the bindings by hand in the router's *DHCP Binding* form. Automated write-back to the router is an explicit **phase 2** (the seam is reserved but unimplemented on `RouterClient.read_dhcp_bindings` / `write_dhcp_binding`).
+
+Configure it by copying `config/dhcp_plan.sample.json` → `config/dhcp_plan.json` (gitignored — it would expose your device inventory) and editing the `ranges` (ordered category windows), `rules` (keyword → category, matched against the device's display-name/hostname/vendor), and `overrides` (manual per-MAC escape hatch). Without the file the planner reports every device as *unassigned* with a warning rather than failing.
+
+Each device gets the **lowest free IP in its category range**; a device already correctly placed keeps its IP (minimises churn); range overflow, unclassified devices, overlapping ranges, and randomised (un-reservable) MACs surface as explicit warnings. Surfaced both as the `src.list_dhcp_plan` CLI and a read-only **DHCP reservation plan** section in the Network tab (`GET /api/network/dhcp-plan`, computed on open/refresh).
 
 ## SMA solar / energy
 
