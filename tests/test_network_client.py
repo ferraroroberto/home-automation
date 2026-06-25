@@ -411,3 +411,91 @@ def test_apply_changes_deletes_then_adds_on_one_session(monkeypatch) -> None:
     assert ("AA:BB:CC:DD:EE:FF", "192.168.0.50") in fake.written
     assert {r["op"] for r in results} == {"remove", "add"}
     assert all(r["ok"] for r in results)
+
+
+# --------------------------------------------------------------------------- #
+# AP rediscovery (issue #150)                                                  #
+# --------------------------------------------------------------------------- #
+
+def _make_fetch_network_state_fakes(
+    *,
+    ap_reachable: bool,
+    router_leases: list[dict],
+    ap_mac_env: str = "",
+    rediscovered_ap_reachable: bool = True,
+    rediscovered_devices: "list[network_client.NetDevice] | None" = None,
+):
+    """Return a dict of monkeypatch targets for fetch_network_state rediscovery tests."""
+
+    async def fake_internet(include_speedtest: bool = False):
+        return network_client.InternetHealth(online=True)
+
+    async def fake_access_point():
+        if ap_reachable:
+            return network_client.AccessPointHealth(reachable=True), []
+        return network_client.AccessPointHealth(reachable=False, error="Connection timed out"), []
+
+    async def fake_router():
+        return network_client.RouterHealth(reachable=True, authenticated=True), router_leases
+
+    async def fake_wifi():
+        return network_client.WifiDiagnostics(available=False)
+
+    def fake_fetch_ap_sync(host_override=None):
+        if rediscovered_ap_reachable:
+            devs = rediscovered_devices or []
+            return network_client.AccessPointHealth(reachable=True, device_count=len(devs)), devs
+        return network_client.AccessPointHealth(reachable=False, error="probe failed"), []
+
+    return {
+        "fetch_internet_health": fake_internet,
+        "fetch_access_point": fake_access_point,
+        "fetch_router": fake_router,
+        "fetch_wifi_diagnostics": fake_wifi,
+        "_fetch_ap_sync": fake_fetch_ap_sync,
+        "_ap_mac_env": ap_mac_env,
+    }
+
+
+def test_ap_rediscovery_success(monkeypatch) -> None:
+    """Stale NETWORK_AP_HOST fails; MAC found in router leases; probe succeeds."""
+    leases = [{"mac": "aa:bb:cc:dd:ee:ff", "ip": "192.168.0.55", "hostname": "R9000"}]
+    fakes = _make_fetch_network_state_fakes(
+        ap_reachable=False,
+        router_leases=leases,
+        ap_mac_env="aa:bb:cc:dd:ee:ff",
+        rediscovered_ap_reachable=True,
+    )
+
+    monkeypatch.setenv("NETWORK_AP_MAC", fakes["_ap_mac_env"])
+    monkeypatch.setattr(network_client, "fetch_internet_health", fakes["fetch_internet_health"])
+    monkeypatch.setattr(network_client, "fetch_access_point", fakes["fetch_access_point"])
+    monkeypatch.setattr(network_client, "fetch_router", fakes["fetch_router"])
+    monkeypatch.setattr(network_client, "fetch_wifi_diagnostics", fakes["fetch_wifi_diagnostics"])
+    monkeypatch.setattr(network_client, "_fetch_ap_sync", fakes["_fetch_ap_sync"])
+
+    state = asyncio.run(network_client.fetch_network_state())
+
+    assert state.access_point.reachable is True
+    assert not any("Access point unreachable" in a for a in state.alerts)
+
+
+def test_ap_rediscovery_failure_mac_not_in_leases(monkeypatch) -> None:
+    """Stale host fails; MAC absent from router leases → unreachable (same as today)."""
+    leases = [{"mac": "11:22:33:44:55:66", "ip": "192.168.0.10", "hostname": "other"}]
+    fakes = _make_fetch_network_state_fakes(
+        ap_reachable=False,
+        router_leases=leases,
+        ap_mac_env="aa:bb:cc:dd:ee:ff",  # MAC not in leases
+    )
+
+    monkeypatch.setenv("NETWORK_AP_MAC", fakes["_ap_mac_env"])
+    monkeypatch.setattr(network_client, "fetch_internet_health", fakes["fetch_internet_health"])
+    monkeypatch.setattr(network_client, "fetch_access_point", fakes["fetch_access_point"])
+    monkeypatch.setattr(network_client, "fetch_router", fakes["fetch_router"])
+    monkeypatch.setattr(network_client, "fetch_wifi_diagnostics", fakes["fetch_wifi_diagnostics"])
+
+    state = asyncio.run(network_client.fetch_network_state())
+
+    assert state.access_point.reachable is False
+    assert any("Access point unreachable" in a for a in state.alerts)

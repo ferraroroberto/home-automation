@@ -289,6 +289,7 @@ Config in `.env`:
 | `NETWORK_AP_HOST` | Access-point LAN IP. |
 | `NETWORK_AP_USERNAME` | AP web-admin user (usually `admin`). |
 | `NETWORK_AP_PASSWORD` | AP web-admin password. |
+| `NETWORK_AP_MAC` | *(Optional)* Stable MAC of the access point. When set and `NETWORK_AP_HOST` becomes stale after a DHCP change, the app looks up this MAC in the router's lease table and retries the connection at the discovered IP. Two options for handling a drifting AP IP: (1) **Recommended — DHCP reservation:** reserve the R9000's MAC → IP in the router's *Static Binding* form so the address never changes. (2) **Automatic rediscovery:** set `NETWORK_AP_MAC` and the app recovers without any `.env` edit — on a failed AP read it probes the discovered IP, updates its in-memory target on success, and degrades exactly as today if no candidate is found. |
 | `NETWORK_ROUTER_HOST` | Router (gateway) LAN IP. |
 | `NETWORK_ROUTER_USERNAME` | Router web user (usually `user`). |
 | `NETWORK_ROUTER_PASSWORD` | Router web password. |
