@@ -365,7 +365,9 @@ html, body {
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-  padding: 9px 0;
+  /* Single tight line per unit, matching the Network "Attached devices" row
+     density (#211). */
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 .ac-line:first-child { border-top: 0; }
@@ -378,16 +380,9 @@ html, body {
   white-space: nowrap;
 }
 .ac-line-icon { width: 1.05em; height: 1.05em; margin-right: 2px; }
-/* Centred temperature column: room → target above, mode · fan beneath. */
-.ac-line-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  text-align: center;
-}
+/* Single-line temperature reading: room → target (#211). */
+.ac-line-center { text-align: right; }
 .ac-temp { font-weight: 650; font-variant-numeric: tabular-nums; }
-.ac-meta { color: var(--muted); font-size: var(--font-caption); }
 
 /* ------------------------------------------------- energy flow diagram */
 /* Title and last-updated timestamp both removed (the Solar→Home←Grid row is

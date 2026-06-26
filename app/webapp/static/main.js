@@ -503,16 +503,14 @@ function renderAcSummary() {
     name.innerHTML = icon(modeIcon(u.operation_mode), 'ac-line-icon');
     name.insertAdjacentText('beforeend', ' ' + (displayLabel(u) || 'Unit'));
 
-    // Centred temperature column: room → target on top, mode · fan beneath, so
-    // the readings line up down the card (issue #72).
+    // Temperature column: room → target on a single line. The mode · fan caption
+    // was dropped (#211) to keep each Home row one line tall, matching the
+    // Network "Attached devices" row density — mode/fan stay in the detail modal.
     const center = document.createElement('span');
     center.className = 'ac-line-center';
     const room = fmtTemp(u.room_temperature);
     const target = fmtTemp(u.set_temperature);
-    center.innerHTML =
-      '<span class="ac-temp">' + room + ' → ' + target + '</span>' +
-      '<span class="ac-meta">' + (u.operation_mode || '—') +
-        (u.fan_speed ? ' · fan ' + fanLabel(u.fan_speed) : '') + '</span>';
+    center.innerHTML = '<span class="ac-temp">' + room + ' → ' + target + '</span>';
 
     // Power toggle — the app's standard switch, actionable from Home (issue #72).
     const toggle = document.createElement('button');
