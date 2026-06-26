@@ -1796,6 +1796,31 @@ button.presence-name:hover { text-decoration: underline; }
   .schedule-enabled { grid-column: 1 / -1; }
 }
 
+/* Detail-modal Save footer (#202): settings stage locally and commit only here.
+   Sticky to the bottom of the modal so it stays reachable on long detail cards;
+   disabled until something changes. */
+.detail-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 14px -18px -18px;
+  padding: 12px 18px;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.detail-save-btn {
+  width: 100%;
+  min-height: var(--control-h);
+  border: 1px solid var(--accent-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.detail-save-btn:disabled { opacity: 0.5; cursor: default; }
+
 .checkbox-native {
   width: 20px;
   height: 20px;

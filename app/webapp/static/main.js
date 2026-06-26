@@ -42,6 +42,43 @@ const ASSET_HASH_KEY = 'home-automation.assetHash';
 const ASSET_RELOAD_KEY = 'home-automation.assetReloadedFor';
 let currentScheduleEntries = [];
 
+// Detail-modal staging (#202): edits to mode/fan/vanes, display name, the
+// temperature rule and the schedules are held locally and only written when the
+// user presses Save — no more save-on-every-change. Closing the modal discards
+// (openDetail reloads everything from the server). The card-level on/off toggle
+// and ± stepper stay immediate; they are not part of this.
+let detailDirty = { controls: false, name: false, rule: false, sched: false };
+
+function markDetailDirty(section) {
+  detailDirty[section] = true;
+  if (els.detailSave) els.detailSave.disabled = false;
+}
+
+function clearDetailDirty() {
+  detailDirty = { controls: false, name: false, rule: false, sched: false };
+  if (els.detailSave) els.detailSave.disabled = true;
+}
+
+// Commit whatever was staged in the detail modal, one section at a time. The
+// per-section save helpers (applyControl / saveRule / saveSchedules /
+// saveDisplayName) each toast their own outcome, so we don't add another.
+async function commitDetail() {
+  const id = state.selectedId;
+  if (!id) return;
+  if (els.detailSave) els.detailSave.disabled = true;
+  if (detailDirty.controls) {
+    const patch = { operation_mode: els.detailMode.value };
+    if (els.detailFanSpeedRow && !els.detailFanSpeedRow.hidden) patch.fan_speed = els.detailFanSpeed.value;
+    if (els.detailVaneVerticalRow && !els.detailVaneVerticalRow.hidden) patch.vane_vertical_direction = els.detailVaneVertical.value;
+    if (els.detailVaneHorizontalRow && !els.detailVaneHorizontalRow.hidden) patch.vane_horizontal_direction = els.detailVaneHorizontal.value;
+    await applyControl(id, patch);
+  }
+  if (detailDirty.name) await saveDisplayName();
+  if (detailDirty.rule) await saveRule();
+  if (detailDirty.sched) await saveSchedules();
+  clearDetailDirty();
+}
+
 // --------------------------------------------------------------- helpers
 function unitById(id) {
   return state.units.find(function (u) { return u.unit_id === id; });
@@ -381,7 +418,7 @@ function renderScheduleList(unit) {
       entry.fan_speed = fan ? fan.value || null : null;
       entry.vane_vertical_direction = vv ? vv.value || null : null;
       entry.vane_horizontal_direction = vh ? vh.value || null : null;
-      saveSchedules();
+      markDetailDirty('sched');
     };
 
     card.querySelector('.sched-entry-enabled').addEventListener('change', saveFromCard);
@@ -390,7 +427,7 @@ function renderScheduleList(unit) {
     card.querySelector('.schedule-delete').addEventListener('click', function () {
       currentScheduleEntries.splice(idx, 1);
       renderScheduleList(unit);
-      saveSchedules();
+      markDetailDirty('sched');
     });
     card.querySelectorAll('.sched-entry-mode, .sched-entry-fan, .sched-entry-vv, .sched-entry-vh').forEach(function (el) {
       el.addEventListener('change', saveFromCard);
@@ -429,6 +466,7 @@ function openDetail(unitId) {
   const unit = unitById(unitId);
   if (!unit) return;
   state.selectedId = unitId;
+  clearDetailDirty();
   populateDetail(unit);
   loadAutomation(unitId);
   if (typeof els.detail.showModal === 'function') els.detail.showModal();
@@ -437,6 +475,7 @@ function openDetail(unitId) {
 
 function closeDetail() {
   state.selectedId = null;
+  clearDetailDirty();
   if (typeof els.detail.close === 'function') els.detail.close();
   else els.detail.removeAttribute('open');
 }
@@ -689,28 +728,29 @@ els.detailClose.addEventListener('click', closeDetail);
 els.detail.addEventListener('click', function (ev) {
   if (ev.target === els.detail) closeDetail();  // backdrop click
 });
-els.detailDisplayName.addEventListener('blur', saveDisplayName);
+// Detail-modal settings now stage locally and commit only on Save (#202).
+els.detailSave.addEventListener('click', commitDetail);
+els.detailDisplayName.addEventListener('blur', function () { markDetailDirty('name'); });
 els.detailDisplayName.addEventListener('keydown', function (ev) {
   if (ev.key === 'Enter') { ev.preventDefault(); els.detailDisplayName.blur(); }
 });
 els.detailMode.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { operation_mode: els.detailMode.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 els.detailFanSpeed.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { fan_speed: els.detailFanSpeed.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 els.detailVaneVertical.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { vane_vertical_direction: els.detailVaneVertical.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 els.detailVaneHorizontal.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { vane_horizontal_direction: els.detailVaneHorizontal.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 
-// Temperature rule — save on any change; number inputs also save on blur so a
-// typed value persists without needing Enter.
-els.ruleEnabled.addEventListener('change', saveRule);
-els.ruleCoolTarget.addEventListener('blur', saveRule);
-els.ruleHeatTarget.addEventListener('blur', saveRule);
+// Temperature rule — staged; commits with everything else on Save.
+els.ruleEnabled.addEventListener('change', function () { markDetailDirty('rule'); });
+els.ruleCoolTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
+els.ruleHeatTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
 
 // Schedules — dynamic list; each row wires its own controls when rendered.
 els.schedAdd.addEventListener('click', function () {
@@ -719,7 +759,7 @@ els.schedAdd.addEventListener('click', function () {
   if (!unit) return;
   currentScheduleEntries.push(scheduleDefaults(unit));
   renderScheduleList(unit);
-  saveSchedules();
+  markDetailDirty('sched');
 });
 
 els.loginForm.addEventListener('submit', async function (ev) {

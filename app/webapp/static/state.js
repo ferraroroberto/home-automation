@@ -433,6 +433,7 @@ export const els = {
   detailVaneVerticalRow: document.getElementById('detailVaneVerticalRow'),
   detailVaneHorizontalRow: document.getElementById('detailVaneHorizontalRow'),
   detailClose: document.getElementById('detailClose'),
+  detailSave: document.getElementById('detailSave'),
   // Detail modal — temperature rule (dynamic setpoint) section
   ruleEnabled: document.getElementById('ruleEnabled'),
   ruleCoolTarget: document.getElementById('ruleCoolTarget'),
