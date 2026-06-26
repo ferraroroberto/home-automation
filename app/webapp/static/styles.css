@@ -343,10 +343,15 @@ html, body {
     white-space: nowrap;
   }
 
-  /* Never let the floating bar hover over a modal / overlay. */
+  /* Never let the floating bar hover over a modal / overlay. Hide it with
+     visibility (not display) so the fixed bar stays in the render tree and its
+     VisualViewport transform keeps tracking — toggling display tore it out and
+     reinserted it with a stale transform, which read as the nav "jumping" up on
+     close (#205). */
   body:has(dialog[open]) .tabs,
   body:has(#loginOverlay:not([hidden])) .tabs {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
   }
 }
 
