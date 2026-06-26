@@ -40,7 +40,11 @@ and an optional bearer token. Two ways to reach it once running:
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
   - `security_schedules.py` — UI-free persistence and due-window checks for weekly alarm schedules.
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
-  - `network_client.py` — async home-network spike core: internet/AP/router health + attached-device inventory + AP reboot (issue #125).
+  - `network_client.py` — async home-network orchestrator (issue #197 split): imports the three sub-modules below and exposes the unchanged public surface (`fetch_network_state`, `resolve_ip_by_mac`, dataclasses) so callers don't move.
+  - `network_types.py` — shared dataclasses, exceptions, and leaf helpers used across all network sub-modules.
+  - `network_ap.py` — NETGEAR R9000 AP: device inventory (MAC/IP/name/signal/band/SSID), AP health, `reboot_access_point`, MAC rediscovery.
+  - `network_router.py` — Vodafone ZXHN F6600P (ZTE): SHA256-challenge login, WAN/DHCP reads, binding write-back, `reboot_router`.
+  - `network_host.py` — host-side internet probes: ping latency + packet loss, optional speedtest, `netsh wlan`.
   - `list_network.py` — CLI that prints the live network state and inventory.
   - `dhcp_plan.py` — UI-free, network-free DHCP reservation planner (#170): classifies each device into a category range from `config/dhcp_plan.json` and assigns the lowest free IP, anchoring stability on the router's existing bindings and tagging each row reserved/create/change; warns on overflow/overlap/unclassified/randomised-MAC.
   - `list_dhcp_plan.py` — CLI that prints the categorised reservation plan (mirrors `list_network.py`); `--apply` pushes the create/change rows to the router (#176) behind a `yes` prompt.
@@ -60,7 +64,8 @@ and an optional bearer token. Two ways to reach it once running:
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `lights.js` (Elgato tab),
-    `security.js` (RISCO alarm tab), `network.js` (Network/LAN tab + reusable confirm dialog),
+    `security.js` (RISCO alarm tab boot/orchestrator), `security-alarm.js` (alarm state + action pills + detectors), `security-schedules.js` (weekly schedule CRUD), `presence.js` (presence card + location + automation + push),
+    `network.js` (Network/LAN tab boot/orchestrator), `network-devices.js` (attached-devices list + modal), `network-wifi.js` (Wi-Fi diagnostics + charts), `network-dhcp.js` (DHCP reservation planner),
     `snapshots.js` (allowlisted last-good browser snapshots), `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
