@@ -36,6 +36,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `hvac_automation.py` — UI-free persistence + control law for per-unit dynamic temperature rules and daily schedules.
   - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
+  - `ups_client.py` — local USB UPS status reader: prefers NUT (`upsc` against the portable Windows install), falls back to a one-shot NUT USB-HID probe, then Windows `Win32_Battery`.
   - `elgato_client.py` — Elgato lights discovery/read/control over the local LAN HTTP API.
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
   - `security_schedules.py` — UI-free persistence and due-window checks for weekly alarm schedules.
@@ -60,10 +61,10 @@ and an optional bearer token. Two ways to reach it once running:
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
   - `security_automation.py` — background weekly alarm-schedule evaluator owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, build identity).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `ups` (local USB UPS status), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, build identity).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
-    `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `lights.js` (Elgato tab),
+    `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `ups.js` (local USB UPS tile + outage/restored toasts), `lights.js` (Elgato tab),
     `security.js` (RISCO alarm tab boot/orchestrator), `security-alarm.js` (alarm state + action pills + detectors), `security-schedules.js` (weekly schedule CRUD), `presence.js` (presence card + location + automation + push),
     `network.js` (Network/LAN tab boot/orchestrator), `network-devices.js` (attached-devices list + modal), `network-wifi.js` (Wi-Fi diagnostics + charts), `network-dhcp.js` (DHCP reservation planner),
     `snapshots.js` (allowlisted last-good browser snapshots), `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
@@ -550,6 +551,8 @@ The wizard writes `devices.json` in the project root. That file contains device 
 ### 🔌 Plugs tab
 
 The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tuya devices, split into **two collapsible cards — Plugs and Blinds — both collapsed by default** (issue #191). Each renders its devices as a compact divider-separated **row list** in the same low-chrome style as the Network tab's "Attached devices" list, not chunky sub-cards. A **plug row** is a single **name · wattage · on/off** line (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app); a **blind row** is **name + up / stop / down icon buttons** wired to the cover open/stop/close path. A **summary block** above the cards totals devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json` plus local LAN status only.
+
+The tab also shows the local **UPS** above the Tuya device summary. `GET /api/ups` reads the USB-connected APC Smart-UPS through NUT when the local `upsc` server is available, falls back to a one-shot NUT USB-HID probe, then falls back to Windows battery telemetry. The current APC SMT1000IC USB-HID path reliably exposes status, charge, runtime, battery voltage, model, manufacturer, and serial; it does **not** expose `ups.load`, `input.voltage`, or `output.voltage` through NUT on this machine, so the Load/Input slots intentionally remain visible as `—` until a richer APC path is available.
 
 > **Blind position is up/stop/close only.** The blind (Maxcio "Curtain switch") exposes a single open/stop/close DPS with **no native position % and no feedback** (confirmed by a live `tinytuya` DPS dump). Percentage **presets** would therefore need a time-based approximation (calibrated travel-time + a timed stop) and are **deferred to #181** along with group multi-blind control — this tab is the presentation refactor only.
 

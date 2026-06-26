@@ -60,6 +60,11 @@
       <path d="M10.5 16.5 13 14" />
       <path d="m18 3-4 4h6l-4 4" />
     </symbol>
+    <symbol id="i-battery-charging" viewBox="0 0 24 24" fill="none">
+      <path d="M15 7h1a2 2 0 0 1 2 2v.5a.5.5 0 0 0 .5.5H20a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-1.5a.5.5 0 0 0-.5.5V15a2 2 0 0 1-2 2h-2" />
+      <path d="M8 7H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4" />
+      <path d="m11 7-3 5h4l-3 5" />
+    </symbol>
     <symbol id="i-shield-check" viewBox="0 0 24 24" fill="none">
       <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
       <path d="m9 12 2 2 4-4" />
@@ -412,6 +417,8 @@
         </div>
       </section>
 
+      <section id="homeUpsTile" class="card ups-tile ups-tile-compact" aria-label="UPS status" hidden></section>
+
       <!-- Live energy-flow card — the *same* Solar → Home ← Grid view as the
            Energy tab (issue #57: one shared visualization, not a divergent
            compact tile). Filled by renderEnergy(); hidden until the first read. -->
@@ -619,33 +626,37 @@
          and LAN reads only. The empty/error note guides toward refreshing
          devices.json (never the cloud). -->
     <section id="panePlugs" class="pane" role="tabpanel" aria-labelledby="tabPlugs" aria-label="Smart Life devices" hidden>
+      <section id="upsTile" class="card ups-tile" aria-label="UPS status" hidden></section>
+
       <!-- Summary: total devices · on · off · live consumption (reachable
            metered). Computed from state.plugs; hidden until devices load. -->
-      <section id="plugsStats" class="card plugs-summary" aria-label="Plug summary" hidden>
-        <div class="plugs-stats">
-          <div class="plugs-stat">
-            <span class="plugs-stat-label">Devices</span>
-            <span class="plugs-stat-value" id="plugStatTotal">—</span>
+      <section id="plugsStats" class="card plugs-summary plugs-summary-actions" aria-label="Plug summary" hidden>
+        <div class="plugs-summary-row">
+          <div class="plugs-stats">
+            <div class="plugs-stat">
+              <span class="plugs-stat-label">Devices</span>
+              <span class="plugs-stat-value" id="plugStatTotal">—</span>
+            </div>
+            <div class="plugs-stat">
+              <span class="plugs-stat-label">On</span>
+              <span class="plugs-stat-value" id="plugStatOn">—</span>
+            </div>
+            <div class="plugs-stat">
+              <span class="plugs-stat-label">Off</span>
+              <span class="plugs-stat-value" id="plugStatOff">—</span>
+            </div>
+            <div class="plugs-stat">
+              <span class="plugs-stat-label">Live</span>
+              <span class="plugs-stat-value" id="plugStatWatts">—</span>
+            </div>
           </div>
-          <div class="plugs-stat">
-            <span class="plugs-stat-label">On</span>
-            <span class="plugs-stat-value" id="plugStatOn">—</span>
-          </div>
-          <div class="plugs-stat">
-            <span class="plugs-stat-label">Off</span>
-            <span class="plugs-stat-value" id="plugStatOff">—</span>
-          </div>
-          <div class="plugs-stat">
-            <span class="plugs-stat-label">Live</span>
-            <span class="plugs-stat-value" id="plugStatWatts">—</span>
+          <div class="plugs-toolbar">
+            <button id="plugsRefresh" type="button" class="range-tab" data-testid="plugs-refresh">Refresh</button>
+            <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Reachable only</button>
+            <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
           </div>
         </div>
       </section>
-      <div class="plugs-toolbar">
-        <button id="plugsRefresh" type="button" class="range-tab" data-testid="plugs-refresh">Refresh</button>
-        <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Reachable only</button>
-        <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
-      </div>
       <!-- Plugs and blinds are split into two collapsible cards (collapsed by
            default), each rendering its devices as a compact divider-separated
            row list — the same low-chrome style as the Network "Attached

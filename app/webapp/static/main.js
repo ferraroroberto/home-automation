@@ -29,6 +29,7 @@ import {
   restoreEnergySnapshots,
 } from './energy.js';
 import { onPlugsTab, wirePlugsRefresh, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
+import { onUpsTab, restoreUpsSnapshot } from './ups.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls } from './security.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
@@ -770,12 +771,13 @@ els.loginForm.addEventListener('submit', async function (ev) {
   restoreUnitsSnapshot();
   restoreEnergySnapshots();
   restorePlugsSnapshot();
+  restoreUpsSnapshot();
   restoreLightsSnapshot();
   restoreNetworkSnapshot();
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
-    onEnergyTab(tab); onPlugsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
+    onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
   });
   setTab(initialTab());
 

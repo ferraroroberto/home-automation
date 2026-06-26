@@ -33,6 +33,7 @@ from src.network_client import (
 from src.presence_client import PresenceAuthError, PresenceConfig, PresenceEntity
 from src.risco_client import SecurityState, SecurityZone
 from src.sma_client import EnergyState
+from src.ups_client import UpsState
 
 
 def test_healthz(client: TestClient) -> None:
@@ -118,6 +119,37 @@ def test_energy_route_runs_with_monkeypatched_cloud(
     assert body["pv_power_w"] == 2500.0
     assert body["inverter_reachable"] is True
     assert body["meter_reachable"] is True
+
+
+def test_ups_route_runs_with_monkeypatched_local_read(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/ups`` serialises local UPS telemetry — USB/NUT faked."""
+    state = UpsState(
+        available=True,
+        source="nut",
+        name="pc-ups@127.0.0.1",
+        model="Smart-UPS_1000",
+        manufacturer="American Power Conversion",
+        serial="AS2522161146",
+        status="online",
+        mains_online=True,
+        battery_charge_pct=90,
+        runtime_seconds=5502,
+        battery_voltage_v=27.2,
+        alarms=(),
+    )
+
+    monkeypatch.setattr("app.webapp.routers.ups.fetch_ups_state", lambda: state)
+
+    resp = client.get("/api/ups")
+    assert resp.status_code == 200
+    body = resp.json()["ups"]
+    assert body["source"] == "nut"
+    assert body["model"] == "Smart-UPS_1000"
+    assert body["mains_online"] is True
+    assert body["battery_charge_pct"] == 90
+    assert body["runtime_seconds"] == 5502
 
 
 def test_network_visibility_and_wifi_rename_persist_and_merge(
