@@ -14,6 +14,7 @@ Routes (split across ``app/webapp/routers/``):
     GET  /api/tuya               → local Tuya devices + watts (tuya)
     POST /api/tuya/{id}/switch   → on/off a Tuya plug/light   (tuya)
     POST /api/tuya/{id}/cover    → open/close/stop a blind     (tuya)
+    GET  /api/ups                → local USB UPS telemetry     (ups)
     GET  /api/lights             → Elgato lights state         (lights)
     POST /api/lights/{id}        → Elgato light controls       (lights)
     GET  /api/security           → RISCO alarm state           (security)
@@ -52,7 +53,7 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
-from app.webapp.routers import auth, cameras, energy, lights, misc, network, presence, push, security, tuya, units, weather
+from app.webapp.routers import auth, cameras, energy, lights, misc, network, presence, push, security, tuya, units, ups, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.presence_automation import start_presence_automation
@@ -171,6 +172,7 @@ def create_app() -> FastAPI:
     app.include_router(energy.router)
     app.include_router(weather.router)
     app.include_router(tuya.router)
+    app.include_router(ups.router)
     app.include_router(lights.router)
     app.include_router(cameras.router)
     app.include_router(security.router)

@@ -19,6 +19,8 @@ export const state = {
   selectedId: null,
   // Local Tuya / Smart Life device cards from GET /api/tuya.
   plugs: [],
+  // Local USB UPS state from GET /api/ups.
+  ups: null,
   // Elgato light cards from GET /api/lights.
   lights: [],
   // device_id whose rename modal is open (or null).
@@ -237,6 +239,8 @@ export const els = {
   homePlugStatOn: document.getElementById('homePlugStatOn'),
   homePlugStatOff: document.getElementById('homePlugStatOff'),
   homePlugStatWatts: document.getElementById('homePlugStatWatts'),
+  homeUpsTile: document.getElementById('homeUpsTile'),
+  upsTile: document.getElementById('upsTile'),
   // Plug rename modal
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),

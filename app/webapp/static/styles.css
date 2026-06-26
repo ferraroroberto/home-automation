@@ -853,6 +853,15 @@ html, body {
 /* Card padding follows design.md (spacing.md = 16px) so the single stat row
    has the same breathing room as the taller cards (issue #72). */
 .plugs-summary { padding: var(--space-md); margin-bottom: var(--gap); }
+.plugs-summary-actions {
+  padding-block: 12px;
+}
+.plugs-summary-row {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
 .plugs-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -874,13 +883,132 @@ html, body {
 .plugs-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: var(--gap);
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
 }
 .plugs-toolbar .range-tab { flex: none; }
 .plugs-hidden-count { line-height: 1; }
 
 .plugs-note { margin: 10px 4px; }
+
+.ups-tile {
+  padding: 12px var(--space-md);
+  margin-bottom: var(--gap);
+}
+.ups-tile.is-on-battery {
+  border-color: color-mix(in srgb, var(--deficit) 55%, var(--line));
+}
+.ups-tile.is-unavailable {
+  opacity: 0.75;
+}
+.ups-main {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.25fr) minmax(0, 3.75fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.ups-identity { min-width: 0; }
+.ups-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  min-width: 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+.ups-title .title-icon {
+  width: 1.1em;
+  height: 1.1em;
+  flex: none;
+}
+.ups-title > span:first-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ups-status {
+  flex: none;
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--on);
+  text-align: right;
+}
+.ups-tile.is-on-battery .ups-status,
+.ups-tile.is-unavailable .ups-status {
+  color: var(--deficit);
+}
+.ups-meta {
+  margin: 2px 0 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ups-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(62px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.ups-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
+}
+.ups-stat-label {
+  font-size: var(--font-caption);
+  color: var(--muted);
+}
+.ups-stat-value {
+  font-size: var(--font-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ups-alerts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ups-alerts span {
+  border-left: 3px solid var(--attention);
+  background: var(--card-off);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: var(--font-label);
+  font-weight: 650;
+}
+.ups-tile-compact .ups-stats {
+  grid-template-columns: repeat(3, 1fr);
+}
+.ups-tile-compact .ups-stat:nth-child(n+4) {
+  display: none;
+}
+@media (max-width: 720px) {
+  .ups-main,
+  .plugs-summary-row {
+    grid-template-columns: 1fr;
+  }
+  .ups-stats {
+    grid-template-columns: repeat(5, minmax(54px, 1fr));
+  }
+  .ups-status,
+  .plugs-toolbar {
+    justify-self: stretch;
+  }
+  .ups-status {
+    text-align: left;
+  }
+  .plugs-toolbar {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
 
 /* Plugs / Blinds collapsible row lists — mirror the Network "Attached devices"
    card: the card owns no padding (the summary + body do), rows are divider-

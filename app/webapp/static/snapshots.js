@@ -17,6 +17,7 @@ const ALLOWED = {
   energyLive: true,
   energyToday: true,
   plugs: true,
+  ups: true,
   lights: true,
   network: true,
 };
