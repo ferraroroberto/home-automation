@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from src import network_client
+from src import network_client, network_host
 
 
 def test_ping_hides_windows_console(monkeypatch) -> None:
@@ -25,10 +25,10 @@ def test_ping_hides_windows_console(monkeypatch) -> None:
             ),
         )
 
-    monkeypatch.setattr(network_client.sys, "platform", "win32")
-    monkeypatch.setattr(network_client.subprocess, "run", fake_run)
+    monkeypatch.setattr(network_host.sys, "platform", "win32")
+    monkeypatch.setattr(network_host.subprocess, "run", fake_run)
 
-    avg_ms, loss_pct = network_client._ping("192.0.2.1", count=2, timeout_s=1)
+    avg_ms, loss_pct = network_host._ping("192.0.2.1", count=2, timeout_s=1)
 
     assert avg_ms == 2.0
     assert loss_pct == 0.0
