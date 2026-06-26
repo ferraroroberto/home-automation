@@ -1848,12 +1848,15 @@ button.presence-name:hover { text-decoration: underline; }
   grid-column: 1;
   justify-self: start;
   display: inline-flex;
-  align-items: center;
+  /* Baseline so a trailing "N hidden" count sits on the title's baseline rather
+     than centred against it (#210). The leading icon is re-centred below so it
+     keeps reading aligned with the title. */
+  align-items: baseline;
   gap: 8px;
   min-width: 0;
   line-height: 1;
 }
-.collapse-icon { font-size: 1.1rem; line-height: 1; }
+.collapse-icon { font-size: 1.1rem; line-height: 1; align-self: center; }
 .collapse-title { margin: 0; font-weight: 650; font-size: var(--font-body); line-height: 1; }
 .collapse-chevron {
   grid-column: 2;
