@@ -1360,7 +1360,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .alarm-schedule-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
-  gap: 8px;
+  gap: 10px;
   margin-top: 8px;
 }
 .alarm-schedule-fields label {
@@ -1374,6 +1374,17 @@ button.security-zone-name:hover { text-decoration: underline; }
 .alarm-schedule-fields .input-native,
 .alarm-schedule-fields .select-native {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* iOS renders <input type="time"> taller/wider than <select> with its own
+   intrinsic sizing — normalize it so Time and Action share one height and the
+   Time field can't overflow into the Action column. */
+.alarm-schedule-fields .alarm-schedule-time {
+  -webkit-appearance: none;
+  appearance: none;
+  height: var(--control-h);
+  text-align: center;
 }
 .security-schedules-body .schedule-add-btn {
   margin-top: 10px;
