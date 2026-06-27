@@ -171,7 +171,9 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     page.locator("#netDeviceDisplayName").press("Enter")
     expect(page.locator("#netDevices .net-device-name-text").filter(has_text="Office Laptop")).to_have_count(1)
 
+    # Hidden now stages and commits on Save (#203); close alone would discard.
     page.locator("#netDeviceHiddenToggle").click()
+    page.locator("#netDeviceSave").click()
     page.locator("#netDeviceDetailClose").click()
     expect(page.locator("#netHiddenCount")).to_have_text("1 hidden")
     expect(page.locator("#netHiddenToggle")).to_have_text("Show hidden")

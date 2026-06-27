@@ -87,5 +87,7 @@ def test_detail_modal_adds_multiple_schedule_entries(
     entries.nth(1).locator(".sched-entry-power").select_option("false")
     expect(entries.nth(1).locator(".schedule-profile")).to_be_hidden()
 
+    # Schedules now persist only on Save (#202); the card badge updates after.
+    page.locator("#detailSave").click()
     badge = page.locator('[data-unit-id="unit-1"] .unit-schedule-badge')
     expect(badge).to_contain_text("2")
