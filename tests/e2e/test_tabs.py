@@ -50,6 +50,105 @@ def test_tab_navigation_switches_panes(
     expect(page.locator("#paneEnergy .flow-row")).to_be_visible()
 
 
+# Computed transform of the floating nav is at its locked rest position iff it
+# has no upward translate — 'none' (cleared) or the identity matrix.
+_NAV_AT_REST = (
+    "() => { const t = getComputedStyle(document.querySelector('.tabs')).transform;"
+    " return t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)'; }"
+)
+
+
+def test_nav_self_heals_when_stranded(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+) -> None:
+    """#229: a latched upward transform on the floating bottom-tab pill must be
+    repainted back to its locked bottom position by the self-healing watchdog,
+    with no app restart. Playwright's WebKit doesn't reproduce iOS Safari's
+    collapsing toolbar, so we inject the exact failure mode — a stale
+    ``translateY(-Npx)`` — directly, then assert the controller re-derives the
+    resting position and clears it."""
+    mock_api(sample_units)
+    _boot(page, base_url)
+
+    nav = page.locator(".tabs")
+    nav.evaluate("el => { el.style.transform = 'translateY(-120px)'; }")
+    assert "120" in nav.evaluate("el => getComputedStyle(el).transform")
+
+    # The ~400ms watchdog re-derives the rest position and clears the strand.
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
+def test_nav_not_left_translated_after_modal(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+) -> None:
+    """#229: opening then closing a detail modal must leave the nav at rest —
+    no stranded transform — via both the X button and the Esc key (the path
+    that never routed through the app's close handlers and historically left
+    the bar stuck up)."""
+    mock_api(sample_units)
+    _boot(page, base_url)
+    page.locator("#tabAc").click()
+    page.wait_for_selector(".unit-card", state="visible")
+
+    # Close via the X button.
+    page.locator('[data-unit-id="unit-1"] .unit-header').click()
+    expect(page.locator("#detailDialog")).to_be_visible()
+    page.locator("#detailClose").click()
+    expect(page.locator("#detailDialog")).to_be_hidden()
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+    # Close via Esc.
+    page.locator('[data-unit-id="unit-1"] .unit-header').click()
+    expect(page.locator("#detailDialog")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#detailDialog")).to_be_hidden()
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
+def test_app_cold_starts_on_home_ignoring_saved_tab(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """#229: the PWA always cold-starts on Home (content-tall → scrollable →
+    fixed nav anchors to the screen), even when the last-used tab was a short one
+    like Plugs. The saved tab must NOT be restored on open."""
+    page.add_init_script(
+        "localStorage.setItem('home-automation.tab', 'plugs');"
+    )
+    mock_api(sample_units)
+    mock_energy()
+    _boot(page, base_url)
+
+    expect(page.locator("#paneHome")).to_be_visible()
+    expect(page.locator("#panePlugs")).to_be_hidden()
+    expect(page.locator("#tabHome")).to_have_attribute("aria-selected", "true")
+
+
+def test_nav_at_rest_after_plug_modal_with_autofocus(
+    page: Page, base_url: str, sample_plugs: List[Dict], mock_tuya: Callable,
+) -> None:
+    """#229 follow-up: the plugs rename modal auto-focuses its Display-name input
+    (plugs.js), which raises the iOS keyboard and shrinks the visual viewport —
+    the one path that still stranded the nav. Opening it (input focused) then
+    closing must leave the bar at its locked rest position."""
+    mock_tuya(sample_plugs)
+    _boot(page, base_url)
+    page.locator("#tabPlugs").click()
+    page.wait_for_selector("#panePlugs", state="visible")
+    # Rows live inside collapsed <details> cards — expand so they're interactable.
+    page.eval_on_selector_all(
+        "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
+    )
+
+    page.locator('[data-device-id="plug-1"] .device-row-name').click()
+    expect(page.locator("#plugDialog")).to_be_visible()
+    # The modal auto-focuses the text input — assert that, then close.
+    expect(page.locator("#plugDisplayName")).to_be_focused()
+    page.locator("#plugDetailClose").click()
+    expect(page.locator("#plugDialog")).to_be_hidden()
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
 def test_home_shows_ac_summary_line_per_unit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,

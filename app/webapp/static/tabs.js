@@ -1,9 +1,10 @@
 /* Tab switcher: Home | AC | Energy | Plugs | Light | Net | Alarm.
  *
  * Mirrors app-launcher's nav.tabs pattern: .tab buttons get .active, .pane
- * sections toggle via [hidden]. The chosen tab is remembered in localStorage
- * so an installed PWA reopens where you left it. main.js registers an
- * onChange hook so the Energy tab can spin up its charts + faster polling. */
+ * sections toggle via [hidden]. The chosen tab is written to localStorage as the
+ * within-session memory, but the app always cold-starts on Home (see initialTab —
+ * #229, avoids the short-page nav float). main.js registers an onChange hook so
+ * the Energy tab can spin up its charts + faster polling. */
 
 'use strict';
 
@@ -49,52 +50,119 @@ export function wireTabs() {
   if (nav) pinNavToVisualViewport(nav);
 }
 
-/* Keep the floating bottom-tab pill pinned to the *visual* viewport on mobile.
+/* Keep the floating bottom-tab pill pinned to the bottom on mobile — CSS-first,
+ * with a minimal browser-only transform fallback (issue #229).
  *
- * styles.css positions the mobile bar `fixed; bottom: …` against the *layout*
- * viewport. iOS Safari's dynamic bottom toolbar collapses on scroll-down and
- * re-expands on scroll-up, resizing the layout viewport, which drags a fixed
- * bottom-anchored element up then down — the bar rides loose instead of staying
- * locked (issue #179). The VisualViewport API reports the actually-visible rect;
- * we translate the bar up by the slice of layout viewport hidden below it so it
- * rides the visible bottom edge.
+ * Hard-won lesson: the JS transform is the enemy in a standalone PWA. styles.css
+ * positions the bar `fixed; bottom: …`, which is correct on its own in an installed
+ * PWA (no browser chrome). The VisualViewport transform only ever existed to chase
+ * Safari's collapsing *browser* toolbar (#179) — and in standalone every flavour of
+ * that math (compute-the-offset AND measure-the-rect) eventually strands the bar UP
+ * and won't bring it back, because iOS's layout and rendered geometry disagree there.
+ * So the rule is now blunt: in a standalone PWA we NEVER translate. CSS owns the
+ * position; the cold-start short-page float is fixed in CSS (the page is forced just
+ * past viewport height so `position:fixed` anchors to the screen, not the content)
+ * and reinforced by always opening on the content-tall Home tab (initialTab).
  *
- * Gated to the coarse-pointer / narrow floating-bar mode (desktop renders .tabs
- * as a sticky top control, where a transform would be wrong) and feature-gated
- * on window.visualViewport (older browsers keep the CSS-only behaviour — no
- * error). Self-correcting: the transform is cleared whenever the media query
- * stops matching or nothing is hidden.
+ * The transform path survives ONLY for a real browser tab, where the toolbar
+ * genuinely collapses: there we translate the bar up by the hidden slice, clamped to
+ * a toolbar's height and suppressed while the keyboard is up. A periodic watchdog
+ * keeps it self-correcting. None of that runs in the PWA.
  *
- * Mirror of project-scaffolding's _vendored/nav/nav-tabs.js (issue #92) until
- * this app adopts that vendored component. */
+ * Gated to the coarse-pointer / narrow floating-bar mode (desktop renders .tabs as a
+ * sticky top control, where a transform would be wrong) and feature-gated on
+ * window.visualViewport (older browsers keep the CSS-only behaviour — no error).
+ *
+ * Mirror of project-scaffolding's _vendored/nav/nav-tabs.js (issue #92) until this
+ * app adopts that vendored component — propagate up to the master (#184). */
 function pinNavToVisualViewport(nav) {
   const vv = window.visualViewport;
   if (!vv) return;
   const mq = window.matchMedia('(pointer: coarse) and (max-width: 520px)');
 
-  function update() {
-    if (!mq.matches) { nav.style.transform = ''; return; }
-    // Height of the layout viewport currently hidden below the visual viewport
-    // (Safari's collapsing toolbar / any off-screen slice). Pull the bar up by
-    // exactly that so its CSS `bottom` inset is measured from the *visible* edge.
-    const hidden = window.innerHeight - vv.height - vv.offsetTop;
-    nav.style.transform = hidden > 1 ? 'translateY(' + -hidden + 'px)' : '';
+  let rafPending = false;
+
+  // Largest slice we'll pin against in a browser tab — Safari's toolbar (~44–90px).
+  // A bigger gap is the soft keyboard / a picker, which we must not chase.
+  const MAX_PIN_PX = 160;
+
+  // Installed PWA (iOS standalone / display-mode: standalone): no toolbar, so the
+  // transform is pure harm here — disable it entirely and let CSS pin the bar.
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
   }
 
-  vv.addEventListener('resize', update);
-  vv.addEventListener('scroll', update);
-  if (mq.addEventListener) mq.addEventListener('change', update);
-  // Recompute when any <dialog> closes. 'close' doesn't bubble, so capture it on
-  // document — the bar is hidden (visibility) while a modal is open, and this
-  // re-pins it to the visible bottom edge the instant it reappears (#205).
-  document.addEventListener('close', update, true);
-  update();
+  function isEditableFocused() {
+    const a = document.activeElement;
+    if (!a) return false;
+    const tag = a.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || a.isContentEditable;
+  }
+
+  function apply() {
+    if (!mq.matches) {
+      // Desktop / wide: CSS owns the bar. Drop any transform we may have left on.
+      if (nav.style.transform !== '') nav.style.transform = '';
+      return;
+    }
+    // Hidden behind a modal/overlay — re-pin the instant it reappears.
+    if (getComputedStyle(nav).visibility === 'hidden') return;
+    // Standalone PWA → never translate (CSS owns it). Browser tab → compensate for
+    // the collapsing toolbar, but not while a field is focused (keyboard up) and
+    // never by more than a toolbar's worth.
+    let desired = '';
+    if (!isStandalone() && !isEditableFocused()) {
+      const hidden = window.innerHeight - vv.height - vv.offsetTop;
+      if (hidden > 1 && hidden <= MAX_PIN_PX) desired = 'translateY(' + -hidden + 'px)';
+    }
+    if (nav.style.transform !== desired) nav.style.transform = desired;
+  }
+
+  // Coalesce burst events (vv scroll/resize fire rapidly) into one paint.
+  function schedule() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function () { rafPending = false; apply(); });
+  }
+
+  vv.addEventListener('resize', schedule);
+  vv.addEventListener('scroll', schedule);
+  if (mq.addEventListener) mq.addEventListener('change', apply);
+
+  // Reliable modal-close re-pin: watch the `open`/`hidden` attributes (the signal
+  // scroll-lock.js trusts) rather than the `close` event that doesn't reliably
+  // fire. Double-rAF so we recompute AFTER scroll-lock has restored the body and
+  // layout has settled. Covers <dialog> open/close and the #loginOverlay toggle.
+  const obs = new MutationObserver(function () {
+    requestAnimationFrame(function () { requestAnimationFrame(apply); });
+  });
+  obs.observe(document.documentElement, {
+    attributes: true, attributeFilter: ['open', 'hidden'], subtree: true,
+  });
+
+  // Self-healing watchdog: the ultimate backstop. Even if every event above is
+  // missed, this re-derives the resting position and pulls a stranded bar back
+  // down within ~400ms. Paused while the page is backgrounded (no layout to fix,
+  // and timers are throttled there anyway).
+  setInterval(function () { if (!document.hidden) apply(); }, 400);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) apply();        // re-pin immediately on foreground
+  });
+  // Cold-start: the short-page float is wrong until the first layout settles, so
+  // correct on load and across the next couple of frames (don't wait for the
+  // 400ms watchdog to clear a visible float on the tab the PWA reopened on).
+  window.addEventListener('load', function () {
+    requestAnimationFrame(function () { requestAnimationFrame(apply); });
+  });
+
+  apply();
 }
 
+// Always cold-start on Home (#229). Home is content-tall so its page scrolls,
+// which makes iOS anchor the fixed nav to the screen bottom; reopening on a short
+// tab (Plugs/Lights) is what floated the bar up. The last tab is still remembered
+// within a session (setTab writes TAB_KEY) — we just don't restore it on open.
 export function initialTab() {
-  try {
-    const stored = localStorage.getItem(TAB_KEY);
-    if (TABS.includes(stored)) return stored;
-  } catch (_) { /* private mode */ }
   return 'home';
 }
