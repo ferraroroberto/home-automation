@@ -1315,7 +1315,17 @@ button.device-row-name:hover { text-decoration: underline; }
   font-weight: 700;
   white-space: nowrap;
 }
-.security-battery-badge { color: var(--attention); }
+/* The battery badge is a <button> (tap to acknowledge, issue #221) styled to
+   read as the inline text it replaces — strip the UA chrome, keep it tappable. */
+.security-battery-badge {
+  color: var(--attention);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
 .security-aclost-badge  { color: var(--deficit); }
 /* A past alarm held in memory while disarmed — red, same urgency as AC-lost,
    prompting a Disarm to clear it (issue #218). */

@@ -579,6 +579,29 @@ def _normalize_event_time(raw: str) -> str:
     )
 
 
+# A "Device Battery Low - '<name>'" event (vs "...Battery Restore"). Used to
+# watermark / re-raise the acknowledged low-battery alert (issue #221). The cloud
+# logs these in English regardless of the detector's language; "Restore" never
+# contains "low", so the pattern alone is enough.
+_BATTERY_LOW_RE = re.compile(r"battery\s*low|low\s*battery", re.IGNORECASE)
+
+
+def is_battery_low_event(event: SecurityEvent) -> bool:
+    """True if the event is a device "battery low" report (not a restore)."""
+    blob = f"{event.name or ''} {event.text or ''}"
+    return bool(_BATTERY_LOW_RE.search(blob))
+
+
+def latest_battery_low_time(events: Iterable[SecurityEvent]) -> Optional[str]:
+    """Newest "battery low" event time (normalized UTC string), or None.
+
+    Times are the ISO-UTC strings ``_normalize_event_time`` emits, so a lexical
+    max is a chronological max.
+    """
+    times = [e.time for e in events if e.time and is_battery_low_event(e)]
+    return max(times) if times else None
+
+
 def _event(event: object) -> SecurityEvent:
     type_name = getattr(event, "type_name", None)
     if isinstance(type_name, (list, tuple)):

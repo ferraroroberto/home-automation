@@ -70,6 +70,32 @@ function alarmActive() {
   return !!(s.ongoing_alarm || s.memory_alarm || s.alarm_pending);
 }
 
+// Newest "battery low" event time among the loaded events (ISO-UTC strings,
+// lexically comparable), or null. Mirrors the backend's latest_battery_low_time
+// so the badge re-appears for a battery-low newer than the acknowledged
+// watermark (issue #221).
+function newestBatteryLowEventTime() {
+  const events = state.securityEvents || [];
+  let newest = '';
+  events.forEach(function (e) {
+    const blob = (e.name || '') + ' ' + (e.text || '');
+    if (/battery\s*low|low\s*battery/i.test(blob) && e.time && e.time > newest) newest = e.time;
+  });
+  return newest || null;
+}
+
+// Whether to show the (acknowledgeable) low-battery badge: the aggregate flag is
+// set AND it hasn't been acknowledged, OR a battery-low newer than the ack
+// watermark has since appeared (issue #221).
+function batteryAlertActive() {
+  const s = state.security || {};
+  if (!s.battery_low) return false;
+  if (!s.battery_acknowledged) return true;
+  const newest = newestBatteryLowEventTime();
+  if (!newest) return false;
+  return newest > (s.battery_ack_time || '');
+}
+
 function currentMode() {
   const security = state.security || {};
   const mode = security.mode || 'unknown';
@@ -118,6 +144,25 @@ async function postAction(action) {
     renderSecurity();
     await loadSecurityEvents();
     toast(ACTION_DONE[action] || 'Done', 'good');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+// Acknowledge the system-wide low-battery alert: hides the badge until a newer
+// battery-low event appears or the aggregate flag clears and re-raises (#221).
+async function acknowledgeBattery() {
+  toast('Acknowledging…', 'pending');
+  try {
+    const res = await jsonApi('/api/security/battery/acknowledge', { method: 'POST' });
+    if (state.security) {
+      state.security.battery_acknowledged = res.battery_acknowledged;
+      state.security.battery_ack_time = res.battery_ack_time;
+    }
+    renderState();
+    toast('Low-battery alert acknowledged', 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -193,11 +238,16 @@ function renderStateInto(el) {
   // System-wide low-battery alert. The cloud exposes no per-detector battery, so
   // this aggregate flag is the "something needs attention → drill in" signal on
   // both the Home and Security tiles (issue #84). Clears when the flag is false.
-  if (security && security.battery_low) {
-    const badge = document.createElement('span');
+  if (security && batteryAlertActive()) {
+    const badge = document.createElement('button');
+    badge.type = 'button';
     badge.className = 'security-battery-badge';
     badge.textContent = '⚠ Low battery';
-    badge.title = 'A detector reports a low battery — check the detectors list';
+    badge.title = 'A device reports low battery. Tap to acknowledge — hides until a new low-battery appears or the alert clears.';
+    badge.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      acknowledgeBattery();
+    });
     el.appendChild(badge);
   }
   // System-wide AC-power-lost alert (issue #99). Mirrors the low-battery badge:
