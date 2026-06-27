@@ -58,18 +58,6 @@ function supported(action) {
   return actions.includes(action);
 }
 
-// An alarm currently sounding on the panel (vs a past one kept "in memory").
-function alarmOngoing() {
-  return !!(state.security && state.security.ongoing_alarm);
-}
-
-// Any alarm condition the user might want to clear: sounding now, kept in memory,
-// or pending. A tamper while disarmed lands here as alarm_pending (issue #218).
-function alarmActive() {
-  const s = state.security || {};
-  return !!(s.ongoing_alarm || s.memory_alarm || s.alarm_pending);
-}
-
 // Newest "battery low" event time among the loaded events (ISO-UTC strings,
 // lexically comparable), or null. Mirrors the backend's latest_battery_low_time
 // so the badge re-appears for a battery-low newer than the acknowledged
@@ -98,12 +86,11 @@ function batteryAlertActive() {
 
 function currentMode() {
   const security = state.security || {};
-  const mode = security.mode || 'unknown';
-  // A detector tampered while the system is disarmed raises an alarm the panel
-  // still reports as "disarmed" (alarmPending=true). Surface it as triggered so
-  // the state line and the Disarm button reflect reality (issue #218).
-  if (alarmOngoing() && (mode === 'disarmed' || mode === 'unknown')) return 'triggered';
-  return mode;
+  // The backend mode is authoritative. We deliberately do NOT infer "triggered"
+  // from memory_alarm/alarm_pending — those flags are sticky (they don't clear
+  // on disarm), which left a badge stuck on forever (issue #223). A tamper while
+  // disarmed instead relies on Disarm being always tappable to clear it.
+  return security.mode || 'unknown';
 }
 
 function displayLabel() {
@@ -123,15 +110,12 @@ function statusClass(mode) {
 
 function actionAvailable(action) {
   if (!supported(action)) return false;
-  const mode = currentMode();
-  if (action === 'disarm') {
-    // Enable Disarm whenever the system is not cleanly disarmed, OR any alarm is
-    // active — so a tamper/triggered alarm can always be cleared, even when the
-    // panel still reports "disarmed" (issue #218).
-    return mode !== 'disarmed' || alarmActive();
-  }
-  // Arm / Partial / Perimeter are actionable only from a disarmed system.
-  return mode === 'disarmed';
+  // Disarm is ALWAYS tappable (issue #223): a tamper/triggered alarm while the
+  // panel still reports "disarmed" must be clearable from the app, and the cloud
+  // exposes no reliable "needs clearing" signal to gate on. Less intuitive (live
+  // even when quiet) but robust. Arm options stay disarmed-only.
+  if (action === 'disarm') return true;
+  return currentMode() === 'disarmed';
 }
 
 async function postAction(action) {
@@ -259,17 +243,6 @@ function renderStateInto(el) {
     badge.className = 'security-aclost-badge';
     badge.textContent = '⚠ AC power lost';
     badge.title = 'The alarm panel lost mains power and is running on backup battery';
-    el.appendChild(badge);
-  }
-  // A past alarm the panel still holds "in memory" while the system reads
-  // disarmed (e.g. a tamper that stopped sounding but was never acknowledged):
-  // the state word stays "Triggered" only while actually sounding, so flag the
-  // memory case here so it's clear why Disarm is tappable to clear it (#218).
-  if (security && alarmActive() && !alarmOngoing() && mode === 'disarmed') {
-    const badge = document.createElement('span');
-    badge.className = 'security-memory-badge';
-    badge.textContent = '⚠ Alarm — disarm to clear';
-    badge.title = 'The panel recorded an alarm (e.g. a tamper). Tap Disarm to clear it.';
     el.appendChild(badge);
   }
 }
