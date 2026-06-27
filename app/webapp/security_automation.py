@@ -11,6 +11,7 @@ from typing import Dict, Optional
 
 from dotenv import load_dotenv
 
+from src.presence_engine import note_manual_alarm_action
 from src.risco_client import control_system
 from src.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
 
@@ -65,6 +66,11 @@ def load_security_schedule_config() -> SecurityScheduleConfig:
 async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
     logger.info("⏰ Applying alarm schedule %s (%s %s)", entry.id, entry.time, entry.action)
     await control_system(entry.action)
+    # Record the scheduled action the same way a manual one is recorded, so the
+    # presence automation won't immediately undo it (e.g. disarm a perimeter the
+    # 11pm schedule just armed because people are home). A real away→home arrival
+    # afterwards still disarms, since that advances the person's transition time.
+    note_manual_alarm_action(entry.action)
 
 
 async def tick(config: SecurityScheduleConfig, state: _EngineState, now: Optional[datetime] = None) -> None:

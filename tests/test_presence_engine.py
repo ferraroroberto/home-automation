@@ -104,6 +104,52 @@ def test_kids_home_override_persists_and_loads(monkeypatch, tmp_path):
     assert P.load_kids_home_override() is False
 
 
+def test_same_state_ping_keeps_state_since(monkeypatch, tmp_path):
+    # A repeated same-state webhook refreshes the heartbeat but must NOT advance
+    # the transition timestamp — otherwise the alarm keys churn.
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 19, 0, tzinfo=timezone.utc)
+    P.set_person_state("roberto", "home", at=t0)
+    P.set_person_state("roberto", "home", at=t0 + timedelta(minutes=10))
+    person = P.load_people()["roberto"]
+    assert person.updated_at == t0 + timedelta(minutes=10)  # heartbeat moved
+    assert person.state_since == t0                          # transition did not
+    # A real state change resets state_since.
+    P.set_person_state("roberto", "away", at=t0 + timedelta(minutes=20))
+    assert P.load_people()["roberto"].state_since == t0 + timedelta(minutes=20)
+
+
+def test_scheduled_arm_not_undone_when_people_already_home(monkeypatch, tmp_path):
+    # The reported bug: an 11pm perimeter arm was disarmed ~1s later because
+    # people were home. A scheduled/manual arm AFTER everyone is already home must
+    # stick, even as same-state pings keep arriving.
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    home_since = datetime(2026, 6, 26, 19, 0, tzinfo=timezone.utc)
+    armed_at = datetime(2026, 6, 26, 23, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(enabled=True, stale_after_s=36000)
+    P.note_manual_alarm_action("perimeter", at=armed_at)  # the 11pm schedule arm
+    person = P.PersonPresence(
+        person_id="roberto", state="home",
+        updated_at=armed_at + timedelta(seconds=2),  # a fresh ping just after arm
+        state_since=home_since,
+    )
+    assert P.evaluate_alarm_decision(
+        [person], security_mode="perimeter", config=cfg,
+        at=armed_at + timedelta(seconds=2),
+    ) is None
+    # But a genuine morning arrival (state_since advances past the arm) disarms.
+    arrival = P.PersonPresence(
+        person_id="roberto", state="home",
+        updated_at=armed_at + timedelta(hours=8),
+        state_since=armed_at + timedelta(hours=8),
+    )
+    decision = P.evaluate_alarm_decision(
+        [arrival], security_mode="perimeter", config=cfg,
+        at=armed_at + timedelta(hours=8, seconds=5),
+    )
+    assert decision is not None and decision.kind == "disarm"
+
+
 def test_manual_action_after_transition_suppresses(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
