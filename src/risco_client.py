@@ -92,8 +92,7 @@ class SecurityZone:
     # Generic per-zone trouble flag from the cloud payload. The RISCO cloud API
     # does not label *why* a detector is troubled (battery, tamper, comm-fault),
     # so this is surfaced as a single "Trouble" indicator (issue #84). Per-zone
-    # battery state is not exposed by the cloud — see ``SecurityState.battery_low``
-    # for the system-wide low-battery flag that drives the UI alert.
+    # battery state is not exposed by the cloud (issue #220).
     trouble: bool = False
 
 
@@ -142,10 +141,9 @@ class SecurityState:
     system_status: Optional[int] = None
     system_ready: Optional[bool] = None
     trouble: Optional[bool] = None
-    # System-wide power/battery health from the cloud status payload. The cloud
-    # exposes these aggregate flags (not per-zone battery); ``battery_low`` drives
-    # the low-battery alert on the security summary tile (issue #84).
-    battery_low: Optional[bool] = None
+    # System-wide AC-power health from the cloud status payload (issue #99) — set
+    # when the panel lost mains and is running on backup. (The cloud's aggregate
+    # ``batteryLow`` flag was dropped in #227 as an unreliable proxy.)
     ac_lost: Optional[bool] = None
     alarm_pending: Optional[bool] = None
     ongoing_alarm: Optional[bool] = None
@@ -579,29 +577,6 @@ def _normalize_event_time(raw: str) -> str:
     )
 
 
-# A "Device Battery Low - '<name>'" event (vs "...Battery Restore"). Used to
-# watermark / re-raise the acknowledged low-battery alert (issue #221). The cloud
-# logs these in English regardless of the detector's language; "Restore" never
-# contains "low", so the pattern alone is enough.
-_BATTERY_LOW_RE = re.compile(r"battery\s*low|low\s*battery", re.IGNORECASE)
-
-
-def is_battery_low_event(event: SecurityEvent) -> bool:
-    """True if the event is a device "battery low" report (not a restore)."""
-    blob = f"{event.name or ''} {event.text or ''}"
-    return bool(_BATTERY_LOW_RE.search(blob))
-
-
-def latest_battery_low_time(events: Iterable[SecurityEvent]) -> Optional[str]:
-    """Newest "battery low" event time (normalized UTC string), or None.
-
-    Times are the ISO-UTC strings ``_normalize_event_time`` emits, so a lexical
-    max is a chronological max.
-    """
-    times = [e.time for e in events if e.time and is_battery_low_event(e)]
-    return max(times) if times else None
-
-
 def _event(event: object) -> SecurityEvent:
     type_name = getattr(event, "type_name", None)
     if isinstance(type_name, (list, tuple)):
@@ -797,7 +772,6 @@ def _state_from_alarm(
         system_status=status.get("systemStatus"),
         system_ready=status.get("systemReady"),
         trouble=status.get("trouble"),
-        battery_low=status.get("batteryLow"),
         ac_lost=status.get("acLost"),
         alarm_pending=status.get("alarmPending"),
         ongoing_alarm=webui_flags.get("ongoing_alarm"),

@@ -21,10 +21,9 @@ from pyrisco.common import OperationError
 import src.risco_client as rc
 
 # A representative cloud-cached status payload: the panel is unreachable live,
-# but the cache still carries the zones and the system battery/trouble flags.
+# but the cache still carries the zones and the system trouble/AC flags.
 _CACHED_STATUS = {
     "systemStatus": 0,
-    "batteryLow": True,
     "trouble": True,
     "acLost": False,
     "partitions": [
@@ -85,7 +84,6 @@ def test_live_26_falls_back_to_cloud_cache(monkeypatch: pytest.MonkeyPatch) -> N
     assert state.reachable is True
     assert state.assumed_control_panel_state is True  # flagged as a cached read
     assert len(state.zones) == 2
-    assert state.battery_low is True
     assert state.trouble is True
     assert "disarm" in state.supported_actions  # controls remain actionable
     assert risco.cache_calls == 1

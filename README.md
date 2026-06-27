@@ -38,7 +38,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `ups_client.py` — local USB UPS status reader: prefers NUT (`upsc` against the portable Windows install), falls back to a one-shot NUT USB-HID probe, then Windows `Win32_Battery`.
   - `elgato_client.py` — Elgato lights discovery/read/control over the local LAN HTTP API.
-  - `risco_client.py` — async RISCO Cloud alarm state (incl. system-wide low-battery + per-zone trouble flags), controls, event log, and detector bypass.
+  - `risco_client.py` — async RISCO Cloud alarm state (incl. system AC-power + per-zone trouble flags), controls, event log, and detector bypass.
   - `security_schedules.py` — UI-free persistence and due-window checks for weekly alarm schedules.
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
   - `network_client.py` — async home-network orchestrator (issue #197 split): imports the three sub-modules below and exposes the unchanged public surface (`fetch_network_state`, `resolve_ip_by_mac`, dataclasses) so callers don't move.
@@ -74,7 +74,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_trouble_ignore.sample.json`, `security_battery_ack.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_trouble_ignore.json`, `security_battery_ack.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_trouble_ignore.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_trouble_ignore.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -126,31 +126,16 @@ log, and a collapsible detector list with per-zone toggles (active = green,
 bypassed = red). The same alarm state + action pills are mirrored, actionable,
 on the **Home** tab.
 
-**Low-battery alert + detector data (issue #84).** When the panel reports a
-system-wide low battery, an amber **`⚠ Low battery`** badge appears on the
-`Alarm state` line on **both** the Home and Security tiles and clears when the
-flag is cleared. (The RISCO Cloud API does not expose per-detector battery —
-only this aggregate flag and a generic per-zone *trouble* boolean — so the badge
-is a "something needs attention → drill in" signal, not a per-detector readout.)
-
-**Acknowledging the low-battery alert (issue #221).** Because some low cells are
-known and can't be swapped yet (and the aggregate flag can be a keyfob, not a
-detector), the badge is **tappable**: tap it to acknowledge, and it hides until a
-**new** `Device Battery Low` event appears in the log (newer than the
-acknowledged moment) or the aggregate flag clears and later re-raises — so you
-keep seeing genuinely new low batteries while the known ones stay muted. The
-acknowledgment is a timestamp watermark persisted server-side (so it holds across
-phone/desktop) in a gitignored `config/security_battery_ack.json`; it is set via
-`POST /api/security/battery/acknowledge` and surfaced on `GET /api/security` as
-`battery_acknowledged` + `battery_ack_time`. Per-detector battery/connection
-differentiation would need the panel's local interface, which isn't exposed
-(investigated in #220).
+**Per-detector data (issue #84).** The RISCO Cloud API does not expose
+per-detector battery — only a generic per-zone *trouble* boolean (surfaced via the
+Trouble indicator below). The system-wide low-battery flag was a noisy/sticky
+proxy and was removed in #227; per-detector battery/connection differentiation
+would need the panel's local interface, which isn't exposed (investigated in #220).
 
 **AC-power-lost alert (issue #99).** When the panel loses mains power and runs on
-backup battery, a red **`⚠ AC power lost`** badge appears on the same `Alarm
-state` line (Home + Security tiles) from the aggregate `ac_lost` flag, mirroring
-the low-battery badge and clearing when mains power returns. The red tint (vs the
-amber low-battery badge) marks the higher urgency; both can show together.
+backup battery, a red **`⚠ AC power lost`** badge appears on the `Alarm state`
+line (Home + Security tiles) from the aggregate `ac_lost` flag, clearing when
+mains power returns.
 
 Each detector row shows its flags inline (`Active`/`Bypass`/`Triggered` in their
 state colour, with `Trouble` always in the amber attention colour); the list is
@@ -185,7 +170,7 @@ returns a non-retryable result code such as `26` on the *live* state read even
 though the login, site, and PIN steps all succeed — no longer blacks out the
 tab. `fetch_security_state()` falls back to the **cloud-cached** snapshot
 (`fromControlPanel=False`), so the alarm state, the detector list, and the
-low-battery/trouble flags keep rendering and the action pills stay actionable.
+trouble flags keep rendering and the action pills stay actionable.
 The response is flagged `assumed_control_panel_state=true` to mark it as cached
 rather than a fresh live read, an info-level breadcrumb logs each fallback, and
 only a failure of *both* the live and cached reads surfaces as an error. This
