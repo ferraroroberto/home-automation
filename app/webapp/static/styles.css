@@ -171,7 +171,7 @@ html, body {
 .app {
   max-width: 772px;
   margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + var(--gap)) var(--gap) 24px;
+  padding: 0 var(--gap) 24px;
 }
 
 /* ---------------------------------------------------- icons (Lucide) */
@@ -216,7 +216,11 @@ html, body {
 .tabs {
   display: flex;
   gap: var(--space-xs);
-  margin: var(--space-xs) 0 14px;
+  /* Body-level nav: match .app's content column (772px minus 2×--gap)
+     because the nav no longer inherits .app's centered padded width. */
+  width: calc(100% - var(--gap) - var(--gap));
+  max-width: calc(772px - var(--gap) - var(--gap));
+  margin: calc(env(safe-area-inset-top, 0px) + var(--gap) + var(--space-xs)) auto 14px;
   background: var(--card);
   padding: var(--space-xs);
   border: 1px solid var(--line);
@@ -255,17 +259,15 @@ html, body {
    the top segmented control byte-for-byte unchanged. Colours are adapted to the
    theme vars so the glass bar works in both light and dark. */
 @media (pointer: coarse) and (max-width: 520px) {
+  /* Fallback shell for #232: keep normal document scrolling, but keep the fixed
+     nav as a body-level sibling instead of nesting it in .app. The inner-scroller
+     shell stopped nav jank but proved impossible to make draw into the iOS
+     standalone bottom safe area; body-level fixed over document scroll is the
+     next least-invasive structure to test. */
   .app {
-    /* Force the page just PAST the viewport height so it's always scrollable.
-       iOS standalone PWAs anchor a position:fixed bar to the *content* bottom on
-       a non-scrolling (content ≤ viewport) page, so on a short tab the nav rides
-       up (issue #61, and the cold-start float in #229 that min-height:100dvh alone
-       did NOT fix — exactly 100dvh leaves the page non-scrollable). The extra 1px
-       tips it into "scrollable", which flips iOS back to anchoring the fixed bar
-       to the screen bottom. 100vh fallback for iOS < 15.4. */
     min-height: calc(100vh + 1px);
     min-height: calc(100dvh + 1px);
-    padding-bottom: calc(
+    padding: calc(env(safe-area-inset-top, 0px) + var(--gap)) var(--gap) calc(
       env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin) +
       var(--bottom-tabs-height) + var(--bottom-tabs-margin) + var(--gap)
     );
@@ -293,6 +295,7 @@ html, body {
     align-items: center;
     gap: var(--bottom-tabs-gap);
     height: var(--bottom-tabs-height);
+    width: auto;
     max-width: 480px;
     margin: 0 auto;
     padding: var(--bottom-tabs-padding);
@@ -300,6 +303,12 @@ html, body {
     border: 1px solid var(--tabbar-border);
     border-radius: var(--radius-nav);
     box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+    /* One last iOS-PWA nudge: keep the fixed bar on its own composited layer so
+       document scrolling is less likely to repaint it a frame late. This is an
+       identity transform only — tabs.js still owns real translations in normal
+       Safari tabs, and standalone never receives a measured JS offset. */
+    transform: translateZ(0);
+    will-change: transform;
     backdrop-filter: blur(20px) saturate(1.25);
     -webkit-backdrop-filter: blur(20px) saturate(1.25);
   }

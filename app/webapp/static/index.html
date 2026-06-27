@@ -314,50 +314,52 @@
     </symbol>
   </svg>
 
-  <main class="app">
-    <!-- Top segmented tab control on desktop; on mobile / installed PWA it
-         becomes app-launcher's floating bottom tab bar (issue #57). Each tab
-         carries a Lucide icon + label (issue #77 — replaced the hand-drawn SVG
-         paths and emoji). Panes toggle with [hidden]; the chosen tab is
-         remembered in localStorage. -->
-    <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="home">
-      <button id="tabHome" type="button" class="tab active" data-tab="home"
-              role="tab" aria-selected="true" aria-controls="paneHome">
-        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-house"></use></svg>
-        <span class="tab-label">Home</span>
-      </button>
-      <button id="tabAc" type="button" class="tab" data-tab="ac"
-              role="tab" aria-selected="false" aria-controls="paneAc" tabindex="-1">
-        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-snowflake"></use></svg>
-        <span class="tab-label">AC</span>
-      </button>
-      <button id="tabEnergy" type="button" class="tab" data-tab="energy"
-              role="tab" aria-selected="false" aria-controls="paneEnergy" tabindex="-1">
-        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
-        <span class="tab-label">Energy</span>
-      </button>
-      <button id="tabPlugs" type="button" class="tab" data-tab="plugs"
-              role="tab" aria-selected="false" aria-controls="panePlugs" tabindex="-1">
-        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
-        <span class="tab-label">Plugs</span>
-      </button>
-      <button id="tabLights" type="button" class="tab" data-tab="lights"
-              role="tab" aria-selected="false" aria-controls="paneLights" tabindex="-1">
-        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
-        <span class="tab-label">Light</span>
-      </button>
-      <button id="tabNetwork" type="button" class="tab" data-tab="network"
-              role="tab" aria-selected="false" aria-controls="paneNetwork" tabindex="-1">
-        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
-        <span class="tab-label">Net</span>
-      </button>
-      <button id="tabSecurity" type="button" class="tab" data-tab="security"
-              role="tab" aria-selected="false" aria-controls="paneSecurity" tabindex="-1">
-        <svg class="icon tab-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
-        <span class="tab-label">Alarm</span>
-      </button>
-    </nav>
+  <!-- Floating bottom-tab nav on mobile / installed PWA; a sticky top segmented
+       control on desktop (issue #57). Deliberately a direct child of <body> and a
+       sibling of the scrolling <main class="app">: iOS captures position:fixed
+       descendants of momentum scrollers and anchors them to scrolled content, not
+       the viewport. Keeping the nav outside the scroller is the load-bearing part
+       of issue #232. Each tab carries a Lucide icon + label (issue #77); panes
+       toggle with [hidden]; the chosen tab is remembered in localStorage. -->
+  <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="home">
+    <button id="tabHome" type="button" class="tab active" data-tab="home"
+            role="tab" aria-selected="true" aria-controls="paneHome">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+      <span class="tab-label">Home</span>
+    </button>
+    <button id="tabAc" type="button" class="tab" data-tab="ac"
+            role="tab" aria-selected="false" aria-controls="paneAc" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-snowflake"></use></svg>
+      <span class="tab-label">AC</span>
+    </button>
+    <button id="tabEnergy" type="button" class="tab" data-tab="energy"
+            role="tab" aria-selected="false" aria-controls="paneEnergy" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+      <span class="tab-label">Energy</span>
+    </button>
+    <button id="tabPlugs" type="button" class="tab" data-tab="plugs"
+            role="tab" aria-selected="false" aria-controls="panePlugs" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
+      <span class="tab-label">Plugs</span>
+    </button>
+    <button id="tabLights" type="button" class="tab" data-tab="lights"
+            role="tab" aria-selected="false" aria-controls="paneLights" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
+      <span class="tab-label">Light</span>
+    </button>
+    <button id="tabNetwork" type="button" class="tab" data-tab="network"
+            role="tab" aria-selected="false" aria-controls="paneNetwork" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+      <span class="tab-label">Net</span>
+    </button>
+    <button id="tabSecurity" type="button" class="tab" data-tab="security"
+            role="tab" aria-selected="false" aria-controls="paneSecurity" tabindex="-1">
+      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
+      <span class="tab-label">Alarm</span>
+    </button>
+  </nav>
 
+  <main class="app">
     <!-- ============================== HOME =============================== -->
     <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
       <!-- Weather strip (GET /api/weather): current weather · today's forecast
@@ -1001,13 +1003,13 @@
       </details>
     </section>
 
-    <div id="toast" class="toast" hidden></div>
-
     <!-- Build identity: which build the PWA is running. Filled by main.js. -->
     <footer class="page-foot">
       <p id="buildReadout" class="muted small"></p>
     </footer>
   </main>
+
+  <div id="toast" class="toast" hidden></div>
 
   <dialog id="detailDialog" class="detail-dialog">
     <div class="detail-card">

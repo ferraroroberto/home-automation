@@ -105,23 +105,24 @@ def test_nav_not_left_translated_after_modal(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
-def test_app_cold_starts_on_home_ignoring_saved_tab(
+def test_app_restores_saved_short_tab_with_nav_at_rest(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """#229: the PWA always cold-starts on Home (content-tall → scrollable →
-    fixed nav anchors to the screen), even when the last-used tab was a short one
-    like Plugs. The saved tab must NOT be restored on open."""
+    """#232: the nav is a body-level sibling of the inner scroller, so the PWA
+    can safely restore a short saved tab without floating the fixed bar up."""
     page.add_init_script(
         "localStorage.setItem('home-automation.tab', 'plugs');"
     )
     mock_api(sample_units)
     mock_energy()
-    _boot(page, base_url)
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#panePlugs", state="visible")
 
-    expect(page.locator("#paneHome")).to_be_visible()
-    expect(page.locator("#panePlugs")).to_be_hidden()
-    expect(page.locator("#tabHome")).to_have_attribute("aria-selected", "true")
+    expect(page.locator("body > .tabs")).to_have_count(1)
+    expect(page.locator("#paneHome")).to_be_hidden()
+    expect(page.locator("#tabPlugs")).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
 def test_nav_at_rest_after_plug_modal_with_autofocus(
