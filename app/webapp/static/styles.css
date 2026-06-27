@@ -893,7 +893,10 @@ html, body {
 .plugs-note { margin: 10px 4px; }
 
 .ups-tile {
-  padding: 12px var(--space-md);
+  /* Symmetric padding so the status pill sits an equal distance from the top
+     and right edges when pinned to the corner (#207 follow-up). */
+  position: relative;
+  padding: var(--space-md);
   margin-bottom: var(--gap);
 }
 .ups-tile.is-on-battery {
@@ -902,11 +905,14 @@ html, body {
 .ups-tile.is-unavailable {
   opacity: 0.75;
 }
+/* One unified layout for both the Home and Plugs tiles (#207 follow-up): the
+   identity sits top-left, the status pill is pinned to the top-right corner,
+   and the stat row runs full-width beneath. No separate desktop/mobile shape. */
 .ups-main {
   display: grid;
-  grid-template-columns: minmax(150px, 1.25fr) minmax(0, 3.75fr) auto;
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  row-gap: 8px;
 }
 .ups-identity { min-width: 0; }
 .ups-title {
@@ -929,7 +935,11 @@ html, body {
   white-space: nowrap;
 }
 .ups-status {
-  flex: none;
+  /* Pinned to the top-right corner, equidistant from the top and right edges
+     (the card padding). Out of flow so the stat row can run full-width. */
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
   font-size: var(--font-body);
   font-weight: 700;
   color: var(--on);
@@ -945,13 +955,6 @@ html, body {
 .ups-tile.is-unavailable .ups-status {
   color: var(--deficit);
   background: color-mix(in srgb, var(--deficit) 16%, transparent);
-}
-.ups-meta {
-  margin: 2px 0 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .ups-stats {
   display: grid;
@@ -1000,27 +1003,10 @@ html, body {
   .plugs-summary-row {
     grid-template-columns: 1fr;
   }
-  /* Compact UPS card on mobile (#207): identity + status pill share the top row,
-     a short "Charge · Runtime" line sits beneath — much shorter than the old
-     fully-stacked 5-stat tile, and the online/offline state is up top. */
-  .ups-main {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "identity status"
-      "stats    stats";
-    align-items: baseline;
-    row-gap: 6px;
-    column-gap: 10px;
-  }
-  .ups-identity { grid-area: identity; }
-  .ups-status {
-    grid-area: status;
-    justify-self: end;
-    align-self: center;
-    text-align: right;
-  }
+  /* Compact UPS card on mobile (#207): a short "Charge · Runtime" line sits
+     beneath the identity + corner status pill — much shorter than the old
+     fully-stacked 5-stat tile. The base layout already pins the pill top-right. */
   .ups-stats {
-    grid-area: stats;
     grid-template-columns: repeat(2, auto);
     justify-content: start;
     gap: 18px;

@@ -30,7 +30,11 @@ def test_network_tab_groups_devices_and_switches_sort(
 
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
     expect(page.locator("#netAlerts")).to_be_hidden()
-    expect(page.locator("details.net-devices-card")).to_have_attribute("open", "")
+    # Attached devices is collapsed by default now; open it for the inventory.
+    devices_card = page.locator("details.net-devices-card")
+    expect(devices_card).not_to_have_attribute("open", "")
+    page.locator("details.net-devices-card > summary").click()
+    expect(devices_card).to_have_attribute("open", "")
     expect(page.locator("#netStats")).to_contain_text("1 Wired")
     expect(page.locator("#netStats")).to_contain_text("2 5 GHz")
     expect(page.locator("#netStats")).to_contain_text("1 2.4 GHz")
@@ -106,6 +110,7 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
     _boot(page, base_url)
 
     page.locator("#tabNetwork").click()
+    page.locator("details.net-devices-card > summary").click()  # collapsed by default now
 
     chips = page.locator("#netStats .net-stat-chip")
     expect(chips).to_have_count(4)
@@ -164,6 +169,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     expect(hidden_wifi).to_have_count(1)
     expect(hidden_wifi).to_have_class(re.compile(".*is-hidden.*"))
 
+    page.locator("details.net-devices-card > summary").click()  # collapsed by default now
     device_button = page.locator("#netDevices .net-device-name").filter(has_text="Alpha Laptop")
     device_button.click()
     expect(page.locator("#netDeviceDialog")).to_be_visible()

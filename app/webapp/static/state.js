@@ -28,6 +28,9 @@ export const state = {
   // When true (default), all source-visible devices render, including no-IP
   // adapters. When false, only cards with has_valid_ip===true are shown.
   plugsShowAll: true,
+  // When false (default), user-hidden plugs/blinds are filtered out; the
+  // "Show hidden" toggle reveals them (mirrors the Network device list).
+  plugsShowHidden: false,
   // RISCO alarm state and event log from GET /api/security.
   security: null,
   securityEvents: [],
@@ -95,6 +98,7 @@ export const state = {
 export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
 export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
+export const PLUGS_SHOW_HIDDEN_KEY = 'home-automation.plugsShowHidden';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
 export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
@@ -228,6 +232,7 @@ export const els = {
   plugsNote: document.getElementById('plugsNote'),
   plugsRefresh: document.getElementById('plugsRefresh'),
   plugsToggleBtn: document.getElementById('plugsToggleBtn'),
+  plugsHiddenToggle: document.getElementById('plugsHiddenToggle'),
   plugsHiddenCount: document.getElementById('plugsHiddenCount'),
   // Plugs summary stats
   plugsStats: document.getElementById('plugsStats'),
@@ -247,6 +252,8 @@ export const els = {
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),
   plugDisplayName: document.getElementById('plugDisplayName'),
+  plugOriginalName: document.getElementById('plugOriginalName'),
+  plugHiddenToggle: document.getElementById('plugHiddenToggle'),
   plugDetailClose: document.getElementById('plugDetailClose'),
   plugSave: document.getElementById('plugSave'),
   // Elgato Lights tab

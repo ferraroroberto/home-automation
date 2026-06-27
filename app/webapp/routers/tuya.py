@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
+from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 from src.tuya_client import (
     TuyaCommandError,
     TuyaConfigError,
@@ -59,7 +60,9 @@ def _unique_devices(infos: List[TuyaDeviceInfo]) -> List[TuyaDeviceInfo]:
 
 
 def _base_card(
-    info: TuyaDeviceInfo, overrides: Optional[Dict[str, str]] = None
+    info: TuyaDeviceInfo,
+    overrides: Optional[Dict[str, str]] = None,
+    hidden_ids: Optional[set] = None,
 ) -> Dict[str, Any]:
     """The metadata-only half of a device card (no LAN read needed)."""
     names = overrides or {}
@@ -67,6 +70,7 @@ def _base_card(
         "device_id": info.device_id,
         "name": info.name,
         "display_name": names.get(info.device_id) or None,
+        "hidden": bool(hidden_ids and info.device_id in hidden_ids),
         "category": info.category,
         "ip": info.ip,
         "mac": info.mac,
@@ -87,14 +91,16 @@ def _base_card(
 
 
 def _read_one(
-    info: TuyaDeviceInfo, overrides: Optional[Dict[str, str]] = None
+    info: TuyaDeviceInfo,
+    overrides: Optional[Dict[str, str]] = None,
+    hidden_ids: Optional[set] = None,
 ) -> Dict[str, Any]:
     """Blocking LAN read for one device; safe to run in a worker thread.
 
     Devices without a usable IP or local key are reported unavailable without
     a network attempt (a missing IP would otherwise trigger a slow scan).
     """
-    card = _base_card(info, overrides)
+    card = _base_card(info, overrides, hidden_ids)
     # Distinct reasons for distinct conditions: a missing local key needs the
     # one-time wizard, a missing IP means the device didn't answer the LAN scan,
     # and a present-but-unreadable IP means it's powered off / off-network.
@@ -135,11 +141,12 @@ async def list_tuya() -> Dict[str, Any]:
         raise HTTPException(status_code=502, detail=f"failed to list devices: {exc}")
 
     overrides = load_tuya_display_names()
+    hidden_ids = load_hidden_tuya_ids()
     semaphore = asyncio.Semaphore(_READ_CONCURRENCY)
 
     async def _bounded(info: TuyaDeviceInfo) -> Dict[str, Any]:
         async with semaphore:
-            return await asyncio.to_thread(_read_one, info, overrides)
+            return await asyncio.to_thread(_read_one, info, overrides, hidden_ids)
 
     cards = await asyncio.gather(*(_bounded(info) for info in infos))
     return {"devices": list(cards)}
@@ -198,11 +205,12 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
     # Read back so the card re-renders from live state, not the requested value.
     try:
         overrides = load_tuya_display_names()
+        hidden_ids = load_hidden_tuya_ids()
         info = next(
             (i for i in _unique_devices(list_devices()) if i.device_id == device_id),
             None,
         )
-        card = await asyncio.to_thread(_read_one, info, overrides) if info else None
+        card = await asyncio.to_thread(_read_one, info, overrides, hidden_ids) if info else None
     except Exception:  # noqa: BLE001 — read-back is best-effort
         card = None
     if card is None:
@@ -238,6 +246,21 @@ async def update_display_name(device_id: str, payload: DisplayNamePayload) -> Di
         logger.warning("⚠️  Failed to save display name for %s: %s", device_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to save display name: {exc}")
     return {"device_id": device_id, "display_name": name or None}
+
+
+class HiddenPayload(BaseModel):
+    hidden: bool
+
+
+@router.put("/api/tuya/{device_id}/hidden")
+async def update_hidden(device_id: str, payload: HiddenPayload) -> Dict[str, Any]:
+    """Mark or unmark a Tuya device as hidden (local override, gitignored)."""
+    try:
+        set_tuya_hidden(device_id, payload.hidden)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save hidden state for %s: %s", device_id, exc)
+        raise HTTPException(status_code=500, detail=f"failed to save hidden state: {exc}")
+    return {"device_id": device_id, "hidden": payload.hidden}
 
 
 # --------------------------------------------------------------- body helpers
