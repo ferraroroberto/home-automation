@@ -819,10 +819,21 @@ els.loginForm.addEventListener('submit', async function (ev) {
   restoreUpsSnapshot();
   restoreLightsSnapshot();
   restoreNetworkSnapshot();
+  // AC units only matter on Home (summary tile) and AC (cards), so poll them
+  // only while one of those tabs is active rather than every 30s everywhere
+  // (#209). A single boot fetch below keeps state populated for the first paint.
+  let unitsTimer = null;
+  function onUnitsTab(tab) {
+    if (unitsTimer) { clearInterval(unitsTimer); unitsTimer = null; }
+    if (tab === 'home' || tab === 'ac') {
+      loadUnits();
+      unitsTimer = setInterval(loadUnits, 30_000);
+    }
+  }
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
-    onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
+    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
   });
   setTab(initialTab());
 
@@ -830,6 +841,5 @@ els.loginForm.addEventListener('submit', async function (ev) {
   loadEnergy();
   startWeatherPolling();
   fetchVersion();
-  setInterval(loadUnits, 30_000);
   setInterval(fetchVersion, 300_000);
 })();

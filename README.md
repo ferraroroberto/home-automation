@@ -78,6 +78,22 @@ and an optional bearer token. Two ways to reach it once running:
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
+### Background polling (what fetches when)
+
+The PWA does **not** poll everything continuously. Each tab's data is fetched only while that tab is active (the LAN/cloud reads are comparatively expensive); leaving a tab stops its timer. The matrix below is the contract — keep it in sync when cadences change.
+
+| Data | Cadence | Polls while on | Notes |
+| --- | --- | --- | --- |
+| AC units | 30 s | Home, AC | One boot fetch on load; otherwise gated to these tabs (#209). |
+| Energy | 5 s active / 30 s slow | Energy (fast), Home (slow) | SMA reads are lightweight. |
+| Plugs | 15 s | Plugs | Tuya LAN reads. |
+| UPS | 15 s | Plugs, Home | Local NUT/USB-HID read. |
+| Lights | 15 s | Lights | Elgato LAN reads. |
+| Network | 15 s | Network | AP SOAP + router reads; speed test is button-only. |
+| Security | 10 s | Security, Home | RISCO cloud. |
+| Weather | ~10 min | (always) | Barely moves. |
+| Build version | 5 min | (always) | Cheap; drives the build-identity footer. |
+
 ## Setup
 
 The virtual environment lives at `.venv`. Install dependencies:
