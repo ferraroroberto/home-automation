@@ -256,12 +256,15 @@ html, body {
    theme vars so the glass bar works in both light and dark. */
 @media (pointer: coarse) and (max-width: 520px) {
   .app {
-    /* Always fill the viewport so the fixed bottom bar anchors to the *viewport*
-       bottom, not the content bottom. Without this, iOS standalone PWAs pin a
-       position:fixed bar to the short page's content bottom on non-scrolling
-       pages, so it rides up (issue #61). 100vh fallback for iOS < 15.4. */
-    min-height: 100vh;
-    min-height: 100dvh;
+    /* Force the page just PAST the viewport height so it's always scrollable.
+       iOS standalone PWAs anchor a position:fixed bar to the *content* bottom on
+       a non-scrolling (content ≤ viewport) page, so on a short tab the nav rides
+       up (issue #61, and the cold-start float in #229 that min-height:100dvh alone
+       did NOT fix — exactly 100dvh leaves the page non-scrollable). The extra 1px
+       tips it into "scrollable", which flips iOS back to anchoring the fixed bar
+       to the screen bottom. 100vh fallback for iOS < 15.4. */
+    min-height: calc(100vh + 1px);
+    min-height: calc(100dvh + 1px);
     padding-bottom: calc(
       env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin) +
       var(--bottom-tabs-height) + var(--bottom-tabs-margin) + var(--gap)

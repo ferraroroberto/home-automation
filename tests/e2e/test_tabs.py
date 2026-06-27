@@ -105,20 +105,23 @@ def test_nav_not_left_translated_after_modal(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
-def test_nav_forces_floated_bar_back_down(
-    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+def test_app_cold_starts_on_home_ignoring_saved_tab(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """#229: the iOS-standalone short-page float lifts the bar off the bottom.
-    The measurement loop must detect a bar that sits above where it belongs and
-    push it back down. Simulate the float with a stale upward translate and assert
-    the controller lands it back at rest (transform cleared, since in the test
-    viewport the bar's CSS bottom is already correct)."""
+    """#229: the PWA always cold-starts on Home (content-tall → scrollable →
+    fixed nav anchors to the screen), even when the last-used tab was a short one
+    like Plugs. The saved tab must NOT be restored on open."""
+    page.add_init_script(
+        "localStorage.setItem('home-automation.tab', 'plugs');"
+    )
     mock_api(sample_units)
+    mock_energy()
     _boot(page, base_url)
 
-    nav = page.locator(".tabs")
-    nav.evaluate("el => { el.style.transform = 'translateY(-140px)'; }")
-    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+    expect(page.locator("#paneHome")).to_be_visible()
+    expect(page.locator("#panePlugs")).to_be_hidden()
+    expect(page.locator("#tabHome")).to_have_attribute("aria-selected", "true")
 
 
 def test_nav_at_rest_after_plug_modal_with_autofocus(
