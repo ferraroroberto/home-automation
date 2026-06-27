@@ -69,17 +69,31 @@ export function wireTabs() {
  * scroll-lock.js documents as NOT firing dependably on dialog.close()/Esc. Net
  * effect: the bar got stuck up and only an app restart fixed it.
  *
- * Closed-loop fix — three properties make displacement self-correcting:
- *   - Re-DERIVE every tick from `hidden`; at rest hidden≈0 so the transform clears
- *     and the bar sits down. State is never trusted, only the live measurement.
+ * THE BIG ONE — standalone PWA has no toolbar, so it needs no transform at all.
+ * The whole transform exists to compensate for Safari's collapsing *browser*
+ * toolbar. An installed PWA (iOS standalone / `display-mode: standalone`) runs
+ * fullscreen with no browser chrome, so `position:fixed; bottom` already pins the
+ * bar to the physical bottom and `position:fixed` ignores the soft keyboard (it's
+ * laid out against the layout viewport, which the keyboard doesn't shrink). In
+ * that mode the VisualViewport math only ever computes phantom offsets — after the
+ * keyboard closes iOS leaves `innerHeight`/`vv.height`/`offsetTop` transiently out
+ * of sync — and strands the bar UP (the ~140px residual seen on the plugs rename
+ * modal, #229). So in standalone we NEVER translate: CSS owns the position and the
+ * bar is forced to the bottom "as in the beginning". The transform path is kept
+ * only for a real browser tab, where the toolbar genuinely collapses (#179).
+ *
+ * Closed-loop fix — these properties make displacement self-correcting:
+ *   - Re-DERIVE every tick; at rest (and always in standalone) desired is '' so the
+ *     transform clears and the bar sits down. State is never trusted, only the live
+ *     measurement reconciled against the bar's actual transform.
  *   - Drive re-pins off RELIABLE signals: VisualViewport resize/scroll (the normal
  *     case) PLUS a MutationObserver on `dialog[open]` / `#loginOverlay[hidden]` —
  *     the same dependable attribute signal scroll-lock.js uses — instead of the
  *     flaky `close` event.
  *   - A periodic WATCHDOG (~400ms, paused when the page is hidden) re-derives and
- *     corrects any latched displacement no matter how it arose. This is the
- *     "if it's up, repaint it back down" backstop: recovery within one tick, so
- *     closing/reopening the app is never required again.
+ *     clears any stray transform no matter how it arose. This is the "if it's up,
+ *     force it back down" backstop: recovery within one tick, so closing/reopening
+ *     the app is never required again.
  *
  * Gated to the coarse-pointer / narrow floating-bar mode (desktop renders .tabs as
  * a sticky top control, where a transform would be wrong) and feature-gated on
@@ -105,6 +119,15 @@ function pinNavToVisualViewport(nav) {
   // don't need to know *why* the viewport shrank, only that a toolbar can't be
   // this tall.
   const MAX_PIN_PX = 160;
+
+  // Installed PWA: no browser toolbar, so the transform compensation must be off.
+  // `navigator.standalone` is the iOS-specific signal; the media query covers the
+  // standard (iOS 16.4+ and other platforms). Checked live every tick — a PWA
+  // can't change mode mid-session, but reading it is free and keeps apply() pure.
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+  }
 
   function isEditableFocused() {
     const a = document.activeElement;
@@ -132,14 +155,15 @@ function pinNavToVisualViewport(nav) {
     // and the viewport math is transient — leave the transform untouched and
     // re-pin the instant it reappears (the observer + watchdog catch that).
     if (getComputedStyle(nav).visibility === 'hidden') return;
-    // Desired transform: at rest it's '' (CSS owns the position); on iOS with a
-    // collapsed toolbar it's the small upward translate that re-pins the bar to
-    // the visible bottom edge.
+    // Desired transform: at rest it's '' (CSS owns the position); only in a real
+    // browser tab with a collapsed toolbar is it a small upward translate that
+    // re-pins the bar to the visible bottom edge.
     let desired = '';
-    // Don't chase the viewport while a field is focused (keyboard up — a huge,
-    // transient change), and never pin by more than a toolbar's worth. Either
-    // guard alone stops the keyboard strand; both together make it impossible.
-    if (!isEditableFocused()) {
+    // Never translate in a standalone PWA (no toolbar — CSS already pins it, and
+    // the math only strands it). In a browser tab, also don't chase the viewport
+    // while a field is focused (keyboard up — a huge, transient change), and never
+    // pin by more than a toolbar's worth. Any one of these guards stops the strand.
+    if (!isStandalone() && !isEditableFocused()) {
       const hidden = window.innerHeight - vv.height - vv.offsetTop;
       if (hidden > 1 && hidden <= MAX_PIN_PX) desired = 'translateY(' + -hidden + 'px)';
     }
