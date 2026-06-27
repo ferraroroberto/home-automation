@@ -95,6 +95,26 @@ function pinNavToVisualViewport(nav) {
 
   let rafPending = false;
 
+  // Largest viewport slice we'll ever pin against. Safari's bottom toolbar is
+  // ~44–90px; a gap bigger than this means the visual viewport shrank for some
+  // OTHER reason — almost always the soft keyboard (~250–340px) raised by a
+  // focused text field, e.g. the plugs/AC modal's auto-focused "Display name"
+  // input. Pinning the bar up by a keyboard's height is exactly the residual
+  // strand reported after #229. Above this cap we leave the bar at its CSS bottom
+  // and let it settle once the viewport restores. Generic by construction: we
+  // don't need to know *why* the viewport shrank, only that a toolbar can't be
+  // this tall.
+  const MAX_PIN_PX = 160;
+
+  function isEditableFocused() {
+    const a = document.activeElement;
+    if (!a) return false;
+    const tag = a.tagName;
+    // Anything that raises the iOS keyboard. SELECT opens a picker that also
+    // shrinks the viewport, so treat it the same.
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || a.isContentEditable;
+  }
+
   // The single source of truth for where the bar should sit. Re-derived from the
   // live viewport every call, then reconciled against the bar's *actual* inline
   // transform — never against a cached "what we last wrote". That distinction is
@@ -103,19 +123,25 @@ function pinNavToVisualViewport(nav) {
   // the real DOM state, not to our own memory of it. The equality check only
   // skips a redundant write when the bar is already where it belongs.
   function apply() {
+    if (!mq.matches) {
+      // Desktop / wide: CSS owns the bar. Drop any transform we may have left on.
+      if (nav.style.transform !== '') nav.style.transform = '';
+      return;
+    }
+    // While the bar is hidden behind a modal/overlay the body is position:fixed
+    // and the viewport math is transient — leave the transform untouched and
+    // re-pin the instant it reappears (the observer + watchdog catch that).
+    if (getComputedStyle(nav).visibility === 'hidden') return;
     // Desired transform: at rest it's '' (CSS owns the position); on iOS with a
-    // collapsed toolbar it's the upward translate that re-pins the bar to the
-    // visible bottom edge.
+    // collapsed toolbar it's the small upward translate that re-pins the bar to
+    // the visible bottom edge.
     let desired = '';
-    if (mq.matches) {
-      // While the bar is hidden behind a modal/overlay the body is position:fixed
-      // and the viewport math is transient — leave the transform untouched and
-      // re-pin the instant it reappears (the observer + watchdog catch that).
-      if (getComputedStyle(nav).visibility === 'hidden') return;
-      // Slice of layout viewport hidden below the visual viewport (Safari's
-      // collapsing toolbar / any off-screen remainder). Clamp ≥0.
+    // Don't chase the viewport while a field is focused (keyboard up — a huge,
+    // transient change), and never pin by more than a toolbar's worth. Either
+    // guard alone stops the keyboard strand; both together make it impossible.
+    if (!isEditableFocused()) {
       const hidden = window.innerHeight - vv.height - vv.offsetTop;
-      if (hidden > 1) desired = 'translateY(' + -hidden + 'px)';
+      if (hidden > 1 && hidden <= MAX_PIN_PX) desired = 'translateY(' + -hidden + 'px)';
     }
     if (nav.style.transform !== desired) nav.style.transform = desired;
   }

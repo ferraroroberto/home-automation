@@ -105,6 +105,31 @@ def test_nav_not_left_translated_after_modal(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
+def test_nav_at_rest_after_plug_modal_with_autofocus(
+    page: Page, base_url: str, sample_plugs: List[Dict], mock_tuya: Callable,
+) -> None:
+    """#229 follow-up: the plugs rename modal auto-focuses its Display-name input
+    (plugs.js), which raises the iOS keyboard and shrinks the visual viewport —
+    the one path that still stranded the nav. Opening it (input focused) then
+    closing must leave the bar at its locked rest position."""
+    mock_tuya(sample_plugs)
+    _boot(page, base_url)
+    page.locator("#tabPlugs").click()
+    page.wait_for_selector("#panePlugs", state="visible")
+    # Rows live inside collapsed <details> cards — expand so they're interactable.
+    page.eval_on_selector_all(
+        "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
+    )
+
+    page.locator('[data-device-id="plug-1"] .device-row-name').click()
+    expect(page.locator("#plugDialog")).to_be_visible()
+    # The modal auto-focuses the text input — assert that, then close.
+    expect(page.locator("#plugDisplayName")).to_be_focused()
+    page.locator("#plugDetailClose").click()
+    expect(page.locator("#plugDialog")).to_be_hidden()
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
 def test_home_shows_ac_summary_line_per_unit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
