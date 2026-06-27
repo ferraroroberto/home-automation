@@ -1,10 +1,10 @@
 /* Tab switcher: Home | AC | Energy | Plugs | Light | Net | Alarm.
  *
  * Mirrors app-launcher's nav.tabs pattern: .tab buttons get .active, .pane
- * sections toggle via [hidden]. The chosen tab is written to localStorage as the
- * within-session memory, but the app always cold-starts on Home (see initialTab —
- * #229, avoids the short-page nav float). main.js registers an onChange hook so
- * the Energy tab can spin up its charts + faster polling. */
+ * sections toggle via [hidden]. The chosen tab is written to localStorage and
+ * restored on launch; the #232 body-level nav keeps short tabs from capturing the
+ * fixed bar. main.js registers an onChange hook so the Energy tab can spin up its
+ * charts + faster polling. */
 
 'use strict';
 
@@ -38,6 +38,9 @@ export function setTab(tab) {
   });
   const nav = els.tabHome.closest('.tabs');
   if (nav) nav.dataset.activeTab = tab;
+  const scroller = document.querySelector('.app');
+  if (scroller) scroller.scrollTop = 0;
+  window.scrollTo(0, 0);
   try { localStorage.setItem(TAB_KEY, tab); } catch (_) { /* private mode */ }
   onChange(tab);
 }
@@ -50,6 +53,18 @@ export function wireTabs() {
   if (nav) pinNavToVisualViewport(nav);
 }
 
+function isStandalonePwa() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+}
+
+function editableFocused() {
+  const a = document.activeElement;
+  if (!a) return false;
+  const tag = a.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || a.isContentEditable;
+}
+
 /* Keep the floating bottom-tab pill pinned to the bottom on mobile — CSS-first,
  * with a minimal browser-only transform fallback (issue #229).
  *
@@ -60,9 +75,9 @@ export function wireTabs() {
  * that math (compute-the-offset AND measure-the-rect) eventually strands the bar UP
  * and won't bring it back, because iOS's layout and rendered geometry disagree there.
  * So the rule is now blunt: in a standalone PWA we NEVER translate. CSS owns the
- * position; the cold-start short-page float is fixed in CSS (the page is forced just
- * past viewport height so `position:fixed` anchors to the screen, not the content)
- * and reinforced by always opening on the content-tall Home tab (initialTab).
+ * position, and the nav is a body-level sibling rather than a descendant of the
+ * content wrapper so iOS anchors it to the viewport rather than to short-tab
+ * content.
  *
  * The transform path survives ONLY for a real browser tab, where the toolbar
  * genuinely collapses: there we translate the bar up by the hidden slice, clamped to
@@ -86,20 +101,6 @@ function pinNavToVisualViewport(nav) {
   // A bigger gap is the soft keyboard / a picker, which we must not chase.
   const MAX_PIN_PX = 160;
 
-  // Installed PWA (iOS standalone / display-mode: standalone): no toolbar, so the
-  // transform is pure harm here — disable it entirely and let CSS pin the bar.
-  function isStandalone() {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
-  }
-
-  function isEditableFocused() {
-    const a = document.activeElement;
-    if (!a) return false;
-    const tag = a.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || a.isContentEditable;
-  }
-
   function apply() {
     if (!mq.matches) {
       // Desktop / wide: CSS owns the bar. Drop any transform we may have left on.
@@ -112,7 +113,7 @@ function pinNavToVisualViewport(nav) {
     // the collapsing toolbar, but not while a field is focused (keyboard up) and
     // never by more than a toolbar's worth.
     let desired = '';
-    if (!isStandalone() && !isEditableFocused()) {
+    if (!isStandalonePwa() && !editableFocused()) {
       const hidden = window.innerHeight - vv.height - vv.offsetTop;
       if (hidden > 1 && hidden <= MAX_PIN_PX) desired = 'translateY(' + -hidden + 'px)';
     }
@@ -149,9 +150,8 @@ function pinNavToVisualViewport(nav) {
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) apply();        // re-pin immediately on foreground
   });
-  // Cold-start: the short-page float is wrong until the first layout settles, so
-  // correct on load and across the next couple of frames (don't wait for the
-  // 400ms watchdog to clear a visible float on the tab the PWA reopened on).
+  // Startup / foreground: run after the first settled layout too, so any stale
+  // browser-tab toolbar offset is corrected before the watchdog interval.
   window.addEventListener('load', function () {
     requestAnimationFrame(function () { requestAnimationFrame(apply); });
   });
@@ -159,10 +159,13 @@ function pinNavToVisualViewport(nav) {
   apply();
 }
 
-// Always cold-start on Home (#229). Home is content-tall so its page scrolls,
-// which makes iOS anchor the fixed nav to the screen bottom; reopening on a short
-// tab (Plugs/Lights) is what floated the bar up. The last tab is still remembered
-// within a session (setTab writes TAB_KEY) — we just don't restore it on open.
+// Restore the last tab per the fleet nav contract. The old #229 Home-only
+// cold-start workaround is no longer needed because #232 keeps the fixed nav out
+// of the scroller that iOS can capture.
 export function initialTab() {
+  try {
+    const saved = localStorage.getItem(TAB_KEY);
+    if (TABS.includes(saved)) return saved;
+  } catch (_) { /* private mode */ }
   return 'home';
 }
