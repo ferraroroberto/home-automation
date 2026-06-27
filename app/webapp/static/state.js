@@ -183,6 +183,7 @@ export const els = {
   zoneDisplayName: document.getElementById('zoneDisplayName'),
   zoneOriginalName: document.getElementById('zoneOriginalName'),
   zoneHiddenToggle: document.getElementById('zoneHiddenToggle'),
+  zoneTroubleIgnoreToggle: document.getElementById('zoneTroubleIgnoreToggle'),
   zoneSave: document.getElementById('zoneSave'),
   // Cameras tile (Security tab) + detail / live-view modals (issue #161)
   camerasList: document.getElementById('camerasList'),

@@ -38,6 +38,10 @@ from src.security_display_names import (
     set_security_display_name,
 )
 from src.security_hidden import load_hidden_zone_ids, set_zone_hidden
+from src.security_trouble_ignore import (
+    load_ignored_trouble_zone_ids,
+    set_zone_trouble_ignored,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +67,17 @@ def _state_payload(state: object) -> Dict[str, Any]:
     payload = asdict(state)  # type: ignore[arg-type]
     overrides = load_security_display_names()
     hidden = load_hidden_zone_ids()
+    trouble_ignored = load_ignored_trouble_zone_ids()
     for zone in payload.get("zones") or []:
         zone_id = str(zone.get("id"))
         zone["display_name"] = overrides.get(zone_id) or None
         # Whether the user has parked this detector out of the default list
         # (issue #104). The UI still renders it when "show hidden" is on.
         zone["hidden"] = zone_id in hidden
+        # Whether the user has chosen to ignore this detector's trouble flag
+        # (issue #225) — ignored troubles render muted and don't bubble to the
+        # main card.
+        zone["trouble_ignored"] = zone_id in trouble_ignored
     # Low-battery acknowledgment watermark (issue #221) — a cheap local read, no
     # extra cloud call. The frontend combines this with the events it already
     # loads to decide whether to show the (acknowledgeable) low-battery badge.
@@ -216,6 +225,22 @@ async def update_zone_hidden(
         logger.warning("⚠️  Failed to save detector hidden flag for %s: %s", zone_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to save hidden flag: {exc}")
     return {"zone_id": zone_id, "hidden": payload.hidden}
+
+
+class TroubleIgnoredPayload(BaseModel):
+    ignored: bool
+
+
+@router.put("/api/security/zones/{zone_id}/trouble_ignored")
+async def update_zone_trouble_ignored(
+    zone_id: int, payload: TroubleIgnoredPayload
+) -> Dict[str, Any]:
+    try:
+        set_zone_trouble_ignored(str(zone_id), payload.ignored)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save detector trouble-ignore for %s: %s", zone_id, exc)
+        raise HTTPException(status_code=500, detail=f"failed to save trouble-ignore: {exc}")
+    return {"zone_id": zone_id, "trouble_ignored": payload.ignored}
 
 
 async def _json_body(request: Request) -> Dict[str, Any]:

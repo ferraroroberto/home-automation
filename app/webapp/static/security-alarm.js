@@ -245,6 +245,23 @@ function renderStateInto(el) {
     badge.title = 'The alarm panel lost mains power and is running on backup battery';
     el.appendChild(badge);
   }
+  // Detector-trouble roll-up (issue #225): count detectors reporting trouble that
+  // the user hasn't ignored, so an un-ignored trouble is visible on the main card.
+  // Ignored ones (a known/accepted trouble) don't contribute, keeping it quiet.
+  const troubled = troubledNotIgnoredCount();
+  if (security && troubled > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'security-trouble-badge';
+    badge.textContent = '⚠ Trouble (' + troubled + ')';
+    badge.title = troubled + ' detector(s) reporting trouble — see the Detectors list';
+    el.appendChild(badge);
+  }
+}
+
+// Detectors reporting trouble that the user hasn't ignored (issue #225).
+function troubledNotIgnoredCount() {
+  const zones = (state.security && state.security.zones) || [];
+  return zones.filter(function (z) { return z.trouble && !z.trouble_ignored; }).length;
 }
 
 export function renderState() {
@@ -300,7 +317,13 @@ function renderZoneFlags(zone) {
   const parts = [];
   if (zone.triggered) parts.push({ text: 'Triggered', cls: '' });
   parts.push({ text: zone.bypassed ? 'Bypass' : 'Active', cls: '' });
-  if (zone.trouble) parts.push({ text: 'Trouble', cls: 'is-trouble' });
+  // An ignored trouble renders muted "Trouble — ignored" and is kept off the
+  // main-card count; an un-ignored one keeps the amber attention tint (#225).
+  if (zone.trouble) {
+    parts.push(zone.trouble_ignored
+      ? { text: 'Trouble — ignored', cls: 'is-trouble-ignored' }
+      : { text: 'Trouble', cls: 'is-trouble' });
+  }
   parts.forEach(function (part, i) {
     if (i > 0) flags.appendChild(document.createTextNode(' · '));
     const span = document.createElement('span');
@@ -423,7 +446,8 @@ function openZoneDetail(zoneId) {
     els.zoneOriginalName.textContent = 'System name: ' + (zone.name || ('Zone ' + zone.id));
   }
   renderZoneHiddenToggle(zone);
-  zoneStaged = { hidden: !!zone.hidden };
+  renderZoneTroubleIgnoreToggle(zone);
+  zoneStaged = { hidden: !!zone.hidden, trouble_ignored: !!zone.trouble_ignored };
   clearZoneDirty();
   if (typeof els.zoneDialog.showModal === 'function') els.zoneDialog.showModal();
   else els.zoneDialog.setAttribute('open', '');
@@ -438,6 +462,16 @@ function renderZoneHiddenToggle(zone) {
   btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
   btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
     (hidden ? 'ON' : 'OFF') + '</span>';
+}
+
+function renderZoneTroubleIgnoreToggle(zone) {
+  const btn = els.zoneTroubleIgnoreToggle;
+  if (!btn) return;
+  const ignored = !!zone.trouble_ignored;
+  btn.className = 'toggle' + (ignored ? ' on' : ' off');
+  btn.setAttribute('aria-checked', ignored ? 'true' : 'false');
+  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+    (ignored ? 'ON' : 'OFF') + '</span>';
 }
 
 // Detail-modal staging (#203): name + Hidden commit on Save. zoneStaged holds the
@@ -472,6 +506,15 @@ function toggleZoneHidden() {
   markZoneDirty();
 }
 
+// Stage the Ignore-trouble toggle visually only — the PUT happens on Save (#225).
+function toggleZoneTroubleIgnored() {
+  const zone = zoneById(state.selectedZoneId);
+  if (!zone || !zoneStaged) return;
+  zoneStaged.trouble_ignored = !zoneStaged.trouble_ignored;
+  renderZoneTroubleIgnoreToggle(Object.assign({}, zone, { trouble_ignored: zoneStaged.trouble_ignored }));
+  markZoneDirty();
+}
+
 function closeZoneDetail() {
   state.selectedZoneId = null;
   zoneStaged = null;
@@ -501,11 +544,18 @@ async function saveZone() {
       body: JSON.stringify({ hidden: zoneStaged.hidden }),
     }).then(function () { patchZone(id, { hidden: zoneStaged.hidden }); }));
   }
+  if (!!zone.trouble_ignored !== zoneStaged.trouble_ignored) {
+    ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/trouble_ignored', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ignored: zoneStaged.trouble_ignored }),
+    }).then(function () { patchZone(id, { trouble_ignored: zoneStaged.trouble_ignored }); }));
+  }
   try {
     await Promise.all(ops);
     const z = zoneById(id);
     if (z) els.zoneDetailName.textContent = zoneLabel(z);
     renderZones();
+    renderState();  // refresh the main-card trouble count after an ignore change (#225)
     clearZoneDirty();
     toast('Saved', 'success');
   } catch (exc) {
@@ -534,6 +584,9 @@ export function wireZoneDetail() {
   });
   if (els.zoneHiddenToggle) {
     els.zoneHiddenToggle.addEventListener('click', toggleZoneHidden);
+  }
+  if (els.zoneTroubleIgnoreToggle) {
+    els.zoneTroubleIgnoreToggle.addEventListener('click', toggleZoneTroubleIgnored);
   }
   if (els.zoneSave) els.zoneSave.addEventListener('click', saveZone);
 }
