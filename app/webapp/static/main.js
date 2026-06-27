@@ -127,6 +127,7 @@ function hasSchedule(unit) {
 // --------------------------------------------------- write + re-render
 async function applyControl(unitId, patch) {
   try {
+    toast('Sending…', 'pending');
     const updated = await jsonApi('/api/units/' + encodeURIComponent(unitId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

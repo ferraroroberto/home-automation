@@ -36,6 +36,7 @@ function plugLabel(device) {
 async function toggleSwitch(device) {
   const next = !(device.switch_on === true);
   try {
+    toast('Sending…', 'pending');
     const updated = await jsonApi(
       '/api/tuya/' + encodeURIComponent(device.device_id) + '/switch',
       {
@@ -48,6 +49,7 @@ async function toggleSwitch(device) {
       return d.device_id === device.device_id ? Object.assign({}, d, updated) : d;
     });
     renderPlugs();
+    toast(plugLabel(device) + (next ? ' on' : ' off'), 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -57,6 +59,7 @@ async function toggleSwitch(device) {
 
 async function coverAction(device, action) {
   try {
+    toast('Sending…', 'pending');
     await jsonApi(
       '/api/tuya/' + encodeURIComponent(device.device_id) + '/cover',
       {

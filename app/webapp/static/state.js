@@ -499,7 +499,10 @@ export function toast(msg, kind) {
   els.toast.textContent = msg;
   els.toast.className = 'toast ' + (kind || '');
   els.toast.hidden = false;
-  if (toastTimer) clearTimeout(toastTimer);
+  if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+  // 'pending' (e.g. "Sending…") stays up until a follow-up toast replaces it
+  // with the result — it has no fixed lifetime (#204).
+  if (kind === 'pending') return;
   toastTimer = setTimeout(function () {
     els.toast.hidden = true;
   }, kind === 'error' ? 4500 : 2000);
