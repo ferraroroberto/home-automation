@@ -27,11 +27,21 @@ export const ACTION_LABELS = {
   arm: 'Full',
   perimeter: 'Perimeter',
 };
-// Optimistic toast shown the instant an action is tapped (before the refresh).
+// Optimistic ("pending") toast shown the instant an action is tapped, before the
+// refresh — mirrors the plugs/lights "Sending…" convention (issue #218).
 const ACTION_TOASTS = {
-  partial: 'Arming partial',
-  perimeter: 'Arming perimeter',
-  arm: 'Arming full',
+  disarm: 'Disarming…',
+  partial: 'Arming partial…',
+  perimeter: 'Arming perimeter…',
+  arm: 'Arming full…',
+};
+// Result ("good") toast shown once the action completes — so it's clear what
+// happened (command sent → done), matching the rest of the app (issue #218).
+const ACTION_DONE = {
+  disarm: 'Disarmed',
+  partial: 'Partial armed',
+  perimeter: 'Perimeter armed',
+  arm: 'Armed (full)',
 };
 const MODE_LABELS = {
   disarmed: 'Not armed',
@@ -48,14 +58,31 @@ function supported(action) {
   return actions.includes(action);
 }
 
+// An alarm currently sounding on the panel (vs a past one kept "in memory").
+function alarmOngoing() {
+  return !!(state.security && state.security.ongoing_alarm);
+}
+
+// Any alarm condition the user might want to clear: sounding now, kept in memory,
+// or pending. A tamper while disarmed lands here as alarm_pending (issue #218).
+function alarmActive() {
+  const s = state.security || {};
+  return !!(s.ongoing_alarm || s.memory_alarm || s.alarm_pending);
+}
+
 function currentMode() {
   const security = state.security || {};
-  return security.mode || 'unknown';
+  const mode = security.mode || 'unknown';
+  // A detector tampered while the system is disarmed raises an alarm the panel
+  // still reports as "disarmed" (alarmPending=true). Surface it as triggered so
+  // the state line and the Disarm button reflect reality (issue #218).
+  if (alarmOngoing() && (mode === 'disarmed' || mode === 'unknown')) return 'triggered';
+  return mode;
 }
 
 function displayLabel() {
   const security = state.security || {};
-  const mode = security.mode || 'unknown';
+  const mode = currentMode();
   return MODE_LABELS[mode] || security.label || 'Unknown';
 }
 
@@ -71,38 +98,35 @@ function statusClass(mode) {
 function actionAvailable(action) {
   if (!supported(action)) return false;
   const mode = currentMode();
-  // Disarmed: only the arm options are actionable (Disarm is the current state).
-  if (mode === 'disarmed') return action !== 'disarm';
-  if (mode === 'armed' || mode === 'arming' || mode === 'partial' || mode === 'perimeter') {
-    return action === 'disarm';
+  if (action === 'disarm') {
+    // Enable Disarm whenever the system is not cleanly disarmed, OR any alarm is
+    // active — so a tamper/triggered alarm can always be cleared, even when the
+    // panel still reports "disarmed" (issue #218).
+    return mode !== 'disarmed' || alarmActive();
   }
-  if (mode === 'triggered') return action === 'disarm';
-  return false;
-}
-
-// Toast wording for an action, evaluated before the POST.
-function actionToast(action) {
-  if (action === 'disarm') return 'Disarming';
-  return ACTION_TOASTS[action] || 'Working…';
+  // Arm / Partial / Perimeter are actionable only from a disarmed system.
+  return mode === 'disarmed';
 }
 
 async function postAction(action) {
   if (!actionAvailable(action)) return;
-  toast(actionToast(action));  // optimistic — fires the instant you tap (neutral toast)
+  toast(ACTION_TOASTS[action] || 'Working…', 'pending');  // fires the instant you tap
   try {
     state.security = await jsonApi('/api/security/' + encodeURIComponent(action), {
       method: 'POST',
     });
     renderSecurity();
     await loadSecurityEvents();
+    toast(ACTION_DONE[action] || 'Done', 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
-      toast('Security failed: ' + (exc.message || exc), 'error');
+      toast('Failed: ' + (exc.message || exc), 'error');
     }
   }
 }
 
 async function setBypass(zone, bypass) {
+  toast('Sending…', 'pending');
   try {
     state.security = await jsonApi(
       '/api/security/zones/' + encodeURIComponent(zone.id) + '/bypass',
@@ -114,9 +138,10 @@ async function setBypass(zone, bypass) {
     );
     renderSecurity();
     await loadSecurityEvents();
+    toast(zoneLabel(zone) + (bypass ? ' bypassed' : ' active'), 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
-      toast('Bypass failed: ' + (exc.message || exc), 'error');
+      toast('Failed: ' + (exc.message || exc), 'error');
     }
   }
 }
@@ -184,6 +209,17 @@ function renderStateInto(el) {
     badge.className = 'security-aclost-badge';
     badge.textContent = '⚠ AC power lost';
     badge.title = 'The alarm panel lost mains power and is running on backup battery';
+    el.appendChild(badge);
+  }
+  // A past alarm the panel still holds "in memory" while the system reads
+  // disarmed (e.g. a tamper that stopped sounding but was never acknowledged):
+  // the state word stays "Triggered" only while actually sounding, so flag the
+  // memory case here so it's clear why Disarm is tappable to clear it (#218).
+  if (security && alarmActive() && !alarmOngoing() && mode === 'disarmed') {
+    const badge = document.createElement('span');
+    badge.className = 'security-memory-badge';
+    badge.textContent = '⚠ Alarm — disarm to clear';
+    badge.title = 'The panel recorded an alarm (e.g. a tamper). Tap Disarm to clear it.';
     el.appendChild(badge);
   }
 }
