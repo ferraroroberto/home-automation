@@ -345,6 +345,12 @@ function renderPresets() {
     go.textContent = p.name || p.token;
     go.title = 'Recall ' + (p.name || p.token);
     go.addEventListener('click', function () { gotoPreset(p.token); });
+    const rename = document.createElement('button');
+    rename.type = 'button';
+    rename.className = 'camera-preset-rename';
+    rename.setAttribute('aria-label', 'Rename ' + (p.name || p.token));
+    rename.textContent = '✎';
+    rename.addEventListener('click', function () { renamePreset(p.token, p.name || ''); });
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'camera-preset-del';
@@ -352,6 +358,7 @@ function renderPresets() {
     del.textContent = '×';
     del.addEventListener('click', function () { removePreset(p.token); });
     chip.appendChild(go);
+    chip.appendChild(rename);
     chip.appendChild(del);
     list.appendChild(chip);
   });
@@ -373,7 +380,12 @@ async function loadPresets(cameraId) {
 async function savePreset() {
   const id = state.selectedCameraId;
   if (!id) return;
-  const name = 'Position ' + ((state.cameraPresets || []).length + 1);
+  // Let the user name the preset so the chip is recognisable instead of an
+  // anonymous "Position N" (#212). Cancel aborts; blank falls back to Position N.
+  const fallback = 'Position ' + ((state.cameraPresets || []).length + 1);
+  const entered = window.prompt('Name this preset:', fallback);
+  if (entered === null) return;
+  const name = entered.trim() || fallback;
   try {
     await jsonApi('/api/cameras/' + encodeURIComponent(id) + '/presets', {
       method: 'POST',
@@ -385,6 +397,27 @@ async function savePreset() {
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Save preset failed: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+// Rename via a local override (keeps the saved lens position — no re-save/move).
+async function renamePreset(token, current) {
+  const id = state.selectedCameraId;
+  if (!id) return;
+  const entered = window.prompt('Rename preset:', current || '');
+  if (entered === null) return;
+  try {
+    await jsonApi('/api/cameras/' + encodeURIComponent(id) + '/presets/' + encodeURIComponent(token) + '/name', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: entered.trim() }),
+    });
+    await loadPresets(id);
+    toast('Renamed', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Rename failed: ' + (exc.message || exc), 'error');
     }
   }
 }

@@ -2557,9 +2557,11 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   gap: 16px; margin-top: 14px; flex-wrap: wrap;
 }
 .camera-dpad {
+  /* Single row — Left · Up · Down · Right — rather than a 3x3 cross (#212). */
   display: grid; gap: 6px;
-  grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px);
-  grid-template-areas: ". up ." "left . right" ". down .";
+  grid-template-columns: repeat(4, 44px);
+  grid-auto-rows: 44px;
+  grid-template-areas: "left up down right";
 }
 .camera-ptz-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -2610,6 +2612,12 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   font: inherit; font-weight: 600; padding: 6px 10px; cursor: pointer;
 }
 .camera-preset-go:hover { background: var(--accent-soft); }
+.camera-preset-rename {
+  appearance: none; border: 0; border-left: 1px solid var(--line);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 0.95rem; line-height: 1; padding: 0 8px;
+}
+.camera-preset-rename:hover { color: var(--accent); }
 .camera-preset-del {
   appearance: none; border: 0; border-left: 1px solid var(--line);
   background: none; color: var(--muted); cursor: pointer;
