@@ -1163,6 +1163,14 @@
       <div class="row"><span>Type</span><span id="zoneDetailType" class="muted">—</span></div>
       <div class="row"><span>Status</span><span id="zoneDetailStatus" class="muted">—</span></div>
       <div class="row"><span>Trouble</span><span id="zoneDetailTrouble" class="muted">—</span></div>
+      <!-- Ignore this detector's trouble flag (issue #225): muted in the list,
+           kept off the main-card trouble count. -->
+      <div class="row">
+        <span>Ignore trouble</span>
+        <button id="zoneTroubleIgnoreToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Ignore detector trouble">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
 
       <label class="row">
         <span>Display name</span>

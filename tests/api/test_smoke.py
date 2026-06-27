@@ -1782,3 +1782,36 @@ def test_security_battery_acknowledge_flow(
     assert body["battery_low"] is False
     assert body["battery_acknowledged"] is False
     assert ack.load_battery_ack(tmp_path / "security_battery_ack.json") is None
+
+
+def test_security_zone_trouble_ignore(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Zone payload exposes trouble_ignored; PUT persists it via the store (#225)."""
+    import src.security_trouble_ignore as ti
+    from src.risco_client import SecurityState, SecurityZone
+
+    monkeypatch.setattr(ti, "DEFAULT_PATH", tmp_path / "security_trouble_ignore.json")
+
+    async def fake_state() -> SecurityState:
+        return SecurityState(
+            reachable=True, label="Disarmed", mode="disarmed",
+            zones=[SecurityZone(id=3, name="3", trouble=True)],
+        )
+
+    monkeypatch.setattr("app.webapp.routers.security.fetch_security_state", fake_state)
+
+    # Default: troubled but not ignored.
+    body = client.get("/api/security").json()
+    zone = body["zones"][0]
+    assert zone["trouble"] is True and zone["trouble_ignored"] is False
+
+    # Ignore it → persisted.
+    put = client.put("/api/security/zones/3/trouble_ignored", json={"ignored": True})
+    assert put.status_code == 200
+    assert put.json() == {"zone_id": 3, "trouble_ignored": True}
+    assert ti.load_ignored_trouble_zone_ids(tmp_path / "security_trouble_ignore.json") == {"3"}
+
+    # Subsequent reads reflect it.
+    body = client.get("/api/security").json()
+    assert body["zones"][0]["trouble_ignored"] is True

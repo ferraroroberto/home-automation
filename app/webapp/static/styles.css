@@ -1313,11 +1313,15 @@ button.device-row-name:hover { text-decoration: underline; }
    AC-power-lost (issue #99). Plain inline text — same size as the state label,
    bold, colour-coded; no pill border/background. */
 .security-battery-badge,
-.security-aclost-badge {
+.security-aclost-badge,
+.security-trouble-badge {
   margin-left: 0.5em;
   font-weight: 700;
   white-space: nowrap;
 }
+/* Detector-trouble roll-up on the main card — amber attention, like low battery
+   (issue #225). */
+.security-trouble-badge { color: var(--attention); }
 /* The battery badge is a <button> (tap to acknowledge, issue #221) styled to
    read as the inline text it replaces — strip the UA chrome, keep it tappable. */
 .security-battery-badge {
@@ -1454,6 +1458,12 @@ button.security-zone-name:hover { text-decoration: underline; }
 /* "Trouble" always reads amber — same attention identity as the low-battery
    badge — regardless of the row's active/bypass/triggered state (issue #104). */
 .security-zone-flag.is-trouble { color: var(--attention); }
+/* An ignored trouble (issue #225) reads muted grey — acknowledged, not alarming,
+   and overrides the row's flag colour. */
+.security-zone.is-active .security-zone-flag.is-trouble-ignored,
+.security-zone.is-bypassed .security-zone-flag.is-trouble-ignored,
+.security-zone.is-triggered .security-zone-flag.is-trouble-ignored,
+.security-zone-flag.is-trouble-ignored { color: var(--muted); }
 /* Hidden detectors (shown only when "show hidden" is on) read dimmed. */
 .security-zone.is-hidden { opacity: 0.55; }
 /* Detectors header tools: the "N hidden" counter sits beside the title; the

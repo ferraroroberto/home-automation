@@ -74,7 +74,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_battery_ack.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_battery_ack.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_trouble_ignore.sample.json`, `security_battery_ack.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_trouble_ignore.json`, `security_battery_ack.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -168,6 +168,17 @@ toggle that parks an unused detector out of the default list, saved via
 (reusing the same atomic store as the display-name files). The Detectors card
 header then shows an `N hidden` counter and a **Show hidden / Hide** switch that
 reveals the hidden detectors (dimmed) on demand so they can be un-hidden.
+
+**Ignoring a detector's trouble (issue #225).** A detector's `Trouble` flag rolls
+up to a **`⚠ Trouble (N)`** badge on the Home/Security `Alarm state` line counting
+detectors that are troubled. For a known/accepted trouble (a detector that can't be
+serviced yet), the detail modal has an **Ignore trouble** toggle: an ignored
+detector reads muted **`Trouble — ignored`** in the list and is dropped from the
+main-card count, so muting the known ones quiets the card while a new/un-ignored
+trouble still shows there. Saved via `PUT /api/security/zones/{id}/trouble_ignored`
+to a gitignored `config/security_trouble_ignore.json` (same atomic store; surfaced
+as `trouble_ignored` per zone on `GET /api/security`). Differentiating the trouble
+*cause* (battery vs comms) per detector isn't possible from the cloud — see #220.
 
 **Resilient live read (issue #98).** A momentary panel-unreachable blip — RISCO
 returns a non-retryable result code such as `26` on the *live* state read even
