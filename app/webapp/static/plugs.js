@@ -193,6 +193,7 @@ function openPlugDetail(deviceId) {
   els.plugDetailName.textContent = plugLabel(device) || 'Device';
   els.plugDisplayName.value = device.display_name || '';
   els.plugDisplayName.placeholder = device.name || 'Custom label…';
+  if (els.plugSave) els.plugSave.disabled = true;
   if (typeof els.plugDialog.showModal === 'function') els.plugDialog.showModal();
   else els.plugDialog.setAttribute('open', '');
   els.plugDisplayName.focus();
@@ -220,7 +221,8 @@ async function savePlugName() {
     const device = deviceById(id);
     if (device) els.plugDetailName.textContent = plugLabel(device) || 'Device';
     renderPlugs();
-    toast('Name saved', 'good');
+    if (els.plugSave) els.plugSave.disabled = true;
+    toast('Saved', 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed to save name: ' + (exc.message || exc), 'error');
@@ -370,10 +372,14 @@ export function wirePlugDetail() {
   els.plugDialog.addEventListener('click', function (ev) {
     if (ev.target === els.plugDialog) closePlugDetail();  // backdrop click
   });
-  els.plugDisplayName.addEventListener('blur', savePlugName);
-  els.plugDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); els.plugDisplayName.blur(); }
+  // #203: the name commits on Save, not on blur.
+  els.plugDisplayName.addEventListener('input', function () {
+    if (els.plugSave) els.plugSave.disabled = false;
   });
+  els.plugDisplayName.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); savePlugName(); }
+  });
+  if (els.plugSave) els.plugSave.addEventListener('click', savePlugName);
 }
 
 export async function loadPlugs() {

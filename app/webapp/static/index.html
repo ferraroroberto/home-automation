@@ -1112,6 +1112,10 @@
       <div class="row"><span>Firmware</span><span id="lightFirmware" class="muted">—</span></div>
       <div class="row"><span>Color temperature</span><span id="lightTemperatureMeta" class="muted">—</span></div>
       <p id="lightIdentifier" class="muted small zone-original-name"></p>
+
+      <div class="detail-actions">
+        <button id="lightSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 
@@ -1128,6 +1132,10 @@
         <span>Display name</span>
         <input id="plugDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
+
+      <div class="detail-actions">
+        <button id="plugSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 
@@ -1159,6 +1167,10 @@
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
       </div>
+
+      <div class="detail-actions">
+        <button id="zoneSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 
@@ -1175,6 +1187,9 @@
         <span>Display name</span>
         <input id="cameraDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
+      <div class="detail-actions">
+        <button id="cameraSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
       <button id="cameraLiveBtn" type="button" class="big-btn camera-live-open">
         <svg class="icon" aria-hidden="true"><use href="#i-maximize"></use></svg> Open live view
       </button>
@@ -1316,6 +1331,10 @@
       <!-- The MAC is the stable identifier the label maps back to; flagged when
            it's a randomised (locally-administered) address. -->
       <p id="netDeviceMac" class="muted small zone-original-name"></p>
+
+      <div class="detail-actions">
+        <button id="netDeviceSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 

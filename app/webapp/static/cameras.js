@@ -195,6 +195,7 @@ function openCameraDetail(cameraId) {
   els.cameraDisplayName.value = cam.display_name || '';
   els.cameraDisplayName.placeholder = cam.id;
   els.cameraLiveBtn.hidden = !cam.reachable;
+  if (els.cameraSave) els.cameraSave.disabled = true;
   loadSnapshotInto(els.cameraSnapshot, cameraId);
   if (typeof els.cameraDialog.showModal === 'function') els.cameraDialog.showModal();
   else els.cameraDialog.setAttribute('open', '');
@@ -220,6 +221,8 @@ async function saveCameraName() {
     });
     els.cameraDetailName.textContent = cameraLabel(cameraById(id) || { id: id });
     renderCameras();
+    if (els.cameraSave) els.cameraSave.disabled = true;
+    toast('Saved', 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Rename failed: ' + (exc.message || exc), 'error');
@@ -524,9 +527,12 @@ export function wireCameras() {
   els.cameraDialog.addEventListener('close', function () {
     if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); snapshotUrl = null; }
   });
-  els.cameraDisplayName.addEventListener('blur', saveCameraName);
+  els.cameraDisplayName.addEventListener('input', function () {
+    if (els.cameraSave) els.cameraSave.disabled = false;
+  });
+  if (els.cameraSave) els.cameraSave.addEventListener('click', saveCameraName);
   els.cameraDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); els.cameraDisplayName.blur(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); saveCameraName(); }
   });
   els.cameraLiveBtn.addEventListener('click', function () {
     closeCameraDetail();

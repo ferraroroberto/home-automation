@@ -258,6 +258,7 @@ function openLightDetail(lightId) {
   els.lightFirmware.textContent = light.firmware || '—';
   els.lightIdentifier.textContent = light.light_id || '—';
   els.lightTemperatureMeta.textContent = fmtTemperatureDetail(light);
+  if (els.lightSave) els.lightSave.disabled = true;
   if (typeof els.lightDialog.showModal === 'function') els.lightDialog.showModal();
   else els.lightDialog.setAttribute('open', '');
   els.lightDisplayName.focus();
@@ -286,7 +287,8 @@ async function saveLightName() {
     const updatedLight = lightById(lightId);
     if (updatedLight) els.lightDetailName.textContent = label(updatedLight);
     renderLights();
-    toast('Name saved', 'good');
+    if (els.lightSave) els.lightSave.disabled = true;
+    toast('Saved', 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed to save name: ' + (exc.message || exc), 'error');
@@ -390,8 +392,11 @@ export function wireLightControls() {
   els.lightDialog.addEventListener('click', function (ev) {
     if (ev.target === els.lightDialog) closeLightDetail();
   });
-  els.lightDisplayName.addEventListener('blur', saveLightName);
+  els.lightDisplayName.addEventListener('input', function () {
+    if (els.lightSave) els.lightSave.disabled = false;
+  });
+  if (els.lightSave) els.lightSave.addEventListener('click', saveLightName);
   els.lightDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); els.lightDisplayName.blur(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); saveLightName(); }
   });
 }
