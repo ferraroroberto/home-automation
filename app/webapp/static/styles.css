@@ -1309,13 +1309,17 @@ button.device-row-name:hover { text-decoration: underline; }
    AC-power-lost (issue #99). Plain inline text — same size as the state label,
    bold, colour-coded; no pill border/background. */
 .security-battery-badge,
-.security-aclost-badge {
+.security-aclost-badge,
+.security-memory-badge {
   margin-left: 0.5em;
   font-weight: 700;
   white-space: nowrap;
 }
 .security-battery-badge { color: var(--attention); }
 .security-aclost-badge  { color: var(--deficit); }
+/* A past alarm held in memory while disarmed — red, same urgency as AC-lost,
+   prompting a Disarm to clear it (issue #218). */
+.security-memory-badge  { color: var(--deficit); }
 
 /* Alarm actions: one full-width row of rounded pills using translucent colour
    tints — no hard outlines, no solid fills. Three colour identities via --act:
