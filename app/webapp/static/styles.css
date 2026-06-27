@@ -1687,9 +1687,25 @@ button.presence-name:hover { text-decoration: underline; }
   border-radius: var(--radius);
   padding: 0;
   width: min(440px, 92vw);
+  /* Cap to the viewport and scroll the card *inside* the dialog so a tall modal
+     never spills past the screen and drags the page behind it (iOS Safari leaves
+     the document scrollable behind a <dialog> that overflows the viewport, which
+     also rode the modal up off-screen — #214). overscroll-behavior keeps the
+     touch from chaining to the body once the card hits its scroll end. */
+  max-height: 92vh;
+  max-height: 92dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
   background: transparent;
 }
 .detail-dialog::backdrop { background: rgba(0,0,0,0.5); }
+/* Lock the page while any modal is open so the background can't scroll behind it
+   (#214). That stray scroll also fed a non-zero visualViewport.offsetTop into
+   tabs.js' nav pinning, whose stale translate stranded the floating bar
+   mid-screen on close — locking the scroll keeps offsetTop at 0 (builds on
+   #205). Global, not media-gated: a centred desktop modal shouldn't scroll its
+   backdrop either. */
+body:has(dialog[open]) { overflow: hidden; }
 .detail-card {
   background: var(--card);
   border-radius: var(--radius);
