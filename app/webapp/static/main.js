@@ -359,6 +359,7 @@ function scheduleDefaults(unit) {
     power: true,
     operation_mode: unit.operation_mode || null,
     set_temperature: unit.set_temperature == null ? null : unit.set_temperature,
+    target_temperature: null,
     fan_speed: unit.fan_speed || null,
     vane_vertical_direction: unit.has_vane_vertical ? (unit.vane_vertical || null) : null,
     vane_horizontal_direction: unit.has_vane_horizontal ? (unit.vane_horizontal || null) : null,
@@ -396,7 +397,8 @@ function renderScheduleList(unit) {
       '</div>' +
       '<div class="schedule-profile"' + (entry.power === false ? ' hidden' : '') + '>' +
       '  <label class="row"><span>Mode</span><select class="select-native sched-entry-mode">' + optionHtml(unit.operation_modes || [], entry.operation_mode || unit.operation_mode) + '</select></label>' +
-      '  <label class="row"><span>Target temp (°C)</span><input type="number" step="0.5" min="10" max="31" class="input-native sched-entry-temp" placeholder="—" value="' + (entry.set_temperature == null ? '' : entry.set_temperature) + '"></label>' +
+      '  <label class="row"><span>Set temp now (°C)</span><input type="number" step="0.5" min="10" max="31" class="input-native sched-entry-temp" placeholder="—" value="' + (entry.set_temperature == null ? '' : entry.set_temperature) + '"></label>' +
+      '  <label class="row"><span>Target temp (°C)</span><input type="number" step="0.5" min="10" max="31" class="input-native sched-entry-target" placeholder="—" value="' + (entry.target_temperature == null ? '' : entry.target_temperature) + '"></label>' +
       '  <label class="row"><span>Fan</span><select class="select-native sched-entry-fan">' + optionHtml(unit.fan_speeds || [], entry.fan_speed || unit.fan_speed) + '</select></label>' +
       (unit.has_vane_vertical ? '  <label class="row"><span>Vane — vertical</span><select class="select-native sched-entry-vv">' + optionHtml(unit.vane_vertical_options || [], entry.vane_vertical_direction || unit.vane_vertical) + '</select></label>' : '') +
       (unit.has_vane_horizontal ? '  <label class="row"><span>Vane — horizontal</span><select class="select-native sched-entry-vh">' + optionHtml(unit.vane_horizontal_options || [], entry.vane_horizontal_direction || unit.vane_horizontal) + '</select></label>' : '') +
@@ -411,11 +413,13 @@ function renderScheduleList(unit) {
       card.classList.toggle('is-off-entry', entry.power === false);
       const mode = card.querySelector('.sched-entry-mode');
       const temp = card.querySelector('.sched-entry-temp');
+      const target = card.querySelector('.sched-entry-target');
       const fan = card.querySelector('.sched-entry-fan');
       const vv = card.querySelector('.sched-entry-vv');
       const vh = card.querySelector('.sched-entry-vh');
       entry.operation_mode = mode ? mode.value || null : null;
       entry.set_temperature = temp ? numOrNull(temp) : null;
+      entry.target_temperature = target ? numOrNull(target) : null;
       entry.fan_speed = fan ? fan.value || null : null;
       entry.vane_vertical_direction = vv ? vv.value || null : null;
       entry.vane_horizontal_direction = vh ? vh.value || null : null;
@@ -435,6 +439,8 @@ function renderScheduleList(unit) {
     });
     const tempInput = card.querySelector('.sched-entry-temp');
     if (tempInput) tempInput.addEventListener('blur', saveFromCard);
+    const targetInput = card.querySelector('.sched-entry-target');
+    if (targetInput) targetInput.addEventListener('blur', saveFromCard);
     els.schedList.appendChild(card);
   });
 }

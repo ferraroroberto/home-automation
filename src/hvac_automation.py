@@ -70,7 +70,12 @@ class ScheduleEntry:
     time: str = "08:00"  # local HH:MM, recurs daily
     power: bool = True
     operation_mode: Optional[str] = None
+    # set_temperature is the setpoint applied to the unit at the scheduled time
+    # (the "base" the unit runs at now); target_temperature is the goal the
+    # eventual solar load-balancing automation steers toward, which may differ
+    # from the applied base (e.g. apply 27 now, target 28) — see #206.
     set_temperature: Optional[float] = None
+    target_temperature: Optional[float] = None
     fan_speed: Optional[str] = None
     vane_vertical_direction: Optional[str] = None
     vane_horizontal_direction: Optional[str] = None
@@ -196,6 +201,7 @@ def _clean_entry(raw: dict, fallback_id: str) -> ScheduleEntry:
         "power",
         "operation_mode",
         "set_temperature",
+        "target_temperature",
         "fan_speed",
         "vane_vertical_direction",
         "vane_horizontal_direction",
