@@ -58,32 +58,6 @@ function supported(action) {
   return actions.includes(action);
 }
 
-// Newest "battery low" event time among the loaded events (ISO-UTC strings,
-// lexically comparable), or null. Mirrors the backend's latest_battery_low_time
-// so the badge re-appears for a battery-low newer than the acknowledged
-// watermark (issue #221).
-function newestBatteryLowEventTime() {
-  const events = state.securityEvents || [];
-  let newest = '';
-  events.forEach(function (e) {
-    const blob = (e.name || '') + ' ' + (e.text || '');
-    if (/battery\s*low|low\s*battery/i.test(blob) && e.time && e.time > newest) newest = e.time;
-  });
-  return newest || null;
-}
-
-// Whether to show the (acknowledgeable) low-battery badge: the aggregate flag is
-// set AND it hasn't been acknowledged, OR a battery-low newer than the ack
-// watermark has since appeared (issue #221).
-function batteryAlertActive() {
-  const s = state.security || {};
-  if (!s.battery_low) return false;
-  if (!s.battery_acknowledged) return true;
-  const newest = newestBatteryLowEventTime();
-  if (!newest) return false;
-  return newest > (s.battery_ack_time || '');
-}
-
 function currentMode() {
   const security = state.security || {};
   // The backend mode is authoritative. We deliberately do NOT infer "triggered"
@@ -128,25 +102,6 @@ async function postAction(action) {
     renderSecurity();
     await loadSecurityEvents();
     toast(ACTION_DONE[action] || 'Done', 'good');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
-// Acknowledge the system-wide low-battery alert: hides the badge until a newer
-// battery-low event appears or the aggregate flag clears and re-raises (#221).
-async function acknowledgeBattery() {
-  toast('Acknowledging…', 'pending');
-  try {
-    const res = await jsonApi('/api/security/battery/acknowledge', { method: 'POST' });
-    if (state.security) {
-      state.security.battery_acknowledged = res.battery_acknowledged;
-      state.security.battery_ack_time = res.battery_ack_time;
-    }
-    renderState();
-    toast('Low-battery alert acknowledged', 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -219,25 +174,9 @@ function renderStateInto(el) {
   word.className = 'security-state-word';
   word.textContent = label;
   el.appendChild(word);
-  // System-wide low-battery alert. The cloud exposes no per-detector battery, so
-  // this aggregate flag is the "something needs attention → drill in" signal on
-  // both the Home and Security tiles (issue #84). Clears when the flag is false.
-  if (security && batteryAlertActive()) {
-    const badge = document.createElement('button');
-    badge.type = 'button';
-    badge.className = 'security-battery-badge';
-    badge.textContent = '⚠ Low battery';
-    badge.title = 'A device reports low battery. Tap to acknowledge — hides until a new low-battery appears or the alert clears.';
-    badge.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      acknowledgeBattery();
-    });
-    el.appendChild(badge);
-  }
-  // System-wide AC-power-lost alert (issue #99). Mirrors the low-battery badge:
-  // the same aggregate cloud flag, dual-rendered onto Home + Security, clearing
-  // when false. Red --deficit tint (vs the battery badge's amber) because the
-  // panel running on backup power is more urgent than a single low cell.
+  // System-wide AC-power-lost alert (issue #99): an aggregate cloud flag,
+  // dual-rendered onto Home + Security, clearing when false. Red --deficit tint
+  // because the panel running on backup power needs attention.
   if (security && security.ac_lost) {
     const badge = document.createElement('span');
     badge.className = 'security-aclost-badge';
@@ -309,8 +248,8 @@ export function renderEvents() {
 }
 
 // Build the flags row, rendering each flag as its own span so "Trouble" can
-// carry the amber attention colour (matching the low-battery badge) while
-// Active/Bypass/Triggered keep their state colour (issue #104).
+// carry the amber attention colour while Active/Bypass/Triggered keep their
+// state colour (issue #104).
 function renderZoneFlags(zone) {
   const flags = document.createElement('span');
   flags.className = 'security-zone-flags';

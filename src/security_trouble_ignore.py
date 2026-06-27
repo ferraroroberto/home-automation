@@ -3,8 +3,7 @@
 Tracks which detectors the user has chosen to ignore the *trouble* flag for, so a
 known/accepted trouble (a detector that can't be serviced yet) renders muted and
 stops bubbling to the Home/Security main card — while genuinely un-ignored
-troubles still surface there. The per-zone analog of the low-battery acknowledge
-(#221).
+troubles still surface there.
 
 The on-disk shape is the same ``{zone_id: marker}`` map the display-name/hidden
 stores use, so the atomic load/save/set logic is shared verbatim from

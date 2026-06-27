@@ -406,7 +406,6 @@ def mock_security(page: Page) -> Callable[..., None]:
             "label": "Disarmed",
             "mode": "disarmed",
             "supported_actions": ["partial", "perimeter", "arm"],
-            "battery_low": False,
             "ac_lost": False,
             "assumed_control_panel_state": False,
             "zones": [
