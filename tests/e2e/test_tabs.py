@@ -105,28 +105,19 @@ def test_nav_not_left_translated_after_modal(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
-def test_nav_forced_down_in_standalone_pwa(
+def test_nav_forces_floated_bar_back_down(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
 ) -> None:
-    """#229: in an installed PWA (display-mode: standalone) there is no browser
-    toolbar, so the nav must NEVER carry a VisualViewport transform — CSS pins it
-    to the bottom. Emulate standalone, strand the bar with a stale translate, and
-    assert the controller forces it back down (transform cleared)."""
-    # Emulate the installed-PWA signal before any app script runs.
-    page.add_init_script(
-        "const mm = window.matchMedia.bind(window);"
-        " window.matchMedia = (q) => q.indexOf('display-mode: standalone') !== -1"
-        "   ? { matches: true, media: q, onchange: null,"
-        "       addEventListener() {}, removeEventListener() {},"
-        "       addListener() {}, removeListener() {}, dispatchEvent() { return false; } }"
-        "   : mm(q);"
-    )
+    """#229: the iOS-standalone short-page float lifts the bar off the bottom.
+    The measurement loop must detect a bar that sits above where it belongs and
+    push it back down. Simulate the float with a stale upward translate and assert
+    the controller lands it back at rest (transform cleared, since in the test
+    viewport the bar's CSS bottom is already correct)."""
     mock_api(sample_units)
     _boot(page, base_url)
 
     nav = page.locator(".tabs")
     nav.evaluate("el => { el.style.transform = 'translateY(-140px)'; }")
-    # The watchdog must clear it — in standalone, desired is always identity.
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
