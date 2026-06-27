@@ -1728,3 +1728,57 @@ def test_push_subscription_endpoint_accepts_first_subscription(
             "keys": {"p256dh": "fixture", "auth": "secret"},
         }
     ]
+
+
+def test_security_battery_acknowledge_flow(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Low-battery alert: GET exposes ack fields, POST acknowledges, GET auto-clears
+    once the aggregate flag drops (issue #221)."""
+    import src.security_battery_ack as ack
+    from src.risco_client import SecurityEvent
+
+    monkeypatch.setattr(ack, "DEFAULT_PATH", tmp_path / "security_battery_ack.json")
+
+    battery_low = {"flag": True}
+
+    async def fake_state() -> SecurityState:
+        return SecurityState(
+            reachable=True, label="Disarmed", mode="disarmed",
+            battery_low=battery_low["flag"],
+        )
+
+    async def fake_events(count: int = 50) -> List[SecurityEvent]:
+        return [
+            SecurityEvent(time="2026-06-27T11:00:00Z", name="Device Battery Low - 'X'"),
+            SecurityEvent(time="2026-06-26T09:00:00Z", name="Device Battery Restore - 'Y'"),
+        ]
+
+    monkeypatch.setattr("app.webapp.routers.security.fetch_security_state", fake_state)
+    monkeypatch.setattr("app.webapp.routers.security.fetch_events", fake_events)
+
+    # Before ack: flag set, not acknowledged.
+    body = client.get("/api/security").json()
+    assert body["battery_low"] is True
+    assert body["battery_acknowledged"] is False
+    assert body["battery_ack_time"] is None
+
+    # Acknowledge → watermarked at the newest battery-low event.
+    ack_resp = client.post("/api/security/battery/acknowledge")
+    assert ack_resp.status_code == 200
+    assert ack_resp.json() == {
+        "battery_acknowledged": True,
+        "battery_ack_time": "2026-06-27T11:00:00Z",
+    }
+
+    # Persisted: a later GET still reports acknowledged while the flag holds.
+    body = client.get("/api/security").json()
+    assert body["battery_acknowledged"] is True
+    assert body["battery_ack_time"] == "2026-06-27T11:00:00Z"
+
+    # Once the aggregate flag clears, the ack auto-resets for a future re-raise.
+    battery_low["flag"] = False
+    body = client.get("/api/security").json()
+    assert body["battery_low"] is False
+    assert body["battery_acknowledged"] is False
+    assert ack.load_battery_ack(tmp_path / "security_battery_ack.json") is None

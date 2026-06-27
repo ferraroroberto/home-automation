@@ -15,6 +15,7 @@ config/network_wifi_display_names.json
 config/network_wifi_hidden.json
 config/security_display_names.json
 config/security_hidden.json
+config/security_battery_ack.json
 config/security_schedules.json
 config/presence_display_names.json
 config/presence_hidden.json
