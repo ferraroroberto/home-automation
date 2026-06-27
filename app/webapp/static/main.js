@@ -36,6 +36,7 @@ import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
 import { startWeatherPolling } from './weather.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { installDialogScrollLock } from './scroll-lock.js';
 
 const DEFAULT_RANGE = [16, 31];
 const ASSET_HASH_KEY = 'home-automation.assetHash';
@@ -797,6 +798,11 @@ els.loginForm.addEventListener('submit', async function (ev) {
 (function boot() {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
+
+  // Lock background scroll whenever a modal opens — iOS Safari scrolls the page
+  // behind a <dialog> despite the CSS overflow lock (#214). Patch before any
+  // dialog can open.
+  installDialogScrollLock();
 
   // Tabs: register the energy controller as the tab-change hook, then select
   // the remembered tab — setTab fires onEnergyTab, which also sets the poll
