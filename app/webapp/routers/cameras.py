@@ -37,6 +37,8 @@ from src.camera_client import (
     stop_record,
 )
 from src.camera_display_names import load_camera_display_names, set_camera_display_name
+from src.camera_preset_names import apply_overrides as apply_preset_overrides
+from src.camera_preset_names import set_preset_name
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +185,8 @@ async def camera_ptz_absolute(
 @router.get("/api/cameras/{camera_id}/presets")
 async def camera_presets(camera_id: str) -> Dict[str, Any]:
     try:
-        return {"presets": await list_presets(camera_id)}
+        presets = await list_presets(camera_id)
+        return {"presets": apply_preset_overrides(camera_id, presets)}
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 
@@ -202,6 +205,20 @@ async def camera_preset_save(
         raise _http_error(exc)
 
 
+class PresetRenamePayload(BaseModel):
+    name: str = ""
+
+
+@router.put("/api/cameras/{camera_id}/presets/{token}/name")
+async def camera_preset_rename(
+    camera_id: str, token: str, payload: PresetRenamePayload
+) -> Dict[str, Any]:
+    """Rename a preset via a local override (keeps the saved lens position)."""
+    name = payload.name.strip()
+    set_preset_name(camera_id, token, name)
+    return {"camera_id": camera_id, "token": token, "name": name}
+
+
 @router.post("/api/cameras/{camera_id}/presets/{token}/goto")
 async def camera_preset_goto(camera_id: str, token: str) -> Dict[str, Any]:
     try:
@@ -215,6 +232,7 @@ async def camera_preset_goto(camera_id: str, token: str) -> Dict[str, Any]:
 async def camera_preset_remove(camera_id: str, token: str) -> Dict[str, Any]:
     try:
         await remove_preset(camera_id, token)
+        set_preset_name(camera_id, token, "")  # drop any stale name override
         return {"camera_id": camera_id, "token": token, "removed": True}
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)

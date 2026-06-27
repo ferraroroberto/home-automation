@@ -84,6 +84,10 @@ function pinNavToVisualViewport(nav) {
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);
   if (mq.addEventListener) mq.addEventListener('change', update);
+  // Recompute when any <dialog> closes. 'close' doesn't bubble, so capture it on
+  // document — the bar is hidden (visibility) while a modal is open, and this
+  // re-pins it to the visible bottom edge the instant it reappears (#205).
+  document.addEventListener('close', update, true);
   update();
 }
 

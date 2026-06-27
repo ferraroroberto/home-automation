@@ -28,6 +28,9 @@ export const state = {
   // When true (default), all source-visible devices render, including no-IP
   // adapters. When false, only cards with has_valid_ip===true are shown.
   plugsShowAll: true,
+  // When false (default), user-hidden plugs/blinds are filtered out; the
+  // "Show hidden" toggle reveals them (mirrors the Network device list).
+  plugsShowHidden: false,
   // RISCO alarm state and event log from GET /api/security.
   security: null,
   securityEvents: [],
@@ -95,6 +98,7 @@ export const state = {
 export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
 export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
+export const PLUGS_SHOW_HIDDEN_KEY = 'home-automation.plugsShowHidden';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
 export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
@@ -179,6 +183,7 @@ export const els = {
   zoneDisplayName: document.getElementById('zoneDisplayName'),
   zoneOriginalName: document.getElementById('zoneOriginalName'),
   zoneHiddenToggle: document.getElementById('zoneHiddenToggle'),
+  zoneSave: document.getElementById('zoneSave'),
   // Cameras tile (Security tab) + detail / live-view modals (issue #161)
   camerasList: document.getElementById('camerasList'),
   camerasNote: document.getElementById('camerasNote'),
@@ -188,6 +193,7 @@ export const els = {
   cameraSnapshot: document.getElementById('cameraSnapshot'),
   cameraDetailStatus: document.getElementById('cameraDetailStatus'),
   cameraDisplayName: document.getElementById('cameraDisplayName'),
+  cameraSave: document.getElementById('cameraSave'),
   cameraLiveBtn: document.getElementById('cameraLiveBtn'),
   cameraLiveDialog: document.getElementById('cameraLiveDialog'),
   cameraLiveName: document.getElementById('cameraLiveName'),
@@ -226,6 +232,7 @@ export const els = {
   plugsNote: document.getElementById('plugsNote'),
   plugsRefresh: document.getElementById('plugsRefresh'),
   plugsToggleBtn: document.getElementById('plugsToggleBtn'),
+  plugsHiddenToggle: document.getElementById('plugsHiddenToggle'),
   plugsHiddenCount: document.getElementById('plugsHiddenCount'),
   // Plugs summary stats
   plugsStats: document.getElementById('plugsStats'),
@@ -245,7 +252,10 @@ export const els = {
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),
   plugDisplayName: document.getElementById('plugDisplayName'),
+  plugOriginalName: document.getElementById('plugOriginalName'),
+  plugHiddenToggle: document.getElementById('plugHiddenToggle'),
   plugDetailClose: document.getElementById('plugDetailClose'),
+  plugSave: document.getElementById('plugSave'),
   // Elgato Lights tab
   lightsAllOn: document.getElementById('lightsAllOn'),
   lightsAllOff: document.getElementById('lightsAllOff'),
@@ -255,6 +265,7 @@ export const els = {
   lightDialog: document.getElementById('lightDialog'),
   lightDetailName: document.getElementById('lightDetailName'),
   lightDetailClose: document.getElementById('lightDetailClose'),
+  lightSave: document.getElementById('lightSave'),
   lightDisplayName: document.getElementById('lightDisplayName'),
   lightOriginalName: document.getElementById('lightOriginalName'),
   lightProduct: document.getElementById('lightProduct'),
@@ -334,6 +345,7 @@ export const els = {
   netDeviceImportant: document.getElementById('netDeviceImportant'),
   netDeviceImportantRow: document.getElementById('netDeviceImportantRow'),
   netDeviceHiddenToggle: document.getElementById('netDeviceHiddenToggle'),
+  netDeviceSave: document.getElementById('netDeviceSave'),
   netDeviceMac: document.getElementById('netDeviceMac'),
   // Per-Wi-Fi-radio detail + rename modal
   netWifiDialog: document.getElementById('netWifiDialog'),
@@ -433,6 +445,7 @@ export const els = {
   detailVaneVerticalRow: document.getElementById('detailVaneVerticalRow'),
   detailVaneHorizontalRow: document.getElementById('detailVaneHorizontalRow'),
   detailClose: document.getElementById('detailClose'),
+  detailSave: document.getElementById('detailSave'),
   // Detail modal — temperature rule (dynamic setpoint) section
   ruleEnabled: document.getElementById('ruleEnabled'),
   ruleCoolTarget: document.getElementById('ruleCoolTarget'),
@@ -493,7 +506,10 @@ export function toast(msg, kind) {
   els.toast.textContent = msg;
   els.toast.className = 'toast ' + (kind || '');
   els.toast.hidden = false;
-  if (toastTimer) clearTimeout(toastTimer);
+  if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+  // 'pending' (e.g. "Sending…") stays up until a follow-up toast replaces it
+  // with the result — it has no fixed lifetime (#204).
+  if (kind === 'pending') return;
   toastTimer = setTimeout(function () {
     els.toast.hidden = true;
   }, kind === 'error' ? 4500 : 2000);

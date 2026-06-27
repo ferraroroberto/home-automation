@@ -51,11 +51,13 @@ def test_vane_change_posts_direction(
 ) -> None:
     mock_api(sample_units)
     _open_detail(page, base_url, "unit-1")
+    # Settings now stage and commit on Save (#202); the control patch is batched.
+    page.locator("#detailVaneVertical").select_option("Swing")
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1") and r.method == "POST"
     ) as info:
-        page.locator("#detailVaneVertical").select_option("Swing")
-    assert info.value.post_data_json == {"vane_vertical_direction": "Swing"}
+        page.locator("#detailSave").click()
+    assert info.value.post_data_json["vane_vertical_direction"] == "Swing"
 
 
 def test_mode_change_posts(
@@ -63,8 +65,10 @@ def test_mode_change_posts(
 ) -> None:
     mock_api(sample_units)
     _open_detail(page, base_url, "unit-1")
+    # Settings now stage and commit on Save (#202).
+    page.locator("#detailMode").select_option("Heat")
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1") and r.method == "POST"
     ) as info:
-        page.locator("#detailMode").select_option("Heat")
-    assert info.value.post_data_json == {"operation_mode": "Heat"}
+        page.locator("#detailSave").click()
+    assert info.value.post_data_json["operation_mode"] == "Heat"

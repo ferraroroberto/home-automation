@@ -42,6 +42,43 @@ const ASSET_HASH_KEY = 'home-automation.assetHash';
 const ASSET_RELOAD_KEY = 'home-automation.assetReloadedFor';
 let currentScheduleEntries = [];
 
+// Detail-modal staging (#202): edits to mode/fan/vanes, display name, the
+// temperature rule and the schedules are held locally and only written when the
+// user presses Save — no more save-on-every-change. Closing the modal discards
+// (openDetail reloads everything from the server). The card-level on/off toggle
+// and ± stepper stay immediate; they are not part of this.
+let detailDirty = { controls: false, name: false, rule: false, sched: false };
+
+function markDetailDirty(section) {
+  detailDirty[section] = true;
+  if (els.detailSave) els.detailSave.disabled = false;
+}
+
+function clearDetailDirty() {
+  detailDirty = { controls: false, name: false, rule: false, sched: false };
+  if (els.detailSave) els.detailSave.disabled = true;
+}
+
+// Commit whatever was staged in the detail modal, one section at a time. The
+// per-section save helpers (applyControl / saveRule / saveSchedules /
+// saveDisplayName) each toast their own outcome, so we don't add another.
+async function commitDetail() {
+  const id = state.selectedId;
+  if (!id) return;
+  if (els.detailSave) els.detailSave.disabled = true;
+  if (detailDirty.controls) {
+    const patch = { operation_mode: els.detailMode.value };
+    if (els.detailFanSpeedRow && !els.detailFanSpeedRow.hidden) patch.fan_speed = els.detailFanSpeed.value;
+    if (els.detailVaneVerticalRow && !els.detailVaneVerticalRow.hidden) patch.vane_vertical_direction = els.detailVaneVertical.value;
+    if (els.detailVaneHorizontalRow && !els.detailVaneHorizontalRow.hidden) patch.vane_horizontal_direction = els.detailVaneHorizontal.value;
+    await applyControl(id, patch);
+  }
+  if (detailDirty.name) await saveDisplayName();
+  if (detailDirty.rule) await saveRule();
+  if (detailDirty.sched) await saveSchedules();
+  clearDetailDirty();
+}
+
 // --------------------------------------------------------------- helpers
 function unitById(id) {
   return state.units.find(function (u) { return u.unit_id === id; });
@@ -90,6 +127,7 @@ function hasSchedule(unit) {
 // --------------------------------------------------- write + re-render
 async function applyControl(unitId, patch) {
   try {
+    toast('Sending…', 'pending');
     const updated = await jsonApi('/api/units/' + encodeURIComponent(unitId), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -321,6 +359,7 @@ function scheduleDefaults(unit) {
     power: true,
     operation_mode: unit.operation_mode || null,
     set_temperature: unit.set_temperature == null ? null : unit.set_temperature,
+    target_temperature: null,
     fan_speed: unit.fan_speed || null,
     vane_vertical_direction: unit.has_vane_vertical ? (unit.vane_vertical || null) : null,
     vane_horizontal_direction: unit.has_vane_horizontal ? (unit.vane_horizontal || null) : null,
@@ -358,7 +397,8 @@ function renderScheduleList(unit) {
       '</div>' +
       '<div class="schedule-profile"' + (entry.power === false ? ' hidden' : '') + '>' +
       '  <label class="row"><span>Mode</span><select class="select-native sched-entry-mode">' + optionHtml(unit.operation_modes || [], entry.operation_mode || unit.operation_mode) + '</select></label>' +
-      '  <label class="row"><span>Target temp (°C)</span><input type="number" step="0.5" min="10" max="31" class="input-native sched-entry-temp" placeholder="—" value="' + (entry.set_temperature == null ? '' : entry.set_temperature) + '"></label>' +
+      '  <label class="row"><span>Set temp now (°C)</span><input type="number" step="0.5" min="10" max="31" class="input-native sched-entry-temp" placeholder="—" value="' + (entry.set_temperature == null ? '' : entry.set_temperature) + '"></label>' +
+      '  <label class="row"><span>Target temp (°C)</span><input type="number" step="0.5" min="10" max="31" class="input-native sched-entry-target" placeholder="—" value="' + (entry.target_temperature == null ? '' : entry.target_temperature) + '"></label>' +
       '  <label class="row"><span>Fan</span><select class="select-native sched-entry-fan">' + optionHtml(unit.fan_speeds || [], entry.fan_speed || unit.fan_speed) + '</select></label>' +
       (unit.has_vane_vertical ? '  <label class="row"><span>Vane — vertical</span><select class="select-native sched-entry-vv">' + optionHtml(unit.vane_vertical_options || [], entry.vane_vertical_direction || unit.vane_vertical) + '</select></label>' : '') +
       (unit.has_vane_horizontal ? '  <label class="row"><span>Vane — horizontal</span><select class="select-native sched-entry-vh">' + optionHtml(unit.vane_horizontal_options || [], entry.vane_horizontal_direction || unit.vane_horizontal) + '</select></label>' : '') +
@@ -373,15 +413,17 @@ function renderScheduleList(unit) {
       card.classList.toggle('is-off-entry', entry.power === false);
       const mode = card.querySelector('.sched-entry-mode');
       const temp = card.querySelector('.sched-entry-temp');
+      const target = card.querySelector('.sched-entry-target');
       const fan = card.querySelector('.sched-entry-fan');
       const vv = card.querySelector('.sched-entry-vv');
       const vh = card.querySelector('.sched-entry-vh');
       entry.operation_mode = mode ? mode.value || null : null;
       entry.set_temperature = temp ? numOrNull(temp) : null;
+      entry.target_temperature = target ? numOrNull(target) : null;
       entry.fan_speed = fan ? fan.value || null : null;
       entry.vane_vertical_direction = vv ? vv.value || null : null;
       entry.vane_horizontal_direction = vh ? vh.value || null : null;
-      saveSchedules();
+      markDetailDirty('sched');
     };
 
     card.querySelector('.sched-entry-enabled').addEventListener('change', saveFromCard);
@@ -390,13 +432,15 @@ function renderScheduleList(unit) {
     card.querySelector('.schedule-delete').addEventListener('click', function () {
       currentScheduleEntries.splice(idx, 1);
       renderScheduleList(unit);
-      saveSchedules();
+      markDetailDirty('sched');
     });
     card.querySelectorAll('.sched-entry-mode, .sched-entry-fan, .sched-entry-vv, .sched-entry-vh').forEach(function (el) {
       el.addEventListener('change', saveFromCard);
     });
     const tempInput = card.querySelector('.sched-entry-temp');
     if (tempInput) tempInput.addEventListener('blur', saveFromCard);
+    const targetInput = card.querySelector('.sched-entry-target');
+    if (targetInput) targetInput.addEventListener('blur', saveFromCard);
     els.schedList.appendChild(card);
   });
 }
@@ -429,6 +473,7 @@ function openDetail(unitId) {
   const unit = unitById(unitId);
   if (!unit) return;
   state.selectedId = unitId;
+  clearDetailDirty();
   populateDetail(unit);
   loadAutomation(unitId);
   if (typeof els.detail.showModal === 'function') els.detail.showModal();
@@ -437,6 +482,7 @@ function openDetail(unitId) {
 
 function closeDetail() {
   state.selectedId = null;
+  clearDetailDirty();
   if (typeof els.detail.close === 'function') els.detail.close();
   else els.detail.removeAttribute('open');
 }
@@ -503,16 +549,14 @@ function renderAcSummary() {
     name.innerHTML = icon(modeIcon(u.operation_mode), 'ac-line-icon');
     name.insertAdjacentText('beforeend', ' ' + (displayLabel(u) || 'Unit'));
 
-    // Centred temperature column: room → target on top, mode · fan beneath, so
-    // the readings line up down the card (issue #72).
+    // Temperature column: room → target on a single line. The mode · fan caption
+    // was dropped (#211) to keep each Home row one line tall, matching the
+    // Network "Attached devices" row density — mode/fan stay in the detail modal.
     const center = document.createElement('span');
     center.className = 'ac-line-center';
     const room = fmtTemp(u.room_temperature);
     const target = fmtTemp(u.set_temperature);
-    center.innerHTML =
-      '<span class="ac-temp">' + room + ' → ' + target + '</span>' +
-      '<span class="ac-meta">' + (u.operation_mode || '—') +
-        (u.fan_speed ? ' · fan ' + fanLabel(u.fan_speed) : '') + '</span>';
+    center.innerHTML = '<span class="ac-temp">' + room + ' → ' + target + '</span>';
 
     // Power toggle — the app's standard switch, actionable from Home (issue #72).
     const toggle = document.createElement('button');
@@ -691,28 +735,29 @@ els.detailClose.addEventListener('click', closeDetail);
 els.detail.addEventListener('click', function (ev) {
   if (ev.target === els.detail) closeDetail();  // backdrop click
 });
-els.detailDisplayName.addEventListener('blur', saveDisplayName);
+// Detail-modal settings now stage locally and commit only on Save (#202).
+els.detailSave.addEventListener('click', commitDetail);
+els.detailDisplayName.addEventListener('blur', function () { markDetailDirty('name'); });
 els.detailDisplayName.addEventListener('keydown', function (ev) {
   if (ev.key === 'Enter') { ev.preventDefault(); els.detailDisplayName.blur(); }
 });
 els.detailMode.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { operation_mode: els.detailMode.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 els.detailFanSpeed.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { fan_speed: els.detailFanSpeed.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 els.detailVaneVertical.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { vane_vertical_direction: els.detailVaneVertical.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 els.detailVaneHorizontal.addEventListener('change', function () {
-  if (state.selectedId) applyControl(state.selectedId, { vane_horizontal_direction: els.detailVaneHorizontal.value });
+  if (state.selectedId) markDetailDirty('controls');
 });
 
-// Temperature rule — save on any change; number inputs also save on blur so a
-// typed value persists without needing Enter.
-els.ruleEnabled.addEventListener('change', saveRule);
-els.ruleCoolTarget.addEventListener('blur', saveRule);
-els.ruleHeatTarget.addEventListener('blur', saveRule);
+// Temperature rule — staged; commits with everything else on Save.
+els.ruleEnabled.addEventListener('change', function () { markDetailDirty('rule'); });
+els.ruleCoolTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
+els.ruleHeatTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
 
 // Schedules — dynamic list; each row wires its own controls when rendered.
 els.schedAdd.addEventListener('click', function () {
@@ -721,7 +766,7 @@ els.schedAdd.addEventListener('click', function () {
   if (!unit) return;
   currentScheduleEntries.push(scheduleDefaults(unit));
   renderScheduleList(unit);
-  saveSchedules();
+  markDetailDirty('sched');
 });
 
 els.loginForm.addEventListener('submit', async function (ev) {
@@ -774,10 +819,21 @@ els.loginForm.addEventListener('submit', async function (ev) {
   restoreUpsSnapshot();
   restoreLightsSnapshot();
   restoreNetworkSnapshot();
+  // AC units only matter on Home (summary tile) and AC (cards), so poll them
+  // only while one of those tabs is active rather than every 30s everywhere
+  // (#209). A single boot fetch below keeps state populated for the first paint.
+  let unitsTimer = null;
+  function onUnitsTab(tab) {
+    if (unitsTimer) { clearInterval(unitsTimer); unitsTimer = null; }
+    if (tab === 'home' || tab === 'ac') {
+      loadUnits();
+      unitsTimer = setInterval(loadUnits, 30_000);
+    }
+  }
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
-    onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
+    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
   });
   setTab(initialTab());
 
@@ -785,6 +841,5 @@ els.loginForm.addEventListener('submit', async function (ev) {
   loadEnergy();
   startWeatherPolling();
   fetchVersion();
-  setInterval(loadUnits, 30_000);
   setInterval(fetchVersion, 300_000);
 })();

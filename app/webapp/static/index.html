@@ -626,7 +626,7 @@
          and LAN reads only. The empty/error note guides toward refreshing
          devices.json (never the cloud). -->
     <section id="panePlugs" class="pane" role="tabpanel" aria-labelledby="tabPlugs" aria-label="Smart Life devices" hidden>
-      <section id="upsTile" class="card ups-tile" aria-label="UPS status" hidden></section>
+      <section id="upsTile" class="card ups-tile ups-tile-compact" aria-label="UPS status" hidden></section>
 
       <!-- Summary: total devices · on · off · live consumption (reachable
            metered). Computed from state.plugs; hidden until devices load. -->
@@ -653,6 +653,7 @@
           <div class="plugs-toolbar">
             <button id="plugsRefresh" type="button" class="range-tab" data-testid="plugs-refresh">Refresh</button>
             <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Reachable only</button>
+            <button id="plugsHiddenToggle" type="button" class="range-tab" data-testid="plugs-show-hidden-toggle" hidden>Show hidden</button>
             <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
           </div>
         </div>
@@ -779,7 +780,7 @@
         </div>
       </details>
 
-      <details class="card net-devices-card" open>
+      <details class="card net-devices-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
@@ -1084,6 +1085,10 @@
           <p class="muted small detail-hint">Each enabled entry runs once per day. Off entries only turn the unit off; on entries can apply a full profile before the temperature rule resumes steering.</p>
         </div>
       </details>
+
+      <div class="detail-actions">
+        <button id="detailSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 
@@ -1108,6 +1113,10 @@
       <div class="row"><span>Firmware</span><span id="lightFirmware" class="muted">—</span></div>
       <div class="row"><span>Color temperature</span><span id="lightTemperatureMeta" class="muted">—</span></div>
       <p id="lightIdentifier" class="muted small zone-original-name"></p>
+
+      <div class="detail-actions">
+        <button id="lightSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 
@@ -1124,6 +1133,20 @@
         <span>Display name</span>
         <input id="plugDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
+      <!-- Original Tuya / Smart Life name, so a custom label can be matched back
+           to the device as it appears in the Smart Life app. -->
+      <p id="plugOriginalName" class="muted small zone-original-name"></p>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="plugHiddenToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide device">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
+      <div class="detail-actions">
+        <button id="plugSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 
@@ -1155,6 +1178,10 @@
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
       </div>
+
+      <div class="detail-actions">
+        <button id="zoneSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 
@@ -1171,6 +1198,9 @@
         <span>Display name</span>
         <input id="cameraDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
+      <div class="detail-actions">
+        <button id="cameraSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
       <button id="cameraLiveBtn" type="button" class="big-btn camera-live-open">
         <svg class="icon" aria-hidden="true"><use href="#i-maximize"></use></svg> Open live view
       </button>
@@ -1312,6 +1342,10 @@
       <!-- The MAC is the stable identifier the label maps back to; flagged when
            it's a randomised (locally-administered) address. -->
       <p id="netDeviceMac" class="muted small zone-original-name"></p>
+
+      <div class="detail-actions">
+        <button id="netDeviceSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
     </div>
   </dialog>
 

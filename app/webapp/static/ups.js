@@ -56,13 +56,6 @@ function statusText(ups) {
   return 'Online';
 }
 
-function sourceText(ups) {
-  if (!ups || !ups.source) return '';
-  if (ups.source === 'nut') return 'NUT';
-  if (ups.source === 'windows_battery') return 'Windows USB HID';
-  return ups.source;
-}
-
 function renderStat(label, value) {
   return '<div class="ups-stat ups-stat-' + esc(label.toLowerCase()) + '"><span class="ups-stat-label">' + esc(label) +
     '</span><span class="ups-stat-value">' + esc(value) + '</span></div>';
@@ -78,10 +71,6 @@ function renderUpsTile(tile, ups, compact) {
   tile.classList.toggle('is-unavailable', !available);
 
   const title = 'UPS';
-  const meta = available
-    ? [sourceText(ups), ups.model && ups.model !== ups.name ? ups.model : null]
-        .filter(Boolean).join(' · ')
-    : ((ups && ups.error) || 'No local UPS telemetry.');
   const stats = [
     renderStat('Charge', fmtPct(ups && ups.battery_charge_pct)),
     renderStat('Runtime', fmtRuntime(ups && ups.runtime_seconds)),
@@ -98,7 +87,6 @@ function renderUpsTile(tile, ups, compact) {
     '<div class="ups-main">' +
     '  <div class="ups-identity">' +
     '    <div class="ups-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg><span>' + esc(title) + '</span>' + snapshot + '</div>' +
-    '    <p class="ups-meta muted small">' + esc(meta || '—') + '</p>' +
     '  </div>' +
     '  <div class="ups-stats">' + stats + '</div>' +
     '  <span class="ups-status">' + esc(statusText(ups)) + '</span>' +

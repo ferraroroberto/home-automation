@@ -343,10 +343,15 @@ html, body {
     white-space: nowrap;
   }
 
-  /* Never let the floating bar hover over a modal / overlay. */
+  /* Never let the floating bar hover over a modal / overlay. Hide it with
+     visibility (not display) so the fixed bar stays in the render tree and its
+     VisualViewport transform keeps tracking — toggling display tore it out and
+     reinserted it with a stale transform, which read as the nav "jumping" up on
+     close (#205). */
   body:has(dialog[open]) .tabs,
   body:has(#loginOverlay:not([hidden])) .tabs {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
   }
 }
 
@@ -360,7 +365,9 @@ html, body {
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-  padding: 9px 0;
+  /* Single tight line per unit, matching the Network "Attached devices" row
+     density (#211). */
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 .ac-line:first-child { border-top: 0; }
@@ -373,16 +380,9 @@ html, body {
   white-space: nowrap;
 }
 .ac-line-icon { width: 1.05em; height: 1.05em; margin-right: 2px; }
-/* Centred temperature column: room → target above, mode · fan beneath. */
-.ac-line-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  text-align: center;
-}
+/* Single-line temperature reading: room → target (#211). */
+.ac-line-center { text-align: right; }
 .ac-temp { font-weight: 650; font-variant-numeric: tabular-nums; }
-.ac-meta { color: var(--muted); font-size: var(--font-caption); }
 
 /* ------------------------------------------------- energy flow diagram */
 /* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
@@ -893,7 +893,10 @@ html, body {
 .plugs-note { margin: 10px 4px; }
 
 .ups-tile {
-  padding: 12px var(--space-md);
+  /* Symmetric padding so the status pill sits an equal distance from the top
+     and right edges when pinned to the corner (#207 follow-up). */
+  position: relative;
+  padding: var(--space-md);
   margin-bottom: var(--gap);
 }
 .ups-tile.is-on-battery {
@@ -902,11 +905,14 @@ html, body {
 .ups-tile.is-unavailable {
   opacity: 0.75;
 }
+/* One unified layout for both the Home and Plugs tiles (#207 follow-up): the
+   identity sits top-left, the status pill is pinned to the top-right corner,
+   and the stat row runs full-width beneath. No separate desktop/mobile shape. */
 .ups-main {
   display: grid;
-  grid-template-columns: minmax(150px, 1.25fr) minmax(0, 3.75fr) auto;
-  align-items: center;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  row-gap: 8px;
 }
 .ups-identity { min-width: 0; }
 .ups-title {
@@ -929,22 +935,26 @@ html, body {
   white-space: nowrap;
 }
 .ups-status {
-  flex: none;
+  /* Pinned to the top-right corner, equidistant from the top and right edges
+     (the card padding). Out of flow so the stat row can run full-width. */
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
   font-size: var(--font-body);
   font-weight: 700;
   color: var(--on);
   text-align: right;
+  /* Prominent pill so mains/online state reads at a glance — green online,
+     red on battery / unavailable (#207). */
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--on) 14%, transparent);
+  white-space: nowrap;
 }
 .ups-tile.is-on-battery .ups-status,
 .ups-tile.is-unavailable .ups-status {
   color: var(--deficit);
-}
-.ups-meta {
-  margin: 2px 0 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: color-mix(in srgb, var(--deficit) 16%, transparent);
 }
 .ups-stats {
   display: grid;
@@ -990,21 +1000,32 @@ html, body {
   display: none;
 }
 @media (max-width: 720px) {
-  .ups-main,
   .plugs-summary-row {
     grid-template-columns: 1fr;
   }
+  /* Compact UPS card on mobile (#207): a short "Charge · Runtime" line sits
+     beneath the identity + corner status pill — much shorter than the old
+     fully-stacked 5-stat tile. The base layout already pins the pill top-right. */
   .ups-stats {
-    grid-template-columns: repeat(5, minmax(54px, 1fr));
+    grid-template-columns: repeat(2, auto);
+    justify-content: start;
+    gap: 18px;
   }
-  .ups-status,
-  .plugs-toolbar {
-    justify-self: stretch;
+  /* Keep only the two stats that matter at a glance; the rest only add height. */
+  .ups-stat-battery,
+  .ups-stat-load,
+  .ups-stat-input {
+    display: none;
   }
-  .ups-status {
+  /* Inline each kept stat as "Charge 96%" rather than a stacked tile. */
+  .ups-stat {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
     text-align: left;
   }
   .plugs-toolbar {
+    justify-self: stretch;
     justify-content: flex-start;
     flex-wrap: wrap;
   }
@@ -1761,6 +1782,31 @@ button.presence-name:hover { text-decoration: underline; }
   .schedule-enabled { grid-column: 1 / -1; }
 }
 
+/* Detail-modal Save footer (#202): settings stage locally and commit only here.
+   Sticky to the bottom of the modal so it stays reachable on long detail cards;
+   disabled until something changes. */
+.detail-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 14px -18px -18px;
+  padding: 12px 18px;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.detail-save-btn {
+  width: 100%;
+  min-height: var(--control-h);
+  border: 1px solid var(--accent-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.detail-save-btn:disabled { opacity: 0.5; cursor: default; }
+
 .checkbox-native {
   width: 20px;
   height: 20px;
@@ -1843,12 +1889,15 @@ button.presence-name:hover { text-decoration: underline; }
   grid-column: 1;
   justify-self: start;
   display: inline-flex;
-  align-items: center;
+  /* Baseline so a trailing "N hidden" count sits on the title's baseline rather
+     than centred against it (#210). The leading icon is re-centred below so it
+     keeps reading aligned with the title. */
+  align-items: baseline;
   gap: 8px;
   min-width: 0;
   line-height: 1;
 }
-.collapse-icon { font-size: 1.1rem; line-height: 1; }
+.collapse-icon { font-size: 1.1rem; line-height: 1; align-self: center; }
 .collapse-title { margin: 0; font-weight: 650; font-size: var(--font-body); line-height: 1; }
 .collapse-chevron {
   grid-column: 2;
@@ -2494,9 +2543,11 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   gap: 16px; margin-top: 14px; flex-wrap: wrap;
 }
 .camera-dpad {
+  /* Single row — Left · Up · Down · Right — rather than a 3x3 cross (#212). */
   display: grid; gap: 6px;
-  grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px);
-  grid-template-areas: ". up ." "left . right" ". down .";
+  grid-template-columns: repeat(4, 44px);
+  grid-auto-rows: 44px;
+  grid-template-areas: "left up down right";
 }
 .camera-ptz-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -2547,6 +2598,12 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   font: inherit; font-weight: 600; padding: 6px 10px; cursor: pointer;
 }
 .camera-preset-go:hover { background: var(--accent-soft); }
+.camera-preset-rename {
+  appearance: none; border: 0; border-left: 1px solid var(--line);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 0.95rem; line-height: 1; padding: 0 8px;
+}
+.camera-preset-rename:hover { color: var(--accent); }
 .camera-preset-del {
   appearance: none; border: 0; border-left: 1px solid var(--line);
   background: none; color: var(--muted); cursor: pointer;

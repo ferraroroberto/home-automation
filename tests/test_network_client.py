@@ -489,7 +489,9 @@ def test_ap_rediscovery_success(monkeypatch) -> None:
         rediscovered_ap_reachable=True,
     )
 
-    monkeypatch.setenv("NETWORK_AP_MAC", fakes["_ap_mac_env"])
+    # Patch _ap_mac directly: it calls load_dotenv(override=True), which would
+    # clobber a monkeypatch.setenv from the real .env when NETWORK_AP_MAC is set.
+    monkeypatch.setattr(network_client, "_ap_mac", lambda: fakes["_ap_mac_env"])
     monkeypatch.setattr(network_client, "fetch_internet_health", fakes["fetch_internet_health"])
     monkeypatch.setattr(network_client, "fetch_access_point", fakes["fetch_access_point"])
     monkeypatch.setattr(network_client, "fetch_router", fakes["fetch_router"])
@@ -511,7 +513,9 @@ def test_ap_rediscovery_failure_mac_not_in_leases(monkeypatch) -> None:
         ap_mac_env="aa:bb:cc:dd:ee:ff",  # MAC not in leases
     )
 
-    monkeypatch.setenv("NETWORK_AP_MAC", fakes["_ap_mac_env"])
+    # Patch _ap_mac directly: it calls load_dotenv(override=True), which would
+    # clobber a monkeypatch.setenv from the real .env when NETWORK_AP_MAC is set.
+    monkeypatch.setattr(network_client, "_ap_mac", lambda: fakes["_ap_mac_env"])
     monkeypatch.setattr(network_client, "fetch_internet_health", fakes["fetch_internet_health"])
     monkeypatch.setattr(network_client, "fetch_access_point", fakes["fetch_access_point"])
     monkeypatch.setattr(network_client, "fetch_router", fakes["fetch_router"])

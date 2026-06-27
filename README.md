@@ -78,6 +78,22 @@ and an optional bearer token. Two ways to reach it once running:
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
+### Background polling (what fetches when)
+
+The PWA does **not** poll everything continuously. Each tab's data is fetched only while that tab is active (the LAN/cloud reads are comparatively expensive); leaving a tab stops its timer. The matrix below is the contract — keep it in sync when cadences change.
+
+| Data | Cadence | Polls while on | Notes |
+| --- | --- | --- | --- |
+| AC units | 30 s | Home, AC | One boot fetch on load; otherwise gated to these tabs (#209). |
+| Energy | 5 s active / 30 s slow | Energy (fast), Home (slow) | SMA reads are lightweight. |
+| Plugs | 15 s | Plugs | Tuya LAN reads. |
+| UPS | 15 s | Plugs, Home | Local NUT/USB-HID read. |
+| Lights | 15 s | Lights | Elgato LAN reads. |
+| Network | 15 s | Network | AP SOAP + router reads; speed test is button-only. |
+| Security | 10 s | Security, Home | RISCO cloud. |
+| Weather | ~10 min | (always) | Barely moves. |
+| Build version | 5 min | (always) | Cheap; drives the build-identity footer. |
+
 ## Setup
 
 The virtual environment lives at `.venv`. Install dependencies:
@@ -556,9 +572,10 @@ The tab also shows the local **UPS** above the Tuya device summary. `GET /api/up
 
 > **Blind position is up/stop/close only.** The blind (Maxcio "Curtain switch") exposes a single open/stop/close DPS with **no native position % and no feedback** (confirmed by a live `tinytuya` DPS dump). Percentage **presets** would therefore need a time-based approximation (calibrated travel-time + a timed stop) and are **deferred to #181** along with group multi-blind control — this tab is the presentation refactor only.
 
-- **Rename a socket:** tap a plug's name to open a rename modal (same UX as the AC-unit rename). The custom label is saved via `PUT /api/tuya/{id}/display_name` to a gitignored `config/tuya_display_names.json` (`device_id` → label, parallel to the unit `config/display_names.json`); a missing file is not an error. The override wins over the Tuya device name everywhere in the UI.
+- **Rename a socket:** tap a plug's name to open its detail modal (same UX as the AC-unit rename). The custom label is saved via `PUT /api/tuya/{id}/display_name` to a gitignored `config/tuya_display_names.json` (`device_id` → label, parallel to the unit `config/display_names.json`); a missing file is not an error. The override wins over the Tuya device name everywhere in the UI. The modal also shows the **original Smart Life name** (so a renamed device can be matched back to the app) and a **Hidden** toggle — the display name and Hidden edits commit together only on **Save** (closing discards them).
+- **Hide a socket or blind:** the detail-modal **Hidden** toggle drops a device out of both lists; a **"Show hidden (N)"** toolbar toggle reveals them. Hidden state persists via `PUT /api/tuya/{id}/hidden` to a gitignored `config/tuya_hidden.json` (`device_id` → hidden marker, parallel to `config/network_hidden.json` / `config/security_hidden.json`); `GET /api/tuya` overlays the `hidden` flag per card.
 - **Refresh local status:** tap **Refresh** to run a live LAN rediscovery — a TinyTuya UDP broadcast scan (no Tuya Cloud, no local keys) that finds the **current** IP of every powered-on plug, reconciles those addresses into `devices.json` by device id (local keys and DPS mappings preserved), then retries the LAN reads. This makes Refresh **self-healing for DHCP churn**: a plug that took a new lease becomes controllable again without leaving the app. The scan takes ~8 s, so it is gated to this explicit button (page-load reads stay fast off the stored file); the button shows **Scanning…** while it runs and reports what it recovered.
-- **Endpoints:** `GET /api/tuya` (device cards with switch state, reachability, live energy fields, and the `display_name` override — the per-device LAN reads run in parallel), `POST /api/tuya/{id}/switch` (`{"on": true|false}`), `POST /api/tuya/{id}/cover` (`{"action": "open"|"close"|"stop"}`), `PUT /api/tuya/{id}/display_name` (`{"display_name": "…"}`; empty clears the override).
+- **Endpoints:** `GET /api/tuya` (device cards with switch state, reachability, live energy fields, the `display_name` override, and the `hidden` flag — the per-device LAN reads run in parallel), `POST /api/tuya/{id}/switch` (`{"on": true|false}`), `POST /api/tuya/{id}/cover` (`{"action": "open"|"close"|"stop"}`), `PUT /api/tuya/{id}/display_name` (`{"display_name": "…"}`; empty clears the override), `PUT /api/tuya/{id}/hidden` (`{"hidden": true|false}`).
 - **Cadence:** the tab refreshes every ~15 s **only while it is open** (LAN reads are comparatively expensive), and stops polling when you leave it.
 - **Offline / stale-IP devices:** a powered-off plug or one without a usable LAN IP renders as **Unavailable** without blocking reachable devices from updating or being controlled. No-IP devices are visible by default with the captured non-secret identity fields (MAC/UUID/SN when TinyTuya provides them); use **Reachable only** to temporarily filter them out.
 - **Missing or stale devices?** Stale **IPs** now self-heal — tap **Refresh** (above). The TinyTuya wizard/snapshot is only needed **on the home network** to add **new** devices or capture **updated local keys** (re-pairing), never just to chase a changed IP, and never the cloud:

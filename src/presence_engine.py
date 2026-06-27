@@ -26,12 +26,24 @@ VALID_STATES = frozenset({"home", "away"})
 
 @dataclass(frozen=True)
 class PersonPresence:
-    """One webhook-backed person's latest confirmed state."""
+    """One webhook-backed person's latest confirmed state.
+
+    ``updated_at`` is the last-seen heartbeat (advances on every webhook ping, so
+    the staleness check stays honest). ``state_since`` is the timestamp of the
+    last *state change* — it does NOT move on same-state pings, so the alarm
+    transition keys are stable. Defaulting it to ``updated_at`` keeps older
+    persisted records (and direct constructions) working unchanged.
+    """
 
     person_id: str
     state: str
     updated_at: datetime
     source: str = "webhook"
+    state_since: Optional[datetime] = None
+
+    def __post_init__(self) -> None:
+        if self.state_since is None:
+            object.__setattr__(self, "state_since", self.updated_at)
 
 
 @dataclass(frozen=True)
@@ -120,11 +132,14 @@ def load_people(path: Optional[Path] = None) -> Dict[str, PersonPresence]:
         updated_at = _parse_dt(raw.get("updated_at"))
         if state not in VALID_STATES or updated_at is None:
             continue
+        # Older records predate state_since — fall back to updated_at for them.
+        state_since = _parse_dt(raw.get("state_since")) or updated_at
         people[str(person_id)] = PersonPresence(
             person_id=str(person_id),
             state=state,
             updated_at=updated_at,
             source=str(raw.get("source") or "webhook"),
+            state_since=state_since,
         )
     return people
 
@@ -150,14 +165,29 @@ def set_person_state(
     people = raw.get("people")
     if not isinstance(people, dict):
         people = {}
+    # state_since moves only on a real state change; a same-state ping refreshes
+    # the heartbeat (updated_at) but keeps the original transition timestamp, so
+    # the alarm transition keys don't churn (else a scheduled arm gets undone by
+    # the next presence ping). A brand-new person starts state_since = now.
+    prior = people.get(clean_id)
+    prior_state = prior.get("state") if isinstance(prior, dict) else None
+    if prior_state == clean_state:
+        state_since = (
+            _parse_dt(prior.get("state_since"))
+            or _parse_dt(prior.get("updated_at"))
+            or stamp
+        )
+    else:
+        state_since = stamp
     people[clean_id] = {
         "state": clean_state,
         "updated_at": _iso(stamp),
+        "state_since": _iso(state_since),
         "source": source,
     }
     raw["people"] = people
     _save_state(raw, path)
-    return PersonPresence(clean_id, clean_state, stamp, source)
+    return PersonPresence(clean_id, clean_state, stamp, source, state_since=state_since)
 
 
 def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationConfig:
@@ -290,7 +320,11 @@ def evaluate_alarm_decision(
     away = [p for p in fresh if p.state == "away"]
 
     if home and config.disarm_on_arrival and security_mode != "disarmed":
-        transition_at = max(p.updated_at for p in home)
+        # Transition time, not last-seen — so a deliberate (scheduled/manual) arm
+        # while people are already home isn't undone, and the key stays stable
+        # across pings. A genuine away→home arrival advances state_since and lets
+        # the disarm fire once, as intended.
+        transition_at = max(p.state_since for p in home)
         key = f"disarm:{transition_at.isoformat()}"
         if key != _last_key("disarm") and not _manual_after(transition_at):
             return PresenceDecision(
@@ -303,7 +337,10 @@ def evaluate_alarm_decision(
         return None
 
     if len(away) == len(fresh) and security_mode == "disarmed":
-        all_away_since = max(p.updated_at for p in away)
+        # When everyone left (transition time), not last-seen — so the arm-away
+        # grace counts from the actual departure and same-state pings can't keep
+        # resetting it.
+        all_away_since = max(p.state_since for p in away)
         if (stamp - all_away_since).total_seconds() < config.arm_away_after_s:
             return None
         key = f"arm:{all_away_since.isoformat()}"

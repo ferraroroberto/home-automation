@@ -364,6 +364,8 @@ function openZoneDetail(zoneId) {
     els.zoneOriginalName.textContent = 'System name: ' + (zone.name || ('Zone ' + zone.id));
   }
   renderZoneHiddenToggle(zone);
+  zoneStaged = { hidden: !!zone.hidden };
+  clearZoneDirty();
   if (typeof els.zoneDialog.showModal === 'function') els.zoneDialog.showModal();
   else els.zoneDialog.setAttribute('open', '');
   els.zoneDisplayName.focus();
@@ -379,62 +381,79 @@ function renderZoneHiddenToggle(zone) {
     (hidden ? 'ON' : 'OFF') + '</span>';
 }
 
-async function toggleZoneHidden() {
-  const id = state.selectedZoneId;
-  if (id === null || id === undefined) return;
-  const zone = zoneById(id);
-  if (!zone) return;
-  const next = !zone.hidden;
-  try {
-    await jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/hidden', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hidden: next }),
+// Detail-modal staging (#203): name + Hidden commit on Save. zoneStaged holds the
+// working Hidden state captured when the modal opens; closing discards it.
+let zoneStaged = null;
+let zoneDirty = false;
+
+function markZoneDirty() {
+  zoneDirty = true;
+  if (els.zoneSave) els.zoneSave.disabled = false;
+}
+
+function clearZoneDirty() {
+  zoneDirty = false;
+  if (els.zoneSave) els.zoneSave.disabled = true;
+}
+
+function patchZone(id, patch) {
+  if (state.security && Array.isArray(state.security.zones)) {
+    state.security.zones = state.security.zones.map(function (z) {
+      return z.id === id ? Object.assign({}, z, patch) : z;
     });
-    if (state.security && Array.isArray(state.security.zones)) {
-      state.security.zones = state.security.zones.map(function (z) {
-        return z.id === id ? Object.assign({}, z, { hidden: next }) : z;
-      });
-    }
-    renderZoneHiddenToggle(zoneById(id) || zone);
-    renderZones();
-    toast(next ? 'Detector hidden' : 'Detector shown', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to update detector: ' + (exc.message || exc), 'error');
-    }
   }
+}
+
+// Stage the Hidden toggle visually only — the PUT happens on Save.
+function toggleZoneHidden() {
+  const zone = zoneById(state.selectedZoneId);
+  if (!zone || !zoneStaged) return;
+  zoneStaged.hidden = !zoneStaged.hidden;
+  renderZoneHiddenToggle(Object.assign({}, zone, { hidden: zoneStaged.hidden }));
+  markZoneDirty();
 }
 
 function closeZoneDetail() {
   state.selectedZoneId = null;
+  zoneStaged = null;
+  clearZoneDirty();
   if (typeof els.zoneDialog.close === 'function') els.zoneDialog.close();
   else els.zoneDialog.removeAttribute('open');
 }
 
-async function saveZoneName() {
-  if (state.selectedZoneId === null || state.selectedZoneId === undefined) return;
+// Commit the staged name + Hidden; only fields that actually changed are sent.
+async function saveZone() {
   const id = state.selectedZoneId;
+  if (id === null || id === undefined || !zoneStaged) return;
+  const zone = zoneById(id);
+  if (!zone) return;
+  if (els.zoneSave) els.zoneSave.disabled = true;
   const newName = els.zoneDisplayName.value.trim();
-  try {
-    await jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/display_name', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+  const ops = [];
+  if ((zone.display_name || '') !== newName) {
+    ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/display_name', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ display_name: newName }),
-    });
-    if (state.security && Array.isArray(state.security.zones)) {
-      state.security.zones = state.security.zones.map(function (z) {
-        return z.id === id ? Object.assign({}, z, { display_name: newName || null }) : z;
-      });
-    }
-    const zone = zoneById(id);
-    if (zone) els.zoneDetailName.textContent = zoneLabel(zone);
+    }).then(function () { patchZone(id, { display_name: newName || null }); }));
+  }
+  if (!!zone.hidden !== zoneStaged.hidden) {
+    ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/hidden', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: zoneStaged.hidden }),
+    }).then(function () { patchZone(id, { hidden: zoneStaged.hidden }); }));
+  }
+  try {
+    await Promise.all(ops);
+    const z = zoneById(id);
+    if (z) els.zoneDetailName.textContent = zoneLabel(z);
     renderZones();
-    toast('Name saved', 'success');
+    clearZoneDirty();
+    toast('Saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
-      toast('Failed to save name: ' + (exc.message || exc), 'error');
+      toast('Failed to save: ' + (exc.message || exc), 'error');
     }
+    if (els.zoneSave) els.zoneSave.disabled = false;
   }
 }
 
@@ -450,13 +469,14 @@ export function wireZoneDetail() {
   els.zoneDialog.addEventListener('click', function (ev) {
     if (ev.target === els.zoneDialog) closeZoneDetail();  // backdrop click
   });
-  els.zoneDisplayName.addEventListener('blur', saveZoneName);
+  els.zoneDisplayName.addEventListener('input', markZoneDirty);
   els.zoneDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); els.zoneDisplayName.blur(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); saveZone(); }
   });
   if (els.zoneHiddenToggle) {
     els.zoneHiddenToggle.addEventListener('click', toggleZoneHidden);
   }
+  if (els.zoneSave) els.zoneSave.addEventListener('click', saveZone);
 }
 
 // Wire the "show hidden" detectors toggle in the Detectors header (issue #104).

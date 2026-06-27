@@ -10,7 +10,7 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY } from './state.js';
+import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 
@@ -36,6 +36,7 @@ function plugLabel(device) {
 async function toggleSwitch(device) {
   const next = !(device.switch_on === true);
   try {
+    toast('Sending…', 'pending');
     const updated = await jsonApi(
       '/api/tuya/' + encodeURIComponent(device.device_id) + '/switch',
       {
@@ -48,6 +49,7 @@ async function toggleSwitch(device) {
       return d.device_id === device.device_id ? Object.assign({}, d, updated) : d;
     });
     renderPlugs();
+    toast(plugLabel(device) + (next ? ' on' : ' off'), 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -57,6 +59,7 @@ async function toggleSwitch(device) {
 
 async function coverAction(device, action) {
   try {
+    toast('Sending…', 'pending');
     await jsonApi(
       '/api/tuya/' + encodeURIComponent(device.device_id) + '/cover',
       {
@@ -186,6 +189,28 @@ function setListCard(card, countEl, n) {
 }
 
 // --------------------------------------------------------- rename modal
+// Detail-modal staging (#203 pattern): the display name and Hidden edits are
+// held locally and written only on Save. plugStaged holds the working toggle
+// state captured when the modal opens; closing discards it.
+let plugStaged = null;
+
+function markPlugDirty() {
+  if (els.plugSave) els.plugSave.disabled = false;
+}
+
+function clearPlugDirty() {
+  if (els.plugSave) els.plugSave.disabled = true;
+}
+
+function renderPlugHiddenToggle(hidden) {
+  const btn = els.plugHiddenToggle;
+  if (!btn) return;
+  btn.className = 'toggle' + (hidden ? ' on' : ' off');
+  btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
+  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
+    (hidden ? 'ON' : 'OFF') + '</span>';
+}
+
 function openPlugDetail(deviceId) {
   const device = deviceById(deviceId);
   if (!device) return;
@@ -193,6 +218,14 @@ function openPlugDetail(deviceId) {
   els.plugDetailName.textContent = plugLabel(device) || 'Device';
   els.plugDisplayName.value = device.display_name || '';
   els.plugDisplayName.placeholder = device.name || 'Custom label…';
+  // Original Smart Life name stays visible even with a custom label set, so the
+  // device can be matched back to the Smart Life app.
+  if (els.plugOriginalName) {
+    els.plugOriginalName.textContent = device.name ? 'Original name: ' + device.name : '';
+  }
+  plugStaged = { hidden: !!device.hidden };
+  renderPlugHiddenToggle(plugStaged.hidden);
+  clearPlugDirty();
   if (typeof els.plugDialog.showModal === 'function') els.plugDialog.showModal();
   else els.plugDialog.setAttribute('open', '');
   els.plugDisplayName.focus();
@@ -200,32 +233,59 @@ function openPlugDetail(deviceId) {
 
 function closePlugDetail() {
   state.selectedPlugId = null;
+  plugStaged = null;
+  clearPlugDirty();
   if (typeof els.plugDialog.close === 'function') els.plugDialog.close();
   else els.plugDialog.removeAttribute('open');
 }
 
-async function savePlugName() {
-  if (!state.selectedPlugId) return;
+function togglePlugHidden() {
+  if (!plugStaged) return;
+  plugStaged.hidden = !plugStaged.hidden;
+  renderPlugHiddenToggle(plugStaged.hidden);
+  markPlugDirty();
+}
+
+// Commit the staged edits; only fields that actually changed are sent.
+async function savePlugDetail() {
   const id = state.selectedPlugId;
+  if (!id || !plugStaged) return;
+  const device = deviceById(id);
+  if (!device) return;
+  if (els.plugSave) els.plugSave.disabled = true;
   const newName = els.plugDisplayName.value.trim();
-  try {
-    await jsonApi('/api/tuya/' + encodeURIComponent(id) + '/display_name', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+  const ops = [];
+  if ((device.display_name || '') !== newName) {
+    ops.push(jsonApi('/api/tuya/' + encodeURIComponent(id) + '/display_name', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ display_name: newName }),
-    });
-    state.plugs = state.plugs.map(function (d) {
-      return d.device_id === id ? Object.assign({}, d, { display_name: newName || null }) : d;
-    });
-    const device = deviceById(id);
-    if (device) els.plugDetailName.textContent = plugLabel(device) || 'Device';
+    }).then(function () { patchPlug(id, { display_name: newName || null }); }));
+  }
+  if (!!device.hidden !== plugStaged.hidden) {
+    ops.push(jsonApi('/api/tuya/' + encodeURIComponent(id) + '/hidden', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: plugStaged.hidden }),
+    }).then(function () { patchPlug(id, { hidden: plugStaged.hidden }); }));
+  }
+  try {
+    await Promise.all(ops);
+    const upd = deviceById(id);
+    if (upd) els.plugDetailName.textContent = plugLabel(upd) || 'Device';
     renderPlugs();
-    toast('Name saved', 'good');
+    clearPlugDirty();
+    toast('Saved', 'good');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
-      toast('Failed to save name: ' + (exc.message || exc), 'error');
+      toast('Failed to save: ' + (exc.message || exc), 'error');
     }
+    if (els.plugSave) els.plugSave.disabled = false;
   }
+}
+
+function patchPlug(id, patch) {
+  state.plugs = state.plugs.map(function (d) {
+    return d.device_id === id ? Object.assign({}, d, patch) : d;
+  });
 }
 
 // ----------------------------------------------------------- summary stats
@@ -259,6 +319,18 @@ function renderStats() {
   cards.forEach(function (c) { if (c) c.hidden = false; });
 }
 
+// The "Show hidden" toggle carries the count and only appears when at least one
+// device is user-hidden — same pattern as the Network attached-device list.
+function renderHiddenToggle() {
+  const btn = els.plugsHiddenToggle;
+  if (!btn) return;
+  const n = state.plugsUserHiddenCount || 0;
+  btn.hidden = n === 0;
+  btn.textContent = state.plugsShowHidden ? 'Hide hidden' : 'Show hidden (' + n + ')';
+  btn.classList.toggle('active', state.plugsShowHidden);
+  btn.setAttribute('aria-pressed', state.plugsShowHidden ? 'true' : 'false');
+}
+
 export function renderPlugs() {
   els.plugsList.innerHTML = '';
   els.blindsList.innerHTML = '';
@@ -276,6 +348,8 @@ export function renderPlugs() {
       'No Smart Life devices. Refresh devices.json on the home network ' +
       '(python -m tinytuya wizard) to capture them.';
     if (els.plugsHiddenCount) els.plugsHiddenCount.hidden = true;
+    state.plugsUserHiddenCount = 0;
+    renderHiddenToggle();
     setListCard(els.plugsCard, els.plugsCount, 0);
     setListCard(els.blindsCard, els.blindsCount, 0);
     return;
@@ -307,9 +381,18 @@ export function renderPlugs() {
     }
   }
 
+  // User-hidden devices (the per-device Hidden toggle) drop out of both lists
+  // unless "Show hidden" is on; the toggle carries the count and only appears
+  // when something is hidden (mirrors the Network attached-device list).
+  state.plugsUserHiddenCount = visible.filter(function (d) { return !!d.hidden; }).length;
+  const shown = state.plugsShowHidden
+    ? visible
+    : visible.filter(function (d) { return !d.hidden; });
+  renderHiddenToggle();
+
   // Split: covers → Blinds card, everything else → Plugs card.
-  const plugs = visible.filter(function (d) { return d.has_cover !== true; });
-  const blinds = visible.filter(function (d) { return d.has_cover === true; });
+  const plugs = shown.filter(function (d) { return d.has_cover !== true; });
+  const blinds = shown.filter(function (d) { return d.has_cover === true; });
   plugs.forEach(function (d) { els.plugsList.appendChild(buildPlugRow(d)); });
   blinds.forEach(function (d) { els.blindsList.appendChild(buildBlindRow(d)); });
   setListCard(els.plugsCard, els.plugsCount, plugs.length);
@@ -318,21 +401,33 @@ export function renderPlugs() {
 
 // ------------------------------------------------------- toggle wiring
 export function wirePlugsToggle() {
-  // Restore persisted preference on page load.
+  // Restore persisted preferences on page load.
   try {
     const stored = localStorage.getItem(PLUGS_SHOW_ALL_KEY);
     if (stored === 'true') state.plugsShowAll = true;
     else if (stored === 'false') state.plugsShowAll = false;
+    state.plugsShowHidden = localStorage.getItem(PLUGS_SHOW_HIDDEN_KEY) === 'true';
   } catch (_) { /* private mode */ }
 
-  if (!els.plugsToggleBtn) return;
-  els.plugsToggleBtn.addEventListener('click', function () {
-    state.plugsShowAll = !state.plugsShowAll;
-    try {
-      localStorage.setItem(PLUGS_SHOW_ALL_KEY, String(state.plugsShowAll));
-    } catch (_) { /* private mode */ }
-    renderPlugs();
-  });
+  if (els.plugsToggleBtn) {
+    els.plugsToggleBtn.addEventListener('click', function () {
+      state.plugsShowAll = !state.plugsShowAll;
+      try {
+        localStorage.setItem(PLUGS_SHOW_ALL_KEY, String(state.plugsShowAll));
+      } catch (_) { /* private mode */ }
+      renderPlugs();
+    });
+  }
+
+  if (els.plugsHiddenToggle) {
+    els.plugsHiddenToggle.addEventListener('click', function () {
+      state.plugsShowHidden = !state.plugsShowHidden;
+      try {
+        localStorage.setItem(PLUGS_SHOW_HIDDEN_KEY, String(state.plugsShowHidden));
+      } catch (_) { /* private mode */ }
+      renderPlugs();
+    });
+  }
 }
 
 export function wirePlugsRefresh() {
@@ -370,10 +465,13 @@ export function wirePlugDetail() {
   els.plugDialog.addEventListener('click', function (ev) {
     if (ev.target === els.plugDialog) closePlugDetail();  // backdrop click
   });
-  els.plugDisplayName.addEventListener('blur', savePlugName);
+  // #203: the name + Hidden edits commit on Save, not on blur/toggle.
+  els.plugDisplayName.addEventListener('input', markPlugDirty);
   els.plugDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); els.plugDisplayName.blur(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); savePlugDetail(); }
   });
+  if (els.plugHiddenToggle) els.plugHiddenToggle.addEventListener('click', togglePlugHidden);
+  if (els.plugSave) els.plugSave.addEventListener('click', savePlugDetail);
 }
 
 export async function loadPlugs() {

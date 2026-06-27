@@ -46,6 +46,7 @@ def _entry_dict(entry: ScheduleEntry) -> Dict[str, Any]:
         "power": entry.power,
         "operation_mode": entry.operation_mode,
         "set_temperature": entry.set_temperature,
+        "target_temperature": entry.target_temperature,
         "fan_speed": entry.fan_speed,
         "vane_vertical_direction": entry.vane_vertical_direction,
         "vane_horizontal_direction": entry.vane_horizontal_direction,
@@ -197,6 +198,7 @@ class ScheduleEntryPayload(BaseModel):
     power: bool = True
     operation_mode: Optional[str] = None
     set_temperature: Optional[float] = None
+    target_temperature: Optional[float] = None
     fan_speed: Optional[str] = None
     vane_vertical_direction: Optional[str] = None
     vane_horizontal_direction: Optional[str] = None
@@ -238,6 +240,7 @@ def _coerce_schedule_entries(body: Any) -> List[ScheduleEntry]:
                 power=payload.power,
                 operation_mode=payload.operation_mode,
                 set_temperature=payload.set_temperature,
+                target_temperature=payload.target_temperature,
                 fan_speed=payload.fan_speed,
                 vane_vertical_direction=payload.vane_vertical_direction,
                 vane_horizontal_direction=payload.vane_horizontal_direction,

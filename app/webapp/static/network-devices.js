@@ -371,6 +371,8 @@ function openNetDeviceDetail(mac) {
   els.netDeviceDisplayName.placeholder = d.vendor || d.name || 'Custom label…';
   renderImportantToggle(d);
   renderNetDeviceHiddenToggle(d);
+  netStaged = { important: !!d.important, hidden: !!d.hidden };
+  clearNetDirty();
   // The MAC is the stable key the label maps back to; flag randomised ones so a
   // missing vendor / churning row is explained rather than mysterious.
   els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
@@ -382,92 +384,93 @@ function openNetDeviceDetail(mac) {
 
 function closeNetDeviceDetail() {
   state.selectedNetDeviceMac = null;
+  netStaged = null;
+  clearNetDirty();
   if (typeof els.netDeviceDialog.close === 'function') els.netDeviceDialog.close();
   else els.netDeviceDialog.removeAttribute('open');
 }
 
-async function saveNetDeviceName() {
-  const mac = state.selectedNetDeviceMac;
-  if (!mac) return;
-  const newName = els.netDeviceDisplayName.value.trim();
-  try {
-    await jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/display_name', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: newName }),
+// Detail-modal staging (#203): the display name, Important and Hidden edits are
+// held locally and written only on Save. netStaged holds the working toggle
+// state captured when the modal opens; closing discards it.
+let netStaged = null;
+let netDirty = false;
+
+function markNetDirty() {
+  netDirty = true;
+  if (els.netDeviceSave) els.netDeviceSave.disabled = false;
+}
+
+function clearNetDirty() {
+  netDirty = false;
+  if (els.netDeviceSave) els.netDeviceSave.disabled = true;
+}
+
+function patchNetDevice(mac, patch) {
+  if (state.network && Array.isArray(state.network.devices)) {
+    state.network.devices = state.network.devices.map(function (d) {
+      return d.mac === mac ? Object.assign({}, d, patch) : d;
     });
-    // Optimistic local update so the list + modal title reflect it without a
-    // refetch (the next poll re-merges the same override server-side anyway).
-    if (state.network && Array.isArray(state.network.devices)) {
-      state.network.devices = state.network.devices.map(function (d) {
-        return d.mac === mac ? Object.assign({}, d, { display_name: newName || null }) : d;
-      });
-    }
-    const d = deviceByMac(mac);
-    if (d) els.netDeviceDetailName.textContent = deviceLabel(d);
-    renderNetwork();
-    toast('Name saved', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save name: ' + (exc.message || exc), 'error');
-    }
   }
 }
 
-// Flip the Important flag for the open device (Phase 4). Optimistic: update the
-// switch + local state immediately, then POST; the next poll re-merges the same
-// flag server-side, and an offline important device starts alerting.
-async function toggleImportant() {
-  const mac = state.selectedNetDeviceMac;
-  if (!mac) return;
-  const d = deviceByMac(mac);
-  if (!d || d.randomized) return;
-  const next = !d.important;
-  try {
-    await jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/important', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ important: next }),
-    });
-    if (state.network && Array.isArray(state.network.devices)) {
-      state.network.devices = state.network.devices.map(function (x) {
-        return x.mac === mac ? Object.assign({}, x, { important: next }) : x;
-      });
-    }
-    renderImportantToggle(deviceByMac(mac) || d);
-    renderNetwork();
-    toast(next ? 'Marked important' : 'Unmarked', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to update: ' + (exc.message || exc), 'error');
-    }
-  }
+// Toggles now only stage visually — the POST happens on Save.
+function toggleImportant() {
+  const d = deviceByMac(state.selectedNetDeviceMac);
+  if (!d || d.randomized || !netStaged) return;
+  netStaged.important = !netStaged.important;
+  renderImportantToggle(Object.assign({}, d, { important: netStaged.important }));
+  markNetDirty();
 }
 
-async function toggleDeviceHidden() {
+function toggleDeviceHidden() {
+  const d = deviceByMac(state.selectedNetDeviceMac);
+  if (!d || !netStaged) return;
+  netStaged.hidden = !netStaged.hidden;
+  renderNetDeviceHiddenToggle(Object.assign({}, d, { hidden: netStaged.hidden }));
+  markNetDirty();
+}
+
+// Commit the staged edits; only fields that actually changed are sent. Optimistic
+// local update mirrors what the next poll would re-merge server-side anyway.
+async function saveNetDevice() {
   const mac = state.selectedNetDeviceMac;
-  if (!mac) return;
+  if (!mac || !netStaged) return;
   const d = deviceByMac(mac);
   if (!d) return;
-  const next = !d.hidden;
+  if (els.netDeviceSave) els.netDeviceSave.disabled = true;
+  const newName = els.netDeviceDisplayName.value.trim();
+  const ops = [];
+  if ((d.display_name || '') !== newName) {
+    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/display_name', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: newName }),
+    }).then(function () { patchNetDevice(mac, { display_name: newName || null }); }));
+  }
+  if (!d.randomized && !!d.important !== netStaged.important) {
+    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/important', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ important: netStaged.important }),
+    }).then(function () { patchNetDevice(mac, { important: netStaged.important }); }));
+  }
+  if (!!d.hidden !== netStaged.hidden) {
+    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/hidden', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: netStaged.hidden }),
+    }).then(function () { patchNetDevice(mac, { hidden: netStaged.hidden }); }));
+  }
   try {
-    await jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/hidden', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hidden: next }),
-    });
-    if (state.network && Array.isArray(state.network.devices)) {
-      state.network.devices = state.network.devices.map(function (x) {
-        return x.mac === mac ? Object.assign({}, x, { hidden: next }) : x;
-      });
-    }
-    renderNetDeviceHiddenToggle(deviceByMac(mac) || d);
+    await Promise.all(ops);
+    const upd = deviceByMac(mac);
+    if (upd) els.netDeviceDetailName.textContent = deviceLabel(upd);
     renderNetwork();
-    toast(next ? 'Hidden' : 'Restored', 'success');
+    clearNetDirty();
+    toast('Saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
-      toast('Failed to update: ' + (exc.message || exc), 'error');
+      toast('Failed to save: ' + (exc.message || exc), 'error');
     }
+    if (els.netDeviceSave) els.netDeviceSave.disabled = false;
   }
 }
 
@@ -477,12 +480,13 @@ export function wireNetDeviceDetail() {
   els.netDeviceDialog.addEventListener('click', function (ev) {
     if (ev.target === els.netDeviceDialog) closeNetDeviceDetail();  // backdrop
   });
-  els.netDeviceDisplayName.addEventListener('blur', saveNetDeviceName);
+  els.netDeviceDisplayName.addEventListener('input', markNetDirty);
   els.netDeviceDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); els.netDeviceDisplayName.blur(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); saveNetDevice(); }
   });
   if (els.netDeviceImportant) els.netDeviceImportant.addEventListener('click', toggleImportant);
   if (els.netDeviceHiddenToggle) els.netDeviceHiddenToggle.addEventListener('click', toggleDeviceHidden);
+  if (els.netDeviceSave) els.netDeviceSave.addEventListener('click', saveNetDevice);
 }
 
 // ------------------------------------------------- prefs + toggles
