@@ -50,6 +50,61 @@ def test_tab_navigation_switches_panes(
     expect(page.locator("#paneEnergy .flow-row")).to_be_visible()
 
 
+# Computed transform of the floating nav is at its locked rest position iff it
+# has no upward translate — 'none' (cleared) or the identity matrix.
+_NAV_AT_REST = (
+    "() => { const t = getComputedStyle(document.querySelector('.tabs')).transform;"
+    " return t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)'; }"
+)
+
+
+def test_nav_self_heals_when_stranded(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+) -> None:
+    """#229: a latched upward transform on the floating bottom-tab pill must be
+    repainted back to its locked bottom position by the self-healing watchdog,
+    with no app restart. Playwright's WebKit doesn't reproduce iOS Safari's
+    collapsing toolbar, so we inject the exact failure mode — a stale
+    ``translateY(-Npx)`` — directly, then assert the controller re-derives the
+    resting position and clears it."""
+    mock_api(sample_units)
+    _boot(page, base_url)
+
+    nav = page.locator(".tabs")
+    nav.evaluate("el => { el.style.transform = 'translateY(-120px)'; }")
+    assert "120" in nav.evaluate("el => getComputedStyle(el).transform")
+
+    # The ~400ms watchdog re-derives the rest position and clears the strand.
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
+def test_nav_not_left_translated_after_modal(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+) -> None:
+    """#229: opening then closing a detail modal must leave the nav at rest —
+    no stranded transform — via both the X button and the Esc key (the path
+    that never routed through the app's close handlers and historically left
+    the bar stuck up)."""
+    mock_api(sample_units)
+    _boot(page, base_url)
+    page.locator("#tabAc").click()
+    page.wait_for_selector(".unit-card", state="visible")
+
+    # Close via the X button.
+    page.locator('[data-unit-id="unit-1"] .unit-header').click()
+    expect(page.locator("#detailDialog")).to_be_visible()
+    page.locator("#detailClose").click()
+    expect(page.locator("#detailDialog")).to_be_hidden()
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+    # Close via Esc.
+    page.locator('[data-unit-id="unit-1"] .unit-header').click()
+    expect(page.locator("#detailDialog")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#detailDialog")).to_be_hidden()
+    page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
 def test_home_shows_ac_summary_line_per_unit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
