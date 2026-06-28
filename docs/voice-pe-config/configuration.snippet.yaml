@@ -1,11 +1,15 @@
-# --- Voice PE deterministic alarm action bridge (issue #88, Phase 4) ---
+# >>> home-automation:voice-pe-alarm (managed — edit docs/voice-pe-config/configuration.snippet.yaml, deploy via scripts/ha_config_sync.py) >>>
 #
-# Safe copy-paste target for /config/configuration.yaml:
-# replace the existing section from the marker above through AlarmDisarmPrompt.
+# Voice PE deterministic alarm action bridge (issue #88, Phase 4).
+#
+# Deploy this block with `scripts/ha_config_sync.py deploy` (preferred), which
+# replaces everything between these >>> / <<< markers and leaves the rest of
+# configuration.yaml untouched. Hand-paste into /config/configuration.yaml is the
+# fallback: replace the marked region (or the legacy "# --- Voice PE ..." section).
 #
 # Editing this section requires a FULL Home Assistant restart after
-# Developer Tools -> YAML -> Check configuration passes. Editing only
-# custom_sentences/en/alarm.yaml does not; call the conversation.reload service.
+# `ha core check` (or Developer Tools -> YAML -> Check configuration) passes.
+# Editing only custom_sentences/en/alarm.yaml does not; call conversation.reload.
 rest_command:
   alarm_arm:
     url: "https://192.168.0.13:8447/api/security/arm"
@@ -101,3 +105,4 @@ intent_script:
   AlarmDisarmPrompt:
     speech:
       text: "To disarm, say disarm followed by your code."
+# <<< home-automation:voice-pe-alarm <<<

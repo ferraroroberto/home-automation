@@ -49,6 +49,12 @@ wsdiscovery>=2.1.0
 # Self-signed CA + leaf cert generation for the HTTPS endpoint
 cryptography>=42.0.0
 
+# SSH/SFTP to the HA VM for code-driven config deploys (issue #243):
+# scripts/ha_config_sync.py pushes the voice-PE managed block + sentences into
+# the Terminal & SSH add-on's /config, validates with `ha core check`, and
+# reloads/restarts — replacing the browser/File-editor workflow.
+paramiko>=3.4.0
+
 # Windows system tray that owns the webapp lifecycle (tray.bat -> -m app.tray)
 pystray>=0.19
 Pillow>=10.0

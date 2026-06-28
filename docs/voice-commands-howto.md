@@ -32,9 +32,18 @@ rest_command**. Everything else (wake word, STT, agent, TTS) is already wired.
 
 ## The 5-minute recipe
 
-All paths are on the **HA VM** (`192.168.0.102:8123`), edited via the **File editor**
-add-on (Settings → Add-ons → File editor). The app is at
+All paths are on the **HA VM** (`192.168.0.102:8123`). The app is at
 `https://192.168.0.13:8447` on the LAN.
+
+**Deploy by code (preferred).** Edit the repo-owned files under
+[`voice-pe-config/`](voice-pe-config/) and push them with
+`scripts/ha_config_sync.py deploy` over SSH — it backs up, writes, runs
+`ha core check`, and reloads/restarts for you (see
+[`voice-pe-config/README.md`](voice-pe-config/README.md) for the one-time SSH
+bootstrap). The **File editor** add-on (Settings → Add-ons → File editor) is the
+fallback when SSH isn't available; the steps below describe the files either way.
+The SSH channel is the **Terminal & SSH add-on** shell (mounts `/config`), *not*
+HAOS host SSH on `:22222` (that's a break-glass developer channel, not used here).
 
 1. **Pick the app endpoint.** Find (or add) the `/api/...` route that does the thing.
    Reads are `GET`, actuations are `POST`. Loopback bypasses auth; LAN callers (HA) must
@@ -86,8 +95,11 @@ add-on (Settings → Add-ons → File editor). The app is at
    ```
 
 5. **Reload, then test.** Sentences hot-reload; intent_script/rest_command need a full
-   restart — see [Reload vs restart](#reload-vs-restart). Then probe by text before you
-   speak — see [Testing](#testing-without-talking).
+   restart — see [Reload vs restart](#reload-vs-restart). `ha_config_sync.py deploy`
+   picks the right one for you (narrow `conversation.reload` for a sentences-only
+   change; it prints that a `configuration.yaml` change needs `--restart`). Then probe
+   by text before you speak — `ha_config_sync.py probe`, or see
+   [Testing](#testing-without-talking).
 
 ## hassil sentence syntax (cheat-sheet)
 

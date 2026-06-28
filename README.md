@@ -72,7 +72,7 @@ and an optional bearer token. Two ways to reach it once running:
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
   - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
-- **`scripts/`** — `gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons).
+- **`scripts/`** — `gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons), `ha_config_sync.py` (deploy the voice-PE HA config into the HA VM's `/config` over SSH — preflight / deploy / rollback / probe; #243, see [Home Assistant config deploy](#home-assistant-config-deploy-over-ssh)).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
 - **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `elgato_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_trouble_ignore.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, and `pv_system.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_trouble_ignore.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, and `pv_system.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
@@ -873,6 +873,21 @@ with a spoken-code gate on disarm.
   reload-vs-restart, code-gating destructive commands, testing without speaking). Start
   here for every new command.
 - **Installed HA config (secret-free):** [`docs/voice-pe-config/`](docs/voice-pe-config/).
+
+### Home Assistant config deploy over SSH
+
+`scripts/ha_config_sync.py` (#243) deploys the repo-owned voice-PE config into the HA VM's `/config` over SSH, so HA config work is code-driven instead of done in the browser File editor: edit → deploy → `ha core check` → reload/restart → text-probe. It pushes the managed block in `configuration.yaml` and the whole `custom_sentences/en/alarm.yaml`, takes a timestamped backup under `/config/backups/home-automation/` before every write, applies a sentences-only change with the narrow `conversation.reload`, and guards the full restart a `configuration.yaml` change needs behind `--restart`. Real HA secrets stay live-only on the VM — the script verifies the required secret **key names** exist in `/config/secrets.yaml` but never reads, prints, copies, or commits their values.
+
+```powershell
+& .\.venv\Scripts\python.exe -m scripts.ha_config_sync preflight        # readiness; distinct failure per mode
+& .\.venv\Scripts\python.exe -m scripts.ha_config_sync deploy --dry-run # unified diff, writes nothing
+& .\.venv\Scripts\python.exe -m scripts.ha_config_sync deploy           # backup + write + ha core check
+& .\.venv\Scripts\python.exe -m scripts.ha_config_sync deploy --restart # + the full HA restart a config change needs
+& .\.venv\Scripts\python.exe -m scripts.ha_config_sync rollback         # restore most recent backup + recheck
+& .\.venv\Scripts\python.exe -m scripts.ha_config_sync probe            # read-only "what is the alarm status" probe
+```
+
+**One-time bootstrap** (the SSH channel is the **Terminal & SSH add-on**, which mounts `/config`; HAOS host SSH on `:22222` is break-glass and not used): in the add-on's Configuration, paste this PC's public key into `authorized_keys` and expose a LAN-only host port (e.g. `2222`); create a long-lived access token; put the host/port/key/url/token into `.env` (`HA_SSH_*`, `HA_URL`, `HA_TOKEN` — see `.env.example`); then run `preflight`. Full bootstrap steps: [`docs/voice-pe-config/README.md`](docs/voice-pe-config/README.md).
 
 ## CLI
 
