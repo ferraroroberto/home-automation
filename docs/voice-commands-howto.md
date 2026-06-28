@@ -149,8 +149,8 @@ speech:
     {% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label != 'Disarmed' %}The alarm is now {{ st.label }}.{% else %}{% set open = st.zones | selectattr('triggered') | rejectattr('bypassed') | map(attribute='display_name') | list %}The alarm did not arm{% if open %}; {{ open | join(', ') }} {{ 'is' if open|length == 1 else 'are' }} open{% endif %}.{% endif %}{% else %}Sorry, the alarm did not respond.{% endif %}
 ```
 
-> The shipped alarm intents still speak off the `200` (see `configuration.snippet.yaml`);
-> upgrading them to the truthful-result form above is tracked in #241.
+> The shipped alarm intents in `configuration.snippet.yaml` follow this pattern; keep
+> future safety-relevant commands on the same result-state confirmation model.
 
 ## Code-gating a destructive command
 
