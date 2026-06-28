@@ -22,13 +22,13 @@ Arming, perimeter, partial and status are one-shot. **Disarm requires a spoken c
 ## Files
 
 - `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml`
-- `configuration.snippet.yaml` → append both blocks to `/config/configuration.yaml`
+- `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml`
 - `secrets.snippet.yaml` → add both keys to `/config/secrets.yaml` **with real values** (never committed)
 
 ## Install (HA VM)
 
 1. **secrets.yaml** — add `app_api_authorization` (`Bearer ` + the webapp `auth_token` from the host's `config/webapp_config.json`) and `voice_disarm_pin` (a short spoken word you choose).
-2. **configuration.yaml** — append the `rest_command:` and `intent_script:` blocks. If you already have a `rest_command:` or `intent_script:` key, merge the entries under the existing one (a YAML key can appear only once).
+2. **configuration.yaml** — first install: paste the snippet below the standard `default_config` / `automation` / `script` / `scene` lines. Later updates: replace the existing section from `# --- Voice PE deterministic alarm action bridge` through `AlarmDisarmPrompt`. Do not duplicate `rest_command:` or `intent_script:` keys.
 3. **custom_sentences/en/alarm.yaml** — create the file (folders included).
 4. **Developer Tools → YAML → Check configuration**, then **Restart Home Assistant** (the `intent_script` / `rest_command` blocks load only at startup — a "Quick reload" is not enough). After the first install, editing **only** `alarm.yaml` no longer needs a restart — call the `conversation.reload` service instead.
 
