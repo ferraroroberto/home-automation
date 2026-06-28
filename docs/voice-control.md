@@ -26,7 +26,7 @@ All three voice stages are OpenAI-shaped endpoints the `local-llm-hub` already s
 |---|---|---|---|
 | STT   | `/v1/audio/transcriptions` | `whisper`           | 0.5–0.9 s |
 | Logic | `/v1/chat/completions`     | `claude-haiku-4-5`  | 3–8 s (LLM path only) |
-| TTS   | `/v1/audio/speech`         | `orpheus` (voice `tara`) | sub-second; 24 kHz |
+| TTS   | `/v1/audio/speech`         | `orpheus` (voice `tara`) | ~1.7–2.2 s full synthesis (real-time factor ≈ 1); 24 kHz |
 
 The hub `auth_token` is a non-secret dummy (Tailscale is the real gate); it is used directly
 in each HA integration's API-key field.
@@ -58,6 +58,31 @@ bearer token). The app's logic lives in `src/` and the PWA is just another `/api
 HA can call exactly what the PWA calls. The durable form of this is a native HA integration
 (climate/switch/alarm/sensor) so HA provides UI + voice + automation for the app's devices
 (#235).
+
+## Action bridge — deterministic alarm commands (live, #88 Phase 4)
+
+The first real actuation is **voice control of the RISCO alarm**, wired as Tier-1
+deterministic commands — spoken phrase → HA local sentence match → `intent_script` →
+`rest_command` → the app's `POST /api/security/{arm,partial,perimeter,disarm}` (and
+`GET /api/security` for status). No LLM touches the command path, so a hallucinated reply
+can never arm or disarm. Disarm requires a **spoken code** in the same utterance, gated
+against a secret before the command fires.
+
+Spoken (after "Okay Nabu, …"): *"alarm on"* / *"full alarm on"* / *"turn the alarm fully
+on"* (arm) · *"perimeter on"* · *"partial on"* · *"disarm now"* · *"what's the alarm
+status"*. The full phrase lists and the exact HA config are the secret-free record in
+[`voice-pe-config/`](voice-pe-config/).
+
+- **Installed config:** [`voice-pe-config/`](voice-pe-config/) — `custom_sentences/en/
+  alarm.yaml`, `configuration.snippet.yaml`, `secrets.snippet.yaml`.
+- **Adding more commands:** [`voice-commands-howto.md`](voice-commands-howto.md) — the
+  reusable recipe (hassil sentence syntax, the `stop`/`action_response` gotcha,
+  reload-vs-restart, code-gating, and testing a command without speaking). Read this
+  before wiring the next device.
+
+A known wart, captured in the how-to: the shipped intents speak off the HTTP `200`, so an
+arm that the panel silently refuses (e.g. a zone left open) is still confirmed aloud —
+the recommended fix is to read the *resulting* state back before speaking (#241).
 
 ## Setup reference
 
@@ -147,7 +172,8 @@ Conversation agent = **Extended OpenAI Conversation**; STT = **Custom Whisper**;
 
 ## Roadmap (tracked as issues, not here)
 
-- Action bridge — voice → real device control (deterministic): #88 Phase 4; native HA
-  integration: #235.
+- Action bridge — voice → real device control (deterministic): **live** for the alarm
+  (#88 Phase 4; see above + [`voice-commands-howto.md`](voice-commands-howto.md)); native
+  HA integration: #235.
 - Local-model evaluation for the brain/classifier role: #234.
 - Hardware: external powered speaker (3.5 mm) + stronger kitchen 2.4 GHz Wi-Fi.
