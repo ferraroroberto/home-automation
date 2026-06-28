@@ -856,6 +856,24 @@ upgrade. Optional `.env` knobs:
 | `HVAC_ADJUST_INTERVAL_S` | `900` | Minimum time between dynamic setpoint nudges per unit. |
 | `HVAC_BUFFER_C` | `0.5` | Room-temperature hold band around the rule target. |
 
+## Voice control (hands-free, fully local)
+
+A Home Assistant Voice PE puck driven by the local LLM hub gives hands-free, **no-cloud**
+voice control. Common commands route **deterministically** — spoken phrase → HA local
+sentence match → `intent_script` → `rest_command` → the app's HTTP API — so no LLM is on
+the command path and a hallucinated reply can never actuate. The first live bridge is
+**alarm control** (#88): *"Okay Nabu, perimeter on"* / *"disarm now"* / *"what's the alarm
+status"* hit `POST /api/security/{arm,partial,perimeter,disarm}` and `GET /api/security`,
+with a spoken-code gate on disarm.
+
+- **Operating & architecture manual:** [`docs/voice-control.md`](docs/voice-control.md)
+  (setup, pipeline, troubleshooting, the live alarm action bridge).
+- **Wiring more commands:** [`docs/voice-commands-howto.md`](docs/voice-commands-howto.md)
+  — the reusable how-to (sentence syntax, the `intent_script` response gotcha,
+  reload-vs-restart, code-gating destructive commands, testing without speaking). Start
+  here for every new command.
+- **Installed HA config (secret-free):** [`docs/voice-pe-config/`](docs/voice-pe-config/).
+
 ## CLI
 
 Print every device's live state:

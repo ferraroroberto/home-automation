@@ -1,0 +1,121 @@
+# Append these two blocks to the HA VM's /config/configuration.yaml (#88 Phase 4).
+#
+# - The bearer token is referenced via !secret (see secrets.snippet.yaml); it is
+#   never written here. The base URL is the LAN address of this app's webapp
+#   (loopback bypasses auth, LAN callers must present the bearer token).
+# - The webapp is HTTPS-only, and its cert is a Let's Encrypt leaf for the
+#   tailnet .ts.net name — it does NOT validate against the LAN IP, so each
+#   rest_command sets verify_ssl: false (the link is already on the trusted LAN).
+# - intent_script speaks a fixed confirmation per action and reports a failure if
+#   the app does not answer 200. Disarm is gated on a spoken code that must equal
+#   !secret voice_disarm_pin; a wrong/absent code never calls disarm.
+#
+# Editing this file (intent_script / rest_command) requires a FULL Home Assistant
+# restart to take effect. Editing only the custom sentences (alarm.yaml) does
+# NOT — call the conversation.reload service instead. See docs/voice-commands-howto.md.
+
+rest_command:
+  alarm_arm:
+    url: "https://192.168.0.13:8447/api/security/arm"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 30
+  alarm_partial:
+    url: "https://192.168.0.13:8447/api/security/partial"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 30
+  alarm_perimeter:
+    url: "https://192.168.0.13:8447/api/security/perimeter"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 30
+  alarm_disarm:
+    url: "https://192.168.0.13:8447/api/security/disarm"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 30
+  alarm_status:
+    url: "https://192.168.0.13:8447/api/security"
+    method: GET
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 15
+
+# IMPORTANT: an intent_script only exposes its action's result to the speech
+# template as `action_response` when the action explicitly RETURNS that result —
+# i.e. a trailing `- stop: ""` carrying `response_variable`. Setting
+# response_variable on the service call alone is NOT enough (the speech template
+# then sees `action_response` as undefined and every command speaks the failure
+# branch even though the REST call returned 200). This is the canonical pattern
+# from the HA intent_script docs.
+intent_script:
+  AlarmArmFull:
+    action:
+      - service: rest_command.alarm_arm
+        response_variable: r
+      - stop: ""
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}Arming the alarm fully.{% else %}Sorry, the alarm did not respond.{% endif %}
+
+  AlarmPerimeter:
+    action:
+      - service: rest_command.alarm_perimeter
+        response_variable: r
+      - stop: ""
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}Arming the perimeter.{% else %}Sorry, the alarm did not respond.{% endif %}
+
+  AlarmPartial:
+    action:
+      - service: rest_command.alarm_partial
+        response_variable: r
+      - stop: ""
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}Arming partial.{% else %}Sorry, the alarm did not respond.{% endif %}
+
+  AlarmStatus:
+    action:
+      - service: rest_command.alarm_status
+        response_variable: r
+      - stop: ""
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}The alarm is {{ action_response.content.label }}.{% else %}Sorry, I could not reach the alarm.{% endif %}
+
+  # Spoken-code disarm. The `condition` halts the script when the spoken code does
+  # not match the secret, so the disarm rest_command never runs (and action_response
+  # stays unset) — that is how a wrong code is told apart from a successful disarm.
+  AlarmDisarmWithCode:
+    action:
+      - variables:
+          expected: !secret voice_disarm_pin
+      - condition: template
+        value_template: "{{ (code | string | lower | trim) == (expected | string | lower | trim) }}"
+      - service: rest_command.alarm_disarm
+        response_variable: r
+      - stop: ""
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}Disarming the alarm.{% else %}That code is not correct, or the alarm did not respond.{% endif %}
+
+  AlarmDisarmPrompt:
+    speech:
+      text: "To disarm, say disarm followed by your code."

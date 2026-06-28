@@ -1,0 +1,83 @@
+# Home Assistant custom sentences — deterministic alarm voice commands (#88 Phase 4).
+#
+# Install at the HA VM path: /config/custom_sentences/en/alarm.yaml
+#
+# The conversation engine matches these locally (Tier 1, no LLM) whenever the
+# Assist pipeline's "Prefer handling commands locally" is ON — so a hallucinated
+# model reply can never actuate the alarm. Each intent is wired to a rest_command
+# in configuration.yaml (see configuration.snippet.yaml).
+language: "en"
+
+# {code} is a free-text wildcard: it captures whatever the user speaks after the
+# disarm verb so intent_script can compare it to the secret voice PIN.
+lists:
+  code:
+    wildcard: true
+
+intents:
+  AlarmArmFull:
+    data:
+      - sentences:
+          - "turn [the] alarm [(fully|full|all the way)] on"
+          - "turn on [the] alarm [(fully|full|all the way)]"
+          - "(arm|switch on|put on|set|activate) [the] alarm [(fully|full|all the way|on)]"
+          - "[the] alarm (on|full|fully|away)"
+          - "full [the] alarm [on]"
+          - "(full|fully) [arm] [the] [alarm] [on]"
+          - "arm [the] [alarm] (away|full|fully|on)"
+          - "alarm [(fully|full)] on"
+
+  AlarmPerimeter:
+    data:
+      - sentences:
+          - "perimeter [(on|arm|armed|mode|alarm)]"
+          - "[the] perimeter on"
+          - "(arm|set|activate|switch on|put on) [the] perimeter"
+          - "turn [the] perimeter on"
+          - "turn on [the] perimeter"
+          - "put [the] perimeter on"
+          - "(arm|set|turn on|switch on|put on) [the] [alarm] perimeter [(on|mode)]"
+          - "perimeter alarm [on]"
+
+  AlarmPartial:
+    data:
+      - sentences:
+          - "partial [(on|arm|armed|mode|alarm)]"
+          - "[the] partial on"
+          - "(arm|set|activate|switch on|put on) [the] [alarm] [to] partial"
+          - "turn [the] [alarm] partial on"
+          - "turn on [the] [alarm] partial"
+          - "put [the] alarm [(to|on|in)] partial"
+          - "partial alarm [on]"
+
+  AlarmStatus:
+    data:
+      - sentences:
+          - "[(what is|what's|whats|tell me|tell me the|give me the)] [the] alarm status"
+          - "[(what is|what's|whats|tell me|tell me the|give me the)] [the] status of [the] alarm"
+          - "(what is|what's|whats) the alarm [(status|state)]"
+          - "(what is|what's|whats) [the] state of [the] alarm"
+          - "is the alarm (on|armed|set|off|disarmed)"
+          - "(what is|what's|whats) the alarm doing"
+          - "how is the alarm"
+
+  # Disarm WITH a spoken code — {code} captures the word(s) after the verb
+  # (e.g. "disarm now" -> code="now"); intent_script validates it against
+  # !secret voice_disarm_pin before calling disarm. "off" for perimeter/partial
+  # routes here too (turning any armed state off == disarm, code-gated).
+  AlarmDisarmWithCode:
+    data:
+      - sentences:
+          - "(disarm|deactivate|stand down) [the] [alarm] {code}"
+          - "(turn off|switch off|shut off) [the] (alarm|perimeter|partial) {code}"
+          - "(put|set) [the] alarm [(to|on|in)] (disarm|disarmed|off) {code}"
+          - "[the] (alarm|perimeter|partial) off {code}"
+
+  # Bare disarm / "...off" with NO code — never disarms; tells the user how.
+  AlarmDisarmPrompt:
+    data:
+      - sentences:
+          - "(disarm|deactivate|stand down) [the] [alarm]"
+          - "(turn off|switch off|shut off) [the] (alarm|perimeter|partial)"
+          - "(put|set) [the] alarm [(to|on|in)] (disarm|disarmed|off)"
+          - "(alarm|perimeter|partial) off"
