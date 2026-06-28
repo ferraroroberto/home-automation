@@ -21,10 +21,12 @@ logger = logging.getLogger("ups")
 _NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
 
 _UNKNOWN_RUNTIME_MINUTES = {71582788, 4294967295}
+# Portable NUT-for-Windows lives inside the repo under the gitignored
+# ``_local/`` umbrella (co-located so deps aren't scattered; never committed).
 _PORTABLE_NUT_ROOT = (
     Path(__file__).resolve().parents[1]
-    / ".."
-    / "tools"
+    / "_local"
+    / "nut"
     / "nut-2.8.5"
     / "NUT-for-Windows-x86_64-SNAPSHOT-2.8.5.4499-master"
     / "mingw64"
@@ -185,7 +187,7 @@ def _read_nut_direct() -> UpsState:
         env.setdefault("NUT_CONFPATH", str(_PORTABLE_NUT_ROOT / "etc"))
     env.setdefault(
         "NUT_STATEPATH",
-        str((Path(__file__).resolve().parents[1] / ".." / "tools" / "nut-2.8.5" / "state").resolve()),
+        str((Path(__file__).resolve().parents[1] / "_local" / "nut" / "nut-2.8.5" / "state").resolve()),
     )
     result = subprocess.run(
         [

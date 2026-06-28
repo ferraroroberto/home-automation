@@ -50,6 +50,12 @@ webapp/*.sqlite3-*
 # can reveal the home/location — never commit (public repo).
 webapp/camera_captures/
 
+# Machine-local heavy deps & runtime data — co-located inside the repo so
+# nothing is scattered outside it, but never committed (HA OS vhdx images under
+# _local/vm/, the portable NUT install + its UPS state dirs under _local/nut/).
+# See src/ups_client.py for the NUT paths.
+_local/
+
 # Virtual env
 .venv/
 venv/
