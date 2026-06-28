@@ -91,7 +91,10 @@ the recommended fix is to read the *resulting* state back before speaking (#241)
 Home Assistant OS in a **Hyper-V Gen2 VM** on an **External/bridged vSwitch** tied to the
 wired NIC, so HA gets a real LAN IP and the Wi-Fi puck reaches it with no NAT. A Windows
 Firewall inbound rule allows the VM to reach the hub on TCP 8000. The HA **Terminal & SSH**
-add-on is the shell.
+add-on is the shell, and is the **code-driven config path**: `scripts/ha_config_sync.py`
+deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates it
+(#243; see [`voice-commands-howto.md`](voice-commands-howto.md)). HAOS **host** SSH on
+`:22222` is a separate break-glass developer channel — not used for config deploys.
 
 ### Network
 
