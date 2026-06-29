@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -154,7 +155,7 @@ def _check_webhook_auth(request: Request) -> None:
         or request.headers.get("x-presence-secret", "").strip()
         or request.query_params.get("secret", "").strip()
     )
-    if supplied != expected:
+    if not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="invalid presence webhook secret")
 
 
