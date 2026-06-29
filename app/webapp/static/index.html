@@ -705,6 +705,30 @@
         </div>
       </details>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
+
+      <details class="card security-card security-notify-card" aria-label="Notifications">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
+            <h3 class="collapse-title">Notifications</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <p class="muted small security-note">
+          Telegram alerts when the PC &amp; Wi-Fi UPS loses or regains mains power.
+        </p>
+        <div class="notify-toggles">
+          <label class="notify-toggle">
+            <input id="notifyPowerLost" type="checkbox" class="checkbox-native">
+            <span>Mains power lost (on UPS battery)</span>
+          </label>
+          <label class="notify-toggle">
+            <input id="notifyPowerRestored" type="checkbox" class="checkbox-native">
+            <span>Power restored (back on mains)</span>
+          </label>
+        </div>
+        <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
+      </details>
     </section>
 
     <!-- ============================== LIGHTS ============================= -->
@@ -1026,26 +1050,34 @@
         <p class="muted small security-note">
           Telegram alerts for <strong>automatic</strong> alarm actions only. Manual arm/disarm from this app is never notified — you're already here.
         </p>
-        <div class="security-notify-settings">
-          <label class="row">
-            <span>Automatic arm (schedule)</span>
+        <div class="notify-toggles">
+          <label class="notify-toggle">
             <input id="notifyScheduleArm" type="checkbox" class="checkbox-native">
+            <span>Automatic arm (schedule)</span>
           </label>
-          <label class="row">
-            <span>Automatic disarm (schedule)</span>
+          <label class="notify-toggle">
             <input id="notifyScheduleDisarm" type="checkbox" class="checkbox-native">
+            <span>Automatic disarm (schedule)</span>
           </label>
-          <label class="row">
-            <span>Arm on everyone-away (presence)</span>
+          <label class="notify-toggle">
             <input id="notifyPresenceArm" type="checkbox" class="checkbox-native">
+            <span>Arm on everyone-away (presence)</span>
           </label>
-          <label class="row">
-            <span>Disarm on arrival (presence)</span>
+          <label class="notify-toggle">
             <input id="notifyPresenceDisarm" type="checkbox" class="checkbox-native">
+            <span>Disarm on arrival (presence)</span>
           </label>
-          <label class="row">
-            <span>Error on any automatic arm/disarm</span>
+          <label class="notify-toggle">
             <input id="notifyError" type="checkbox" class="checkbox-native">
+            <span>Error on any automatic arm/disarm</span>
+          </label>
+          <label class="notify-toggle">
+            <input id="notifyIntrusion" type="checkbox" class="checkbox-native">
+            <span>Alarm triggered (intrusion)</span>
+          </label>
+          <label class="notify-toggle">
+            <input id="notifyAcLost" type="checkbox" class="checkbox-native">
+            <span>Panel mains power lost/restored</span>
           </label>
         </div>
         <p id="notifyConfiguredNote" class="muted small security-note" hidden></p>

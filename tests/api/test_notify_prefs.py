@@ -53,3 +53,21 @@ def test_notify_prefs_unconfigured_reports_false(
         "app.webapp.routers.security.is_notify_configured", lambda: False
     )
     assert client.get("/api/security/notify-prefs").json()["telegram_configured"] is False
+
+
+def test_power_notify_prefs_round_trip(client: TestClient, monkeypatch, tmp_path) -> None:
+    import src.power_notify_prefs as prefs_mod
+
+    monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "power_notify_prefs.json")
+    monkeypatch.setattr("app.webapp.routers.ups.is_notify_configured", lambda: True)
+
+    # Default: both power events on.
+    body = client.get("/api/ups/notify-prefs").json()
+    assert body["prefs"] == {"power_lost": True, "power_restored": True}
+    assert body["telegram_configured"] is True
+
+    resp = client.put("/api/ups/notify-prefs", json={"power_restored": False})
+    assert resp.status_code == 200
+    assert resp.json()["prefs"] == {"power_lost": True, "power_restored": False}
+
+    assert client.get("/api/ups/notify-prefs").json()["prefs"]["power_restored"] is False

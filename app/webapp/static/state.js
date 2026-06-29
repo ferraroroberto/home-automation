@@ -150,6 +150,8 @@ export const els = {
   notifyPresenceArm: document.getElementById('notifyPresenceArm'),
   notifyPresenceDisarm: document.getElementById('notifyPresenceDisarm'),
   notifyError: document.getElementById('notifyError'),
+  notifyIntrusion: document.getElementById('notifyIntrusion'),
+  notifyAcLost: document.getElementById('notifyAcLost'),
   notifyConfiguredNote: document.getElementById('notifyConfiguredNote'),
   presenceSummary: document.getElementById('presenceSummary'),
   presenceHiddenCount: document.getElementById('presenceHiddenCount'),
@@ -257,6 +259,9 @@ export const els = {
   homePlugStatWatts: document.getElementById('homePlugStatWatts'),
   homeUpsTile: document.getElementById('homeUpsTile'),
   upsTile: document.getElementById('upsTile'),
+  notifyPowerLost: document.getElementById('notifyPowerLost'),
+  notifyPowerRestored: document.getElementById('notifyPowerRestored'),
+  powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
   // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
   homeVmTile: document.getElementById('homeVmTile'),
   // Plug rename modal

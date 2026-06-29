@@ -58,6 +58,7 @@ from app.webapp.middleware import BearerTokenMiddleware
 from app.webapp.routers import auth, cameras, energy, hyperv, lights, misc, network, presence, push, security, tuya, units, ups, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
+from app.webapp.power_monitor import start_power_monitor
 from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
 from app.webapp.security_automation import start_security_schedules
@@ -132,6 +133,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             start_presence_refresher(),
             start_presence_automation(),
             start_security_schedules(),
+            start_power_monitor(),
         )
         if t is not None
     ]
