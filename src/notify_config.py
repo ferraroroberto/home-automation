@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -71,6 +72,17 @@ def build_alarm_notifier(path: Optional[Path] = None) -> Optional[Notifier]:
     ``None`` mirrors the vendored factory's ``"none"`` channel: callers record
     the message as skipped and carry on, never raising.
     """
+
+    # Hard safety net: never build a REAL notifier while running under pytest.
+    # record_alarm_action / record_power_event default their notifier_factory to
+    # this function, and a default argument binds the function object at def time,
+    # so monkeypatching the module attribute can't neutralise the default path. A
+    # test that forgets to inject a fake notifier would otherwise fire a real
+    # Telegram alert to the family chat — this has bitten us twice (#273, and a
+    # re-run right after). Guarding the single choke point makes every present and
+    # future test send-proof, regardless of which seam it does or doesn't mock.
+    if "pytest" in sys.modules:
+        return None
 
     cfg = load_notify_config(path)
     name = "telegram" if (cfg.bot_token and cfg.chat_id) else "none"

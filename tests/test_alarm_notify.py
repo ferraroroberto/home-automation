@@ -92,6 +92,26 @@ def test_prefs_round_trip(tmp_path: Path) -> None:
     assert not (tmp_path / "prefs.json.tmp").exists()  # atomic write left no sidecar
 
 
+# ----------------------------------------------- notifier factory safety net
+
+
+def test_build_alarm_notifier_is_none_under_pytest(monkeypatch) -> None:
+    """The default notifier_factory must never build a real notifier in tests.
+
+    record_alarm_action / record_power_event default notifier_factory to
+    build_alarm_notifier, and a default argument binds at def time, so a test
+    that forgets to inject a fake notifier would otherwise send a real Telegram
+    alert. The choke-point guard makes that impossible even with live creds. (#273)
+    """
+
+    from src import notify_config
+
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:real-looking-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "999")
+    assert notify_config.is_notify_configured() is True  # creds resolve...
+    assert notify_config.build_alarm_notifier() is None  # ...but no notifier under pytest
+
+
 # ------------------------------------------------------- record_alarm_action
 
 
