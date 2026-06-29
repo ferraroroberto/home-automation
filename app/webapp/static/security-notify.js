@@ -17,6 +17,8 @@ const FIELDS = [
   ['notifyPresenceArm', 'presence_arm'],
   ['notifyPresenceDisarm', 'presence_disarm'],
   ['notifyError', 'error'],
+  ['notifyIntrusion', 'intrusion'],
+  ['notifyAcLost', 'ac_lost'],
 ];
 
 function renderConfiguredNote(configured) {

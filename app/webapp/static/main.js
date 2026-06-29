@@ -30,6 +30,7 @@ import {
 } from './energy.js';
 import { onPlugsTab, wirePlugsRefresh, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
 import { onUpsTab, restoreUpsSnapshot } from './ups.js';
+import { wirePowerNotify } from './ups-notify.js';
 import { onVmTab, restoreVmSnapshot } from './vm.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls, wireSecurityNotify } from './security.js';
@@ -813,6 +814,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wirePlugsToggle();
   wirePlugsRefresh();
   wirePlugDetail();
+  wirePowerNotify();
   wireLightControls();
   wireZoneDetail();
   wireSecurityHiddenToggle();

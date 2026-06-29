@@ -9,6 +9,7 @@
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { loadPowerNotifyPrefs } from './ups-notify.js';
 
 const POLL_MS = 15_000;
 
@@ -113,7 +114,9 @@ function renderUpsTile(tile, ups, compact) {
 }
 
 export function renderUps() {
-  renderUpsTile(els.upsTile, state.ups, false);
+  // Both tiles use the compact one-line layout — the Plugs tile is identical to
+  // the Home tile (the container already carries `ups-tile-compact`).
+  renderUpsTile(els.upsTile, state.ups, true);
   renderUpsTile(els.homeUpsTile, state.ups, true);
 }
 
@@ -161,6 +164,7 @@ function schedule(ms) {
 export function onUpsTab(tab) {
   if (tab === 'plugs' || tab === 'home') {
     loadUps();
+    if (tab === 'plugs') loadPowerNotifyPrefs();
     schedule(tab === 'plugs' ? POLL_MS : 0);
   } else {
     schedule(0);

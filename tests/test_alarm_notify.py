@@ -192,3 +192,58 @@ def test_error_dedupes_once_per_day_but_logs_every_attempt(tmp_path: Path, monke
         notifier_factory=lambda: notifier,
     )
     assert len(notifier.sent) == 2
+
+
+# ------------------------------------------- panel events (intrusion / ac_lost)
+
+
+def test_security_transitions_baseline_then_intrusion_onset(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    notifier = FakeNotifier()
+    prefs = lambda: AlarmNotifyPrefs(intrusion=True, ac_lost=True)
+    tracker = {"intrusion": None, "ac_lost": None}
+
+    # First observation sets the baseline — no alert even though ac_lost is True.
+    AN.check_security_transitions(
+        intrusion=False, ac_lost=True, state=tracker,
+        prefs_loader=prefs, notifier_factory=lambda: notifier,
+    )
+    assert notifier.sent == []
+
+    # Intrusion goes false→true → exactly one 🚨 alert.
+    AN.check_security_transitions(
+        intrusion=True, ac_lost=True, state=tracker,
+        prefs_loader=prefs, notifier_factory=lambda: notifier,
+    )
+    assert len(notifier.sent) == 1 and "TRIGGERED" in notifier.sent[0]
+
+    # Intrusion clearing is not an alert.
+    AN.check_security_transitions(
+        intrusion=False, ac_lost=True, state=tracker,
+        prefs_loader=prefs, notifier_factory=lambda: notifier,
+    )
+    assert len(notifier.sent) == 1
+
+
+def test_security_ac_lost_alerts_both_directions_and_respects_toggle(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    notifier = FakeNotifier()
+    tracker = {"intrusion": False, "ac_lost": False}  # baseline already set
+
+    # ac_lost off → no alert on the transition.
+    AN.check_security_transitions(
+        intrusion=False, ac_lost=True, state=dict(tracker),
+        prefs_loader=lambda: AlarmNotifyPrefs(ac_lost=False),
+        notifier_factory=lambda: notifier,
+    )
+    assert notifier.sent == []
+
+    # ac_lost on → both loss and restore alert.
+    on = lambda: AlarmNotifyPrefs(ac_lost=True)
+    AN.check_security_transitions(intrusion=False, ac_lost=True, state=tracker,
+                                  prefs_loader=on, notifier_factory=lambda: notifier)
+    AN.check_security_transitions(intrusion=False, ac_lost=False, state=tracker,
+                                  prefs_loader=on, notifier_factory=lambda: notifier)
+    assert len(notifier.sent) == 2
+    assert "lost mains" in notifier.sent[0]
+    assert "restored" in notifier.sent[1]

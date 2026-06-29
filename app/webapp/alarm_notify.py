@@ -134,3 +134,82 @@ def record_alarm_action(
         notifier.send_text(_compose_message(source, action, outcome, error, detail))
     except NotifierError as exc:  # delivery must never break the automation loop
         logger.warning("⚠️ Telegram alarm notification failed: %s", exc)
+
+
+# --------------------------------------------------------------------------
+# Panel events: intrusion (alarm triggered) + AC-power lost/restored. These are
+# edge-triggered off the live RISCO SecurityState, polled by the presence loop.
+# --------------------------------------------------------------------------
+
+# Last-seen panel flags. Process-lifetime; a condition already active at startup
+# sets the baseline (no alert) so we only notify on a genuine transition.
+_last_security: Dict[str, Optional[bool]] = {"intrusion": None, "ac_lost": None}
+
+_SECURITY_MESSAGES = {
+    ("intrusion", True): "🚨 ALARM TRIGGERED at home",
+    ("ac_lost", True): "⚠️ Alarm panel lost mains power (on backup battery)",
+    ("ac_lost", False): "✅ Alarm panel mains power restored",
+}
+
+
+def record_security_event(
+    *,
+    kind: str,
+    active: bool,
+    detail: Optional[str] = None,
+    prefs_loader: Callable[[], AlarmNotifyPrefs] = load_alarm_notify_prefs,
+    notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
+) -> None:
+    """Log a panel event (``intrusion`` / ``ac_lost``) and notify per its toggle."""
+
+    record: Dict[str, Any] = {"source": "panel", "event": kind, "active": active}
+    if detail:
+        record["detail"] = detail
+    append_activity("alarm", record)
+
+    prefs = prefs_loader()
+    if not getattr(prefs, kind, False):
+        return
+    message = _SECURITY_MESSAGES.get((kind, active))
+    if message is None:  # e.g. intrusion clearing — no all-clear message
+        return
+    if detail:
+        message = f"{message} · {detail}"
+
+    notifier = notifier_factory()
+    if notifier is None:
+        return
+    try:
+        notifier.send_text(message)
+    except NotifierError as exc:
+        logger.warning("⚠️ Telegram security notification failed: %s", exc)
+
+
+def check_security_transitions(
+    *,
+    intrusion: bool,
+    ac_lost: bool,
+    state: Optional[Dict[str, Optional[bool]]] = None,
+    prefs_loader: Callable[[], AlarmNotifyPrefs] = load_alarm_notify_prefs,
+    notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
+) -> None:
+    """Compare current panel flags to the last seen and alert on transitions.
+
+    Intrusion alerts only on its *onset* (no all-clear); AC-power alerts on both
+    loss and restore. First observation of each flag just sets the baseline.
+    """
+
+    tracker = _last_security if state is None else state
+    for kind, value in (("intrusion", intrusion), ("ac_lost", ac_lost)):
+        last = tracker.get(kind)
+        tracker[kind] = value
+        if last is None or last == value:
+            continue
+        if kind == "intrusion" and value is False:
+            continue  # intrusion cleared — not an alert
+        record_security_event(
+            kind=kind,
+            active=value,
+            prefs_loader=prefs_loader,
+            notifier_factory=notifier_factory,
+        )

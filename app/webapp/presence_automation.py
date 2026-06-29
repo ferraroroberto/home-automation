@@ -14,6 +14,7 @@ from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
     SOURCE_PRESENCE,
+    check_security_transitions,
     record_alarm_action,
 )
 from src.presence_engine import (
@@ -51,7 +52,19 @@ def _env_int(name: str, default: int) -> int:
 
 
 async def tick() -> None:
-    """Evaluate one presence transition and apply at most one alarm action."""
+    """Alert on panel events, then evaluate one presence transition."""
+
+    # Panel-event alerts (intrusion / AC-power lost-restored) ride on this loop's
+    # one security read and fire regardless of the presence auto-arm toggle —
+    # those alerts must not depend on auto-arm being enabled. This is the only
+    # interval reader of RISCO state, so adding a second poller would just risk
+    # the cloud's third-party rate limit; intrusion/AC alerts therefore require
+    # this task to be running (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
+    security = await fetch_security_state()
+    check_security_transitions(
+        intrusion=bool(security.ongoing_alarm or security.memory_alarm),
+        ac_lost=bool(security.ac_lost),
+    )
 
     config = load_automation_config()
     if not config.enabled:
@@ -61,7 +74,6 @@ async def tick() -> None:
     if not people:
         return
 
-    security = await fetch_security_state()
     decision = evaluate_alarm_decision(
         people,
         security_mode=security.mode,

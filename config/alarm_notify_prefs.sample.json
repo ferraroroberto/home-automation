@@ -3,5 +3,7 @@
   "schedule_disarm": false,
   "presence_arm": false,
   "presence_disarm": false,
-  "error": true
+  "error": true,
+  "intrusion": true,
+  "ac_lost": true
 }

@@ -1775,10 +1775,23 @@ button.presence-name:hover { text-decoration: underline; }
   min-height: 38px;
   font-size: var(--font-caption);
 }
-.security-notify-settings {
+/* Notification toggle lists (alarm + power cards): checkbox on the LEFT, all in
+   one aligned column, each box vertically centred with its label. */
+.notify-toggles {
   display: grid;
-  gap: 8px;
-  padding: 0 14px 4px;
+  gap: 10px;
+  padding: 4px 14px 8px;
+}
+.notify-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.notify-toggle .checkbox-native {
+  flex: 0 0 auto;
+}
+.notify-toggle span {
+  min-width: 0;
 }
 .presence-map-link {
   display: inline-flex;
