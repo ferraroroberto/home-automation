@@ -15,13 +15,17 @@ and the manual button route. It does two things:
 
 Persistent failures (an offline panel retried every poll) would otherwise spam:
 errors carrying a ``dedupe_key`` notify **once per local day** per key. The
-command is still logged every attempt, so the activity log shows the retries.
+de-dupe state is persisted to ``logs/alarm_notify_dedupe.json`` so a tray
+restart does not reset the counter mid-day. The command is still logged every
+attempt, so the activity log shows the retries.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from src.activity_log import append_activity
@@ -38,9 +42,29 @@ SOURCE_PRESENCE = "presence"
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
 
-# Per-day error-notify de-dupe: dedupe_key -> "YYYY-MM-DD". Process-lifetime
-# memory; a panel that stays offline alerts once a day, not every poll.
-_last_error_notify: Dict[str, str] = {}
+# Per-day error-notify de-dupe: dedupe_key -> "YYYY-MM-DD".
+# Persisted to disk so a tray restart does not re-fire the same-day alert.
+_DEDUPE_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "alarm_notify_dedupe.json"
+
+
+def _load_dedupe() -> Dict[str, str]:
+    try:
+        return json.loads(_DEDUPE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_dedupe(state: Dict[str, str]) -> None:
+    try:
+        _DEDUPE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _DEDUPE_PATH.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_DEDUPE_PATH)
+    except OSError as exc:
+        logger.warning("⚠️ Could not persist alarm de-dupe state: %s", exc)
+
+
+_last_error_notify: Dict[str, str] = _load_dedupe()
 
 
 def _verb(action: str) -> str:
@@ -126,6 +150,7 @@ def record_alarm_action(
         if _last_error_notify.get(dedupe_key) == today:
             return
         _last_error_notify[dedupe_key] = today
+        _save_dedupe(_last_error_notify)
 
     notifier = notifier_factory()
     if notifier is None:

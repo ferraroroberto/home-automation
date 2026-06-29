@@ -64,6 +64,7 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
     import app.webapp.security_automation as engine
 
     calls: list[str] = []
+    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="ok", time="21:00", days=["mon"], action="arm"),
         SecurityScheduleEntry(id="bad", time="21:00", days=["mon"], action="disarm"),
@@ -77,6 +78,8 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
     monkeypatch.setattr(engine, "control_system", fake_control)
+    # Prevent real Telegram sends and real log writes during this unit test.
+    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
 
     config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
     state = engine._EngineState(last_fire_day={})
@@ -87,3 +90,7 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
 
     assert calls == ["arm", "disarm", "disarm"]
     assert state.last_fire_day == {"ok": "2026-06-22"}
+    # Both schedule entries record their outcome; "bad" fires twice (tick retries failed entries).
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert ("schedule", "arm", "ok") in outcomes
+    assert outcomes.count(("schedule", "disarm", "error")) == 2
