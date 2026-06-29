@@ -19,18 +19,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional
 
+from src._mac import normalize_mac
 from src.display_names import load_display_names, set_display_name
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config" / "dhcp_overrides.json"
-
-
-def normalize_mac(mac: str) -> str:
-    """Canonical key form: upper-case, colon-separated as reported, trimmed.
-
-    Mirrors :func:`src.dhcp_plan.normalize_mac` so an override keys the same way
-    the planner classifies a device, however the AP/router later spells the MAC.
-    """
-    return (mac or "").strip().upper()
 
 
 def load_dhcp_overrides(path: Optional[Path] = None) -> Dict[str, str]:

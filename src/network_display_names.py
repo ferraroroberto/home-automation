@@ -16,20 +16,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional
 
+from src._mac import normalize_mac
 from src.display_names import load_display_names, set_display_name
 
 DEFAULT_PATH = (
     Path(__file__).resolve().parent.parent / "config" / "network_display_names.json"
 )
-
-
-def normalize_mac(mac: str) -> str:
-    """Canonical key form: upper-case, colon-separated, whitespace-trimmed.
-
-    Vendors report MACs in mixed case / separators; normalising on the way in
-    *and* out keeps a rename keyed the same however the AP later spells it.
-    """
-    return (mac or "").strip().upper()
 
 
 def load_network_display_names(path: Optional[Path] = None) -> Dict[str, str]:

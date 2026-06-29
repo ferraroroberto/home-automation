@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from src._mac import normalize_mac
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config" / "dhcp_plan.json"
@@ -120,11 +122,6 @@ class DeviceInput:
     display_name: Optional[str] = None  # user override label
     vendor: Optional[str] = None  # OUI vendor
     randomized: bool = False  # locally-administered MAC → not reservable
-
-
-def normalize_mac(mac: str) -> str:
-    """Canonical key form: upper-case, colon-separated as reported, trimmed."""
-    return (mac or "").strip().upper()
 
 
 def device_inputs_from_inventory(

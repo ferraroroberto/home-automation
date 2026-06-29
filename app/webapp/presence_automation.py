@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
 
+from app.webapp._env import _env_bool, _env_int
 from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
@@ -31,24 +31,6 @@ from src.push_notifications import send_push
 from src.risco_client import control_system, fetch_security_state
 
 logger = logging.getLogger(__name__)
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = (os.getenv(name) or "").strip().lower()
-    if not raw:
-        return default
-    return raw in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
 
 
 async def tick() -> None:

@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Mapping, Optional, Set
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from app.webapp.routers._helpers import make_display_name_endpoint
 from src.dhcp_overrides import load_dhcp_overrides, set_dhcp_override
 from src.dhcp_plan import (
     Assignment,
@@ -895,10 +896,6 @@ async def post_router_reboot() -> Dict[str, Any]:
     return {"ok": True}
 
 
-class DisplayNamePayload(BaseModel):
-    display_name: str
-
-
 class ImportantPayload(BaseModel):
     important: bool
 
@@ -917,23 +914,17 @@ class WifiHiddenPayload(BaseModel):
     hidden: bool
 
 
-@router.put("/api/network/devices/{mac}/display_name")
-async def update_device_display_name(
-    mac: str, payload: DisplayNamePayload
-) -> Dict[str, Any]:
-    """Set or clear a custom label for one attached device, keyed by MAC.
-
-    Most clients report an ``n/a`` hostname, so this is the only way to tell them
-    apart in the list (issue #129 Phase 2). Mirrors the detector/plug rename
-    endpoints; the store is the MAC-keyed parallel of those display-name stores.
-    """
-    name = payload.display_name.strip()
-    try:
-        set_network_display_name(mac, name)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save device name for %s: %s", mac, exc)
-        raise HTTPException(status_code=500, detail=f"failed to save display name: {exc}")
-    return {"mac": normalize_mac(mac), "display_name": name or None}
+# Set or clear a custom label for one attached device, keyed by MAC. Most clients
+# report an ``n/a`` hostname, so this is the only way to tell them apart in the
+# list (issue #129 Phase 2). The response MAC is normalised to its canonical form.
+make_display_name_endpoint(
+    router,
+    "/api/network/devices/{item_id}/display_name",
+    "mac",
+    set_network_display_name,
+    log_noun="device name",
+    response_id=normalize_mac,
+)
 
 
 @router.put("/api/network/devices/{mac}/hidden")
