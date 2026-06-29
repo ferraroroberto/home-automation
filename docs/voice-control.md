@@ -118,7 +118,57 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 ### Pipeline ("Focused local assistant")
 
 Conversation agent = **Extended OpenAI Conversation**; STT = **Custom Whisper**; TTS =
-**Orpheus (tara)**; **"Prefer handling commands locally" = ON**; wake word "Okay Nabu".
+**Orpheus (tara)**; **"Prefer handling commands locally" = ON**; wake word "Okay Nabu" (see
+**Wake words** below).
+
+### Wake words — two per puck, each bound to a pipeline
+
+The Voice PE firmware detects wake words **on-device** (microWakeWord) and supports **two
+simultaneous wake words per puck**, each routed to its own assistant pipeline. The binding
+lives on the **device**, not in the pipeline config — both pipelines have `wake_word_entity:
+null` in `/config/.storage/assist_pipeline.pipelines`. Each puck exposes a *Wake word* +
+*Assistant* select pair plus a second *Wake word 2* + *Assistant 2* pair
+(`select.home_assistant_voice_<id>_wake_word[_2]` / `…_assistant[_2]`). The *Assistant*
+select is what names the pipeline that fires when its wake word is heard.
+
+Both pucks are configured identically — a deliberate fast/smart split:
+
+| Wake word | Routes to pipeline | What it does |
+|---|---|---|
+| **"Okay Nabu"** (slot 1) | **Focused local assistant** | Hub stack — Custom Whisper STT → Extended OpenAI (local-first, then the Haiku LLM) → Orpheus TTS. Commands, freeform questions, and the alarm bridge. Slower on freeform (LLM path). |
+| **"Hey Jarvis"** (slot 2) | **Home Assistant** (the *preferred* pipeline) | Built-in intent engine with the default STT/TTS — fast, fully local, command-only, no LLM. |
+
+So say **"Hey Jarvis"** for instant built-in commands, **"Okay Nabu"** for anything that
+needs the LLM.
+
+**Available wake words are limited to the firmware built-ins** — `no_wake_word`,
+`Hey Jarvis`, `Hey Mycroft`, `Okay Nabu` (the on-device microWakeWord models baked into the
+Voice PE firmware). A **custom** wake word (e.g. a Spanish phrase) is **not** selectable
+here: it requires training a custom model and **flashing custom ESPHome firmware** to each
+puck — investigated and deferred in #266. microWakeWord is the on-device route (the
+maintainer rates a good custom model "very difficult"); openWakeWord trains easily on Colab
+but needs an unofficial *streaming*-firmware fork (always-on audio to the server) the stock
+Voice PE firmware doesn't support; and synthetic training data for Spanish has weak speaker
+variety. Not worth the flash risk for now.
+
+**Changing the mapping** — which built-in word sits in a slot, or which pipeline a slot
+routes to — is a device-side select, so it needs no firmware flash and no browser. Over the
+REST API (loopback or token; `$HA_URL`/`$HA_TOKEN` from `.env`):
+
+```bash
+# point "Hey Jarvis" (slot 2) at the Focused local assistant instead of Home Assistant
+curl -s -X POST -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json" \
+  -d '{"entity_id":"select.home_assistant_voice_<id>_assistant_2","option":"Focused local assistant"}' \
+  "$HA_URL/api/services/select/select_option"
+
+# swap the wake word in a slot (built-ins only)
+curl -s -X POST -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json" \
+  -d '{"entity_id":"select.home_assistant_voice_<id>_wake_word","option":"Hey Mycroft"}' \
+  "$HA_URL/api/services/select/select_option"
+```
+
+The current values are restored on boot from `/config/.storage/core.restore_state`; read
+them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_word`.
 
 ## Operating
 
