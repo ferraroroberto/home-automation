@@ -11,6 +11,12 @@ from typing import Dict, Optional
 
 from dotenv import load_dotenv
 
+from app.webapp.alarm_notify import (
+    OUTCOME_ERROR,
+    OUTCOME_OK,
+    SOURCE_SCHEDULE,
+    record_alarm_action,
+)
 from src.presence_engine import note_manual_alarm_action
 from src.risco_client import control_system
 from src.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
@@ -65,7 +71,30 @@ def load_security_schedule_config() -> SecurityScheduleConfig:
 
 async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
     logger.info("⏰ Applying alarm schedule %s (%s %s)", entry.id, entry.time, entry.action)
-    await control_system(entry.action)
+    detail = entry.time
+    try:
+        await control_system(entry.action)
+    except Exception as exc:  # noqa: BLE001 - record then re-raise so tick() retries
+        # An automatic arm/disarm failed (e.g. panel offline during an outage):
+        # log it and alert once per day. Re-raise so tick() leaves last_fire_day
+        # unset and retries within the grace window.
+        record_alarm_action(
+            source=SOURCE_SCHEDULE,
+            action=entry.action,
+            outcome=OUTCOME_ERROR,
+            error=str(exc),
+            detail=detail,
+            reason=f"schedule {entry.id}",
+            dedupe_key=f"schedule:{entry.id}",
+        )
+        raise
+    record_alarm_action(
+        source=SOURCE_SCHEDULE,
+        action=entry.action,
+        outcome=OUTCOME_OK,
+        detail=detail,
+        reason=f"schedule {entry.id}",
+    )
     # Record the scheduled action the same way a manual one is recorded, so the
     # presence automation won't immediately undo it (e.g. disarm a perimeter the
     # 11pm schedule just armed because people are home). A real away→home arrival

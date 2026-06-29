@@ -19,12 +19,14 @@ import { jsonApi } from './api.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
 import { renderPresence, loadPresence, loadLocation, loadPresenceAutomation } from './presence.js';
+import { loadNotifyPrefs } from './security-notify.js';
 
 // Re-export the wiring entry points from their new homes so main.js's single
-// import from './security.js' continues to resolve all five names.
+// import from './security.js' continues to resolve all the names.
 export { wireZoneDetail, wireSecurityHiddenToggle } from './security-alarm.js';
 export { wireSecuritySchedules } from './security-schedules.js';
 export { wirePresenceControls } from './presence.js';
+export { wireSecurityNotify } from './security-notify.js';
 
 const POLL_MS = 10_000;
 
@@ -84,6 +86,7 @@ export function onSecurityTab(tab) {
       loadLocation();
       loadPresenceAutomation();
       loadSecuritySchedules();
+      loadNotifyPrefs();
     }
     schedule(POLL_MS);
   } else {
