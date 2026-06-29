@@ -32,7 +32,7 @@ rest_command**. Everything else (wake word, STT, agent, TTS) is already wired.
 
 ## The 5-minute recipe
 
-All paths are on the **HA VM** (`192.168.0.102:8123`). The app is at
+All paths are on the **HA VM** (`192.168.0.4:8123`). The app is at
 `https://192.168.0.13:8447` on the LAN.
 
 **Deploy by code (preferred).** Edit the repo-owned files under

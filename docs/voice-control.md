@@ -101,7 +101,7 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 | Host | Address | Notes |
 |---|---|---|
 | local-llm-hub (PC) | `192.168.0.13` | hub `:8000` (admin UI at `:8000/admin/`); app API `:8447` |
-| HA VM | `192.168.0.102` | wired/bridged, ~0 ms; UI `http://192.168.0.102:8123` |
+| HA VM | `192.168.0.4` | wired/bridged, ~0 ms; UI `http://192.168.0.4:8123`; static-MAC + DHCP-reserved (issue #240) |
 | Voice PE puck | `192.168.0.42` | 2.4 GHz Wi-Fi; **reserved IP** (a re-associate can move it here from a prior lease — verify by ping) |
 
 ### HA integrations (HACS)

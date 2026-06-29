@@ -1011,6 +1011,65 @@ html, body {
 .ups-tile-compact .ups-stat:nth-child(n+4) {
   display: none;
 }
+
+/* Home Assistant Hyper-V VM tile (issue #240) — one line: identity left, a
+   status pill + Start/Stop on the right, with a muted IP·MAC sub-line beneath.
+   Reuses the same pill/token vocabulary as the UPS tile for visual identity. */
+.vm-tile {
+  /* Match the weather tile: same padding so the two single-row tiles read as
+     equal height; the status pill + toggle sit vertically centred on the row. */
+  padding: 12px 14px;
+  margin-bottom: var(--gap);
+}
+.vm-tile.is-unavailable { opacity: 0.85; }
+.vm-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.vm-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  min-width: 0;
+  flex: 1 1 auto;          /* push the status pill + button to the right */
+  font-weight: 700;
+  color: var(--ink);
+}
+.vm-title .title-icon { width: 1.1em; height: 1.1em; flex: none; }
+.vm-title > span:first-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vm-status {
+  flex: none;
+  font-size: var(--font-body);
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+.vm-status-running {
+  color: var(--on);
+  background: color-mix(in srgb, var(--on) 14%, transparent);
+}
+.vm-status-unavailable {
+  color: var(--deficit);
+  background: color-mix(in srgb, var(--deficit) 16%, transparent);
+}
+.vm-status-transition {
+  color: var(--attention);
+  background: color-mix(in srgb, var(--attention) 16%, transparent);
+}
+/* The control is the canonical .toggle switch (on = running), same as AC power
+   and plugs; .vm-toggle only needs to sit flush at the row's right edge. */
+.vm-toggle { flex: none; }
+.vm-meta { margin-top: 6px; }
 @media (max-width: 720px) {
   .plugs-summary-row {
     grid-template-columns: 1fr;

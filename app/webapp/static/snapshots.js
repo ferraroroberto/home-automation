@@ -20,6 +20,7 @@ const ALLOWED = {
   ups: true,
   lights: true,
   network: true,
+  hyperv: true,
 };
 
 function emptyStore() {

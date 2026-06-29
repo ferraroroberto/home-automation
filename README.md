@@ -37,6 +37,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
   - `ups_client.py` — local USB UPS status reader: prefers NUT (`upsc` against the portable Windows install), falls back to a one-shot NUT USB-HID probe, then Windows `Win32_Battery`.
+  - `hyperv_client.py` — status + lifecycle control for the Home Assistant Hyper-V VM (#240): shells out to `Get-VM` / `Start-VM` / `Stop-VM` for the single VM named by `HA_VM_NAME` (by name only — never any other VM), returning a flattened `HyperVState` (state, uptime, IP, MAC). Distinct errors for missing name / not-found / insufficient rights / already-in-state; graceful ACPI stop only.
   - `elgato_client.py` — Elgato lights discovery/read/control over the local LAN HTTP API.
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system AC-power + per-zone trouble flags), controls, event log, and detector bypass.
   - `security_schedules.py` — UI-free persistence and due-window checks for weekly alarm schedules.
@@ -61,12 +62,13 @@ and an optional bearer token. Two ways to reach it once running:
   - `sampler.py` — background energy sampler owned by the webapp lifecycle.
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
   - `security_automation.py` — background weekly alarm-schedule evaluator owned by the webapp lifecycle.
-  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `ups` (local USB UPS status), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `auth` (login), `misc` (page, health, build identity).
+  - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `ups` (local USB UPS status), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `hyperv` (Home Assistant VM status + start/stop), `auth` (login), `misc` (page, health, build identity).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `ups.js` (local USB UPS tile + outage/restored toasts), `lights.js` (Elgato tab),
     `security.js` (RISCO alarm tab boot/orchestrator), `security-alarm.js` (alarm state + action pills + detectors), `security-schedules.js` (weekly schedule CRUD), `presence.js` (presence card + location + automation + push),
     `network.js` (Network/LAN tab boot/orchestrator), `network-devices.js` (attached-devices list + modal), `network-wifi.js` (Wi-Fi diagnostics + charts), `network-dhcp.js` (DHCP reservation planner),
+    `vm.js` (Home Assistant Hyper-V VM tile — last Home card, status + start/stop),
     `snapshots.js` (allowlisted last-good browser snapshots), `charts.js` (Chart.js wrappers), `state.js`, `api.js`;
     `vendor/chart.umd.min.js` (vendored Chart.js v4).
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat`).
@@ -91,6 +93,7 @@ The PWA does **not** poll everything continuously. Each tab's data is fetched on
 | Lights | 15 s | Lights | Elgato LAN reads. |
 | Network | 15 s | Network | AP SOAP + router reads; speed test is button-only. |
 | Security | 10 s | Security, Home | RISCO cloud. |
+| HA VM | 30 s | Home | Hyper-V `Get-VM` on the host (#240). |
 | Weather | ~10 min | (always) | Barely moves. |
 | Build version | 5 min | (always) | Cheap; drives the build-identity footer. |
 
@@ -888,6 +891,34 @@ with a spoken-code gate on disarm.
 ```
 
 **One-time bootstrap** (the SSH channel is the **Terminal & SSH add-on**, which mounts `/config`; HAOS host SSH on `:22222` is break-glass and not used): in the add-on's Configuration, paste this PC's public key into `authorized_keys` and expose a LAN-only host port (e.g. `2222`); create a long-lived access token; put the host/port/key/url/token into `.env` (`HA_SSH_*`, `HA_URL`, `HA_TOKEN` — see `.env.example`); then run `preflight`. Full bootstrap steps: [`docs/voice-pe-config/README.md`](docs/voice-pe-config/README.md).
+
+## Home Assistant Hyper-V VM (status + control)
+
+Home Assistant runs as a **Hyper-V VM** on this PC (TOWER), bridged onto the LAN so it has its own MAC and DHCP-reserved IP. The **last tile on the Home tab** shows that VM at a glance — `Home Assistant ● online · up 3d 4h` (or `○ off`) with a muted `IP · MAC` sub-line — and a **Start / Stop** button. `GET /api/hyperv` reads the state; `POST /api/hyperv/{start|stop}` controls it. The VM is addressed **by name** (`HA_VM_NAME`), so the tile is independent of its IP, and the backend only ever touches that one VM — never the host's other VMs (e.g. WSL2's hidden utility VM). **Stop is a graceful ACPI shutdown** (confirm-gated in the UI); there is no hard power-off. This complements the voice/config integration above — confirm HA is up (or bring it up) before relying on it.
+
+**`HA_VM_NAME`** (in `.env`) is the exact VM name as it appears in Hyper-V Manager / `Get-VM` — e.g. `Home Assistant`. Nothing is hardcoded.
+
+**Rights prerequisite — "Hyper-V Administrators".** The webapp runs under the tray user, which by default **cannot** run `Start-VM` / `Stop-VM` (and often not even `Get-VM`). Grant VM lifecycle control **without** full machine admin by adding that account to the local **Hyper-V Administrators** group, then sign out/in (or restart the tray) so the new token takes effect:
+
+```powershell
+# Run once, elevated. Replace with the account the tray/webapp runs as.
+Add-LocalGroupMember -Group "Hyper-V Administrators" -Member "$env:COMPUTERNAME\YourUser"
+```
+
+Until then the tile shows a distinct `⚠ insufficient Hyper-V rights` state (read and act can fail independently — the card surfaces each cause: insufficient rights · VM not found · already in that state).
+
+### Static MAC + DHCP reservation (`.4`)
+
+The VM is pinned to **`192.168.0.4`** via a **static MAC + router DHCP reservation** so a VM re-import (as happened during the #88 spike) can't churn its address or leave a stale lease. One-time, manual (host + router — the app only *displays* MAC/IP so you can verify it landed on the reserved address):
+
+1. **Pin the MAC static** (elevated PowerShell). Reuse the VM's *current* dynamic MAC so no new lease is generated — read it, then set it static:
+   ```powershell
+   (Get-VMNetworkAdapter -VMName "Home Assistant").MacAddress      # e.g. 00155D012A0B
+   Set-VMNetworkAdapter -VMName "Home Assistant" -StaticMacAddress "00155D012A0B"
+   ```
+2. **Reserve `.4` to that MAC** on the router (Vodafone ZXHN F6600P → DHCP / static binding), and **delete the stale old-MAC `homeassistant` entry** so only one reservation remains.
+3. **Reboot the VM** so it picks up the `.4` lease, then verify: the Home tile's sub-line should read `192.168.0.4 · 00:15:5D:01:2A:0B`.
+4. **Re-point the deploy config**: set `HA_SSH_HOST=192.168.0.4` and `HA_URL=http://192.168.0.4:8123` in `.env`, drop the stale SSH host key (`ssh-keygen -R "[192.168.0.102]:2222"`), and re-run `scripts/ha_config_sync.py preflight`.
 
 ## CLI
 
