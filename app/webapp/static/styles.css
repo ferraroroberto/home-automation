@@ -904,6 +904,35 @@ html, body {
 
 .plugs-note { margin: 10px 4px; }
 
+/* Home-tab plug summary as a single line at the weather-tile height (#253):
+   identity (icon + "Plugs" + total) left, On/Off counts inline, the total live
+   wattage pushed hard-right. Scoped to .plugs-summary-line so the Plugs-tab
+   summary (#plugsStats), which shares .plugs-stats / .plugs-stat, is untouched.
+   Comes after .plugs-summary so the padding override wins on equal specificity. */
+.plugs-summary-line { padding: 12px 14px; }
+.plugs-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.plugs-line-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  flex: none;
+  font-weight: 700;
+  color: var(--ink);
+}
+.plugs-line-identity .title-icon { width: 1.1em; height: 1.1em; flex: none; }
+.plugs-line-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+/* No "Live" label — a total wattage is self-evident; push it to the right edge. */
+.plugs-line-watts { margin-left: auto; }
+
 .ups-tile {
   /* Symmetric padding so the status pill sits an equal distance from the top
      and right edges when pinned to the corner (#207 follow-up). */
@@ -1005,11 +1034,33 @@ html, body {
   font-size: var(--font-label);
   font-weight: 650;
 }
-.ups-tile-compact .ups-stats {
-  grid-template-columns: repeat(3, 1fr);
+/* Home-tab UPS tile as a single line at the weather-tile height (#253):
+   identity, then bare charge % + runtime on the same row, then the status pill
+   hard-right. The Plugs-tab tile (.ups-tile, not -compact) keeps its stacked
+   5-stat grid with the corner-pinned pill. */
+.ups-tile-compact { padding: 12px 14px; }
+.ups-tile-compact .ups-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.ups-tile-compact .ups-stat:nth-child(n+4) {
-  display: none;
+.ups-line-stats {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+  font-size: var(--font-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* Pull the status pill out of the corner-pinned absolute flow and onto the row,
+   pushed to the right edge. */
+.ups-tile-compact .ups-status {
+  position: static;
+  top: auto;
+  right: auto;
+  margin-left: auto;
 }
 
 /* Home Assistant Hyper-V VM tile (issue #240) — one line: identity left, a
