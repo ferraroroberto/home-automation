@@ -10,6 +10,12 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+from app.webapp.alarm_notify import (
+    OUTCOME_ERROR,
+    OUTCOME_OK,
+    SOURCE_PRESENCE,
+    record_alarm_action,
+)
 from src.presence_engine import (
     append_trigger_log,
     evaluate_alarm_decision,
@@ -77,9 +83,25 @@ async def tick() -> None:
             set_kids_home_override(False)
         logger.info("✅ Presence automation %s -> %s", decision.reason, decision.action)
         send_push("Presence automation", f"{decision.reason}: {decision.action}")
+        record_alarm_action(
+            source=SOURCE_PRESENCE,
+            action=decision.action,
+            outcome=OUTCOME_OK,
+            detail=decision.reason,
+        )
     except Exception as exc:  # noqa: BLE001
         outcome = f"error: {exc}"
         logger.warning("⚠️ Presence automation action failed: %s", exc)
+        # Failure leaves the decision un-applied, so the loop retries every tick;
+        # de-dupe the alert to once per day per presence transition kind.
+        record_alarm_action(
+            source=SOURCE_PRESENCE,
+            action=decision.action,
+            outcome=OUTCOME_ERROR,
+            error=str(exc),
+            detail=decision.reason,
+            dedupe_key=f"presence:{decision.kind}",
+        )
     finally:
         append_trigger_log(
             {

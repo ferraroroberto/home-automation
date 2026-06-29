@@ -16,6 +16,18 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.webapp.alarm_notify import (
+    OUTCOME_ERROR,
+    OUTCOME_OK,
+    SOURCE_MANUAL,
+    record_alarm_action,
+)
+from src.alarm_notify_prefs import (
+    AlarmNotifyPrefs,
+    load_alarm_notify_prefs,
+    save_alarm_notify_prefs,
+)
+from src.notify_config import is_notify_configured
 from src.presence_engine import note_manual_alarm_action
 from src.risco_client import (
     ACTIONS,
@@ -132,6 +144,37 @@ async def update_security_schedules(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"failed to save schedules: {exc}")
 
 
+def _notify_prefs_payload(prefs: AlarmNotifyPrefs) -> Dict[str, Any]:
+    return {
+        "prefs": asdict(prefs),
+        "telegram_configured": is_notify_configured(),
+    }
+
+
+@router.get("/api/security/notify-prefs")
+async def get_notify_prefs() -> Dict[str, Any]:
+    """Return the automatic-alarm notification toggles + whether Telegram is set up."""
+    try:
+        return _notify_prefs_payload(load_alarm_notify_prefs())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to load notify prefs: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to load notify prefs: {exc}")
+
+
+@router.put("/api/security/notify-prefs")
+async def update_notify_prefs(request: Request) -> Dict[str, Any]:
+    body = await _json_body(request)
+    current = asdict(load_alarm_notify_prefs())
+    updated = {key: bool(body.get(key, current[key])) for key in current}
+    try:
+        prefs = AlarmNotifyPrefs(**updated)
+        save_alarm_notify_prefs(prefs)
+        return _notify_prefs_payload(prefs)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save notify prefs: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to save notify prefs: {exc}")
+
+
 @router.post("/api/security/{action}")
 async def post_security_action(action: str) -> Dict[str, Any]:
     if action not in ACTIONS:
@@ -139,10 +182,19 @@ async def post_security_action(action: str) -> Dict[str, Any]:
     try:
         state = await control_system(action)
         note_manual_alarm_action(action)
+        # Manual actions are logged for the local activity record but never push
+        # a notification — the user is already at the app.
+        record_alarm_action(source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK)
         return _state_payload(state)
     except (RiscoConfigError, RiscoCommandError) as exc:
+        record_alarm_action(
+            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR, error=str(exc)
+        )
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
+        record_alarm_action(
+            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR, error=str(exc)
+        )
         raise _http_error(exc)
 
 

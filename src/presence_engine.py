@@ -360,9 +360,14 @@ def evaluate_alarm_decision(
 
 
 def append_trigger_log(event: Dict[str, Any], path: Optional[Path] = None) -> None:
-    """Append one audit event to the gitignored JSONL trigger log."""
+    """Append one audit event to the gitignored presence-trigger JSONL log.
+
+    Delegates to the shared :mod:`src.activity_log` writer so there is a single
+    append-only JSONL implementation across the app; the presence trigger log
+    keeps its own filename and fields.
+    """
+
+    from src.activity_log import append_activity
 
     target = Path(path) if path is not None else TRIGGER_LOG_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+    append_activity("presence", event, path=target)

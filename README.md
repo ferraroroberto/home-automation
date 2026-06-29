@@ -70,6 +70,9 @@ and an optional bearer token. Two ways to reach it once running:
   - `presence_hidden.py` — hidden-state store for Find My / presence entities; persisted to gitignored `config/presence_hidden.json`.
   - `presence_engine.py` — webhook-backed presence state and alarm-transition decision engine: reads `config/presence_state.json`, evaluates grace-period / Kids-home logic, and drives arm/disarm; appends a JSONL audit row to gitignored `logs/presence_triggers.jsonl`.
   - `push_notifications.py` — best-effort Web Push sender for presence transitions: reads VAPID keys + subscriptions from gitignored `config/push_config.json` / `config/push_subscriptions.json`; silent no-op when not configured.
+  - `notify/` — the universal Telegram notifier vendored verbatim from `project-scaffolding` (`TelegramNotifier` + `NotifierError` + `TelegramConfig` + `build_notifier`); `notify_config.py` wires the app's gitignored `config/notify_config.json` / `TELEGRAM_*` env to it (`build_alarm_notifier()` → notifier or silent no-op).
+  - `activity_log.py` — reusable append-only JSONL activity log; `append_activity(consumer, event)` writes one timestamped line to gitignored `logs/<consumer>.jsonl`. Used for `logs/alarm.jsonl` (every arm/disarm command + result) and delegated to by the presence trigger log.
+  - `alarm_notify_prefs.py` — five per-event toggles for automatic-alarm Telegram alerts (default: only `error`), persisted to gitignored `config/alarm_notify_prefs.json` via the `display_names` atomic store.
   - `list_security.py` — CLI that prints the live RISCO alarm state (mirrors `list_devices.py`).
   - `list_elgato_lights.py` — CLI that prints + controls Elgato lights; supports `--id`, `--on`, `--brightness`, `--kelvin`.
   - `list_cameras.py` — CLI that prints camera reachability and last-snapshot metadata.
@@ -84,12 +87,13 @@ and an optional bearer token. Two ways to reach it once running:
   - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
   - `security_automation.py` — background weekly alarm-schedule evaluator owned by the webapp lifecycle.
   - `presence_automation.py` — background presence → alarm automation consumer (evaluates webhook-backed presence state and fires arm/disarm) owned by the webapp lifecycle.
+  - `alarm_notify.py` — single `record_alarm_action()` entry point used by the schedule, presence, and manual arm/disarm paths: always appends to the `logs/alarm.jsonl` activity log, and sends a Telegram alert only for automatic sources whose toggle is on (manual never notifies; errors de-dupe to once/day).
   - `presence_refresher.py` — bounded background iCloud Find My diagnostic refresher; browser polling reads its in-memory cache via `GET /api/presence`, so the expensive Apple call happens only here.
   - `routers/` — `units` (read + control), `energy` (live flow + history/aggregate + cost breakdown), `tuya` (local Smart Life devices + watts), `ups` (local USB UPS status), `lights` (Elgato lights), `security` (RISCO alarm state/control), `network` (LAN health + device inventory + AP reboot), `hyperv` (Home Assistant VM status + start/stop), `cameras` (ONVIF/RTSP cameras — snapshot, MJPEG stream, PTZ, presets, recording), `presence` (presence/location webhooks + diagnostics), `weather` (Open-Meteo weather + forecast), `push` (Web Push subscription management), `auth` (login), `misc` (page, health, build identity).
   - `static/` — the PWA (HTML/CSS/ES-modules), `manifest.webmanifest`, icons.
     Modules: `main.js` (boot + AC cards), `tabs.js` (Home/AC/Energy/Plugs/Light/Net/Alarm switcher),
     `energy.js` (energy tab + live polling), `plugs.js` (Smart Life tab), `ups.js` (local USB UPS tile + outage/restored toasts), `lights.js` (Elgato tab),
-    `security.js` (RISCO alarm tab boot/orchestrator), `security-alarm.js` (alarm state + action pills + detectors), `security-schedules.js` (weekly schedule CRUD), `cameras.js` (camera tile — thumbnails, live MJPEG view, PTZ, presets, recording), `presence.js` (presence card + location + automation + push),
+    `security.js` (RISCO alarm tab boot/orchestrator), `security-alarm.js` (alarm state + action pills + detectors), `security-schedules.js` (weekly schedule CRUD), `security-notify.js` (automatic-alarm Telegram notification toggles), `cameras.js` (camera tile — thumbnails, live MJPEG view, PTZ, presets, recording), `presence.js` (presence card + location + automation + push),
     `network.js` (Network/LAN tab boot/orchestrator), `network-devices.js` (attached-devices list + modal), `network-wifi.js` (Wi-Fi diagnostics + charts), `network-dhcp.js` (DHCP reservation planner),
     `vm.js` (Home Assistant Hyper-V VM tile — last Home card, status + start/stop), `weather.js` (weather strip + theme toggle),
     `snapshots.js` (allowlisted last-good browser snapshots), `charts.js` (Chart.js wrappers), `state.js`, `api.js`, `icons.js` (icon helpers), `scroll-lock.js` (body scroll lock for modals), `sw.js` (service worker);
@@ -99,7 +103,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `single_instance.py`, `tray_lifecycle.ps1` — vendored verbatim from the scaffold.
 - **`scripts/`** — `gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_web_push_keys.py` (generate local VAPID keys for Web Push), `gen_icons.py` (PWA icons; Pillow dev-only), `ha_config_sync.py` (deploy the voice-PE HA config into the HA VM's `/config` over SSH — preflight / deploy / rollback / probe; #243, see [Home Assistant config deploy](#home-assistant-config-deploy-over-ssh)).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
-- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `tuya_hidden.sample.json`, `elgato_display_names.sample.json`, `network_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_trouble_ignore.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, `pv_system.sample.json`, `cameras.sample.json`, `camera_display_names.sample.json`, `camera_presets.sample.json`, `camera_preset_names.sample.json`, `dhcp_plan.sample.json`, and `dhcp_overrides.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `tuya_hidden.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_trouble_ignore.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, `pv_system.json`, `cameras.json`, `camera_display_names.json`, `camera_presets.json`, `camera_preset_names.json`, `dhcp_plan.json`, and `dhcp_overrides.json` are gitignored.
+- **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `tuya_hidden.sample.json`, `elgato_display_names.sample.json`, `network_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_trouble_ignore.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `notify_config.sample.json`, `alarm_notify_prefs.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, `pv_system.sample.json`, `cameras.sample.json`, `camera_display_names.sample.json`, `camera_presets.sample.json`, `camera_preset_names.sample.json`, `dhcp_plan.sample.json`, and `dhcp_overrides.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `tuya_hidden.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_trouble_ignore.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `notify_config.json`, `alarm_notify_prefs.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, `pv_system.json`, `cameras.json`, `camera_display_names.json`, `camera_presets.json`, `camera_preset_names.json`, `dhcp_plan.json`, and `dhcp_overrides.json` are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
@@ -222,6 +226,44 @@ retried on the next poll. The entries live in gitignored
 `config/security_schedules.json`; copy `config/security_schedules.sample.json`
 for the persisted shape if editing by hand.
 
+**Automatic-alarm notifications (Telegram) — issue #231.** The Alarm tab has a
+collapsible **Notifications** card (folded by default, just below Presence) that
+pushes a short Telegram message when the home **automatically** arms or disarms —
+and, by default, whenever an automatic attempt **fails** (e.g. the panel is
+offline during a power cut, the incident that motivated this). Five independent
+toggles, persisted to gitignored `config/alarm_notify_prefs.json`
+(`config/alarm_notify_prefs.sample.json` committed), saved via
+`GET`/`PUT /api/security/notify-prefs`:
+
+| Toggle | Fires when |
+|--------|-----------|
+| Automatic arm (schedule) | a weekly schedule armed the alarm |
+| Automatic disarm (schedule) | a weekly schedule disarmed the alarm |
+| Arm on everyone-away (presence) | presence automation armed (everyone left) |
+| Disarm on arrival (presence) | presence automation disarmed (someone arrived) |
+| Error on any automatic arm/disarm | an automatic attempt failed (carries the panel's error text) |
+
+**Default: only the error toggle is on** — the failure case is the one you can't
+otherwise see. **Manual** arm/disarm from the app's own buttons is never
+notified (you're already looking at the app). A persistently-failing automatic
+action (an offline panel retried every poll) alerts **once per day**, not every
+poll. Telegram delivery is best-effort: a delivery failure is logged and never
+breaks the automation loop. Configure credentials by copying
+`config/notify_config.sample.json` to gitignored `config/notify_config.json` and
+filling in `bot_token` + `chat_id` (or set `TELEGRAM_BOT_TOKEN` /
+`TELEGRAM_CHAT_ID` in `.env`, which take precedence); with no credentials the
+notifier is a silent no-op. The notifier itself is the universal
+`src/notify/` component vendored verbatim from `project-scaffolding`.
+
+**Local activity log.** Independently of Telegram, **every** alarm command the
+app issues — schedule, presence, *and* manual — is appended with its result
+(`ok` / `error` + the error text) to gitignored `logs/alarm.jsonl`, a local
+alternative to the RISCO cloud event log so you can see what was attempted, how
+often, and whether it worked. It is written through the reusable
+`src.activity_log.append_activity(consumer, event)` facility (one append-only
+JSONL writer, `logs/<consumer>.jsonl`), which the presence trigger log
+(`logs/presence_triggers.jsonl`) now also routes through.
+
 Config in `.env`:
 
 | Key | Meaning |
@@ -233,6 +275,8 @@ Config in `.env`:
 | `RISCO_PARTIAL_GROUP` | Optional group letter used only to label partially-set states more precisely. |
 | `SECURITY_SCHEDULES_ENABLED` | Optional, default `true`; set `0` to disable the weekly alarm-schedule evaluator while keeping the UI/API available. |
 | `SECURITY_SCHEDULES_POLL_INTERVAL_S` | Optional, default `60`; how often the tray-owned webapp checks due alarm schedules. |
+| `TELEGRAM_BOT_TOKEN` | Optional; Telegram Bot API token for automatic-alarm notifications. Overrides `config/notify_config.json`. Unset → notifier is a silent no-op. |
+| `TELEGRAM_CHAT_ID` | Optional; Telegram chat id the alerts are delivered to (the family-radar chat). Overrides `config/notify_config.json`. |
 
 Read-only smoke command:
 
