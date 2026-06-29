@@ -4,40 +4,13 @@ devices.json
 tinytuya.json
 
 # Webapp secrets + per-machine generated artifacts (public repo!)
-config/webapp_config.json
-config/display_names.json
-config/tuya_display_names.json
-config/tuya_hidden.json
-config/elgato_display_names.json
-config/network_display_names.json
-config/network_hidden.json
-config/network_wifi_display_names.json
-config/network_wifi_hidden.json
-config/security_display_names.json
-config/security_hidden.json
-config/security_trouble_ignore.json
-config/security_schedules.json
-config/presence_display_names.json
-config/presence_hidden.json
-config/presence_state.json
-config/presence_automation.json
-config/push_config.json
-config/push_subscriptions.json
-config/hvac_rules.json
-config/hvac_schedules.json
-config/location.json
-config/tariff.json
-config/pv_system.json
-config/cameras.json
-config/camera_display_names.json
-config/camera_preset_names.json
-config/camera_presets.json
-config/dhcp_plan.json
-config/dhcp_overrides.json
+# Wildcard covers every real config file; negation keeps the committed samples.
+config/*.json
+!config/*.sample.json
 webapp/certificates/
 webapp/icloud_session/
 webapp/*.log
-logs/*.jsonl
+logs/
 # Energy-history store (server-side SQLite; per-machine runtime data)
 webapp/*.sqlite3
 webapp/*.sqlite3-*
