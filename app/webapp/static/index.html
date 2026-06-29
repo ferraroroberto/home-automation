@@ -397,25 +397,27 @@
       <section id="acSummary" class="card ac-summary" aria-label="AC summary"></section>
 
       <!-- Plug summary (informative) — the same totals as the Plugs tab. Loaded
-           once on Home entry; live control stays on the Plugs tab (issue #72). -->
-      <section id="homePlugsStats" class="card plugs-summary" aria-label="Plug summary" hidden>
-        <div class="plugs-stats">
-          <div class="plugs-stat">
-            <span class="plugs-stat-label">Devices</span>
+           once on Home entry; live control stays on the Plugs tab (issue #72).
+           Single line at weather-tile height (#253): Plugs icon + label + total,
+           On/Off counts, then total live wattage hard-right (no "Live" label —
+           a total wattage is self-evident). The Plugs-tab summary (#plugsStats)
+           keeps its full stacked grid. -->
+      <section id="homePlugsStats" class="card plugs-summary plugs-summary-line" aria-label="Plug summary" hidden>
+        <div class="plugs-line">
+          <span class="plugs-line-identity">
+            <svg class="icon title-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
+            <span>Plugs</span>
             <span class="plugs-stat-value" id="homePlugStatTotal">—</span>
-          </div>
-          <div class="plugs-stat">
+          </span>
+          <span class="plugs-line-stat">
             <span class="plugs-stat-label">On</span>
             <span class="plugs-stat-value" id="homePlugStatOn">—</span>
-          </div>
-          <div class="plugs-stat">
+          </span>
+          <span class="plugs-line-stat">
             <span class="plugs-stat-label">Off</span>
             <span class="plugs-stat-value" id="homePlugStatOff">—</span>
-          </div>
-          <div class="plugs-stat">
-            <span class="plugs-stat-label">Live</span>
-            <span class="plugs-stat-value" id="homePlugStatWatts">—</span>
-          </div>
+          </span>
+          <span class="plugs-stat-value plugs-line-watts" id="homePlugStatWatts">—</span>
         </div>
       </section>
 

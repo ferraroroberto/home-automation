@@ -71,6 +71,25 @@ function renderUpsTile(tile, ups, compact) {
   tile.classList.toggle('is-unavailable', !available);
 
   const title = 'UPS';
+  const snapshot = isSnapshotRestored('ups') ? '<span class="snapshot-badge">' + esc(snapshotLabel('ups')) + '</span>' : '';
+  const identity =
+    '<div class="ups-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg><span>' + esc(title) + '</span>' + snapshot + '</div>';
+
+  // Home tile (#253): one line at weather-tile height — identity, then bare
+  // charge % and runtime pulled onto the title row (no labels — a % and a
+  // duration read for themselves), then the status pill hard-right. The Plugs
+  // tab keeps the full stacked stat grid below.
+  if (compact) {
+    tile.innerHTML =
+      '<div class="ups-main">' +
+      identity +
+      '<span class="ups-line-stats"><span>' + esc(fmtPct(ups && ups.battery_charge_pct)) + '</span>' +
+      '<span>' + esc(fmtRuntime(ups && ups.runtime_seconds)) + '</span></span>' +
+      '<span class="ups-status">' + esc(statusText(ups)) + '</span>' +
+      '</div>';
+    return;
+  }
+
   const stats = [
     renderStat('Charge', fmtPct(ups && ups.battery_charge_pct)),
     renderStat('Runtime', fmtRuntime(ups && ups.runtime_seconds)),
@@ -81,12 +100,11 @@ function renderUpsTile(tile, ups, compact) {
   const alarmHtml = alarms.length
     ? '<div class="ups-alerts">' + alarms.map(function (a) { return '<span>' + esc(a) + '</span>'; }).join('') + '</div>'
     : '';
-  const snapshot = isSnapshotRestored('ups') ? '<span class="snapshot-badge">' + esc(snapshotLabel('ups')) + '</span>' : '';
 
   tile.innerHTML =
     '<div class="ups-main">' +
     '  <div class="ups-identity">' +
-    '    <div class="ups-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg><span>' + esc(title) + '</span>' + snapshot + '</div>' +
+    '    ' + identity +
     '  </div>' +
     '  <div class="ups-stats">' + stats + '</div>' +
     '  <span class="ups-status">' + esc(statusText(ups)) + '</span>' +
