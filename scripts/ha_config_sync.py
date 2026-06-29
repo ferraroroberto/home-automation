@@ -14,11 +14,11 @@ see ``docs/voice-pe-config/README.md``.
 Config comes from ``.env`` (non-secret SSH/API settings only; real HA secrets
 stay live-only on the VM and are never read, printed, copied, or committed):
 
-    HA_SSH_HOST   HA VM LAN IP            (e.g. 192.168.0.102)
+    HA_SSH_HOST   HA VM LAN IP            (e.g. 192.168.0.4)
     HA_SSH_PORT   add-on SSH port         (e.g. 2222)
     HA_SSH_USER   add-on SSH user         (e.g. root)
     HA_SSH_KEY    path to the private key (e.g. C:/Users/you/.ssh/ha_ed25519)
-    HA_URL        HA frontend base URL    (e.g. http://192.168.0.102:8123)
+    HA_URL        HA frontend base URL    (e.g. http://192.168.0.4:8123)
     HA_TOKEN      long-lived access token (for the API probes)
 
 Subcommands:

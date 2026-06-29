@@ -60,7 +60,7 @@ The deploy path needs the Home Assistant **Terminal & SSH add-on** reachable ove
    (`authorized_keys` can be set the same way if its UI field is awkward: `-d '{"options": {"authorized_keys": ["ssh-ed25519 AAAA... ha-config-sync"]}}'`. The add-on regenerates `/root/.ssh/authorized_keys` from this option on every start, so editing that file by hand won't stick.)
 4. **Confirm key auth from this PC**, pointing explicitly at the key (the script uses `HA_SSH_KEY` directly, so the `-i` is only for this manual test):
    ```powershell
-   ssh -i $env:USERPROFILE\.ssh\ha_ed25519 -o IdentitiesOnly=yes -p 2222 root@192.168.0.102 "ls /config/configuration.yaml"
+   ssh -i $env:USERPROFILE\.ssh\ha_ed25519 -o IdentitiesOnly=yes -p 2222 root@192.168.0.4 "ls /config/configuration.yaml"
    ```
    A bare `ssh` without `-i` gives `Permission denied (publickey)` because it never offers this key — that is not a server problem.
 5. **Create the long-lived access token** (HA profile avatar → **Security → Long-lived access tokens → Create Token**) for the conversation probe.
@@ -68,7 +68,7 @@ The deploy path needs the Home Assistant **Terminal & SSH add-on** reachable ove
 
 Leave HAOS host SSH on `:22222` disabled unless you have a specific host-debug need; routine config deploys never require it.
 
-> **HA VM IP is reservation-pinned (currently `192.168.0.102`).** The host/url in `.env` are the only place the IP is wired for deploys, so a future move to a different reserved IP is a one-line `.env` change plus a re-`preflight`. The static-MAC + DHCP-reservation migration is tracked in **#240**.
+> **HA VM IP is static-MAC + DHCP-reservation pinned to `192.168.0.4`** (issue #240 — set a static MAC on the VM's Hyper-V adapter, then reserve `.4` to it on the router). The host/url in `.env` are the only place the IP is wired for deploys, so a future move to a different reserved IP is a one-line `.env` change plus a re-`preflight`. See the repo `README.md` "Home Assistant Hyper-V VM" section for the full reservation runbook.
 
 ## Install via the File editor add-on (fallback)
 

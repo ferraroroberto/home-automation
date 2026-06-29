@@ -21,6 +21,8 @@ export const state = {
   plugs: [],
   // Local USB UPS state from GET /api/ups.
   ups: null,
+  // Home Assistant Hyper-V VM state from GET /api/hyperv (issue #240).
+  vm: null,
   // Elgato light cards from GET /api/lights.
   lights: [],
   // device_id whose rename modal is open (or null).
@@ -249,6 +251,8 @@ export const els = {
   homePlugStatWatts: document.getElementById('homePlugStatWatts'),
   homeUpsTile: document.getElementById('homeUpsTile'),
   upsTile: document.getElementById('upsTile'),
+  // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
+  homeVmTile: document.getElementById('homeVmTile'),
   // Plug rename modal
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),

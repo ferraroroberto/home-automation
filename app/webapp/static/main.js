@@ -30,6 +30,7 @@ import {
 } from './energy.js';
 import { onPlugsTab, wirePlugsRefresh, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
 import { onUpsTab, restoreUpsSnapshot } from './ups.js';
+import { onVmTab, restoreVmSnapshot } from './vm.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls } from './security.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
@@ -823,6 +824,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   restoreEnergySnapshots();
   restorePlugsSnapshot();
   restoreUpsSnapshot();
+  restoreVmSnapshot();
   restoreLightsSnapshot();
   restoreNetworkSnapshot();
   // AC units only matter on Home (summary tile) and AC (cards), so poll them
@@ -839,7 +841,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
-    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
+    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onVmTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
   });
   setTab(initialTab());
 

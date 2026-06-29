@@ -445,6 +445,12 @@
           </div>
         </div>
       </section>
+
+      <!-- Home Assistant Hyper-V VM (GET /api/hyperv) — last Home tile. Status +
+           Start/Stop for the VM hosting Home Assistant; addressed by name, so
+           the tile is independent of the VM's IP. Home-tab only; hidden until
+           the first read. Issue #240. -->
+      <section id="homeVmTile" class="card vm-tile" aria-label="Home Assistant VM" hidden></section>
     </section>
 
     <!-- =============================== AC =============================== -->

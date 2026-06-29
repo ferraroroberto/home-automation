@@ -29,6 +29,8 @@ Routes (split across ``app/webapp/routers/``):
     PUT  /api/network/wifi/display_name → rename Wi-Fi radio   (network)
     PUT  /api/network/wifi/hidden → hide Wi-Fi radio           (network)
     GET  /api/presence           → local + cached presence     (presence)
+    GET  /api/hyperv             → Home Assistant VM status     (hyperv)
+    POST /api/hyperv/{action}    → start/stop the HA VM         (hyperv)
 
 Run with::
 
@@ -53,7 +55,7 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
-from app.webapp.routers import auth, cameras, energy, lights, misc, network, presence, push, security, tuya, units, ups, weather
+from app.webapp.routers import auth, cameras, energy, hyperv, lights, misc, network, presence, push, security, tuya, units, ups, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.presence_automation import start_presence_automation
@@ -179,6 +181,7 @@ def create_app() -> FastAPI:
     app.include_router(network.router)
     app.include_router(presence.router)
     app.include_router(push.router)
+    app.include_router(hyperv.router)
 
     logger.info(
         "ℹ️  webapp build %s (fleet %s) built %s",
