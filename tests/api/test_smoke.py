@@ -1860,3 +1860,148 @@ def test_security_zone_trouble_ignore(
     # Subsequent reads reflect it.
     body = client.get("/api/security").json()
     assert body["zones"][0]["trouble_ignored"] is True
+
+
+# ── Issue #247: control-unit input validation + temperature clamping ───────────
+
+
+def test_control_unit_non_numeric_temperature_returns_422(
+    client: TestClient,
+) -> None:
+    """A non-numeric ``set_temperature`` returns 422, not 502."""
+    resp = client.post("/api/units/unit-x", json={"set_temperature": "hot"})
+    assert resp.status_code == 422
+
+
+def test_control_unit_invalid_operation_mode_returns_422(
+    client: TestClient,
+) -> None:
+    """An unknown ``operation_mode`` string returns 422, not 502."""
+    resp = client.post("/api/units/unit-x", json={"operation_mode": "Turbo"})
+    assert resp.status_code == 422
+
+
+def test_control_unit_invalid_fan_speed_returns_422(
+    client: TestClient,
+) -> None:
+    """An unknown ``fan_speed`` string returns 422, not 502."""
+    resp = client.post("/api/units/unit-x", json={"fan_speed": "Hurricane"})
+    assert resp.status_code == 422
+
+
+def test_control_unit_invalid_vane_vertical_returns_422(
+    client: TestClient,
+) -> None:
+    """An unknown ``vane_vertical_direction`` string returns 422, not 502."""
+    resp = client.post("/api/units/unit-x", json={"vane_vertical_direction": "Bad"})
+    assert resp.status_code == 422
+
+
+def test_control_unit_invalid_vane_horizontal_returns_422(
+    client: TestClient,
+) -> None:
+    """An unknown ``vane_horizontal_direction`` string returns 422, not 502."""
+    resp = client.post("/api/units/unit-x", json={"vane_horizontal_direction": "Bad"})
+    assert resp.status_code == 422
+
+
+def test_control_unit_valid_payload_calls_set_device_state(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A valid ``POST /api/units/{id}`` reaches ``set_device_state`` and returns 200."""
+    calls: dict = {}
+    fake_updated = DeviceInfo(
+        unit_id="unit-x",
+        name="Office",
+        building="Fixture",
+        power=True,
+        operation_mode="Cool",
+        room_temperature=22.0,
+        set_temperature=24.0,
+        fan_speed="Auto",
+        operation_modes=["Heat", "Cool"],
+        fan_speeds=["Auto", "One"],
+        temp_ranges={"Cool": (16.0, 31.0)},
+    )
+
+    async def fake_set_device_state(unit_id: str, **kwargs) -> DeviceInfo:
+        calls["unit_id"] = unit_id
+        calls["kwargs"] = kwargs
+        return fake_updated
+
+    monkeypatch.setattr(
+        "app.webapp.routers.units.set_device_state", fake_set_device_state
+    )
+
+    resp = client.post(
+        "/api/units/unit-x",
+        json={"power": True, "operation_mode": "Cool", "set_temperature": 24.0},
+    )
+    assert resp.status_code == 200
+    assert calls["unit_id"] == "unit-x"
+    assert calls["kwargs"] == {
+        "power": True,
+        "operation_mode": "Cool",
+        "set_temperature": 24.0,
+    }
+    # Only the three sent fields are forwarded — omitted fields stay absent.
+    assert "fan_speed" not in calls["kwargs"]
+
+
+def test_control_unit_omitted_fields_not_forwarded(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fields absent from the request body are not forwarded to ``set_device_state``."""
+    calls: dict = {}
+    fake_updated = DeviceInfo(
+        unit_id="unit-x",
+        name="Office",
+        building="Fixture",
+        power=False,
+        operation_mode="Heat",
+        room_temperature=20.0,
+        set_temperature=21.0,
+        fan_speed="Auto",
+    )
+
+    async def fake_set_device_state(unit_id: str, **kwargs) -> DeviceInfo:
+        calls["kwargs"] = kwargs
+        return fake_updated
+
+    monkeypatch.setattr(
+        "app.webapp.routers.units.set_device_state", fake_set_device_state
+    )
+
+    resp = client.post("/api/units/unit-x", json={"power": False})
+    assert resp.status_code == 200
+    # Only power was sent; no temperature / mode / fan / vane forwarded.
+    assert calls["kwargs"] == {"power": False}
+
+
+def test_control_unit_power_false_is_forwarded(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``power: false`` (a falsy value) is forwarded, not treated as absent."""
+    calls: dict = {}
+    fake_updated = DeviceInfo(
+        unit_id="unit-x",
+        name="Office",
+        building="Fixture",
+        power=False,
+        operation_mode=None,
+        room_temperature=21.0,
+        set_temperature=None,
+        fan_speed=None,
+    )
+
+    async def fake_set_device_state(unit_id: str, **kwargs) -> DeviceInfo:
+        calls["kwargs"] = kwargs
+        return fake_updated
+
+    monkeypatch.setattr(
+        "app.webapp.routers.units.set_device_state", fake_set_device_state
+    )
+
+    resp = client.post("/api/units/unit-x", json={"power": False})
+    assert resp.status_code == 200
+    assert calls["kwargs"].get("power") is False
