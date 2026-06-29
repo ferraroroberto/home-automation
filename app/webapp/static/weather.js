@@ -37,8 +37,12 @@ function fmtTemp(v) {
 function render(w) {
   if (!w || !w.available) return;  // stay hidden, keep last value
 
-  // Current weather — icon + temperature. The location label is intentionally
-  // not shown (issue #57): it's obviously home, so the tile stays one line.
+  // Location label — shown when the API returns a non-empty label string.
+  if (w.label) {
+    els.wxLocation.textContent = w.label + ':';
+    els.wxLocation.hidden = false;
+  }
+
   els.wxNowIcon.innerHTML = icon(weatherIcon(Number(w.weather_code), w.is_day !== false));
   els.wxNowTemp.textContent = fmtTemp(w.temperature_c);
 

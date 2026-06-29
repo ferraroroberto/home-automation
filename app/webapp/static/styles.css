@@ -609,8 +609,7 @@ html, body {
 
 /* Weather strip (Home tab): current weather + today's forecast on the left, a
    small transparent theme toggle on the right (issue #72). The clock was
-   dropped (it duplicated the phone status bar) and the location label is
-   omitted (issue #57) — it's obviously home — so the strip stays one line. */
+   dropped (it duplicated the phone status bar). Location label added (#255). */
 .weather-tile {
   display: flex;
   align-items: center;
@@ -620,6 +619,12 @@ html, body {
   margin-bottom: var(--gap);
 }
 .weather-info { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.weather-location {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
 .weather-current { display: flex; align-items: center; gap: 8px; }
 .weather-current-icon { font-size: 1.3rem; line-height: 1; color: var(--ink); }
 .weather-current-temp {
