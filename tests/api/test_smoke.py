@@ -526,6 +526,85 @@ def test_camera_display_name_route(
     assert saved == {"garden": "Patio"}
 
 
+def test_camera_stream_token_endpoint_no_auth(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``POST /api/cameras/stream-token`` returns an empty token when auth is off."""
+    from app.webapp.server import app as _app
+
+    monkeypatch.setattr(_app.state.webapp_config, "auth_token", "")
+    resp = client.post("/api/cameras/stream-token")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["token"] == "" and body["expires_in"] == 0
+
+
+def test_camera_stream_token_endpoint_issues_verifiable_token(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With auth configured the endpoint returns a token that verifies correctly."""
+    from app.webapp.server import app as _app
+    from src.camera_token import verify as verify_camera_token
+
+    monkeypatch.setattr(_app.state.webapp_config, "auth_token", "test-bearer-xyz")
+
+    resp = client.post("/api/cameras/stream-token")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["expires_in"] == 60
+    assert verify_camera_token(body["token"], "test-bearer-xyz") is True
+    assert verify_camera_token(body["token"], "wrong-bearer") is False
+
+
+def test_camera_stream_token_accepted_by_middleware(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Middleware accepts ``?camera_token=`` on stream/snapshot paths only.
+
+    Uses a non-loopback client so the bearer gate is active.
+    """
+    from fastapi.testclient import TestClient as TC
+
+    from app.webapp.server import app as _app
+    from src.camera_token import issue as issue_camera_token
+
+    monkeypatch.setattr(_app.state.webapp_config, "auth_token", "test-bearer-xyz")
+    monkeypatch.setattr(
+        "app.webapp.routers.cameras.read_last_snapshot",
+        lambda _: None,
+    )
+
+    remote = TC(_app, client=("192.0.2.1", 12345))
+
+    # No credentials → 401.
+    assert remote.get("/api/cameras/garden/last_snapshot").status_code == 401
+
+    # Long-lived bearer via header still accepted (existing path unchanged).
+    assert remote.get(
+        "/api/cameras/garden/last_snapshot",
+        headers={"Authorization": "Bearer test-bearer-xyz"},
+    ).status_code == 404  # auth passed, no persisted frame → 404
+
+    # Valid scoped camera_token → auth passes (middleware grants access).
+    scoped = issue_camera_token("test-bearer-xyz")
+    assert remote.get(
+        "/api/cameras/garden/last_snapshot",
+        params={"camera_token": scoped["token"]},
+    ).status_code == 404  # auth passed, no persisted frame → 404
+
+    # Invalid / garbage camera_token → 401.
+    assert remote.get(
+        "/api/cameras/garden/last_snapshot",
+        params={"camera_token": "garbage.value"},
+    ).status_code == 401
+
+    # Scoped token must NOT grant access to non-stream paths (e.g. list cameras).
+    assert remote.get(
+        "/api/cameras",
+        params={"camera_token": scoped["token"]},
+    ).status_code == 401
+
+
 def test_camera_last_snapshot_route(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

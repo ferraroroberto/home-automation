@@ -12,7 +12,7 @@ import logging
 from dataclasses import asdict
 from typing import Any, AsyncIterator, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
@@ -37,6 +37,7 @@ from src.camera_client import (
     stop_record,
 )
 from src.camera_display_names import load_camera_display_names, set_camera_display_name
+from src.camera_token import issue as _issue_camera_token
 from src.camera_preset_names import apply_overrides as apply_preset_overrides
 from src.camera_preset_names import set_preset_name
 
@@ -58,6 +59,22 @@ def _http_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=502, detail=str(exc))
     logger.warning("⚠️ Failed to call cameras: %s", exc)
     return HTTPException(status_code=502, detail=f"failed to call cameras: {exc}")
+
+
+@router.post("/api/cameras/stream-token")
+async def camera_stream_token(request: Request) -> Dict[str, Any]:
+    """Issue a short-lived scoped token for camera stream/snapshot img-src URLs.
+
+    The caller must already be authenticated (bearer header or loopback).  The
+    returned token is valid for 60 s and accepted by the middleware only on the
+    ``/stream`` and ``/last_snapshot`` paths — the long-lived bearer never needs
+    to appear in a URL (issue #261).
+    """
+    cfg = getattr(request.app.state, "webapp_config", None)
+    bearer = ((cfg.auth_token if cfg else "") or "").strip()
+    if not bearer:
+        return {"token": "", "expires_in": 0}
+    return _issue_camera_token(bearer)
 
 
 @router.get("/api/cameras")

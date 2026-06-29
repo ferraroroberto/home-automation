@@ -4,8 +4,8 @@
  * thumbnail (or a camera glyph when there's none yet) — clicking it zooms the
  * last frame, clicking the name opens the detail modal which grabs a FRESH
  * snapshot (that becomes the new persisted last frame). The full-screen view
- * streams MJPEG via <img src=…/stream?token=…>; thumbnails/zoom reuse the same
- * ?token= path since an <img> can't carry the bearer header.
+ * streams MJPEG via <img src=…/stream?camera_token=…>; thumbnails/zoom use the
+ * same short-lived scoped token (issue #261) since an <img> can't carry a header.
  *
  * PTZ has two modes (issue #190): 'step' (one click = one fixed nudge, precise)
  * and 'hold' (press-and-hold continuous move). Cameras that support it also get
@@ -26,6 +26,30 @@ let liveRecording = false;
 const snapVersions = {};
 const pageNonce = Date.now();
 
+// Short-lived scoped camera token (issue #261): replaces the long-lived bearer
+// in <img src> URLs so the bearer never lands in browser history or server logs.
+let _camToken = null;
+let _camTokenExpiry = 0;
+
+async function _ensureCameraToken() {
+  // When no long-lived auth is configured the middleware is open to all — no
+  // scoped token is needed and the endpoint would return an empty one anyway.
+  if (!readToken()) return;
+  if (_camToken && Date.now() < _camTokenExpiry) return;
+  try {
+    const body = await jsonApi('/api/cameras/stream-token', { method: 'POST' });
+    _camToken = body.token || '';
+    // Refresh 5 s before expiry so URLs constructed just before the deadline
+    // are still valid when they reach the server.
+    _camTokenExpiry = body.expires_in > 0
+      ? Date.now() + (body.expires_in - 5) * 1000
+      : 0;
+  } catch (_) {
+    _camToken = '';
+    _camTokenExpiry = 0;
+  }
+}
+
 function cameraLabel(cam) {
   return cam.display_name || cam.id;
 }
@@ -42,10 +66,9 @@ function cameraStatus(cam) {
 }
 
 function thumbUrl(cameraId) {
-  const t = readToken();
   const v = snapVersions[cameraId] || pageNonce;
   return '/api/cameras/' + encodeURIComponent(cameraId) + '/last_snapshot' +
-    (t ? '?token=' + encodeURIComponent(t) : '?') + '&v=' + v;
+    (_camToken ? '?camera_token=' + encodeURIComponent(_camToken) : '?') + '&v=' + v;
 }
 
 // A fresh frame was just persisted → bust the thumbnail cache and re-render.
@@ -131,6 +154,7 @@ function renderCameras() {
 }
 
 export async function loadCameras() {
+  await _ensureCameraToken();
   try {
     const body = await jsonApi('/api/cameras');
     state.cameras = (body && body.cameras) || [];
@@ -145,9 +169,10 @@ export async function loadCameras() {
 }
 
 // --- snapshot zoom (the persisted last frame, full size) --------------------
-function openZoom(cameraId) {
+async function openZoom(cameraId) {
   const cam = cameraById(cameraId);
   if (!cam) return;
+  await _ensureCameraToken();
   els.cameraZoomName.textContent = cameraLabel(cam);
   els.cameraZoomImg.onerror = function () {
     closeZoom();
@@ -232,9 +257,8 @@ async function saveCameraName() {
 
 // --- full-screen live view ---------------------------------------------------
 function streamUrl(cameraId) {
-  const t = readToken();
   return '/api/cameras/' + encodeURIComponent(cameraId) + '/stream' +
-    (t ? '?token=' + encodeURIComponent(t) : '');
+    (_camToken ? '?camera_token=' + encodeURIComponent(_camToken) : '');
 }
 
 function setRecButton(on) {
@@ -242,9 +266,10 @@ function setRecButton(on) {
   els.cameraRecBtn.classList.toggle('active', on);
 }
 
-function openLiveView(cameraId) {
+async function openLiveView(cameraId) {
   const cam = cameraById(cameraId);
   if (!cam) return;
+  await _ensureCameraToken();
   els.cameraLiveName.textContent = cameraLabel(cam);
   els.cameraLiveImg.src = streamUrl(cameraId);
   setRecButton(!!cam.recording);

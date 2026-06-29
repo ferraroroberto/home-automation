@@ -55,6 +55,7 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
+from src.camera_token import verify as _verify_camera_token
 from app.webapp.routers import auth, cameras, energy, hyperv, lights, misc, network, presence, push, security, tuya, units, ups, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
@@ -159,6 +160,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         BearerTokenMiddleware,
         get_token=lambda: getattr(app.state.webapp_config, "auth_token", ""),
+        verify_camera_token=lambda tok: _verify_camera_token(
+            tok, getattr(app.state.webapp_config, "auth_token", "")
+        ),
     )
 
     app.state.webapp_config = webapp_cfg
