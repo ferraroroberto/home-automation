@@ -463,7 +463,7 @@ async function loadAutomation(unitId) {
     const sched = await jsonApi('/api/units/' + encodeURIComponent(unitId) + '/schedule');
     currentScheduleEntries = normalizeScheduleEntries(sched).map(function (entry, idx) {
       return Object.assign({ id: 'schedule-' + (idx + 1), enabled: true, time: '08:00', power: true }, entry);
-    });
+    }).sort(function (a, b) { return (a.time || '').localeCompare(b.time || ''); });
     const unit = unitById(unitId);
     if (unit) renderScheduleList(unit);
   } catch (exc) {
@@ -686,7 +686,7 @@ async function saveSchedules() {
     });
     currentScheduleEntries = normalizeScheduleEntries(saved).map(function (entry, idx) {
       return Object.assign({ id: 'schedule-' + (idx + 1), enabled: true, time: '08:00', power: true }, entry);
-    });
+    }).sort(function (a, b) { return (a.time || '').localeCompare(b.time || ''); });
     state.units = state.units.map(function (u) {
       if (u.unit_id !== state.selectedId) return u;
       return Object.assign({}, u, {
