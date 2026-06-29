@@ -239,6 +239,12 @@ async def set_device_state(
 
     Only the non-``None`` arguments are written.  Returns a fresh
     :class:`DeviceInfo` snapshot read back after the command.
+
+    ``set_temperature`` is clamped to the unit's per-mode ``temp_ranges``
+    before the write reaches ``control_ata_unit`` so hardware never receives
+    an out-of-range setpoint.  The effective mode for the range lookup is the
+    requested ``operation_mode`` when supplied, falling back to the unit's
+    current mode read from the pre-write state.
     """
     email, password = _load_credentials()
 
@@ -256,6 +262,41 @@ async def set_device_state(
     )
 
     async with MELCloudHome(username=email, password=password) as client:
+        # Pre-read: locate the unit and derive per-mode temp bounds for clamping.
+        pre_context = await client.get_context()
+        target_unit: Optional[ATAUnit] = None
+        target_building: str = ""
+        for building in pre_context.buildings:
+            for unit in building.air_to_air_units:
+                if unit.id == unit_id:
+                    target_unit = unit
+                    target_building = building.name
+                    break
+            if target_unit is not None:
+                break
+
+        if target_unit is None:
+            raise DeviceNotFoundError(f"No unit with id {unit_id}")
+
+        # Clamp set_temperature to the per-mode bounds before writing.
+        if set_temperature is not None:
+            effective_mode = operation_mode or (
+                target_unit.operation_mode.value
+                if target_unit.operation_mode
+                else None
+            )
+            ranges = _temp_ranges(target_unit)
+            if effective_mode and effective_mode in ranges:
+                lo, hi = ranges[effective_mode]
+                clamped = max(lo, min(hi, set_temperature))
+                if clamped != set_temperature:
+                    logger.info(
+                        "ℹ️ Clamped set_temperature %.1f → %.1f "
+                        "for mode %s (range %.0f–%.0f °C)",
+                        set_temperature, clamped, effective_mode, lo, hi,
+                    )
+                set_temperature = clamped
+
         logger.info(
             "ℹ️ Writing power=%s mode=%s temp=%s fan=%s vert=%s horiz=%s "
             "to unit %s",

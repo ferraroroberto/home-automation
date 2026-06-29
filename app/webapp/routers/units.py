@@ -12,8 +12,9 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from aiomelcloudhome import ATAFanSpeed, ATAOperationMode, ATAVaneHorizontal, ATAVaneVertical
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from src.display_names import load_display_names, set_display_name
 from src.hvac_automation import (
@@ -131,6 +132,65 @@ async def list_units() -> Dict[str, Any]:
     return {"units": [_unit_dict(d, display_names, rules, schedules) for d in devices]}
 
 
+# ── valid enum values for the control body validator ──────────────────────────
+_VALID_OPERATION_MODES: frozenset[str] = frozenset(m.value for m in ATAOperationMode)
+_VALID_FAN_SPEEDS: frozenset[str] = frozenset(f.value for f in ATAFanSpeed)
+_VALID_VANE_VERTICAL: frozenset[str] = frozenset(v.value for v in ATAVaneVertical)
+_VALID_VANE_HORIZONTAL: frozenset[str] = frozenset(v.value for v in ATAVaneHorizontal)
+
+
+class ControlPayload(BaseModel):
+    """Validated body for ``POST /api/units/{unit_id}``.
+
+    All fields are optional so the client can send only what changed.
+    Unknown or non-coercible values return 422 (Unprocessable Entity) rather
+    than reaching the hardware as a 502.  ``set_temperature`` is accepted as
+    any float here; per-mode clamping to the unit's ``temp_ranges`` is applied
+    inside ``set_device_state`` before the write reaches ``control_ata_unit``.
+    """
+
+    power: Optional[bool] = None
+    operation_mode: Optional[str] = None
+    set_temperature: Optional[float] = None
+    fan_speed: Optional[str] = None
+    vane_vertical_direction: Optional[str] = None
+    vane_horizontal_direction: Optional[str] = None
+
+    @field_validator("operation_mode")
+    @classmethod
+    def _check_operation_mode(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _VALID_OPERATION_MODES:
+            raise ValueError(
+                f"operation_mode must be one of {sorted(_VALID_OPERATION_MODES)}"
+            )
+        return v
+
+    @field_validator("fan_speed")
+    @classmethod
+    def _check_fan_speed(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _VALID_FAN_SPEEDS:
+            raise ValueError(f"fan_speed must be one of {sorted(_VALID_FAN_SPEEDS)}")
+        return v
+
+    @field_validator("vane_vertical_direction")
+    @classmethod
+    def _check_vane_vertical(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _VALID_VANE_VERTICAL:
+            raise ValueError(
+                f"vane_vertical_direction must be one of {sorted(_VALID_VANE_VERTICAL)}"
+            )
+        return v
+
+    @field_validator("vane_horizontal_direction")
+    @classmethod
+    def _check_vane_horizontal(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _VALID_VANE_HORIZONTAL:
+            raise ValueError(
+                f"vane_horizontal_direction must be one of {sorted(_VALID_VANE_HORIZONTAL)}"
+            )
+        return v
+
+
 class DisplayNamePayload(BaseModel):
     display_name: str
 
@@ -146,26 +206,10 @@ async def update_display_name(unit_id: str, payload: DisplayNamePayload) -> Dict
 
 
 @router.post("/api/units/{unit_id}")
-async def control_unit(unit_id: str, request: Request) -> Dict[str, Any]:
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="expected a JSON body")
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="expected a JSON object")
-
-    # Only forward the fields the client actually sent; everything else
-    # stays None and is left untouched by the client.
-    allowed = (
-        "power",
-        "operation_mode",
-        "set_temperature",
-        "fan_speed",
-        "vane_vertical_direction",
-        "vane_horizontal_direction",
-    )
-    kwargs = {k: body[k] for k in allowed if k in body}
-
+async def control_unit(unit_id: str, payload: ControlPayload) -> Dict[str, Any]:
+    # Only forward the fields the client actually sent (non-None values).
+    # FastAPI / Pydantic already rejected malformed types with 422 before we get here.
+    kwargs = payload.model_dump(exclude_none=True)
     try:
         updated = await set_device_state(unit_id, **kwargs)
     except MelCloudConfigError as exc:
