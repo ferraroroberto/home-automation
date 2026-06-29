@@ -192,10 +192,10 @@ class _Row:
 
 def test_device_inputs_from_inventory_folds_vendor_override_and_randomized() -> None:
     rows = [
-        _Row("5C:CF:7F:11:22:33", "192.168.0.5", None),   # known OUI → Espressif
+        _Row("5C:CF:7F:AA:BB:CC", "192.168.0.5", None),   # known OUI → Espressif
         _Row("DA:A1:19:00:00:01", "192.168.0.6", None),   # locally-administered
     ]
-    overrides = {"5C:CF:7F:11:22:33": "Boiler sensor"}
+    overrides = {"5C:CF:7F:AA:BB:CC": "Boiler sensor"}
     out = device_inputs_from_inventory(rows, overrides)
     assert out[0].vendor == "Espressif"
     assert out[0].display_name == "Boiler sensor"
@@ -259,16 +259,16 @@ def test_plan_skips_ip_reserved_by_an_offline_device() -> None:
         subnet_prefix=config.subnet_prefix,
         ranges=config.ranges,
         rules=config.rules,
-        overrides={"34:5A:60:D3:59:53": "Phones"},
+        overrides={"AA:BB:CC:D3:59:53": "Phones"},
     )
-    devices = [DeviceInput(mac="34:5A:60:D3:59:53", ip="192.168.0.66", name="pc tower")]
+    devices = [DeviceInput(mac="AA:BB:CC:D3:59:53", ip="192.168.0.66", name="pc tower")]
     bindings = {
-        "00:8A:76:A2:43:04": "192.168.0.11",  # offline iPad's reservation
-        "64:48:42:8D:3F:CA": "192.168.0.12",  # offline iPhone's reservation
+        "AA:BB:CC:A2:43:04": "192.168.0.11",  # offline iPad's reservation
+        "AA:BB:CC:8D:3F:CA": "192.168.0.12",  # offline iPhone's reservation
     }
     plan = build_plan(devices, config, bindings)
     phones = next(c for c in plan.categories if c.label == "Phones")
-    a = next(x for x in phones.assignments if x.mac == "34:5A:60:D3:59:53")
+    a = next(x for x in phones.assignments if x.mac == "AA:BB:CC:D3:59:53")
     assert a.planned_ip == "192.168.0.13"  # not .11/.12 (held by offline devices)
     assert a.status == "create"
 

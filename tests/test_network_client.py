@@ -230,12 +230,12 @@ def test_resolve_ip_by_mac_finds_current_address(monkeypatch) -> None:
     async def fake_access_point():
         return object(), [
             _ap_device("AA:BB:CC:00:00:01", "phone", ip="192.168.0.11"),
-            _ap_device("B0:6B:11:F8:37:7F", "camera", ip="192.168.0.23"),
+            _ap_device("AA:BB:CC:F8:37:7F", "camera", ip="192.168.0.23"),
         ]
 
     monkeypatch.setattr(network_client, "fetch_access_point", fake_access_point)
     # Case-/separator-insensitive match returns the live IP.
-    assert asyncio.run(network_client.resolve_ip_by_mac("b0:6b:11:f8:37:7f")) == "192.168.0.23"
+    assert asyncio.run(network_client.resolve_ip_by_mac("aa:bb:cc:f8:37:7f")) == "192.168.0.23"
     # A MAC not in the table → None (caller leaves the device unreachable).
     assert asyncio.run(network_client.resolve_ip_by_mac("00:00:00:00:00:00")) is None
 
@@ -245,7 +245,7 @@ def test_resolve_ip_by_mac_returns_none_when_ap_unavailable(monkeypatch) -> None
         raise network_client.NetworkConfigError("no AP creds")
 
     monkeypatch.setattr(network_client, "fetch_access_point", boom)
-    assert asyncio.run(network_client.resolve_ip_by_mac("b0:6b:11:f8:37:7f")) is None
+    assert asyncio.run(network_client.resolve_ip_by_mac("aa:bb:cc:f8:37:7f")) is None
 
 
 def test_merge_router_leases_fills_names_and_adds_router_only() -> None:
@@ -256,7 +256,7 @@ def test_merge_router_leases_fills_names_and_adds_router_only() -> None:
     leases = [
         {"mac": "aa:bb:cc:00:00:01", "ip": "192.168.0.58", "hostname": "SMA1930031140"},
         {"mac": "aa:bb:cc:00:00:02", "ip": "192.168.0.59", "hostname": "router-name"},
-        {"mac": "34:5a:60:d3:59:53", "ip": "192.168.0.66", "hostname": "tower"},  # router-only
+        {"mac": "aa:bb:cc:d3:59:53", "ip": "192.168.0.66", "hostname": "tower"},  # router-only
         {"mac": "02:0f:b5:eb:fb:fd", "ip": "192.168.0.99", "hostname": None},     # router-only, no host
     ]
 
@@ -274,7 +274,7 @@ def test_merge_router_leases_fills_names_and_adds_router_only() -> None:
     assert kept.name == "Laptop"
     assert kept.source == "both"
     # Router-only device added with source="router" and unknown conn/signal.
-    router_only = by_mac["34:5A:60:D3:59:53"]
+    router_only = by_mac["AA:BB:CC:D3:59:53"]
     assert router_only.name == "tower"
     assert router_only.source == "router"
     assert router_only.conn_type is None and router_only.signal is None
