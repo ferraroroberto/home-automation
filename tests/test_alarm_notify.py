@@ -47,6 +47,7 @@ def _read_log(tmp_path: Path) -> List[dict]:
 
 def _redirect_logs(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    monkeypatch.setattr(AN, "_DEDUPE_PATH", tmp_path / "alarm_notify_dedupe.json")
     AN._last_error_notify.clear()
 
 
@@ -182,6 +183,9 @@ def test_error_dedupes_once_per_day_but_logs_every_attempt(tmp_path: Path, monke
     assert len(notifier.sent) == 1
     # ...but every attempt is in the activity log (so retry count is visible).
     assert len(_read_log(tmp_path)) == 3
+    # De-dupe state persisted to disk.
+    dedupe = json.loads((tmp_path / "alarm_notify_dedupe.json").read_text())
+    assert dedupe == {"schedule:weekday": "2026-06-29"}
 
     # A new day re-arms the alert.
     AN.record_alarm_action(
