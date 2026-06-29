@@ -1499,7 +1499,8 @@ button.device-row-name:hover { text-decoration: underline; }
 .security-schedules-card,
 .cameras-card,
 .security-zones-card,
-.presence-card { padding: 0; }
+.presence-card,
+.security-notify-card { padding: 0; }
 .security-events,
 .security-zones,
 .cameras-list,
