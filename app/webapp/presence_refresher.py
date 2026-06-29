@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
 
+from app.webapp._env import _env_bool, _env_int
 from src.presence_client import (
     PresenceAuthError,
     PresenceConfigError,
@@ -45,24 +45,6 @@ def get_cache() -> PresenceDiagnosticsCache:
     """Return the current diagnostics cache."""
 
     return _CACHE
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = (os.getenv(name) or "").strip().lower()
-    if not raw:
-        return default
-    return raw in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
 
 
 async def refresh_once() -> PresenceDiagnosticsCache:

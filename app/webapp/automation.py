@@ -33,6 +33,7 @@ from typing import Dict, Optional
 
 from dotenv import load_dotenv
 
+from app.webapp._env import _env_bool, _env_int
 from src.hvac_automation import (
     load_rules,
     load_schedules,
@@ -66,17 +67,6 @@ class AutomationConfig:
         return max(120, self.poll_interval_s * 2)
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
-
-
 def _env_float(name: str, default: float) -> float:
     raw = (os.getenv(name) or "").strip()
     if not raw:
@@ -86,13 +76,6 @@ def _env_float(name: str, default: float) -> float:
     except ValueError:
         logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
         return default
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = (os.getenv(name) or "").strip().lower()
-    if not raw:
-        return default
-    return raw in {"1", "true", "yes", "on"}
 
 
 def load_automation_config() -> AutomationConfig:

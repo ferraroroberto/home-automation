@@ -72,11 +72,6 @@ _OUI: dict[str, str] = {
 }
 
 
-def normalize_mac(mac: str) -> str:
-    """Upper-case, colon-separated, trimmed — the canonical display/key form."""
-    return (mac or "").strip().upper()
-
-
 def _oui_key(mac: str) -> str:
     """First three octets as 6 upper-case hex chars, or '' if unparseable."""
     hexed = re.sub(r"[^0-9A-Fa-f]", "", mac or "")

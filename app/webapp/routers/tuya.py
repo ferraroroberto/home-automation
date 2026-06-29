@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.webapp.routers._helpers import make_display_name_endpoint
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
 from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 from src.tuya_client import (
@@ -232,20 +233,9 @@ async def control_cover(device_id: str, request: Request) -> Dict[str, Any]:
     return {"device_id": device_id, "reachable": True, "action": action, "ok": True}
 
 
-class DisplayNamePayload(BaseModel):
-    display_name: str
-
-
-@router.put("/api/tuya/{device_id}/display_name")
-async def update_display_name(device_id: str, payload: DisplayNamePayload) -> Dict[str, Any]:
-    """Set or clear a Tuya device's local display-name override (gitignored)."""
-    name = payload.display_name.strip()
-    try:
-        set_tuya_display_name(device_id, name)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save display name for %s: %s", device_id, exc)
-        raise HTTPException(status_code=500, detail=f"failed to save display name: {exc}")
-    return {"device_id": device_id, "display_name": name or None}
+make_display_name_endpoint(
+    router, "/api/tuya/{item_id}/display_name", "device_id", set_tuya_display_name
+)
 
 
 class HiddenPayload(BaseModel):

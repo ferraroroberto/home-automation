@@ -16,6 +16,7 @@ from aiomelcloudhome import ATAFanSpeed, ATAOperationMode, ATAVaneHorizontal, AT
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ValidationError, field_validator
 
+from app.webapp.routers._helpers import make_display_name_endpoint
 from src.display_names import load_display_names, set_display_name
 from src.hvac_automation import (
     ScheduleEntry,
@@ -191,18 +192,9 @@ class ControlPayload(BaseModel):
         return v
 
 
-class DisplayNamePayload(BaseModel):
-    display_name: str
-
-
-@router.put("/api/units/{unit_id}/display_name")
-async def update_display_name(unit_id: str, payload: DisplayNamePayload) -> Dict[str, Any]:
-    try:
-        set_display_name(unit_id, payload.display_name.strip())
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save display name for %s: %s", unit_id, exc)
-        raise HTTPException(status_code=500, detail=f"failed to save display name: {exc}")
-    return {"unit_id": unit_id, "display_name": payload.display_name.strip() or None}
+make_display_name_endpoint(
+    router, "/api/units/{item_id}/display_name", "unit_id", set_display_name
+)
 
 
 @router.post("/api/units/{unit_id}")
