@@ -26,7 +26,7 @@ All three voice stages are OpenAI-shaped endpoints the `local-llm-hub` already s
 |---|---|---|---|
 | STT   | `/v1/audio/transcriptions` | `whisper`           | 0.5–0.9 s |
 | Logic | `/v1/chat/completions`     | `qwen3.5-4b-nothink` | ~0.7–1.0 s (local; was `claude-haiku-4-5` at 3–8 s — #234) |
-| TTS   | `/v1/audio/speech`         | `piper` (voice `ryan`) | ~0.06 s warm for a short phrase (resident `piper.exe`, ONNX voice loaded once — `local-llm-hub#163`); 22.05 kHz |
+| TTS   | `/v1/audio/speech`         | `piper` (voice `amy`) | ~0.06 s warm for a short phrase (resident `piper.exe`, ONNX voice loaded once — `local-llm-hub#163`); 22.05 kHz |
 
 The hub `auth_token` is a non-secret dummy (Tailscale is the real gate); it is used directly
 in each HA integration's API-key field.
@@ -128,16 +128,20 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 - **OpenAI Whisper Cloud** (STT) — entry "Custom Whisper": provider *Custom*, URL
   `http://192.168.0.13:8000/v1/audio/transcriptions`, model `whisper`, key = hub token.
 - **OpenAI TTS** (sfortis) — entry "OpenAI TTS - Hub Orpheus": endpoint
-  `http://192.168.0.13:8000/v1/audio/speech`, model **`piper`**, voice **`ryan`** (→
-  `en_US-ryan-medium`), `audio_format` mp3, chime OFF, key = hub token. Was Orpheus
+  `http://192.168.0.13:8000/v1/audio/speech`, model **`piper`**, voice **`amy`** (→
+  `en_US-amy-medium`), `audio_format` mp3, chime OFF, key = hub token. Was Orpheus
   (`orpheus`/`tara`) until #280 — switched to the hub's **resident Piper** for ~25–30×
-  faster speech (the hub-side change is `local-llm-hub#162`/`#163`). The `model`/`voice`
-  live in the integration's **profile subentry** in `/config/.storage/core.config_entries`
+  faster speech (the hub-side change is `local-llm-hub#162`/`#163`); the voice moved from
+  `ryan` to `amy` in #286 once the hub made Amy its default (`local-llm-hub#171`). The
+  `model`/`voice` live in the integration's **profile subentry** in
+  `/config/.storage/core.config_entries`
   (`entries[openai_tts].subentries[].data.model` / `.voice`), not in `configuration.yaml`;
-  a pre-change backup is under `/config/backups/voice-tts-piper/`. The TTS entity id is
+  a pre-change backup is under `/config/backups/voice-tts-piper/` (and the ryan→amy switch
+  under `/config/backups/voice-tts-amy/`). The TTS entity id is
   still `tts.openai_tts_orpheus` and the entry title still reads "Hub Orpheus" — both are
   now cosmetic labels only (renaming the entity would break the pipeline's `tts_engine`
-  reference, so the surgical switch leaves them). To **revert**, set `model` back to
+  reference, so the surgical switch leaves them). To revert just the voice, set `voice`
+  back to `ryan`; to **revert** to Orpheus, set `model` back to
   `orpheus` and `voice` to `tara` in that subentry and `ha core restart`. **Do not** use
   the sfortis "Update TTS Agent" UI dialog (see Troubleshooting — it resets the voice).
 - **extended_openai_conversation** — entry "Hub Haiku": base URL
@@ -154,7 +158,7 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 ### Pipeline ("Focused local assistant")
 
 Conversation agent = **Extended OpenAI Conversation**; STT = **Custom Whisper**; TTS =
-**Piper (ryan)**; **"Prefer handling commands locally" = ON**; wake word "Okay Nabu" (see
+**Piper (amy)**; **"Prefer handling commands locally" = ON**; wake word "Okay Nabu" (see
 **Wake words** below).
 
 ### Wake words — two per puck, each bound to a pipeline
@@ -236,7 +240,7 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
   qwen backend is up (`GET :8000/admin/api/models`). See
   [`voice-model-benchmark.md`](voice-model-benchmark.md).
 - **Do not** reconfigure the sfortis "Update TTS Agent" dialog casually — it shows defaults,
-  not saved values, and submitting it resets the configured voice (now `ryan`) to `alloy`
+  not saved values, and submitting it resets the configured voice (now `amy`) to `alloy`
   and the model off `piper`. Edit the profile subentry in `.storage` instead (see Setup).
 - **Weak Wi-Fi** is the most common root cause of disconnects and audio issues. A healthy
   Voice PE pings <10 ms; sustained ~100 ms+ means the kitchen signal needs improving.
@@ -247,7 +251,7 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
 - Hub telemetry (chat/STT only, with latency — does **not** record TTS):
   `GET :8000/admin/api/telemetry/recent?limit=N`
 - Hub errors: `GET :8000/admin/api/hub/errors/recent`
-- Probe TTS directly: `POST :8000/v1/audio/speech {model:piper,voice:ryan,input,response_format}`
+- Probe TTS directly: `POST :8000/v1/audio/speech {model:piper,voice:amy,input,response_format}`
 - Puck link quality: `ping 192.168.0.42` (expect <10 ms)
 - Device state + Activity log: Settings → Devices & Services → ESPHome → the device
 - Test the brain by text (no voice): Voice assistants → *Focused local assistant* → ⋮ →
