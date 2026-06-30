@@ -25,7 +25,7 @@ All three voice stages are OpenAI-shaped endpoints the `local-llm-hub` already s
 | Stage | Hub endpoint | model | Expected latency |
 |---|---|---|---|
 | STT   | `/v1/audio/transcriptions` | `whisper`           | 0.5–0.9 s |
-| Logic | `/v1/chat/completions`     | `claude-haiku-4-5`  | 3–8 s (LLM path only) |
+| Logic | `/v1/chat/completions`     | `qwen3.5-4b-nothink` | ~0.7–1.0 s (local; was `claude-haiku-4-5` at 3–8 s — #234) |
 | TTS   | `/v1/audio/speech`         | `orpheus` (voice `tara`) | ~1.7–2.2 s full synthesis (real-time factor ≈ 1); 24 kHz |
 
 The hub `auth_token` is a non-secret dummy (Tailscale is the real gate); it is used directly
@@ -42,7 +42,13 @@ hallucinated tool call must never actuate (critical for alarm arm/disarm).
 2. **Tier 2 — LLM-as-classifier with constrained output.** For phrasings Tier 1 can't match:
    a small fast model emits a **schema-validated enum of intents + slots** (structured output,
    not free tool-calls); Python validates against an allow-list and executes, with a
-   confirmation step for destructive actions.
+   confirmation step for destructive actions. **Model picked (#234):** `qwen3.5-4b` with
+   **thinking disabled** — 100 % schema-valid, 96 % accurate, ~300 ms, zero extra VRAM. Full
+   benchmark in [`voice-model-benchmark.md`](voice-model-benchmark.md). **Now wired live:** the
+   conversation agent runs the hub's no-think alias `qwen3.5-4b-nothink` (`local-llm-hub#159`
+   + `#161`); end-to-end answers in ~0.7–1.0 s vs the old haiku brain's 3–8 s. The live agent
+   still actuates via OpenAI function-calling (`execute_services`) rather than the dedicated
+   Tier-2 component, which remains a separate future issue.
 3. **Tier 3 — freeform / open tool-calling.** Only for open questions or novel composition;
    a larger/slower model is acceptable because these are rare.
 
@@ -112,8 +118,15 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
   `http://192.168.0.13:8000/v1/audio/speech`, model `orpheus`, voice `tara`, chime OFF,
   key = hub token.
 - **extended_openai_conversation** — entry "Hub Haiku": base URL
-  `http://192.168.0.13:8000/v1`, model `claude-haiku-4-5`, key = hub token, max_tokens 64,
-  temp 0.5, terse prompt (one short spoken sentence, no follow-up questions, no pleasantries).
+  `http://192.168.0.13:8000/v1`, model **`qwen3.5-4b-nothink`** (was `claude-haiku-4-5` —
+  #234), key = hub token, max_tokens 150, temp 0.5, terse prompt (one short spoken
+  sentence, no follow-up questions, no pleasantries). The model id is the hub's
+  no-think alias (`local-llm-hub#161`) — the integration can't send
+  `chat_template_kwargs`, so the hub injects `enable_thinking: false` for this id. The
+  config lives in the entry's `conversation` subentry in `/config/.storage/core.config_entries`
+  (the integration's options flow writes the same field); a pre-change backup is under
+  `/config/backups/voice-brain-rewire/`. To revert, set `chat_model` back to
+  `claude-haiku-4-5` and `ha core restart`.
 
 ### Pipeline ("Focused local assistant")
 
@@ -194,8 +207,11 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
   cached connection went stale. Verify the current IP (`ping 192.168.0.42` vs `.103`), then
   **Settings → Devices & Services → ESPHome → ⋮ → Reload** to re-resolve. A puck power-cycle
   (unplug USB-C) is a safe last resort — it is *not* an HA/server restart.
-- **Slow freeform answers** → inherent to the hub's `claude -p` path, not the network.
-  Faster freeform requires a faster model (#234).
+- **Slow LLM answers** → the brain now runs the local `qwen3.5-4b-nothink` (~0.7–1.0 s
+  end-to-end, #234), not `claude-haiku-4-5`. If answers regress to 3–8 s, check the agent's
+  `chat_model` hasn't reverted to a `claude-*` (cloud `claude -p`) id, and that the hub's
+  qwen backend is up (`GET :8000/admin/api/models`). See
+  [`voice-model-benchmark.md`](voice-model-benchmark.md).
 - **Do not** reconfigure the sfortis "Update TTS Agent" dialog casually — it shows defaults,
   not saved values, and submitting it resets the voice from `tara` to `alloy`.
 - **Weak Wi-Fi** is the most common root cause of disconnects and audio issues. A healthy
@@ -228,5 +244,8 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
 - Action bridge — voice → real device control (deterministic): **live** for the alarm
   (#88 Phase 4; see above + [`voice-commands-howto.md`](voice-commands-howto.md)); native
   HA integration: #235.
-- Local-model evaluation for the brain/classifier role: #234.
+- Local-model evaluation for the brain/classifier role: **done + wired live** (#234) —
+  Tier-2 pick `qwen3.5-4b` (thinking off), now serving the live brain via the hub's
+  `qwen3.5-4b-nothink` alias (`local-llm-hub#159` + `#161`); ~0.7–1.0 s end-to-end. See
+  [`voice-model-benchmark.md`](voice-model-benchmark.md).
 - Hardware: external powered speaker (3.5 mm) + stronger kitchen 2.4 GHz Wi-Fi.

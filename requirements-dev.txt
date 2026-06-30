@@ -10,3 +10,8 @@ httpx>=0.27
 # Playwright browser-E2E suite (tests/e2e). After install, fetch browsers:
 #   .venv\Scripts\python.exe -m playwright install chromium webkit
 pytest-playwright>=0.5
+
+# Voice Tier-2 model benchmark (scripts/voice_bench, issue #234): reads the
+# utterance dataset (YAML) and validates model output against the intent schema.
+pyyaml>=6.0
+jsonschema>=4.0
