@@ -26,7 +26,7 @@ All three voice stages are OpenAI-shaped endpoints the `local-llm-hub` already s
 |---|---|---|---|
 | STT   | `/v1/audio/transcriptions` | `whisper`           | 0.5–0.9 s |
 | Logic | `/v1/chat/completions`     | `qwen3.5-4b-nothink` | ~0.7–1.0 s (local; was `claude-haiku-4-5` at 3–8 s — #234) |
-| TTS   | `/v1/audio/speech`         | `orpheus` (voice `tara`) | ~1.7–2.2 s full synthesis (real-time factor ≈ 1); 24 kHz |
+| TTS   | `/v1/audio/speech`         | `piper` (voice `ryan`) | ~0.06 s warm for a short phrase (resident `piper.exe`, ONNX voice loaded once — `local-llm-hub#163`); 22.05 kHz |
 
 The hub `auth_token` is a non-secret dummy (Tailscale is the real gate); it is used directly
 in each HA integration's API-key field.
@@ -114,9 +114,19 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 
 - **OpenAI Whisper Cloud** (STT) — entry "Custom Whisper": provider *Custom*, URL
   `http://192.168.0.13:8000/v1/audio/transcriptions`, model `whisper`, key = hub token.
-- **OpenAI TTS** (sfortis) — agent "Orpheus (orpheus-tara)": endpoint
-  `http://192.168.0.13:8000/v1/audio/speech`, model `orpheus`, voice `tara`, chime OFF,
-  key = hub token.
+- **OpenAI TTS** (sfortis) — entry "OpenAI TTS - Hub Orpheus": endpoint
+  `http://192.168.0.13:8000/v1/audio/speech`, model **`piper`**, voice **`ryan`** (→
+  `en_US-ryan-medium`), `audio_format` mp3, chime OFF, key = hub token. Was Orpheus
+  (`orpheus`/`tara`) until #280 — switched to the hub's **resident Piper** for ~25–30×
+  faster speech (the hub-side change is `local-llm-hub#162`/`#163`). The `model`/`voice`
+  live in the integration's **profile subentry** in `/config/.storage/core.config_entries`
+  (`entries[openai_tts].subentries[].data.model` / `.voice`), not in `configuration.yaml`;
+  a pre-change backup is under `/config/backups/voice-tts-piper/`. The TTS entity id is
+  still `tts.openai_tts_orpheus` and the entry title still reads "Hub Orpheus" — both are
+  now cosmetic labels only (renaming the entity would break the pipeline's `tts_engine`
+  reference, so the surgical switch leaves them). To **revert**, set `model` back to
+  `orpheus` and `voice` to `tara` in that subentry and `ha core restart`. **Do not** use
+  the sfortis "Update TTS Agent" UI dialog (see Troubleshooting — it resets the voice).
 - **extended_openai_conversation** — entry "Hub Haiku": base URL
   `http://192.168.0.13:8000/v1`, model **`qwen3.5-4b-nothink`** (was `claude-haiku-4-5` —
   #234), key = hub token, max_tokens 150, temp 0.5, terse prompt (one short spoken
@@ -131,7 +141,7 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 ### Pipeline ("Focused local assistant")
 
 Conversation agent = **Extended OpenAI Conversation**; STT = **Custom Whisper**; TTS =
-**Orpheus (tara)**; **"Prefer handling commands locally" = ON**; wake word "Okay Nabu" (see
+**Piper (ryan)**; **"Prefer handling commands locally" = ON**; wake word "Okay Nabu" (see
 **Wake words** below).
 
 ### Wake words — two per puck, each bound to a pipeline
@@ -148,7 +158,7 @@ Both pucks are configured identically — a deliberate fast/smart split:
 
 | Wake word | Routes to pipeline | What it does |
 |---|---|---|
-| **"Okay Nabu"** (slot 1) | **Focused local assistant** | Hub stack — Custom Whisper STT → Extended OpenAI (local-first, then the Haiku LLM) → Orpheus TTS. Commands, freeform questions, and the alarm bridge. Slower on freeform (LLM path). |
+| **"Okay Nabu"** (slot 1) | **Focused local assistant** | Hub stack — Custom Whisper STT → Extended OpenAI (local-first, then the Haiku LLM) → Piper TTS. Commands, freeform questions, and the alarm bridge. Slower on freeform (LLM path). |
 | **"Hey Jarvis"** (slot 2) | **Home Assistant** (the *preferred* pipeline) | Built-in intent engine with the default STT/TTS — fast, fully local, command-only, no LLM. |
 
 So say **"Hey Jarvis"** for instant built-in commands, **"Okay Nabu"** for anything that
@@ -213,7 +223,8 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
   qwen backend is up (`GET :8000/admin/api/models`). See
   [`voice-model-benchmark.md`](voice-model-benchmark.md).
 - **Do not** reconfigure the sfortis "Update TTS Agent" dialog casually — it shows defaults,
-  not saved values, and submitting it resets the voice from `tara` to `alloy`.
+  not saved values, and submitting it resets the configured voice (now `ryan`) to `alloy`
+  and the model off `piper`. Edit the profile subentry in `.storage` instead (see Setup).
 - **Weak Wi-Fi** is the most common root cause of disconnects and audio issues. A healthy
   Voice PE pings <10 ms; sustained ~100 ms+ means the kitchen signal needs improving.
 
@@ -223,7 +234,7 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
 - Hub telemetry (chat/STT only, with latency — does **not** record TTS):
   `GET :8000/admin/api/telemetry/recent?limit=N`
 - Hub errors: `GET :8000/admin/api/hub/errors/recent`
-- Probe TTS directly: `POST :8000/v1/audio/speech {model:orpheus,voice:tara,input,response_format}`
+- Probe TTS directly: `POST :8000/v1/audio/speech {model:piper,voice:ryan,input,response_format}`
 - Puck link quality: `ping 192.168.0.42` (expect <10 ms)
 - Device state + Activity log: Settings → Devices & Services → ESPHome → the device
 - Test the brain by text (no voice): Voice assistants → *Focused local assistant* → ⋮ →
@@ -232,9 +243,11 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
 
 ## Known constraints
 
-- The setup wizard installs a temporary **Piper** TTS + **speech-to-phrase** STT baseline
-  (a `wyoming` integration); these are superseded by the hub pipeline and are slated for
-  removal.
+- The setup wizard installs a temporary **wyoming Piper** TTS + **speech-to-phrase** STT
+  baseline; these are superseded by the hub pipeline and are slated for removal. That local
+  wyoming Piper add-on is **not** the hub Piper this pipeline now uses — the hub serves
+  Piper over the OpenAI-shape `/v1/audio/speech` route addressed by the sfortis integration,
+  whereas the wyoming add-on is a separate, unused engine. Don't confuse the two.
 - Local hub models are text-only; OpenAI-shape tool-use on the local llama backends requires
   `--jinja`. The hub's `claude -p` path accepts a `tools` payload but its tool-call emission
   is unverified — prefer deterministic routing (Tier 1) for actions.

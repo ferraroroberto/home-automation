@@ -24,7 +24,7 @@ live in [`voice-control.md`](voice-control.md), the secret-free installed config
        → intent_script: <Intent>      runs an action + speaks a reply    ← you write this
            → rest_command.<name>      POST/GET to the app API            ← you write this
                → app  /api/...        the actual actuation
-   → TTS  (hub Orpheus)           speaks the intent_script reply
+   → TTS  (hub Piper)             speaks the intent_script reply
 ```
 
 You add three things per command: **a sentence set**, **an intent_script**, **a
