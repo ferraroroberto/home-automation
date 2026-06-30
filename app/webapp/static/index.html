@@ -458,6 +458,17 @@
            the tile is independent of the VM's IP. Home-tab only; hidden until
            the first read. Issue #240. -->
       <section id="homeVmTile" class="card vm-tile" aria-label="Home Assistant VM" hidden></section>
+
+      <!-- Activity log (#289): a button — not a tab — opening the admin/telemetry
+           overlay with the unified, filterable event history (arm/disarm, plug
+           toggles, power, presence, panel events). -->
+      <button id="activityOpen" type="button" class="card activity-open" aria-haspopup="dialog">
+        <span class="activity-open-identity">
+          <svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+          <span>Activity log</span>
+        </span>
+        <span class="activity-open-hint muted small">events &amp; telemetry</span>
+      </button>
     </section>
 
     <!-- =============================== AC =============================== -->
@@ -1501,6 +1512,32 @@
         <button id="confirmCancel" type="button" class="big-btn confirm-cancel">Cancel</button>
         <button id="confirmOk" type="button" class="big-btn confirm-ok" data-testid="confirm-ok">Confirm</button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- Activity / telemetry overlay (#289): the unified, filterable event history,
+       opened from the Home "Activity log" button. Read-only; rows come from
+       GET /api/activity filtered server-side by the domain/type selectors. -->
+  <dialog id="activityDialog" class="detail-dialog activity-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2><svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Activity log</h2>
+        <button id="activityClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="activity-filters">
+        <label class="row">
+          <span>Domain</span>
+          <select id="activityDomain" class="select-native"><option value="">All</option></select>
+        </label>
+        <label class="row">
+          <span>Type</span>
+          <input id="activityType" type="text" class="input-native" placeholder="Any (e.g. arm, plug_on)">
+        </label>
+      </div>
+
+      <p id="activityNote" class="muted small" hidden>—</p>
+      <ul id="activityList" class="activity-list" aria-label="Recent events"></ul>
     </div>
   </dialog>
 

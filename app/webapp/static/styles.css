@@ -2823,3 +2823,35 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   width: 84px; padding: 6px 8px; font-variant-numeric: tabular-nums;
 }
 .camera-coords-go { font-weight: 650; }
+
+/* ----------------------------------------------------------- Activity log (#289) */
+/* Home launcher button — styled like a card row, opens the telemetry overlay. */
+.activity-open {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; gap: var(--space-md); cursor: pointer;
+  font: inherit; color: var(--ink); text-align: left;
+}
+.activity-open-identity { display: inline-flex; align-items: center; gap: var(--space-sm); font-weight: 600; }
+
+/* The overlay reuses .detail-dialog / .detail-card; these style its contents. */
+.activity-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.activity-filters .row { flex: 1 1 140px; }
+
+.activity-list {
+  list-style: none; margin: var(--space-sm) 0 0; padding: 0;
+  max-height: 60vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--space-xs);
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr; align-items: baseline;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm); border-radius: var(--radius-sm);
+  background: var(--card-off); border-left: 3px solid var(--line);
+}
+.activity-time { font-variant-numeric: tabular-nums; color: var(--muted); }
+.activity-domain { font-weight: 600; }
+.activity-type { color: var(--accent); }
+.activity-detail { grid-column: 1 / -1; }
+.activity-sev-warning { border-left-color: var(--attention); }
+.activity-sev-alarm { border-left-color: var(--deficit); }

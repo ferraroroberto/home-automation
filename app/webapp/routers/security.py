@@ -9,9 +9,11 @@ instead of guessing.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import asdict
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -49,10 +51,59 @@ from src.security_trouble_ignore import (
     load_ignored_trouble_zone_ids,
     set_zone_trouble_ignored,
 )
+from src import telemetry
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _event_ts(raw: Any) -> Optional[int]:
+    """Parse a RISCO event time (UTC ISO-ish) to epoch seconds; None if unparsable."""
+    if not raw:
+        return None
+    try:
+        return int(datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp())
+    except (ValueError, TypeError):
+        return None
+
+
+def _persist_risco_events(events: List[object]) -> None:
+    """Persist RISCO events into the unified telemetry store, deduped (#289).
+
+    The RISCO feed is otherwise ephemeral (live-pulled, aged out by the cloud).
+    Dedupe against already-stored events by a ``(time, name, zone)`` signature so
+    re-polling — including after a restart — never double-inserts. Best-effort:
+    a telemetry failure must never break the live events response. Blocking
+    SQLite, so the caller runs this in a worker thread.
+    """
+    try:
+        if not telemetry.default_db_ready():
+            return
+        existing = telemetry.read_events(domain="security", event_type="panel_event", limit=500)
+        seen = {
+            e["payload"].get("sig")
+            for e in existing
+            if isinstance(e.get("payload"), dict)
+        }
+        for event in events:
+            data = asdict(event)
+            sig = f"{data.get('time')}|{data.get('name')}|{data.get('zone_id')}"
+            if sig in seen:
+                continue
+            seen.add(sig)
+            data["sig"] = sig
+            zone_id = data.get("zone_id")
+            telemetry.record_event(
+                "security",
+                "panel_event",
+                entity_id=str(zone_id) if zone_id is not None else None,
+                source="panel",
+                payload=data,
+                ts=_event_ts(data.get("time")),
+            )
+    except Exception:  # noqa: BLE001 — telemetry persistence is best-effort
+        logger.debug("telemetry RISCO-event persist skipped", exc_info=True)
 
 
 def _schedule_payload(entries: List[object]) -> Dict[str, Any]:
@@ -116,7 +167,9 @@ async def get_security() -> Dict[str, Any]:
 async def get_security_events(count: int = 50) -> Dict[str, Any]:
     safe_count = max(1, min(int(count or 50), 100))
     try:
-        return _events_payload(await fetch_events(count=safe_count))
+        events = await fetch_events(count=safe_count)
+        await asyncio.to_thread(_persist_risco_events, events)
+        return _events_payload(events)
     except (RiscoConfigError, RiscoCommandError) as exc:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001

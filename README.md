@@ -33,6 +33,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `sma_client.py` — async read of the local SMA solar/energy devices (meter + inverter).
   - `list_energy.py` — CLI that prints the live energy flow.
   - `energy_history.py` — SQLite store + rollups for the energy dashboard history.
+  - `telemetry.py` — unified event + reading store (SQLite; #283/#289). Narrow `readings`/`events` tables with JSON sidecars; producers (alarm/power/presence/plug/RISCO) mirror their events in, the Home **Activity log** reads them back.
   - `hvac_automation.py` — UI-free persistence + control law for per-unit dynamic temperature rules and daily schedules.
   - `tariff.py` — electricity tariff model: prices grid energy per time-of-use period and values self-consumed PV (the cost & savings breakdown). UI-free, graceful flat-rate default.
   - `tuya_client.py` — Smart Life / Tuya discovery and local LAN control foundation.
@@ -108,7 +109,7 @@ and an optional bearer token. Two ways to reach it once running:
 - **`scripts/`** — `gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_web_push_keys.py` (generate local VAPID keys for Web Push), `gen_icons.py` (PWA icons; Pillow dev-only), `ha_config_sync.py` (deploy the voice-PE HA config into the HA VM's `/config` over SSH — preflight / deploy / rollback / probe; #243, see [Home Assistant config deploy](#home-assistant-config-deploy-over-ssh)).
 - **`spike/`** — `streamlit_app.py`, the independent POC spike.
 - **`config/`** — `webapp_config.sample.json`, `display_names.sample.json`, `tuya_display_names.sample.json`, `tuya_hidden.sample.json`, `elgato_display_names.sample.json`, `network_display_names.sample.json`, `network_hidden.sample.json`, `network_wifi_display_names.sample.json`, `network_wifi_hidden.sample.json`, `security_display_names.sample.json`, `security_hidden.sample.json`, `security_trouble_ignore.sample.json`, `security_schedules.sample.json`, `presence_display_names.sample.json`, `presence_hidden.sample.json`, `presence_state.sample.json`, `presence_automation.sample.json`, `push_config.sample.json`, `notify_config.sample.json`, `alarm_notify_prefs.sample.json`, `power_notify_prefs.sample.json`, `hvac_rules.sample.json`, `hvac_schedules.sample.json`, `location.sample.json`, `tariff.sample.json`, `pv_system.sample.json`, `cameras.sample.json`, `camera_display_names.sample.json`, `camera_presets.sample.json`, `camera_preset_names.sample.json`, `dhcp_plan.sample.json`, and `dhcp_overrides.sample.json` committed; the real `webapp_config.json`, `display_names.json`, `tuya_display_names.json`, `tuya_hidden.json`, `elgato_display_names.json`, `network_display_names.json`, `network_hidden.json`, `network_wifi_display_names.json`, `network_wifi_hidden.json`, `security_display_names.json`, `security_hidden.json`, `security_trouble_ignore.json`, `security_schedules.json`, `presence_display_names.json`, `presence_hidden.json`, `presence_state.json`, `presence_automation.json`, `push_config.json`, `push_subscriptions.json`, `notify_config.json`, `alarm_notify_prefs.json`, `power_notify_prefs.json`, `hvac_rules.json`, `hvac_schedules.json`, `location.json`, `tariff.json`, `pv_system.json`, `cameras.json`, `camera_display_names.json`, `camera_presets.json`, `camera_preset_names.json`, `dhcp_plan.json`, and `dhcp_overrides.json` are gitignored.
-- **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`); gitignored.
+- **`webapp/`** — runtime state (`certificates/`, `auth.log`, `energy_history.sqlite3`, `telemetry.sqlite3`); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
 ### Background polling (what fetches when)
@@ -572,6 +573,21 @@ documented in [`docs/tariff-model.md`](docs/tariff-model.md).
 > data (hourly rollups are kept `ENERGY_HOURLY_RETENTION_DAYS`, default ~400
 > days). A freshly-started instance shows mostly empty long windows until history
 > builds up — this is an estimate from monitored data, not your utility's meter.
+
+## Activity log (events & telemetry)
+
+The **Home tab** has an **Activity log** button (not a tab — an admin/telemetry overlay) that shows the unified, filterable history of everything the home does: alarm arm/disarm, plug toggles, UPS power lost/restored, presence transitions, and RISCO panel events. It is the read surface over `src/telemetry.py`'s `events` store — the queryable successor to the previously write-only `logs/*.jsonl` trail and the otherwise-ephemeral RISCO event feed.
+
+Events are recorded by their producers automatically: the shared `src/activity_log.append_activity` writer mirrors every alarm/power/presence event into the store, plug toggles are recorded in the Tuya router, and `GET /api/security/events` persists the live RISCO feed (deduped, so re-polling and restarts never double-insert). The overlay reads `GET /api/activity?domain=&type=&since=&limit=`, filtering **server-side** via the domain dropdown and the type box.
+
+The store lives at `webapp/telemetry.sqlite3` (gitignored, per-machine runtime, WAL mode, modeled on `energy_history.py`). Retention knobs (`.env`, all optional):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TELEMETRY_READINGS_RETENTION_DAYS` | `7` | How long raw device readings are kept (device telemetry arrives in a later step, #290). |
+| `TELEMETRY_EVENTS_RETENTION_DAYS` | `400` | How long discrete events are kept — far longer than readings, since events are rare and human-meaningful. |
+
+> **Extensible by design (#283):** the `readings`/`events` tables are narrow (one row per observation/event) with a JSON sidecar column, so a new device type or field becomes new *rows*, never an `ALTER TABLE`. Per-domain **reading** capture (HVAC temps, plug watts, …) and its chart view land in #290; this step ships the event log + the panel.
 
 ## Weather
 
