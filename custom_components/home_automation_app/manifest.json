@@ -1,0 +1,10 @@
+{
+  "domain": "home_automation_app",
+  "name": "Home Automation App",
+  "codeowners": [],
+  "dependencies": [],
+  "documentation": "https://github.com/ferraroroberto/home-automation/blob/main/docs/home-assistant-integration/README.md",
+  "iot_class": "local_polling",
+  "requirements": [],
+  "version": "0.1.0"
+}
