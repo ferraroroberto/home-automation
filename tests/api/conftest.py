@@ -43,6 +43,21 @@ def _isolate_network_history(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(nh, "DEFAULT_DB_PATH", tmp_path / "network_history.sqlite3")
 
 
+@pytest.fixture(autouse=True)
+def _isolate_telemetry(tmp_path, monkeypatch) -> None:
+    """Point the unified telemetry store at a per-test temp DB and init it.
+
+    Producers mirror events into telemetry (#289); without redirection every
+    test would write to the real ``webapp/telemetry.sqlite3`` and the activity
+    API would read shared, non-deterministic state. ``init_db`` here also flips
+    ``default_db_ready`` on, so the central mirror is active against the temp DB.
+    """
+    import src.telemetry as tel
+
+    monkeypatch.setattr(tel, "DEFAULT_DB_PATH", tmp_path / "telemetry.sqlite3")
+    tel.init_db()
+
+
 @pytest.fixture(scope="session")
 def client() -> TestClient:
     """A ``TestClient`` over the real app, with lifespan intentionally not run.

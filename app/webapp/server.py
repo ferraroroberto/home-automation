@@ -31,6 +31,7 @@ Routes (split across ``app/webapp/routers/``):
     GET  /api/presence           → local + cached presence     (presence)
     GET  /api/hyperv             → Home Assistant VM status     (hyperv)
     POST /api/hyperv/{action}    → start/stop the HA VM         (hyperv)
+    GET  /api/activity           → unified event log (filtered) (activity)
 
 Run with::
 
@@ -56,7 +57,7 @@ from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import auth, cameras, energy, hyperv, lights, misc, network, presence, push, security, tuya, units, ups, weather
+from app.webapp.routers import activity, auth, cameras, energy, hyperv, lights, misc, network, presence, push, security, tuya, units, ups, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
@@ -64,6 +65,7 @@ from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
 from app.webapp.security_automation import start_security_schedules
 from app.webapp.sampler import start_sampler
+from src import telemetry
 from src.webapp_config import load_webapp_config
 
 logger = logging.getLogger(__name__)
@@ -127,6 +129,15 @@ class CachingStaticFiles(StaticFiles):
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Own background tasks for the process life."""
+    # Initialize the unified telemetry store first, so producers (alarm/power/
+    # presence/plug/RISCO) mirror their events into it from the first request
+    # (#289). Done in lifespan (not create_app) so importing the app for tests
+    # never touches the real DB; the API test layer points it at a temp DB.
+    try:
+        telemetry.init_db()
+    except Exception as exc:  # noqa: BLE001 — telemetry is non-critical to serving
+        logger.warning("⚠️  Telemetry store init failed (events disabled): %s", exc)
+
     tasks = [
         t for t in (
             start_sampler(),
@@ -188,6 +199,7 @@ def create_app() -> FastAPI:
     app.include_router(presence.router)
     app.include_router(push.router)
     app.include_router(hyperv.router)
+    app.include_router(activity.router)
 
     logger.info(
         "ℹ️  webapp build %s (fleet %s) built %s",

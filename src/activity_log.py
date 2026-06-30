@@ -35,6 +35,51 @@ def log_path_for(consumer: str) -> Path:
     return LOGS_DIR / f"{consumer}.jsonl"
 
 
+# Events whose mere occurrence is high-severity, used to colour the activity UI.
+_ALARM_EVENTS = frozenset({"intrusion"})
+_WARN_EVENTS = frozenset({"ac_lost", "power_lost"})
+
+
+def _severity_for(record: Dict[str, Any]) -> str:
+    """Best-effort severity for the unified telemetry copy of an activity event."""
+    if record.get("outcome") == "error":
+        return "warning"
+    name = str(record.get("action") or record.get("event") or "")
+    if name in _ALARM_EVENTS:
+        return "alarm"
+    if name in _WARN_EVENTS:
+        return "warning"
+    return "info"
+
+
+def _mirror_to_telemetry(consumer: str, record: Dict[str, Any]) -> None:
+    """Also record the event into the unified telemetry store (#289).
+
+    The JSONL file stays the durable local trail; this adds the queryable,
+    UI-surfaced copy. Gated on :func:`telemetry.default_db_ready` so it is a
+    clean no-op in unit tests that never start the webapp, and never raises —
+    an activity log must not break the action it records.
+    """
+    try:
+        from src import telemetry
+
+        if not telemetry.default_db_ready():
+            return
+        domain = consumer[:-9] if consumer.endswith("_triggers") else consumer
+        event_type = str(record.get("action") or record.get("event") or "activity")
+        telemetry.record_event(
+            domain,
+            event_type,
+            entity_id=record.get("entity_id"),
+            source=record.get("source"),
+            outcome=record.get("outcome"),
+            severity=_severity_for(record),
+            payload=record,
+        )
+    except Exception as exc:  # pragma: no cover - mirror must never break logging
+        logger.debug("telemetry mirror skipped (%s)", exc)
+
+
 def append_activity(
     consumer: str, event: Dict[str, Any], *, path: Optional[Path] = None
 ) -> None:
@@ -55,3 +100,5 @@ def append_activity(
             fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
     except OSError as exc:  # pragma: no cover - disk failure is not worth crashing for
         logger.warning("⚠️ Could not append activity to %s (%s)", target, exc)
+
+    _mirror_to_telemetry(consumer, record)

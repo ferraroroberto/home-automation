@@ -46,6 +46,17 @@ DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "webapp" / "telemetry
 
 _HOUR = 3600
 
+# Set True only once :func:`init_db` runs against the *default* DB (i.e. the live
+# webapp, not a test's tmp-path store). The central event mirror in
+# :mod:`src.activity_log` checks this so it stays a clean no-op in unit tests
+# that never start the webapp, yet activates automatically in production.
+_default_db_ready = False
+
+
+def default_db_ready() -> bool:
+    """True once the default telemetry DB has been initialized (webapp running)."""
+    return _default_db_ready
+
 
 @dataclass(frozen=True)
 class TelemetryConfig:
@@ -157,6 +168,9 @@ def init_db(path: Optional[Path] = None) -> None:
             """
         )
         conn.commit()
+    if path is None:
+        global _default_db_ready
+        _default_db_ready = True
 
 
 def _dumps(value: Optional[Dict[str, Any]]) -> Optional[str]:

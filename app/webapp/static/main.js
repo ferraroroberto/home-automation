@@ -37,6 +37,7 @@ import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySc
 import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
 import { startWeatherPolling } from './weather.js';
+import { wireActivity } from './activity.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { installDialogScrollLock } from './scroll-lock.js';
 
@@ -824,6 +825,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireSecurityNotify();
   wireCameras();
   wireNetworkControls();
+  wireActivity();
   restoreUnitsSnapshot();
   restoreEnergySnapshots();
   restorePlugsSnapshot();

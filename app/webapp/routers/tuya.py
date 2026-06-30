@@ -203,6 +203,22 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
     except (TuyaCommandError, TuyaConfigError) as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
+    # Record the toggle into the unified telemetry event log (#289). Best-effort:
+    # a telemetry failure must never break the control action.
+    try:
+        from src import telemetry
+
+        telemetry.record_event(
+            "plug",
+            "plug_on" if on else "plug_off",
+            entity_id=device_id,
+            source="manual",
+            outcome="ok",
+            payload={"device_id": device_id, "switch_on": on},
+        )
+    except Exception:  # noqa: BLE001 — telemetry is best-effort
+        logger.debug("telemetry plug-toggle event skipped", exc_info=True)
+
     # Read back so the card re-renders from live state, not the requested value.
     try:
         overrides = load_tuya_display_names()
