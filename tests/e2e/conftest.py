@@ -174,6 +174,10 @@ def base_url() -> Iterator[str]:
             # Never let the autobooted webapp hammer the real SMA devices — the
             # frontend is driven against stubbed energy fixtures, not the cloud.
             "ENERGY_SAMPLER_ENABLED": "0",
+            # Likewise the telemetry reading sampler — it would otherwise fetch
+            # real HVAC (cloud) / plugs / UPS / lights every few minutes from a
+            # test boot. The activity UI is driven against the API directly.
+            "TELEMETRY_SAMPLER_ENABLED": "0",
             # Same for the HVAC automation engine: never drive real units from a
             # test boot (the dormant-tick short-circuit makes it harmless with no
             # config, but keep it explicitly off like the sampler).

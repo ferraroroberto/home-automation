@@ -65,6 +65,7 @@ from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
 from app.webapp.security_automation import start_security_schedules
 from app.webapp.sampler import start_sampler
+from app.webapp.telemetry_sampler import start_telemetry_sampler
 from src import telemetry
 from src.webapp_config import load_webapp_config
 
@@ -141,6 +142,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     tasks = [
         t for t in (
             start_sampler(),
+            start_telemetry_sampler(),
             start_automation(),
             start_presence_refresher(),
             start_presence_automation(),

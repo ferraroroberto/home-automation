@@ -2834,6 +2834,15 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .activity-open-identity { display: inline-flex; align-items: center; gap: var(--space-sm); font-weight: 600; }
 
 /* The overlay reuses .detail-dialog / .detail-card; these style its contents. */
+.activity-modes {
+  display: inline-flex; gap: 2px; margin-bottom: var(--space-sm);
+  padding: 2px; border-radius: var(--radius-pill); background: var(--card-off);
+}
+.activity-mode {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font: inherit; font-weight: 600; padding: 4px 14px; border-radius: var(--radius-pill);
+}
+.activity-mode.is-active { background: var(--accent); color: var(--accent-fg); }
 .activity-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 .activity-filters .row { flex: 1 1 140px; }
 

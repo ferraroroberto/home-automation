@@ -1525,19 +1525,28 @@
         <button id="activityClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
+      <div class="activity-modes" role="tablist" aria-label="View">
+        <button id="activityModeEvents" type="button" class="activity-mode is-active" role="tab" aria-selected="true" data-mode="events">Events</button>
+        <button id="activityModeReadings" type="button" class="activity-mode" role="tab" aria-selected="false" data-mode="readings">Readings</button>
+      </div>
+
       <div class="activity-filters">
         <label class="row">
           <span>Domain</span>
           <select id="activityDomain" class="select-native"><option value="">All</option></select>
         </label>
-        <label class="row">
+        <label class="row" id="activityTypeRow">
           <span>Type</span>
           <input id="activityType" type="text" class="input-native" placeholder="Any (e.g. arm, plug_on)">
+        </label>
+        <label class="row" id="activityMetricRow" hidden>
+          <span>Metric</span>
+          <input id="activityMetric" type="text" class="input-native" placeholder="Any (e.g. power_w, room_temperature)">
         </label>
       </div>
 
       <p id="activityNote" class="muted small" hidden>—</p>
-      <ul id="activityList" class="activity-list" aria-label="Recent events"></ul>
+      <ul id="activityList" class="activity-list" aria-label="Recent activity"></ul>
     </div>
   </dialog>
 
