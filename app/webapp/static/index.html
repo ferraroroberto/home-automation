@@ -976,6 +976,23 @@
         <p id="securityZonesNote" class="muted small security-note" hidden></p>
       </details>
 
+      <details class="card security-card scene-pairings-card" aria-label="Alarm scene capture">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
+            <h3 class="collapse-title">Scene capture</h3>
+            <span id="scenePairingsCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="scene-pairings-body">
+          <p class="muted small">When the alarm trips, capture the paired camera(s) and ask the AI whether it's a real or false alarm. Only detectors you pair here are photographed.</p>
+          <div id="scenePairings" class="alarm-schedule-list"></div>
+          <p id="scenePairingsNote" class="muted small security-note" hidden></p>
+          <button id="scenePairingAdd" type="button" class="schedule-add-btn">+ Add pairing</button>
+        </div>
+      </details>
+
       <details class="card security-card presence-card" aria-label="Presence">
         <summary class="collapse-summary">
           <span class="collapse-main">
