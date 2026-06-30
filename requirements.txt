@@ -46,6 +46,12 @@ speedtest-cli>=2.1.3
 onvif-zeep-async>=4.2.0
 wsdiscovery>=2.1.0
 
+# Alarm-triggered scene capture + AI verdict (issue #162): vision LLM call routed
+# through the local hub (http://127.0.0.1:8000, Anthropic-shape /v1/messages) per
+# the fleet rule — never an inline `claude -p` wrapper. SDK only; the api_key is a
+# dummy and Tailscale/loopback is the real gate.
+anthropic>=0.40.0
+
 # Self-signed CA + leaf cert generation for the HTTPS endpoint
 cryptography>=42.0.0
 

@@ -1497,6 +1497,7 @@ button.device-row-name:hover { text-decoration: underline; }
 }
 .security-events-card,
 .security-schedules-card,
+.scene-pairings-card,
 .cameras-card,
 .security-zones-card,
 .presence-card,
@@ -1612,7 +1613,8 @@ button.security-zone-name:hover { text-decoration: underline; }
 .security-bypass.on .toggle-label,
 .security-bypass.off .toggle-label { color: var(--accent-fg); }
 .security-note { margin: 10px 14px 14px; }
-.security-schedules-body {
+.security-schedules-body,
+.scene-pairings-body {
   padding: 12px 14px 14px;
 }
 .alarm-schedule-list {
@@ -1682,6 +1684,31 @@ button.security-zone-name:hover { text-decoration: underline; }
   .alarm-schedule-entry .schedule-enabled { grid-column: 1 / -1; }
   .alarm-schedule-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .alarm-schedule-fields { grid-template-columns: 1fr; }
+}
+/* Alarm-scene pairing rows reuse the schedule entry/field styling (issue #162),
+   with three equal columns for Detector / Camera / Position. */
+.scene-pairing-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.scene-pairing-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 650;
+}
+.scene-pairing-fields .select-native {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.scene-pairings-body .schedule-add-btn { margin-top: 10px; }
+@media (max-width: 420px) {
+  .scene-pairing-fields { grid-template-columns: 1fr; }
 }
 .presence-body-summary {
   display: flex;
@@ -2084,6 +2111,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 /* Collapsible cards share one closed height: the summary owns the padding so
    the Security and Network headers align exactly. */
 .security-schedules-card > .collapse-summary,
+.scene-pairings-card > .collapse-summary,
 .security-events-card > .collapse-summary,
 .cameras-card > .collapse-summary,
 .security-zones-card > .collapse-summary,
@@ -2097,6 +2125,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   padding: 0 14px;
 }
 .security-schedules-card[open] > .collapse-summary,
+.scene-pairings-card[open] > .collapse-summary,
 .security-events-card[open] > .collapse-summary,
 .cameras-card[open] > .collapse-summary,
 .security-zones-card[open] > .collapse-summary,

@@ -37,6 +37,10 @@ export const state = {
   security: null,
   securityEvents: [],
   securitySchedules: [],
+  // Detector→camera+preset alarm-scene capture pairings (issue #162). The
+  // camera list for the pairing editor's dropdowns reuses the existing
+  // `cameras` state above (managed by cameras.js).
+  scenePairings: [],
   // When false (default), detectors marked hidden are filtered out of the list.
   // When true, they render (dimmed) so they can be un-hidden (issue #104).
   securityShowHidden: false,
@@ -141,6 +145,10 @@ export const els = {
   securitySchedulesNote: document.getElementById('securitySchedulesNote'),
   securitySchedulesCount: document.getElementById('securitySchedulesCount'),
   securityScheduleAdd: document.getElementById('securityScheduleAdd'),
+  scenePairings: document.getElementById('scenePairings'),
+  scenePairingsNote: document.getElementById('scenePairingsNote'),
+  scenePairingsCount: document.getElementById('scenePairingsCount'),
+  scenePairingAdd: document.getElementById('scenePairingAdd'),
   securityZones: document.getElementById('securityZones'),
   securityZonesNote: document.getElementById('securityZonesNote'),
   securityHiddenCount: document.getElementById('securityHiddenCount'),

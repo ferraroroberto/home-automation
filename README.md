@@ -782,6 +782,48 @@ with AI analysis.
 Do not commit camera IPs, the device-account password, the UID/MAC, captured
 frames, or location names; this repository is public.
 
+## Alarm scene capture + AI verdict (#162)
+
+When the RISCO alarm trips, the detector that fired is matched to its configured
+camera **pairings**; each paired camera is driven to its PTZ preset and
+snapshotted, and the frames (plus each camera's most recent *calm* baseline, for
+contrast) are sent to a vision LLM that returns a **real vs false alarm** verdict
+with a short explanation (person / pet / vehicle / nothing moved). The verdict is
+delivered over **Web Push and Telegram** — the Telegram message **attaches the
+captured frame** — and every trigger + the full model reply is appended to the
+gitignored `logs/alarm_scene.jsonl` audit log.
+
+Only detectors you **pair** are photographed — a random detector firing never
+captures the house. A tripped detector with no pairing is logged and skipped. The
+feature rides the single RISCO read already done by the presence-automation loop
+(no second poller), so it requires that loop running
+(`PRESENCE_AUTOMATION_ENGINE_ENABLED`, default on). While no alarm is active, each
+camera's calm baseline is refreshed on a low-frequency timer.
+
+The LLM call is routed through the **local hub** (`http://127.0.0.1:8000`,
+Anthropic-shape `/v1/messages`) per the fleet rule — never an inline `claude -p`
+wrapper. A hub or parse failure degrades to an "AI analysis unavailable — verify
+manually" verdict and never breaks the alarm path.
+
+**Configure pairings** in the **Security tab → Scene capture** card (detector →
+camera → PTZ preset dropdowns), or by hand in gitignored
+`config/alarm_scene_pairings.json` (copy `config/alarm_scene_pairings.sample.json`;
+each entry is `{zone_id, camera_id, preset_token?, preset_name?, enabled}`). API:
+`GET/PUT /api/security/scene-pairings`.
+
+Config in `.env`:
+
+| Variable | Meaning |
+| --- | --- |
+| `ALARM_SCENE_ENABLED` | Optional, default `true`; set `0` to disable scene capture while keeping the pairing UI/API available. |
+| `ALARM_SCENE_MODEL` | Optional, default `claude-haiku-4-5`; the vision model id the hub routes to. |
+| `ALARM_SCENE_HUB_URL` | Optional, default `http://127.0.0.1:8000`; the local hub base URL. |
+| `ALARM_SCENE_PRESET_SETTLE_MS` | Optional, default `4000`; how long to let a camera settle on its PTZ preset before the snapshot (a too-short wait captures a blurred mid-pan frame). |
+| `ALARM_SCENE_BASELINE_REFRESH_S` | Optional, default `1800`; how often the calm per-camera baseline is refreshed while no alarm is active. |
+
+Captures + baselines live under the already-gitignored `webapp/camera_captures/`
+(`alarm/` and `baselines/`); never commit frames or `config/alarm_scene_pairings.json`.
+
 ## Run the webapp (the product)
 
 ### Via the tray (the always-on way)

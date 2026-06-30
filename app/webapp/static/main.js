@@ -33,7 +33,7 @@ import { onUpsTab, restoreUpsSnapshot } from './ups.js';
 import { wirePowerNotify } from './ups-notify.js';
 import { onVmTab, restoreVmSnapshot } from './vm.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
-import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wirePresenceControls, wireSecurityNotify } from './security.js';
+import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wirePresenceControls, wireSecurityNotify } from './security.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
 import { startWeatherPolling } from './weather.js';
@@ -819,6 +819,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireZoneDetail();
   wireSecurityHiddenToggle();
   wireSecuritySchedules();
+  wireScenePairings();
   wirePresenceControls();
   wireSecurityNotify();
   wireCameras();

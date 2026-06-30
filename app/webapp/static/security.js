@@ -18,6 +18,7 @@ import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
+import { renderScenePairings, loadScenePairings } from './security-scene.js';
 import { renderPresence, loadPresence, loadLocation, loadPresenceAutomation } from './presence.js';
 import { loadNotifyPrefs } from './security-notify.js';
 
@@ -25,6 +26,7 @@ import { loadNotifyPrefs } from './security-notify.js';
 // import from './security.js' continues to resolve all the names.
 export { wireZoneDetail, wireSecurityHiddenToggle } from './security-alarm.js';
 export { wireSecuritySchedules } from './security-schedules.js';
+export { wireScenePairings } from './security-scene.js';
 export { wirePresenceControls } from './presence.js';
 export { wireSecurityNotify } from './security-notify.js';
 
@@ -36,6 +38,7 @@ export function renderSecurity() {
   renderState();
   renderActions();
   renderSchedules();
+  renderScenePairings();
   renderEvents();
   renderZones();
   renderPresence();
@@ -86,6 +89,7 @@ export function onSecurityTab(tab) {
       loadLocation();
       loadPresenceAutomation();
       loadSecuritySchedules();
+      loadScenePairings();
       loadNotifyPrefs();
     }
     schedule(POLL_MS);

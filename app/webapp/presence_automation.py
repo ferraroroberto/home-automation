@@ -17,6 +17,7 @@ from app.webapp.alarm_notify import (
     check_security_transitions,
     record_alarm_action,
 )
+from app.webapp.alarm_scene_automation import consider_security_read
 from src.presence_engine import (
     append_trigger_log,
     evaluate_alarm_decision,
@@ -47,6 +48,10 @@ async def tick() -> None:
         intrusion=bool(security.ongoing_alarm or security.memory_alarm),
         ac_lost=bool(security.ac_lost),
     )
+    # Same single read drives the alarm-triggered camera scene capture + AI
+    # verdict (issue #162): cheap edge detection here, heavy capture/vision work
+    # dispatched as a detached task so it never blocks this poll.
+    consider_security_read(security)
 
     config = load_automation_config()
     if not config.enabled:

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "garden-barbecue",
+    "zone_id": 3,
+    "camera_id": "garden",
+    "preset_token": "1",
+    "preset_name": "Barbecue",
+    "enabled": true
+  },
+  {
+    "id": "garden-lawn",
+    "zone_id": 3,
+    "camera_id": "garden",
+    "preset_token": "2",
+    "preset_name": "Lawn",
+    "enabled": true
+  }
+]
