@@ -1,0 +1,144 @@
+# Representative voice utterances for the Tier-2 classifier benchmark (#234).
+#
+# Buckets:
+#   command  — must produce a correct intent + slots; this is the primary metric.
+#   status   — read-only queries; intent + target scored.
+#   freeform — open questions; should route to intent=freeform (Tier 3). No slots.
+#
+# expected_slots holds only the slots that matter for scoring. Free-text slots
+# (area, device) are matched case-insensitively as substrings so "the living
+# room" still counts for area "living room"; enum slots match exactly.
+
+- text: "turn the living room AC on"
+  bucket: command
+  expected_intent: hvac_power
+  expected_slots: {area: "living room", state: "on"}
+
+- text: "turn off the bedroom air conditioning"
+  bucket: command
+  expected_intent: hvac_power
+  expected_slots: {area: "bedroom", state: "off"}
+
+- text: "set the bedroom to 22"
+  bucket: command
+  expected_intent: hvac_set_temperature
+  expected_slots: {area: "bedroom", temperature: 22}
+
+- text: "set the office to 24 degrees"
+  bucket: command
+  expected_intent: hvac_set_temperature
+  expected_slots: {area: "office", temperature: 24}
+
+- text: "switch the living room AC to cooling"
+  bucket: command
+  expected_intent: hvac_set_mode
+  expected_slots: {area: "living room", mode: "cool"}
+
+- text: "put the bedroom unit on heat"
+  bucket: command
+  expected_intent: hvac_set_mode
+  expected_slots: {area: "bedroom", mode: "heat"}
+
+- text: "set the kitchen fan to high"
+  bucket: command
+  expected_intent: hvac_set_fan
+  expected_slots: {area: "kitchen", fan_speed: "high"}
+
+- text: "turn on the coffee plug"
+  bucket: command
+  expected_intent: plug_power
+  expected_slots: {device: "coffee", state: "on"}
+
+- text: "switch off the lamp"
+  bucket: command
+  expected_intent: plug_power
+  expected_slots: {device: "lamp", state: "off"}
+
+- text: "arm the alarm"
+  bucket: command
+  expected_intent: alarm_arm
+  expected_slots: {arm_mode: "full"}
+
+- text: "arm the perimeter"
+  bucket: command
+  expected_intent: alarm_arm
+  expected_slots: {arm_mode: "perimeter"}
+
+- text: "partial alarm on"
+  bucket: command
+  expected_intent: alarm_arm
+  expected_slots: {arm_mode: "partial"}
+
+- text: "lower the volume"
+  bucket: command
+  expected_intent: media_volume
+  expected_slots: {direction: "down"}
+
+- text: "turn the volume up"
+  bucket: command
+  expected_intent: media_volume
+  expected_slots: {direction: "up"}
+
+- text: "set the volume to 30"
+  bucket: command
+  expected_intent: media_volume
+  expected_slots: {value: 30}
+
+# --- status queries ---
+
+- text: "what's the alarm status"
+  bucket: status
+  expected_intent: query_status
+  expected_slots: {target: "alarm"}
+
+- text: "is the alarm armed"
+  bucket: status
+  expected_intent: query_status
+  expected_slots: {target: "alarm"}
+
+- text: "is the living room AC on"
+  bucket: status
+  expected_intent: query_status
+  expected_slots: {target: "hvac", area: "living room"}
+
+- text: "what's the temperature in the bedroom"
+  bucket: status
+  expected_intent: query_status
+  expected_slots: {target: "hvac", area: "bedroom"}
+
+- text: "how much solar am I producing right now"
+  bucket: status
+  expected_intent: query_status
+  expected_slots: {target: "energy"}
+
+- text: "are any plugs on"
+  bucket: status
+  expected_intent: query_status
+  expected_slots: {target: "plug"}
+
+# --- freeform / Tier-3 ---
+
+- text: "what's the weather like tomorrow"
+  bucket: freeform
+  expected_intent: freeform
+  expected_slots: {}
+
+- text: "tell me a joke"
+  bucket: freeform
+  expected_intent: freeform
+  expected_slots: {}
+
+- text: "how many grams are in an ounce"
+  bucket: freeform
+  expected_intent: freeform
+  expected_slots: {}
+
+- text: "what time is it in Tokyo"
+  bucket: freeform
+  expected_intent: freeform
+  expected_slots: {}
+
+- text: "why is the sky blue"
+  bucket: freeform
+  expected_intent: freeform
+  expected_slots: {}
