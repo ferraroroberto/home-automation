@@ -61,9 +61,22 @@ and safety. (Model evaluation for the Tier-2/3 role: #234.)
 Device control reaches the app through its existing **API-first** backend — `POST
 …:8447/api/units/{id}` etc., behind `BearerTokenMiddleware` (loopback bypasses; remote uses a
 bearer token). The app's logic lives in `src/` and the PWA is just another `/api/*` client, so
-HA can call exactly what the PWA calls. The durable form of this is a native HA integration
-(climate/switch/alarm/sensor) so HA provides UI + voice + automation for the app's devices
-(#235).
+HA can call exactly what the PWA calls. The durable form is now the native HA integration under
+[`custom_components/home_automation_app/`](../custom_components/home_automation_app/) (#235), documented in [`home-assistant-integration/`](home-assistant-integration/README.md): it exposes climate/switch/alarm/binary-sensor/energy-sensor entities while reusing the app API as the single source of truth.
+
+## Native entity bridge (live, #235)
+
+The Home Assistant integration exposes compatible app devices as first-class HA entities:
+
+| Device surface | HA entity domain | Voice path |
+|---|---|---|
+| MELCloud HVAC | `climate` | Built-in HA climate intents: on/off, set temperature, mode where supported. |
+| Tuya plugs | `switch` | Built-in HA switch intents. |
+| RISCO alarm | `alarm_control_panel` | Built-in HA alarm services: away = full, home = perimeter, night = partial. |
+| RISCO zones | `binary_sensor` | Read/status and automations. |
+| SMA energy | `sensor` | Read/status and dashboards. |
+
+This is the preferred path for new voice-capable devices because the command is entity-native and deterministic. Keep safety gates explicit: disarm still uses the existing code-gated custom sentence path until an equivalent HA-native code-gated flow is separately validated.
 
 ## Action bridge — deterministic alarm commands (live, #88 Phase 4)
 
