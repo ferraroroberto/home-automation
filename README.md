@@ -580,14 +580,20 @@ The **Home tab** has an **Activity log** button (not a tab — an admin/telemetr
 
 Events are recorded by their producers automatically: the shared `src/activity_log.append_activity` writer mirrors every alarm/power/presence event into the store, plug toggles are recorded in the Tuya router, and `GET /api/security/events` persists the live RISCO feed (deduped, so re-polling and restarts never double-insert). The overlay reads `GET /api/activity?domain=&type=&since=&limit=`, filtering **server-side** via the domain dropdown and the type box.
 
-The store lives at `webapp/telemetry.sqlite3` (gitignored, per-machine runtime, WAL mode, modeled on `energy_history.py`). Retention knobs (`.env`, all optional):
+The overlay also has a **Readings** view (toggle at the top): periodic device telemetry — HVAC room/set temperatures, plug watts/volts/amps/kWh, UPS load/charge/runtime, Elgato light state — captured by a background **telemetry sampler** (`app/webapp/telemetry_sampler.py`), a sibling of the energy sampler owned by the same webapp lifecycle. It runs on a gentle cadence (default 5 min — temperature/load trends don't need 60 s resolution) and isolates failures per domain, so one offline plug never stops the rest. Energy stays in its own `energy_history` store; presence is event-driven, so its reading gate defaults off.
+
+The store lives at `webapp/telemetry.sqlite3` (gitignored, per-machine runtime, WAL mode, modeled on `energy_history.py`). Config + retention knobs (`.env`, all optional):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `TELEMETRY_READINGS_RETENTION_DAYS` | `7` | How long raw device readings are kept (device telemetry arrives in a later step, #290). |
+| `TELEMETRY_SAMPLER_ENABLED` | `true` | Master switch for the reading sampler. `false`/`0` serves events + existing readings but captures no new readings (used by the e2e suite and dev runs). |
+| `TELEMETRY_SAMPLE_INTERVAL_S` | `300` | Seconds between reading snapshots. |
+| `TELEMETRY_SAMPLE_HVAC` / `_PLUGS` / `_UPS` / `_LIGHTS` | `true` | Per-domain gates — turn a flaky/slow domain off without disabling the rest. |
+| `TELEMETRY_SAMPLE_PRESENCE` | `false` | Presence is captured as events; off by default to avoid redundant rows. |
+| `TELEMETRY_READINGS_RETENTION_DAYS` | `7` | How long raw device readings are kept. |
 | `TELEMETRY_EVENTS_RETENTION_DAYS` | `400` | How long discrete events are kept — far longer than readings, since events are rare and human-meaningful. |
 
-> **Extensible by design (#283):** the `readings`/`events` tables are narrow (one row per observation/event) with a JSON sidecar column, so a new device type or field becomes new *rows*, never an `ALTER TABLE`. Per-domain **reading** capture (HVAC temps, plug watts, …) and its chart view land in #290; this step ships the event log + the panel.
+> **Extensible by design (#283):** the `readings`/`events` tables are narrow (one row per observation/event) with a JSON sidecar column, so a new device type or field becomes new *rows*, never an `ALTER TABLE`. A new domain just needs a small pure adapter in `src/telemetry_adapters.py` (mapping its reading object → rows) wired into the sampler.
 
 ## Weather
 

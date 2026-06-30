@@ -56,3 +56,30 @@ def test_activity_domains_lists_present_domains(client: TestClient) -> None:
     resp = client.get("/api/activity/domains")
     assert resp.status_code == 200
     assert resp.json()["domains"] == ["alarm", "plug", "power"]
+
+
+def test_activity_readings_empty_ok(client: TestClient) -> None:
+    resp = client.get("/api/activity/readings")
+    assert resp.status_code == 200
+    assert resp.json() == {"readings": [], "count": 0}
+
+
+def test_activity_readings_filters_by_domain_and_metric(client: TestClient) -> None:
+    from src.telemetry import Reading
+
+    telemetry.record_readings(
+        [Reading("hvac", "u1", "room_temperature", value_num=21.0, unit="degC")],
+        ts=1_700_000_000,
+    )
+    telemetry.record_readings(
+        [Reading("plug", "d1", "power_w", value_num=55.0, unit="W")],
+        ts=1_700_000_100,
+    )
+    all_rows = client.get("/api/activity/readings").json()["readings"]
+    assert {r["domain"] for r in all_rows} == {"hvac", "plug"}
+
+    hvac = client.get("/api/activity/readings", params={"domain": "hvac"}).json()["readings"]
+    assert len(hvac) == 1 and hvac[0]["metric"] == "room_temperature"
+
+    by_metric = client.get("/api/activity/readings", params={"metric": "power_w"}).json()["readings"]
+    assert len(by_metric) == 1 and by_metric[0]["value_num"] == 55.0

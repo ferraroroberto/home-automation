@@ -64,3 +64,32 @@ async def get_activity_domains() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="failed to read activity log")
     domains = sorted({r["domain"] for r in rows if r.get("domain")})
     return {"domains": domains}
+
+
+@router.get("/api/activity/readings")
+async def get_readings(
+    domain: Optional[str] = None,
+    entity: Optional[str] = None,
+    metric: Optional[str] = None,
+    since: Optional[int] = None,
+    limit: int = 200,
+) -> Dict[str, Any]:
+    """Return recent device readings, newest first, filtered by the supplied facets.
+
+    Powers the Activity log's readings view (#290). ``value_num`` passes through
+    unchanged — ``None`` (asleep) stays ``None``, never 0.
+    """
+    safe_limit = max(1, min(int(limit or 200), _MAX_LIMIT))
+    try:
+        readings: List[Dict[str, Any]] = await asyncio.to_thread(
+            telemetry.read_readings,
+            domain=domain or None,
+            entity_id=entity or None,
+            metric=metric or None,
+            since=since,
+            limit=safe_limit,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to read telemetry readings: %s", exc)
+        raise HTTPException(status_code=500, detail="failed to read telemetry readings")
+    return {"readings": readings, "count": len(readings)}

@@ -12,9 +12,18 @@ import { jsonApi } from './api.js';
 import { toast } from './state.js';
 
 const PAGE_LIMIT = 100;
+let mode = 'events'; // 'events' | 'readings'
 
 function el(id) {
   return document.getElementById(id);
+}
+
+// Compact numeric format for a reading value (keeps small decimals, drops noise).
+function fmtNum(n) {
+  if (n === null || n === undefined) return '—';
+  const abs = Math.abs(n);
+  if (abs !== 0 && abs < 1) return n.toFixed(3);
+  return Math.round(n * 100) / 100;
 }
 
 // Human label for an epoch-second timestamp: today → time only, else date+time.
@@ -67,6 +76,33 @@ function renderRows(events) {
   }
 }
 
+function renderReadings(readings) {
+  const list = el('activityList');
+  const note = el('activityNote');
+  list.innerHTML = '';
+  if (!readings.length) {
+    note.hidden = false;
+    note.textContent = 'No readings yet — the sampler records device telemetry (HVAC temps, plug watts, UPS load) every few minutes while the app runs.';
+    return;
+  }
+  note.hidden = true;
+  for (const r of readings) {
+    const li = document.createElement('li');
+    const unreachable = r.quality && r.quality !== 'ok';
+    li.className = 'activity-row' + (unreachable ? ' activity-sev-warning' : '');
+    const value = r.value_txt != null ? r.value_txt : fmtNum(r.value_num);
+    const unit = r.unit && r.value_num != null ? ' ' + r.unit : '';
+    li.innerHTML =
+      '<span class="activity-time">' + fmtTime(r.ts) + '</span>' +
+      '<span class="activity-domain">' + (r.domain || '—') + '</span>' +
+      '<span class="activity-type">' + (r.metric || '—') + '</span>' +
+      '<span class="activity-detail muted small"></span>';
+    li.querySelector('.activity-detail').textContent =
+      (r.entity_id ? r.entity_id + ' · ' : '') + value + unit;
+    list.appendChild(li);
+  }
+}
+
 async function loadEvents() {
   const domain = el('activityDomain').value;
   const type = (el('activityType').value || '').trim();
@@ -82,23 +118,68 @@ async function loadEvents() {
   }
 }
 
-async function loadDomains() {
+async function loadReadings() {
+  const domain = el('activityDomain').value;
+  const metric = (el('activityMetric').value || '').trim();
+  const params = new URLSearchParams();
+  if (domain) params.set('domain', domain);
+  if (metric) params.set('metric', metric);
+  params.set('limit', String(PAGE_LIMIT));
+  try {
+    const data = await jsonApi('/api/activity/readings?' + params.toString());
+    renderReadings((data && data.readings) || []);
+  } catch (exc) {
+    toast((exc && exc.message) || 'Failed to load readings');
+  }
+}
+
+// Reload whichever view is active.
+function reload() {
+  return mode === 'readings' ? loadReadings() : loadEvents();
+}
+
+// Domains shown in the dropdown depend on the view: events come from the store,
+// readings come from the fixed sampler domain set (no extra round-trip).
+const READING_DOMAINS = ['hvac', 'plug', 'ups', 'light', 'presence'];
+
+function fillDomains(domains) {
   const select = el('activityDomain');
+  const current = select.value;
+  select.innerHTML = '<option value="">All</option>';
+  for (const d of domains) {
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = d;
+    select.appendChild(opt);
+  }
+  // Preserve the selection only if still valid for this view.
+  select.value = domains.indexOf(current) >= 0 ? current : '';
+}
+
+async function refreshDomains() {
+  if (mode === 'readings') {
+    fillDomains(READING_DOMAINS);
+    return;
+  }
   try {
     const data = await jsonApi('/api/activity/domains');
-    const domains = (data && data.domains) || [];
-    const current = select.value;
-    select.innerHTML = '<option value="">All</option>';
-    for (const d of domains) {
-      const opt = document.createElement('option');
-      opt.value = d;
-      opt.textContent = d;
-      select.appendChild(opt);
-    }
-    select.value = current; // preserve selection across reopen
+    fillDomains((data && data.domains) || []);
   } catch (exc) {
     // Non-fatal: the dropdown just stays "All".
   }
+}
+
+function applyMode(next) {
+  mode = next === 'readings' ? 'readings' : 'events';
+  const isReadings = mode === 'readings';
+  el('activityModeEvents').classList.toggle('is-active', !isReadings);
+  el('activityModeEvents').setAttribute('aria-selected', String(!isReadings));
+  el('activityModeReadings').classList.toggle('is-active', isReadings);
+  el('activityModeReadings').setAttribute('aria-selected', String(isReadings));
+  el('activityTypeRow').hidden = isReadings;
+  el('activityMetricRow').hidden = !isReadings;
+  refreshDomains();
+  reload();
 }
 
 function openActivity() {
@@ -106,8 +187,8 @@ function openActivity() {
   if (!dlg) return;
   if (typeof dlg.showModal === 'function') dlg.showModal();
   else dlg.setAttribute('open', '');
-  loadDomains();
-  loadEvents();
+  refreshDomains();
+  reload();
 }
 
 function closeActivity() {
@@ -117,20 +198,28 @@ function closeActivity() {
   else dlg.removeAttribute('open');
 }
 
+// Debounce a free-text input so each keystroke doesn't fire a request.
+function wireDebounced(input, fn) {
+  if (!input) return;
+  let t = null;
+  input.addEventListener('input', function () {
+    if (t) clearTimeout(t);
+    t = setTimeout(fn, 250);
+  });
+}
+
 // Wire the Home button + the overlay's controls. Called once at boot.
 export function wireActivity() {
   const open = el('activityOpen');
   if (open) open.addEventListener('click', openActivity);
   const close = el('activityClose');
   if (close) close.addEventListener('click', closeActivity);
+  const modeEvents = el('activityModeEvents');
+  if (modeEvents) modeEvents.addEventListener('click', function () { applyMode('events'); });
+  const modeReadings = el('activityModeReadings');
+  if (modeReadings) modeReadings.addEventListener('click', function () { applyMode('readings'); });
   const domain = el('activityDomain');
-  if (domain) domain.addEventListener('change', loadEvents);
-  const type = el('activityType');
-  if (type) {
-    let t = null;
-    type.addEventListener('input', function () {
-      if (t) clearTimeout(t);
-      t = setTimeout(loadEvents, 250); // debounce free-text typing
-    });
-  }
+  if (domain) domain.addEventListener('change', reload);
+  wireDebounced(el('activityType'), reload);
+  wireDebounced(el('activityMetric'), reload);
 }
