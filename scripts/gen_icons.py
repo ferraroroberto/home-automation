@@ -38,8 +38,11 @@ def _house(size: int, pad_ratio: float) -> Image.Image:
     apply the maskable safe-zone + corner mask themselves, so a flat opaque
     square is the correct source for every target.
 
-    The glyph is a white house silhouette (gabled roof + square body) with an
-    accent-coloured door, centred in a padded safe zone.
+    The glyph is a flush pentagon house silhouette (roofline runs straight
+    into the walls, no overhanging eaves) with an accent-coloured door,
+    matching the proportions of the in-app `i-house` Lucide glyph
+    (`app/webapp/static/index.html`) so the app icon reads consistently with
+    the rest of the app's iconography.
     """
     img = Image.new("RGB", (size, size), BG)
     d = ImageDraw.Draw(img)
@@ -53,22 +56,17 @@ def _house(size: int, pad_ratio: float) -> Image.Image:
     cx = size // 2
     span = right - left
 
-    # Roof: a gable triangle spanning the full width, apex at the top.
+    # Flush pentagon: roof and walls share the same width, so the roofline
+    # meets the walls with no overhang — one continuous silhouette.
     eaves_y = top + int(span * 0.42)  # where the roof meets the walls
     d.polygon(
-        [(left, eaves_y), (cx, top), (right, eaves_y)],
+        [(left, eaves_y), (cx, top), (right, eaves_y), (right, bottom), (left, bottom)],
         fill=WHITE,
     )
 
-    # Body: a square wall block under the eaves, inset so the roof overhangs.
-    body_inset = int(span * 0.12)
-    body_left = left + body_inset
-    body_right = right - body_inset
-    d.rectangle([body_left, eaves_y, body_right, bottom], fill=WHITE)
-
     # Door: a tall accent-coloured opening, bottom-centred in the body.
-    door_w = int(span * 0.22)
-    door_h = int((bottom - eaves_y) * 0.62)
+    door_w = int(span * 0.24)
+    door_h = int((bottom - eaves_y) * 0.72)
     door_top = bottom - door_h
     d.rounded_rectangle(
         [cx - door_w // 2, door_top, cx + door_w // 2, bottom],
