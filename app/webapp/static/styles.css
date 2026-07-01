@@ -642,6 +642,10 @@ html, body {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* Groups the theme toggle with the nav-debug toggle (#300) so both sit
+   together on the right of the weather tile, per the same "left of the
+   sun/moon icon" placement the theme toggle already uses. */
+.weather-actions { display: flex; align-items: center; gap: 2px; flex: none; }
 /* Subtle, non-distracting theme toggle — transparent, muted, small. */
 .weather-theme-btn {
   flex: none;
@@ -657,6 +661,10 @@ html, body {
 }
 .weather-theme-btn .icon { width: 1.15rem; height: 1.15rem; }
 .weather-theme-btn:active { transform: scale(0.92); }
+/* Nav-debug toggle (#300): a temporary on-device diagnostic for the iOS
+   modal/nav-pin bugs — lit up in the accent color while recording so it's
+   obvious debug mode is on, unlike the theme toggle it sits next to. */
+#navDebugBtn[aria-pressed="true"] { color: var(--accent); opacity: 1; }
 .weather-fc-icon { font-size: 1.3rem; line-height: 1; color: var(--ink); }
 .weather-fc-range {
   font-size: var(--font-body);
@@ -1883,6 +1891,26 @@ button.presence-name:hover { text-decoration: underline; }
   background: transparent;
 }
 .detail-dialog::backdrop { background: rgba(0,0,0,0.5); }
+/* Top-anchor every .detail-dialog on mobile instead of leaning on the UA's
+   default vertical auto-centering over `92vh`/`92dvh` (#300). That centering
+   left an asymmetric, wrongly-coloured gap near the bottom of the screen on
+   iOS — roughly where the (hidden) floating nav normally sits — because the
+   UA-computed centering math doesn't reliably track the true visual viewport
+   across a dialog open/close. Anchoring `top` explicitly with the same
+   safe-area technique the nav bar already relies on, and letting
+   `margin-bottom: auto` absorb the remainder instead of stretching the box,
+   removes that guesswork: short dialogs sit just under the top gap (generous
+   room for the notch/camera) and tall ones (e.g. Activity Log) are capped by
+   `max-height` well short of the physical bottom edge, so there is nothing
+   left uncovered by the dialog + its backdrop. Desktop keeps the original
+   UA-centered behaviour untouched. */
+@media (pointer: coarse) and (max-width: 520px) {
+  .detail-dialog {
+    margin: calc(env(safe-area-inset-top, 0px) + var(--space-lg)) auto auto;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--space-lg) - var(--gap));
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--space-lg) - var(--gap));
+  }
+}
 /* Lock the page while any modal is open so the background can't scroll behind it
    (#214). That stray scroll also fed a non-zero visualViewport.offsetTop into
    tabs.js' nav pinning, whose stale translate stranded the floating bar

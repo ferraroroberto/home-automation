@@ -30,6 +30,11 @@ function engage() {
   b.style.right = '0';
   b.style.width = '100%';
   locked = true;
+  // Deterministic signal for tabs.js (#300): reset any stale VisualViewport
+  // transform on the floating nav *before* it goes hidden, so the transform
+  // that reappears with it on close is never a leftover from before the
+  // dialog opened.
+  document.dispatchEvent(new CustomEvent('scroll-lock:engaged'));
 }
 
 function release() {
@@ -42,6 +47,10 @@ function release() {
   b.style.width = '';
   locked = false;
   window.scrollTo(0, savedScrollY);         // restore the offset the negative top stood in for
+  // Fired *after* the scroll restore completes, so tabs.js's re-pin (#300)
+  // always measures a settled layout instead of racing its own independent
+  // MutationObserver against this one over the same `open` attribute change.
+  document.dispatchEvent(new CustomEvent('scroll-lock:released'));
 }
 
 // Single source of truth: locked iff a dialog is open, released otherwise.

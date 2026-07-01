@@ -9,6 +9,7 @@
 'use strict';
 
 import { els, state, TAB_KEY } from './state.js';
+import { recordNavEvent } from './nav-debug.js';
 
 const TABS = ['home', 'ac', 'energy', 'plugs', 'lights', 'network', 'security'];
 // tab name → button el handle / pane el handle (in state.els).
@@ -79,6 +80,20 @@ function editableFocused() {
  * content wrapper so iOS anchors it to the viewport rather than to short-tab
  * content.
  *
+ * #300 tried counter-translating standalone by `+visualViewport.offsetTop` after
+ * an on-device log showed the bar drifting by exactly that much post-keyboard.
+ * A second on-device log proved that fix actively harmful: `offsetTop` isn't a
+ * stuck post-keyboard residual, it swings continuously during ordinary momentum
+ * scrolling in this standalone PWA (no dialog or keyboard involved). A
+ * requestAnimationFrame-scheduled correction is structurally one frame behind a
+ * fast-changing live value, so it overshoots — and since the bar only has ~21px
+ * of clearance below it, correcting for the ~68px swings actually observed pushed
+ * the whole bar off the bottom of the screen. A drifting-but-visible bar beats a
+ * bar that vanishes, so standalone reverts to never translating. If this is
+ * revisited, the fix has to prevent `offsetTop` from moving in the first place
+ * (e.g. taming the momentum-scroll bounce itself) rather than chasing it after
+ * the fact.
+ *
  * The transform path survives ONLY for a real browser tab, where the toolbar
  * genuinely collapses: there we translate the bar up by the hidden slice, clamped to
  * a toolbar's height and suppressed while the keyboard is up. A periodic watchdog
@@ -104,20 +119,24 @@ function pinNavToVisualViewport(nav) {
   function apply() {
     if (!mq.matches) {
       // Desktop / wide: CSS owns the bar. Drop any transform we may have left on.
-      if (nav.style.transform !== '') nav.style.transform = '';
+      if (nav.style.transform !== '') { recordNavEvent('apply:clear(desktop)'); nav.style.transform = ''; }
       return;
     }
     // Hidden behind a modal/overlay — re-pin the instant it reappears.
     if (getComputedStyle(nav).visibility === 'hidden') return;
-    // Standalone PWA → never translate (CSS owns it). Browser tab → compensate for
-    // the collapsing toolbar, but not while a field is focused (keyboard up) and
-    // never by more than a toolbar's worth.
+    // Standalone PWA → never translate (CSS owns it; see the #300 postmortem
+    // above). Browser tab → compensate for the collapsing toolbar, but not
+    // while a field is focused (keyboard up) and never by more than a
+    // toolbar's worth.
     let desired = '';
     if (!isStandalonePwa() && !editableFocused()) {
       const hidden = window.innerHeight - vv.height - vv.offsetTop;
       if (hidden > 1 && hidden <= MAX_PIN_PX) desired = 'translateY(' + -hidden + 'px)';
     }
-    if (nav.style.transform !== desired) nav.style.transform = desired;
+    if (nav.style.transform !== desired) {
+      recordNavEvent('apply:setTransform ' + (nav.style.transform || '(none)') + ' -> ' + (desired || '(none)'));
+      nav.style.transform = desired;
+    }
   }
 
   // Coalesce burst events (vv scroll/resize fire rapidly) into one paint.
@@ -131,15 +150,32 @@ function pinNavToVisualViewport(nav) {
   vv.addEventListener('scroll', schedule);
   if (mq.addEventListener) mq.addEventListener('change', apply);
 
-  // Reliable modal-close re-pin: watch the `open`/`hidden` attributes (the signal
-  // scroll-lock.js trusts) rather than the `close` event that doesn't reliably
-  // fire. Double-rAF so we recompute AFTER scroll-lock has restored the body and
-  // layout has settled. Covers <dialog> open/close and the #loginOverlay toggle.
+  // <dialog> open/close re-pin (#300): react to scroll-lock.js's own explicit
+  // engaged/released signals instead of an independent MutationObserver racing
+  // the same `open` attribute mutation. Two observers guessing at ordering off
+  // one DOM change is what let a stale translateY survive into the frame where
+  // CSS un-hides the bar again — clearing the transform up front (on `engaged`,
+  // before the bar is even hidden) and only recomputing it once scroll-lock
+  // confirms the body restore is done (`released`) removes the race entirely.
+  document.addEventListener('scroll-lock:engaged', function () {
+    if (nav.style.transform !== '') {
+      recordNavEvent('engaged:clear ' + nav.style.transform + ' -> (none)');
+      nav.style.transform = '';
+    }
+  });
+  document.addEventListener('scroll-lock:released', function () {
+    requestAnimationFrame(function () { requestAnimationFrame(apply); });
+  });
+
+  // #loginOverlay toggle re-pin: it isn't a <dialog>, so it never fires the
+  // scroll-lock events above. Watches `hidden` only (not `open`, which is the
+  // <dialog> signal now owned by the events above) so it can't double-fire on
+  // the same mutation. Double-rAF so we recompute after layout settles.
   const obs = new MutationObserver(function () {
     requestAnimationFrame(function () { requestAnimationFrame(apply); });
   });
   obs.observe(document.documentElement, {
-    attributes: true, attributeFilter: ['open', 'hidden'], subtree: true,
+    attributes: true, attributeFilter: ['hidden'], subtree: true,
   });
 
   // Self-healing watchdog: the ultimate backstop. Even if every event above is

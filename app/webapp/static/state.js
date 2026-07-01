@@ -403,6 +403,7 @@ export const els = {
   // Home-tab weather tile (GET /api/weather) + its inline theme toggle
   weatherTile: document.getElementById('weatherTile'),
   weatherThemeBtn: document.getElementById('weatherThemeBtn'),
+  navDebugBtn: document.getElementById('navDebugBtn'),
   wxLocation: document.getElementById('wxLocation'),
   wxNowIcon: document.getElementById('wxNowIcon'),
   wxNowTemp: document.getElementById('wxNowTemp'),

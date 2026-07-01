@@ -386,8 +386,12 @@
             </span>
           </div>
         </div>
-        <button id="weatherThemeBtn" type="button" class="weather-theme-btn"
-                title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <div class="weather-actions">
+          <button id="navDebugBtn" type="button" class="weather-theme-btn"
+                  title="Toggle nav debug overlay" aria-label="Toggle nav debug overlay" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg></button>
+          <button id="weatherThemeBtn" type="button" class="weather-theme-btn"
+                  title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        </div>
       </section>
 
       <!-- Alarm controls (actionable) — the *same* component as the Security
