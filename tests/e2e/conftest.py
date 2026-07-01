@@ -31,6 +31,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from urllib.parse import unquote
@@ -48,6 +49,9 @@ _KEY = _REPO_ROOT / "webapp" / "certificates" / "key.pem"
 _ADOPT_PORT = 8447
 _IPHONE_DEVICE = "iPhone 14"
 _DEFAULT_TIMEOUT_MS = int(os.environ.get("E2E_DEFAULT_TIMEOUT_MS", "15000"))
+# Throwaway telemetry DB for the autobooted webapp, so a control action in the
+# e2e flow can't mirror events into the real webapp/telemetry.sqlite3 (#296).
+_E2E_TELEMETRY_DB = Path(tempfile.gettempdir()) / "ha_e2e_telemetry.sqlite3"
 
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
@@ -178,6 +182,10 @@ def base_url() -> Iterator[str]:
             # real HVAC (cloud) / plugs / UPS / lights every few minutes from a
             # test boot. The activity UI is driven against the API directly.
             "TELEMETRY_SAMPLER_ENABLED": "0",
+            # And redirect the telemetry DB to a throwaway file so control
+            # actions in the e2e flow (arm/disarm/plug toggles) can't mirror
+            # events into the real webapp/telemetry.sqlite3 (#296).
+            "TELEMETRY_DB_PATH": str(_E2E_TELEMETRY_DB),
             # Same for the HVAC automation engine: never drive real units from a
             # test boot (the dormant-tick short-circuit makes it harmless with no
             # config, but keep it explicitly off like the sampler).

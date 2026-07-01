@@ -83,3 +83,21 @@ def test_activity_readings_filters_by_domain_and_metric(client: TestClient) -> N
 
     by_metric = client.get("/api/activity/readings", params={"metric": "power_w"}).json()["readings"]
     assert len(by_metric) == 1 and by_metric[0]["value_num"] == 55.0
+
+
+def test_activity_readings_carry_a_label(client: TestClient) -> None:
+    from src.telemetry import Reading
+
+    telemetry.record_readings(
+        [
+            Reading("plug", "zzz-unknown-plug", "power_w", value_num=5.0),
+            Reading("ups", "ups", "load_w", value_num=10.0),
+        ],
+        ts=1_700_000_000,
+    )
+    rows = client.get("/api/activity/readings").json()["readings"]
+    by_domain = {r["domain"]: r for r in rows}
+    # No rename override -> label falls back to the raw entity id.
+    assert by_domain["plug"]["label"] == "zzz-unknown-plug"
+    # The UPS singleton gets a fixed friendly label.
+    assert by_domain["ups"]["label"] == "UPS"

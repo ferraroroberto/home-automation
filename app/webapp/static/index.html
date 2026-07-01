@@ -1530,6 +1530,32 @@
         <button id="activityModeReadings" type="button" class="activity-mode" role="tab" aria-selected="false" data-mode="readings">Readings</button>
       </div>
 
+      <!-- Legend (#296): a collapsible glossary so each event type / reading
+           metric / severity colour is self-explaining. Pure HTML <details>. -->
+      <details class="activity-legend">
+        <summary>What do these mean?</summary>
+        <div class="activity-legend-body">
+          <p class="muted small"><strong>Events</strong> — things that happened:</p>
+          <dl>
+            <dt>arm / disarm</dt><dd>Alarm armed (full) or disarmed. Source is manual / schedule / presence.</dd>
+            <dt>partial / perimeter</dt><dd>Alarm armed in partial or perimeter mode.</dd>
+            <dt>ac_lost</dt><dd>Alarm panel lost mains power (running on backup battery) or regained it.</dd>
+            <dt>intrusion</dt><dd>Alarm was triggered.</dd>
+            <dt>panel_event</dt><dd>An entry from the alarm panel's <em>own</em> event history (RISCO) — the authoritative log, distinct from the live <code>ac_lost</code>/<code>intrusion</code> we detect ourselves.</dd>
+            <dt>power_lost / power_restored</dt><dd>The UPS lost or regained mains power.</dd>
+            <dt>plug_on / plug_off</dt><dd>A smart plug was switched on or off.</dd>
+          </dl>
+          <p class="muted small"><strong>Readings</strong> — periodic device measurements (every few minutes):</p>
+          <dl>
+            <dt>room_temperature / set_temperature</dt><dd>HVAC measured room temp and its target setpoint (°C).</dd>
+            <dt>power_w · voltage_v · current_ma · energy_kwh</dt><dd>Smart-plug live power, voltage, current, and cumulative energy.</dd>
+            <dt>battery_charge_pct · runtime_seconds · load_w</dt><dd>UPS battery charge, remaining runtime, and load.</dd>
+            <dt>brightness · temperature_k</dt><dd>Light brightness (%) and colour temperature (K).</dd>
+          </dl>
+          <p class="muted small"><span class="legend-swatch legend-warning"></span> amber = warning · <span class="legend-swatch legend-alarm"></span> red = alarm / unreachable. A missing value shows as <code>—</code>.</p>
+        </div>
+      </details>
+
       <div class="activity-filters">
         <label class="row">
           <span>Domain</span>

@@ -17,6 +17,11 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 
 from src import telemetry
+from src.display_names import load_display_names
+from src.elgato_display_names import load_elgato_display_names
+from src.presence_display_names import load_presence_display_names
+from src.security_display_names import load_security_display_names
+from src.tuya_display_names import load_tuya_display_names
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,39 @@ router = APIRouter()
 
 # Cap a single page so a malicious/typo'd query can't pull the whole store.
 _MAX_LIMIT = 500
+
+# Per-domain display-name override stores (the same the rename UIs write). Used
+# to label rows with "Office plug" / "hab. Luca" instead of a raw device id.
+_LABEL_LOADERS = {
+    "hvac": load_display_names,
+    "plug": load_tuya_display_names,
+    "security": load_security_display_names,
+    "light": load_elgato_display_names,
+    "presence": load_presence_display_names,
+}
+
+
+def _enrich_labels(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Add a human ``label`` to each row from its domain's rename store.
+
+    Falls back to the raw ``entity_id`` (or a fixed name for singletons like the
+    UPS). Maps are loaded once per request, not per row.
+    """
+    maps: Dict[str, Dict[str, str]] = {}
+    for domain in {r.get("domain") for r in rows}:
+        loader = _LABEL_LOADERS.get(domain)
+        if loader:
+            try:
+                maps[domain] = loader()
+            except Exception:  # noqa: BLE001 — a missing/broken map just means no label
+                maps[domain] = {}
+    for r in rows:
+        eid = r.get("entity_id")
+        label = maps.get(r.get("domain"), {}).get(eid) if eid else None
+        if not label and r.get("domain") == "ups":
+            label = "UPS"
+        r["label"] = label or eid
+    return rows
 
 
 @router.get("/api/activity")
@@ -51,7 +89,7 @@ async def get_activity(
     except Exception as exc:  # noqa: BLE001 — surface a clean 500, don't leak internals
         logger.warning("⚠️  Failed to read activity events: %s", exc)
         raise HTTPException(status_code=500, detail="failed to read activity log")
-    return {"events": events, "count": len(events)}
+    return {"events": _enrich_labels(events), "count": len(events)}
 
 
 @router.get("/api/activity/domains")
@@ -92,4 +130,4 @@ async def get_readings(
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to read telemetry readings: %s", exc)
         raise HTTPException(status_code=500, detail="failed to read telemetry readings")
-    return {"readings": readings, "count": len(readings)}
+    return {"readings": _enrich_labels(readings), "count": len(readings)}

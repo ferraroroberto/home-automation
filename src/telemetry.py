@@ -41,8 +41,12 @@ from dotenv import load_dotenv
 logger = logging.getLogger("telemetry")
 
 # Default DB location: the repo's gitignored runtime area, next to the other
-# SQLite stores (energy_history, network_history).
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "webapp" / "telemetry.sqlite3"
+# SQLite stores (energy_history, network_history). ``TELEMETRY_DB_PATH`` (env)
+# overrides it — used by the e2e subprocess to keep a test boot off the real DB.
+DEFAULT_DB_PATH = Path(
+    os.getenv("TELEMETRY_DB_PATH")
+    or (Path(__file__).resolve().parent.parent / "webapp" / "telemetry.sqlite3")
+)
 
 _HOUR = 3600
 
@@ -196,10 +200,15 @@ def record_readings(
 ) -> int:
     """Persist a batch of readings, all stamped with one ``ts`` (epoch seconds).
 
-    Returns the number of rows written. ``value_num`` stays ``NULL`` for an
-    absent numeric reading (asleep ≠ 0). Blocking SQLite — callers on the event
-    loop wrap this in :func:`asyncio.to_thread`.
+    Returns the number of rows written. **A reading with no value at all**
+    (both ``value_num`` and ``value_txt`` ``None``) is dropped — an offline or
+    non-metering device produces a gap, not a NULL row, so the store isn't
+    flooded with meaningless "—" entries. A present numeric ``0`` is kept, and a
+    genuinely-missing numeric alongside a text value still records (asleep ≠ 0
+    only matters where there is something to record). Blocking SQLite — callers
+    on the event loop wrap this in :func:`asyncio.to_thread`.
     """
+    rows = [r for r in rows if r.value_num is not None or r.value_txt is not None]
     if not rows:
         return 0
     when = int(ts if ts is not None else time.time())
@@ -258,24 +267,36 @@ def record_event(
 
 
 # --------------------------------------------------------------- reads
+def _like_escape(value: str) -> str:
+    """Escape SQLite LIKE wildcards so a literal ``%``/``_`` isn't a wildcard."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _filtered_select(
     table: str,
-    filters: Dict[str, Any],
+    exact: Dict[str, Any],
+    like: Optional[Dict[str, Any]],
     since: Optional[int],
     until: Optional[int],
     limit: int,
 ) -> tuple[str, List[Any]]:
     """Build a parametrized ``SELECT … WHERE … ORDER BY ts DESC LIMIT`` query.
 
-    Only non-``None`` filters contribute a clause, so callers pass just the
-    facets they care about. Values are bound, never interpolated.
+    ``exact`` columns match with ``=`` (dropdowns: domain, entity); ``like``
+    columns match a case-insensitive substring (free-text boxes: event_type,
+    metric — so ``w`` finds ``power_w``). Only non-``None`` filters contribute a
+    clause. Values are always bound, never interpolated.
     """
     clauses: List[str] = []
     params: List[Any] = []
-    for col, val in filters.items():
+    for col, val in exact.items():
         if val is not None:
             clauses.append(f"{col} = ?")
             params.append(val)
+    for col, val in (like or {}).items():
+        if val is not None:
+            clauses.append(f"{col} LIKE ? ESCAPE '\\'")
+            params.append("%" + _like_escape(str(val)) + "%")
     if since is not None:
         clauses.append("ts >= ?")
         params.append(int(since))
@@ -303,7 +324,8 @@ def read_events(
     """
     query, params = _filtered_select(
         "events",
-        {"domain": domain, "event_type": event_type, "entity_id": entity_id},
+        {"domain": domain, "entity_id": entity_id},
+        {"event_type": event_type},
         since,
         until,
         limit,
@@ -341,7 +363,8 @@ def read_readings(
     """
     query, params = _filtered_select(
         "readings",
-        {"domain": domain, "entity_id": entity_id, "metric": metric},
+        {"domain": domain, "entity_id": entity_id},
+        {"metric": metric},
         since,
         until,
         limit,

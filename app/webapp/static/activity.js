@@ -43,10 +43,11 @@ function fmtTime(ts) {
 function detailText(ev) {
   const p = ev.payload || {};
   const bits = [];
+  if (ev.label && ev.label !== ev.entity_id) bits.push(String(ev.label));
   if (p.detail) bits.push(String(p.detail));
   else if (p.text) bits.push(String(p.text));
   else if (p.reason) bits.push(String(p.reason));
-  if (ev.source && !bits.length) bits.push(ev.source);
+  if (ev.source && bits.length === 0) bits.push(ev.source);
   if (ev.outcome === 'error' && p.error) bits.push(String(p.error));
   return bits.join(' · ');
 }
@@ -97,8 +98,9 @@ function renderReadings(readings) {
       '<span class="activity-domain">' + (r.domain || '—') + '</span>' +
       '<span class="activity-type">' + (r.metric || '—') + '</span>' +
       '<span class="activity-detail muted small"></span>';
+    const who = r.label || r.entity_id;
     li.querySelector('.activity-detail').textContent =
-      (r.entity_id ? r.entity_id + ' · ' : '') + value + unit;
+      (who ? who + ' · ' : '') + value + unit;
     list.appendChild(li);
   }
 }
