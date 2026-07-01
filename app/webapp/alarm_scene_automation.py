@@ -328,9 +328,15 @@ def consider_security_read(security: object) -> None:
     config = load_alarm_scene_config()
     if not config.enabled:
         return
-    intrusion = bool(
-        getattr(security, "ongoing_alarm", None) or getattr(security, "memory_alarm", None)
-    )
+    ongoing = getattr(security, "ongoing_alarm", None)
+    memory = getattr(security, "memory_alarm", None)
+    if ongoing is None and memory is None:
+        # WebUI scrape came back unreadable this poll (issue #307) — treating
+        # that as "no alarm" would manufacture a false→true edge the moment the
+        # next successful poll re-observes a still-latched, days-old
+        # memory_alarm. Skip edge detection entirely rather than guess.
+        return
+    intrusion = bool(ongoing or memory)
     if intrusion_rising_edge(intrusion, _state):
         asyncio.create_task(_run_onset(security, config), name="alarm-scene-onset")
     elif not intrusion and _baseline_due(config):

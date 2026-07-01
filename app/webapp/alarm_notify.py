@@ -182,14 +182,24 @@ def record_security_event(
     kind: str,
     active: bool,
     detail: Optional[str] = None,
+    log_detail: Optional[str] = None,
     prefs_loader: Callable[[], AlarmNotifyPrefs] = load_alarm_notify_prefs,
     notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
 ) -> None:
-    """Log a panel event (``intrusion`` / ``ac_lost``) and notify per its toggle."""
+    """Log a panel event (``intrusion`` / ``ac_lost``) and notify per its toggle.
+
+    ``log_detail`` is persisted to the activity log only, never the Telegram
+    copy — for the raw ``ongoing_alarm``/``memory_alarm`` flags (issue #307),
+    which are diagnosable-from-logs breadcrumbs, not something the owner needs
+    on their phone at 🚨 time. ``detail`` (rare, e.g. a manual test note) goes
+    to both, as before.
+    """
 
     record: Dict[str, Any] = {"source": "panel", "event": kind, "active": active}
     if detail:
         record["detail"] = detail
+    if log_detail:
+        record["diagnostic"] = log_detail
     append_activity("alarm", record)
 
     prefs = prefs_loader()
@@ -212,8 +222,9 @@ def record_security_event(
 
 def check_security_transitions(
     *,
-    intrusion: bool,
+    intrusion: Optional[bool],
     ac_lost: bool,
+    intrusion_detail: Optional[str] = None,
     state: Optional[Dict[str, Optional[bool]]] = None,
     prefs_loader: Callable[[], AlarmNotifyPrefs] = load_alarm_notify_prefs,
     notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
@@ -222,10 +233,21 @@ def check_security_transitions(
 
     Intrusion alerts only on its *onset* (no all-clear); AC-power alerts on both
     loss and restore. First observation of each flag just sets the baseline.
+
+    ``intrusion`` is ``None`` when the panel's ``ongoing_alarm``/``memory_alarm``
+    WebUI scrape came back unreadable this poll (issue #307) — a transient
+    scrape hiccup must not be read as "the alarm cleared", or the *next*
+    successful poll re-observing a still-latched, days-old ``memory_alarm``
+    manufactures a bogus false→true onset. An unreadable poll is skipped
+    entirely: the tracked state is left untouched rather than forced to a
+    guessed value.
     """
 
     tracker = _last_security if state is None else state
+    log_details = {"intrusion": intrusion_detail}
     for kind, value in (("intrusion", intrusion), ("ac_lost", ac_lost)):
+        if value is None:
+            continue  # unreadable this poll — don't disturb the tracked state
         last = tracker.get(kind)
         tracker[kind] = value
         if last is None or last == value:
@@ -235,6 +257,7 @@ def check_security_transitions(
         record_security_event(
             kind=kind,
             active=value,
+            log_detail=log_details.get(kind),
             prefs_loader=prefs_loader,
             notifier_factory=notifier_factory,
         )
