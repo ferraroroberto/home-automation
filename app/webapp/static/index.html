@@ -1525,10 +1525,10 @@
         <button id="activityClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
-      <div class="activity-modes" role="tablist" aria-label="View">
-        <button id="activityModeEvents" type="button" class="activity-mode is-active" role="tab" aria-selected="true" data-mode="events">Events</button>
-        <button id="activityModeReadings" type="button" class="activity-mode" role="tab" aria-selected="false" data-mode="readings">Readings</button>
-      </div>
+      <nav class="range-tabs activity-modes" role="tablist" aria-label="View">
+        <button id="activityModeEvents" type="button" class="range-tab active" role="tab" aria-selected="true" data-mode="events">Events</button>
+        <button id="activityModeReadings" type="button" class="range-tab" role="tab" aria-selected="false" data-mode="readings">Readings</button>
+      </nav>
 
       <!-- Legend (#296): a collapsible glossary so each event type / reading
            metric / severity colour is self-explaining. Pure HTML <details>. -->
