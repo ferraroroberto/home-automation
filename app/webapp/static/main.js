@@ -35,6 +35,7 @@ import { wirePowerNotify } from './ups-notify.js';
 import { onVmTab, restoreVmSnapshot } from './vm.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wirePresenceControls, wireSecurityNotify } from './security.js';
+import { onWakeAlarmsTab, wireWakeAlarms } from './wake-alarms.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
 import { startWeatherPolling } from './weather.js';
@@ -836,6 +837,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireScenePairings();
   wirePresenceControls();
   wireSecurityNotify();
+  wireWakeAlarms();
   wireCameras();
   wireNetworkControls();
   wireActivity();
@@ -860,7 +862,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
   // so fan the single switcher hook out to each controller.
   onTabChange(function (tab) {
-    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onVmTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab);
+    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onVmTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab);
   });
   setTab(initialTab());
 

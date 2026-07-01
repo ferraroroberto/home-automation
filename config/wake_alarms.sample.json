@@ -1,0 +1,18 @@
+[
+  {
+    "id": "weekday-wakeup",
+    "label": "Wake up",
+    "enabled": true,
+    "time": "07:00",
+    "days": ["mon", "tue", "wed", "thu", "fri"],
+    "date": null
+  },
+  {
+    "id": "flight-reminder",
+    "label": "Leave for the airport",
+    "enabled": true,
+    "time": "05:30",
+    "days": [],
+    "date": "2026-08-12"
+  }
+]

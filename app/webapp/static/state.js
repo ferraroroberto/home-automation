@@ -98,6 +98,11 @@ export const state = {
   liveChart: null,
   aggChart: null,
   forecastChart: null,
+  // Wake alarms (recurring/one-shot) from GET /api/wake-alarms, and app-native
+  // countdown timers from GET /api/wake-timers (issue #304). Distinct from the
+  // RISCO `security` alarm above — these ring/notify, they don't arm/disarm.
+  wakeAlarms: [],
+  wakeTimers: [],
 };
 
 // ----------------------------------------------------------------- DOM
@@ -392,6 +397,16 @@ export const els = {
   confirmOk: document.getElementById('confirmOk'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
+  // Wake alarms + timers (Home tab, issue #304)
+  wakeRingingBanner: document.getElementById('wakeRingingBanner'),
+  wakeAlarmsList: document.getElementById('wakeAlarmsList'),
+  wakeAlarmsNote: document.getElementById('wakeAlarmsNote'),
+  wakeAlarmsCount: document.getElementById('wakeAlarmsCount'),
+  wakeAlarmAdd: document.getElementById('wakeAlarmAdd'),
+  wakeTimersList: document.getElementById('wakeTimersList'),
+  wakeTimersNote: document.getElementById('wakeTimersNote'),
+  wakeTimerCustomMinutes: document.getElementById('wakeTimerCustomMinutes'),
+  wakeTimerCustomAdd: document.getElementById('wakeTimerCustomAdd'),
   // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.
   homeEnergyFlow: document.getElementById('homeEnergyFlow'),
   homeFlowPv: document.getElementById('homeFlowPv'),

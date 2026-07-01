@@ -33,6 +33,9 @@ Routes (split across ``app/webapp/routers/``):
     POST /api/hyperv/{action}    → start/stop the HA VM         (hyperv)
     GET  /api/activity           → unified event log (filtered) (activity)
     POST /api/nav-debug          → append a nav-pin debug event (nav_debug)
+    GET  /api/wake-alarms        → recurring/one-shot wake alarms (wake_alarms)
+    POST /api/wake-alarms/{id}/test → fire an alarm immediately   (wake_alarms)
+    GET  /api/wake-timers        → active app-native timers      (wake_alarms)
 
 Run with::
 
@@ -58,13 +61,14 @@ from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import activity, auth, cameras, energy, hyperv, lights, misc, nav_debug, network, presence, push, security, tuya, units, ups, weather
+from app.webapp.routers import activity, auth, cameras, energy, hyperv, lights, misc, nav_debug, network, presence, push, security, tuya, units, ups, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
 from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
 from app.webapp.security_automation import start_security_schedules
+from app.webapp.wake_alarm_automation import start_wake_alarms
 from app.webapp.sampler import start_sampler
 from app.webapp.telemetry_sampler import start_telemetry_sampler
 from src import telemetry
@@ -148,6 +152,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             start_presence_refresher(),
             start_presence_automation(),
             start_security_schedules(),
+            start_wake_alarms(),
             start_power_monitor(),
         )
         if t is not None
@@ -204,6 +209,7 @@ def create_app() -> FastAPI:
     app.include_router(hyperv.router)
     app.include_router(activity.router)
     app.include_router(nav_debug.router)
+    app.include_router(wake_alarms.router)
 
     logger.info(
         "ℹ️  webapp build %s (fleet %s) built %s",
