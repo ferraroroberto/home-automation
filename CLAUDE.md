@@ -41,6 +41,16 @@ Optional. Lives at `tests/e2e/`. **Don't create the folder until the first regre
 - Keep the suite small — target < 15 tests total. No Page Object Model. Don't gate commits on e2e.
 - When you remove a feature, remove its e2e test in the same commit.
 
+## UX surface
+*The design-conformance gate the `/issue-{start,finish,yolo}` skills read (convention: `project-scaffolding#83`). This is a live, parseable block — the product is the FastAPI + static PWA under `app/webapp/`.*
+
+- design spec applies: yes        # `no` would make the gate a permanent no-op; this repo serves a real PWA
+- paths:
+  - app/webapp/static/**/*.css
+  - app/webapp/static/**/*.{js,html}
+- key views:                      # the app is a single tabbed SPA served at `/`
+  - /          (home — card grid, energy tile, bottom nav)
+
 ## Verification (before declaring a task done)
 Windows / PowerShell:
 - Syntax: `& .\.venv\Scripts\python.exe -m py_compile <file>`
