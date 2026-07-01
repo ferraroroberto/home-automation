@@ -2851,17 +2851,18 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .activity-mode.is-active { background: var(--accent); color: var(--accent-fg); }
 .activity-legend { margin-bottom: var(--space-sm); }
 .activity-legend > summary {
-  cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.9em;
+  cursor: pointer; color: var(--accent); font-weight: 600;
   padding: 4px 0; list-style: revert;
 }
 .activity-legend-body { padding: var(--space-xs) 0 var(--space-sm); }
-.activity-legend-body dl {
-  margin: 4px 0 10px; display: grid; grid-template-columns: max-content 1fr;
-  gap: 2px var(--space-sm); align-items: baseline;
+/* Stacked, not a two-column table: term on its own line, description below —
+   full width and readable, mirroring the event/reading row layout. */
+.activity-legend-body dl { margin: 4px 0 16px; }
+.activity-legend-body dt {
+  font-weight: 600; color: var(--accent); margin-top: 12px; line-height: 1.35;
 }
-.activity-legend-body dt { font-weight: 600; color: var(--accent); font-size: 0.82em; white-space: nowrap; }
-.activity-legend-body dd { margin: 0; color: var(--muted); font-size: 0.82em; }
-.activity-legend-body p { margin: 6px 0; }
+.activity-legend-body dd { margin: 3px 0 0; color: var(--muted); line-height: 1.45; }
+.activity-legend-body p { margin: 12px 0 2px; }
 .legend-swatch {
   display: inline-block; width: 10px; height: 10px; border-radius: 2px;
   vertical-align: middle; margin: 0 2px;
