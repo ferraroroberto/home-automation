@@ -51,19 +51,50 @@ def test_record_readings_empty_is_noop(tmp_path: Path) -> None:
     assert T.read_readings(path=db) == []
 
 
-def test_reading_asleep_stays_null_never_zero(tmp_path: Path) -> None:
+def test_empty_reading_skipped_but_zero_kept(tmp_path: Path) -> None:
     db = tmp_path / "t.sqlite3"
     T.init_db(db)
     now = int(time.time())
-    # Asleep inverter: a missing numeric metric must persist as NULL, not 0.
-    T.record_readings(
-        [Reading("energy", "site", "pv_power_w", value_num=None, unit="W", quality="unreachable")],
+    written = T.record_readings(
+        [
+            # No value at all (offline / non-metering) -> dropped, not a NULL row.
+            Reading("plug", "d1", "power_w", value_num=None, unit="W", quality="unreachable"),
+            # A real zero is a reading, not "missing" -> kept.
+            Reading("plug", "d2", "power_w", value_num=0.0, unit="W"),
+            # A categorical value with no number -> kept.
+            Reading("hvac", "u1", "operation_mode", value_txt="heat"),
+        ],
         ts=now,
         path=db,
     )
-    rows = T.read_readings(metric="pv_power_w", path=db)
-    assert rows[0]["value_num"] is None
-    assert rows[0]["quality"] == "unreachable"
+    assert written == 2
+    rows = T.read_readings(path=db)
+    metrics = {(r["entity_id"], r["metric"]) for r in rows}
+    assert ("d1", "power_w") not in metrics  # empty reading dropped
+    zero = [r for r in rows if r["entity_id"] == "d2"][0]
+    assert zero["value_num"] == 0.0  # zero preserved, never dropped
+
+
+def test_read_events_type_is_substring_match(tmp_path: Path) -> None:
+    db = tmp_path / "t.sqlite3"
+    T.init_db(db)
+    T.record_event("plug", "plug_on", ts=1, path=db)
+    T.record_event("plug", "plug_off", ts=2, path=db)
+    T.record_event("alarm", "arm", ts=3, path=db)
+    assert {e["event_type"] for e in T.read_events(event_type="plug", path=db)} == {"plug_on", "plug_off"}
+    assert [e["event_type"] for e in T.read_events(event_type="on", path=db)] == ["plug_on"]
+
+
+def test_read_readings_metric_is_substring_match(tmp_path: Path) -> None:
+    db = tmp_path / "t.sqlite3"
+    T.init_db(db)
+    T.record_readings(
+        [Reading("plug", "d", "power_w", value_num=5.0), Reading("plug", "d", "voltage_v", value_num=1.0)],
+        ts=1,
+        path=db,
+    )
+    # "w" matches power_w, not voltage_v — the fix for the exact-match filter bug.
+    assert [r["metric"] for r in T.read_readings(metric="w", path=db)] == ["power_w"]
 
 
 def test_attrs_json_sidecar_round_trip(tmp_path: Path) -> None:

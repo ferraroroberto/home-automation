@@ -2849,6 +2849,25 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   font: inherit; font-weight: 600; padding: 4px 14px; border-radius: var(--radius-pill);
 }
 .activity-mode.is-active { background: var(--accent); color: var(--accent-fg); }
+.activity-legend { margin-bottom: var(--space-sm); }
+.activity-legend > summary {
+  cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.9em;
+  padding: 4px 0; list-style: revert;
+}
+.activity-legend-body { padding: var(--space-xs) 0 var(--space-sm); }
+.activity-legend-body dl {
+  margin: 4px 0 10px; display: grid; grid-template-columns: max-content 1fr;
+  gap: 2px var(--space-sm); align-items: baseline;
+}
+.activity-legend-body dt { font-weight: 600; color: var(--accent); font-size: 0.82em; white-space: nowrap; }
+.activity-legend-body dd { margin: 0; color: var(--muted); font-size: 0.82em; }
+.activity-legend-body p { margin: 6px 0; }
+.legend-swatch {
+  display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+  vertical-align: middle; margin: 0 2px;
+}
+.legend-swatch.legend-warning { background: var(--attention); }
+.legend-swatch.legend-alarm { background: var(--deficit); }
 .activity-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 .activity-filters .row { flex: 1 1 140px; }
 
