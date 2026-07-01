@@ -249,6 +249,55 @@ def test_security_transitions_baseline_then_intrusion_onset(tmp_path: Path, monk
     assert len(notifier.sent) == 1
 
 
+def test_security_transitions_ignores_unreadable_intrusion_poll(tmp_path: Path, monkeypatch) -> None:
+    """An unreadable WebUI scrape (``intrusion=None``) must not be read as "cleared".
+
+    Regression for issue #307: a transient scrape hiccup returning ``None``
+    was mistaken for the alarm clearing, so the *next* successful poll
+    re-observing a still-latched, days-old ``memory_alarm`` manufactured a
+    bogus false→true "new" intrusion and paged for nothing.
+    """
+
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    notifier = FakeNotifier()
+    prefs = lambda: AlarmNotifyPrefs(intrusion=True, ac_lost=True)
+    tracker = {"intrusion": True, "ac_lost": True}  # already latched from a prior real onset
+
+    AN.check_security_transitions(
+        intrusion=None, ac_lost=True, state=tracker,
+        prefs_loader=prefs, notifier_factory=lambda: notifier,
+    )
+    assert notifier.sent == []
+    assert tracker["intrusion"] is True  # left untouched, not reset
+
+    # The still-latched flag reasserting itself as True must not re-fire.
+    AN.check_security_transitions(
+        intrusion=True, ac_lost=True, state=tracker,
+        prefs_loader=prefs, notifier_factory=lambda: notifier,
+    )
+    assert notifier.sent == []
+
+
+def test_intrusion_log_carries_diagnostic_flags_but_telegram_stays_clean(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    notifier = FakeNotifier()
+    tracker = {"intrusion": False, "ac_lost": None}
+
+    AN.check_security_transitions(
+        intrusion=True, ac_lost=False,
+        intrusion_detail="ongoing_alarm=False memory_alarm=True",
+        state=tracker,
+        prefs_loader=lambda: AlarmNotifyPrefs(intrusion=True),
+        notifier_factory=lambda: notifier,
+    )
+    rows = _read_log(tmp_path)
+    assert rows[0]["diagnostic"] == "ongoing_alarm=False memory_alarm=True"
+    assert len(notifier.sent) == 1
+    assert "ongoing_alarm" not in notifier.sent[0]  # diagnostic stays log-only
+
+
 def test_security_ac_lost_alerts_both_directions_and_respects_toggle(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
     notifier = FakeNotifier()

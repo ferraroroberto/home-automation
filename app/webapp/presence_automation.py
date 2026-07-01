@@ -44,9 +44,17 @@ async def tick() -> None:
     # the cloud's third-party rate limit; intrusion/AC alerts therefore require
     # this task to be running (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
     security = await fetch_security_state()
+    ongoing, memory = security.ongoing_alarm, security.memory_alarm
+    # None,None means the RISCO WebUI scrape that backs these two flags came
+    # back unreadable this poll — not "no alarm" (issue #307: a transient
+    # scrape hiccup was mistaken for the alarm clearing, so the *next*
+    # successful poll re-observing a still-latched, days-old memory_alarm
+    # manufactured a false→true "new" intrusion and paged for nothing).
+    intrusion = None if ongoing is None and memory is None else bool(ongoing or memory)
     check_security_transitions(
-        intrusion=bool(security.ongoing_alarm or security.memory_alarm),
+        intrusion=intrusion,
         ac_lost=bool(security.ac_lost),
+        intrusion_detail=f"ongoing_alarm={ongoing} memory_alarm={memory}",
     )
     # Same single read drives the alarm-triggered camera scene capture + AI
     # verdict (issue #162): cheap edge detection here, heavy capture/vision work

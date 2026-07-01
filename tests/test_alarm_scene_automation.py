@@ -107,6 +107,28 @@ def test_consider_security_read_disabled_is_noop(monkeypatch) -> None:
     auto.consider_security_read(_security(ongoing=True, triggered_ids=(3,)))
 
 
+def test_consider_security_read_skips_edge_detection_on_unreadable_flags(monkeypatch) -> None:
+    """Regression for #307: both flags ``None`` means the RISCO WebUI scrape came
+    back unreadable this poll, not "no alarm" — treating it as a clear would let
+    the next successful poll re-observe a still-latched, days-old
+    ``memory_alarm`` and manufacture a bogus onset.
+    """
+
+    monkeypatch.setattr(auto, "load_alarm_scene_config",
+                        lambda: auto.AlarmSceneConfig(enabled=True))
+    auto._state["intrusion"] = True  # already latched from a prior real onset
+    security = SecurityState(
+        reachable=True, label="home", mode="armed", zones=[],
+        ongoing_alarm=None, memory_alarm=None,
+    )
+    try:
+        # Must not raise even with no running event loop (no task is created).
+        auto.consider_security_read(security)
+        assert auto._state["intrusion"] is True  # left untouched
+    finally:
+        auto._state["intrusion"] = None
+
+
 class _FakeNotifier:
     def __init__(self) -> None:
         self.text: str | None = None
