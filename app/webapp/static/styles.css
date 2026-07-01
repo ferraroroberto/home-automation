@@ -2829,6 +2829,12 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .activity-open {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; gap: var(--space-md); cursor: pointer;
+  /* Match the single-row Home tiles (weather / VM / UPS): same 12px 14px
+     padding, plus a min-height so this text-only launcher matches the height
+     those tiles get from their taller status pill / toggle, not a short button. */
+  padding: 12px 14px;
+  min-height: 54px;
+  box-sizing: border-box;
   font: inherit; color: var(--ink); text-align: left;
 }
 .activity-open-identity { display: inline-flex; align-items: center; gap: var(--space-sm); font-weight: 600; }
