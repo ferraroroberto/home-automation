@@ -21,6 +21,7 @@ import {
 import { icon } from './icons.js';
 import { jsonApi, hideLogin } from './api.js';
 import { setTab, wireTabs, onTabChange, initialTab } from './tabs.js';
+import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';
 import {
   loadEnergy,
   wireEnergyControls,
@@ -734,6 +735,18 @@ function toggleTheme() {
 })();
 
 els.weatherThemeBtn.addEventListener('click', toggleTheme);
+
+// ----------------------------------------------------------- nav debug (#300)
+(function initNavDebug() {
+  installNavDebug();
+  if (!els.navDebugBtn) return;
+  els.navDebugBtn.setAttribute('aria-pressed', isNavDebugEnabled() ? 'true' : 'false');
+  els.navDebugBtn.addEventListener('click', function () {
+    const next = !isNavDebugEnabled();
+    setNavDebugEnabled(next);
+    els.navDebugBtn.setAttribute('aria-pressed', next ? 'true' : 'false');
+  });
+})();
 
 els.detailClose.addEventListener('click', closeDetail);
 els.detail.addEventListener('click', function (ev) {
