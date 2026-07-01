@@ -174,9 +174,9 @@ async function refreshDomains() {
 function applyMode(next) {
   mode = next === 'readings' ? 'readings' : 'events';
   const isReadings = mode === 'readings';
-  el('activityModeEvents').classList.toggle('is-active', !isReadings);
+  el('activityModeEvents').classList.toggle('active', !isReadings);
   el('activityModeEvents').setAttribute('aria-selected', String(!isReadings));
-  el('activityModeReadings').classList.toggle('is-active', isReadings);
+  el('activityModeReadings').classList.toggle('active', isReadings);
   el('activityModeReadings').setAttribute('aria-selected', String(isReadings));
   el('activityTypeRow').hidden = isReadings;
   el('activityMetricRow').hidden = !isReadings;
