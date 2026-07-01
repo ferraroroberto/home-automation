@@ -1509,7 +1509,8 @@ button.device-row-name:hover { text-decoration: underline; }
 .cameras-card,
 .security-zones-card,
 .presence-card,
-.security-notify-card { padding: 0; }
+.security-notify-card,
+.wake-alarms-card { padding: 0; }
 .security-events,
 .security-zones,
 .cameras-list,
@@ -1622,7 +1623,8 @@ button.security-zone-name:hover { text-decoration: underline; }
 .security-bypass.off .toggle-label { color: var(--accent-fg); }
 .security-note { margin: 10px 14px 14px; }
 .security-schedules-body,
-.scene-pairings-body {
+.scene-pairings-body,
+.wake-alarms-body {
   padding: 12px 14px 14px;
 }
 .alarm-schedule-list {
@@ -1684,7 +1686,8 @@ button.security-zone-name:hover { text-decoration: underline; }
   height: var(--control-h);
   text-align: center;
 }
-.security-schedules-body .schedule-add-btn {
+.security-schedules-body .schedule-add-btn,
+.wake-alarms-body .schedule-add-btn {
   margin-top: 10px;
 }
 @media (max-width: 420px) {
@@ -1692,6 +1695,124 @@ button.security-zone-name:hover { text-decoration: underline; }
   .alarm-schedule-entry .schedule-enabled { grid-column: 1 / -1; }
   .alarm-schedule-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .alarm-schedule-fields { grid-template-columns: 1fr; }
+}
+
+/* Wake alarms & timers (issue #304) — a collapsible card styled like the
+   Security-tab "Schedules" card (shared .collapse-summary + .alarm-schedule-*
+   list + .schedule-add-btn), reusing .range-tab for the timer presets. The
+   rest here is unique to this card. */
+/* Home cards space themselves with their own bottom margin (there is no flex
+   gap on the pane) — match the --gap the ac-summary/plugs-summary siblings use
+   so the gap below this card equals the others. */
+.wake-alarms-card { margin-bottom: var(--gap); }
+.wake-section-head {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.wake-alarm-once {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 650;
+}
+.wake-alarm-date {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+}
+.alarm-schedule-entry.is-ringing {
+  border-color: color-mix(in srgb, var(--attention) 40%, var(--line));
+  background: color-mix(in srgb, var(--attention) 8%, var(--card));
+}
+.wake-ringing-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.wake-ringing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  color: var(--attention);
+  font-size: var(--font-label);
+  font-weight: 650;
+}
+.wake-ringing-dismiss {
+  flex: none;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--attention) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--attention);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wake-timers-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-muted);
+}
+/* .wake-timer-presets is a .range-tabs instance; drop its default bottom margin
+   so the custom-timer row's own margin-top is the single source of the gap. */
+.wake-timer-presets { margin-bottom: 0; }
+.wake-timer-custom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+.wake-timer-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* Descendant selector (0,2,0) so the ghost colors below beat the base
+   .detail-save-btn's solid fill, which is later in the file at equal
+   specificity — keeps this button's compact size/font, swaps only the colors
+   to match the Net-tab .big-btn ghost style (accent tint + text + soft border). */
+.wake-alarms-body .wake-timer-start-btn {
+  width: auto;
+  padding: 0 16px;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border-soft);
+}
+.wake-timers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 10px;
+}
+.wake-timer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.wake-timer-row:first-child { border-top: 0; }
+.wake-timer-row.is-ringing .wake-timer-remaining { color: var(--attention); }
+.wake-timer-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wake-timer-remaining {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--muted);
 }
 /* Alarm-scene pairing rows reuse the schedule entry/field styling (issue #162),
    with three equal columns for Detector / Camera / Position. */
@@ -2148,7 +2269,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-wifi-card > .collapse-summary,
 .net-devices-card > .collapse-summary,
 .net-dhcp-card > .collapse-summary,
-.device-list-card > .collapse-summary {
+.device-list-card > .collapse-summary,
+.wake-alarms-card > .collapse-summary {
   height: 52px;
   padding: 0 14px;
 }
@@ -2162,7 +2284,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-wifi-card[open] > .collapse-summary,
 .net-devices-card[open] > .collapse-summary,
 .net-dhcp-card[open] > .collapse-summary,
-.device-list-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
+.device-list-card[open] > .collapse-summary,
+.wake-alarms-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
 
 /* Build-identity footer (which build the PWA is running). */
 .page-foot {

@@ -463,6 +463,46 @@
            the first read. Issue #240. -->
       <section id="homeVmTile" class="card vm-tile" aria-label="Home Assistant VM" hidden></section>
 
+      <!-- Wake alarms & timers (issue #304) — Alexa-style alarms/timers that
+           ring/notify at a set time. Distinct from the RISCO "Alarm controls"
+           card above: this never arms/disarms the security system. Collapsible
+           card, styled exactly like the Security-tab "Schedules" card (same
+           .collapse-summary header + .alarm-schedule-* list + .schedule-add-btn). -->
+      <details class="card wake-alarms-card" aria-label="Wake alarms and timers">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+            <h3 class="collapse-title">Wake alarms &amp; timers</h3>
+            <span id="wakeAlarmsCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="wake-alarms-body">
+          <p id="wakeRingingBanner" class="wake-ringing-banner" hidden></p>
+
+          <div class="wake-section-head">Alarms</div>
+          <div id="wakeAlarmsList" class="alarm-schedule-list"></div>
+          <p id="wakeAlarmsNote" class="muted small security-note" hidden></p>
+          <button id="wakeAlarmAdd" type="button" class="schedule-add-btn">+ Add alarm</button>
+
+          <div class="wake-timers-section">
+            <div class="wake-section-head">Timers</div>
+            <div class="range-tabs wake-timer-presets">
+              <button type="button" class="range-tab" data-seconds="300">5 min</button>
+              <button type="button" class="range-tab" data-seconds="600">10 min</button>
+              <button type="button" class="range-tab" data-seconds="900">15 min</button>
+              <button type="button" class="range-tab" data-seconds="1800">30 min</button>
+            </div>
+            <div class="wake-timer-custom">
+              <input id="wakeTimerCustomMinutes" type="number" min="1" max="1440" class="input-native wake-timer-input" placeholder="Minutes" />
+              <button id="wakeTimerCustomAdd" type="button" class="detail-save-btn wake-timer-start-btn">Start timer</button>
+            </div>
+            <div id="wakeTimersList" class="wake-timers-list"></div>
+            <p id="wakeTimersNote" class="muted small security-note">No active timers.</p>
+          </div>
+        </div>
+      </details>
+
       <!-- Activity log (#289): a button — not a tab — opening the admin/telemetry
            overlay with the unified, filterable event history (arm/disarm, plug
            toggles, power, presence, panel events). -->
