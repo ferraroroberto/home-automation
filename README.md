@@ -825,6 +825,19 @@ feature rides the single RISCO read already done by the presence-automation loop
 (`PRESENCE_AUTOMATION_ENGINE_ENABLED`, default on). While no alarm is active, each
 camera's calm baseline is refreshed on a low-frequency timer.
 
+**Onset detection reads RISCO's event log, not the live alarm flags** (issue
+#325). RISCO's `ongoing_alarm`/`memory_alarm` system flags latch `True` until a
+full disarm+dismiss cycle, so a *second* real alarm on the same detector within
+one still-armed session never produces a fresh transition of those flags — and
+the live per-zone `triggered` boolean can already be stale by the time a poll
+observes it. Instead, while the system reports an active intrusion, the
+automation periodically (`ALARM_SCENE_EVENT_SCAN_S`) diffs RISCO's event log
+against a cursor — the timestamp of the last-processed alarm event, persisted
+to gitignored `config/alarm_scene_cursor.json` rather than kept in memory — so
+each individual alarm gets its own capture regardless of how many fired in the
+same still-armed session, and a webapp restart mid-session resumes from the
+persisted cursor instead of silently dropping an in-flight alarm.
+
 The LLM call is routed through the **local hub** (`http://127.0.0.1:8000`,
 Anthropic-shape `/v1/messages`) per the fleet rule — never an inline `claude -p`
 wrapper. A hub or parse failure degrades to an "AI analysis unavailable — verify
@@ -845,6 +858,7 @@ Config in `.env`:
 | `ALARM_SCENE_HUB_URL` | Optional, default `http://127.0.0.1:8000`; the local hub base URL. |
 | `ALARM_SCENE_PRESET_SETTLE_MS` | Optional, default `4000`; how long to let a camera settle on its PTZ preset before the snapshot (a too-short wait captures a blurred mid-pan frame). |
 | `ALARM_SCENE_BASELINE_REFRESH_S` | Optional, default `1800`; how often the calm per-camera baseline is refreshed while no alarm is active. |
+| `ALARM_SCENE_EVENT_SCAN_S` | Optional, default `20` (floor `10`); how often the RISCO event log is diffed for new alarms while an intrusion is active. |
 
 Captures + baselines live under the already-gitignored `webapp/camera_captures/`
 (`alarm/` and `baselines/`); never commit frames or `config/alarm_scene_pairings.json`.

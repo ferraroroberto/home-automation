@@ -5,13 +5,36 @@ This is the glue between the RISCO alarm and the camera/vision core
 (:mod:`app.webapp.presence_automation`) is the single interval reader of the
 alarm state (a second poller would risk the cloud's third-party rate limit), so
 it hands its one ``SecurityState`` read to :func:`consider_security_read` every
-tick. We do the cheap work inline (edge detection) and fire the expensive work
-(camera capture + vision call) as a detached task so the presence poll never
-blocks.
+tick. We do the cheap work inline (checking whether a scan is due) and fire the
+expensive work (event-log read + camera capture + vision call) as a detached
+task so the presence poll never blocks.
 
-On the **intrusion rising edge** we resolve which detector(s) tripped from the
-same read's per-zone ``triggered`` flags, look up the configured camera pairings
-(:mod:`src.alarm_scene_config`), and:
+**Onset detection reads RISCO's event log, not the live per-zone/system flags**
+(issue #325). The live ``ongoing_alarm``/``memory_alarm`` system flags latch
+``True`` until a full disarm+dismiss cycle, so a *second* real alarm on the
+same detector within one still-armed session never produced a fresh
+false->true transition under the old edge-detection design — every alarm after
+the first in a session was silently invisible to this automation. The live
+per-zone ``triggered`` boolean is worse still: it comes from a different API
+call than the system flags inside :func:`src.risco_client.fetch_security_state`
+and can already be stale/cleared by the time a poll observes it, so even the
+one edge that *did* fire could resolve to zero triggered zones and skip the
+capture. Both failure modes were confirmed live against production logs before
+this fix (see issue #325).
+
+Instead, while the system reports an active intrusion, we periodically diff
+:func:`src.risco_client.fetch_events` against a cursor — the timestamp of the
+last-processed alarm event, persisted to disk via
+:mod:`src.alarm_scene_cursor` rather than kept in this module's in-memory
+``_state`` — so:
+
+* each individual "Alarm" event gets its own capture, regardless of how many
+  fired in the same still-armed session, and
+* a webapp restart mid-session resumes from the persisted cursor instead of
+  re-baselining and silently dropping an in-flight alarm.
+
+On each new alarm event we resolve its zone id to the configured camera
+pairings (:mod:`src.alarm_scene_config`) and:
 
 * capture a frame from each *paired* camera at its PTZ preset,
 * send the frames (+ each camera's calm baseline) to the vision model,
@@ -56,9 +79,11 @@ from src.alarm_scene import (
     refresh_baselines,
 )
 from src.alarm_scene_config import ScenePairing, pairings_for_zone
+from src.alarm_scene_cursor import load_last_alarm_event_time, save_last_alarm_event_time
 from src.notify import NotifierError
 from src.notify_config import build_alarm_notifier, load_notify_config
 from src.push_notifications import send_push
+from src.risco_client import fetch_events
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +93,11 @@ _LOG_CONSUMER = "alarm_scene"
 _TELEGRAM_CAPTION_MAX = 1024
 _TELEGRAM_PHOTO_API = "https://api.telegram.org/bot{token}/sendPhoto"
 _TELEGRAM_TIMEOUT_S = 20
+
+# pyrisco's event-log ``type`` for a genuine "system has gone off" alarm entry
+# (as opposed to e.g. "zone bypassed" / "zone omitted"). Confirmed live against
+# production RISCO events (issue #325).
+_ALARM_EVENT_TYPE = "triggered"
 
 # Verdict → alert glyph, so the push/Telegram copy reads at a glance.
 _VERDICT_EMOJI = {
@@ -87,6 +117,12 @@ class AlarmSceneConfig:
     base_url: str = DEFAULT_HUB_BASE_URL
     preset_settle_s: float = DEFAULT_PRESET_SETTLE_S
     baseline_refresh_s: int = 1800
+    # How often to diff the RISCO event log while an alarm is active. Bounded
+    # above 10s deliberately — the presence loop already ticks every 10s
+    # (default), and RISCO periodically blocks third-party clients that hammer
+    # it, so this stays a throttled, alarm-only addition rather than a second
+    # steady-state poller.
+    event_scan_interval_s: int = 20
 
 
 def load_alarm_scene_config() -> AlarmSceneConfig:
@@ -106,34 +142,29 @@ def load_alarm_scene_config() -> AlarmSceneConfig:
         base_url=(os.getenv("ALARM_SCENE_HUB_URL") or DEFAULT_HUB_BASE_URL).strip(),
         preset_settle_s=max(0.0, _env_int("ALARM_SCENE_PRESET_SETTLE_MS", 4000) / 1000),
         baseline_refresh_s=max(60, _env_int("ALARM_SCENE_BASELINE_REFRESH_S", 1800)),
+        event_scan_interval_s=max(10, _env_int("ALARM_SCENE_EVENT_SCAN_S", 20)),
     )
 
 
-# Process-lifetime edge + baseline-cadence state. A condition already active at
-# startup sets the baseline (no fire), mirroring ``check_security_transitions``.
-_state: Dict[str, object] = {"intrusion": None, "last_baseline": None}
+# Process-lifetime cadence state (baseline refresh + event-scan throttle +
+# overlap guard). Onset detection itself is driven by the disk-persisted
+# cursor in ``src.alarm_scene_cursor`` — not this dict — precisely so a
+# process restart doesn't lose track of which alarms were already captured.
+_state: Dict[str, object] = {"last_baseline": None, "last_event_scan": None, "event_scan_running": False}
 
 
-def intrusion_rising_edge(intrusion: bool, state: Dict[str, object]) -> bool:
-    """True only on a genuine no-alarm → alarm transition.
+def _zone_name_for(zone_id: int, security: object) -> str:
+    """Look up a zone's display name from the live zone list (id->name only).
 
-    First observation just records the baseline (returns False), so an alarm
-    already ongoing when the app starts doesn't re-fire a capture on every boot.
+    Only the id->name mapping is used here — the zone list's *metadata* is
+    stable, unlike its momentary ``triggered`` flag, which is what made the old
+    per-poll zone resolution racy (issue #325).
     """
 
-    last = state.get("intrusion")
-    state["intrusion"] = intrusion
-    return last is not None and last is False and intrusion is True
-
-
-def triggered_zones(security: object) -> List[Tuple[int, str]]:
-    """Return ``(zone_id, name)`` for every detector reporting ``triggered``."""
-
-    out: List[Tuple[int, str]] = []
     for zone in getattr(security, "zones", None) or []:
-        if getattr(zone, "triggered", False):
-            out.append((int(getattr(zone, "id")), str(getattr(zone, "name", "") or getattr(zone, "id"))))
-    return out
+        if int(getattr(zone, "id", -1)) == zone_id:
+            return str(getattr(zone, "name", "") or zone_id)
+    return str(zone_id)
 
 
 def _resolve_pairings(
@@ -246,15 +277,14 @@ def _capture_record(cap: SceneCapture) -> Dict[str, object]:
     }
 
 
-async def _run_onset(security: object, config: AlarmSceneConfig) -> None:
+async def _run_onset(zones: List[Tuple[int, str]], config: AlarmSceneConfig) -> None:
     """Capture, analyse, deliver and log one alarm trigger. Never raises."""
 
     try:
-        zones = triggered_zones(security)
         pairings, zone_names = _resolve_pairings(zones)
         if not pairings:
-            # Either no detector reported triggered, or none of the tripped ones
-            # have a camera pairing — log and skip (no random-detector photos).
+            # None of the tripped detector(s) have a camera pairing - log and
+            # skip (no random-detector photos).
             logger.info("ℹ️ Alarm trigger with no camera pairing; scene capture skipped")
             append_activity(_LOG_CONSUMER, {
                 "event": "trigger_no_pairing",
@@ -290,6 +320,58 @@ async def _run_onset(security: object, config: AlarmSceneConfig) -> None:
         append_activity(_LOG_CONSUMER, {"event": "error", "error": str(exc)})
 
 
+async def _run_event_scan(security: object, config: AlarmSceneConfig) -> None:
+    """Diff RISCO's event log against the persisted cursor; fire one onset per new alarm.
+
+    Reads the event log (issue #325) instead of the live per-zone ``triggered``
+    flag, which can already be stale by the time a poll observes it, and
+    instead of the system-wide ``ongoing_alarm``/``memory_alarm`` latch, which
+    only ever transitions once per still-armed session even when RISCO reports
+    several distinct alarms. Never raises; guarded against overlapping runs
+    since a slow capture+vision call can outlast one throttle window.
+    """
+
+    if _state.get("event_scan_running"):
+        return
+    _state["event_scan_running"] = True
+    try:
+        try:
+            events = await fetch_events()
+        except Exception as exc:  # noqa: BLE001 — a detached task must never crash silently
+            logger.warning("⚠️ Alarm scene event-log read failed: %s", exc)
+            return
+
+        alarms = sorted(
+            (
+                e for e in events
+                if getattr(e, "type", None) == _ALARM_EVENT_TYPE
+                and getattr(e, "zone_id", None) is not None
+            ),
+            key=lambda e: e.time,
+        )
+        if not alarms:
+            return
+
+        cursor = load_last_alarm_event_time()
+        if cursor is None:
+            # No prior cursor (first run ever) - establish the baseline without
+            # replaying fetch_events()'s full history window as new onsets.
+            save_last_alarm_event_time(alarms[-1].time)
+            return
+
+        new_alarms = [e for e in alarms if e.time > cursor]
+        if not new_alarms:
+            return
+
+        for event in new_alarms:
+            zone_id = int(event.zone_id)
+            zone_name = _zone_name_for(zone_id, security)
+            await _run_onset([(zone_id, zone_name)], config)
+            save_last_alarm_event_time(event.time)
+    finally:
+        _state["event_scan_running"] = False
+
+
 async def _run_baseline_refresh(config: AlarmSceneConfig) -> None:
     """Refresh calm baselines for every configured camera. Never raises."""
 
@@ -317,12 +399,24 @@ def _baseline_due(config: AlarmSceneConfig, *, now: Optional[float] = None) -> b
     return True
 
 
+def _event_scan_due(config: AlarmSceneConfig, *, now: Optional[float] = None) -> bool:
+    """True when enough time has elapsed since the last event-log scan."""
+
+    instant = time.monotonic() if now is None else now
+    last = _state.get("last_event_scan")
+    if last is not None and (instant - float(last)) < config.event_scan_interval_s:
+        return False
+    _state["last_event_scan"] = instant
+    return True
+
+
 def consider_security_read(security: object) -> None:
     """Entry point called from the presence loop with its one RISCO read.
 
-    Cheap and synchronous: detects the intrusion rising edge and, when calm,
-    decides whether a baseline refresh is due. The actual camera/vision work is
-    dispatched as a detached task so the presence poll is never blocked.
+    Cheap and synchronous: while an alarm is active, throttles how often the
+    event log is diffed for new onsets; while calm, decides whether a baseline
+    refresh is due. The actual event-log/camera/vision work is dispatched as a
+    detached task so the presence poll is never blocked.
     """
 
     config = load_alarm_scene_config()
@@ -331,13 +425,14 @@ def consider_security_read(security: object) -> None:
     ongoing = getattr(security, "ongoing_alarm", None)
     memory = getattr(security, "memory_alarm", None)
     if ongoing is None and memory is None:
-        # WebUI scrape came back unreadable this poll (issue #307) — treating
+        # WebUI scrape came back unreadable this poll (issue #307) - treating
         # that as "no alarm" would manufacture a false→true edge the moment the
         # next successful poll re-observes a still-latched, days-old
-        # memory_alarm. Skip edge detection entirely rather than guess.
+        # memory_alarm. Skip entirely rather than guess.
         return
     intrusion = bool(ongoing or memory)
-    if intrusion_rising_edge(intrusion, _state):
-        asyncio.create_task(_run_onset(security, config), name="alarm-scene-onset")
-    elif not intrusion and _baseline_due(config):
+    if intrusion:
+        if _event_scan_due(config):
+            asyncio.create_task(_run_event_scan(security, config), name="alarm-scene-event-scan")
+    elif _baseline_due(config):
         asyncio.create_task(_run_baseline_refresh(config), name="alarm-scene-baseline")
