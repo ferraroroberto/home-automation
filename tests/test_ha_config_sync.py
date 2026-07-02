@@ -183,3 +183,14 @@ def test_committed_snippet_is_a_canonical_block() -> None:
     # injecting it into a bare config then re-injecting is a no-op
     once = H.replace_or_append_block("default_config:\n", block)
     assert H.replace_or_append_block(once, block) == once
+
+
+# ------------------------------------------------- multi-sentence-file deploy
+def test_sentence_files_includes_wake_alarm() -> None:
+    """Both alarm.yaml and the new wake_alarm.yaml are in the deploy set, and
+    each local source file actually exists (a missing one would crash deploy)."""
+    remotes = {remote for _, remote in H.SENTENCE_FILES}
+    assert H.REMOTE_ALARM_SENTENCES in remotes
+    assert H.REMOTE_WAKE_ALARM_SENTENCES in remotes
+    for local_file, _ in H.SENTENCE_FILES:
+        assert local_file.exists(), f"missing sentence source: {local_file}"

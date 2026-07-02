@@ -1,0 +1,47 @@
+# Home Assistant custom sentences — wake-alarm voice commands (issue #306).
+#
+# Install at the HA VM path: /config/custom_sentences/en/wake_alarm.yaml
+#
+# Distinct from alarm.yaml (the RISCO security alarm). Every sentence here says
+# "wake alarm" / "wake-up alarm" so it can never collide with the arm/disarm
+# grammar in alarm.yaml. The conversation engine matches these locally (Tier 1,
+# no LLM) and each intent is wired to a rest_command in configuration.yaml (see
+# configuration.snippet.yaml) that hits this app's /api/wake-alarms endpoints.
+language: "en"
+
+# {when} is a free-text wildcard: it captures the spoken time + schedule
+# ("7 am", "half past six tomorrow", "7 on weekdays") for the app to parse
+# server-side (src/wake_alarms.py:parse_spoken_alarm) — the sentences stay thin.
+lists:
+  when:
+    wildcard: true
+
+intents:
+  # Create a wake alarm from the spoken time/schedule.
+  WakeAlarmSet:
+    data:
+      - sentences:
+          - "set [a] wake[-] [up] alarm for {when}"
+          - "set [a] wake[-] [up] alarm [for] at {when}"
+          - "(add|create|new|schedule) [a] wake[-] [up] alarm for {when}"
+          - "wake me [up] at {when}"
+          - "set [a] wake[-] [up] call for {when}"
+
+  # Cancel the soonest upcoming wake alarm (repeat for the next one).
+  WakeAlarmCancel:
+    data:
+      - sentences:
+          - "cancel [my] [next] wake[-] [up] alarm[s]"
+          - "(delete|remove|clear|stop) [my] [next] wake[-] [up] alarm[s]"
+          - "turn off [my] wake[-] [up] alarm[s]"
+          - "cancel [my] wake[-] [up] call"
+
+  # Read back the wake alarms currently set.
+  WakeAlarmList:
+    data:
+      - sentences:
+          - "[(what|which)] wake[-] [up] alarm[s] [do] [i] have [set]"
+          - "list [my] wake[-] [up] alarm[s]"
+          - "do i have [any] wake[-] [up] alarm[s] [set]"
+          - "when (is|are) my wake[-] [up] alarm[s]"
+          - "read [me] [my] wake[-] [up] alarm[s]"

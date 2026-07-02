@@ -88,3 +88,53 @@ def test_wake_timers_lifecycle(client: TestClient) -> None:
 def test_wake_timers_rejects_non_positive_seconds(client: TestClient) -> None:
     resp = client.post("/api/wake-timers", json={"label": "x", "seconds": 0})
     assert resp.status_code == 422
+
+
+def test_voice_set_creates_and_speaks(client: TestClient, monkeypatch, tmp_path) -> None:
+    import src.wake_alarms as wake_alarms
+
+    monkeypatch.setattr(wake_alarms, "WAKE_ALARMS_PATH", tmp_path / "wake_alarms.json")
+
+    resp = client.post("/api/wake-alarms/voice", json={"phrase": "7 am on weekdays"})
+    assert resp.status_code == 200
+    out = resp.json()
+    assert out["ok"] is True
+    assert out["time"] == "07:00"
+    assert out["days"] == ["mon", "tue", "wed", "thu", "fri"]
+    assert out["speech"] == "Wake alarm set for 7 AM on weekdays."
+
+    # It landed in the persisted list.
+    entries = client.get("/api/wake-alarms").json()["entries"]
+    assert [e["time"] for e in entries] == ["07:00"]
+
+
+def test_voice_set_rejects_timeless_phrase(client: TestClient, monkeypatch, tmp_path) -> None:
+    import src.wake_alarms as wake_alarms
+
+    monkeypatch.setattr(wake_alarms, "WAKE_ALARMS_PATH", tmp_path / "wake_alarms.json")
+
+    out = client.post("/api/wake-alarms/voice", json={"phrase": "banana"}).json()
+    assert out["ok"] is False
+    assert "didn't catch a time" in out["speech"]
+    assert client.get("/api/wake-alarms").json()["count"] == 0
+
+
+def test_voice_list_and_cancel(client: TestClient, monkeypatch, tmp_path) -> None:
+    import src.wake_alarms as wake_alarms
+
+    monkeypatch.setattr(wake_alarms, "WAKE_ALARMS_PATH", tmp_path / "wake_alarms.json")
+
+    empty = client.get("/api/wake-alarms/voice").json()
+    assert empty == {"count": 0, "speech": "You have no wake alarms set."}
+
+    client.post("/api/wake-alarms/voice", json={"phrase": "7 am on weekdays"})
+    summary = client.get("/api/wake-alarms/voice").json()
+    assert summary["count"] == 1
+    assert "1 wake alarm" in summary["speech"]
+
+    cancelled = client.post("/api/wake-alarms/voice/cancel").json()
+    assert cancelled["cancelled"] is True
+    assert cancelled["speech"] == "Cancelled your wake alarm for 7 AM on weekdays."
+
+    again = client.post("/api/wake-alarms/voice/cancel").json()
+    assert again == {"cancelled": False, "speech": "You have no wake alarms to cancel."}

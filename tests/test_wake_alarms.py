@@ -5,11 +5,19 @@ from datetime import datetime
 from src.wake_alarms import (
     DAYS,
     WakeAlarmEntry,
+    clean_entry,
+    describe_alarm,
     load_wake_alarms,
+    next_fire,
+    parse_spoken_alarm,
     set_wake_alarms,
+    soonest_enabled,
     wake_alarm_due,
 )
 from src.wake_timers import cancel_timer, create_timer, list_timers, mark_expired
+
+# A fixed Wednesday 09:00 reference for the spoken-phrase / next-fire tests.
+_NOW = datetime(2026, 7, 1, 9, 0, 0)
 
 
 def test_wake_alarm_store_normalizes_and_persists(tmp_path) -> None:
@@ -134,3 +142,74 @@ def test_wake_timer_seconds_are_clamped() -> None:
         assert entry.seconds == 24 * 60 * 60
     finally:
         cancel_timer(entry.id)
+
+
+# ------------------------------------------------------ spoken-phrase parsing
+def _parsed_entry(phrase: str) -> WakeAlarmEntry:
+    raw = parse_spoken_alarm(phrase, _NOW)
+    assert raw is not None, f"expected a parse for {phrase!r}"
+    return clean_entry({**raw, "id": "x"}, "x")
+
+
+def test_parse_spoken_alarm_time_forms() -> None:
+    assert _parsed_entry("7 am").time == "07:00"
+    assert _parsed_entry("7 pm").time == "19:00"
+    assert _parsed_entry("7 30").time == "07:30"
+    assert _parsed_entry("half past six").time == "06:30"
+    assert _parsed_entry("quarter to seven").time == "06:45"
+    assert _parsed_entry("quarter past 8").time == "08:15"
+    assert _parsed_entry("seven thirty").time == "07:30"
+    assert _parsed_entry("noon").time == "12:00"
+    assert _parsed_entry("17 30").time == "17:30"
+
+
+def test_parse_spoken_alarm_schedules() -> None:
+    assert _parsed_entry("7 am on weekdays").days == ["mon", "tue", "wed", "thu", "fri"]
+    assert _parsed_entry("7 on weekends").days == ["sat", "sun"]
+    assert _parsed_entry("7 every day").days == list(DAYS)
+    assert _parsed_entry("9 on monday").days == ["mon"]
+    # unscheduled → every day
+    assert _parsed_entry("7 am").days == list(DAYS)
+
+
+def test_parse_spoken_alarm_one_shot_dates() -> None:
+    tomorrow = _parsed_entry("8 tomorrow")
+    assert tomorrow.date == "2026-07-02"
+    today = _parsed_entry("8 today")
+    assert today.date == "2026-07-01"
+
+
+def test_parse_spoken_alarm_rejects_timeless_phrase() -> None:
+    assert parse_spoken_alarm("banana", _NOW) is None
+    assert parse_spoken_alarm("", _NOW) is None
+
+
+def test_next_fire_recurring_and_one_shot() -> None:
+    # Wednesday now; a Friday alarm fires this coming Friday.
+    friday = WakeAlarmEntry(id="f", time="07:00", days=["fri"])
+    assert next_fire(friday, _NOW) == datetime(2026, 7, 3, 7, 0)
+    # Today at a later hour still counts as today.
+    later = WakeAlarmEntry(id="l", time="10:00", days=["wed"])
+    assert next_fire(later, _NOW) == datetime(2026, 7, 1, 10, 0)
+    # A one-shot fires on its own date.
+    once = WakeAlarmEntry(id="o", time="05:30", date="2026-08-12")
+    assert next_fire(once, _NOW) == datetime(2026, 8, 12, 5, 30)
+
+
+def test_soonest_enabled_picks_earliest_and_skips_disabled() -> None:
+    entries = [
+        WakeAlarmEntry(id="a", time="10:00", days=["wed"]),  # still upcoming today
+        WakeAlarmEntry(id="b", time="06:00", days=["thu"]),  # tomorrow
+        WakeAlarmEntry(id="c", enabled=False, time="05:00"),
+    ]
+    assert soonest_enabled(entries, _NOW).id == "a"  # today 10:00 beats tomorrow 06:00
+    assert soonest_enabled([], _NOW) is None
+    assert soonest_enabled([entries[2]], _NOW) is None  # all disabled
+
+
+def test_describe_alarm_phrasing() -> None:
+    assert describe_alarm(WakeAlarmEntry(id="x", time="07:00")) == "7 AM every day"
+    weekdays = WakeAlarmEntry(id="x", time="07:00", days=["mon", "tue", "wed", "thu", "fri"])
+    assert describe_alarm(weekdays) == "7 AM on weekdays"
+    assert describe_alarm(WakeAlarmEntry(id="x", time="18:30", days=["sat", "sun"])) == "6:30 PM on weekends"
+    assert describe_alarm(WakeAlarmEntry(id="x", time="05:30", date="2026-08-12")) == "5:30 AM on Wednesday August 12"
