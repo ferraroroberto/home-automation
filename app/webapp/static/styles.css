@@ -164,7 +164,10 @@ html, body {
   touch-action: manipulation;
   /* Kill rubber-band overscroll drag at the document edges so the floating
      bottom-tab bar can't be tugged loose during momentum scroll (issue #179);
-     pairs with the VisualViewport pinning in tabs.js. */
+     pairs with the VisualViewport pinning in tabs.js. Not honored by the
+     standalone-PWA WKWebView *document* scroller, though — the installed app
+     additionally moves scrolling off the document entirely (#303 shell
+     below). */
   overscroll-behavior: none;
 }
 
@@ -277,6 +280,86 @@ html, body {
     );
   }
 
+  /* Standalone-PWA shell (#303): in the installed app the *document* was the
+     scroller, and the home-screen WKWebView's native scroll bounce moves the
+     visual viewport itself — on-device logs (#300) showed
+     `visualViewport.offsetTop` swinging up to ~68px during ordinary momentum
+     scrolling, dragging every `position: fixed` element (the floating nav)
+     with it. `overscroll-behavior: none` above does not govern that native
+     bounce the way it does in a Safari tab. So in standalone the document
+     must never scroll at all: html/body are clipped and `.app` becomes the
+     element scroller. An element scroller's bounce doesn't move the visual
+     viewport (and its overscroll-behavior IS honored), so the fixed nav
+     stays put by construction rather than by after-the-fact correction —
+     exactly the "prevent offsetTop from moving in the first place" direction
+     the #300 postmortem in tabs.js calls for.
+
+     This revives #232's inner-scroller shell, which already killed the
+     scroll jank on-device, while keeping both lessons that sank its two
+     earlier forms: (1) the nav (and toast/dialogs/login overlay) stays a
+     *body-level sibling* of the scroller — iOS captures position:fixed
+     descendants of momentum scrollers and anchors them to content; (2) the
+     scroller is `position: fixed; inset: 0` rather than a `%`/`dvh` height
+     chain, so its box resolves against the real viewport (viewport-fit=cover
+     → the full physical screen, safe areas included) — the height-chain
+     forms are what left the bottom dead band / "cut" content. The `.app`
+     bottom padding above already keeps content clear of the nav and the home
+     indicator. Scoped to standalone so the browser-tab toolbar-compensation
+     path is byte-for-byte untouched.
+
+     The load-bearing subtlety (#303 rounds 1-2, proven by on-device
+     nav-debug forensics): iOS standalone expands the layout viewport to the
+     full physical screen ONLY WHILE THE DOCUMENT IS SCROLLABLE. With every
+     body child out of flow the document had zero scrollable overflow, and
+     the fixed-positioning viewport contracted (innerHeight/clientHeight 873
+     vs screenHeight 932 on the test device) — every fixed element (nav,
+     .app) anchored 59pt above the physical bottom: the #232 dead band again.
+     The baseline's `min-height: calc(100dvh + 1px)` forcer on .app existed
+     to keep exactly this expansion alive ("so position:fixed anchors to the
+     screen rather than the content"). So the shell re-creates that 1px
+     overflow with an inert body-level spacer: the document stays technically
+     scrollable (viewport expanded), but no touch can ever reach it — content
+     gestures land on the fixed .app scroller (its overscroll-behavior: none
+     stops chaining), and the nav declines pan gestures outright — so the
+     WKWebView bounce that moved `visualViewport.offsetTop` (#300) still has
+     no entry point. */
+  @media (display-mode: standalone) {
+    .app {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      /* Sized with the LARGE viewport unit, not bottom-anchored (`inset: 0`):
+         at cold launch iOS *animates* the layout-viewport expansion (876 →
+         932, 1px per vv:resize frame over ~2s — #303 round-3 on-device log),
+         so a bottom edge tied to the live viewport slides down with it. lvh
+         reports the final expanded height from the very first frame, and the
+         top edge is stable, so this box has its final geometry immediately.
+         Plain vh first: on iOS it equals the large viewport too (that was
+         the historic 100vh complaint) — fallback for engines without lvh. */
+      height: 100vh;
+      height: 100lvh;
+      overflow-y: auto;
+      overscroll-behavior: none;
+      /* The in-flow document-scroll forcer above (100dvh + 1px) would push a
+         fixed box 1px past the bottom edge; the spacer below carries the
+         forcer role instead. */
+      min-height: 0;
+    }
+    /* Invisible 1px-past-viewport spacer behind the fixed .app: keeps the
+       document scrollable so the layout viewport stays expanded (see the
+       shell comment). dvh on purpose (not lvh): it tracks the live viewport,
+       so the document's scrollable range is exactly 1px in every state —
+       contracted at boot, mid-animation, expanded — never more. vh first as
+       the no-dvh fallback. */
+    body::after {
+      content: '';
+      display: block;
+      height: calc(100vh + 1px);
+      height: calc(100dvh + 1px);
+    }
+  }
+
   .tabs {
     position: fixed;
     top: auto;
@@ -311,6 +394,39 @@ html, body {
     will-change: transform;
     backdrop-filter: blur(20px) saturate(1.25);
     -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  }
+
+  /* Standalone-PWA nav anchoring (#303, pairs with the shell above; placed
+     after the base rule so the cascade picks it). Two changes:
+     1. Anchor from the stable TOP edge via the large-viewport unit instead of
+        `bottom`: during the cold-launch viewport-expansion animation (see the
+        .app comment) a bottom-anchored bar visibly "floats" down for ~2s
+        before locking. `100lvh` is the final height from frame one, so this
+        puts the bar at its physical-bottom resting spot immediately. Same
+        resting position as the base rule's `bottom: var(--bottom-tabs-margin)`
+        once the viewport settles — geometry is unchanged, only the anchor.
+     2. Refuse pan gestures: the nav is the one fixed surface a drag could
+        still reach the 1px-scrollable document through (it sits outside
+        .app), and #300 proved the standalone bounce ignores
+        overscroll-behavior. Taps are unaffected. */
+  @media (display-mode: standalone) {
+    .tabs {
+      bottom: auto;
+      top: calc(100vh - var(--bottom-tabs-height) - var(--bottom-tabs-margin));
+      top: calc(100lvh - var(--bottom-tabs-height) - var(--bottom-tabs-margin));
+      touch-action: none;
+      /* Cold-launch cosmetics: iOS paints the region below the animating
+         layout-viewport edge only as the ~2s expansion sweeps past it, so
+         the bar (at its final spot from frame one) would look like it's
+         being un-curtained bottom-up. Stay transparent through the sweep,
+         then fade in once. Pure CSS, runs once per page load, and
+         `backwards` fill guarantees it always ends fully visible. */
+      animation: nav-boot-reveal 0.3s ease-out 2.4s backwards;
+    }
+    @keyframes nav-boot-reveal {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
   }
 
   .tab {
@@ -2047,6 +2163,24 @@ button.presence-name:hover { text-decoration: underline; }
    #205). Global, not media-gated: a centred desktop modal shouldn't scroll its
    backdrop either. */
 body:has(dialog[open]) { overflow: hidden; }
+/* Standalone shell (#303): the rule above must NOT apply — body overflow
+   propagates to the viewport, and an unscrollable standalone document
+   contracts the layout viewport (932 → 873 on-device), which iOS then
+   re-expands 1px per frame on dialog close, repainting the nav behind a slow
+   "curtain". The document only ever has the shell's untouchable 1px spacer
+   range, and the real background scroller (.app) is locked by the rule
+   below, so nothing meaningful is left unlocked. Placed after the hidden
+   rule on purpose — same specificity, source order decides. */
+@media (display-mode: standalone) and (pointer: coarse) and (max-width: 520px) {
+  body:has(dialog[open]) { overflow: visible; }
+}
+/* Same lock for the standalone shell (#303), where `.app` — not the document —
+   is the scroller. `overflow: hidden` on an element scroller IS respected for
+   touch (the iOS quirk that forced scroll-lock.js's position:fixed body pin
+   only afflicts the document scroller) and preserves scrollTop, so the scroll
+   position survives the dialog round-trip with no save/restore. Inert outside
+   the standalone shell, where .app isn't a scroll container. */
+body:has(dialog[open]) .app { overflow: hidden; }
 .detail-card {
   background: var(--card);
   border-radius: var(--radius);

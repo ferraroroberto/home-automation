@@ -39,6 +39,8 @@ export function setTab(tab) {
   });
   const nav = els.tabHome.closest('.tabs');
   if (nav) nav.dataset.activeTab = tab;
+  // .app is the scroller in the standalone shell (#303); the window is the
+  // scroller everywhere else. Resetting both covers both modes.
   const scroller = document.querySelector('.app');
   if (scroller) scroller.scrollTop = 0;
   window.scrollTo(0, 0);
@@ -93,6 +95,17 @@ function editableFocused() {
  * revisited, the fix has to prevent `offsetTop` from moving in the first place
  * (e.g. taming the momentum-scroll bounce itself) rather than chasing it after
  * the fact.
+ *
+ * #303 does exactly that, in CSS: in standalone all real scrolling moves into
+ * `.app` as a fixed-inset element scroller, whose bounce doesn't move the
+ * visual viewport — so the native bounce that moved `offsetTop` loses its
+ * entry point and the fixed bar — still a body-level SIBLING of the scroller,
+ * per #232's capture lesson — stays anchored by construction. The document
+ * itself stays *technically* 1px-scrollable via an untouchable spacer, because
+ * an unscrollable standalone document contracts the fixed-positioning viewport
+ * by the top inset (~59pt measured) and strands everything fixed above the
+ * physical bottom — the #303 round-1/2 dead band; see the "#303 shell" comment
+ * in styles.css. Standalone still NEVER translates — that rule is unchanged.
  *
  * The transform path survives ONLY for a real browser tab, where the toolbar
  * genuinely collapses: there we translate the bar up by the hidden slice, clamped to

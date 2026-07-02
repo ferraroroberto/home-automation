@@ -20,15 +20,33 @@
 let locked = false;
 let savedScrollY = 0;
 
+/* #303 standalone shell: `.app` is a fixed element scroller and the DOCUMENT
+ * must stay scrollable (the shell's 1px spacer) even while a modal is open —
+ * pinning the body would pull the spacer out of the document flow, iOS would
+ * contract the standalone layout viewport (932 → 873 measured on-device), and
+ * re-expand it 1px per frame on close, repainting the nav behind a slow
+ * "curtain". In shell mode the body pin is also useless: window.scrollY is
+ * always 0 and the background that must not scroll (.app) is locked by CSS
+ * (`body:has(dialog[open]) .app { overflow: hidden }`). Detected from live
+ * style truth rather than a duplicated media query. */
+function standaloneShellActive() {
+  const app = document.querySelector('.app');
+  return !!app && getComputedStyle(app).position === 'fixed';
+}
+
 function engage() {
   if (locked) return;                       // keep the first save across stacked dialogs
-  savedScrollY = window.scrollY || window.pageYOffset || 0;
-  const b = document.body;
-  b.style.position = 'fixed';
-  b.style.top = -savedScrollY + 'px';
-  b.style.left = '0';
-  b.style.right = '0';
-  b.style.width = '100%';
+  if (!standaloneShellActive()) {
+    savedScrollY = window.scrollY || window.pageYOffset || 0;
+    const b = document.body;
+    b.style.position = 'fixed';
+    b.style.top = -savedScrollY + 'px';
+    b.style.left = '0';
+    b.style.right = '0';
+    b.style.width = '100%';
+  } else {
+    savedScrollY = 0;                       // .app keeps its own scrollTop; nothing to restore
+  }
   locked = true;
   // Deterministic signal for tabs.js (#300): reset any stale VisualViewport
   // transform on the floating nav *before* it goes hidden, so the transform
