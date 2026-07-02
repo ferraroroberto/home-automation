@@ -419,13 +419,19 @@ html, body {
          layout-viewport edge only as the ~2s expansion sweeps past it, so
          the bar (at its final spot from frame one) would look like it's
          being un-curtained bottom-up. Stay transparent through the sweep,
-         then fade in once. Pure CSS, runs once per page load, and
-         `backwards` fill guarantees it always ends fully visible. */
-      animation: nav-boot-reveal 0.3s ease-out 2.4s backwards;
+         then slide up into place. The bar's own strip is painted ~1.7s in,
+         so a 1.8s delay clears it without waiting out the whole sweep.
+         Pure CSS, runs once per page load; `backwards` fill guarantees it
+         always ends fully visible. The translate lives only inside the
+         animation (computed, never inline style), so tabs.js's #300
+         never-translate rule — which reads/writes nav.style.transform —
+         is untouched, and with no `forwards` fill the resting geometry
+         after the entrance is byte-identical to before. */
+      animation: nav-boot-reveal 0.35s ease-out 1.8s backwards;
     }
     @keyframes nav-boot-reveal {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: none; }
     }
   }
 
