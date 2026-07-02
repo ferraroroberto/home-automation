@@ -5,34 +5,26 @@ import asyncio
 import app.webapp.alarm_scene_automation as auto
 from src.alarm_scene import SceneCapture, SceneVerdict
 from src.alarm_scene_config import ScenePairing
-from src.risco_client import SecurityState, SecurityZone
+from src.risco_client import SecurityEvent, SecurityState, SecurityZone
 
 
-def _security(*, ongoing=False, triggered_ids=()) -> SecurityState:
-    zones = [
-        SecurityZone(id=3, name="Garden", triggered=3 in triggered_ids),
-        SecurityZone(id=5, name="Door", triggered=5 in triggered_ids),
-    ]
+def _security(*, ongoing=False, memory=False, zones=()) -> SecurityState:
+    zone_objs = [SecurityZone(id=zid, name=name) for zid, name in zones]
     return SecurityState(
         reachable=True, label="home", mode="armed",
-        zones=zones, ongoing_alarm=ongoing,
+        zones=zone_objs, ongoing_alarm=ongoing, memory_alarm=memory,
     )
 
 
-def test_intrusion_rising_edge_only_fires_on_false_to_true() -> None:
-    state: dict = {"intrusion": None}
-    # First observation just sets the baseline — no fire even if already active.
-    assert auto.intrusion_rising_edge(True, state) is False
-    state["intrusion"] = False
-    assert auto.intrusion_rising_edge(True, state) is True   # genuine onset
-    assert auto.intrusion_rising_edge(True, state) is False  # still active
-    assert auto.intrusion_rising_edge(False, state) is False  # cleared
+def _alarm_event(time: str, zone_id: int) -> SecurityEvent:
+    return SecurityEvent(time=time, type="triggered", zone_id=zone_id)
 
 
-def test_triggered_zones_reads_per_zone_flag() -> None:
-    assert auto.triggered_zones(_security(triggered_ids=(3,))) == [(3, "Garden")]
-    assert auto.triggered_zones(_security(triggered_ids=(3, 5))) == [(3, "Garden"), (5, "Door")]
-    assert auto.triggered_zones(_security()) == []
+def test_zone_name_for_looks_up_by_id() -> None:
+    security = _security(zones=[(3, "Garden"), (5, "Door")])
+    assert auto._zone_name_for(3, security) == "Garden"
+    assert auto._zone_name_for(5, security) == "Door"
+    assert auto._zone_name_for(9, security) == "9"  # unknown id falls back to str(id)
 
 
 def test_baseline_due_respects_interval() -> None:
@@ -41,6 +33,14 @@ def test_baseline_due_respects_interval() -> None:
     assert auto._baseline_due(cfg, now=1000.0) is True       # first call
     assert auto._baseline_due(cfg, now=1500.0) is False      # within window
     assert auto._baseline_due(cfg, now=1000.0 + 1801) is True  # window elapsed
+
+
+def test_event_scan_due_respects_interval() -> None:
+    auto._state["last_event_scan"] = None
+    cfg = auto.AlarmSceneConfig(event_scan_interval_s=20)
+    assert auto._event_scan_due(cfg, now=1000.0) is True     # first call
+    assert auto._event_scan_due(cfg, now=1010.0) is False    # within window
+    assert auto._event_scan_due(cfg, now=1000.0 + 21) is True  # window elapsed
 
 
 def test_onset_skips_and_logs_when_no_pairing(monkeypatch) -> None:
@@ -57,7 +57,7 @@ def test_onset_skips_and_logs_when_no_pairing(monkeypatch) -> None:
     monkeypatch.setattr(auto, "capture_scene", fail_capture)
 
     cfg = auto.AlarmSceneConfig()
-    asyncio.run(auto._run_onset(_security(ongoing=True, triggered_ids=(3,)), cfg))
+    asyncio.run(auto._run_onset([(3, "Garden")], cfg))
 
     assert captured["called"] is False  # no random-detector capture
     assert len(logged) == 1
@@ -88,7 +88,7 @@ def test_onset_captures_analyses_delivers_and_logs(monkeypatch) -> None:
     monkeypatch.setattr(auto, "analyze_scene", fake_analyze)
 
     cfg = auto.AlarmSceneConfig(model="claude-haiku-4-5")
-    asyncio.run(auto._run_onset(_security(ongoing=True, triggered_ids=(3,)), cfg))
+    asyncio.run(auto._run_onset([(3, "Garden")], cfg))
 
     assert len(pushes) == 1
     assert "person at the gate" in pushes[0][1]
@@ -104,29 +104,160 @@ def test_consider_security_read_disabled_is_noop(monkeypatch) -> None:
     monkeypatch.setattr(auto, "load_alarm_scene_config",
                         lambda: auto.AlarmSceneConfig(enabled=False))
     # Must not raise even with no running event loop (no task is created).
-    auto.consider_security_read(_security(ongoing=True, triggered_ids=(3,)))
+    auto.consider_security_read(_security(ongoing=True, zones=[(3, "Garden")]))
 
 
-def test_consider_security_read_skips_edge_detection_on_unreadable_flags(monkeypatch) -> None:
+def test_consider_security_read_skips_scan_on_unreadable_flags(monkeypatch) -> None:
     """Regression for #307: both flags ``None`` means the RISCO WebUI scrape came
-    back unreadable this poll, not "no alarm" — treating it as a clear would let
-    the next successful poll re-observe a still-latched, days-old
-    ``memory_alarm`` and manufacture a bogus onset.
+    back unreadable this poll, not "no alarm" — must not schedule any work
+    (an unreadable poll manufacturing a bogus scan is as wrong as it
+    manufacturing a bogus onset).
     """
 
     monkeypatch.setattr(auto, "load_alarm_scene_config",
                         lambda: auto.AlarmSceneConfig(enabled=True))
-    auto._state["intrusion"] = True  # already latched from a prior real onset
+    scheduled: list = []
+    monkeypatch.setattr(
+        auto.asyncio, "create_task",
+        lambda coro, name=None: (scheduled.append(name), coro.close())[0],
+    )
     security = SecurityState(
         reachable=True, label="home", mode="armed", zones=[],
         ongoing_alarm=None, memory_alarm=None,
     )
+    auto.consider_security_read(security)
+    assert scheduled == []
+
+
+def test_consider_security_read_schedules_event_scan_when_intruding(monkeypatch) -> None:
+    monkeypatch.setattr(auto, "load_alarm_scene_config",
+                        lambda: auto.AlarmSceneConfig(enabled=True, event_scan_interval_s=20))
+    auto._state["last_event_scan"] = None
+    scheduled: list = []
+    monkeypatch.setattr(
+        auto.asyncio, "create_task",
+        lambda coro, name=None: (scheduled.append(name), coro.close())[0],
+    )
+    security = _security(ongoing=True, zones=[(3, "Garden")])
+    auto.consider_security_read(security)
+    assert scheduled == ["alarm-scene-event-scan"]
+
+
+def test_run_event_scan_fires_onset_for_each_new_alarm(monkeypatch) -> None:
+    """The core of #325: two alarms on the same zone within one still-latched
+    session (RISCO's ongoing_alarm/memory_alarm never toggling back to False
+    between them) must each produce their own onset, not collapse into one.
+    """
+
+    events = [
+        _alarm_event("2026-07-02T13:14:00Z", 12),
+        SecurityEvent(time="2026-07-02T13:15:00Z", type="zone bypassed", zone_id=12),  # not an alarm
+        _alarm_event("2026-07-02T13:05:00Z", 12),
+        _alarm_event("2026-07-02T12:37:00Z", 12),  # at-or-before cursor - already processed
+    ]
+
+    async def fake_fetch_events(*a, **k):
+        return events
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+    monkeypatch.setattr(auto, "load_last_alarm_event_time", lambda: "2026-07-02T12:37:00Z")
+
+    saved: list[str] = []
+    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
+
+    fired: list[tuple] = []
+
+    async def fake_run_onset(zones, config):
+        fired.append(tuple(zones))
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+
+    # Both alarms newer than the cursor fire, oldest first; the omit event and
+    # the alarm at-or-before the cursor are excluded.
+    assert fired == [
+        ((12, "PUERTA JARDIN"),),
+        ((12, "PUERTA JARDIN"),),
+    ]
+    assert saved == ["2026-07-02T13:05:00Z", "2026-07-02T13:14:00Z"]
+
+
+def test_run_event_scan_first_run_sets_baseline_without_firing(monkeypatch) -> None:
+    """No prior cursor (fresh deploy) must not replay history as new onsets."""
+
+    events = [_alarm_event("2026-06-28T12:52:01Z", 12), _alarm_event("2026-07-02T09:40:00Z", 12)]
+
+    async def fake_fetch_events(*a, **k):
+        return events
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+    monkeypatch.setattr(auto, "load_last_alarm_event_time", lambda: None)
+    saved: list[str] = []
+    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
+
+    fired: list = []
+
+    async def fake_run_onset(zones, config):
+        fired.append(zones)
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+
+    assert fired == []
+    assert saved == ["2026-07-02T09:40:00Z"]
+
+
+def test_run_event_scan_survives_restart_by_resuming_from_persisted_cursor(monkeypatch) -> None:
+    """A webapp restart clears in-memory ``_state`` but must not clear the
+    on-disk cursor — an alarm from just before/after the restart still fires,
+    unlike the old in-memory-only edge detector it replaces.
+    """
+
+    auto._state["last_event_scan"] = None  # simulate a fresh process
+
+    events = [_alarm_event("2026-07-02T09:40:00Z", 12)]
+
+    async def fake_fetch_events(*a, **k):
+        return events
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+    # Cursor from before the restart, persisted to disk, still older than the alarm.
+    monkeypatch.setattr(auto, "load_last_alarm_event_time", lambda: "2026-07-02T03:01:01Z")
+    saved: list[str] = []
+    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
+
+    fired: list = []
+
+    async def fake_run_onset(zones, config):
+        fired.append(zones)
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+
+    assert fired == [[(12, "PUERTA JARDIN")]]
+    assert saved == ["2026-07-02T09:40:00Z"]
+
+
+def test_run_event_scan_guards_against_overlap(monkeypatch) -> None:
+    calls = {"fetch": 0}
+
+    async def fake_fetch_events(*a, **k):
+        calls["fetch"] += 1
+        return []
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+    auto._state["event_scan_running"] = True
     try:
-        # Must not raise even with no running event loop (no task is created).
-        auto.consider_security_read(security)
-        assert auto._state["intrusion"] is True  # left untouched
+        asyncio.run(auto._run_event_scan(_security(), auto.AlarmSceneConfig()))
     finally:
-        auto._state["intrusion"] = None
+        auto._state["event_scan_running"] = False
+    assert calls["fetch"] == 0
 
 
 class _FakeNotifier:
