@@ -42,7 +42,7 @@ and an optional bearer token. Two ways to reach it once running:
   - `elgato_client.py` — Elgato lights discovery/read/control over the local LAN HTTP API.
   - `risco_client.py` — async RISCO Cloud alarm state (incl. system AC-power + per-zone trouble flags), controls, event log, and detector bypass.
   - `security_schedules.py` — UI-free persistence and due-window checks for weekly alarm schedules.
-  - `wake_alarms.py` — UI-free persistence + due-window checks for **wake alarms** (recurring day-of-week or one-shot date; Alexa-style, ring/notify only — never touches the RISCO security alarm). Cloned from `security_schedules.py`'s atomic store; `config/wake_alarms.json`.
+  - `wake_alarms.py` — UI-free persistence + due-window checks for **wake alarms** (recurring day-of-week or one-shot date; Alexa-style, ring/notify only — never touches the RISCO security alarm), plus the voice helpers `parse_spoken_alarm` (spoken time/schedule → entry), `next_fire`/`soonest_enabled`, and `describe_alarm` (speakable summary) used by the voice API (#306). Cloned from `security_schedules.py`'s atomic store; `config/wake_alarms.json`.
   - `wake_timers.py` — in-memory (unpersisted) countdown-**timer** store; mirrors Home Assistant's own ephemeral voice timers (a restart clears them). Create/list/cancel + `mark_expired`.
   - `presence_client.py` — read-only iCloud Find My spike client for location/presence feasibility.
   - `network_client.py` — async home-network orchestrator (issue #197 split): imports the three sub-modules below and exposes the unchanged public surface (`fetch_network_state`, `resolve_ip_by_mac`, dataclasses) so callers don't move.
@@ -1010,6 +1010,8 @@ Alexa-style **wake alarms** and countdown **timers**, managed from a collapsible
 
 API: `GET`/`PUT /api/wake-alarms` (list/replace), `POST /api/wake-alarms/{id}/test` (fire immediately) + `…/dismiss`; `GET`/`POST /api/wake-timers` and `DELETE /api/wake-timers/{id}`.
 
+**Voice (Step 2/2, #306).** The household's HA Voice PE creates/cancels/lists wake alarms hands-free — *"Okay Nabu, set a wake alarm for 7 am on weekdays"* / *"cancel my wake alarm"* / *"what wake alarms do I have"* — via a thin voice API that parses the spoken time server-side: `POST /api/wake-alarms/voice` (`{phrase}` → parse, append, speak it back), `POST /api/wake-alarms/voice/cancel` (cancels the **soonest** upcoming one), `GET /api/wake-alarms/voice` (spoken summary). Parsing lives in `src/wake_alarms.py:parse_spoken_alarm` (tested): times like `7 am` / `7 30` / `seven thirty` / `half past six` / `noon`; schedules `on weekdays` · `on weekends` · `every day` · a weekday name · `tomorrow`/`today` (one-shot). The HA sentences/wiring are in [`docs/voice-pe-config/`](docs/voice-pe-config/) (`wake_alarm.yaml`), kept collision-free from the RISCO "alarm" grammar. **Countdown timers** need nothing here — HA's native *"set a timer for 5 minutes"* already works on the Voice PE.
+
 Optional `.env` knobs:
 
 | Key | Default | Meaning |
@@ -1027,7 +1029,8 @@ sentence match → `intent_script` → `rest_command` → the app's HTTP API —
 the command path and a hallucinated reply can never actuate. The first live bridge is
 **alarm control** (#88): *"Okay Nabu, perimeter on"* / *"disarm now"* / *"what's the alarm
 status"* hit `POST /api/security/{arm,partial,perimeter,disarm}` and `GET /api/security`,
-with a spoken-code gate on disarm.
+with a spoken-code gate on disarm. **Wake alarms** (#306) are the second bridge — see
+[Wake alarms & timers](#wake-alarms--timers) above.
 
 - **Operating & architecture manual:** [`docs/voice-control.md`](docs/voice-control.md)
   (setup, pipeline, troubleshooting, the live alarm action bridge).
@@ -1039,7 +1042,7 @@ with a spoken-code gate on disarm.
 
 ### Home Assistant config deploy over SSH
 
-`scripts/ha_config_sync.py` (#243) deploys the repo-owned voice-PE config into the HA VM's `/config` over SSH, so HA config work is code-driven instead of done in the browser File editor: edit → deploy → `ha core check` → reload/restart → text-probe. It pushes the managed block in `configuration.yaml` and the whole `custom_sentences/en/alarm.yaml`, takes a timestamped backup under `/config/backups/home-automation/` before every write, applies a sentences-only change with the narrow `conversation.reload`, and guards the full restart a `configuration.yaml` change needs behind `--restart`. Real HA secrets stay live-only on the VM — the script verifies the required secret **key names** exist in `/config/secrets.yaml` but never reads, prints, copies, or commits their values.
+`scripts/ha_config_sync.py` (#243) deploys the repo-owned voice-PE config into the HA VM's `/config` over SSH, so HA config work is code-driven instead of done in the browser File editor: edit → deploy → `ha core check` → reload/restart → text-probe. It pushes the managed block in `configuration.yaml` and every `custom_sentences/en/*.yaml` file (`alarm.yaml` + `wake_alarm.yaml`), takes a timestamped backup under `/config/backups/home-automation/` before every write, applies a sentences-only change with the narrow `conversation.reload`, and guards the full restart a `configuration.yaml` change needs behind `--restart`. Real HA secrets stay live-only on the VM — the script verifies the required secret **key names** exist in `/config/secrets.yaml` but never reads, prints, copies, or commits their values.
 
 ```powershell
 & .\.venv\Scripts\python.exe -m scripts.ha_config_sync preflight        # readiness; distinct failure per mode
