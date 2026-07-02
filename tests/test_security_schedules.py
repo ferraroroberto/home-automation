@@ -60,6 +60,14 @@ def test_security_schedule_due_respects_weekday_and_grace() -> None:
     assert schedule_due(entry, datetime(2026, 6, 24, 21, 0, 30), 120) is False
 
 
+class _FakeState:
+    """Minimal stand-in for ``SecurityState`` - only ``mode`` is read by
+    ``action_took_effect``."""
+
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+
+
 def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> None:
     import app.webapp.security_automation as engine
 
@@ -74,7 +82,7 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
         calls.append(action)
         if action == "disarm":
             raise RuntimeError("panel down")
-        return object()
+        return _FakeState("armed")
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
     monkeypatch.setattr(engine, "control_system", fake_control)
@@ -94,3 +102,87 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert ("schedule", "arm", "ok") in outcomes
     assert outcomes.count(("schedule", "disarm", "error")) == 2
+
+
+def test_security_schedule_tick_alerts_on_confirmed_arm_mismatch(monkeypatch) -> None:
+    """The WebUI call doesn't raise, but the re-read state stays disarmed (e.g.
+    a door/window was open) - this must alert exactly like a raised exception,
+    and must not mark the schedule as fired so tick() retries it."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="arm-fails", time="21:00", days=["mon"], action="arm"),
+    ]
+
+    async def fake_control(action: str) -> object:
+        return _FakeState("disarmed")
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "control_system", fake_control)
+    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    state = engine._EngineState(last_fire_day={})
+    now = datetime(2026, 6, 22, 21, 0, 10)
+
+    asyncio.run(engine.tick(config, state, now))
+
+    assert state.last_fire_day == {}
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes == [("schedule", "arm", "error")]
+
+
+def test_security_schedule_tick_alerts_on_confirmed_disarm_mismatch(monkeypatch) -> None:
+    """Same as above for disarm - the panel stays armed after a disarm command."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="disarm-fails", time="21:00", days=["mon"], action="disarm"),
+    ]
+
+    async def fake_control(action: str) -> object:
+        return _FakeState("armed")
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "control_system", fake_control)
+    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    state = engine._EngineState(last_fire_day={})
+    now = datetime(2026, 6, 22, 21, 0, 10)
+
+    asyncio.run(engine.tick(config, state, now))
+
+    assert state.last_fire_day == {}
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes == [("schedule", "disarm", "error")]
+
+
+def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="disarm-ok", time="21:00", days=["mon"], action="disarm"),
+    ]
+
+    async def fake_control(action: str) -> object:
+        return _FakeState("disarmed")
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "control_system", fake_control)
+    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    state = engine._EngineState(last_fire_day={})
+    now = datetime(2026, 6, 22, 21, 0, 10)
+
+    asyncio.run(engine.tick(config, state, now))
+
+    assert state.last_fire_day == {"disarm-ok": "2026-06-22"}
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes == [("schedule", "disarm", "ok")]

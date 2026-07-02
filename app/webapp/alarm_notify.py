@@ -32,6 +32,7 @@ from src.activity_log import append_activity
 from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
+from src.risco_client import SecurityState
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,27 @@ def _verb(action: str) -> str:
     """Map a RISCO action to the arm/disarm axis used by the toggles + copy."""
 
     return "disarm" if action == "disarm" else "arm"
+
+
+def action_took_effect(action: str, state: SecurityState) -> bool:
+    """Whether a re-read ``SecurityState`` confirms the intent of ``action``.
+
+    ``control_system()`` (``src.risco_client``) re-reads the panel after every
+    command and returns the fresh state - this is the check that turns "the
+    WebUI call didn't raise" into "the panel actually ended up armed/disarmed".
+    A door/window left open when arming is the common way a command "succeeds"
+    (no exception) but the panel silently stays disarmed or partially armed.
+
+    ``partial`` and ``perimeter`` both confirm as either mode - the panel
+    doesn't reliably distinguish which named group matched the configured
+    letter, so treating them as interchangeable avoids false alerts.
+    """
+
+    if action == "disarm":
+        return state.mode == "disarmed"
+    if action == "arm":
+        return state.mode == "armed"
+    return state.mode in ("partial", "perimeter")
 
 
 def _compose_message(

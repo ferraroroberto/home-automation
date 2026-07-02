@@ -320,3 +320,29 @@ def test_security_ac_lost_alerts_both_directions_and_respects_toggle(tmp_path: P
     assert len(notifier.sent) == 2
     assert "lost mains" in notifier.sent[0]
     assert "restored" in notifier.sent[1]
+
+
+class _FakeState:
+    """Minimal stand-in for ``SecurityState`` - only ``mode`` is read."""
+
+    def __init__(self, mode: str) -> None:
+        self.mode = mode
+
+
+def test_action_took_effect_confirms_matching_arm_and_disarm() -> None:
+    assert AN.action_took_effect("arm", _FakeState("armed")) is True
+    assert AN.action_took_effect("disarm", _FakeState("disarmed")) is True
+
+
+def test_action_took_effect_flags_arm_and_disarm_mismatch() -> None:
+    assert AN.action_took_effect("arm", _FakeState("disarmed")) is False
+    assert AN.action_took_effect("arm", _FakeState("partial")) is False
+    assert AN.action_took_effect("disarm", _FakeState("armed")) is False
+
+
+def test_action_took_effect_treats_partial_and_perimeter_as_interchangeable() -> None:
+    assert AN.action_took_effect("partial", _FakeState("partial")) is True
+    assert AN.action_took_effect("partial", _FakeState("perimeter")) is True
+    assert AN.action_took_effect("perimeter", _FakeState("partial")) is True
+    assert AN.action_took_effect("perimeter", _FakeState("perimeter")) is True
+    assert AN.action_took_effect("partial", _FakeState("armed")) is False

@@ -15,10 +15,11 @@ from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
     SOURCE_SCHEDULE,
+    action_took_effect,
     record_alarm_action,
 )
 from src.presence_engine import note_manual_alarm_action
-from src.risco_client import control_system
+from src.risco_client import RiscoCommandError, control_system
 from src.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
     logger.info("⏰ Applying alarm schedule %s (%s %s)", entry.id, entry.time, entry.action)
     detail = entry.time
     try:
-        await control_system(entry.action)
+        state = await control_system(entry.action)
     except Exception as exc:  # noqa: BLE001 - record then re-raise so tick() retries
         # An automatic arm/disarm failed (e.g. panel offline during an outage):
         # log it and alert once per day. Re-raise so tick() leaves last_fire_day
@@ -70,6 +71,22 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
             dedupe_key=f"schedule:{entry.id}",
         )
         raise
+    if not action_took_effect(entry.action, state):
+        # The WebUI call didn't raise, but the panel's re-read state doesn't
+        # match what we asked for - e.g. a door/window was open when arming.
+        # Treat it exactly like a failed command: alert and re-raise so tick()
+        # leaves last_fire_day unset and retries within the grace window.
+        error = f"panel read back '{state.mode}' after {entry.action}, not the expected state"
+        record_alarm_action(
+            source=SOURCE_SCHEDULE,
+            action=entry.action,
+            outcome=OUTCOME_ERROR,
+            error=error,
+            detail=detail,
+            reason=f"schedule {entry.id}",
+            dedupe_key=f"schedule:{entry.id}",
+        )
+        raise RiscoCommandError(error)
     record_alarm_action(
         source=SOURCE_SCHEDULE,
         action=entry.action,
