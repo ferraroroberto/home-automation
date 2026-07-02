@@ -71,13 +71,21 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Repo-owned source files → their live destinations on the HA VM.
 SNIPPET_FILE = PROJECT_ROOT / "docs" / "voice-pe-config" / "configuration.snippet.yaml"
-ALARM_SENTENCES_FILE = (
-    PROJECT_ROOT / "docs" / "voice-pe-config" / "custom_sentences" / "en" / "alarm.yaml"
-)
+_SENTENCES_DIR = PROJECT_ROOT / "docs" / "voice-pe-config" / "custom_sentences" / "en"
+ALARM_SENTENCES_FILE = _SENTENCES_DIR / "alarm.yaml"
+WAKE_ALARM_SENTENCES_FILE = _SENTENCES_DIR / "wake_alarm.yaml"
 REMOTE_CONFIG = "/config/configuration.yaml"
 REMOTE_ALARM_SENTENCES = "/config/custom_sentences/en/alarm.yaml"
+REMOTE_WAKE_ALARM_SENTENCES = "/config/custom_sentences/en/wake_alarm.yaml"
 REMOTE_SECRETS = "/config/secrets.yaml"
 BACKUP_DIR = "/config/backups/home-automation"
+
+# Every repo-owned custom-sentence file → its live destination. Each is pushed
+# whole; a sentences-only change is applied with the narrow conversation.reload.
+SENTENCE_FILES = (
+    (ALARM_SENTENCES_FILE, REMOTE_ALARM_SENTENCES),
+    (WAKE_ALARM_SENTENCES_FILE, REMOTE_WAKE_ALARM_SENTENCES),
+)
 
 # Marker comments that delimit the block this tool owns inside the otherwise
 # hand-managed configuration.yaml. Everything outside the markers is preserved.
@@ -530,11 +538,12 @@ def _plan_changes(ssh: HaSsh) -> list:
     whose desired content differs from what's live. Empty = nothing to do."""
     changes = []
 
-    # custom_sentences/en/alarm.yaml — whole file
-    alarm_new = ALARM_SENTENCES_FILE.read_text(encoding="utf-8")
-    alarm_old = ssh.read(REMOTE_ALARM_SENTENCES) or ""
-    if alarm_new != alarm_old:
-        changes.append(("sentences", REMOTE_ALARM_SENTENCES, alarm_new, alarm_old))
+    # custom_sentences/en/*.yaml — each whole file
+    for local_file, remote_path in SENTENCE_FILES:
+        new = local_file.read_text(encoding="utf-8")
+        old = ssh.read(remote_path) or ""
+        if new != old:
+            changes.append(("sentences", remote_path, new, old))
 
     # configuration.yaml — managed block only
     config_old = ssh.read(REMOTE_CONFIG)
@@ -632,7 +641,7 @@ def cmd_rollback(cfg: HaConfig) -> int:
     try:
         ssh.connect()
         restored = 0
-        for remote_path in (REMOTE_CONFIG, REMOTE_ALARM_SENTENCES):
+        for remote_path in (REMOTE_CONFIG, *(r for _, r in SENTENCE_FILES)):
             backups = ssh.list_backups(Path(remote_path).name)
             if not backups:
                 _info(f"No backup found for {remote_path} — skipped.")

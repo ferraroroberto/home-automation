@@ -46,6 +46,31 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
+  # Wake alarms (issue #306) — distinct from the RISCO alarm above. {when} is
+  # the spoken time/schedule; the app parses it and returns a spoken reply.
+  wake_alarm_set:
+    url: "https://192.168.0.13:8447/api/wake-alarms/voice"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+      content-type: "application/json"
+    payload: '{"phrase": "{{ when }}"}'
+    verify_ssl: false
+    timeout: 30
+  wake_alarm_cancel:
+    url: "https://192.168.0.13:8447/api/wake-alarms/voice/cancel"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 30
+  wake_alarm_list:
+    url: "https://192.168.0.13:8447/api/wake-alarms/voice"
+    method: GET
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 15
 
 intent_script:
   AlarmArmFull:
@@ -105,4 +130,38 @@ intent_script:
   AlarmDisarmPrompt:
     speech:
       text: "To disarm, say disarm followed by your code."
+
+  # Wake alarms (issue #306). The app parses the spoken time and returns a
+  # ready-made `speech` string, so these templates just relay it.
+  WakeAlarmSet:
+    action:
+      - service: rest_command.wake_alarm_set
+        data:
+          when: "{{ when }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't set that wake alarm.{% endif %}
+
+  WakeAlarmCancel:
+    action:
+      - service: rest_command.wake_alarm_cancel
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't cancel your wake alarm.{% endif %}
+
+  WakeAlarmList:
+    action:
+      - service: rest_command.wake_alarm_list
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
 # <<< home-automation:voice-pe-alarm <<<

@@ -1798,6 +1798,14 @@ button.security-zone-name:hover { text-decoration: underline; }
   gap: 0;
   margin-top: 10px;
 }
+/* Tiny footer explaining the voice path (the differentiator over a phone
+   alarm). Separated from the timers block like .wake-timers-section is. */
+.wake-voice-hint {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-muted);
+  line-height: 1.5;
+}
 .wake-timer-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

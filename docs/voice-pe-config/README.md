@@ -19,11 +19,39 @@ The full phrase lists are in `custom_sentences/en/alarm.yaml` — widen them fre
 
 Arming, perimeter, partial and status are one-shot. **Disarm requires a spoken code** (`voice_disarm_pin`) in the same utterance — a wrong or missing code never calls disarm. That voice code is a gate layered on top of the RISCO panel PIN the app already holds server-side, so the real panel PIN is never spoken aloud.
 
+### Wake alarms (issue #306)
+
+A **separate** feature from the RISCO alarm above — every phrase says "wake alarm" / "wake-up alarm" so the two grammars never collide. These drive the app's persisted wake-alarm list (Step 1, `/api/wake-alarms`); a fired alarm rings on the Home-tab card.
+
+| You say (after "Okay Nabu, …") | Intent | App call |
+|---|---|---|
+| "set a wake alarm for 7 am" · "wake me up at half past six" · "set a wake-up alarm for 7 on weekdays" · "new wake alarm for 8 tomorrow" | set | `POST /api/wake-alarms/voice` → parses the spoken time, appends, speaks it back |
+| "cancel my wake alarm" · "delete my wake alarms" · "turn off my wake-up alarm" | cancel | `POST /api/wake-alarms/voice/cancel` → cancels the **soonest** upcoming one (repeat for the next) |
+| "what wake alarms do I have" · "list my wake alarms" · "when are my wake alarms" | list (read) | `GET /api/wake-alarms/voice` → speaks a summary |
+
+**Supported spoken time/schedule** (parsed server-side in `src/wake_alarms.py:parse_spoken_alarm`, so the sentences stay thin):
+
+- **Time:** `7` / `7 am` / `7 pm` / `7 30` / `seven thirty` / `half past six` / `quarter to seven` / `noon`. A bare number with no am/pm is taken as spoken (24-hour if ≥ 13, else AM).
+- **Schedule:** `on weekdays` (Mon–Fri) · `on weekends` (Sat/Sun) · `every day` · a weekday name (`on monday`) → recurring; `tomorrow` / `today` → a one-shot that auto-disables after it fires. No schedule → every day.
+
+The sentence lists are in `custom_sentences/en/wake_alarm.yaml`. Both the set and cancel intents reuse the existing `!secret app_api_authorization` — **no new secret**.
+
+### Timers — already work, nothing to deploy
+
+Home Assistant's built-in Assist intents (`HassStartTimer` / `HassCancelTimer` / …, since "Voice Chapter 7") give you ad-hoc countdown timers **with zero config in this repo**:
+
+> "Okay Nabu, **set a timer for 5 minutes**" · "cancel the timer" · "how much time is left"
+
+These are ephemeral, scoped per satellite, announced by TTS on completion — **not** the persisted wake alarms above, and not mirrored into the webapp (HA exposes no stable poll API for them; that bridge is a documented future gap). Don't rebuild them here.
+
 ## Files
 
-- `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml`
-- `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml`
+- `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml` (RISCO security alarm)
+- `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
+- `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **both** feature's `rest_command` / `intent_script` entries)
 - `secrets.snippet.yaml` → add both keys to `/config/secrets.yaml` **with real values** (never committed)
+
+`ha_config_sync.py deploy` pushes **every** file under `custom_sentences/en/` (both `alarm.yaml` and `wake_alarm.yaml`) plus the managed config block, in one run.
 
 ## Deploy by code (preferred) — `scripts/ha_config_sync.py`
 
@@ -83,6 +111,8 @@ Use this only when SSH/script deploy is unavailable (add-on down, key not yet pr
 
 - Read-only first: "Okay Nabu, what's the alarm status?" → it speaks the current state.
 - Then a full cycle: "perimeter on" → check the app's Security tab → "disarm \<code\>".
+- **Wake alarms:** "set a wake alarm for 7 am on weekdays" → it speaks it back → confirm it appears on the Home-tab card (or `GET /api/wake-alarms`) → "cancel my wake alarm". Text-probe without speaking: `… -m scripts.ha_config_sync probe --text "set a wake alarm for 7 am" --actuate` (a reply of type `action_done` = matched locally).
+- **Timers (native, no deploy):** "set a timer for 2 minutes" → wait for the TTS chime; "cancel the timer".
 
 ## Requirements
 

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Dict, List
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -20,7 +22,14 @@ from app.webapp.wake_alarm_automation import (
     ringing_alarm_ids,
     test_fire_alarm,
 )
-from src.wake_alarms import load_wake_alarms, set_wake_alarms
+from src.wake_alarms import (
+    describe_alarm,
+    load_wake_alarms,
+    next_fire,
+    parse_spoken_alarm,
+    set_wake_alarms,
+    soonest_enabled,
+)
 from src.wake_timers import cancel_timer, create_timer, list_timers
 
 logger = logging.getLogger(__name__)
@@ -80,6 +89,83 @@ async def update_wake_alarms(request: Request) -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ Failed to save wake alarms: %s", exc)
         raise HTTPException(status_code=500, detail=f"failed to save wake alarms: {exc}")
+
+
+class VoicePhrasePayload(BaseModel):
+    phrase: str = ""
+
+
+@router.post("/api/wake-alarms/voice")
+async def voice_set_wake_alarm(payload: VoicePhrasePayload) -> Dict[str, Any]:
+    """Create a wake alarm from a spoken phrase (HA Assist → ``rest_command``).
+
+    The HA ``intent_script`` speaks ``speech`` back to the user. A phrase with
+    no recognisable time returns ``ok: false`` and a clarifying line rather than
+    a 4xx, so the voice assistant always has something to say.
+    """
+
+    parsed = parse_spoken_alarm(payload.phrase, datetime.now())
+    if parsed is None:
+        return {
+            "ok": False,
+            "speech": "Sorry, I didn't catch a time for that wake alarm.",
+        }
+    parsed["id"] = f"wake-{uuid4().hex[:6]}"
+    try:
+        current = load_wake_alarms()
+        entries = set_wake_alarms([asdict(e) for e in current] + [parsed])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ Failed to save voice wake alarm: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to save wake alarm: {exc}")
+    new_entry = next((e for e in entries if e.id == parsed["id"]), entries[-1])
+    return {
+        "ok": True,
+        "id": new_entry.id,
+        "time": new_entry.time,
+        "days": new_entry.days,
+        "date": new_entry.date,
+        "speech": f"Wake alarm set for {describe_alarm(new_entry)}.",
+    }
+
+
+@router.get("/api/wake-alarms/voice")
+async def voice_list_wake_alarms() -> Dict[str, Any]:
+    """A spoken summary of the enabled wake alarms (HA "what wake alarms…")."""
+
+    entries = [entry for entry in load_wake_alarms() if entry.enabled]
+    if not entries:
+        return {"count": 0, "speech": "You have no wake alarms set."}
+    entries.sort(key=lambda entry: next_fire(entry, datetime.now()))
+    parts = [describe_alarm(entry) for entry in entries]
+    if len(parts) == 1:
+        body = parts[0]
+    else:
+        body = ", ".join(parts[:-1]) + ", and " + parts[-1]
+    plural = "" if len(parts) == 1 else "s"
+    return {
+        "count": len(parts),
+        "speech": f"You have {len(parts)} wake alarm{plural}: {body}.",
+    }
+
+
+@router.post("/api/wake-alarms/voice/cancel")
+async def voice_cancel_wake_alarm() -> Dict[str, Any]:
+    """Cancel the soonest-upcoming enabled wake alarm (repeat for the next)."""
+
+    try:
+        current = load_wake_alarms()
+        target = soonest_enabled(current, datetime.now())
+        if target is None:
+            return {"cancelled": False, "speech": "You have no wake alarms to cancel."}
+        set_wake_alarms([asdict(e) for e in current if e.id != target.id])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ Failed to cancel voice wake alarm: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to cancel wake alarm: {exc}")
+    return {
+        "cancelled": True,
+        "id": target.id,
+        "speech": f"Cancelled your wake alarm for {describe_alarm(target)}.",
+    }
 
 
 @router.post("/api/wake-alarms/{alarm_id}/test")
