@@ -18,6 +18,13 @@ _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 PUSH_CONFIG_PATH = _CONFIG_DIR / "push_config.json"
 SUBSCRIPTIONS_PATH = _CONFIG_DIR / "push_subscriptions.json"
 
+# Cache of the last-validated private key value, so a bad key logs its clear
+# "pushes disabled" warning once (not once per subscription per send) while
+# still re-validating automatically if the config value ever changes without
+# a process restart.
+_validated_private_key: Optional[str] = None
+_validated_private_key_ok: bool = False
+
 
 def _read_json(path: Path) -> Any:
     if not path.exists():
@@ -73,12 +80,54 @@ def save_subscription(subscription: Dict[str, Any], path: Optional[Path] = None)
     return len(subs)
 
 
+def validate_push_config(cfg: Optional[Dict[str, str]] = None) -> bool:
+    """Check the configured VAPID private key can actually be loaded.
+
+    Loads the key once (via ``py_vapid``, the same parser ``pywebpush`` uses
+    internally) and caches the result keyed by the private-key value, so a
+    bad key logs its "pushes disabled" warning exactly once instead of once
+    per subscription on every send. Returns ``True`` when push isn't
+    configured at all (silent no-op — not an error) or the key loads
+    cleanly; ``False`` only when a private key is present but unreadable.
+    Safe to call at startup and/or lazily on first send.
+    """
+
+    global _validated_private_key, _validated_private_key_ok
+
+    if cfg is None:
+        cfg = load_push_config()
+    private_key = cfg["private_key"]
+    if not cfg["public_key"] or not private_key:
+        return True
+    if private_key == _validated_private_key:
+        return _validated_private_key_ok
+
+    try:
+        from py_vapid import Vapid
+    except ImportError:
+        logger.warning("⚠️ py_vapid is not installed; cannot validate Web Push key")
+        _validated_private_key = private_key
+        _validated_private_key_ok = False
+        return False
+
+    try:
+        Vapid.from_string(private_key=private_key)
+        _validated_private_key_ok = True
+    except Exception as exc:  # noqa: BLE001 — any parse failure disables push
+        logger.warning("⚠️ Web Push private key unreadable — pushes disabled (%s)", exc)
+        _validated_private_key_ok = False
+    _validated_private_key = private_key
+    return _validated_private_key_ok
+
+
 def send_push(title: str, body: str, *, url: str = "/") -> int:
     """Send a Web Push notification to all subscriptions; never raises."""
 
     cfg = load_push_config()
     if not cfg["public_key"] or not cfg["private_key"]:
         logger.info("ℹ️ Web Push not configured; skipping transition notification")
+        return 0
+    if not validate_push_config(cfg):
         return 0
     subs = load_subscriptions()
     if not subs:

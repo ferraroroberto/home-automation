@@ -306,7 +306,7 @@ Generate local VAPID keys:
 & .\.venv\Scripts\python.exe scripts\gen_web_push_keys.py mailto:you@example.com
 ```
 
-Restart the webapp, open the installed PWA over HTTPS, go to Security → Presence, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`. Push delivery is best-effort; a failed notification never blocks arm/disarm.
+Restart the webapp, open the installed PWA over HTTPS, go to Security → Presence, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`; the private key is stored as the base64url-encoded raw VAPID scalar (not a PEM string — a PEM-armored key fails ASN.1 parsing in `pywebpush`/`py_vapid`, see #284), and an unreadable key logs a single `Web Push private key unreadable — pushes disabled` warning at startup instead of a per-send error. Push delivery is best-effort; a failed notification never blocks arm/disarm. Re-running `gen_web_push_keys.py` rotates the keypair, so any existing browser subscriptions will need to re-subscribe (tap **Enable notifications** again) to pick up the new public key.
 
 ## Home-network / Network tab
 
