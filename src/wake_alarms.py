@@ -160,15 +160,26 @@ def set_wake_alarms(raw_entries: List[dict], path: Optional[Path] = None) -> Lis
 def wake_alarm_due(entry: WakeAlarmEntry, now: datetime, grace_s: int) -> bool:
     """True when ``now`` is inside this entry's local fire window."""
 
-    if entry.date:
-        if now.strftime("%Y-%m-%d") != entry.date:
-            return False
-    elif now.strftime("%a").lower()[:3] not in set(entry.days or []):
-        return False
     hour, minute = (int(part) for part in entry.time.split(":", 1))
-    fire_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    delta = (now - fire_at).total_seconds()
-    return 0 <= delta < grace_s
+    candidate_days = (now, now - timedelta(days=1))
+    if entry.date:
+        for schedule_day in candidate_days:
+            if schedule_day.strftime("%Y-%m-%d") != entry.date:
+                continue
+            fire_at = schedule_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            delta = (now - fire_at).total_seconds()
+            if 0 <= delta < grace_s:
+                return True
+        return False
+    days = set(entry.days or [])
+    for schedule_day in candidate_days:
+        if schedule_day.strftime("%a").lower()[:3] not in days:
+            continue
+        fire_at = schedule_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        delta = (now - fire_at).total_seconds()
+        if 0 <= delta < grace_s:
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- #
@@ -181,7 +192,8 @@ def next_fire(entry: WakeAlarmEntry, now: datetime) -> datetime:
     hour, minute = (int(part) for part in entry.time.split(":", 1))
     if entry.date:
         base = datetime.strptime(entry.date, "%Y-%m-%d")
-        return base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        cand = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        return cand if cand >= now else datetime.max
     days = set(entry.days or DAYS)
     for offset in range(8):
         cand = (now + timedelta(days=offset)).replace(

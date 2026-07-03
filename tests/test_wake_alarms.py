@@ -69,6 +69,13 @@ def test_wake_alarm_due_respects_weekday_and_grace() -> None:
     assert wake_alarm_due(entry, datetime(2026, 6, 24, 7, 0, 30), 120) is False  # wrong weekday
 
 
+def test_wake_alarm_due_catches_late_night_window_after_midnight() -> None:
+    entry = WakeAlarmEntry(id="bedtime", time="23:59", days=["fri"])
+
+    assert wake_alarm_due(entry, datetime(2026, 7, 4, 0, 0, 30), 120) is True
+    assert wake_alarm_due(entry, datetime(2026, 7, 4, 0, 1, 1), 120) is False
+
+
 def test_wake_alarm_due_one_shot_ignores_days() -> None:
     entry = WakeAlarmEntry(id="once", time="05:30", days=["mon"], date="2026-08-12")
 
@@ -205,6 +212,17 @@ def test_soonest_enabled_picks_earliest_and_skips_disabled() -> None:
     assert soonest_enabled(entries, _NOW).id == "a"  # today 10:00 beats tomorrow 06:00
     assert soonest_enabled([], _NOW) is None
     assert soonest_enabled([entries[2]], _NOW) is None  # all disabled
+
+
+def test_soonest_enabled_ignores_past_one_shot() -> None:
+    entries = [
+        WakeAlarmEntry(id="expired", time="05:30", date="2026-06-30"),
+        WakeAlarmEntry(id="recurring", time="10:00", days=["wed"]),
+        WakeAlarmEntry(id="future", time="08:00", date="2026-07-02"),
+    ]
+
+    assert next_fire(entries[0], _NOW) == datetime.max
+    assert soonest_enabled(entries, _NOW).id == "recurring"
 
 
 def test_describe_alarm_phrasing() -> None:

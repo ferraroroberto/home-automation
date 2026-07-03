@@ -60,6 +60,19 @@ def test_security_schedule_due_respects_weekday_and_grace() -> None:
     assert schedule_due(entry, datetime(2026, 6, 24, 21, 0, 30), 120) is False
 
 
+def test_security_schedule_due_catches_late_night_window_after_midnight() -> None:
+    entry = SecurityScheduleEntry(
+        id="bedtime",
+        enabled=True,
+        time="23:59",
+        days=["fri"],
+        action="arm",
+    )
+
+    assert schedule_due(entry, datetime(2026, 7, 4, 0, 0, 30), 120) is True
+    assert schedule_due(entry, datetime(2026, 7, 4, 0, 1, 1), 120) is False
+
+
 class _FakeState:
     """Minimal stand-in for ``SecurityState`` - only ``mode`` is read by
     ``action_took_effect``."""
