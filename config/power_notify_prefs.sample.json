@@ -1,4 +1,5 @@
 {
   "power_lost": true,
-  "power_restored": true
+  "power_restored": true,
+  "auto_shutdown_low_battery": true
 }

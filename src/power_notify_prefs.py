@@ -1,14 +1,18 @@
 """Per-event toggles for UPS mains-power Telegram notifications.
 
-Two booleans controlling whether a Telegram message is pushed when the PC/Wi-Fi
-UPS transitions between mains and battery:
+Three booleans controlling UPS power-event behaviour:
 
-- ``power_lost``     — mains lost, the UPS went on-battery (the alert that matters)
-- ``power_restored`` — mains came back, the UPS is back online (the all-clear)
+- ``power_lost``              — mains lost, the UPS went on-battery (the alert that matters)
+- ``power_restored``          — mains came back, the UPS is back online (the all-clear)
+- ``auto_shutdown_low_battery`` — safety net: when the UPS is on battery and its
+  reported runtime drops to 15 minutes or less, send a Telegram alert **and**
+  initiate a graceful Windows shutdown (see :mod:`src.host_shutdown`). Off means
+  the feature is fully disabled for this event — no alert, no shutdown.
 
-Default: **both on** — power events are rare and high-value. Persisted atomically
-to gitignored ``config/power_notify_prefs.json`` (committed ``…sample.json``),
-mirroring :mod:`src.alarm_notify_prefs`.
+Default: **all on** — power events are rare and high-value, and the auto-shutdown
+is a safety measure against silent data loss. Persisted atomically to gitignored
+``config/power_notify_prefs.json`` (committed ``…sample.json``), mirroring
+:mod:`src.alarm_notify_prefs`.
 """
 
 from __future__ import annotations
@@ -29,10 +33,11 @@ DEFAULT_PATH = (
 
 @dataclass(frozen=True)
 class PowerNotifyPrefs:
-    """Which UPS power events notify. Defaults: both on."""
+    """Which UPS power events notify. Defaults: all on."""
 
     power_lost: bool = True
     power_restored: bool = True
+    auto_shutdown_low_battery: bool = True
 
 
 def load_power_notify_prefs(path: Optional[Path] = None) -> PowerNotifyPrefs:
@@ -53,6 +58,9 @@ def load_power_notify_prefs(path: Optional[Path] = None) -> PowerNotifyPrefs:
     return PowerNotifyPrefs(
         power_lost=bool(raw.get("power_lost", defaults.power_lost)),
         power_restored=bool(raw.get("power_restored", defaults.power_restored)),
+        auto_shutdown_low_battery=bool(
+            raw.get("auto_shutdown_low_battery", defaults.auto_shutdown_low_battery)
+        ),
     )
 
 
