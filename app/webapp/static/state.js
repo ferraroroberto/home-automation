@@ -274,6 +274,7 @@ export const els = {
   upsTile: document.getElementById('upsTile'),
   notifyPowerLost: document.getElementById('notifyPowerLost'),
   notifyPowerRestored: document.getElementById('notifyPowerRestored'),
+  notifyAutoShutdown: document.getElementById('notifyAutoShutdown'),
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
   // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
   homeVmTile: document.getElementById('homeVmTile'),

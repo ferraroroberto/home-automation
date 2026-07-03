@@ -36,7 +36,7 @@ def log_path_for(consumer: str) -> Path:
 
 
 # Events whose mere occurrence is high-severity, used to colour the activity UI.
-_ALARM_EVENTS = frozenset({"intrusion"})
+_ALARM_EVENTS = frozenset({"intrusion", "low_battery_shutdown"})
 _WARN_EVENTS = frozenset({"ac_lost", "power_lost"})
 
 

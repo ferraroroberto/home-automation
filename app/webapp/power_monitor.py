@@ -7,6 +7,19 @@ on an interval, tracks the last ``mains_online`` value in process memory, and
 fires :func:`app.webapp.power_notify.record_power_event` on each mains↔battery
 transition (baseline on first observation — no alert for the state at startup).
 
+It also drives the low-battery safety shutdown: whenever the UPS is on battery
+and its reported ``runtime_seconds`` drops to :data:`LOW_BATTERY_RUNTIME_THRESHOLD_S`
+(15 min) or below, :func:`app.webapp.power_notify.record_low_battery_shutdown`
+fires once per outage (edge-triggered on a process-memory flag, not on the
+mains↔battery transition itself — the battery can keep draining for several
+polls after the outage starts before it crosses the threshold). Unlike the
+mains-transition baseline skip, this check is **not** suppressed on the first
+observation: if the monitor starts while the UPS is already critically low
+(e.g. the webapp restarted mid-outage), it still triggers — this is a safety
+measure, not a Telegram-spam-avoidance one. If mains power returns before the
+scheduled OS shutdown completes, :func:`app.webapp.power_notify.record_low_battery_shutdown_cancelled`
+aborts it and resets the flag so a later outage can trigger again.
+
 ``fetch_ups_state`` is blocking (subprocess / Windows WMI), so it runs in a
 thread via ``asyncio.to_thread`` to keep the event loop free. Gated by
 ``POWER_MONITOR_ENABLED`` (default on), mirroring the other lifespan tasks.
@@ -22,15 +35,24 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
-from app.webapp.power_notify import record_power_event
+from app.webapp.power_notify import (
+    record_low_battery_shutdown,
+    record_low_battery_shutdown_cancelled,
+    record_power_event,
+)
 from src.ups_client import UpsState, fetch_ups_state
 
 logger = logging.getLogger(__name__)
+
+# Hardcoded, not user-configurable — only whether the feature is on/off is
+# (via PowerNotifyPrefs.auto_shutdown_low_battery).
+LOW_BATTERY_RUNTIME_THRESHOLD_S = 15 * 60
 
 
 @dataclass
 class _MonitorState:
     last_mains_online: Optional[bool] = None
+    low_battery_shutdown_triggered: bool = False
 
 
 def _runtime_detail(ups: UpsState) -> Optional[str]:
@@ -43,21 +65,35 @@ def _runtime_detail(ups: UpsState) -> Optional[str]:
 
 
 async def tick(state: _MonitorState) -> None:
-    """Read the UPS once and alert on a mains↔battery transition."""
+    """Read the UPS once, alert on a mains↔battery transition, and enforce the
+    low-battery safety shutdown while on battery."""
 
     ups = await asyncio.to_thread(fetch_ups_state)
     if ups is None or not ups.available or ups.mains_online is None:
         return
     online = ups.mains_online
-    if state.last_mains_online is None:
-        state.last_mains_online = online  # baseline — never alert on startup state
-        return
-    if state.last_mains_online == online:
+    baseline = state.last_mains_online is None
+    changed = not baseline and state.last_mains_online != online
+
+    if changed:
+        lost = state.last_mains_online is True and online is False
+        record_power_event(lost=lost, detail=_runtime_detail(ups) if lost else None)
+
+    state.last_mains_online = online
+
+    if online:
+        if state.low_battery_shutdown_triggered:
+            state.low_battery_shutdown_triggered = False
+            record_low_battery_shutdown_cancelled()
         return
 
-    lost = state.last_mains_online is True and online is False
-    state.last_mains_online = online
-    record_power_event(lost=lost, detail=_runtime_detail(ups) if lost else None)
+    if (
+        not state.low_battery_shutdown_triggered
+        and ups.runtime_seconds is not None
+        and ups.runtime_seconds <= LOW_BATTERY_RUNTIME_THRESHOLD_S
+    ):
+        state.low_battery_shutdown_triggered = True
+        record_low_battery_shutdown(detail=_runtime_detail(ups))
 
 
 async def _run(interval_s: int) -> None:

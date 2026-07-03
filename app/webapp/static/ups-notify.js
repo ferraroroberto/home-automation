@@ -1,6 +1,6 @@
 /* UPS power-event notification toggles (Plugs tab).
  *
- * A folded-by-default card mirroring the alarm Notifications card. Two checkboxes
+ * A folded-by-default card mirroring the alarm Notifications card. Checkboxes
  * map 1:1 to the backend PowerNotifyPrefs; each persists on change via
  * PUT /api/ups/notify-prefs. A hint shows when Telegram isn't configured.
  */
@@ -13,6 +13,7 @@ import { jsonApi } from './api.js';
 const FIELDS = [
   ['notifyPowerLost', 'power_lost'],
   ['notifyPowerRestored', 'power_restored'],
+  ['notifyAutoShutdown', 'auto_shutdown_low_battery'],
 ];
 
 function renderConfiguredNote(configured) {

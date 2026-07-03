@@ -1,16 +1,26 @@
 """Record + (conditionally) notify on UPS mains-power transitions.
 
-Mirrors :mod:`app.webapp.alarm_notify` for the power domain. A single entry
-point — :func:`record_power_event` — used by the background power monitor when
-the UPS crosses between mains and battery:
+Mirrors :mod:`app.webapp.alarm_notify` for the power domain. Two entry points
+used by the background power monitor:
+
+- :func:`record_power_event` — the UPS crossed between mains and battery.
+- :func:`record_low_battery_shutdown` / :func:`record_low_battery_shutdown_cancelled`
+  — the safety-net pair for the low-battery auto-shutdown: fired when the UPS
+  runtime drops critically low while on battery, and when mains power returns
+  before the scheduled shutdown completes.
+
+All of them share the same three-step shape:
 
 1. **Always** appends the event to the local activity log (``logs/power.jsonl``).
 2. **Conditionally** sends a Telegram message — only when the matching
    :class:`PowerNotifyPrefs` toggle is on and a notifier is configured. A
    delivery failure is logged and swallowed so it can never break the monitor.
+3. For the shutdown pair, the OS-level action (:mod:`src.host_shutdown`) is
+   invoked through an injectable seam so tests never touch the real ``shutdown``
+   command.
 
-Edge-triggering (fire only on the mains↔battery transition, with a baseline on
-first observation) is the caller's job — see :mod:`app.webapp.power_monitor`.
+Edge-triggering (fire only on a transition/threshold-crossing, with a baseline
+on first observation) is the caller's job — see :mod:`app.webapp.power_monitor`.
 """
 
 from __future__ import annotations
@@ -19,6 +29,7 @@ import logging
 from typing import Any, Callable, Dict, Optional
 
 from src.activity_log import append_activity
+from src.host_shutdown import cancel_shutdown, initiate_shutdown
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
 from src.power_notify_prefs import PowerNotifyPrefs, load_power_notify_prefs
@@ -68,3 +79,65 @@ def record_power_event(
         notifier.send_text(_compose_message(lost, detail))
     except NotifierError as exc:  # delivery must never break the monitor loop
         logger.warning("⚠️ Telegram power notification failed: %s", exc)
+
+
+def _compose_shutdown_message(detail: Optional[str]) -> str:
+    suffix = f" · {detail}" if detail else ""
+    return f"🔴 UPS battery critically low — PC shutting down now{suffix}"
+
+
+def record_low_battery_shutdown(
+    *,
+    detail: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+    grace_seconds: int = 180,
+    prefs_loader: Callable[[], PowerNotifyPrefs] = load_power_notify_prefs,
+    notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
+    shutdown_fn: Callable[..., bool] = initiate_shutdown,
+) -> bool:
+    """Log a critically-low UPS battery and, if enabled, alert + shut down.
+
+    Gated entirely on ``auto_shutdown_low_battery`` — off means the event is
+    still logged (mirrors every other UPS power event) but neither the
+    Telegram alert nor the shutdown fires. Returns ``True`` only when a
+    shutdown was actually scheduled.
+    """
+
+    record: Dict[str, Any] = {"event": "low_battery_shutdown"}
+    if detail:
+        record["detail"] = detail
+    if extra:
+        record.update(extra)
+    append_activity("power", record)
+
+    prefs = prefs_loader()
+    if not prefs.auto_shutdown_low_battery:
+        return False
+
+    notifier = notifier_factory()
+    if notifier is not None:
+        try:
+            notifier.send_text(_compose_shutdown_message(detail))
+        except NotifierError as exc:  # delivery must never break the monitor loop
+            logger.warning("⚠️ Telegram low-battery shutdown notification failed: %s", exc)
+
+    return shutdown_fn(
+        grace_seconds=grace_seconds,
+        message="Low UPS battery — PC shutting down to avoid data loss",
+    )
+
+
+def record_low_battery_shutdown_cancelled(
+    *,
+    cancel_fn: Callable[[], bool] = cancel_shutdown,
+) -> None:
+    """Log + cancel a previously-scheduled low-battery shutdown.
+
+    Called when mains power returns before the scheduled OS shutdown
+    completes. Cancelling is unconditional (not gated on the toggle) — it is
+    always safe/idempotent to cancel a shutdown that may or may not actually
+    be pending.
+    """
+
+    append_activity("power", {"event": "low_battery_shutdown_cancelled"})
+    cancel_fn()

@@ -776,7 +776,8 @@
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
         <p class="muted small security-note">
-          Telegram alerts when the PC &amp; Wi-Fi UPS loses or regains mains power.
+          Telegram alerts when the PC &amp; Wi-Fi UPS loses or regains mains power, and a safety
+          auto-shutdown when the battery runs critically low.
         </p>
         <div class="notify-toggles">
           <label class="notify-toggle">
@@ -786,6 +787,10 @@
           <label class="notify-toggle">
             <input id="notifyPowerRestored" type="checkbox" class="checkbox-native">
             <span>Power restored (back on mains)</span>
+          </label>
+          <label class="notify-toggle">
+            <input id="notifyAutoShutdown" type="checkbox" class="checkbox-native">
+            <span>Auto-shutdown PC when UPS runtime &lt; 15 min (safety)</span>
           </label>
         </div>
         <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
