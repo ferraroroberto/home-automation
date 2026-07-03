@@ -11,7 +11,7 @@ import logging
 import os
 import re
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -143,9 +143,13 @@ def set_security_schedules(raw_entries: List[dict], path: Optional[Path] = None)
 def schedule_due(entry: SecurityScheduleEntry, now: datetime, grace_s: int) -> bool:
     """True when ``now`` is inside this entry's local fire window."""
 
-    if now.strftime("%a").lower()[:3] not in set(entry.days or []):
-        return False
     hour, minute = (int(part) for part in entry.time.split(":", 1))
-    fire_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    delta = (now - fire_at).total_seconds()
-    return 0 <= delta < grace_s
+    days = set(entry.days or [])
+    for schedule_day in (now, now - timedelta(days=1)):
+        if schedule_day.strftime("%a").lower()[:3] not in days:
+            continue
+        fire_at = schedule_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        delta = (now - fire_at).total_seconds()
+        if 0 <= delta < grace_s:
+            return True
+    return False
