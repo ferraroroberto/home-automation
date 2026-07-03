@@ -72,6 +72,7 @@ from app.webapp.wake_alarm_automation import start_wake_alarms
 from app.webapp.sampler import start_sampler
 from app.webapp.telemetry_sampler import start_telemetry_sampler
 from src import telemetry
+from src.push_notifications import validate_push_config
 from src.webapp_config import load_webapp_config
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         telemetry.init_db()
     except Exception as exc:  # noqa: BLE001 — telemetry is non-critical to serving
         logger.warning("⚠️  Telemetry store init failed (events disabled): %s", exc)
+
+    # Validate the VAPID private key once at boot rather than discovering it's
+    # unreadable on the first presence/power/alarm push (#284) — logs its own
+    # clear warning and is non-critical to serving either way.
+    try:
+        validate_push_config()
+    except Exception as exc:  # noqa: BLE001 — push validation is non-critical to serving
+        logger.warning("⚠️  Web Push config validation failed: %s", exc)
 
     tasks = [
         t for t in (
