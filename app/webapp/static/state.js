@@ -41,6 +41,9 @@ export const state = {
   // camera list for the pairing editor's dropdowns reuses the existing
   // `cameras` state above (managed by cameras.js).
   scenePairings: [],
+  // Per-detector "auto-bypass after N repeats this armed session" rules
+  // (issue #341) from GET /api/security/overrides.
+  securityOverrides: [],
   // When false (default), detectors marked hidden are filtered out of the list.
   // When true, they render (dimmed) so they can be un-hidden (issue #104).
   securityShowHidden: false,
@@ -154,6 +157,10 @@ export const els = {
   scenePairingsNote: document.getElementById('scenePairingsNote'),
   scenePairingsCount: document.getElementById('scenePairingsCount'),
   scenePairingAdd: document.getElementById('scenePairingAdd'),
+  securityOverrides: document.getElementById('securityOverrides'),
+  securityOverridesNote: document.getElementById('securityOverridesNote'),
+  securityOverridesCount: document.getElementById('securityOverridesCount'),
+  securityOverrideAdd: document.getElementById('securityOverrideAdd'),
   securityZones: document.getElementById('securityZones'),
   securityZonesNote: document.getElementById('securityZonesNote'),
   securityHiddenCount: document.getElementById('securityHiddenCount'),

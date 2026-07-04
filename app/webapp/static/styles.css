@@ -1628,6 +1628,7 @@ button.device-row-name:hover { text-decoration: underline; }
 .security-events-card,
 .security-schedules-card,
 .scene-pairings-card,
+.security-override-card,
 .cameras-card,
 .security-zones-card,
 .presence-card,
@@ -1746,6 +1747,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .security-note { margin: 10px 14px 14px; }
 .security-schedules-body,
 .scene-pairings-body,
+.security-override-body,
 .wake-alarms-body {
   padding: 12px 14px 14px;
 }
@@ -1968,6 +1970,31 @@ button.security-zone-name:hover { text-decoration: underline; }
 .scene-pairings-body .schedule-add-btn { margin-top: 10px; }
 @media (max-width: 420px) {
   .scene-pairing-fields { grid-template-columns: 1fr; }
+}
+/* Override rows reuse the same schedule entry/field styling, with two equal
+   columns for Detector / Bypass-after (issue #341). */
+.security-override-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.security-override-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 650;
+}
+.security-override-fields .select-native {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.security-override-body .schedule-add-btn { margin-top: 10px; }
+@media (max-width: 420px) {
+  .security-override-fields { grid-template-columns: 1fr; }
 }
 .presence-body-summary {
   display: flex;
@@ -2409,6 +2436,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
    the Security and Network headers align exactly. */
 .security-schedules-card > .collapse-summary,
 .scene-pairings-card > .collapse-summary,
+.security-override-card > .collapse-summary,
 .security-events-card > .collapse-summary,
 .cameras-card > .collapse-summary,
 .security-zones-card > .collapse-summary,
@@ -2424,6 +2452,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 }
 .security-schedules-card[open] > .collapse-summary,
 .scene-pairings-card[open] > .collapse-summary,
+.security-override-card[open] > .collapse-summary,
 .security-events-card[open] > .collapse-summary,
 .cameras-card[open] > .collapse-summary,
 .security-zones-card[open] > .collapse-summary,

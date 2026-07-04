@@ -1165,6 +1165,23 @@
         </div>
         <p id="notifyConfiguredNote" class="muted small security-note" hidden></p>
       </details>
+
+      <details class="card security-card security-override-card" aria-label="Override">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
+            <h3 class="collapse-title">Override</h3>
+            <span id="securityOverridesCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="security-override-body">
+          <p class="muted small">After N triggers this armed session, the detector is automatically bypassed until the next arm — keeps the system armed without wind/pet false-alarm spam.</p>
+          <div id="securityOverrides" class="alarm-schedule-list"></div>
+          <p id="securityOverridesNote" class="muted small security-note" hidden></p>
+          <button id="securityOverrideAdd" type="button" class="schedule-add-btn">+ Add override</button>
+        </div>
+      </details>
     </section>
 
     <!-- Build identity: which build the PWA is running. Filled by main.js. -->

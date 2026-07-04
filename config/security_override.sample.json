@@ -1,0 +1,8 @@
+[
+  {
+    "id": "puerta-jardin",
+    "zone_id": 12,
+    "max_retries": 2,
+    "enabled": true
+  }
+]
