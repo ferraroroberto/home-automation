@@ -62,6 +62,10 @@ Windows / PowerShell:
 
 Two regression gates: the fast backend layer (`tests/`, excluding `tests/e2e`) and the browser e2e suite (`tests/e2e/`). Run both before declaring done; report failures with the output rather than claiming "tests pass." Install the test deps with `& .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`.
 
+## Internal architecture
+
+[`docs/architecture.mmd`](docs/architecture.mmd) is a hand-authored Mermaid diagram of this repo's own internal structure (the device clients in `src/`, the FastAPI + PWA product in `app/webapp/`, the tray, the Home Assistant integration, and the ops scripts) — the per-repo companion to the fleet-wide convention established in `fleet-config#256`. Update it in the same PR as any material structural change (a new device integration, a relocated automation task, a moved script) — same anti-staleness contract as this repo's own `.fleet.toml` `description` field. It is not auto-generated and not covered by the verification gate; see [`docs/architecture.md`](docs/architecture.md) for the exhaustive per-file inventory.
+
 ## This repository
 Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahead of a **solar load-balancing automation** (the eventual goal: shift HVAC load to match PV generation — see the sister `pvgis` repo for the solar-output estimate side).
 

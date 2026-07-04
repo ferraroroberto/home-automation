@@ -1,0 +1,95 @@
+%% docs/architecture.mmd — home-automation's own internal structure.
+%% Hand-authored, not generated — a per-repo companion to the fleet-wide
+%% convention established in fleet-config#256 (this repo has no mechanically
+%% crawled fleet-map equivalent; its internal shape is semantic). Update this
+%% diagram in the same PR as any material structural change (a new device
+%% integration, a relocated automation task, a moved script) — same
+%% anti-staleness contract as this repo's own `.fleet.toml` `description`
+%% field. See docs/architecture.md for the exhaustive per-file inventory;
+%% this file is the high-level shape + data flow only.
+
+flowchart TB
+  subgraph external["External devices & cloud services"]
+    MELCLOUD["MELCloud Home cloud\n(HVAC, via aiomelcloudhome)"]
+    SMA["SMA solar/energy\n(Sunny Portal cloud or local Speedwire)"]
+    RISCO["RISCO Cloud + WebUI\n(alarm)"]
+    TUYA["Tuya / Smart Life LAN\n(plugs)"]
+    ELGATO["Elgato lights LAN"]
+    LAN["NETGEAR AP + Vodafone router\n(network health)"]
+    CAMS["ONVIF / RTSP cameras"]
+    ICLOUD["iCloud Find My\n(presence)"]
+    METEO["Open-Meteo\n(weather + PV forecast)"]
+    UPS["Local USB UPS\n(NUT / HID)"]
+    HAVM["Home Assistant VM\n(Hyper-V + REST API + SSH)"]
+    TELEGRAM["Telegram Bot API"]
+    WEBPUSH["Web Push"]
+  end
+
+  subgraph core["src/ — UI-free device clients & domain logic"]
+    CLIENTS["melcloud_client · sma_client · risco_client/risco_webui ·\ntuya_client · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine ·\nups_client (+host_shutdown) · hyperv_client"]
+    DOMAIN["tariff · pv_forecast · hvac_automation · dhcp_plan ·\ntelemetry / energy_history / network_history"]
+    STORES["display_names & sibling rename/hidden/prefs stores\n(_atomic_json · _schedule_store · _toggle_prefs)"]
+    NOTIFY["notify/ (TelegramNotifier) + push_notifications.py"]
+    CLIS["list_*.py CLIs\n(devices, energy, security, network, cameras, presence, ...)"]
+  end
+
+  MELCLOUD --> CLIENTS
+  SMA --> CLIENTS
+  RISCO --> CLIENTS
+  TUYA --> CLIENTS
+  ELGATO --> CLIENTS
+  LAN --> CLIENTS
+  CAMS --> CLIENTS
+  ICLOUD --> CLIENTS
+  METEO --> DOMAIN
+  UPS --> CLIENTS
+  HAVM --> CLIENTS
+  NOTIFY --> TELEGRAM
+  NOTIFY --> WEBPUSH
+  CLIENTS --> CLIS
+
+  CONFIG[("config/ — gitignored JSON stores\n(+ committed *.sample.json templates)")]
+  RUNTIME[("webapp/ — runtime state, gitignored\n(certificates, energy_history.sqlite3, telemetry.sqlite3)")]
+  CONFIG --> CLIENTS
+  STORES <--> CONFIG
+  DOMAIN --> CONFIG
+  DOMAIN --> RUNTIME
+
+  subgraph webapp["app/webapp/ — the product: FastAPI + PWA, tray-owned on :8447"]
+    SERVER["server.py + middleware.py"]
+    ROUTERS["routers/ — units · energy · security · network · dhcp_plan ·\ncameras · presence · hyperv · tuya · ups · lights · weather ·\npush · wake_alarms · auth · misc"]
+    BGTASKS["background tasks (app lifespan) — sampler · automation ·\nsecurity_automation · presence_automation · wake_alarm_automation ·\nsecurity_override_automation · power_monitor"]
+    STATIC["static/ — PWA (main.js, tabs.js + per-tab modules,\nservice worker, Chart.js vendor)"]
+  end
+
+  CLIENTS --> ROUTERS
+  STORES --> ROUTERS
+  DOMAIN --> ROUTERS
+  ROUTERS --> SERVER
+  BGTASKS --> CLIENTS
+  BGTASKS --> DOMAIN
+  BGTASKS --> NOTIFY
+  SERVER --> STATIC
+  STATIC -->|fetch /api/*| ROUTERS
+
+  subgraph tray_sub["app/tray/ — Windows tray, owns the webapp lifecycle"]
+    TRAY["tray.py (pystray) + manager.py\n(adopt-or-spawn / restart / stop)"]
+  end
+  TRAY -->|starts/stops uvicorn| SERVER
+
+  subgraph ha["custom_components/home_automation_app/ — HA integration (#235)"]
+    HAINT["thin adapter: climate · switch · alarm_control_panel ·\nbinary_sensor · sensor"]
+  end
+  HAINT -->|HTTP /api/*| ROUTERS
+
+  subgraph ops["scripts/ — ops"]
+    CERTGEN["gen_tailscale_cert.py"]
+    HASYNC["ha_config_sync.py"]
+  end
+  CERTGEN -->|provisions HTTPS cert for| RUNTIME
+  HASYNC -->|SSH deploy voice-PE config| HAVM
+
+  subgraph spike_sub["spike/ — independent Streamlit POC"]
+    STREAMLIT["streamlit_app.py :8501"]
+  end
+  CLIENTS -->|shares melcloud_client only| STREAMLIT
