@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode, urlparse, urlunparse
+
+from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger("melcloud.webapp_config")
 
@@ -86,9 +87,8 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
         "auth_password": cfg.auth_password,
     }
 
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    os.replace(tmp, target)
+    # Matches the original bare json.dumps(payload, indent=2): ensure_ascii=True.
+    write_json_atomic(target, payload, ensure_ascii=True)
     logger.info("💾 Saved webapp_config to %s", target)
     return target
 

@@ -30,11 +30,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote, urlsplit, urlunsplit
+
+from src._atomic_json import write_json_atomic
 
 # The RTSP-over-ffmpeg capture subsystem lives in its own module (issue #197);
 # re-exported here so callers keep importing snapshot/stream/record from
@@ -171,9 +172,7 @@ def _persist_camera_host(
             changed = True
     if not changed:
         return
-    tmp = target.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, target)
+    write_json_atomic(target, raw)
     logger.info("💾 camera %s host updated to %s in %s", camera_id, new_host, target.name)
 
 

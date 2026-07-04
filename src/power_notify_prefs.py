@@ -17,14 +17,11 @@ is a safety measure against silent data loss. Persisted atomically to gitignored
 
 from __future__ import annotations
 
-import json
-import logging
-import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger("power_notify_prefs")
+from src._toggle_prefs import load_toggle_prefs, save_toggle_prefs
 
 DEFAULT_PATH = (
     Path(__file__).resolve().parent.parent / "config" / "power_notify_prefs.json"
@@ -44,24 +41,7 @@ def load_power_notify_prefs(path: Optional[Path] = None) -> PowerNotifyPrefs:
     """Return saved prefs, or the defaults (both on) when absent/invalid."""
 
     target = Path(path) if path is not None else DEFAULT_PATH
-    if not target.exists():
-        return PowerNotifyPrefs()
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); using defaults", target, exc)
-        return PowerNotifyPrefs()
-    if not isinstance(raw, dict):
-        logger.warning("⚠️ %s is not a JSON object; using defaults", target)
-        return PowerNotifyPrefs()
-    defaults = PowerNotifyPrefs()
-    return PowerNotifyPrefs(
-        power_lost=bool(raw.get("power_lost", defaults.power_lost)),
-        power_restored=bool(raw.get("power_restored", defaults.power_restored)),
-        auto_shutdown_low_battery=bool(
-            raw.get("auto_shutdown_low_battery", defaults.auto_shutdown_low_battery)
-        ),
-    )
+    return load_toggle_prefs(PowerNotifyPrefs, target)
 
 
 def save_power_notify_prefs(
@@ -70,8 +50,4 @@ def save_power_notify_prefs(
     """Atomically persist the toggles to disk."""
 
     target = Path(path) if path is not None else DEFAULT_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(asdict(prefs), indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, target)
-    logger.info("💾 Saved power notify prefs to %s", target)
+    save_toggle_prefs(prefs, target, log_label="power notify prefs")

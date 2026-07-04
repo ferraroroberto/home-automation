@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Optional
 
 import tinytuya
 from tinytuya import scanner as tuya_scanner
+
+from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger("tuya")
 
@@ -382,9 +383,7 @@ def _scan_lan(scan_time: float) -> dict[str, dict[str, Any]]:
 
 def _save_payload(payload: Any) -> None:
     """Atomically rewrite ``devices.json`` (temp-file swap, as display_names)."""
-    tmp = _DEVICE_FILE.with_suffix(_DEVICE_FILE.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, _DEVICE_FILE)
+    write_json_atomic(_DEVICE_FILE, payload)
 
 
 def _apply_discovered_addresses(discovered: dict[str, dict[str, Any]]) -> list[str]:

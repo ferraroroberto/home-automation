@@ -32,12 +32,12 @@ that calls ``fetch_devices`` / ``set_device_state`` is
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
+
+from src._schedule_store import read_json, save_json
 
 logger = logging.getLogger(__name__)
 
@@ -166,30 +166,12 @@ def next_setpoint(
 
 
 # --------------------------------------------------------------- persistence
-def _read_json(path: Path) -> Any:
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty", path, exc)
-        return {}
-
-
 def _load(path: Path) -> Dict[str, dict]:
-    raw = _read_json(path)
+    raw = read_json(path, {})
     if not isinstance(raw, dict):
         logger.warning("⚠️ %s is not a JSON object; returning empty", path)
         return {}
     return {str(k): v for k, v in raw.items() if isinstance(v, dict)}
-
-
-def _save(path: Path, data: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, path)
-    logger.info("💾 Saved %s", path)
 
 
 def _clean_entry(raw: dict, fallback_id: str) -> ScheduleEntry:
@@ -223,7 +205,7 @@ def load_rules(path: Optional[Path] = None) -> Dict[str, TempRule]:
 def save_rules(rules: Dict[str, TempRule], path: Optional[Path] = None) -> None:
     """Atomically persist the whole rule map."""
     target = Path(path) if path is not None else RULES_PATH
-    _save(target, {uid: asdict(r) for uid, r in rules.items()})
+    save_json(target, {uid: asdict(r) for uid, r in rules.items()})
 
 
 def set_rule(unit_id: str, rule: TempRule, path: Optional[Path] = None) -> None:
@@ -243,7 +225,7 @@ def load_schedules(path: Optional[Path] = None) -> Dict[str, List[ScheduleEntry]
     to one schedule object. Legacy entries load with id ``default``.
     """
     target = Path(path) if path is not None else SCHEDULES_PATH
-    raw = _read_json(target)
+    raw = read_json(target, {})
     if not isinstance(raw, dict):
         logger.warning("⚠️ %s is not a JSON object; returning empty", target)
         return {}
@@ -274,7 +256,7 @@ def save_schedules(
         for uid, entries in schedules.items()
         if entries
     }
-    _save(target, payload)
+    save_json(target, payload)
 
 
 def set_schedules(

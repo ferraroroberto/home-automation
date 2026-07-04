@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Dict, List, Optional
+
+from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,7 @@ def _load(path: Optional[Path] = None) -> Dict[str, List[Preset]]:
 
 def _save(data: Dict[str, List[Preset]], path: Optional[Path] = None) -> None:
     target = Path(path) if path is not None else DEFAULT_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, target)
+    write_json_atomic(target, data)
     logger.info("💾 Saved camera presets to %s", target)
 
 

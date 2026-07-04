@@ -21,9 +21,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any, Optional
+
+from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +51,6 @@ def save_last_alarm_event_time(value: str, path: Optional[Path] = None) -> None:
     """Atomically persist the last-processed alarm-event timestamp."""
 
     target = Path(path) if path is not None else CURSOR_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps({"last_alarm_event_time": value}), encoding="utf-8")
-    os.replace(tmp, target)
+    # Matches the original bare json.dumps(...) call: no indent, ensure_ascii=True.
+    write_json_atomic(target, {"last_alarm_event_time": value}, indent=None, ensure_ascii=True)
     logger.info("💾 Saved %s", target)

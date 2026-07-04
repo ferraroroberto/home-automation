@@ -30,13 +30,13 @@ import asyncio
 import base64
 import json
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src._atomic_json import atomic_write_bytes
 from src.alarm_scene_config import ScenePairing
 from src.camera_ffmpeg import CAPTURE_DIR
 
@@ -112,12 +112,9 @@ def read_baseline(camera_id: str) -> Optional[bytes]:
 def _save_baseline(camera_id: str, data: bytes) -> None:
     """Atomically persist a camera's latest calm frame as its baseline."""
 
-    BASELINE_DIR.mkdir(parents=True, exist_ok=True)
     target = baseline_path(camera_id)
-    tmp = target.with_suffix(".jpg.tmp")
     try:
-        tmp.write_bytes(data)
-        os.replace(tmp, target)
+        atomic_write_bytes(target, data)
     except OSError as exc:  # noqa: BLE001 — baselines are best-effort, never fatal
         logger.warning("⚠️ camera %s baseline persist failed: %s", camera_id, exc)
 
