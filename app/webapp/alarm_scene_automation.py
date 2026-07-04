@@ -328,7 +328,10 @@ async def _run_event_scan(security: object, config: AlarmSceneConfig) -> None:
     instead of the system-wide ``ongoing_alarm``/``memory_alarm`` latch, which
     only ever transitions once per still-armed session even when RISCO reports
     several distinct alarms. Never raises; guarded against overlapping runs
-    since a slow capture+vision call can outlast one throttle window.
+    since a slow capture+vision call can outlast one throttle window. The
+    in-process guard above only protects one process; the cursor is claimed
+    per-event right before delivery (not after) so two concurrently-running
+    scans (e.g. two processes) can't both deliver the same alarm (issue #339).
     """
 
     if _state.get("event_scan_running"):
@@ -364,10 +367,26 @@ async def _run_event_scan(security: object, config: AlarmSceneConfig) -> None:
             return
 
         for event in new_alarms:
+            # Re-check the persisted cursor immediately before claiming this
+            # event: a concurrent scan (e.g. an orphaned webapp process still
+            # alive after a tray restart, or two instances running at once)
+            # may have read the same stale on-disk cursor and already be
+            # mid-flight on this exact alarm. Claiming (saving) before the
+            # capture+vision+deliver pipeline runs - instead of after, as this
+            # used to do - shrinks the race window from several seconds of
+            # network/vision work down to a couple of local file reads, which
+            # is what makes the claim actually protective. Confirmed live: two
+            # deliveries of the same frame/event a few hundred ms to ~5s apart
+            # in `logs/alarm_scene.jsonl`, consistent with the old
+            # save-after-delivery ordering leaving the whole pipeline as an
+            # open race window.
+            latest = load_last_alarm_event_time()
+            if latest is not None and latest >= event.time:
+                continue
             zone_id = int(event.zone_id)
             zone_name = _zone_name_for(zone_id, security)
-            await _run_onset([(zone_id, zone_name)], config)
             save_last_alarm_event_time(event.time)
+            await _run_onset([(zone_id, zone_name)], config)
     finally:
         _state["event_scan_running"] = False
 
