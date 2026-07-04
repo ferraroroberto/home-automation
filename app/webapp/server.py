@@ -28,6 +28,12 @@ Routes (split across ``app/webapp/routers/``):
     POST /api/network/devices/{mac}/important → mark device important (network)
     PUT  /api/network/wifi/display_name → rename Wi-Fi radio   (network)
     PUT  /api/network/wifi/hidden → hide Wi-Fi radio           (network)
+    GET  /api/network/dhcp-plan  → DHCP reservation plan        (dhcp_plan)
+    POST /api/network/dhcp-plan/apply → apply pending plan rows (dhcp_plan)
+    POST /api/network/dhcp-bindings → add a manual reservation  (dhcp_plan)
+    POST /api/network/dhcp-bindings/delete → delete a reservation (dhcp_plan)
+    PUT  /api/network/dhcp-overrides/{mac} → set category override (dhcp_plan)
+    POST /api/network/dhcp-reservations/apply → staged batch apply (dhcp_plan)
     GET  /api/presence           → local + cached presence     (presence)
     GET  /api/hyperv             → Home Assistant VM status     (hyperv)
     POST /api/hyperv/{action}    → start/stop the HA VM         (hyperv)
@@ -61,7 +67,7 @@ from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import activity, auth, cameras, energy, hyperv, lights, misc, nav_debug, network, presence, push, security, tuya, units, ups, wake_alarms, weather
+from app.webapp.routers import activity, auth, cameras, dhcp_plan, energy, hyperv, lights, misc, nav_debug, network, presence, push, security, tuya, units, ups, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
@@ -213,6 +219,7 @@ def create_app() -> FastAPI:
     app.include_router(cameras.router)
     app.include_router(security.router)
     app.include_router(network.router)
+    app.include_router(dhcp_plan.router)
     app.include_router(presence.router)
     app.include_router(push.router)
     app.include_router(hyperv.router)
