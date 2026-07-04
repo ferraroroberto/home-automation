@@ -184,6 +184,127 @@ def test_run_event_scan_fires_onset_for_each_new_alarm(monkeypatch) -> None:
     assert saved == ["2026-07-02T13:05:00Z", "2026-07-02T13:14:00Z"]
 
 
+def test_run_event_scan_skips_event_already_claimed_by_concurrent_scan(monkeypatch) -> None:
+    """#339: a concurrent scan (e.g. an orphaned webapp process still alive
+    after a tray restart) that read the same stale cursor and already claimed
+    this event must not be redelivered — the live cursor re-check right
+    before firing must see the concurrent scan's already-saved claim and skip.
+    """
+
+    events = [_alarm_event("2026-07-03T14:16:00Z", 12)]
+
+    async def fake_fetch_events(*a, **k):
+        return events
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+
+    calls = {"n": 0}
+
+    def fake_load():
+        calls["n"] += 1
+        # First call is the initial (stale) cursor snapshot; every later call
+        # is the per-event reclaim check, which observes a concurrent scan's
+        # already-saved claim for this exact event.
+        return "2026-07-03T14:15:00Z" if calls["n"] == 1 else "2026-07-03T14:16:00Z"
+
+    monkeypatch.setattr(auto, "load_last_alarm_event_time", fake_load)
+    saved: list[str] = []
+    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
+
+    fired: list = []
+
+    async def fake_run_onset(zones, config):
+        fired.append(zones)
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+
+    assert fired == []
+    assert saved == []
+
+
+def test_run_event_scan_claims_cursor_before_delivering(monkeypatch) -> None:
+    """The cursor must be saved before `_run_onset` runs, not after — that's
+    what shrinks the cross-process race window from the whole capture+vision+
+    deliver pipeline down to a couple of local file reads (#339).
+    """
+
+    events = [_alarm_event("2026-07-02T13:14:00Z", 12)]
+
+    async def fake_fetch_events(*a, **k):
+        return events
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+    monkeypatch.setattr(auto, "load_last_alarm_event_time", lambda: "2026-07-02T12:37:00Z")
+
+    order: list[str] = []
+    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: order.append("save"))
+
+    async def fake_run_onset(zones, config):
+        order.append("onset")
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+
+    assert order == ["save", "onset"]
+
+
+def test_two_concurrent_scans_only_deliver_once(monkeypatch, tmp_path) -> None:
+    """Integration-level repro of #339: two independent scans (simulating two
+    separate webapp processes, each with its own in-memory ``_state``, hence
+    the shared in-process overlap guard is reset between them below) racing on
+    the same real on-disk cursor file must only deliver the alarm once.
+    """
+
+    import functools
+
+    from src import alarm_scene_cursor as cursor_mod
+
+    cursor_path = tmp_path / "cursor.json"
+    monkeypatch.setattr(
+        auto, "load_last_alarm_event_time",
+        functools.partial(cursor_mod.load_last_alarm_event_time, path=cursor_path),
+    )
+    monkeypatch.setattr(
+        auto, "save_last_alarm_event_time",
+        functools.partial(cursor_mod.save_last_alarm_event_time, path=cursor_path),
+    )
+    auto.save_last_alarm_event_time("2026-07-03T14:15:00Z")  # seed cursor before the alarm
+
+    events = [_alarm_event("2026-07-03T14:16:00Z", 12)]
+
+    async def fake_fetch_events(*a, **k):
+        return events
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+
+    delivered: list = []
+
+    async def fake_run_onset(zones, config):
+        await asyncio.sleep(0.05)  # simulate the capture+vision pipeline taking a moment
+        delivered.append(zones)
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    cfg = auto.AlarmSceneConfig()
+
+    async def scan():
+        auto._state["event_scan_running"] = False  # a second process shares no in-memory state
+        await auto._run_event_scan(security, cfg)
+
+    async def run_both():
+        await asyncio.gather(scan(), scan())
+
+    asyncio.run(run_both())
+
+    assert len(delivered) == 1
+
+
 def test_run_event_scan_first_run_sets_baseline_without_firing(monkeypatch) -> None:
     """No prior cursor (fresh deploy) must not replay history as new onsets."""
 
