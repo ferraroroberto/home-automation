@@ -41,6 +41,7 @@ from src.risco_client import (
     set_zone_bypass,
 )
 from src.alarm_scene_config import load_scene_pairings, set_scene_pairings
+from src.security_override import load_overrides, set_overrides
 from src.security_schedules import load_security_schedules, set_security_schedules
 from src.security_display_names import (
     load_security_display_names,
@@ -228,6 +229,38 @@ async def update_scene_pairings(request: Request) -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to save scene pairings: %s", exc)
         raise HTTPException(status_code=500, detail=f"failed to save scene pairings: {exc}")
+
+
+def _overrides_payload(entries: List[object]) -> Dict[str, Any]:
+    active = [e for e in entries if getattr(e, "enabled", False)]
+    return {
+        "enabled": bool(active),
+        "count": len(active),
+        "entries": [asdict(e) for e in entries],
+    }
+
+
+@router.get("/api/security/overrides")
+async def get_overrides() -> Dict[str, Any]:
+    """Return the "auto-bypass after N repeats this session" detector rules (issue #341)."""
+    try:
+        return _overrides_payload(load_overrides())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to load alarm overrides: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to load overrides: {exc}")
+
+
+@router.put("/api/security/overrides")
+async def update_overrides(request: Request) -> Dict[str, Any]:
+    body = await _json_body(request)
+    entries = body.get("entries")
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=400, detail="'entries' must be a list")
+    try:
+        return _overrides_payload(set_overrides(entries))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save alarm overrides: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to save overrides: {exc}")
 
 
 def _notify_prefs_payload(prefs: AlarmNotifyPrefs) -> Dict[str, Any]:

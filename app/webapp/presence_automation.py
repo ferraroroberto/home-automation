@@ -18,6 +18,9 @@ from app.webapp.alarm_notify import (
     record_alarm_action,
 )
 from app.webapp.alarm_scene_automation import consider_security_read
+from app.webapp.security_override_automation import (
+    consider_security_read as consider_security_override,
+)
 from src.presence_engine import (
     append_trigger_log,
     evaluate_alarm_decision,
@@ -60,6 +63,10 @@ async def tick() -> None:
     # verdict (issue #162): cheap edge detection here, heavy capture/vision work
     # dispatched as a detached task so it never blocks this poll.
     consider_security_read(security)
+    # ...and the configurable per-detector auto-bypass-after-N-repeats override
+    # (issue #341): runs every tick (not just while an alarm is active) so it
+    # also catches the arm event that restores a previously bypassed zone.
+    consider_security_override(security)
 
     config = load_automation_config()
     if not config.enabled:

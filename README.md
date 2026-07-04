@@ -789,6 +789,36 @@ Config in `.env`:
 Captures + baselines live under the already-gitignored `webapp/camera_captures/`
 (`alarm/` and `baselines/`); never commit frames or `config/alarm_scene_pairings.json`.
 
+## Alarm override — auto-bypass after repeated false alarms (#341)
+
+RISCO's own panel already auto-omits a repeatedly-triggered detector, but only
+after an uncontrolled, undocumented number of repeats. The **Security tab →
+Override** card (collapsed by default, right after Notifications) lets you set
+a much tighter, per-detector threshold: after 1-3 real alarms from the same
+detector within one armed session (a windy garden gate, a roaming cat), the app
+proactively bypasses just that detector — the rest of the system stays fully
+armed — and restores it automatically the next time the panel is armed.
+
+Reuses the same event-log-diff architecture as alarm scene capture (#325)
+rather than a second poller: it rides `presence_automation.py`'s single RISCO
+read, diffing `fetch_events()` against a cursor + per-zone trigger counts
+persisted to gitignored `config/security_override_session.json`. Each
+auto-bypass/restore is logged to the unified activity log (`GET
+/api/activity?domain=security`, `event_type` `auto_bypass` / `auto_unbypass`).
+
+**Configure** in the **Security tab → Override** card (detector + "bypass
+after N triggers" dropdowns), or by hand in gitignored
+`config/security_override.json` (copy `config/security_override.sample.json`;
+each entry is `{zone_id, max_retries, enabled}`, `max_retries` clamped to
+1-3). API: `GET/PUT /api/security/overrides`.
+
+Config in `.env`:
+
+| Variable | Meaning |
+| --- | --- |
+| `SECURITY_OVERRIDE_ENABLED` | Optional, default `true`; set `0` to disable the automation while keeping the override UI/API available. |
+| `SECURITY_OVERRIDE_EVENT_SCAN_S` | Optional, default `20` (floor `10`); how often the RISCO event log is diffed for new alarms/arm events. |
+
 ## Run the webapp (the product)
 
 ### Via the tray (the always-on way)

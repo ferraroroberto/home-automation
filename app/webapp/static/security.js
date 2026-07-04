@@ -19,6 +19,7 @@ import { jsonApi } from './api.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
 import { renderScenePairings, loadScenePairings } from './security-scene.js';
+import { renderSecurityOverrides, loadSecurityOverrides } from './security-override.js';
 import { renderPresence, loadPresence, loadLocation, loadPresenceAutomation } from './presence.js';
 import { loadNotifyPrefs } from './security-notify.js';
 
@@ -27,6 +28,7 @@ import { loadNotifyPrefs } from './security-notify.js';
 export { wireZoneDetail, wireSecurityHiddenToggle } from './security-alarm.js';
 export { wireSecuritySchedules } from './security-schedules.js';
 export { wireScenePairings } from './security-scene.js';
+export { wireSecurityOverrides } from './security-override.js';
 export { wirePresenceControls } from './presence.js';
 export { wireSecurityNotify } from './security-notify.js';
 
@@ -39,6 +41,7 @@ export function renderSecurity() {
   renderActions();
   renderSchedules();
   renderScenePairings();
+  renderSecurityOverrides();
   renderEvents();
   renderZones();
   renderPresence();
@@ -90,6 +93,7 @@ export function onSecurityTab(tab) {
       loadPresenceAutomation();
       loadSecuritySchedules();
       loadScenePairings();
+      loadSecurityOverrides();
       loadNotifyPrefs();
     }
     schedule(POLL_MS);
