@@ -71,8 +71,12 @@ def test_nav_self_heals_when_stranded(
     _boot(page, base_url)
 
     nav = page.locator(".tabs")
-    nav.evaluate("el => { el.style.transform = 'translateY(-120px)'; }")
-    assert "120" in nav.evaluate("el => getComputedStyle(el).transform")
+    # Set + read in one evaluate call so the watchdog can't interleave between them.
+    strand_transform = nav.evaluate(
+        "el => { el.style.transform = 'translateY(-120px)';"
+        " return getComputedStyle(el).transform; }"
+    )
+    assert "120" in strand_transform
 
     # The ~400ms watchdog re-derives the rest position and clears the strand.
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
