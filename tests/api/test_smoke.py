@@ -1384,16 +1384,16 @@ def test_dhcp_plan_route_classifies_and_assigns(
         return [{"name": "nas", "mac": "B8:27:EB:11:22:33", "ip": "192.168.0.2", "inst_id": "X1"}]
 
     monkeypatch.setattr(
-        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+        "app.webapp.routers.dhcp_plan.fetch_network_state", fake_fetch_network_state
     )
     monkeypatch.setattr(
-        "app.webapp.routers.network.load_network_display_names", lambda: {}
+        "app.webapp.routers.dhcp_plan.load_network_display_names", lambda: {}
     )
     monkeypatch.setattr(
-        "app.webapp.routers.network.load_dhcp_plan_config", lambda: config
+        "app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config
     )
     monkeypatch.setattr(
-        "app.webapp.routers.network.fetch_dhcp_bindings", fake_fetch_bindings
+        "app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_fetch_bindings
     )
 
     resp = client.get("/api/network/dhcp-plan")
@@ -1474,19 +1474,19 @@ def test_dhcp_apply_route_writes_only_pending_rows(
         return [{"mac": r["mac"], "ip": r["ip"], "ok": True, "error": None} for r in rows]
 
     monkeypatch.setattr(
-        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+        "app.webapp.routers.dhcp_plan.fetch_network_state", fake_fetch_network_state
     )
     monkeypatch.setattr(
-        "app.webapp.routers.network.load_network_display_names", lambda: {}
+        "app.webapp.routers.dhcp_plan.load_network_display_names", lambda: {}
     )
     monkeypatch.setattr(
-        "app.webapp.routers.network.load_dhcp_plan_config", lambda: config
+        "app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config
     )
     monkeypatch.setattr(
-        "app.webapp.routers.network.fetch_dhcp_bindings", fake_fetch_bindings
+        "app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_fetch_bindings
     )
     monkeypatch.setattr(
-        "app.webapp.routers.network.apply_dhcp_bindings", fake_apply
+        "app.webapp.routers.dhcp_plan.apply_dhcp_bindings", fake_apply
     )
 
     resp = client.post("/api/network/dhcp-plan/apply")
@@ -1553,11 +1553,11 @@ def test_dhcp_apply_route_selective_writes_only_listed_macs(
         written.extend(rows)
         return [{"mac": r["mac"], "ip": r["ip"], "ok": True, "error": None} for r in rows]
 
-    monkeypatch.setattr("app.webapp.routers.network.fetch_network_state", fake_state)
-    monkeypatch.setattr("app.webapp.routers.network.load_network_display_names", lambda: {})
-    monkeypatch.setattr("app.webapp.routers.network.load_dhcp_plan_config", lambda: config)
-    monkeypatch.setattr("app.webapp.routers.network.fetch_dhcp_bindings", fake_bindings)
-    monkeypatch.setattr("app.webapp.routers.network.apply_dhcp_bindings", fake_apply)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_network_state", fake_state)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_network_display_names", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_bindings)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.apply_dhcp_bindings", fake_apply)
 
     # Lower-case input proves the MAC allow-list is normalised before matching.
     resp = client.post(
@@ -1578,7 +1578,7 @@ def test_dhcp_delete_route_validates_and_calls_client(
         captured["inst_id"] = inst_id
         return True
 
-    monkeypatch.setattr("app.webapp.routers.network.delete_dhcp_binding", fake_delete)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.delete_dhcp_binding", fake_delete)
 
     resp = client.post(
         "/api/network/dhcp-bindings/delete", json={"inst_id": "DEV.V4DP.Sr.Pl1.Bd3"}
@@ -1609,8 +1609,8 @@ def test_dhcp_override_route_persists_and_validates(
     def fake_set(mac: str, category: str) -> None:
         saved[mac] = category
 
-    monkeypatch.setattr("app.webapp.routers.network.load_dhcp_plan_config", lambda: config)
-    monkeypatch.setattr("app.webapp.routers.network.set_dhcp_override", fake_set)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.set_dhcp_override", fake_set)
 
     resp = client.put(
         "/api/network/dhcp-overrides/5C:CF:7F:AA:BB:01", json={"category": "Cameras"}
@@ -1646,9 +1646,9 @@ def test_dhcp_manual_add_validates_and_writes(
         written.extend(rows)
         return [{"mac": r["mac"], "ip": r["ip"], "ok": True, "error": None} for r in rows]
 
-    monkeypatch.setattr("app.webapp.routers.network.load_dhcp_plan_config", lambda: config)
-    monkeypatch.setattr("app.webapp.routers.network.fetch_dhcp_bindings", fake_bindings)
-    monkeypatch.setattr("app.webapp.routers.network.apply_dhcp_bindings", fake_apply)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_bindings)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.apply_dhcp_bindings", fake_apply)
 
     # A wrong-subnet IP is rejected (400) before any router call.
     bad = client.post(
@@ -1703,11 +1703,11 @@ def test_dhcp_reservations_apply_removes_then_adds(
         out += [{"op": "add", "mac": a["mac"], "ip": a["ip"], "ok": True, "error": None} for a in adds]
         return out
 
-    monkeypatch.setattr("app.webapp.routers.network.fetch_network_state", fake_state)
-    monkeypatch.setattr("app.webapp.routers.network.load_network_display_names", lambda: {})
-    monkeypatch.setattr("app.webapp.routers.network.load_dhcp_plan_config", lambda: config)
-    monkeypatch.setattr("app.webapp.routers.network.fetch_dhcp_bindings", fake_bindings)
-    monkeypatch.setattr("app.webapp.routers.network.apply_dhcp_changes", fake_changes)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_network_state", fake_state)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_network_display_names", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_bindings)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.apply_dhcp_changes", fake_changes)
 
     resp = client.post(
         "/api/network/dhcp-reservations/apply",
