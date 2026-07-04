@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
+from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger("melcloud.location_config")
 
@@ -76,15 +77,8 @@ def save_location_config(location: LocationConfig, path: Optional[Path] = None) 
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     if not (-90.0 <= location.lat <= 90.0 and -180.0 <= location.lon <= 180.0):
         raise ValueError("lat/lon out of range")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(
-            {"lat": location.lat, "lon": location.lon, "label": location.label},
-            indent=2,
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
+    write_json_atomic(
+        target,
+        {"lat": location.lat, "lon": location.lon, "label": location.label},
     )
-    os.replace(tmp, target)
     logger.info("💾 Saved home location to %s", target)

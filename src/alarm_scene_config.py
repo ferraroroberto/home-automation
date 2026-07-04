@@ -21,11 +21,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, List, Optional
+
+from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,7 @@ def _read_json(path: Path) -> Any:
 
 
 def _save(path: Path, data: List[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, path)
+    write_json_atomic(path, data)
     logger.info("💾 Saved %s", path)
 
 

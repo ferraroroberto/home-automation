@@ -7,14 +7,14 @@ entries, and rearms (weekly) or auto-disables (one-shot) them afterward.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from src._schedule_store import clean_days, clean_time, read_json, safe_id, save_json
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,6 @@ _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 WAKE_ALARMS_PATH = _CONFIG_DIR / "wake_alarms.json"
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-_DAY_SET = frozenset(DAYS)
-_TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri")
@@ -54,40 +52,6 @@ class WakeAlarmEntry:
         object.__setattr__(self, "days", list(self.days or DAYS))
 
 
-def _read_json(path: Path) -> Any:
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty", path, exc)
-        return []
-
-
-def _save(path: Path, data: List[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, path)
-    logger.info("💾 Saved %s", path)
-
-
-def _safe_id(value: Any, fallback: str) -> str:
-    raw = str(value or fallback).strip()
-    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-")
-    return safe or fallback
-
-
-def _clean_time(value: Any) -> str:
-    raw = str(value or "07:00").strip()
-    if not _TIME_RE.match(raw):
-        return "07:00"
-    hour, minute = (int(part) for part in raw.split(":", 1))
-    if 0 <= hour <= 23 and 0 <= minute <= 59:
-        return f"{hour:02d}:{minute:02d}"
-    return "07:00"
-
-
 def _clean_date(value: Any) -> Optional[str]:
     raw = str(value or "").strip()
     if not raw or not _DATE_RE.match(raw):
@@ -99,26 +63,15 @@ def _clean_date(value: Any) -> Optional[str]:
     return raw
 
 
-def _clean_days(value: Any) -> List[str]:
-    if not isinstance(value, list):
-        return list(DAYS)
-    seen: List[str] = []
-    for item in value:
-        day = str(item).strip().lower()[:3]
-        if day in _DAY_SET and day not in seen:
-            seen.append(day)
-    return seen or list(DAYS)
-
-
 def clean_entry(raw: dict, fallback_id: str) -> WakeAlarmEntry:
     """Coerce untrusted JSON/API data into a wake-alarm entry."""
 
     return WakeAlarmEntry(
-        id=_safe_id(raw.get("id"), fallback_id),
+        id=safe_id(raw.get("id"), fallback_id),
         label=str(raw.get("label") or "").strip()[:80],
         enabled=raw.get("enabled") is not False,
-        time=_clean_time(raw.get("time")),
-        days=_clean_days(raw.get("days")),
+        time=clean_time(raw.get("time"), "07:00"),
+        days=clean_days(raw.get("days")),
         date=_clean_date(raw.get("date")),
     )
 
@@ -127,7 +80,7 @@ def load_wake_alarms(path: Optional[Path] = None) -> List[WakeAlarmEntry]:
     """Return the persisted wake-alarm list, or ``[]`` if absent."""
 
     target = Path(path) if path is not None else WAKE_ALARMS_PATH
-    raw = _read_json(target)
+    raw = read_json(target, [])
     if not isinstance(raw, list):
         logger.warning("⚠️ %s is not a JSON list; returning empty", target)
         return []
@@ -142,7 +95,7 @@ def save_wake_alarms(entries: List[WakeAlarmEntry], path: Optional[Path] = None)
     """Atomically persist the whole wake-alarm list."""
 
     target = Path(path) if path is not None else WAKE_ALARMS_PATH
-    _save(target, [asdict(entry) for entry in entries])
+    save_json(target, [asdict(entry) for entry in entries])
 
 
 def set_wake_alarms(raw_entries: List[dict], path: Optional[Path] = None) -> List[WakeAlarmEntry]:

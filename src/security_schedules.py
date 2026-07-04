@@ -6,15 +6,13 @@ loads that same list and applies due entries through ``src.risco_client``.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
-import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
+from src._schedule_store import clean_days, clean_time, read_json, safe_id, save_json
 from src.risco_client import ACTIONS
 
 logger = logging.getLogger(__name__)
@@ -23,8 +21,6 @@ _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 SCHEDULES_PATH = _CONFIG_DIR / "security_schedules.json"
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-_DAY_SET = frozenset(DAYS)
-_TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
 
 @dataclass(frozen=True)
@@ -41,51 +37,6 @@ class SecurityScheduleEntry:
         object.__setattr__(self, "days", list(self.days or DAYS))
 
 
-def _read_json(path: Path) -> Any:
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty", path, exc)
-        return []
-
-
-def _save(path: Path, data: List[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, path)
-    logger.info("💾 Saved %s", path)
-
-
-def _safe_id(value: Any, fallback: str) -> str:
-    raw = str(value or fallback).strip()
-    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-")
-    return safe or fallback
-
-
-def _clean_time(value: Any) -> str:
-    raw = str(value or "21:00").strip()
-    if not _TIME_RE.match(raw):
-        return "21:00"
-    hour, minute = (int(part) for part in raw.split(":", 1))
-    if 0 <= hour <= 23 and 0 <= minute <= 59:
-        return f"{hour:02d}:{minute:02d}"
-    return "21:00"
-
-
-def _clean_days(value: Any) -> List[str]:
-    if not isinstance(value, list):
-        return list(DAYS)
-    seen: List[str] = []
-    for item in value:
-        day = str(item).strip().lower()[:3]
-        if day in _DAY_SET and day not in seen:
-            seen.append(day)
-    return seen or list(DAYS)
-
-
 def _clean_action(value: Any) -> str:
     action = str(value or "arm").strip().lower()
     return action if action in ACTIONS else "arm"
@@ -95,10 +46,10 @@ def clean_entry(raw: dict, fallback_id: str) -> SecurityScheduleEntry:
     """Coerce untrusted JSON/API data into a schedule entry."""
 
     return SecurityScheduleEntry(
-        id=_safe_id(raw.get("id"), fallback_id),
+        id=safe_id(raw.get("id"), fallback_id),
         enabled=raw.get("enabled") is not False,
-        time=_clean_time(raw.get("time")),
-        days=_clean_days(raw.get("days")),
+        time=clean_time(raw.get("time"), "21:00"),
+        days=clean_days(raw.get("days")),
         action=_clean_action(raw.get("action")),
     )
 
@@ -107,7 +58,7 @@ def load_security_schedules(path: Optional[Path] = None) -> List[SecuritySchedul
     """Return the persisted alarm schedule list, or ``[]`` if absent."""
 
     target = Path(path) if path is not None else SCHEDULES_PATH
-    raw = _read_json(target)
+    raw = read_json(target, [])
     if not isinstance(raw, list):
         logger.warning("⚠️ %s is not a JSON list; returning empty", target)
         return []
@@ -125,7 +76,7 @@ def save_security_schedules(
     """Atomically persist the whole alarm schedule list."""
 
     target = Path(path) if path is not None else SCHEDULES_PATH
-    _save(target, [asdict(entry) for entry in entries])
+    save_json(target, [asdict(entry) for entry in entries])
 
 
 def set_security_schedules(raw_entries: List[dict], path: Optional[Path] = None) -> List[SecurityScheduleEntry]:

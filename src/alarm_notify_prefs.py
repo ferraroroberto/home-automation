@@ -20,14 +20,11 @@ load/save shape from ``display_names.py``.
 
 from __future__ import annotations
 
-import json
-import logging
-import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger("alarm_notify_prefs")
+from src._toggle_prefs import load_toggle_prefs, save_toggle_prefs
 
 DEFAULT_PATH = (
     Path(__file__).resolve().parent.parent / "config" / "alarm_notify_prefs.json"
@@ -51,26 +48,7 @@ def load_alarm_notify_prefs(path: Optional[Path] = None) -> AlarmNotifyPrefs:
     """Return saved prefs, or the defaults (adverse events on) when absent/invalid."""
 
     target = Path(path) if path is not None else DEFAULT_PATH
-    if not target.exists():
-        return AlarmNotifyPrefs()
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); using defaults", target, exc)
-        return AlarmNotifyPrefs()
-    if not isinstance(raw, dict):
-        logger.warning("⚠️ %s is not a JSON object; using defaults", target)
-        return AlarmNotifyPrefs()
-    defaults = AlarmNotifyPrefs()
-    return AlarmNotifyPrefs(
-        schedule_arm=bool(raw.get("schedule_arm", defaults.schedule_arm)),
-        schedule_disarm=bool(raw.get("schedule_disarm", defaults.schedule_disarm)),
-        presence_arm=bool(raw.get("presence_arm", defaults.presence_arm)),
-        presence_disarm=bool(raw.get("presence_disarm", defaults.presence_disarm)),
-        error=bool(raw.get("error", defaults.error)),
-        intrusion=bool(raw.get("intrusion", defaults.intrusion)),
-        ac_lost=bool(raw.get("ac_lost", defaults.ac_lost)),
-    )
+    return load_toggle_prefs(AlarmNotifyPrefs, target)
 
 
 def save_alarm_notify_prefs(
@@ -79,8 +57,4 @@ def save_alarm_notify_prefs(
     """Atomically persist the toggles to disk."""
 
     target = Path(path) if path is not None else DEFAULT_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(asdict(prefs), indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, target)
-    logger.info("💾 Saved alarm notify prefs to %s", target)
+    save_toggle_prefs(prefs, target, log_label="alarm notify prefs")

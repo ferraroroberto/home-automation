@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src._atomic_json import write_json_atomic
+
 logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
@@ -37,10 +39,7 @@ def _read_json(path: Path) -> Any:
 
 
 def _write_json(path: Path, data: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, path)
+    write_json_atomic(path, data)
 
 
 def load_push_config(path: Optional[Path] = None) -> Dict[str, str]:

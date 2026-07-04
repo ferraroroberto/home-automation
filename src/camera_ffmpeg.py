@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from pathlib import Path
 from typing import AsyncIterator, Dict, Optional
+
+from src._atomic_json import atomic_write_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,9 @@ def read_last_snapshot(camera_id: str) -> Optional[bytes]:
 
 def _save_last_snapshot(camera_id: str, data: bytes) -> None:
     """Atomically persist a camera's latest JPEG as its last-known frame."""
-    LAST_SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     target = last_snapshot_path(camera_id)
-    tmp = target.with_suffix(".jpg.tmp")
     try:
-        tmp.write_bytes(data)
-        os.replace(tmp, target)
+        atomic_write_bytes(target, data)
     except OSError as exc:  # noqa: BLE001 — persistence is best-effort, never fatal
         logger.warning("⚠️ camera %s could not persist last snapshot: %s", camera_id, exc)
 

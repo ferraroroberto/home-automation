@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Dict, Optional
+
+from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,7 @@ def load_preset_names(path: Optional[Path] = None) -> Dict[str, str]:
 def save_preset_names(names: Dict[str, str], path: Optional[Path] = None) -> None:
     """Atomically write the preset-name map to disk."""
     target = Path(path) if path is not None else DEFAULT_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(names, indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, target)
+    write_json_atomic(target, names)
     logger.info("💾 Saved camera_preset_names to %s", target)
 
 
