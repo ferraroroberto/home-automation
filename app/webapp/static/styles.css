@@ -37,8 +37,10 @@
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
   --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
-  /* radii (rounded scale) */
-  --radius-sm: 8px;
+  /* radii (rounded scale) — this app's adopted scale is {md, lg, nav, pill,
+     50%-circles} only (issue #361 census); no --radius-sm token — the 6/8px
+     strays it used to back were nested-card/icon-button strays, folded into
+     --radius-md below. */
   --radius-md: 12px;
   --radius: 16px;           /* rounded.lg — cards */
   --radius-pill: 9999px;
@@ -701,17 +703,31 @@ button, input, select, textarea {
 .chart-empty { margin: 8px 0 0; text-align: center; }
 
 .range-tabs { display: flex; gap: 5px; margin-bottom: 12px; }
+/* Canonical range-tab: one height everywhere (--control-h, 36px — issue #361
+   census found 34/32/24px across energy/forecast/wake-timer/security/net
+   instances). Height is fixed and content is flex-centered so a smaller
+   font-size override in a compact context (e.g. .net-devices-head) changes
+   only the label, never the box. The ::before extends the tap target to
+   >=44px vertically (36 + 2x4 = 44) without inflating the visual pill —
+   width is left alone since every real instance is already wider than 44px
+   (fleet nav/switch pattern). */
 .range-tab {
+  position: relative;
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-h);
   background: var(--card-off);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 8px 4px;
+  padding: 0 10px;
   color: var(--muted);
   font-size: var(--font-label);
   font-weight: 600;
   cursor: pointer;
 }
+.range-tab::before { content: ""; position: absolute; inset: -4px 0; }
 .range-tab.active {
   background: var(--accent-soft);
   color: var(--accent);
@@ -940,6 +956,7 @@ button, input, select, textarea {
    https://ui.shadcn.com/docs/components/base/switch — one canonical size for
    every on-off toggle in the app (AC power, plugs, security bypass). */
 .toggle {
+  position: relative;
   flex: none;
   align-self: center;
   display: inline-flex;
@@ -953,6 +970,10 @@ button, input, select, textarea {
   cursor: pointer;
   transition: background 0.15s ease;
 }
+/* Track stays the shadcn-spec 26px visually (issue #361 keeps switch tracks
+   as-is); the ::before extends the tap target to the 44px floor vertically
+   (26 + 2x9 = 44) — width is already 44px. */
+.toggle::before { content: ""; position: absolute; inset: -9px 0; }
 .toggle .knob {
   width: 20px; height: 20px;
   border-radius: 50%;
@@ -979,8 +1000,12 @@ button, input, select, textarea {
   margin-left: auto;
 }
 .stepper { display: inline-flex; align-items: center; gap: 6px; }
+/* Snapped to the 36px control height (issue #361; was 28px). The ::before
+   extends the tap target to the full 44px floor on both axes (36 + 2x4 = 44)
+   without inflating the visual square. */
 .stepper .step {
-  width: 28px; height: 28px;
+  position: relative;
+  width: var(--control-h); height: var(--control-h);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -993,6 +1018,7 @@ button, input, select, textarea {
   cursor: pointer;
   color: var(--accent);
 }
+.stepper .step::before { content: ""; position: absolute; inset: -4px; }
 .stepper .step:active { transform: scale(0.92); }
 .target-value {
   font-size: var(--font-body);
@@ -1197,7 +1223,7 @@ button, input, select, textarea {
 .ups-alerts span {
   border-left: 3px solid var(--attention);
   background: var(--card-off);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: 5px 8px;
   font-size: var(--font-label);
   font-weight: 700;
@@ -1493,7 +1519,7 @@ button.device-row-name:hover { text-decoration: underline; }
   background-position: center;
   background-repeat: no-repeat;
   background-size: 100% 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 .light-range-control {
   display: grid;
@@ -1536,7 +1562,7 @@ button.device-row-name:hover { text-decoration: underline; }
 }
 .light-slider::-webkit-slider-runnable-track {
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
 }
 .light-slider::-webkit-slider-thumb {
@@ -1551,12 +1577,12 @@ button.device-row-name:hover { text-decoration: underline; }
 }
 .light-slider::-moz-range-track {
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--line) 80%, transparent);
 }
 .light-slider::-moz-range-progress {
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent);
 }
 .light-slider::-moz-range-thumb {
@@ -1749,10 +1775,8 @@ button.security-zone-name:hover { text-decoration: underline; }
 }
 .security-zones-tools .range-tab {
   flex: none;
-  min-height: 24px;
-  padding: 4px 8px;
+  padding: 0 8px;
   font-size: var(--font-caption);
-  line-height: 1;
 }
 /* Original RISCO name under the rename field in the detector modal (#104). */
 .zone-original-name { margin: 6px 0 0; }
@@ -2563,7 +2587,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-alert {
   background: var(--card-off);
   border-left: 3px solid var(--attention);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: 8px 10px;
   font-size: var(--font-label); font-weight: 600; color: var(--ink);
 }
@@ -2605,10 +2629,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   min-width: 0;
 }
 .net-wifi-summary .range-tab:not([hidden]) {
-  min-height: 28px;
-  padding: 5px 8px;
+  padding: 0 8px;
   font-size: var(--font-caption);
-  line-height: 1;
   white-space: nowrap;
 }
 .net-wifi-status {
@@ -2830,15 +2852,13 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 28px;
+  min-height: var(--control-h);
   margin-bottom: 4px;
 }
 .net-devices-head .range-tab:not([hidden]) {
   flex: 0 0 auto;
-  min-height: 28px;
-  padding: 5px 6px;
+  padding: 0 6px;
   font-size: var(--font-caption);
-  line-height: 1;
   white-space: nowrap;
 }
 .net-sort {
@@ -2851,10 +2871,17 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   color: var(--muted);
 }
 .net-sort-label { font-weight: 600; margin-right: 2px; }
+/* Sort chip, snapped to the 36px control height (issue #361; was 26px). The
+   ::before extends the tap target to the 44px floor on both axes — a short
+   label like "A-Z" renders only ~43px wide, so the pseudo nudges width too
+   (measured live: -4px 0 left "A-Z" at 43px, one short). */
 .net-sort-btn {
+  position: relative;
   appearance: none;
-  min-height: 26px;
-  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
   background: var(--card-off);
@@ -2864,6 +2891,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   line-height: 1;
   cursor: pointer;
 }
+.net-sort-btn::before { content: ""; position: absolute; inset: -4px -2px; }
 .net-sort-btn.active {
   background: var(--accent-soft);
   border-color: var(--accent-border-strong);
@@ -2933,7 +2961,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    would be. */
 .net-dhcp-group {
   grid-area: pill; justify-self: end; align-self: center;
-  font-size: var(--font-caption); padding: 2px 6px; border-radius: 6px;
+  font-size: var(--font-caption); padding: 2px 6px; border-radius: var(--radius-md);
   border: 1px solid var(--line); background: var(--input-bg); color: var(--ink);
   max-width: 140px;
 }
@@ -2958,7 +2986,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-pill {
   grid-area: pill; justify-self: end; align-self: center;
   font-size: var(--font-caption); font-weight: 700; line-height: 1;
-  padding: 3px 7px; border-radius: 999px; white-space: nowrap;
+  padding: 3px 7px; border-radius: var(--radius-pill); white-space: nowrap;
 }
 .net-dhcp-pill-reserved { color: var(--on); background: color-mix(in srgb, var(--on) 14%, transparent); }
 .net-dhcp-pill-create { color: var(--accent); background: var(--accent-soft); }
@@ -2987,7 +3015,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .net-dhcp-ex-offline {
   font-size: var(--font-caption); font-weight: 700; color: var(--muted);
-  padding: 1px 5px; border-radius: 999px; background: var(--card-off);
+  padding: 1px 5px; border-radius: var(--radius-pill); background: var(--card-off);
 }
 .net-dhcp-ex-mac { grid-area: mac; font-size: var(--font-caption); color: var(--muted); }
 .net-dhcp-ex-ip {
@@ -2996,10 +3024,15 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .net-dhcp-ex-del {
   grid-area: del; display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; padding: 0; border-radius: 8px;
+  position: relative;
+  width: 28px; height: 28px; padding: 0; border-radius: var(--radius-md);
   border: 1px solid var(--line); background: var(--card-off); color: var(--muted);
   cursor: pointer;
 }
+/* Destructive control below the 44px tap-target floor (issue #361 review) —
+   the ::before extends the clickable region without inflating the visual
+   28x28 box: 28 + 2x8 = 44. */
+.net-dhcp-ex-del::before { content: ""; position: absolute; inset: -8px; }
 .net-dhcp-ex-del .icon { width: 15px; height: 15px; }
 .net-dhcp-ex-del:hover:not(:disabled) { color: var(--attention); border-color: var(--attention); }
 .net-dhcp-ex-del:disabled { opacity: 0.4; cursor: default; }
@@ -3016,7 +3049,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .net-dhcp-input {
   flex: 1 1 130px; min-width: 0;
-  font-size: var(--font-caption); padding: 6px 8px; border-radius: 8px;
+  font-size: var(--font-caption); padding: 6px 8px; border-radius: var(--radius-md);
   border: 1px solid var(--line); background: var(--input-bg); color: var(--ink);
 }
 .net-dhcp-manual-add { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
@@ -3037,7 +3070,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-suggest-head { display: flex; align-items: center; gap: 8px; }
 .net-dhcp-selectall {
   font-size: var(--font-caption); font-weight: 700; color: var(--accent);
-  background: var(--accent-soft); border: 0; border-radius: 999px;
+  background: var(--accent-soft); border: 0; border-radius: var(--radius-pill);
   padding: 2px 9px; cursor: pointer;
 }
 
@@ -3049,15 +3082,22 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-manual-staged { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
 .net-dhcp-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: var(--font-caption); padding: 3px 6px 3px 10px; border-radius: 999px;
+  font-size: var(--font-caption); padding: 3px 6px 3px 10px; border-radius: var(--radius-pill);
   background: var(--accent-soft); color: var(--accent);
   border: 1px solid var(--accent-border-strong);
 }
 .net-dhcp-chip-x {
-  display: inline-flex; padding: 0; border: 0; background: transparent;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; background: transparent;
   color: var(--accent); cursor: pointer;
 }
 .net-dhcp-chip-x .icon { width: 13px; height: 13px; }
+/* Destructive control with no fixed box (issue #361 review — ~13-16px
+   effective target). The ::before is absolutely positioned so it extends the
+   tap target to >=44px on both axes without growing the chip's own layout
+   box (the parent .net-dhcp-chip pill stays visually unchanged). */
+.net-dhcp-chip-x::before { content: ""; position: absolute; inset: -16px; }
 
 /* The single Apply-changes bar with a live slot budget (#176 redesign). */
 .net-dhcp-applybar {
@@ -3082,7 +3122,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-thumb {
   display: inline-flex; align-items: center; justify-content: center;
   width: 56px; height: 36px; padding: 0; overflow: hidden;
-  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
   background: #000; cursor: zoom-in;
 }
 .camera-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -3160,7 +3200,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-ptz-btn.ptz-left .icon { transform: rotate(180deg); }
 .camera-live-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .camera-live-actions .range-tab {
-  min-width: 44px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px;
 }
 .camera-live-actions .icon { width: 20px; height: 20px; }
 .camera-zoom { font-size: var(--font-heading-lg); font-weight: 700; line-height: 1; }
@@ -3200,11 +3240,16 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .camera-preset-rename:hover { color: var(--accent); }
 .camera-preset-del {
+  position: relative;
   appearance: none; border: 0; border-left: 1px solid var(--line);
   background: none; color: var(--muted); cursor: pointer;
   font-size: var(--font-body); line-height: 1; padding: 0 8px;
 }
 .camera-preset-del:hover { color: var(--deficit); }
+/* Destructive control with no fixed box (issue #361 review). The ::before
+   extends the tap target to >=44px on both axes without growing the visual
+   button or the parent .camera-preset group's silhouette. */
+.camera-preset-del::before { content: ""; position: absolute; inset: -6px -12px; }
 .camera-preset-save { font-weight: 600; }
 .camera-coord {
   display: inline-flex; align-items: center; gap: 6px;
@@ -3251,7 +3296,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .activity-legend-body dd { margin: 2px 0 0; color: var(--muted); line-height: 1.45; }
 .activity-legend-body p { margin: 10px 0 2px; color: var(--muted); }
 .legend-swatch {
-  display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
   vertical-align: middle; margin: 0 2px;
 }
 .legend-swatch.legend-warning { background: var(--attention); }
