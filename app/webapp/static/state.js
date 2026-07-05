@@ -527,9 +527,6 @@ export function readToken() {
 export function writeToken(t) {
   if (t) localStorage.setItem(TOKEN_KEY, t);
 }
-export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
 
 // ------------------------------------------------ fetch-failure surfacing
 // Surface a failed data fetch as a single error toast per failure *transition*.

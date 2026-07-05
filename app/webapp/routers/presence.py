@@ -175,46 +175,9 @@ async def post_presence_webhook_path(
     return {"ok": True, "person_id": person.person_id, "state": person.state, "updated_at": person.updated_at.isoformat()}
 
 
-class DisplayNamePayload(BaseModel):
-    display_name: str
-
-
-@router.put("/api/presence/{entity_id}/display_name")
-async def update_presence_display_name(
-    entity_id: str, payload: DisplayNamePayload
-) -> Dict[str, Any]:
-    name = payload.display_name.strip()
-    set_presence_display_name(entity_id, name)
-    return {"entity_id": entity_id, "display_name": name or None}
-
-
-class HiddenPayload(BaseModel):
-    hidden: bool
-
-
-@router.put("/api/presence/{entity_id}/hidden")
-async def update_presence_hidden(entity_id: str, payload: HiddenPayload) -> Dict[str, Any]:
-    set_presence_hidden(entity_id, payload.hidden)
-    return {"entity_id": entity_id, "hidden": payload.hidden}
-
-
 class PresenceDisplayNamePayload(BaseModel):
     entity_id: str
     display_name: str
-
-
-@router.put("/api/presence/entity/display_name")
-async def update_presence_display_name_body(
-    payload: PresenceDisplayNamePayload,
-) -> Dict[str, Any]:
-    """Set a display name for ids that are unsafe as URL path segments."""
-
-    entity_id = payload.entity_id.strip()
-    if not entity_id:
-        raise HTTPException(status_code=400, detail="entity_id is required")
-    name = payload.display_name.strip()
-    set_presence_display_name(entity_id, name)
-    return {"entity_id": entity_id, "display_name": name or None}
 
 
 @router.put("/api/presence/entity-display-name")
@@ -223,7 +186,12 @@ async def update_presence_display_name_safe(
 ) -> Dict[str, Any]:
     """Set a display name for ids that are unsafe as URL path segments."""
 
-    return await update_presence_display_name_body(payload)
+    entity_id = payload.entity_id.strip()
+    if not entity_id:
+        raise HTTPException(status_code=400, detail="entity_id is required")
+    name = payload.display_name.strip()
+    set_presence_display_name(entity_id, name)
+    return {"entity_id": entity_id, "display_name": name or None}
 
 
 class PresenceHiddenPayload(BaseModel):
@@ -231,8 +199,8 @@ class PresenceHiddenPayload(BaseModel):
     hidden: bool
 
 
-@router.put("/api/presence/entity/hidden")
-async def update_presence_hidden_body(
+@router.put("/api/presence/entity-hidden")
+async def update_presence_hidden_safe(
     payload: PresenceHiddenPayload,
 ) -> Dict[str, Any]:
     """Set hidden flag for ids that are unsafe as URL path segments."""
@@ -242,15 +210,6 @@ async def update_presence_hidden_body(
         raise HTTPException(status_code=400, detail="entity_id is required")
     set_presence_hidden(entity_id, payload.hidden)
     return {"entity_id": entity_id, "hidden": payload.hidden}
-
-
-@router.put("/api/presence/entity-hidden")
-async def update_presence_hidden_safe(
-    payload: PresenceHiddenPayload,
-) -> Dict[str, Any]:
-    """Set hidden flag for ids that are unsafe as URL path segments."""
-
-    return await update_presence_hidden_body(payload)
 
 
 @router.get("/api/presence/automation")
