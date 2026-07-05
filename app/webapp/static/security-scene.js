@@ -15,6 +15,7 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
+import { detectorOptions, buildSelect } from './security-shared.js';
 
 // cameraId -> [{token, name}], fetched lazily so we don't hit every camera up front.
 const presetCache = {};
@@ -43,27 +44,6 @@ function normalizedPairings() {
       preset_name: entry.preset_name || null,
     };
   });
-}
-
-function detectorOptions() {
-  const zones = (state.security && state.security.zones) || [];
-  return zones.map(function (zone) {
-    return { id: zone.id, name: (zone.display_name || zone.name || String(zone.id)) };
-  });
-}
-
-function buildSelect(className, options, value, onChange) {
-  const sel = document.createElement('select');
-  sel.className = 'select-native ' + className;
-  options.forEach(function (opt) {
-    const o = document.createElement('option');
-    o.value = String(opt.value);
-    o.textContent = opt.label;
-    sel.appendChild(o);
-  });
-  sel.value = value == null ? '' : String(value);
-  sel.addEventListener('change', onChange);
-  return sel;
 }
 
 async function fetchPresets(cameraId) {

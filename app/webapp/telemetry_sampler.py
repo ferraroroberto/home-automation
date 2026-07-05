@@ -21,34 +21,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
+from app.webapp._env import _env_bool, _env_int
 from src import telemetry
 from src import telemetry_adapters as adapters
 
 logger = logging.getLogger(__name__)
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = (os.getenv(name) or "").strip().lower()
-    if not raw:
-        return default
-    return raw in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)

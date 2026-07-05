@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.webapp.routers._helpers import make_display_name_endpoint
+from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, make_display_name_endpoint
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
 from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 from src.tuya_client import (
@@ -267,30 +267,3 @@ async def update_hidden(device_id: str, payload: HiddenPayload) -> Dict[str, Any
         logger.warning("⚠️  Failed to save hidden state for %s: %s", device_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to save hidden state: {exc}")
     return {"device_id": device_id, "hidden": payload.hidden}
-
-
-# --------------------------------------------------------------- body helpers
-async def _json_body(request: Request) -> Dict[str, Any]:
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="expected a JSON body")
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="expected a JSON object")
-    return body
-
-
-async def _bool_field(request: Request, name: str) -> bool:
-    body = await _json_body(request)
-    value = body.get(name)
-    if not isinstance(value, bool):
-        raise HTTPException(status_code=400, detail=f"'{name}' must be a boolean")
-    return value
-
-
-async def _str_field(request: Request, name: str) -> Optional[str]:
-    body = await _json_body(request)
-    value = body.get(name)
-    if not isinstance(value, str):
-        raise HTTPException(status_code=400, detail=f"'{name}' must be a string")
-    return value
