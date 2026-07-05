@@ -553,6 +553,10 @@ let toastTimer = null;
 export function toast(msg, kind) {
   els.toast.textContent = msg;
   els.toast.className = 'toast ' + (kind || '');
+  // Errors interrupt (aria-live="assertive"); everything else stays polite so
+  // routine save/toggle confirmations don't cut off other screen-reader
+  // speech (issue #370).
+  els.toast.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
   els.toast.hidden = false;
   if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
   // 'pending' (e.g. "Sending…") stays up until a follow-up toast replaces it
