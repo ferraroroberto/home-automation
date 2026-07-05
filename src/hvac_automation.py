@@ -81,11 +81,6 @@ class ScheduleEntry:
     vane_horizontal_direction: Optional[str] = None
 
 
-# Backwards-compatible name for old imports/type hints. New code should use
-# ScheduleEntry because a unit now owns a list of entries.
-Schedule = ScheduleEntry
-
-
 # --------------------------------------------------------------- control law
 def target_for_mode(rule: TempRule, operation_mode: Optional[str]) -> Optional[float]:
     """Desired room target for the unit's current mode, or ``None`` if dormant.
@@ -272,11 +267,3 @@ def set_schedules(
     else:
         schedules.pop(unit_id, None)
     save_schedules(schedules, path)
-
-
-def set_schedule(unit_id: str, schedule: ScheduleEntry, path: Optional[Path] = None) -> None:
-    """Backward-compatible single-entry setter used by old clients/tests."""
-    if schedule.enabled:
-        set_schedules(unit_id, [schedule], path)
-    else:
-        set_schedules(unit_id, [], path)

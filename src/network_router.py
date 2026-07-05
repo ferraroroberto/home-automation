@@ -232,28 +232,6 @@ class RouterClient:
             })
         return out
 
-    def write_dhcp_binding(
-        self, name: str, mac: str, ip: str, timeout: int = 10
-    ) -> bool:
-        """Add (or replace) one Name/MAC/IP static binding via the integrity POST.
-
-        Creates a new reservation (``_InstID=-1``). If the MAC already has a
-        binding its row is deleted first, so the write is an idempotent replace.
-        Returns ``True`` on the firmware's ``SUCC``; raises
-        :class:`NetworkCommandError` with a **distinct** message for a session/
-        token failure vs a field-validation reject.
-        """
-        norm = _normalise_mac(mac)
-        prior = next(
-            (
-                b
-                for b in self.read_dhcp_bindings(timeout)
-                if _normalise_mac(b["mac"]) == norm and b.get("inst_id")
-            ),
-            None,
-        )
-        return self._write_binding(name, mac, ip, prior, timeout)
-
     def _write_binding(
         self,
         name: str,

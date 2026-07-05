@@ -482,11 +482,6 @@ export function onEnergyTab(tab) {
   }
 }
 
-// Initial poll cadence at boot, before any tab interaction.
-export function startEnergyPolling(initialTab) {
-  schedule(initialTab === 'energy' ? LIVE_MS : SLOW_MS);
-}
-
 // Theme toggle hook — re-read CSS-var colors into both charts.
 export function restyleEnergyCharts() {
   restyle(state.liveChart, 'W');
