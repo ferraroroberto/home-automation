@@ -196,7 +196,13 @@ els.loginForm.addEventListener('submit', async function (ev) {
   });
   setTab(initialTab());
 
-  loadUnits();
+  // AC units only matter on Home (summary tile) and AC (cards), so poll them
+  // only while one of those tabs is active rather than every 30s everywhere
+  // (#209). setTab(initialTab()) above fires onTabChange for the default
+  // 'home'/'ac' tab, which calls units.js's onUnitsTab -> loadUnits()
+  // immediately — so there is no separate boot fetch for units here (unlike
+  // loadEnergy() / startWeatherPolling() below, whose tabs' onTabChange hooks
+  // don't fetch on every tab, hence the explicit boot call).
   loadEnergy();
   startWeatherPolling();
   fetchVersion();

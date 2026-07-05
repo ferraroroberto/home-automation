@@ -34,6 +34,7 @@ from dotenv import load_dotenv
 from src.network_types import (
     DHCP_BIND_MAX,
     DhcpBindingTableFull,
+    DhcpReservationLost,
     NetDevice,
     NetworkCommandError,
     NetworkConfigError,
@@ -244,17 +245,35 @@ class RouterClient:
         MAC) when given — an idempotent replace. The caller passes ``prior`` from a
         table read it already did, so the batch apply re-reads the table once, not
         once per row (the firmware is slow; per-row reads are what made a bulk apply
-        "wait a lot"). Raises :class:`DhcpBindingTableFull` when the table is full.
+        "wait a lot"). Raises :class:`DhcpBindingTableFull` when the table is full
+        on a genuinely new reservation (no ``prior`` deleted first).
+
+        A replace's create can still fail *after* ``prior`` is already deleted —
+        the router's static-binding table has no transaction/rollback primitive,
+        so there is no way to undo the delete once it's accepted. That failure is
+        re-raised as :class:`DhcpReservationLost` (issue #347) instead of the
+        plain error it wraps, so the caller can tell "this write never took" apart
+        from "the device now has no reservation at all and needs one re-applied".
         """
+        deleted_prior = False
         if prior and prior.get("inst_id"):
             self._delete_dhcp_binding(prior["inst_id"], timeout)
+            deleted_prior = True
         body = (
             "IF_ACTION=Apply&_InstID=-1"
             f"&Name={quote(name, safe=self._URI_UNRESERVED)}"
             f"&MACAddr={quote(mac, safe=self._URI_UNRESERVED)}"
             f"&IPAddr={quote(ip, safe=self._URI_UNRESERVED)}"
         )
-        return self._check_binding_result(self._binding_post(body, timeout), "write")
+        try:
+            return self._check_binding_result(self._binding_post(body, timeout), "write")
+        except NetworkCommandError as exc:
+            if not deleted_prior:
+                raise
+            raise DhcpReservationLost(
+                f"router lost its DHCP reservation for {mac} — the prior binding "
+                f"was deleted before the replacement create failed: {exc}"
+            ) from exc
 
     def _delete_dhcp_binding(self, inst_id: str, timeout: int = 10) -> bool:
         """Delete one static binding by its firmware ``_InstID`` path."""
@@ -559,6 +578,20 @@ def _add_bindings_on_client(
             if is_create:
                 free -= 1
             logger.info("ℹ️ DHCP binding written: %s → %s", mac, ip)
+        except DhcpReservationLost as exc:
+            # Worse than an ordinary failed write (issue #347): the prior binding
+            # was already deleted before the replacement create failed, so the
+            # device now has *no* static reservation for this MAC at all — flag it
+            # distinctly so the UI/caller knows to re-apply this row, not just retry.
+            # If the underlying cause was the table being full, still de-escalate
+            # future *new* reservations the same way the plain case below would.
+            if isinstance(exc.__cause__, DhcpBindingTableFull):
+                table_full = True
+            results.append({
+                "mac": mac, "ip": ip, "ok": False, "reservation_lost": True,
+                "error": str(exc),
+            })
+            logger.error("❌ DHCP reservation lost for %s → %s: %s", mac, ip, exc)
         except DhcpBindingTableFull as exc:
             # The cap was reached (lower than our estimate, or the table grew under
             # us). Record the honest reason, stop attempting *new* reservations, but

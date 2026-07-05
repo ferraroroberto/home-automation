@@ -66,6 +66,11 @@ CANDIDATES: Dict[str, Candidate] = {
 }
 DEFAULT_ORDER = ["qwen", "gemma-e4b", "gemma-26b", "haiku"]
 
+# The only modes run_mode() recognizes; a typo'd value falls through its
+# if/if/else to the "grammar" branch (the else), silently mislabeling that
+# run's results under the typo'd name instead of erroring. Validated in main().
+MODES = {"free", "nothink", "grammar"}
+
 
 # --- parsing & scoring ----------------------------------------------------
 
@@ -329,6 +334,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     hub = HubClient()
     dataset = yaml.safe_load(_DATASET.read_text(encoding="utf-8"))
     modes = [m.strip() for m in args.modes.split(",") if m.strip()]
+    bad_modes = [m for m in modes if m not in MODES]
+    if bad_modes:
+        log(f"unknown modes: {bad_modes} (valid: {sorted(MODES)})")
+        return 2
     keys = [k.strip() for k in args.models.split(",") if k.strip()]
     bad = [k for k in keys if k not in CANDIDATES]
     if bad:
