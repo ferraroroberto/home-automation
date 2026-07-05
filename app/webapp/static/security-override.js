@@ -16,6 +16,7 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
+import { detectorOptions, buildSelect } from './security-shared.js';
 
 const RETRY_OPTIONS = [1, 2, 3];
 
@@ -39,27 +40,6 @@ function normalizedOverrides() {
       max_retries: RETRY_OPTIONS.includes(retries) ? retries : 1,
     };
   });
-}
-
-function detectorOptions() {
-  const zones = (state.security && state.security.zones) || [];
-  return zones.map(function (zone) {
-    return { id: zone.id, name: (zone.display_name || zone.name || String(zone.id)) };
-  });
-}
-
-function buildSelect(className, options, value, onChange) {
-  const sel = document.createElement('select');
-  sel.className = 'select-native ' + className;
-  options.forEach(function (opt) {
-    const o = document.createElement('option');
-    o.value = String(opt.value);
-    o.textContent = opt.label;
-    sel.appendChild(o);
-  });
-  sel.value = value == null ? '' : String(value);
-  sel.addEventListener('change', onChange);
-  return sel;
 }
 
 export function renderSecurityOverrides() {

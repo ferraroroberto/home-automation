@@ -1,9 +1,10 @@
 """Shared ``.env`` knob parsers for the webapp's background-task modules.
 
 ``presence_automation`` / ``presence_refresher`` / ``security_automation`` /
-``automation`` each read a handful of ``os.getenv`` knobs (after ``load_dotenv``)
-with the same graceful-default semantics. The two parsers used to be copy-pasted
-verbatim into each module; they live here once now so the "blank → default,
+``automation`` / ``telemetry_sampler`` / ``routers.presence`` each read a
+handful of ``os.getenv`` knobs (after ``load_dotenv``) with the same
+graceful-default semantics. The two parsers used to be copy-pasted verbatim
+into each module; they live here once now so the "blank → default,
 invalid → warn-and-default" behaviour can't drift between background loops.
 """
 

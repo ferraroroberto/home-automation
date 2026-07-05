@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from src.static_versioning import BuildInfo
@@ -64,3 +64,32 @@ def make_display_name_endpoint(
     endpoint.__name__ = f"set_{id_field}_display_name"
     router.put(path)(endpoint)
     return endpoint
+
+
+async def _json_body(request: Request) -> Dict[str, Any]:
+    """Parse the request body as a JSON object, or raise 400."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="expected a JSON body")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="expected a JSON object")
+    return body
+
+
+async def _bool_field(request: Request, name: str) -> bool:
+    """Read a required boolean field off the request's JSON body, or raise 400."""
+    body = await _json_body(request)
+    value = body.get(name)
+    if not isinstance(value, bool):
+        raise HTTPException(status_code=400, detail=f"'{name}' must be a boolean")
+    return value
+
+
+async def _str_field(request: Request, name: str) -> Optional[str]:
+    """Read a required string field off the request's JSON body, or raise 400."""
+    body = await _json_body(request)
+    value = body.get(name)
+    if not isinstance(value, str):
+        raise HTTPException(status_code=400, detail=f"'{name}' must be a string")
+    return value

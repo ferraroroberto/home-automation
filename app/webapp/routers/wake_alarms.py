@@ -17,6 +17,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.webapp.routers._helpers import _json_body
 from app.webapp.wake_alarm_automation import (
     dismiss_alarm,
     ringing_alarm_ids,
@@ -66,16 +67,6 @@ async def get_wake_alarms() -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ Failed to load wake alarms: %s", exc)
         raise HTTPException(status_code=500, detail=f"failed to load wake alarms: {exc}")
-
-
-async def _json_body(request: Request) -> Dict[str, Any]:
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="expected a JSON body")
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="expected a JSON object")
-    return body
 
 
 @router.put("/api/wake-alarms")

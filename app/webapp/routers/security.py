@@ -24,6 +24,7 @@ from app.webapp.alarm_notify import (
     SOURCE_MANUAL,
     record_alarm_action,
 )
+from app.webapp.routers._helpers import _bool_field, _json_body
 from src.alarm_notify_prefs import (
     AlarmNotifyPrefs,
     load_alarm_notify_prefs,
@@ -375,21 +376,3 @@ async def update_zone_trouble_ignored(
         logger.warning("⚠️  Failed to save detector trouble-ignore for %s: %s", zone_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to save trouble-ignore: {exc}")
     return {"zone_id": zone_id, "trouble_ignored": payload.ignored}
-
-
-async def _json_body(request: Request) -> Dict[str, Any]:
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="expected a JSON body")
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="expected a JSON object")
-    return body
-
-
-async def _bool_field(request: Request, name: str) -> bool:
-    body = await _json_body(request)
-    value = body.get(name)
-    if not isinstance(value, bool):
-        raise HTTPException(status_code=400, detail=f"'{name}' must be a boolean")
-    return value

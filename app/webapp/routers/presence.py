@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+from app.webapp._env import _env_int
 from app.webapp.presence_refresher import get_cache, refresh_once
 from src.location_config import LocationConfig, load_location_config, save_location_config
 from src.presence_client import PresenceEntity
@@ -38,17 +39,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _REVERSE_CACHE: Dict[str, Dict[str, Any]] = {}
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
 
 
 def _entity_payload(entity: PresenceEntity, *, source: str = "icloud") -> Dict[str, Any]:
