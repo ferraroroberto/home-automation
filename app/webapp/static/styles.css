@@ -150,6 +150,19 @@
    elements stay laid out — intercepting clicks. */
 [hidden] { display: none !important; }
 
+/* Canonical focus-visible ring (issue #364). With no authored rule, keyboard
+   focus on a plain input/button/switch/summary fell through to the browser's
+   native default outline — on Windows Chrome that default is themed off the
+   OS accent/highlight color, not this app's --accent, so it renders amber
+   while the one authored .light-name rule renders blue. One tokenized rule
+   here covers every interactive element app-wide; a component keeps its own
+   :focus-visible/:focus-within override only where it draws a custom ring
+   (e.g. .light-value-edit:focus-within, which already used --accent). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -1423,7 +1436,6 @@ button.device-row-name:hover { text-decoration: underline; }
   white-space: nowrap;
   cursor: pointer;
 }
-.light-name:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .light-meta,
 .light-unavailable {
   color: var(--muted);
