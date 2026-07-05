@@ -92,8 +92,15 @@ function actionAvailable(action) {
   return currentMode() === 'disarmed';
 }
 
+// One panel → one in-flight action at a time (issue #368): a busy flag checked
+// at entry and reflected as disabled pills, mirroring vm.js's onToggle guard.
+// Double-tapping Arm/Disarm must not send a second POST to the physical alarm.
+let actionBusy = false;
+
 async function postAction(action) {
-  if (!actionAvailable(action)) return;
+  if (actionBusy || !actionAvailable(action)) return;
+  actionBusy = true;
+  renderActions();
   toast(ACTION_TOASTS[action] || 'Working…', 'pending');  // fires the instant you tap
   try {
     state.security = await jsonApi('/api/security/' + encodeURIComponent(action), {
@@ -106,10 +113,20 @@ async function postAction(action) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
     }
+  } finally {
+    actionBusy = false;
+    renderActions();
   }
 }
 
-async function setBypass(zone, bypass) {
+// Per-zone in-flight guard (issue #368): bypassing zone A must not block zone B,
+// but a double-tap on the same zone's toggle must not double-POST.
+const bypassBusy = new Set();
+
+async function setBypass(zone, bypass, btn) {
+  if (bypassBusy.has(zone.id)) return;
+  bypassBusy.add(zone.id);
+  if (btn) btn.disabled = true;
   toast('Sending…', 'pending');
   try {
     state.security = await jsonApi(
@@ -127,6 +144,11 @@ async function setBypass(zone, bypass) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
     }
+  } finally {
+    bypassBusy.delete(zone.id);
+    // On success renderSecurity() rebuilt the row; on error the old node stays,
+    // so re-enable it explicitly.
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -144,8 +166,10 @@ function renderActionsInto(el) {
     btn.type = 'button';
     btn.className = 'security-action security-action-' + action;
     btn.textContent = ACTION_LABELS[action];
-    btn.disabled = !available;
-    if (btn.disabled) {
+    btn.disabled = !available || actionBusy;
+    if (actionBusy) {
+      btn.title = 'Working…';
+    } else if (btn.disabled) {
       btn.title = currentMode() === 'unknown' ? 'State unavailable' : 'Unavailable in current state';
     }
     if (available) {
@@ -351,7 +375,7 @@ export function renderZones() {
     toggle.setAttribute('aria-label', 'Detector active ' + zoneLabel(zone));
     toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
       (active ? 'ON' : 'OFF') + '</span>';
-    toggle.addEventListener('click', function () { setBypass(zone, active); });
+    toggle.addEventListener('click', function () { setBypass(zone, active, toggle); });
     row.appendChild(toggle);
 
     els.securityZones.appendChild(row);

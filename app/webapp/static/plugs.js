@@ -33,7 +33,14 @@ function plugLabel(device) {
 }
 
 // ----------------------------------------------------------------- write
-async function toggleSwitch(device) {
+// Per-device in-flight guard (issue #368): toggling plug A must not block
+// plug B, but a double-tap on the same toggle must not double-POST.
+const switchBusy = new Set();
+
+async function toggleSwitch(device, btn) {
+  if (switchBusy.has(device.device_id)) return;
+  switchBusy.add(device.device_id);
+  if (btn) btn.disabled = true;
   const next = !(device.switch_on === true);
   try {
     toast('Sending…', 'pending');
@@ -54,6 +61,11 @@ async function toggleSwitch(device) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
     }
+  } finally {
+    switchBusy.delete(device.device_id);
+    // On success renderPlugs() rebuilt the row; on error the old node stays,
+    // so re-enable it explicitly.
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -134,7 +146,7 @@ function buildPlugRow(device) {
     toggle.setAttribute('aria-label', 'Power ' + (plugLabel(device) || 'device'));
     toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
       (on ? 'ON' : 'OFF') + '</span>';
-    toggle.addEventListener('click', function () { toggleSwitch(device); });
+    toggle.addEventListener('click', function () { toggleSwitch(device, toggle); });
     row.appendChild(toggle);
   }
   return row;
