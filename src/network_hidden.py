@@ -11,8 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Set
 
+from src._mac import normalize_mac
 from src.display_names import load_display_names, set_display_name
-from src.network_display_names import normalize_mac
 
 DEVICE_DEFAULT_PATH = (
     Path(__file__).resolve().parent.parent / "config" / "network_hidden.json"

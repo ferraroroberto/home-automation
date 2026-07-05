@@ -18,7 +18,7 @@ def test_notify_prefs_round_trip_and_configured_flag(
     store = tmp_path / "alarm_notify_prefs.json"
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", store)
     monkeypatch.setattr(
-        "app.webapp.routers.security.is_notify_configured", lambda: True
+        "app.webapp.routers.security_notify.is_notify_configured", lambda: True
     )
 
     # Default state: only the error toggle is on.
@@ -50,7 +50,7 @@ def test_notify_prefs_unconfigured_reports_false(
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "p.json")
     monkeypatch.setattr(
-        "app.webapp.routers.security.is_notify_configured", lambda: False
+        "app.webapp.routers.security_notify.is_notify_configured", lambda: False
     )
     assert client.get("/api/security/notify-prefs").json()["telegram_configured"] is False
 

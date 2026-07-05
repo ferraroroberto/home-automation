@@ -1,10 +1,20 @@
-"""RISCO Cloud security API over ``src.risco_client``.
+"""RISCO Cloud security API over ``src.risco_client`` — live state, events, and zone actions.
 
 ``GET /api/security`` returns the live alarm snapshot, ``GET
 /api/security/events`` returns recent events, and the POST endpoints run the
 confirmed one-tap actions. The separate native Partial action remains disabled
 until its group mapping is known; the backend rejects unsupported actions
-instead of guessing.
+instead of guessing. Per-detector settings (display name, hidden, trouble-
+ignore, session bypass) live here too since they read/write the same live
+zone objects this module already owns.
+
+The weekly-schedule, scene-pairings, auto-bypass-override, and notify-prefs
+concerns used to live in this file as well; they were split out into their own
+router modules (``security_schedules.py`` / ``security_scene.py`` /
+``security_override.py`` / ``security_notify.py``, issue #346) — the same
+"split a grown router by self-contained concern" move ``dhcp_plan.py`` made
+out of ``network.py`` in #328. Each is fully self-contained (its own
+persistence module, no shared state with the live RISCO read/write path here).
 """
 
 from __future__ import annotations
@@ -24,13 +34,7 @@ from app.webapp.alarm_notify import (
     SOURCE_MANUAL,
     record_alarm_action,
 )
-from app.webapp.routers._helpers import _bool_field, _json_body
-from src.alarm_notify_prefs import (
-    AlarmNotifyPrefs,
-    load_alarm_notify_prefs,
-    save_alarm_notify_prefs,
-)
-from src.notify_config import is_notify_configured
+from app.webapp.routers._helpers import _bool_field
 from src.presence_engine import note_manual_alarm_action
 from src.risco_client import (
     ACTIONS,
@@ -41,9 +45,6 @@ from src.risco_client import (
     fetch_security_state,
     set_zone_bypass,
 )
-from src.alarm_scene_config import load_scene_pairings, set_scene_pairings
-from src.security_override import load_overrides, set_overrides
-from src.security_schedules import load_security_schedules, set_security_schedules
 from src.security_display_names import (
     load_security_display_names,
     set_security_display_name,
@@ -108,15 +109,6 @@ def _persist_risco_events(events: List[object]) -> None:
         logger.debug("telemetry RISCO-event persist skipped", exc_info=True)
 
 
-def _schedule_payload(entries: List[object]) -> Dict[str, Any]:
-    active = [entry for entry in entries if getattr(entry, "enabled", False)]
-    return {
-        "enabled": bool(active),
-        "count": len(active),
-        "entries": [asdict(entry) for entry in entries],
-    }
-
-
 def _state_payload(state: object) -> Dict[str, Any]:
     """Serialise a ``SecurityState`` and merge per-detector display-name overrides.
 
@@ -176,123 +168,6 @@ async def get_security_events(count: int = 50) -> Dict[str, Any]:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
-
-
-@router.get("/api/security/schedules")
-async def get_security_schedules() -> Dict[str, Any]:
-    try:
-        return _schedule_payload(load_security_schedules())
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to load alarm schedules: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to load schedules: {exc}")
-
-
-@router.put("/api/security/schedules")
-async def update_security_schedules(request: Request) -> Dict[str, Any]:
-    body = await _json_body(request)
-    entries = body.get("entries")
-    if not isinstance(entries, list):
-        raise HTTPException(status_code=400, detail="'entries' must be a list")
-    try:
-        return _schedule_payload(set_security_schedules(entries))
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save alarm schedules: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to save schedules: {exc}")
-
-
-def _pairings_payload(pairings: List[object]) -> Dict[str, Any]:
-    active = [p for p in pairings if getattr(p, "enabled", False)]
-    return {
-        "enabled": bool(active),
-        "count": len(active),
-        "entries": [asdict(p) for p in pairings],
-    }
-
-
-@router.get("/api/security/scene-pairings")
-async def get_scene_pairings() -> Dict[str, Any]:
-    """Return the detector→camera+preset alarm-scene capture pairings (issue #162)."""
-    try:
-        return _pairings_payload(load_scene_pairings())
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to load scene pairings: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to load scene pairings: {exc}")
-
-
-@router.put("/api/security/scene-pairings")
-async def update_scene_pairings(request: Request) -> Dict[str, Any]:
-    body = await _json_body(request)
-    entries = body.get("entries")
-    if not isinstance(entries, list):
-        raise HTTPException(status_code=400, detail="'entries' must be a list")
-    try:
-        return _pairings_payload(set_scene_pairings(entries))
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save scene pairings: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to save scene pairings: {exc}")
-
-
-def _overrides_payload(entries: List[object]) -> Dict[str, Any]:
-    active = [e for e in entries if getattr(e, "enabled", False)]
-    return {
-        "enabled": bool(active),
-        "count": len(active),
-        "entries": [asdict(e) for e in entries],
-    }
-
-
-@router.get("/api/security/overrides")
-async def get_overrides() -> Dict[str, Any]:
-    """Return the "auto-bypass after N repeats this session" detector rules (issue #341)."""
-    try:
-        return _overrides_payload(load_overrides())
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to load alarm overrides: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to load overrides: {exc}")
-
-
-@router.put("/api/security/overrides")
-async def update_overrides(request: Request) -> Dict[str, Any]:
-    body = await _json_body(request)
-    entries = body.get("entries")
-    if not isinstance(entries, list):
-        raise HTTPException(status_code=400, detail="'entries' must be a list")
-    try:
-        return _overrides_payload(set_overrides(entries))
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save alarm overrides: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to save overrides: {exc}")
-
-
-def _notify_prefs_payload(prefs: AlarmNotifyPrefs) -> Dict[str, Any]:
-    return {
-        "prefs": asdict(prefs),
-        "telegram_configured": is_notify_configured(),
-    }
-
-
-@router.get("/api/security/notify-prefs")
-async def get_notify_prefs() -> Dict[str, Any]:
-    """Return the automatic-alarm notification toggles + whether Telegram is set up."""
-    try:
-        return _notify_prefs_payload(load_alarm_notify_prefs())
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to load notify prefs: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to load notify prefs: {exc}")
-
-
-@router.put("/api/security/notify-prefs")
-async def update_notify_prefs(request: Request) -> Dict[str, Any]:
-    body = await _json_body(request)
-    current = asdict(load_alarm_notify_prefs())
-    updated = {key: bool(body.get(key, current[key])) for key in current}
-    try:
-        prefs = AlarmNotifyPrefs(**updated)
-        save_alarm_notify_prefs(prefs)
-        return _notify_prefs_payload(prefs)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save notify prefs: %s", exc)
-        raise HTTPException(status_code=500, detail=f"failed to save notify prefs: {exc}")
 
 
 @router.post("/api/security/{action}")
