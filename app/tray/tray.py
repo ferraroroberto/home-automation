@@ -204,9 +204,23 @@ def _tailscale_url(port: int, token: str) -> Optional[str]:
     return append_auth_token(f"{scheme}://{host}:{port}", token)
 
 
-def _notify(title: str, message: str) -> None:
-    """Surface a tray message. pythonw has no console, so this also logs."""
+def _notify(icon: Optional["pystray.Icon"], title: str, message: str) -> None:  # noqa: F821
+    """Surface a tray message via the OS notification balloon, plus a log line.
+
+    pythonw has no console, so the log line (always written) used to be the
+    *only* trace of these events — `icon.notify(...)` was never actually
+    called, so every startup/restart/status/copy-URL message was silently
+    invisible in the real `pythonw.exe -m app.tray` launch path. `icon` may be
+    ``None`` when this fires before the tray icon exists yet (the webapp-start
+    notification can race the icon's own construction); the OS balloon is
+    skipped then, but the log line still lands.
+    """
     logger.info(f"🔔 {title}: {message}")
+    if icon is not None:
+        try:
+            icon.notify(message, title)
+        except Exception as exc:  # noqa: BLE001 — the OS balloon is best-effort
+            logger.debug(f"tray notify failed: {exc}")
 
 
 def run_tray() -> int:
@@ -231,21 +245,6 @@ def run_tray() -> int:
 
     manager = WebappManager(load_config())
 
-    # Kick off the webapp on a background thread so the tray comes up
-    # quickly even if uvicorn takes a second to start.
-    starter_error: dict = {"exc": None}
-
-    def _start():
-        try:
-            manager.start(wait=True)
-            _notify("Home Automation webapp ready", manager.base_url)
-        except Exception as exc:  # noqa: BLE001
-            starter_error["exc"] = exc
-            logger.error(f"❌ webapp start failed: {exc}")
-            _notify("Home Automation start failed", str(exc))
-
-    threading.Thread(target=_start, daemon=True).start()
-
     def _open_app() -> None:
         """Open the dashboard, preferring the trusted tailnet URL.
 
@@ -263,39 +262,40 @@ def run_tray() -> int:
         webapp_cfg = load_webapp_config()
         url = append_auth_token(manager.base_url, webapp_cfg.auth_token)
         if _clipboard_copy(url):
-            _notify("Copied local URL", url)
+            _notify(icon, "Copied local URL", url)
         else:
-            _notify("Local URL", url)
+            _notify(icon, "Local URL", url)
 
     def copy_tailscale(icon, item):  # noqa: ARG001
         webapp_cfg = load_webapp_config()
         url = _tailscale_url(manager.config.port, webapp_cfg.auth_token)
         if not url:
             _notify(
+                icon,
                 "Tailscale not available",
                 "Couldn't resolve a tailnet hostname (is `tailscale` installed and logged in?).",
             )
             return
         if _clipboard_copy(url):
-            _notify("Copied Tailscale URL", url)
+            _notify(icon, "Copied Tailscale URL", url)
         else:
-            _notify("Tailscale URL", url)
+            _notify(icon, "Tailscale URL", url)
 
     def restart_webapp(icon, item):  # noqa: ARG001
         def _do_restart():
             try:
-                _notify("Home Automation", "Restarting webapp…")
+                _notify(icon, "Home Automation", "Restarting webapp…")
                 manager.restart(wait=True)
-                _notify("Home Automation webapp restarted", manager.base_url)
+                _notify(icon, "Home Automation webapp restarted", manager.base_url)
             except Exception as exc:  # noqa: BLE001
                 logger.error(f"❌ webapp restart failed: {exc}")
-                _notify("Restart failed", str(exc))
+                _notify(icon, "Restart failed", str(exc))
 
         threading.Thread(target=_do_restart, daemon=True).start()
 
     def show_status(icon, item):  # noqa: ARG001
         s = manager.status()
-        _notify("Home Automation status", f"{s.detail} · {s.base_url}")
+        _notify(icon, "Home Automation status", f"{s.detail} · {s.base_url}")
 
     def quit_app(icon, item):  # noqa: ARG001
         logger.info("👋 Tray quit requested")
@@ -320,12 +320,31 @@ def run_tray() -> int:
         MenuItem("🚪 Quit", quit_app),
     )
 
+    # Built (with its menu) before the background start thread below, so
+    # `_start` always has a live `icon` to notify through instead of racing
+    # `icon.run()` — which only has to happen last, to block until Quit.
     icon = pystray.Icon(
         "home-automation",
         icon=_build_icon(),
         title="Home Automation",
         menu=menu,
     )
+
+    # Kick off the webapp on a background thread so the tray comes up
+    # quickly even if uvicorn takes a second to start.
+    starter_error: dict = {"exc": None}
+
+    def _start():
+        try:
+            manager.start(wait=True)
+            _notify(icon, "Home Automation webapp ready", manager.base_url)
+        except Exception as exc:  # noqa: BLE001
+            starter_error["exc"] = exc
+            logger.error(f"❌ webapp start failed: {exc}")
+            _notify(icon, "Home Automation start failed", str(exc))
+
+    threading.Thread(target=_start, daemon=True).start()
+
     icon.run()
     if starter_error["exc"] is not None:
         return 1

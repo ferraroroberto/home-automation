@@ -42,6 +42,7 @@ from src.network_types import (  # noqa: F401 — re-exported public surface
     DHCP_BIND_MAX,
     AccessPointHealth,
     DhcpBindingTableFull,
+    DhcpReservationLost,
     InternetHealth,
     NetDevice,
     NetworkCommandError,

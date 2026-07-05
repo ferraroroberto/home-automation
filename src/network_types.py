@@ -40,6 +40,19 @@ class DhcpBindingTableFull(NetworkCommandError):
     """
 
 
+class DhcpReservationLost(NetworkCommandError):
+    """A replace's re-create failed *after* the prior binding was already deleted.
+
+    The router's static-binding "replace" is delete-then-create, non-atomically
+    (issue #347): if the create POST fails for any reason once the old row is
+    gone, the device is left with **no** static reservation at all — worse than
+    an ordinary failed write, which leaves the prior binding untouched. A
+    subclass so callers can distinguish "the row is now unreserved, re-apply
+    it" from a plain "this write didn't take" and surface a message that says
+    so, rather than a generic rejection.
+    """
+
+
 # The F6600P firmware caps its static "DHCP Binding" table at this many rows: the
 # (N+1)th create returns ``IF_ERRORID -12`` ("the number of entries has reached
 # the maximum limit"). Empirically confirmed against the live unit 2026-06-25.

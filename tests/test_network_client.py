@@ -370,6 +370,82 @@ def test_apply_skips_creates_when_table_full_but_keeps_replaces(monkeypatch) -> 
     assert ("00:00:00:00:00:00", "192.168.0.200", True) in fake.written
 
 
+def test_write_binding_wraps_create_failure_as_reservation_lost_after_delete(
+    monkeypatch,
+) -> None:
+    """A replace's create failing *after* the prior delete already succeeded must
+    surface as DhcpReservationLost, not a generic reject (issue #347) — the router
+    now has no static reservation at all for this MAC."""
+    client = network_client.RouterClient("h", "u", "p")
+    deleted: list[str] = []
+    monkeypatch.setattr(
+        client, "_delete_dhcp_binding",
+        lambda inst_id, timeout=10: deleted.append(inst_id) or True,
+    )
+    monkeypatch.setattr(
+        client, "_binding_post",
+        lambda body, timeout=10: "<IF_ERRORSTR>Invalid&#32;IP&#32;address</IF_ERRORSTR>",
+    )
+
+    prior = {"name": "old", "mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.1", "inst_id": "B1"}
+    with pytest.raises(network_client.DhcpReservationLost) as exc:
+        client._write_binding("new", "AA:BB:CC:DD:EE:FF", "192.168.0.2", prior)
+
+    assert deleted == ["B1"]  # the prior binding really was deleted first
+    assert "AA:BB:CC:DD:EE:FF" in str(exc.value)
+
+
+def test_write_binding_reraises_plain_error_when_nothing_was_deleted(monkeypatch) -> None:
+    """A genuinely new reservation's failed create has nothing to lose — it raises
+    the plain error, not DhcpReservationLost (no prior binding was ever deleted)."""
+    client = network_client.RouterClient("h", "u", "p")
+    monkeypatch.setattr(
+        client, "_binding_post",
+        lambda body, timeout=10: "<IF_ERRORSTR>Invalid&#32;IP&#32;address</IF_ERRORSTR>",
+    )
+
+    with pytest.raises(network_client.NetworkCommandError) as exc:
+        client._write_binding("new", "AA:BB:CC:DD:EE:FF", "192.168.0.2", None)
+    assert not isinstance(exc.value, network_client.DhcpReservationLost)
+
+
+class _FakeReservationLostRouter:
+    """A RouterClient stand-in whose replace create fails after its delete succeeds."""
+
+    def __init__(self, *_a: Any, **_k: Any) -> None:
+        self._existing = [
+            {"name": "old", "mac": "00:00:00:00:00:01", "ip": "192.168.0.1", "inst_id": "B1"},
+        ]
+
+    def login(self) -> bool:
+        return True
+
+    def read_dhcp_bindings(self, timeout: int = 10) -> list:
+        return list(self._existing)
+
+    def _write_binding(self, name, mac, ip, prior, timeout: int = 10) -> bool:
+        raise network_client.DhcpReservationLost(
+            f"router lost its DHCP reservation for {mac}"
+        )
+
+
+def test_apply_bindings_records_reservation_lost_row(monkeypatch) -> None:
+    """A DhcpReservationLost from _write_binding is recorded distinctly in the
+    per-row result, not as a plain failed row (issue #347)."""
+    fake = _FakeReservationLostRouter()
+    monkeypatch.setattr(network_client, "_router_creds", lambda: ("h", "u", "p"))
+    monkeypatch.setattr(network_client, "RouterClient", lambda *a, **k: fake)
+
+    rows = [{"name": "moved", "mac": "00:00:00:00:00:01", "ip": "192.168.0.200"}]
+    results = network_client._apply_dhcp_bindings_sync(rows)
+
+    assert len(results) == 1
+    row = results[0]
+    assert row["ok"] is False
+    assert row["reservation_lost"] is True
+    assert "lost its DHCP reservation" in row["error"]
+
+
 def test_delete_dhcp_binding_sync_logs_in_and_deletes(monkeypatch) -> None:
     """``delete_dhcp_binding`` logs in once and removes the row by its inst_id (#176)."""
     captured: dict = {}
