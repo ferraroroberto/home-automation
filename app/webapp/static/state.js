@@ -428,6 +428,7 @@ export const els = {
   weatherThemeBtn: document.getElementById('weatherThemeBtn'),
   navDebugBtn: document.getElementById('navDebugBtn'),
   wxLocation: document.getElementById('wxLocation'),
+  wxLocationLabel: document.getElementById('wxLocationLabel'),
   wxNowIcon: document.getElementById('wxNowIcon'),
   wxNowTemp: document.getElementById('wxNowTemp'),
   wxFcIcon: document.getElementById('wxFcIcon'),

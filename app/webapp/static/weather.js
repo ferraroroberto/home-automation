@@ -38,8 +38,9 @@ function render(w) {
   if (!w || !w.available) return;  // stay hidden, keep last value
 
   // Location label — shown when the API returns a non-empty label string.
+  // Standard card-header pattern (icon + bold title), not a "Home:" colon prefix.
   if (w.label) {
-    els.wxLocation.textContent = w.label + ':';
+    els.wxLocationLabel.textContent = w.label;
     els.wxLocation.hidden = false;
   }
 

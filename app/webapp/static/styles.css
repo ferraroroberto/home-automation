@@ -764,7 +764,11 @@ button, input, select, textarea {
   margin-bottom: var(--gap);
 }
 .weather-info { display: flex; align-items: center; gap: 18px; min-width: 0; }
+/* Standard card-header pattern: leading icon + bold title, same as every
+   other card (savings/cost/internet/AP …) instead of a bare "Home:" prefix. */
 .weather-location {
+  display: inline-flex;
+  align-items: center;
   font-size: var(--font-body);
   font-weight: 600;
   color: var(--ink);
@@ -791,25 +795,31 @@ button, input, select, textarea {
    together on the right of the weather tile, per the same "left of the
    sun/moon icon" placement the theme toggle already uses. */
 .weather-actions { display: flex; align-items: center; gap: 2px; flex: none; }
-/* Subtle, non-distracting theme toggle — transparent, muted, small. */
-.weather-theme-btn {
+/* Standard icon-only button for a control nested inside a card (same recipe
+   as .detail-close's dialog-header close button): a subtle contrast
+   background instead of the tile's own bg, not a bare floating icon. */
+.weather-icon-btn {
   flex: none;
-  background: transparent;
+  background: var(--close-bg);
   border: none;
+  border-radius: var(--radius-md);
+  width: 34px;
+  height: 34px;
   color: var(--muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.6;
-  padding: 4px;
   cursor: pointer;
 }
-.weather-theme-btn .icon { width: 1.15rem; height: 1.15rem; }
-.weather-theme-btn:active { transform: scale(0.92); }
+.weather-icon-btn .icon { width: 1.05rem; height: 1.05rem; }
+.weather-icon-btn:active { transform: scale(0.92); }
 /* Nav-debug toggle (#300): a temporary on-device diagnostic for the iOS
    modal/nav-pin bugs — lit up in the accent color while recording so it's
    obvious debug mode is on, unlike the theme toggle it sits next to. */
-#navDebugBtn[aria-pressed="true"] { color: var(--accent); opacity: 1; }
+#navDebugBtn[aria-pressed="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
 .weather-fc-icon { font-size: var(--font-heading-lg); line-height: 1; color: var(--ink); }
 .weather-fc-range {
   font-size: var(--font-body);
@@ -1314,7 +1324,7 @@ button, input, select, textarea {
 /* Plugs / Blinds collapsible row lists — mirror the Network "Attached devices"
    card: the card owns no padding (the summary + body do), rows are divider-
    separated and vertically centered. */
-.device-list-card { padding: 0; margin-bottom: var(--gap); }
+.device-list-card { margin-bottom: var(--gap); }
 .device-list-body { padding: 2px 14px 8px; }
 .device-list { display: flex; flex-direction: column; }
 
@@ -1647,15 +1657,6 @@ button.device-row-name:hover { text-decoration: underline; }
     padding-inline: 3px;
   }
 }
-.security-events-card,
-.security-schedules-card,
-.scene-pairings-card,
-.security-override-card,
-.cameras-card,
-.security-zones-card,
-.presence-card,
-.security-notify-card,
-.wake-alarms-card { padding: 0; }
 .security-events,
 .security-zones,
 .cameras-list,
@@ -2420,6 +2421,14 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .small { font-size: var(--font-caption); }
 
 /* ----------------------------------------------------- collapsible cards */
+/* Disclosure-card padding contract (design.md): the card's own padding must
+   be zeroed so it never doubles up with the summary/body's own padding — the
+   root cause of every past collapsed-height regression. This one shared
+   modifier replaces 5 separate per-component `padding: 0` declaration sites
+   (fleet-config#234 dry-run evidence on issue #363) so a future disclosure
+   card can't repeat the fragmentation. */
+.card--collapsible { padding: 0; }
+
 /* Unified collapsible summary (issue #57): a left-aligned icon + title with a
    disclosure chevron pinned to the right, shared by the Security and Network
    sections so every collapsible reads the same. */
@@ -2564,7 +2573,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 
 /* Host-side Wi-Fi diagnostics: compact signal summary in the disclosure header,
    with channel charts and the visible BSSID list inside. */
-.net-wifi-card { padding: 0; margin-bottom: var(--gap); }
+.net-wifi-card { margin-bottom: var(--gap); }
 .net-wifi-summary {
   grid-column: 2;
   justify-self: end;
@@ -2714,9 +2723,8 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 }
 
 /* Settings-style collapsible card for counts, ordering, offline toggle and list. */
-.net-devices-card { padding: 0; margin-bottom: var(--gap); }
+.net-devices-card { margin-bottom: var(--gap); }
 .net-devices-body { padding: 12px 14px 14px; }
-.net-dhcp-card { padding: 0; }
 .net-dhcp-body { padding: 12px 14px 14px; }
 
 /* Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N. */
@@ -3197,12 +3205,13 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    transparent, the active tab a subtle accent tint — never a solid fill. */
 .activity-modes { margin-bottom: var(--space-sm); }
 
-/* Legend: stacked term-over-description at the shared caption text size. */
+/* Legend: stacked term-over-description at the shared caption text size.
+   The disclosure itself reuses the shared .collapse-summary/.collapse-chevron
+   pattern (chevron-only, no native triangle marker — issue #363) — just a
+   compact, unpadded variant since this sits inside a dialog, not a card. */
 .activity-legend { margin-bottom: var(--space-sm); }
-.activity-legend > summary {
-  cursor: pointer; color: var(--accent); font-weight: 600;
-  padding: 4px 0; list-style: revert;
-}
+.activity-legend > .collapse-summary { padding: 4px 0; }
+.activity-legend > .collapse-summary .collapse-main { color: var(--accent); font-weight: 600; }
 .activity-legend-body { padding: var(--space-xs) 0 var(--space-sm); font-size: var(--font-caption); }
 .activity-legend-body dl { margin: 2px 0 14px; }
 .activity-legend-body dt { font-weight: 600; color: var(--accent); margin-top: 10px; line-height: 1.35; }
