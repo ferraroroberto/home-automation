@@ -10,10 +10,10 @@ import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
+import { createPoller } from './poll.js';
 
 const POLL_MS = 15_000;
 
-let upsTimer = null;
 let lastMainsOnline = null;
 
 function fmtPct(v) {
@@ -156,10 +156,7 @@ export function restoreUpsSnapshot() {
   renderUps();
 }
 
-function schedule(ms) {
-  if (upsTimer) clearInterval(upsTimer);
-  upsTimer = ms > 0 ? setInterval(loadUps, ms) : null;
-}
+const schedule = createPoller(loadUps);
 
 export function onUpsTab(tab) {
   if (tab === 'plugs' || tab === 'home') {

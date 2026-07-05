@@ -26,6 +26,7 @@ import {
 import { jsonApi } from './api.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { restyleWifiChannelChart } from './charts.js';
+import { createPoller } from './poll.js';
 import {
   renderStats,
   renderDevices,
@@ -47,7 +48,6 @@ import { wireDhcpPlan } from './network-dhcp.js';
 
 const POLL_MS = 15_000;
 
-let networkTimer = null;
 let speedtestRunning = false;
 let networkLoading = false;
 // Last successful speed-test result, kept across polls (a normal poll returns
@@ -339,10 +339,7 @@ export function wireNetworkControls() {
 }
 
 // --------------------------------------------------------- cadence + tabs
-function schedule(ms) {
-  if (networkTimer) clearInterval(networkTimer);
-  networkTimer = ms > 0 ? setInterval(loadNetwork, ms) : null;
-}
+const schedule = createPoller(loadNetwork);
 
 // The AP SOAP read is expensive, so only poll while the Network tab is open.
 export function onNetworkTab(tab) {

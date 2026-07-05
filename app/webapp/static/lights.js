@@ -9,9 +9,9 @@ import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { emptyStateEl } from './icons.js';
+import { createPoller } from './poll.js';
 
 const POLL_MS = 15_000;
-let lightsTimer = null;
 
 function label(light) {
   return light.display_name || light.name || light.light_id || 'Elgato light';
@@ -363,10 +363,7 @@ export function restoreLightsSnapshot() {
   renderLights();
 }
 
-function schedule(ms) {
-  if (lightsTimer) clearInterval(lightsTimer);
-  lightsTimer = ms > 0 ? setInterval(loadLights, ms) : null;
-}
+const schedule = createPoller(loadLights);
 
 export function onLightsTab(tab) {
   if (tab === 'lights') {
