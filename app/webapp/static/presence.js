@@ -21,6 +21,7 @@ import {
   THIS_DEVICE_LOCATION_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
+import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 export function fmtTime(value) {
   if (!value) return '-';
@@ -244,7 +245,7 @@ function renderPresenceAutomationNote() {
   const hasWebhookPerson = entities.some(function (entity) {
     return entity.source === 'webhook' && !entity.hidden;
   });
-  if (els.presenceAutoEnabled.checked && !hasWebhookPerson) {
+  if (isToggleOn(els.presenceAutoEnabled) && !hasWebhookPerson) {
     els.presenceAutomationNote.textContent = 'Configure iOS Shortcut arrive/leave webhooks before enabling alarm automation. Browser GPS and Find My diagnostics do not drive arm/disarm.';
     els.presenceAutomationNote.hidden = false;
   } else {
@@ -465,10 +466,10 @@ export async function loadPresenceAutomation() {
   try {
     state.presenceAutomation = await jsonApi('/api/presence/automation');
     const cfg = state.presenceAutomation || {};
-    els.presenceAutoEnabled.checked = cfg.enabled === true;
+    setToggleState(els.presenceAutoEnabled, cfg.enabled === true);
     els.presenceArmMinutes.value = Math.round((Number(cfg.arm_away_after_s) || 0) / 60);
     els.presenceStaleMinutes.value = Math.round((Number(cfg.stale_after_s) || 3600) / 60);
-    els.presenceDisarmOnArrival.checked = cfg.disarm_on_arrival !== false;
+    setToggleState(els.presenceDisarmOnArrival, cfg.disarm_on_arrival !== false);
     renderPresenceAutomationNote();
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
@@ -479,10 +480,10 @@ export async function loadPresenceAutomation() {
 
 async function savePresenceAutomation() {
   const payload = {
-    enabled: els.presenceAutoEnabled.checked,
+    enabled: isToggleOn(els.presenceAutoEnabled),
     arm_away_after_s: Math.max(0, Number(els.presenceArmMinutes.value || 0)) * 60,
     stale_after_s: Math.max(1, Number(els.presenceStaleMinutes.value || 1)) * 60,
-    disarm_on_arrival: els.presenceDisarmOnArrival.checked,
+    disarm_on_arrival: isToggleOn(els.presenceDisarmOnArrival),
   };
   try {
     state.presenceAutomation = await jsonApi('/api/presence/automation', {
@@ -707,9 +708,11 @@ export function wirePresenceControls() {
   [els.locationLabel, els.locationLat, els.locationLon].forEach(function (el) {
     if (el) el.addEventListener('blur', saveLocation);
   });
-  [els.presenceAutoEnabled, els.presenceArmMinutes, els.presenceStaleMinutes, els.presenceDisarmOnArrival].forEach(function (el) {
+  [els.presenceArmMinutes, els.presenceStaleMinutes].forEach(function (el) {
     if (el) el.addEventListener('change', savePresenceAutomation);
   });
+  wireToggle(els.presenceAutoEnabled, savePresenceAutomation);
+  wireToggle(els.presenceDisarmOnArrival, savePresenceAutomation);
   if (els.pushSubscribe) els.pushSubscribe.addEventListener('click', subscribePush);
 
   if (els.presenceDetailClose) els.presenceDetailClose.addEventListener('click', closePresenceDetail);

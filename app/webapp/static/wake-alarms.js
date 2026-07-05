@@ -11,6 +11,7 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
+import { buildToggle } from './toggle.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -134,12 +135,13 @@ export function renderWakeAlarms() {
 
     const enabled = document.createElement('label');
     enabled.className = 'schedule-enabled';
-    enabled.innerHTML = '<input type="checkbox" class="checkbox-native wake-alarm-enabled"' +
-      (entry.enabled ? ' checked' : '') + '> <span>Enabled</span>';
-    enabled.querySelector('input').addEventListener('change', function (ev) {
-      state.wakeAlarms[idx].enabled = ev.target.checked;
+    const enabledText = document.createElement('span');
+    enabledText.textContent = 'Enabled';
+    enabled.appendChild(enabledText);
+    enabled.appendChild(buildToggle('wake-alarm-enabled', entry.enabled, function (on) {
+      state.wakeAlarms[idx].enabled = on;
       saveWakeAlarms();
-    });
+    }));
     head.appendChild(enabled);
 
     const del = document.createElement('button');
@@ -192,17 +194,18 @@ export function renderWakeAlarms() {
 
     const onceWrap = document.createElement('label');
     onceWrap.className = 'wake-alarm-once';
-    onceWrap.innerHTML = '<input type="checkbox" class="checkbox-native wake-alarm-once-toggle"' +
-      (entry.date ? ' checked' : '') + '> <span>Just once</span>';
-    onceWrap.querySelector('input').addEventListener('change', function (ev) {
-      if (ev.target.checked) {
+    const onceText = document.createElement('span');
+    onceText.textContent = 'Just once';
+    onceWrap.appendChild(onceText);
+    onceWrap.appendChild(buildToggle('wake-alarm-once-toggle', !!entry.date, function (on) {
+      if (on) {
         const today = new Date();
         state.wakeAlarms[idx].date = today.toISOString().slice(0, 10);
       } else {
         state.wakeAlarms[idx].date = null;
       }
       saveWakeAlarms();
-    });
+    }));
     card.appendChild(onceWrap);
 
     if (entry.date) {

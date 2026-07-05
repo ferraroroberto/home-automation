@@ -780,18 +780,24 @@
           auto-shutdown when the battery runs critically low.
         </p>
         <div class="notify-toggles">
-          <label class="notify-toggle">
-            <input id="notifyPowerLost" type="checkbox" class="checkbox-native">
+          <div class="notify-toggle">
             <span>Mains power lost (on UPS battery)</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyPowerRestored" type="checkbox" class="checkbox-native">
+            <button id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Power restored (back on mains)</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyAutoShutdown" type="checkbox" class="checkbox-native">
+            <button id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Auto-shutdown PC when UPS runtime &lt; 15 min (safety)</span>
-          </label>
+            <button id="notifyAutoShutdown" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto-shutdown PC when UPS runtime under 15 minutes (safety)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
         </div>
         <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
       </details>
@@ -1100,10 +1106,12 @@
               <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
             </label>
             <button id="locationUseBrowser" type="button" class="big-btn">Use this device location</button>
-            <label class="row">
+            <div class="row">
               <span>Auto arm/disarm</span>
-              <input id="presenceAutoEnabled" type="checkbox" class="checkbox-native">
-            </label>
+              <button id="presenceAutoEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto arm/disarm">
+                <span class="knob"></span><span class="toggle-label">OFF</span>
+              </button>
+            </div>
             <label class="row">
               <span>Away minutes before arm</span>
               <input id="presenceArmMinutes" type="number" min="0" step="1" class="input-native" value="15">
@@ -1112,10 +1120,12 @@
               <span>Stale after minutes</span>
               <input id="presenceStaleMinutes" type="number" min="1" step="1" class="input-native" value="60">
             </label>
-            <label class="row">
+            <div class="row">
               <span>Disarm on first arrival</span>
-              <input id="presenceDisarmOnArrival" type="checkbox" class="checkbox-native">
-            </label>
+              <button id="presenceDisarmOnArrival" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on first arrival">
+                <span class="knob"></span><span class="toggle-label">OFF</span>
+              </button>
+            </div>
             <p id="presenceAutomationNote" class="muted small security-note" hidden></p>
             <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
           </div>
@@ -1134,34 +1144,48 @@
           Telegram alerts for <strong>automatic</strong> alarm actions only. Manual arm/disarm from this app is never notified — you're already here.
         </p>
         <div class="notify-toggles">
-          <label class="notify-toggle">
-            <input id="notifyScheduleArm" type="checkbox" class="checkbox-native">
+          <div class="notify-toggle">
             <span>Automatic arm (schedule)</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyScheduleDisarm" type="checkbox" class="checkbox-native">
+            <button id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Automatic disarm (schedule)</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyPresenceArm" type="checkbox" class="checkbox-native">
+            <button id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Arm on everyone-away (presence)</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyPresenceDisarm" type="checkbox" class="checkbox-native">
+            <button id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Disarm on arrival (presence)</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyError" type="checkbox" class="checkbox-native">
+            <button id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Error on any automatic arm/disarm</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyIntrusion" type="checkbox" class="checkbox-native">
+            <button id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Alarm triggered (intrusion)</span>
-          </label>
-          <label class="notify-toggle">
-            <input id="notifyAcLost" type="checkbox" class="checkbox-native">
+            <button id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
             <span>Panel mains power lost/restored</span>
-          </label>
+            <button id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
         </div>
         <p id="notifyConfiguredNote" class="muted small security-note" hidden></p>
       </details>
@@ -1236,10 +1260,12 @@
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
         <div class="detail-section-body">
-          <label class="row">
+          <div class="row">
             <span>Enabled</span>
-            <input id="ruleEnabled" type="checkbox" class="checkbox-native">
-          </label>
+            <button id="ruleEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable temperature rule">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
           <label class="row">
             <span>Cool target (room °C)</span>
             <input id="ruleCoolTarget" type="number" step="0.5" min="16" max="31" class="input-native" placeholder="—">

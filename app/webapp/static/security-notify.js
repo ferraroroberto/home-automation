@@ -1,7 +1,7 @@
 /* Notifications card — automatic-alarm Telegram toggles.
  *
- * A folded-by-default card under Presence in the Security tab. Five checkboxes
- * map 1:1 to the backend AlarmNotifyPrefs; each persists on change via
+ * A folded-by-default card under Presence in the Security tab. Seven switches
+ * map 1:1 to the backend AlarmNotifyPrefs; each persists on click via
  * PUT /api/security/notify-prefs. Manual arm/disarm is never notified, so it has
  * no toggle — the card's note says so. A hint shows when Telegram isn't set up.
  */
@@ -10,6 +10,7 @@
 
 import { els, toast } from './state.js';
 import { jsonApi } from './api.js';
+import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 const FIELDS = [
   ['notifyScheduleArm', 'schedule_arm'],
@@ -36,7 +37,7 @@ function renderConfiguredNote(configured) {
 function applyPrefs(payload) {
   const prefs = (payload && payload.prefs) || {};
   FIELDS.forEach(function ([elKey, prefKey]) {
-    if (els[elKey]) els[elKey].checked = prefs[prefKey] === true;
+    if (els[elKey]) setToggleState(els[elKey], prefs[prefKey] === true);
   });
   renderConfiguredNote(!!(payload && payload.telegram_configured));
 }
@@ -55,7 +56,7 @@ export async function loadNotifyPrefs() {
 async function saveNotifyPrefs() {
   const payload = {};
   FIELDS.forEach(function ([elKey, prefKey]) {
-    if (els[elKey]) payload[prefKey] = els[elKey].checked;
+    if (els[elKey]) payload[prefKey] = isToggleOn(els[elKey]);
   });
   try {
     applyPrefs(
@@ -75,6 +76,6 @@ async function saveNotifyPrefs() {
 
 export function wireSecurityNotify() {
   FIELDS.forEach(function ([elKey]) {
-    if (els[elKey]) els[elKey].addEventListener('change', saveNotifyPrefs);
+    wireToggle(els[elKey], saveNotifyPrefs);
   });
 }

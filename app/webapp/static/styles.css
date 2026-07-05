@@ -2112,8 +2112,9 @@ button.presence-name:hover { text-decoration: underline; }
   min-height: 38px;
   font-size: var(--font-caption);
 }
-/* Notification toggle lists (alarm + power cards): checkbox on the LEFT, all in
-   one aligned column, each box vertically centred with its label. */
+/* Notification toggle lists (alarm + power cards): label on the left, the
+   canonical .toggle switch flush right — mirrors the detail-modal .row
+   convention (issue #360). */
 .notify-toggles {
   display: grid;
   gap: 10px;
@@ -2122,10 +2123,8 @@ button.presence-name:hover { text-decoration: underline; }
 .notify-toggle {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-}
-.notify-toggle .checkbox-native {
-  flex: 0 0 auto;
 }
 .notify-toggle span {
   min-width: 0;
@@ -2353,13 +2352,6 @@ body:has(dialog[open]) .app { overflow: hidden; }
   cursor: pointer;
 }
 .detail-save-btn:disabled { opacity: 0.5; cursor: default; }
-
-.checkbox-native {
-  width: 20px;
-  height: 20px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
 
 /* ----------------------------------------------------------- toast */
 /* Neutral frosted toast — the same glass treatment as the floating bottom nav
@@ -2902,10 +2894,11 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   align-items: center; column-gap: 12px; row-gap: 2px;
   padding: 8px 0; border-top: 1px solid var(--line);
 }
-/* Leading per-row checkbox for the selective apply (#176 step 2); the spacer keeps
-   non-pending rows' columns aligned with the ticked ones. */
-.net-dhcp-check { grid-area: check; align-self: center; margin: 0; accent-color: var(--accent); cursor: pointer; }
-.net-dhcp-check-spacer { width: 13px; height: 13px; display: inline-block; cursor: default; }
+/* Leading per-row switch for the selective apply (#176 step 2, switch-ified
+   #360); the spacer keeps non-pending rows' columns aligned with the ticked
+   ones — same footprint as the .toggle button it stands in for. */
+.net-dhcp-check { grid-area: check; align-self: center; }
+.net-dhcp-check-spacer { width: 44px; height: 26px; display: inline-block; cursor: default; }
 /* The "assign a group" picker on an unassigned row (#176 step 3) sits where a pill
    would be. */
 .net-dhcp-group {
