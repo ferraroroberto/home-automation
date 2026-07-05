@@ -1,14 +1,18 @@
-"""Generate the PWA icons (a simple house glyph on a dark tile).
+"""Generate PWA/tray/Stream-Deck icons from the shared fleet icon-brand generator.
 
-Writes into ``app/webapp/static/``:
+Thin caller onto ``project-scaffolding``'s ``brand_gen.render_set()`` — the
+master art is home-automation's vendored Lucide ``house.svg``, not a
+bespoke Pillow-drawn silhouette (app-launcher#65: a coherent icon family
+across the fleet). Supersedes issue #309's "no SVG-rasterization dependency"
+constraint: the fleet-wide decision that landed in app-launcher#65 is to
+render the vendored master via resvg-py rather than hand-derive proportions
+in Pillow, so every project's icon is provably the same vocabulary as the
+in-app Lucide nav icons. Drops the previous accent-coloured door for the
+fleet's monochrome look.
 
-    icon-512.png            512x512, full-bleed tile (purpose: any)
-    icon-512-maskable.png   512x512, safe-zone padded (purpose: maskable)
-    icon-180.png            iOS apple-touch-icon
-    favicon.ico             multi-size favicon
-
-Pillow is a dev-only dependency for this one-shot — the generated PNGs
-are committed, so the webapp never imports Pillow at runtime.
+Writes into ``app/webapp/static/``: ``icon-512.png``, ``icon-512-maskable.png``,
+``icon-180.png``, ``icon-192.png``, ``favicon.ico``. Into ``assets/tray/``:
+``home-automation.ico``. Into ``assets/stream-deck/``: ``home-automation-144.png``.
 
 Usage:
     python scripts/gen_icons.py
@@ -19,82 +23,25 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+SCAFFOLDING_SCRIPTS = Path(r"E:\automation\project-scaffolding\scripts")
+sys.path.insert(0, str(SCAFFOLDING_SCRIPTS))
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "app" / "webapp" / "static"
+from brand_gen import render_set  # noqa: E402
 
-BG = (10, 15, 26)        # --bg
-ACCENT = (47, 125, 246)  # --accent
-WHITE = (244, 247, 251)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+STATIC_DIR = PROJECT_ROOT / "app" / "webapp" / "static"
 
 
-def _house(size: int, pad_ratio: float) -> Image.Image:
-    """Draw a house glyph on a full-bleed, opaque dark tile.
-
-    Full-bleed + opaque (RGB, no alpha, no transparent corners) is required
-    for the iOS apple-touch-icon: iOS composites any alpha against black and
-    applies its own squircle corner mask, so a transparent-cornered RGBA icon
-    renders as an invisible black square on a dark home screen. Android/Chrome
-    apply the maskable safe-zone + corner mask themselves, so a flat opaque
-    square is the correct source for every target.
-
-    The glyph is a flush pentagon house silhouette (roofline runs straight
-    into the walls, no overhanging eaves) with an accent-coloured door,
-    matching the proportions of the in-app `i-house` Lucide glyph
-    (`app/webapp/static/index.html`) so the app icon reads consistently with
-    the rest of the app's iconography.
-    """
-    img = Image.new("RGB", (size, size), BG)
-    d = ImageDraw.Draw(img)
-
-    # Glyph geometry inside a padded safe zone.
-    pad = int(size * pad_ratio)
-    left = pad
-    right = size - pad
-    top = pad
-    bottom = size - pad
-    cx = size // 2
-    span = right - left
-
-    # Flush pentagon: roof and walls share the same width, so the roofline
-    # meets the walls with no overhang — one continuous silhouette.
-    eaves_y = top + int(span * 0.42)  # where the roof meets the walls
-    d.polygon(
-        [(left, eaves_y), (cx, top), (right, eaves_y), (right, bottom), (left, bottom)],
-        fill=WHITE,
+def main() -> None:
+    render_set(
+        master=Path(r"E:\automation\project-scaffolding\brand\house.svg"),
+        out_dir=STATIC_DIR,
+        tray_out_dir=PROJECT_ROOT / "assets" / "tray",
+        stream_deck_out_dir=PROJECT_ROOT / "assets" / "stream-deck",
+        project_slug="home-automation",
     )
-
-    # Door: a tall accent-coloured opening, bottom-centred in the body.
-    door_w = int(span * 0.24)
-    door_h = int((bottom - eaves_y) * 0.72)
-    door_top = bottom - door_h
-    d.rounded_rectangle(
-        [cx - door_w // 2, door_top, cx + door_w // 2, bottom],
-        radius=max(2, door_w // 6),
-        fill=ACCENT,
-    )
-    return img
-
-
-def main() -> int:
-    STATIC_DIR.mkdir(parents=True, exist_ok=True)
-
-    icon = _house(512, pad_ratio=0.18)
-    icon.save(STATIC_DIR / "icon-512.png")
-
-    maskable = _house(512, pad_ratio=0.28)  # extra safe-zone padding
-    maskable.save(STATIC_DIR / "icon-512-maskable.png")
-
-    icon.resize((180, 180), Image.LANCZOS).save(STATIC_DIR / "icon-180.png")
-
-    icon.resize((64, 64), Image.LANCZOS).save(
-        STATIC_DIR / "favicon.ico",
-        sizes=[(16, 16), (32, 32), (48, 48), (64, 64)],
-    )
-
-    print(f"✅ wrote icons into {STATIC_DIR}")
-    return 0
+    print(f"wrote icons to {STATIC_DIR}")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
