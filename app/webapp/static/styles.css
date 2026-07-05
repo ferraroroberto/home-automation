@@ -171,6 +171,16 @@ html, body {
   overscroll-behavior: none;
 }
 
+/* UA stylesheets give form controls their own platform font (Arial on Windows
+   Chrome), never the document's — the root cause of the buttons/inputs/selects
+   that rendered off-brand (issue #359). `font: inherit` pulls font-family,
+   size, weight, and line-height from the surrounding context so every control
+   matches the app's one type system; selectors below that set an explicit
+   font-size/-weight win on specificity and are unaffected. */
+button, input, select, textarea {
+  font: inherit;
+}
+
 .app {
   max-width: 772px;
   margin: 0 auto;
@@ -516,7 +526,7 @@ html, body {
 .ac-line-icon { width: 1.05em; height: 1.05em; margin-right: 2px; }
 /* Single-line temperature reading: room → target (#211). */
 .ac-line-center { text-align: right; }
-.ac-temp { font-weight: 650; font-variant-numeric: tabular-nums; }
+.ac-temp { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------- energy flow diagram */
 /* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
@@ -548,7 +558,7 @@ html, body {
 /* Arrows carry a glyph; colour + direction are set in JS. */
 .flow-arrow {
   flex: none;
-  font-size: 1.2rem;
+  font-size: var(--font-body);
   font-weight: 700;
   line-height: 1;
   color: var(--muted);
@@ -582,7 +592,7 @@ html, body {
 .split-leg { display: flex; flex-direction: column; gap: 1px; }
 .split-leg-end { align-items: flex-end; text-align: right; }
 .split-leg-name { font-size: var(--font-caption); color: var(--muted); }
-.split-leg-val { font-size: var(--font-label); font-weight: 650; font-variant-numeric: tabular-nums; }
+.split-leg-val { font-size: var(--font-label); font-weight: 700; font-variant-numeric: tabular-nums; }
 .split-bar {
   height: 9px;
   border-radius: var(--radius-pill);
@@ -748,10 +758,10 @@ html, body {
   white-space: nowrap;
 }
 .weather-current { display: flex; align-items: center; gap: 8px; }
-.weather-current-icon { font-size: 1.3rem; line-height: 1; color: var(--ink); }
+.weather-current-icon { font-size: var(--font-heading-lg); line-height: 1; color: var(--ink); }
 .weather-current-temp {
   font-size: var(--font-body);
-  font-weight: 650;
+  font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -787,11 +797,11 @@ html, body {
    modal/nav-pin bugs — lit up in the accent color while recording so it's
    obvious debug mode is on, unlike the theme toggle it sits next to. */
 #navDebugBtn[aria-pressed="true"] { color: var(--accent); opacity: 1; }
-.weather-fc-icon { font-size: 1.3rem; line-height: 1; color: var(--ink); }
+.weather-fc-icon { font-size: var(--font-heading-lg); line-height: 1; color: var(--ink); }
 .weather-fc-range {
   font-size: var(--font-body);
   color: var(--ink);
-  font-weight: 650;
+  font-weight: 700;
   white-space: nowrap;
 }
 .weather-fc-sep { color: var(--muted); margin: 0 1px; }
@@ -818,9 +828,9 @@ html, body {
   text-align: left;
   color: inherit;
 }
-.unit-mode-icon { font-size: 1.15rem; flex: none; }
+.unit-mode-icon { font-size: var(--font-body); flex: none; }
 .unit-name {
-  font-weight: 650;
+  font-weight: 600;
   font-size: var(--font-body);
   flex: 1;
   min-width: 0;
@@ -828,7 +838,7 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.unit-chevron { color: var(--muted); font-size: 1.4rem; line-height: 1; flex: none; }
+.unit-chevron { color: var(--muted); font-size: var(--font-heading-lg); line-height: 1; flex: none; }
 .unit-schedule-badge {
   display: inline-flex;
   align-items: center;
@@ -885,7 +895,7 @@ html, body {
 .unit-room .value,
 .unit-rule-target .value {
   font-size: var(--font-body);
-  font-weight: 650;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
@@ -955,7 +965,7 @@ html, body {
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: var(--input-bg);
-  font-size: 1.3rem;
+  font-size: var(--font-heading-lg);
   line-height: 1;
   cursor: pointer;
   color: var(--accent);
@@ -963,7 +973,7 @@ html, body {
 .stepper .step:active { transform: scale(0.92); }
 .target-value {
   font-size: var(--font-body);
-  font-weight: 650;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   min-width: 3.4ch;
   text-align: center;
@@ -1167,7 +1177,7 @@ html, body {
   border-radius: var(--radius-sm);
   padding: 5px 8px;
   font-size: var(--font-label);
-  font-weight: 650;
+  font-weight: 700;
 }
 /* Home-tab UPS tile as a single line at the weather-tile height (#253):
    identity, then bare charge % + runtime on the same row, then the status pill
@@ -1415,7 +1425,7 @@ button.device-row-name:hover { text-decoration: underline; }
   background: transparent;
   padding: 0;
   color: var(--ink);
-  font-weight: 650;
+  font-weight: 600;
   font-size: var(--font-body);
   text-align: left;
   overflow: hidden;
@@ -1500,7 +1510,7 @@ button.device-row-name:hover { text-decoration: underline; }
 .light-value-unit {
   color: var(--muted);
   font-size: var(--font-caption);
-  font-weight: 650;
+  font-weight: 700;
 }
 .light-slider::-webkit-slider-runnable-track {
   height: 5px;
@@ -1558,7 +1568,7 @@ button.device-row-name:hover { text-decoration: underline; }
 }
 /* margin-inline-start gives a reliable gap after "Alarm state:" — a trailing
    space in the prefix span collapses inside this flex container (issue #104). */
-.security-state-word { font-weight: 800; margin-inline-start: 0.35em; }
+.security-state-word { font-weight: 700; margin-inline-start: 0.35em; }
 /* State word colour follows the same three-colour scheme as the pills:
    green disarmed, yellow partial/perimeter, red armed/alert. No blue. */
 .security-state.is-disarmed .security-state-word { color: var(--on); }
@@ -1793,7 +1803,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   gap: 4px;
   color: var(--muted);
   font-size: var(--font-caption);
-  font-weight: 650;
+  font-weight: 600;
 }
 .alarm-schedule-fields .input-native,
 .alarm-schedule-fields .select-native {
@@ -1844,7 +1854,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   margin-top: 8px;
   color: var(--muted);
   font-size: var(--font-caption);
-  font-weight: 650;
+  font-weight: 600;
 }
 .wake-alarm-date {
   width: 100%;
@@ -1872,7 +1882,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   background: color-mix(in srgb, var(--attention) 12%, transparent);
   color: var(--attention);
   font-size: var(--font-label);
-  font-weight: 650;
+  font-weight: 700;
 }
 .wake-ringing-dismiss {
   flex: none;
@@ -1960,7 +1970,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   gap: 4px;
   color: var(--muted);
   font-size: var(--font-caption);
-  font-weight: 650;
+  font-weight: 600;
 }
 .scene-pairing-fields .select-native {
   width: 100%;
@@ -1985,7 +1995,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   gap: 4px;
   color: var(--muted);
   font-size: var(--font-caption);
-  font-weight: 650;
+  font-weight: 600;
 }
 .security-override-fields .select-native {
   width: 100%;
@@ -2023,7 +2033,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 600;
 }
 .presence-meta {
   color: var(--muted);
@@ -2042,7 +2052,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 }
 .presence-status-line {
   font-size: var(--font-caption);
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
 }
 .presence-status-addr {
@@ -2066,7 +2076,7 @@ button.presence-name {
   text-align: left;
   color: inherit;
   font: inherit;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
 }
 button.presence-name:hover { text-decoration: underline; }
@@ -2117,7 +2127,7 @@ button.presence-name:hover { text-decoration: underline; }
   border: 1px solid var(--line);
   color: var(--accent);
   text-decoration: none;
-  font-weight: 650;
+  font-weight: 700;
 }
 .presence-map-frame {
   width: 100%;
@@ -2232,7 +2242,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 12px 0; border-top: 1px solid var(--line);
 }
-.detail-card .row span { color: var(--ink); font-weight: 550; }
+.detail-card .row span { color: var(--ink); font-weight: 600; }
 .detail-card .row .select-native,
 .detail-card .row .input-native { min-width: 55%; }
 .input-native {
@@ -2274,7 +2284,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   gap: 6px;
   min-width: 0;
   font-size: var(--font-label);
-  font-weight: 650;
+  font-weight: 600;
 }
 .schedule-profile { margin-top: 8px; }
 .schedule-profile .row { padding: 9px 0; }
@@ -2285,7 +2295,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   border-radius: var(--radius-md);
   background: var(--input-bg);
   color: var(--muted);
-  font-size: 1.35rem;
+  font-size: var(--font-heading-lg);
   line-height: 1;
   cursor: pointer;
 }
@@ -2298,7 +2308,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   background: var(--input-bg);
   color: var(--ink);
   font: inherit;
-  font-weight: 650;
+  font-weight: 700;
   cursor: pointer;
 }
 @media (max-width: 420px) {
@@ -2390,7 +2400,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   color: var(--accent);
   border: 1px solid var(--accent-border-soft);
   border-radius: var(--radius-md); padding: 13px; min-height: 48px;
-  font-size: var(--font-body); font-weight: 650; cursor: pointer;
+  font-size: var(--font-body); font-weight: 700; cursor: pointer;
 }
 .big-btn:active { transform: scale(0.98); }
 .login-error { color: var(--deficit); font-size: var(--font-label); }
@@ -2421,13 +2431,13 @@ body:has(dialog[open]) .app { overflow: hidden; }
   min-width: 0;
   line-height: 1;
 }
-.collapse-icon { font-size: 1.1rem; line-height: 1; align-self: center; }
-.collapse-title { margin: 0; font-weight: 650; font-size: var(--font-body); line-height: 1; }
+.collapse-icon { font-size: var(--font-body); line-height: 1; align-self: center; }
+.collapse-title { margin: 0; font-weight: 700; font-size: var(--font-body); line-height: 1; }
 .collapse-chevron {
   grid-column: 2;
   justify-self: end;
   color: var(--muted);
-  font-size: 1.3rem;
+  font-size: var(--font-heading-lg);
   line-height: 1;
   transition: transform 0.15s ease;
 }
@@ -2495,7 +2505,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-internet-status.is-offline { color: var(--deficit); }
 .net-internet-meta { margin: 6px 0 0; }
 .net-speed-result {
-  margin: 6px 0 0; font-weight: 650; font-variant-numeric: tabular-nums;
+  margin: 6px 0 0; font-weight: 700; font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 .net-speed-btn {
@@ -2554,12 +2564,12 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-wifi-summary .range-tab:not([hidden]) {
   min-height: 28px;
   padding: 5px 8px;
-  font-size: 0.68rem;
+  font-size: var(--font-caption);
   line-height: 1;
   white-space: nowrap;
 }
 .net-wifi-status {
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   white-space: nowrap;
@@ -2603,7 +2613,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   margin: 0 0 6px;
   color: var(--muted);
   font-size: var(--font-caption);
-  font-weight: 800;
+  font-weight: 700;
 }
 .net-wifi-chart-wrap {
   height: 170px;
@@ -2641,7 +2651,7 @@ button.net-wifi-row-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
 }
 button.net-wifi-row-name:hover { text-decoration: underline; }
@@ -2673,8 +2683,8 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   color: var(--accent);
   border-radius: var(--radius-pill);
   padding: 1px 7px;
-  font-size: 0.62rem;
-  font-weight: 800;
+  font-size: var(--font-caption);
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -2713,7 +2723,7 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   font-size: var(--font-caption); font-weight: 600; color: var(--muted);
   white-space: nowrap;
 }
-.net-stat-chip .net-stat-num { color: var(--ink); font-weight: 800; }
+.net-stat-chip .net-stat-num { color: var(--ink); font-weight: 700; }
 .net-stat-chip.is-weak { color: var(--attention); }
 .net-stat-chip.is-weak .net-stat-num { color: var(--attention); }
 
@@ -2785,7 +2795,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   flex: 0 0 auto;
   min-height: 28px;
   padding: 5px 6px;
-  font-size: 0.68rem;
+  font-size: var(--font-caption);
   line-height: 1;
   white-space: nowrap;
 }
@@ -2830,7 +2840,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   flex: 0 0 auto; margin-left: 2px;
   background: var(--accent); color: var(--accent-fg);
   border-radius: var(--radius-pill); padding: 1px 7px;
-  font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em;
+  font-size: var(--font-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
 }
 button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Offline status line in the detail modal. */
@@ -2880,7 +2890,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    would be. */
 .net-dhcp-group {
   grid-area: pill; justify-self: end; align-self: center;
-  font-size: 11px; padding: 2px 6px; border-radius: 6px;
+  font-size: var(--font-caption); padding: 2px 6px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--input-bg); color: var(--ink);
   max-width: 140px;
 }
@@ -2904,7 +2914,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Per-row reservation status against the router (#176). */
 .net-dhcp-pill {
   grid-area: pill; justify-self: end; align-self: center;
-  font-size: 11px; font-weight: 700; line-height: 1;
+  font-size: var(--font-caption); font-weight: 700; line-height: 1;
   padding: 3px 7px; border-radius: 999px; white-space: nowrap;
 }
 .net-dhcp-pill-reserved { color: var(--on); background: color-mix(in srgb, var(--on) 14%, transparent); }
@@ -2933,7 +2943,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .net-dhcp-ex-offline {
-  font-size: 10px; font-weight: 700; color: var(--muted);
+  font-size: var(--font-caption); font-weight: 700; color: var(--muted);
   padding: 1px 5px; border-radius: 999px; background: var(--card-off);
 }
 .net-dhcp-ex-mac { grid-area: mac; font-size: var(--font-caption); color: var(--muted); }
@@ -2983,7 +2993,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Suggested-section header with its all/none toggle. */
 .net-dhcp-suggest-head { display: flex; align-items: center; gap: 8px; }
 .net-dhcp-selectall {
-  font-size: 11px; font-weight: 700; color: var(--accent);
+  font-size: var(--font-caption); font-weight: 700; color: var(--accent);
   background: var(--accent-soft); border: 0; border-radius: 999px;
   padding: 2px 9px; cursor: pointer;
 }
@@ -3100,7 +3110,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   min-width: 44px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
 }
 .camera-live-actions .icon { width: 20px; height: 20px; }
-.camera-zoom { font-size: 1.4rem; font-weight: 650; line-height: 1; }
+.camera-zoom { font-size: var(--font-heading-lg); font-weight: 700; line-height: 1; }
 .camera-rec.active {
   background: color-mix(in srgb, var(--deficit) 18%, transparent);
   border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
@@ -3108,12 +3118,12 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 
 /* Precise-PTZ controls: mode toggle, presets, manual coordinates (issue #190). */
-.camera-mode-toggle { min-width: 56px; font-weight: 650; }
+.camera-mode-toggle { min-width: 56px; font-weight: 600; }
 .camera-mode-toggle[aria-pressed="true"] {
   background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
 }
 .camera-controls-label {
-  font-size: var(--font-caption); color: var(--muted); font-weight: 650;
+  font-size: var(--font-caption); color: var(--muted); font-weight: 600;
   flex: none; align-self: center;
 }
 .camera-presets, .camera-coords {
@@ -3133,16 +3143,16 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-preset-rename {
   appearance: none; border: 0; border-left: 1px solid var(--line);
   background: none; color: var(--muted); cursor: pointer;
-  font-size: 0.95rem; line-height: 1; padding: 0 8px;
+  font-size: var(--font-label); line-height: 1; padding: 0 8px;
 }
 .camera-preset-rename:hover { color: var(--accent); }
 .camera-preset-del {
   appearance: none; border: 0; border-left: 1px solid var(--line);
   background: none; color: var(--muted); cursor: pointer;
-  font-size: 1.1rem; line-height: 1; padding: 0 8px;
+  font-size: var(--font-body); line-height: 1; padding: 0 8px;
 }
 .camera-preset-del:hover { color: var(--deficit); }
-.camera-preset-save { font-weight: 650; }
+.camera-preset-save { font-weight: 600; }
 .camera-coord {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--font-caption); color: var(--muted);
@@ -3150,7 +3160,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-coord input {
   width: 84px; padding: 6px 8px; font-variant-numeric: tabular-nums;
 }
-.camera-coords-go { font-weight: 650; }
+.camera-coords-go { font-weight: 600; }
 
 /* ----------------------------------------------------------- Activity log (#289) */
 /* Home launcher button — styled like a card row, opens the telemetry overlay. */
