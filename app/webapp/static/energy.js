@@ -20,6 +20,7 @@ import {
   createAggChart, setAggData, restyle,
   createForecastChart, setForecastData, restyleForecast,
 } from './charts.js';
+import { createPoller } from './poll.js';
 
 const LIVE_MS = 5_000;
 const SLOW_MS = 30_000;
@@ -33,7 +34,6 @@ const LIVE_MAX_POINTS = 400;  // ring-buffer cap on the live chart
 const CO2_KG_PER_KWH = 0.4;       // grid emission factor (kg CO₂ avoided / kWh)
 const CO2_KG_PER_TREE_YEAR = 21;  // sequestration per tree-year
 
-let energyTimer = null;
 let todayTimer = null;
 
 // --------------------------------------------------------------- formatting
@@ -454,10 +454,7 @@ export function wireEnergyControls() {
 }
 
 // --------------------------------------------------------- cadence + tabs
-function schedule(ms) {
-  if (energyTimer) clearInterval(energyTimer);
-  energyTimer = setInterval(loadEnergy, ms);
-}
+const schedule = createPoller(loadEnergy);
 
 function scheduleToday(on) {
   if (todayTimer) { clearInterval(todayTimer); todayTimer = null; }

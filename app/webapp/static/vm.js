@@ -11,10 +11,10 @@ import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { confirmAction } from './network.js';
+import { createPoller } from './poll.js';
 
 const POLL_MS = 30_000;
 
-let vmTimer = null;
 let busy = false;       // a start/stop is in flight — disable the toggle, skip overlap
 let pending = null;     // 'start' | 'stop' while that action is in flight
 
@@ -166,10 +166,7 @@ export function restoreVmSnapshot() {
   renderVm();
 }
 
-function schedule(ms) {
-  if (vmTimer) clearInterval(vmTimer);
-  vmTimer = ms > 0 ? setInterval(loadVm, ms) : null;
-}
+const schedule = createPoller(loadVm);
 
 export function onVmTab(tab) {
   if (tab === 'home') {

@@ -22,6 +22,7 @@ import { renderScenePairings, loadScenePairings } from './security-scene.js';
 import { renderSecurityOverrides, loadSecurityOverrides } from './security-override.js';
 import { renderPresence, loadPresence, loadLocation, loadPresenceAutomation } from './presence.js';
 import { loadNotifyPrefs } from './security-notify.js';
+import { createPoller } from './poll.js';
 
 // Re-export the wiring entry points from their new homes so main.js's single
 // import from './security.js' continues to resolve all the names.
@@ -33,8 +34,6 @@ export { wirePresenceControls } from './presence.js';
 export { wireSecurityNotify } from './security-notify.js';
 
 const POLL_MS = 10_000;
-
-let securityTimer = null;
 
 export function renderSecurity() {
   renderState();
@@ -77,10 +76,7 @@ export async function loadSecurity() {
   }
 }
 
-function schedule(ms) {
-  if (securityTimer) clearInterval(securityTimer);
-  securityTimer = ms > 0 ? setInterval(loadSecurityState, ms) : null;
-}
+const schedule = createPoller(loadSecurityState);
 
 export function onSecurityTab(tab) {
   // The alarm tile is actionable on Home too, so keep it loaded + polling there

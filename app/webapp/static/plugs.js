@@ -13,10 +13,9 @@
 import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { createPoller } from './poll.js';
 
 const POLL_MS = 15_000;
-
-let plugsTimer = null;
 
 // --------------------------------------------------------------- formatting
 function fmtW(v) {
@@ -515,10 +514,7 @@ export function restorePlugsSnapshot() {
 }
 
 // --------------------------------------------------------- cadence + tabs
-function schedule(ms) {
-  if (plugsTimer) clearInterval(plugsTimer);
-  plugsTimer = ms > 0 ? setInterval(loadPlugs, ms) : null;
-}
+const schedule = createPoller(loadPlugs);
 
 // Called by the tab switcher whenever the active tab changes. LAN reads are
 // expensive, so only poll while the Plugs tab is open; stop when it isn't.
