@@ -48,6 +48,9 @@ TS_DEBUG_LOG = PROJECT_ROOT / "webapp" / "tailscale_debug.log"
 def _build_icon():
     """Lazy import Pillow so plain CLI use doesn't drag it in."""
     from PIL import Image
+    tray_ico = PROJECT_ROOT / "assets" / "tray" / "home-automation.ico"
+    if tray_ico.exists():
+        return Image.open(tray_ico)
     icon_path = PROJECT_ROOT / "app" / "webapp" / "static" / "icon-512.png"
     if icon_path.exists():
         return Image.open(icon_path)

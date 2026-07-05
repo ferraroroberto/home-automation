@@ -65,5 +65,11 @@ paramiko==5.0.0
 pystray>=0.19
 Pillow>=10.0
 
+# Icon generation — dev-only: scripts/gen_icons.py calls project-scaffolding's
+# shared brand_gen.py, which rasterizes the vendored Lucide master SVG with
+# resvg-py (prebuilt wheel, no system deps). Generated assets are committed;
+# the runtime webapp never imports this.
+resvg-py>=0.3.0
+
 # Streamlit POC spike (independent throwaway data/debug view)
 streamlit>=1.30.0
