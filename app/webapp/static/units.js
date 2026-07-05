@@ -20,6 +20,7 @@ import {
 import { icon } from './icons.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { toggleHtml, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 const DEFAULT_RANGE = [16, 31];
 let currentScheduleEntries = [];
@@ -372,7 +373,7 @@ function renderScheduleList(unit) {
     card.dataset.index = String(idx);
     card.innerHTML =
       '<div class="schedule-entry-head">' +
-      '  <label class="schedule-enabled"><input type="checkbox" class="checkbox-native sched-entry-enabled"' + (entry.enabled ? ' checked' : '') + '> <span>Enabled</span></label>' +
+      '  <label class="schedule-enabled"><span>Enabled</span>' + toggleHtml('sched-entry-enabled', entry.enabled) + '</label>' +
       '  <input type="time" class="input-native sched-entry-time" value="' + (entry.time || '08:00') + '">' +
       '  <select class="select-native sched-entry-power"><option value="true"' + (entry.power === false ? '' : ' selected') + '>On</option><option value="false"' + (entry.power === false ? ' selected' : '') + '>Off</option></select>' +
       '  <button type="button" class="schedule-delete" aria-label="Delete schedule">×</button>' +
@@ -387,7 +388,7 @@ function renderScheduleList(unit) {
       '</div>';
 
     const saveFromCard = function () {
-      entry.enabled = card.querySelector('.sched-entry-enabled').checked;
+      entry.enabled = isToggleOn(card.querySelector('.sched-entry-enabled'));
       entry.time = card.querySelector('.sched-entry-time').value || '08:00';
       entry.power = card.querySelector('.sched-entry-power').value !== 'false';
       const profile = card.querySelector('.schedule-profile');
@@ -408,7 +409,7 @@ function renderScheduleList(unit) {
       markDetailDirty('sched');
     };
 
-    card.querySelector('.sched-entry-enabled').addEventListener('change', saveFromCard);
+    wireToggle(card.querySelector('.sched-entry-enabled'), saveFromCard);
     card.querySelector('.sched-entry-time').addEventListener('blur', saveFromCard);
     card.querySelector('.sched-entry-power').addEventListener('change', saveFromCard);
     card.querySelector('.schedule-delete').addEventListener('click', function () {
@@ -433,7 +434,7 @@ function renderScheduleList(unit) {
 async function loadAutomation(unitId) {
   try {
     const rule = await jsonApi('/api/units/' + encodeURIComponent(unitId) + '/rule');
-    els.ruleEnabled.checked = rule.enabled === true;
+    setToggleState(els.ruleEnabled, rule.enabled === true);
     els.ruleCoolTarget.value = rule.cool_target == null ? '' : rule.cool_target;
     els.ruleHeatTarget.value = rule.heat_target == null ? '' : rule.heat_target;
   } catch (exc) {
@@ -599,7 +600,7 @@ function numOrNull(input) {
 async function saveRule() {
   if (!state.selectedId) return;
   const payload = {
-    enabled: els.ruleEnabled.checked,
+    enabled: isToggleOn(els.ruleEnabled),
     cool_target: numOrNull(els.ruleCoolTarget),
     heat_target: numOrNull(els.ruleHeatTarget),
   };
@@ -689,7 +690,7 @@ export function wireUnitsControls() {
   });
 
   // Temperature rule — staged; commits with everything else on Save.
-  els.ruleEnabled.addEventListener('change', function () { markDetailDirty('rule'); });
+  wireToggle(els.ruleEnabled, function () { markDetailDirty('rule'); });
   els.ruleCoolTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
   els.ruleHeatTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
 

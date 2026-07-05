@@ -1,7 +1,7 @@
 /* UPS power-event notification toggles (Plugs tab).
  *
- * A folded-by-default card mirroring the alarm Notifications card. Checkboxes
- * map 1:1 to the backend PowerNotifyPrefs; each persists on change via
+ * A folded-by-default card mirroring the alarm Notifications card. Switches
+ * map 1:1 to the backend PowerNotifyPrefs; each persists on click via
  * PUT /api/ups/notify-prefs. A hint shows when Telegram isn't configured.
  */
 
@@ -9,6 +9,7 @@
 
 import { els, toast } from './state.js';
 import { jsonApi } from './api.js';
+import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 const FIELDS = [
   ['notifyPowerLost', 'power_lost'],
@@ -31,7 +32,7 @@ function renderConfiguredNote(configured) {
 function applyPrefs(payload) {
   const prefs = (payload && payload.prefs) || {};
   FIELDS.forEach(function ([elKey, prefKey]) {
-    if (els[elKey]) els[elKey].checked = prefs[prefKey] === true;
+    if (els[elKey]) setToggleState(els[elKey], prefs[prefKey] === true);
   });
   renderConfiguredNote(!!(payload && payload.telegram_configured));
 }
@@ -50,7 +51,7 @@ export async function loadPowerNotifyPrefs() {
 async function savePowerNotifyPrefs() {
   const payload = {};
   FIELDS.forEach(function ([elKey, prefKey]) {
-    if (els[elKey]) payload[prefKey] = els[elKey].checked;
+    if (els[elKey]) payload[prefKey] = isToggleOn(els[elKey]);
   });
   try {
     applyPrefs(
@@ -70,6 +71,6 @@ async function savePowerNotifyPrefs() {
 
 export function wirePowerNotify() {
   FIELDS.forEach(function ([elKey]) {
-    if (els[elKey]) els[elKey].addEventListener('change', savePowerNotifyPrefs);
+    wireToggle(els[elKey], savePowerNotifyPrefs);
   });
 }

@@ -11,6 +11,7 @@
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
+import { buildToggle } from './toggle.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -80,12 +81,13 @@ export function renderSchedules() {
 
     const enabled = document.createElement('label');
     enabled.className = 'schedule-enabled';
-    enabled.innerHTML = '<input type="checkbox" class="checkbox-native alarm-schedule-enabled"' +
-      (entry.enabled ? ' checked' : '') + '> <span>Enabled</span>';
-    enabled.querySelector('input').addEventListener('change', function (ev) {
-      state.securitySchedules[idx].enabled = ev.target.checked;
+    const enabledText = document.createElement('span');
+    enabledText.textContent = 'Enabled';
+    enabled.appendChild(enabledText);
+    enabled.appendChild(buildToggle('alarm-schedule-enabled', entry.enabled, function (on) {
+      state.securitySchedules[idx].enabled = on;
       saveSecuritySchedules();
-    });
+    }));
     head.appendChild(enabled);
 
     const del = document.createElement('button');

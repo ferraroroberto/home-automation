@@ -16,6 +16,7 @@
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { detectorOptions, buildSelect } from './security-shared.js';
+import { buildToggle } from './toggle.js';
 
 // cameraId -> [{token, name}], fetched lazily so we don't hit every camera up front.
 const presetCache = {};
@@ -105,12 +106,13 @@ export function renderScenePairings() {
 
     const enabled = document.createElement('label');
     enabled.className = 'schedule-enabled';
-    enabled.innerHTML = '<input type="checkbox" class="checkbox-native scene-pairing-enabled"' +
-      (entry.enabled ? ' checked' : '') + '> <span>Enabled</span>';
-    enabled.querySelector('input').addEventListener('change', function (ev) {
-      state.scenePairings[idx].enabled = ev.target.checked;
+    const enabledText = document.createElement('span');
+    enabledText.textContent = 'Enabled';
+    enabled.appendChild(enabledText);
+    enabled.appendChild(buildToggle('scene-pairing-enabled', entry.enabled, function (on) {
+      state.scenePairings[idx].enabled = on;
       saveScenePairings();
-    });
+    }));
     head.appendChild(enabled);
 
     const del = document.createElement('button');

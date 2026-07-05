@@ -14,6 +14,7 @@
 import { els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { confirmAction } from './network.js';
+import { buildToggle } from './toggle.js';
 
 let dhcpPlanLoading = false;
 let dhcpPlanLoaded = false;
@@ -119,15 +120,12 @@ function suggestedRow(a) {
   const row = document.createElement('div');
   row.className = 'net-dhcp-row';
 
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.className = 'net-dhcp-check';
-  cb.checked = stagedAdd.has(key);
-  cb.title = 'Add this reservation';
-  cb.addEventListener('change', function () {
-    if (cb.checked) stagedAdd.add(key); else stagedAdd.delete(key);
+  const cb = buildToggle('net-dhcp-check', stagedAdd.has(key), function (on) {
+    if (on) stagedAdd.add(key); else stagedAdd.delete(key);
     renderDhcpPlan(lastDhcpPlan);
   });
+  cb.title = 'Add this reservation';
+  cb.setAttribute('aria-label', 'Add this reservation');
   row.appendChild(cb);
 
   const name = document.createElement('span');
