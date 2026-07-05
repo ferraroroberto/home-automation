@@ -364,6 +364,11 @@
   </nav>
 
   <main class="app">
+    <!-- Visually-hidden page title (issue #370): the app is a tabbed SPA with
+         no visible page heading (the active tab label already conveys the
+         section), but a heading hierarchy needs a single <h1> as its root so
+         screen-reader users get a page-level landmark. -->
+    <h1 class="visually-hidden">Home automation</h1>
     <!-- ============================== HOME =============================== -->
     <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
       <!-- Weather strip (GET /api/weather): current weather · today's forecast
@@ -494,7 +499,7 @@
               <button type="button" class="range-tab" data-seconds="1800">30 min</button>
             </div>
             <div class="wake-timer-custom">
-              <input id="wakeTimerCustomMinutes" type="number" min="1" max="1440" class="input-native wake-timer-input" placeholder="Minutes" />
+              <input id="wakeTimerCustomMinutes" type="number" min="1" max="1440" class="input-native wake-timer-input" placeholder="Minutes" aria-label="Custom timer minutes" />
               <button id="wakeTimerCustomAdd" type="button" class="detail-save-btn wake-timer-start-btn">Start timer</button>
             </div>
             <div id="wakeTimersList" class="wake-timers-list"></div>
@@ -959,9 +964,9 @@
           <details class="net-dhcp-manual" id="netDhcpManual">
             <summary class="net-dhcp-manual-summary">Add a reservation manually</summary>
             <div class="net-dhcp-manual-form">
-              <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="MAC (AA:BB:CC:DD:EE:FF)" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
-              <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="IP (192.168.0.x)" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
-              <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
+              <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="MAC (AA:BB:CC:DD:EE:FF)" aria-label="MAC address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
+              <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="IP (192.168.0.x)" aria-label="IP address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
+              <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" aria-label="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
               <button id="netDhcpManualAdd" type="button" class="range-tab net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
                 <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> Stage
               </button>
@@ -1214,7 +1219,7 @@
     </footer>
   </main>
 
-  <div id="toast" class="toast" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <dialog id="detailDialog" class="detail-dialog">
     <div class="detail-card">
@@ -1687,7 +1692,7 @@
     <form id="loginForm" class="login-card" autocomplete="off">
       <h2><svg class="icon title-icon" aria-hidden="true"><use href="#i-log-in"></use></svg>Sign in</h2>
       <p class="muted small">Enter the password to control your units.</p>
-      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required>
       <button type="submit" class="big-btn">Unlock</button>
       <div id="loginError" class="login-error" hidden></div>
     </form>
