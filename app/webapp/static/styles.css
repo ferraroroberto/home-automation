@@ -2352,7 +2352,19 @@ body:has(dialog[open]) .app { overflow: hidden; }
   font-weight: 700;
   cursor: pointer;
 }
-.detail-save-btn:disabled { opacity: 0.5; cursor: default; }
+/* One disabled recipe for both themes (issue #362): opacity on the solid
+   accent fill blends unevenly per theme (white text vanishes against the
+   light canvas' white while it only greys against the dark canvas' near-
+   black — sub-AA either way, ~2.2:1 light / ~2.5:1 dark). Swapping to the
+   flat --card-off/--muted/--line trio (the same "quiet, unselected" look
+   already used by .range-tab) reads identically greyed-out in both themes
+   and passes AA: ~4.9:1 light, ~5.5:1 dark. */
+.detail-save-btn:disabled {
+  background: var(--card-off);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}
 
 .checkbox-native {
   width: 20px;
@@ -2419,6 +2431,24 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .login-error { color: var(--deficit); font-size: var(--font-label); }
 .muted { color: var(--muted); }
 .small { font-size: var(--font-caption); }
+
+/* Canonical empty-state block (issue #362): icon + one-line reason + optional
+   action, used by any list/grid that can legitimately render with zero items
+   (e.g. the Lights grid with no reachable fixtures). Spans every grid column
+   so it reads as a single centered block instead of occupying one cell. */
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+  color: var(--muted);
+}
+.empty-state-icon { width: 32px; height: 32px; color: var(--muted); }
+.empty-state-message { margin: 0; font-size: var(--font-body); }
+.empty-state-action { flex: none; width: auto; min-width: 96px; padding: 8px 20px; }
 
 /* ----------------------------------------------------- collapsible cards */
 /* Disclosure-card padding contract (design.md): the card's own padding must
@@ -3084,6 +3114,16 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   background: #000; aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: 4px;
 }
 .camera-snapshot.is-loading { opacity: 0.4; }
+/* Styled placeholder shown instead of the raw broken-image box when the fresh
+   grab fails (issue #362) — same box metrics as .camera-snapshot, muted glyph
+   + label instead of a photo. */
+.camera-snapshot-empty {
+  width: 100%; border-radius: var(--radius-md);
+  background: var(--card-off); aspect-ratio: 16 / 9; margin-bottom: 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; color: var(--muted); font-size: var(--font-caption);
+}
+.camera-snapshot-empty .icon { width: 28px; height: 28px; }
 .camera-live-open {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; margin-top: 14px;
