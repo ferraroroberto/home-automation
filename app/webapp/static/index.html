@@ -372,7 +372,7 @@
            like the energy tile. -->
       <section id="weatherTile" class="card weather-tile" aria-label="Weather" hidden>
         <div class="weather-info">
-          <span class="weather-location" id="wxLocation" hidden></span>
+          <span class="weather-location" id="wxLocation" hidden><svg class="icon title-icon" aria-hidden="true"><use href="#i-house"></use></svg><span id="wxLocationLabel"></span></span>
           <div class="weather-current">
             <span class="weather-current-icon" id="wxNowIcon">—</span>
             <span class="weather-current-temp" id="wxNowTemp">—</span>
@@ -387,9 +387,9 @@
           </div>
         </div>
         <div class="weather-actions">
-          <button id="navDebugBtn" type="button" class="weather-theme-btn"
+          <button id="navDebugBtn" type="button" class="weather-icon-btn"
                   title="Toggle nav debug overlay" aria-label="Toggle nav debug overlay" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg></button>
-          <button id="weatherThemeBtn" type="button" class="weather-theme-btn"
+          <button id="weatherThemeBtn" type="button" class="weather-icon-btn"
                   title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         </div>
       </section>
@@ -468,7 +468,7 @@
            card above: this never arms/disarms the security system. Collapsible
            card, styled exactly like the Security-tab "Schedules" card (same
            .collapse-summary header + .alarm-schedule-* list + .schedule-add-btn). -->
-      <details class="card wake-alarms-card" aria-label="Wake alarms and timers">
+      <details class="card card--collapsible wake-alarms-card" aria-label="Wake alarms and timers">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
@@ -641,7 +641,7 @@
       </nav>
 
       <section class="card chart-card">
-        <h3 class="chart-title">Generation &amp; consumption</h3>
+        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-zap"></use></svg>Generation &amp; consumption</h3>
         <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
         <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
       </section>
@@ -738,11 +738,11 @@
            default), each rendering its devices as a compact divider-separated
            row list — the same low-chrome style as the Network "Attached
            devices" list, not chunky sub-cards. -->
-      <details class="card device-list-card" id="plugsCard">
+      <details class="card card--collapsible device-list-card" id="plugsCard">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
-            <span class="collapse-title">Plugs</span>
+            <h3 class="collapse-title">Plugs</h3>
             <span id="plugsCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
@@ -752,11 +752,11 @@
         </div>
       </details>
 
-      <details class="card device-list-card" id="blindsCard">
+      <details class="card card--collapsible device-list-card" id="blindsCard">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
-            <span class="collapse-title">Blinds</span>
+            <h3 class="collapse-title">Blinds</h3>
             <span id="blindsCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
@@ -767,11 +767,11 @@
       </details>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
 
-      <details class="card security-card security-notify-card" aria-label="Notifications">
+      <details class="card card--collapsible security-card security-notify-card" aria-label="Notifications">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
-            <span class="collapse-title">Notifications</span>
+            <h3 class="collapse-title">Notifications</h3>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
@@ -853,11 +853,11 @@
         </section>
       </section>
 
-      <details class="card net-wifi-card">
+      <details class="card card--collapsible net-wifi-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
-            <span class="collapse-title">Wi-Fi diagnostics</span>
+            <h3 class="collapse-title">Wi-Fi diagnostics</h3>
             <span id="netWifiHiddenCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <span class="net-wifi-summary">
@@ -885,11 +885,11 @@
         </div>
       </details>
 
-      <details class="card net-devices-card">
+      <details class="card card--collapsible net-devices-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
-            <span class="collapse-title">Attached devices</span>
+            <h3 class="collapse-title">Attached devices</h3>
             <span id="netHiddenCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
@@ -919,11 +919,11 @@
            by category, marking each row reserved / create / change against the
            router's bindings. Lazy-loads on open. "Apply plan" is a confirm-gated
            write of the create/change rows to the router (never automatic). -->
-      <details class="card net-dhcp-card" id="netDhcpCard">
+      <details class="card card--collapsible net-dhcp-card" id="netDhcpCard">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-router"></use></svg>
-            <span class="collapse-title">DHCP reservation plan</span>
+            <h3 class="collapse-title">DHCP reservation plan</h3>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
@@ -986,7 +986,7 @@
         <div id="securityActions" class="security-actions" aria-label="Alarm actions"></div>
       </section>
 
-      <details class="card security-card security-schedules-card" aria-label="Alarm schedules">
+      <details class="card card--collapsible security-card security-schedules-card" aria-label="Alarm schedules">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
@@ -1002,7 +1002,7 @@
         </div>
       </details>
 
-      <details class="card security-card security-events-card">
+      <details class="card card--collapsible security-card security-events-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
@@ -1014,7 +1014,7 @@
         <p id="securityEventsNote" class="muted small security-note" hidden></p>
       </details>
 
-      <details class="card security-card cameras-card">
+      <details class="card card--collapsible security-card cameras-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
@@ -1026,7 +1026,7 @@
         <p id="camerasNote" class="muted small security-note" hidden></p>
       </details>
 
-      <details class="card security-card security-zones-card">
+      <details class="card card--collapsible security-card security-zones-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-satellite-dish"></use></svg>
@@ -1042,7 +1042,7 @@
         <p id="securityZonesNote" class="muted small security-note" hidden></p>
       </details>
 
-      <details class="card security-card scene-pairings-card" aria-label="Alarm scene capture">
+      <details class="card card--collapsible security-card scene-pairings-card" aria-label="Alarm scene capture">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
@@ -1059,7 +1059,7 @@
         </div>
       </details>
 
-      <details class="card security-card presence-card" aria-label="Presence">
+      <details class="card card--collapsible security-card presence-card" aria-label="Presence">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
@@ -1082,7 +1082,7 @@
           <summary class="collapse-summary">
             <span class="collapse-main">
               <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-settings"></use></svg>
-              <span class="collapse-title">Presence settings</span>
+              <h3 class="collapse-title">Presence settings</h3>
             </span>
             <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </summary>
@@ -1122,7 +1122,7 @@
         </details>
       </details>
 
-      <details class="card security-card security-notify-card" aria-label="Notifications">
+      <details class="card card--collapsible security-card security-notify-card" aria-label="Notifications">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
@@ -1166,7 +1166,7 @@
         <p id="notifyConfiguredNote" class="muted small security-note" hidden></p>
       </details>
 
-      <details class="card security-card security-override-card" aria-label="Override">
+      <details class="card card--collapsible security-card security-override-card" aria-label="Override">
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
@@ -1231,7 +1231,7 @@
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-thermometer"></use></svg>
-            <span class="collapse-title">Temperature rule</span>
+            <h3 class="collapse-title">Temperature rule</h3>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
@@ -1258,7 +1258,7 @@
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
-            <span class="collapse-title">Schedules</span>
+            <h3 class="collapse-title">Schedules</h3>
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
@@ -1603,9 +1603,14 @@
       </nav>
 
       <!-- Legend (#296): a collapsible glossary so each event type / reading
-           metric / severity colour is self-explaining. Pure HTML <details>. -->
+           metric / severity colour is self-explaining. Pure HTML <details>,
+           styled with the shared chevron-only disclosure affordance (#363)
+           instead of the native triangle marker. -->
       <details class="activity-legend">
-        <summary>What do these mean?</summary>
+        <summary class="collapse-summary">
+          <span class="collapse-main">What do these mean?</span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
         <div class="activity-legend-body">
           <p class="muted small"><strong>Events</strong> — things that happened:</p>
           <dl>
