@@ -826,9 +826,9 @@
       <section class="card net-internet" aria-label="Internet health">
         <div class="net-internet-head">
           <span class="net-internet-label"><svg class="icon title-icon" aria-hidden="true"><use href="#i-globe"></use></svg>Internet</span>
-          <span id="netInternetStatus" class="net-internet-status">—</span>
+          <span id="netInternetStatus" class="net-internet-status">— no data</span>
         </div>
-        <p id="netInternetMeta" class="muted small net-internet-meta">—</p>
+        <p id="netInternetMeta" class="muted small net-internet-meta">— no data</p>
         <p id="netSpeedResult" class="net-speed-result" hidden>—</p>
         <button id="netSpeedBtn" type="button" class="big-btn net-speed-btn" data-testid="net-speedtest">
           <svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg>Run speed test
@@ -844,14 +844,14 @@
       <section class="net-health-row" aria-label="Devices health">
         <section class="card net-health-card" id="netApCard">
           <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-wifi"></use></svg><span id="netApName">Access point</span></h3>
-          <p id="netApMeta" class="muted small net-health-meta">—</p>
+          <p id="netApMeta" class="muted small net-health-meta">— no data</p>
           <button id="netApReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-ap-reboot" hidden>
             <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot AP
           </button>
         </section>
         <section class="card net-health-card" id="netRouterCard">
           <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-router"></use></svg><span id="netRouterName">Router</span></h3>
-          <p id="netRouterMeta" class="muted small net-health-meta">—</p>
+          <p id="netRouterMeta" class="muted small net-health-meta">— no data</p>
           <button id="netRouterReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-router-reboot" disabled
                   title="Router login required to reboot">
             <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot
@@ -1410,6 +1410,10 @@
         <button id="cameraDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <img id="cameraSnapshot" class="camera-snapshot" alt="Camera snapshot">
+      <div id="cameraSnapshotEmpty" class="camera-snapshot-empty" hidden>
+        <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>
+        <span>Snapshot unavailable</span>
+      </div>
       <div class="row"><span>Status</span><span id="cameraDetailStatus" class="muted">—</span></div>
       <label class="row">
         <span>Display name</span>
@@ -1605,7 +1609,7 @@
         <h2 id="confirmTitle">Confirm</h2>
         <button id="confirmClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
-      <p id="confirmMessage" class="muted confirm-message">—</p>
+      <p id="confirmMessage" class="muted confirm-message">— no data</p>
       <div class="confirm-actions">
         <button id="confirmCancel" type="button" class="big-btn confirm-cancel">Cancel</button>
         <button id="confirmOk" type="button" class="big-btn confirm-ok" data-testid="confirm-ok">Confirm</button>

@@ -222,6 +222,7 @@ export const els = {
   cameraDetailName: document.getElementById('cameraDetailName'),
   cameraDetailClose: document.getElementById('cameraDetailClose'),
   cameraSnapshot: document.getElementById('cameraSnapshot'),
+  cameraSnapshotEmpty: document.getElementById('cameraSnapshotEmpty'),
   cameraDetailStatus: document.getElementById('cameraDetailStatus'),
   cameraDisplayName: document.getElementById('cameraDisplayName'),
   cameraSave: document.getElementById('cameraSave'),

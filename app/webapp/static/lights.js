@@ -8,6 +8,7 @@
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { emptyStateEl } from './icons.js';
 
 const POLL_MS = 15_000;
 let lightsTimer = null;
@@ -301,13 +302,26 @@ async function saveLightName() {
   }
 }
 
+// Canonical empty-state block (issue #362): icon + one-line reason + Retry,
+// rendered into the grid itself whenever there are zero lights — whether that
+// is a clean "none configured" response or the aftermath of a failed fetch.
+// `lightsNote` still carries the longer diagnostic/setup hint underneath.
+function showLightsEmpty() {
+  els.lightsGrid.innerHTML = '';
+  els.lightsGrid.appendChild(emptyStateEl('lightbulb', 'No lights reachable', {
+    actionLabel: 'Retry',
+    onAction: function () { loadLights(); },
+  }));
+}
+
 export function renderLights() {
   els.lightsGrid.innerHTML = '';
   if (!state.lights.length) {
     updateBulkControls();
+    showLightsEmpty();
     els.lightsNote.hidden = false;
     els.lightsNote.textContent =
-      'No Elgato lights found. Add ELGATO_LIGHT_HOSTS=host[:9123] to .env or enable Bonjour/mDNS.';
+      'Add ELGATO_LIGHT_HOSTS=host[:9123] to .env or enable Bonjour/mDNS.';
     return;
   }
   if (isSnapshotRestored('lights')) {
@@ -333,7 +347,7 @@ export async function loadLights() {
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     reportFetchFailure('lights', exc, 'lights');
-    if (!state.lights.length) els.lightsGrid.innerHTML = '';
+    if (!state.lights.length) showLightsEmpty();
     updateBulkControls();
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = state.lights.length

@@ -110,12 +110,12 @@ export function wireConfirmDialog() {
 // ----------------------------------------------------------------- render
 function renderInternet(net) {
   const online = !!(net && net.online);
-  els.netInternetStatus.textContent = net ? (online ? 'Online' : 'Offline') : '—';
+  els.netInternetStatus.textContent = net ? (online ? 'Online' : 'Offline') : '— no data';
   els.netInternetStatus.className = 'net-internet-status ' +
     (net ? (online ? 'is-online' : 'is-offline') : '');
 
   if (!net) {
-    els.netInternetMeta.textContent = '—';
+    els.netInternetMeta.textContent = '— no data';
     return;
   }
   const parts = [];

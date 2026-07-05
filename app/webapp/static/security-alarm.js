@@ -260,10 +260,12 @@ export function renderEvents() {
     body.textContent = event.name || event.type || event.category || event.text || 'Event';
     row.appendChild(body);
 
-    if (hasActor) {
+    // Render nothing for events with no actor — a literal "-" badge next to a
+    // real "U1"/"U3" one reads as broken data, not "no user" (issue #362).
+    if (hasActor && event.user_id) {
       const actor = document.createElement('span');
       actor.className = 'security-event-actor';
-      actor.textContent = event.user_id ? ('U' + event.user_id) : '-';
+      actor.textContent = 'U' + event.user_id;
       row.appendChild(actor);
     }
 

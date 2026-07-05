@@ -193,6 +193,8 @@ function closeZoom() {
 async function loadSnapshotInto(imgEl, cameraId) {
   imgEl.removeAttribute('src');
   imgEl.classList.add('is-loading');
+  imgEl.hidden = false;
+  if (els.cameraSnapshotEmpty) els.cameraSnapshotEmpty.hidden = true;
   try {
     const res = await api('/api/cameras/' + encodeURIComponent(cameraId) + '/snapshot');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -206,6 +208,9 @@ async function loadSnapshotInto(imgEl, cameraId) {
     if (String(exc.message) !== 'auth required') {
       toast('Snapshot failed: ' + (exc.message || exc), 'error');
     }
+    // Styled placeholder instead of a raw broken-image box (issue #362).
+    imgEl.hidden = true;
+    if (els.cameraSnapshotEmpty) els.cameraSnapshotEmpty.hidden = false;
   } finally {
     imgEl.classList.remove('is-loading');
   }
