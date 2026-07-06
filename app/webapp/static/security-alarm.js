@@ -35,7 +35,7 @@ const ACTION_TOASTS = {
   perimeter: 'Arming perimeter…',
   arm: 'Arming full…',
 };
-// Result ("good") toast shown once the action completes — so it's clear what
+// Result ("success") toast shown once the action completes — so it's clear what
 // happened (command sent → done), matching the rest of the app (issue #218).
 const ACTION_DONE = {
   disarm: 'Disarmed',
@@ -108,7 +108,7 @@ async function postAction(action) {
     });
     renderSecurity();
     await loadSecurityEvents();
-    toast(ACTION_DONE[action] || 'Done', 'good');
+    toast(ACTION_DONE[action] || 'Done', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -139,7 +139,7 @@ async function setBypass(zone, bypass, btn) {
     );
     renderSecurity();
     await loadSecurityEvents();
-    toast(zoneLabel(zone) + (bypass ? ' bypassed' : ' active'), 'good');
+    toast(zoneLabel(zone) + (bypass ? ' bypassed' : ' active'), 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');

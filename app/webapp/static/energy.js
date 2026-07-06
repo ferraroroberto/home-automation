@@ -188,12 +188,12 @@ function renderToday(b) {
     const frac = clamp01(selfWh / pvWh);
     els.genSelf.textContent = fmtKwh(selfWh);
     els.genFeed.textContent = fmtKwh(exportWh);
-    els.genBar.style.width = (frac * 100) + '%';
+    els.genBar.style.transform = 'scaleX(' + frac + ')';
     els.genPct.textContent = fmtPct(frac) + ' self-consumed';
   } else {
     els.genSelf.textContent = '—';
     els.genFeed.textContent = '—';
-    els.genBar.style.width = '0%';
+    els.genBar.style.transform = 'scaleX(0)';
     els.genPct.textContent = '—';
   }
 
@@ -204,12 +204,12 @@ function renderToday(b) {
     const frac = clamp01(selfWh / houseWh);
     els.consSelf.textContent = fmtKwh(selfWh);
     els.consGrid.textContent = fmtKwh(importWh);
-    els.consBar.style.width = (frac * 100) + '%';
+    els.consBar.style.transform = 'scaleX(' + frac + ')';
     els.consPct.textContent = fmtPct(frac) + ' self-sufficient';
   } else {
     els.consSelf.textContent = '—';
     els.consGrid.textContent = '—';
-    els.consBar.style.width = '0%';
+    els.consBar.style.transform = 'scaleX(0)';
     els.consPct.textContent = '—';
   }
 

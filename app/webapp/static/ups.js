@@ -129,7 +129,7 @@ function handleTransition(next) {
   if (lastMainsOnline === true && next.mains_online === false) {
     toast('Power outage: PC and Wi-Fi are on UPS battery', 'error');
   } else if (lastMainsOnline === false && next.mains_online === true) {
-    toast('Power restored: UPS is back on mains', 'good');
+    toast('Power restored: UPS is back on mains', 'success');
   }
   lastMainsOnline = next.mains_online;
 }

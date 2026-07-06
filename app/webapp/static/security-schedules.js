@@ -12,6 +12,7 @@ import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
 import { buildToggle } from './toggle.js';
+import { confirmAction } from './network.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -95,7 +96,14 @@ export function renderSchedules() {
     del.className = 'schedule-delete';
     del.setAttribute('aria-label', 'Delete alarm schedule');
     del.textContent = '×';
-    del.addEventListener('click', function () {
+    del.addEventListener('click', async function () {
+      const ok = await confirmAction({
+        title: 'Delete this alarm schedule?',
+        message: 'This schedule will be removed permanently.',
+        okLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
       state.securitySchedules.splice(idx, 1);
       saveSecuritySchedules();
     });

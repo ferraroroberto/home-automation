@@ -79,7 +79,8 @@ function existingRow(e) {
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'net-dhcp-ex-del' + (staged ? ' is-active' : '');
-  del.title = staged ? 'Keep this reservation' : 'Remove this reservation (frees a slot)';
+  del.title = staged ? 'Keep this reservation' : 'Delete this reservation (frees a slot)';
+  del.setAttribute('aria-label', staged ? 'Keep this reservation' : 'Delete this reservation');
   del.disabled = !e.inst_id;
   del.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-' +
     (staged ? 'rotate-cw' : 'trash-2') + '"></use></svg>';
@@ -291,7 +292,8 @@ function renderManualStaged() {
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'net-dhcp-chip-x';
-    x.title = 'Remove from the staged adds';
+    x.title = 'Delete this staged add';
+    x.setAttribute('aria-label', 'Delete this staged add');
     x.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>';
     x.addEventListener('click', function () {
       manualAdds.splice(i, 1);

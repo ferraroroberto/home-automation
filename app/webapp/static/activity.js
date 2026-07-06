@@ -39,6 +39,15 @@ function fmtTime(ts) {
   return sameDay ? time : d.toLocaleDateString([], { month: 'short', day: '2-digit' }) + ' ' + time;
 }
 
+// Humanize a raw snake_case enum for display (issue #367) — event types like
+// "auto_unbypass" / "trigger_no_pairing" and reading metrics were rendered
+// verbatim; this turns them into "Auto unbypass" / "Trigger no pairing".
+function humanizeEnum(s) {
+  if (!s) return '—';
+  const spaced = String(s).replace(/_/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 // A short, human one-liner for the event's payload (best-effort, never throws).
 function detailText(ev) {
   const p = ev.payload || {};
@@ -69,7 +78,7 @@ function renderRows(events) {
     li.innerHTML =
       '<span class="activity-time">' + fmtTime(ev.ts) + '</span>' +
       '<span class="activity-domain">' + (ev.domain || '—') + '</span>' +
-      '<span class="activity-type">' + (ev.event_type || '—') + '</span>' +
+      '<span class="activity-type">' + humanizeEnum(ev.event_type) + '</span>' +
       '<span class="activity-detail muted small"></span>';
     // Text-only assignment for the untrusted detail string (no HTML injection).
     li.querySelector('.activity-detail').textContent = detail;
@@ -96,7 +105,7 @@ function renderReadings(readings) {
     li.innerHTML =
       '<span class="activity-time">' + fmtTime(r.ts) + '</span>' +
       '<span class="activity-domain">' + (r.domain || '—') + '</span>' +
-      '<span class="activity-type">' + (r.metric || '—') + '</span>' +
+      '<span class="activity-type">' + humanizeEnum(r.metric) + '</span>' +
       '<span class="activity-detail muted small"></span>';
     const who = r.label || r.entity_id;
     li.querySelector('.activity-detail').textContent =

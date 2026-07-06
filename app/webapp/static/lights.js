@@ -75,7 +75,7 @@ async function applyLight(light, patch) {
       return item.light_id === updated.light_id ? Object.assign({}, item, updated) : item;
     });
     renderLights();
-    if (isToggle) toast(label(updated) + (patch.on ? ' on' : ' off'), 'good');
+    if (isToggle) toast(label(updated) + (patch.on ? ' on' : ' off'), 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -294,7 +294,7 @@ async function saveLightName() {
     if (updatedLight) els.lightDetailName.textContent = label(updatedLight);
     renderLights();
     if (els.lightSave) els.lightSave.disabled = true;
-    toast('Saved', 'good');
+    toast('Saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed to save name: ' + (exc.message || exc), 'error');
@@ -384,7 +384,7 @@ export function wireLightControls() {
         saveSnapshot('lights', body);
         state.lights = (body && body.lights) || [];
         renderLights();
-        toast('Lights refreshed', 'good');
+        toast('Lights refreshed', 'success');
       } catch (exc) {
         if (String(exc.message) !== 'auth required') {
           reportFetchFailure('lights', exc, 'lights');
