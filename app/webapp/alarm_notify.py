@@ -22,6 +22,7 @@ attempt, so the activity log shows the retries.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -32,7 +33,7 @@ from src.activity_log import append_activity
 from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
-from src.risco_client import SecurityState
+from src.risco_client import RiscoCommandError, SecurityState, control_system, fetch_security_state
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,15 @@ SOURCE_PRESENCE = "presence"
 
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
+
+# Backoff before giving up on confirming an arm/disarm action took effect - a
+# rejected command or a mismatched read-back is often a transient RISCO
+# cloud/panel lag, not a real failure (issue #388, #390). Retries are
+# read-only: once the command is issued, a retry only re-reads the panel via
+# ``fetch_security_state()`` - it never resends the command, since resending
+# to a panel that may already be mid-transition risks compounding the failure
+# or triggering another rejection. Worst case before giving up: 210s.
+CONFIRM_RETRY_DELAYS_S: tuple[int, ...] = (30, 60, 120)
 
 # Per-day error-notify de-dupe: dedupe_key -> "YYYY-MM-DD".
 # Persisted to disk so a tray restart does not re-fire the same-day alert.
@@ -93,6 +103,38 @@ def action_took_effect(action: str, state: SecurityState) -> bool:
     if action == "arm":
         return state.mode == "armed"
     return state.mode in ("partial", "perimeter")
+
+
+async def confirm_alarm_action(action: str) -> SecurityState:
+    """Issue ``action`` once, then confirm it took effect - retrying read-only.
+
+    Shared by the schedule engine and the presence automation so both retry
+    identically. Raises :class:`RiscoCommandError` with the last-seen error
+    only once every retry in :data:`CONFIRM_RETRY_DELAYS_S` is exhausted.
+    """
+
+    error = "unknown error"
+    try:
+        state = await control_system(action)
+        if action_took_effect(action, state):
+            return state
+        error = f"panel read back '{state.mode}' after {action}, not the expected state"
+    except Exception as exc:  # noqa: BLE001 - confirmed below via read-only retries
+        error = str(exc)
+
+    for delay in CONFIRM_RETRY_DELAYS_S:
+        logger.warning("⚠️ Alarm %s not confirmed yet - retrying read-only in %ds", action, delay)
+        await asyncio.sleep(delay)
+        try:
+            state = await fetch_security_state()
+        except Exception as exc:  # noqa: BLE001 - retried until delays are exhausted
+            error = str(exc)
+            continue
+        if action_took_effect(action, state):
+            return state
+        error = f"panel read back '{state.mode}' after {action}, not the expected state"
+
+    raise RiscoCommandError(error)
 
 
 def _compose_message(

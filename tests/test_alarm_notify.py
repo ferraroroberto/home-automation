@@ -10,6 +10,7 @@ No network, no real config files (all redirected to ``tmp_path``).
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ from src.alarm_notify_prefs import (
     save_alarm_notify_prefs,
 )
 from src.notify import NotifierError
+from src.risco_client import RiscoCommandError
 
 
 class FakeNotifier:
@@ -346,3 +348,112 @@ def test_action_took_effect_treats_partial_and_perimeter_as_interchangeable() ->
     assert AN.action_took_effect("perimeter", _FakeState("partial")) is True
     assert AN.action_took_effect("perimeter", _FakeState("perimeter")) is True
     assert AN.action_took_effect("partial", _FakeState("armed")) is False
+
+
+# --------------------------------------------------------- confirm_alarm_action
+#
+# Shared by the schedule engine (app.webapp.security_automation) and the
+# presence automation (app.webapp.presence_automation) - both retry a failed
+# confirmation identically via this one helper (issues #388, #390).
+
+
+def test_confirm_alarm_action_succeeds_immediately(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def fake_control(action: str) -> _FakeState:
+        calls.append(action)
+        return _FakeState("armed")
+
+    async def fail_fetch() -> _FakeState:
+        raise AssertionError("fetch_security_state must not be called on immediate success")
+
+    monkeypatch.setattr(AN, "control_system", fake_control)
+    monkeypatch.setattr(AN, "fetch_security_state", fail_fetch)
+
+    state = asyncio.run(AN.confirm_alarm_action("arm"))
+
+    assert state.mode == "armed"
+    assert calls == ["arm"]
+
+
+def test_confirm_alarm_action_retries_readonly_after_mismatch_and_succeeds(monkeypatch) -> None:
+    """Issue #390: on a mismatch, retries must re-read state only - never
+    resend the command (resending to a panel already mid-transition risks
+    compounding the failure or triggering another rejection)."""
+
+    control_calls: list[str] = []
+    fetch_calls: list[str] = []
+
+    async def fake_control(action: str) -> _FakeState:
+        control_calls.append(action)
+        return _FakeState("perimeter")  # not yet disarmed
+
+    async def fake_fetch() -> _FakeState:
+        fetch_calls.append("fetch")
+        # Confirms disarmed on the second read-only retry.
+        return _FakeState("perimeter" if len(fetch_calls) < 2 else "disarmed")
+
+    monkeypatch.setattr(AN, "control_system", fake_control)
+    monkeypatch.setattr(AN, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(AN, "CONFIRM_RETRY_DELAYS_S", (0, 0, 0))
+
+    state = asyncio.run(AN.confirm_alarm_action("disarm"))
+
+    assert state.mode == "disarmed"
+    assert control_calls == ["disarm"]  # the command was never resent
+    assert len(fetch_calls) == 2
+
+
+def test_confirm_alarm_action_retries_readonly_after_raised_exception_and_succeeds(monkeypatch) -> None:
+    """Regression for today's real false alarm: RISCO's own WebUI call raised
+    ('RISCO rejected 'arm'') on the first attempt, yet the panel confirmed
+    armed shortly after - a read-only re-check must catch that, with no resend."""
+
+    control_calls: list[str] = []
+    fetch_calls: list[str] = []
+
+    async def fake_control(action: str) -> _FakeState:
+        control_calls.append(action)
+        raise RiscoCommandError("RISCO rejected 'arm': D:")
+
+    async def fake_fetch() -> _FakeState:
+        fetch_calls.append("fetch")
+        return _FakeState("armed")
+
+    monkeypatch.setattr(AN, "control_system", fake_control)
+    monkeypatch.setattr(AN, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(AN, "CONFIRM_RETRY_DELAYS_S", (0, 0, 0))
+
+    state = asyncio.run(AN.confirm_alarm_action("arm"))
+
+    assert state.mode == "armed"
+    assert control_calls == ["arm"]  # never resent after the initial rejection
+    assert len(fetch_calls) == 1
+
+
+def test_confirm_alarm_action_raises_after_exhausting_all_retries(monkeypatch) -> None:
+    control_calls: list[str] = []
+    fetch_calls: list[str] = []
+
+    async def fake_control(action: str) -> _FakeState:
+        control_calls.append(action)
+        return _FakeState("disarmed")  # never matches "arm"
+
+    async def fake_fetch() -> _FakeState:
+        fetch_calls.append("fetch")
+        return _FakeState("disarmed")
+
+    monkeypatch.setattr(AN, "control_system", fake_control)
+    monkeypatch.setattr(AN, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(AN, "CONFIRM_RETRY_DELAYS_S", (0, 0, 0))
+
+    try:
+        asyncio.run(AN.confirm_alarm_action("arm"))
+        raised = False
+    except RiscoCommandError as exc:
+        raised = True
+        assert "disarmed" in str(exc)
+
+    assert raised is True
+    assert control_calls == ["arm"]  # command issued exactly once, never resent
+    assert len(fetch_calls) == 3  # one read-only retry per backoff delay
