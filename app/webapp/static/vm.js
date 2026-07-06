@@ -127,7 +127,7 @@ async function onToggle() {
     const body = await jsonApi('/api/hyperv/' + action, { method: 'POST' });
     state.vm = (body && body.hyperv) || state.vm;
     saveSnapshot('hyperv', body);
-    toast(action === 'stop' ? 'Home Assistant is shutting down' : 'Home Assistant is starting', 'good');
+    toast(action === 'stop' ? 'Home Assistant is shutting down' : 'Home Assistant is starting', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');

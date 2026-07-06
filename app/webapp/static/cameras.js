@@ -17,6 +17,7 @@
 
 import { els, state, toast, readToken, reportFetchOk, reportFetchFailure } from './state.js';
 import { api, jsonApi } from './api.js';
+import { confirmAction } from './network.js';
 
 let snapshotUrl = null;   // objectURL for the detail-modal snapshot (revoked on replace)
 let liveRecording = false;
@@ -115,24 +116,24 @@ function renderCameras() {
   els.camerasNote.hidden = true;
   cameras.forEach(function (cam) {
     const row = document.createElement('div');
-    row.className = 'security-zone camera-row';
-    if (!cam.reachable) row.classList.add('is-bypassed');
-    else row.classList.add('is-active');
+    row.className = 'camera-row';
+    if (!cam.reachable) row.classList.add('is-offline');
+    else row.classList.add('is-online');
 
     row.appendChild(buildThumb(cam));
 
     const main = document.createElement('div');
-    main.className = 'security-zone-main';
+    main.className = 'camera-row-main';
     const name = document.createElement('button');
     name.type = 'button';
-    name.className = 'security-zone-name';
+    name.className = 'camera-row-name';
     name.textContent = cameraLabel(cam);
     name.title = 'Camera details · live view · rename';
     name.addEventListener('click', function () { openCameraDetail(cam.id); });
     main.appendChild(name);
 
     const flags = document.createElement('span');
-    flags.className = 'security-zone-flags';
+    flags.className = 'camera-row-flags';
     flags.textContent = cameraStatus(cam);
     main.appendChild(flags);
     row.appendChild(main);
@@ -252,7 +253,7 @@ async function saveCameraName() {
     els.cameraDetailName.textContent = cameraLabel(cameraById(id) || { id: id });
     renderCameras();
     if (els.cameraSave) els.cameraSave.disabled = true;
-    toast('Saved', 'good');
+    toast('Saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Rename failed: ' + (exc.message || exc), 'error');
@@ -386,7 +387,7 @@ function renderPresets() {
     del.className = 'camera-preset-del';
     del.setAttribute('aria-label', 'Delete ' + (p.name || p.token));
     del.textContent = '×';
-    del.addEventListener('click', function () { removePreset(p.token); });
+    del.addEventListener('click', function () { removePreset(p.token, p.name || p.token); });
     chip.appendChild(go);
     chip.appendChild(rename);
     chip.appendChild(del);
@@ -465,9 +466,16 @@ async function gotoPreset(token) {
   }
 }
 
-async function removePreset(token) {
+async function removePreset(token, name) {
   const id = state.selectedCameraId;
   if (!id) return;
+  const ok = await confirmAction({
+    title: 'Delete this preset?',
+    message: 'The saved position "' + (name || token) + '" will be removed permanently.',
+    okLabel: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await jsonApi('/api/cameras/' + encodeURIComponent(id) + '/presets/' +
       encodeURIComponent(token), { method: 'DELETE' });

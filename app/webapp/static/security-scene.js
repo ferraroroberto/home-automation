@@ -17,6 +17,7 @@ import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { detectorOptions, buildSelect } from './security-shared.js';
 import { buildToggle } from './toggle.js';
+import { confirmAction } from './network.js';
 
 // cameraId -> [{token, name}], fetched lazily so we don't hit every camera up front.
 const presetCache = {};
@@ -120,7 +121,14 @@ export function renderScenePairings() {
     del.className = 'schedule-delete';
     del.setAttribute('aria-label', 'Delete pairing');
     del.textContent = '×';
-    del.addEventListener('click', function () {
+    del.addEventListener('click', async function () {
+      const ok = await confirmAction({
+        title: 'Delete this scene pairing?',
+        message: 'This detector-to-camera pairing will be removed permanently.',
+        okLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
       state.scenePairings.splice(idx, 1);
       saveScenePairings();
     });

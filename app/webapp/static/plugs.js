@@ -55,7 +55,7 @@ async function toggleSwitch(device, btn) {
       return d.device_id === device.device_id ? Object.assign({}, d, updated) : d;
     });
     renderPlugs();
-    toast(plugLabel(device) + (next ? ' on' : ' off'), 'good');
+    toast(plugLabel(device) + (next ? ' on' : ' off'), 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -79,7 +79,7 @@ async function coverAction(device, action) {
         body: JSON.stringify({ action: action }),
       },
     );
-    toast(plugLabel(device) + ' ' + action, 'good');
+    toast(plugLabel(device) + ' ' + action, 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed: ' + (exc.message || exc), 'error');
@@ -284,7 +284,7 @@ async function savePlugDetail() {
     if (upd) els.plugDetailName.textContent = plugLabel(upd) || 'Device';
     renderPlugs();
     clearPlugDirty();
-    toast('Saved', 'good');
+    toast('Saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed to save: ' + (exc.message || exc), 'error');
@@ -456,7 +456,7 @@ export function wirePlugsRefresh() {
       renderPlugs();
       const info = (body && body.refresh) || {};
       const recovered = (info.updated && info.updated.length) || 0;
-      toast(info.detail || 'Plugs refreshed', recovered ? 'good' : '');
+      toast(info.detail || 'Plugs refreshed', recovered ? 'success' : '');
     } catch (exc) {
       if (String(exc.message) !== 'auth required') {
         reportFetchFailure('plugs', exc, 'plugs');
