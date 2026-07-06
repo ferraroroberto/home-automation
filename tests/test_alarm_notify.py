@@ -376,10 +376,9 @@ def test_confirm_alarm_action_succeeds_immediately(monkeypatch) -> None:
     assert calls == ["arm"]
 
 
-def test_confirm_alarm_action_retries_readonly_after_mismatch_and_succeeds(monkeypatch) -> None:
-    """Issue #390: on a mismatch, retries must re-read state only - never
-    resend the command (resending to a panel already mid-transition risks
-    compounding the failure or triggering another rejection)."""
+def test_confirm_alarm_action_confirms_on_first_readonly_recheck_without_resend(monkeypatch) -> None:
+    """A mismatch that clears by the first backoff's read-only re-check needs
+    no resend at all - the command already went through, just with a lag."""
 
     control_calls: list[str] = []
     fetch_calls: list[str] = []
@@ -390,8 +389,7 @@ def test_confirm_alarm_action_retries_readonly_after_mismatch_and_succeeds(monke
 
     async def fake_fetch() -> _FakeState:
         fetch_calls.append("fetch")
-        # Confirms disarmed on the second read-only retry.
-        return _FakeState("perimeter" if len(fetch_calls) < 2 else "disarmed")
+        return _FakeState("disarmed")  # confirmed on the first read-only retry
 
     monkeypatch.setattr(AN, "control_system", fake_control)
     monkeypatch.setattr(AN, "fetch_security_state", fake_fetch)
@@ -400,14 +398,42 @@ def test_confirm_alarm_action_retries_readonly_after_mismatch_and_succeeds(monke
     state = asyncio.run(AN.confirm_alarm_action("disarm"))
 
     assert state.mode == "disarmed"
-    assert control_calls == ["disarm"]  # the command was never resent
-    assert len(fetch_calls) == 2
+    assert control_calls == ["disarm"]  # never resent - the read-only check already confirmed it
+    assert len(fetch_calls) == 1
 
 
-def test_confirm_alarm_action_retries_readonly_after_raised_exception_and_succeeds(monkeypatch) -> None:
-    """Regression for today's real false alarm: RISCO's own WebUI call raised
+def test_confirm_alarm_action_resends_command_when_readonly_recheck_still_fails(monkeypatch) -> None:
+    """Issue #390 (revised): a read-only recheck alone isn't enough for a
+    genuinely dropped command - if the state still doesn't confirm after a
+    backoff wait, resend the command before the next wait."""
+
+    control_calls: list[str] = []
+    fetch_calls: list[str] = []
+
+    async def fake_control(action: str) -> _FakeState:
+        control_calls.append(action)
+        # First (initial) issue doesn't take; the resend (2nd call) does.
+        return _FakeState("perimeter" if len(control_calls) < 2 else "disarmed")
+
+    async def fake_fetch() -> _FakeState:
+        fetch_calls.append("fetch")
+        return _FakeState("perimeter")  # still not confirmed at the first recheck
+
+    monkeypatch.setattr(AN, "control_system", fake_control)
+    monkeypatch.setattr(AN, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(AN, "CONFIRM_RETRY_DELAYS_S", (0, 0, 0))
+
+    state = asyncio.run(AN.confirm_alarm_action("disarm"))
+
+    assert state.mode == "disarmed"
+    assert control_calls == ["disarm", "disarm"]  # initial issue + one resend
+    assert len(fetch_calls) == 1  # exactly one read-only recheck before the resend
+
+
+def test_confirm_alarm_action_retries_after_raised_exception_and_succeeds(monkeypatch) -> None:
+    """Regression for the real false alarm: RISCO's own WebUI call raised
     ('RISCO rejected 'arm'') on the first attempt, yet the panel confirmed
-    armed shortly after - a read-only re-check must catch that, with no resend."""
+    armed shortly after - the first read-only re-check catches that."""
 
     control_calls: list[str] = []
     fetch_calls: list[str] = []
@@ -427,8 +453,36 @@ def test_confirm_alarm_action_retries_readonly_after_raised_exception_and_succee
     state = asyncio.run(AN.confirm_alarm_action("arm"))
 
     assert state.mode == "armed"
-    assert control_calls == ["arm"]  # never resent after the initial rejection
+    assert control_calls == ["arm"]  # confirmed by the read-only recheck, no resend needed
     assert len(fetch_calls) == 1
+
+
+def test_confirm_alarm_action_confirms_on_final_readonly_check_after_two_resends(monkeypatch) -> None:
+    """The full worst-almost-case: two resends fail to confirm immediately,
+    and the state only comes around on the very last (120s) read-only check -
+    which must not trigger a third resend, since there are no retries left."""
+
+    control_calls: list[str] = []
+    fetch_calls: list[str] = []
+
+    async def fake_control(action: str) -> _FakeState:
+        control_calls.append(action)
+        return _FakeState("disarmed")  # neither the initial issue nor the resends confirm
+
+    async def fake_fetch() -> _FakeState:
+        fetch_calls.append("fetch")
+        # Confirmed only on the third (last) read-only recheck.
+        return _FakeState("armed" if len(fetch_calls) == 3 else "disarmed")
+
+    monkeypatch.setattr(AN, "control_system", fake_control)
+    monkeypatch.setattr(AN, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(AN, "CONFIRM_RETRY_DELAYS_S", (0, 0, 0))
+
+    state = asyncio.run(AN.confirm_alarm_action("arm"))
+
+    assert state.mode == "armed"
+    assert control_calls == ["arm", "arm", "arm"]  # initial + resend after check 1 + resend after check 2
+    assert len(fetch_calls) == 3
 
 
 def test_confirm_alarm_action_raises_after_exhausting_all_retries(monkeypatch) -> None:
@@ -455,5 +509,7 @@ def test_confirm_alarm_action_raises_after_exhausting_all_retries(monkeypatch) -
         assert "disarmed" in str(exc)
 
     assert raised is True
-    assert control_calls == ["arm"]  # command issued exactly once, never resent
-    assert len(fetch_calls) == 3  # one read-only retry per backoff delay
+    # Initial issue + a resend after each of the first two failed rechecks
+    # (the last recheck, at the final backoff, gives up instead of resending).
+    assert control_calls == ["arm", "arm", "arm"]
+    assert len(fetch_calls) == 3  # one read-only recheck per backoff delay
