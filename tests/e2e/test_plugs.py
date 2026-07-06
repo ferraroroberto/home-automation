@@ -54,10 +54,11 @@ def test_metered_plug_shows_watts(
 ) -> None:
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # Wattage is a first-class value on the metered plug row.
+    # Wattage is a first-class value on the metered plug row. Grouped digits
+    # per the shared fmtW (format.js, #383) — one watt format across tabs.
     watts = page.locator('[data-device-id="plug-1"] .plug-watts')
     expect(watts).to_be_visible()
-    expect(watts).to_have_text("1450 W")
+    expect(watts).to_have_text("1,450 W")
 
 
 def test_plugs_stats_block_summarizes(
@@ -71,7 +72,7 @@ def test_plugs_stats_block_summarizes(
     expect(page.locator("#plugStatTotal")).to_have_text("4")
     expect(page.locator("#plugStatOn")).to_have_text("1")
     expect(page.locator("#plugStatOff")).to_have_text("1")
-    expect(page.locator("#plugStatWatts")).to_have_text("1450 W")
+    expect(page.locator("#plugStatWatts")).to_have_text("1,450 W")
 
 
 def test_plug_rename_round_trips(
