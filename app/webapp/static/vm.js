@@ -9,6 +9,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { esc } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { confirmAction } from './network.js';
 import { createPoller } from './poll.js';
@@ -17,15 +18,6 @@ const POLL_MS = 30_000;
 
 let busy = false;       // a start/stop is in flight — disable the toggle, skip overlap
 let pending = null;     // 'start' | 'stop' while that action is in flight
-
-function esc(value) {
-  return String(value == null ? '' : value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function fmtUptime(seconds) {
   if (seconds == null) return '';

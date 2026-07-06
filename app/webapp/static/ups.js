@@ -8,6 +8,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { esc, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from './poll.js';
@@ -15,14 +16,6 @@ import { createPoller } from './poll.js';
 const POLL_MS = 15_000;
 
 let lastMainsOnline = null;
-
-function fmtPct(v) {
-  return v == null ? '—' : Math.round(Number(v)) + '%';
-}
-
-function fmtW(v) {
-  return v == null ? '—' : Math.round(Number(v)) + ' W';
-}
 
 function fmtVolt(v) {
   return v == null ? '—' : Number(v).toFixed(1) + ' V';
@@ -36,15 +29,6 @@ function fmtRuntime(seconds) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return h + ' h ' + String(m).padStart(2, '0') + ' min';
-}
-
-function esc(value) {
-  return String(value == null ? '' : value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function statusText(ups) {

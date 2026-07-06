@@ -12,16 +12,13 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi } from './api.js';
+import { fmtW } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { createPoller } from './poll.js';
 
 const POLL_MS = 15_000;
 
 // --------------------------------------------------------------- formatting
-function fmtW(v) {
-  return v == null ? '—' : Math.round(Number(v)) + ' W';
-}
-
 function deviceById(id) {
   return state.plugs.find(function (d) { return d.device_id === id; });
 }

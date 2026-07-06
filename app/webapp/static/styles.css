@@ -34,6 +34,11 @@
   --toggle-knob: #ffffff;
   --toggle-label: var(--muted);
   --close-bg: var(--card-off);
+  /* theme-invariant surfaces (issue #383): the modal/login scrim and the
+     camera letterbox matte are intentionally identical in light and dark —
+     a scrim dims content, a matte frames video; neither is a themed surface. */
+  --scrim: rgba(0, 0, 0, 0.5);
+  --video-matte: #000;
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
   --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
@@ -1001,8 +1006,8 @@ button, input, select, textarea {
 }
 .unit-rule-target .value { gap: 4px; }
 .unit-rule-icon {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   color: var(--accent);
 }
 
@@ -2286,7 +2291,7 @@ button.presence-name:hover { text-decoration: underline; }
   overscroll-behavior: contain;
   background: transparent;
 }
-.detail-dialog::backdrop { background: rgba(0,0,0,0.5); }
+.detail-dialog::backdrop { background: var(--scrim); }
 /* Top-anchor every .detail-dialog on mobile instead of leaning on the UA's
    default vertical auto-centering over `92vh`/`92dvh` (#300). That centering
    left an asymmetric, wrongly-coloured gap near the bottom of the screen on
@@ -2512,7 +2517,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
 /* ----------------------------------------------------------- login */
 .login-overlay {
   position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim);
   display: flex; align-items: center; justify-content: center;
   z-index: 50; padding: 20px;
 }
@@ -2551,7 +2556,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   text-align: center;
   color: var(--muted);
 }
-.empty-state-icon { width: 32px; height: 32px; color: var(--muted); }
+.empty-state-icon { width: 24px; height: 24px; color: var(--muted); }
 .empty-state-message { margin: 0; font-size: var(--font-body); }
 .empty-state-action { flex: none; width: auto; min-width: 96px; padding: 8px 20px; }
 
@@ -2599,36 +2604,16 @@ body:has(dialog[open]) .app { overflow: hidden; }
 }
 details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); }
 /* Collapsible cards share one closed height: the summary owns the padding so
-   the Security and Network headers align exactly. */
-.security-schedules-card > .collapse-summary,
-.scene-pairings-card > .collapse-summary,
-.security-override-card > .collapse-summary,
-.security-events-card > .collapse-summary,
-.cameras-card > .collapse-summary,
-.security-zones-card > .collapse-summary,
-.presence-card > .collapse-summary,
-.security-notify-card > .collapse-summary,
-.net-wifi-card > .collapse-summary,
-.net-devices-card > .collapse-summary,
-.net-dhcp-card > .collapse-summary,
-.device-list-card > .collapse-summary,
-.wake-alarms-card > .collapse-summary {
+   the Security and Network headers align exactly. Carried by the one shared
+   `.card--collapsible` modifier (issue #383 — replaces the old 13-selector
+   enumeration, the per-card drift design.md warns about; the child combinator
+   keeps the detail-modal's inner .collapse-summary sections untouched). The
+   open divider is border-muted per the design.md disclosure contract. */
+.card--collapsible > .collapse-summary {
   height: 52px;
   padding: 0 14px;
 }
-.security-schedules-card[open] > .collapse-summary,
-.scene-pairings-card[open] > .collapse-summary,
-.security-override-card[open] > .collapse-summary,
-.security-events-card[open] > .collapse-summary,
-.cameras-card[open] > .collapse-summary,
-.security-zones-card[open] > .collapse-summary,
-.presence-card[open] > .collapse-summary,
-.security-notify-card[open] > .collapse-summary,
-.net-wifi-card[open] > .collapse-summary,
-.net-devices-card[open] > .collapse-summary,
-.net-dhcp-card[open] > .collapse-summary,
-.device-list-card[open] > .collapse-summary,
-.wake-alarms-card[open] > .collapse-summary { border-bottom: 1px solid var(--line); }
+.card--collapsible[open] > .collapse-summary { border-bottom: 1px solid var(--line-muted); }
 
 /* Build-identity footer (which build the PWA is running). */
 .page-foot {
@@ -2908,7 +2893,7 @@ button.net-device-name {
   text-align: left; color: var(--ink); font: inherit; font-weight: 600;
   cursor: pointer;
 }
-.net-device-icon { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
+.net-device-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); }
 .net-device-name-text {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -2995,7 +2980,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-device-signal.net-device-lastseen { font-style: italic; }
 
 /* "Important" star marker + the "new" pill on a device row (Phase 4). */
-.net-device-star { width: 13px; height: 13px; flex: 0 0 auto; color: var(--accent); }
+.net-device-star { width: 16px; height: 16px; flex: 0 0 auto; color: var(--accent); }
 .net-device-new {
   flex: 0 0 auto; margin-left: 2px;
   background: var(--accent); color: var(--accent-fg);
@@ -3027,7 +3012,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-intro { flex: 1 1 auto; margin: 0; }
 .net-dhcp-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
 .net-dhcp-head .range-tab { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
-.net-dhcp-head .range-tab .icon { width: 13px; height: 13px; }
+.net-dhcp-head .range-tab .icon { width: 16px; height: 16px; }
 /* The opt-in write action stands out from the neutral Refresh tab (#176). */
 .net-dhcp-apply {
   border-color: var(--accent-border-strong);
@@ -3123,7 +3108,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    the ::before extends the clickable region without inflating the visual
    28x28 box: 28 + 2x8 = 44. */
 .net-dhcp-ex-del::before { content: ""; position: absolute; inset: -8px; }
-.net-dhcp-ex-del .icon { width: 15px; height: 15px; }
+.net-dhcp-ex-del .icon { width: 16px; height: 16px; }
 .net-dhcp-ex-del:hover:not(:disabled) { color: var(--attention); border-color: var(--attention); }
 .net-dhcp-ex-del:disabled { opacity: 0.4; cursor: default; }
 
@@ -3143,7 +3128,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   border: 1px solid var(--line); background: var(--input-bg); color: var(--ink);
 }
 .net-dhcp-manual-add { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
-.net-dhcp-manual-add .icon { width: 13px; height: 13px; }
+.net-dhcp-manual-add .icon { width: 16px; height: 16px; }
 
 /* Staged-removal styling on an existing row + the remove/undo toggle (#176). */
 .net-dhcp-existing-row.is-removing .net-dhcp-ex-name,
@@ -3182,7 +3167,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   padding: 0; border: 0; background: transparent;
   color: var(--accent); cursor: pointer;
 }
-.net-dhcp-chip-x .icon { width: 13px; height: 13px; }
+.net-dhcp-chip-x .icon { width: 16px; height: 16px; }
 /* Destructive control with no fixed box (issue #361 review — ~13-16px
    effective target). The ::before is absolutely positioned so it extends the
    tap target to >=44px on both axes without growing the chip's own layout
@@ -3200,7 +3185,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-budget.is-over { color: var(--attention); font-weight: 700; }
 .net-dhcp-applybar-actions { display: inline-flex; align-items: center; gap: 6px; }
 .net-dhcp-applybar .range-tab { display: inline-flex; align-items: center; gap: 5px; }
-.net-dhcp-applybar .range-tab .icon { width: 13px; height: 13px; }
+.net-dhcp-applybar .range-tab .icon { width: 16px; height: 16px; }
 
 /* ----------------------------------------------------------- cameras (#161) */
 /* .cameras-list layout (flex column + 14px inset) is shared with the other
@@ -3256,7 +3241,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 56px; height: 44px; padding: 0; overflow: hidden;
   border: 1px solid var(--line); border-radius: var(--radius-md);
-  background: #000; cursor: zoom-in;
+  background: var(--video-matte); cursor: zoom-in;
 }
 .camera-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .camera-thumb.is-empty { background: var(--card-off); cursor: default; }
@@ -3271,13 +3256,13 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-zoom-dialog { width: min(96vw, 880px); }
 .camera-zoom-img {
   width: 100%; display: block; border-radius: var(--radius-md);
-  background: #000; aspect-ratio: 16 / 9; object-fit: contain;
+  background: var(--video-matte); aspect-ratio: 16 / 9; object-fit: contain;
 }
 
 /* Detail modal snapshot — the still grabbed at open time. */
 .camera-snapshot {
   width: 100%; display: block; border-radius: var(--radius-md);
-  background: #000; aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: 4px;
+  background: var(--video-matte); aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: 4px;
 }
 .camera-snapshot.is-loading { opacity: 0.4; }
 /* Styled placeholder shown instead of the raw broken-image box when the fresh
@@ -3289,7 +3274,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px; color: var(--muted); font-size: var(--font-caption);
 }
-.camera-snapshot-empty .icon { width: 28px; height: 28px; }
+.camera-snapshot-empty .icon { width: 24px; height: 24px; }
 .camera-live-open {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; margin-top: 14px;
@@ -3299,12 +3284,12 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Full-screen live view: bigger shell, MJPEG stage, PTZ d-pad + actions. */
 .camera-live-dialog { width: min(96vw, 760px); }
 .camera-live-stage {
-  background: #000; border-radius: var(--radius-md); overflow: hidden;
+  background: var(--video-matte); border-radius: var(--radius-md); overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   aspect-ratio: 16 / 9; max-height: 60vh;
 }
 .camera-live-img {
-  width: 100%; height: 100%; object-fit: contain; display: block; background: #000;
+  width: 100%; height: 100%; object-fit: contain; display: block; background: var(--video-matte);
 }
 .camera-live-controls {
   display: flex; align-items: center; justify-content: space-between;

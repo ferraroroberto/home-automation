@@ -24,6 +24,7 @@ import {
   reportFetchOk,
 } from './state.js';
 import { jsonApi } from './api.js';
+import { fmtPct } from './format.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { restyleWifiChannelChart } from './charts.js';
 import { createPoller } from './poll.js';
@@ -56,7 +57,6 @@ let lastSpeed = null;
 
 // --------------------------------------------------------------- formatting
 function fmtMs(v) { return v == null ? '—' : Math.round(Number(v)) + ' ms'; }
-function fmtPct(v) { return v == null ? '—' : Math.round(Number(v)) + '%'; }
 function fmtMbps(v) { return v == null ? '—' : Math.round(Number(v)) + ' Mbps'; }
 function fmtUptime(seconds) {
   const s = Math.max(0, Math.floor(Number(seconds) || 0));

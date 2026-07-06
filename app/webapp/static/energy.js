@@ -14,6 +14,7 @@
 
 import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { esc, group, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
   createLiveChart, setLiveData, pushLivePoint,
@@ -37,21 +38,15 @@ const CO2_KG_PER_TREE_YEAR = 21;  // sequestration per tree-year
 let todayTimer = null;
 
 // --------------------------------------------------------------- formatting
-// Group digits in threes with a comma — "3745" → "3,745".
-function group(n) {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-function fmtW(v) {
-  return v == null ? '—' : group(Math.round(Number(v))) + ' W';
-}
+// group / fmtW / fmtPct / esc live in the shared format.js (issue #383).
 
 function fmtKwh(wh) {
   return wh == null ? '—' : (Number(wh) / 1000).toFixed(2) + ' kWh';
 }
 
-function fmtPct(frac) {
-  return frac == null ? '—' : Math.round(frac * 100) + ' %';
+// This tab holds 0–1 fractions; the shared fmtPct takes 0–100.
+function fmtFracPct(frac) {
+  return fmtPct(frac == null ? null : frac * 100);
 }
 
 function clamp01(x) {
@@ -127,8 +122,8 @@ export function renderEnergy(e) {
   els.homeEnergyFlow.hidden = false;
 
   // --- Live efficiency tiles. ---
-  els.liveSelfSuff.textContent = fmtPct(selfSufficiencyFrac(solar, e.house_consumption_w));
-  els.liveSelfCons.textContent = fmtPct(selfConsumptionFrac(solar, e.house_consumption_w));
+  els.liveSelfSuff.textContent = fmtFracPct(selfSufficiencyFrac(solar, e.house_consumption_w));
+  els.liveSelfCons.textContent = fmtFracPct(selfConsumptionFrac(solar, e.house_consumption_w));
 
   // --- live availability note ---
   // The meter carries grid + house power; without it there is no live snapshot
@@ -189,7 +184,7 @@ function renderToday(b) {
     els.genSelf.textContent = fmtKwh(selfWh);
     els.genFeed.textContent = fmtKwh(exportWh);
     els.genBar.style.transform = 'scaleX(' + frac + ')';
-    els.genPct.textContent = fmtPct(frac) + ' self-consumed';
+    els.genPct.textContent = fmtFracPct(frac) + ' self-consumed';
   } else {
     els.genSelf.textContent = '—';
     els.genFeed.textContent = '—';
@@ -205,7 +200,7 @@ function renderToday(b) {
     els.consSelf.textContent = fmtKwh(selfWh);
     els.consGrid.textContent = fmtKwh(importWh);
     els.consBar.style.transform = 'scaleX(' + frac + ')';
-    els.consPct.textContent = fmtPct(frac) + ' self-sufficient';
+    els.consPct.textContent = fmtFracPct(frac) + ' self-sufficient';
   } else {
     els.consSelf.textContent = '—';
     els.consGrid.textContent = '—';
@@ -246,12 +241,6 @@ function currencySymbol(cur) {
 
 function num2(v) {
   return Number(v || 0).toFixed(2);
-}
-
-function esc(s) {
-  return String(s).replace(/[&<>"]/g, function (c) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-  });
 }
 
 function costRow(label, hours, rate, grid, solar, cost, saved, sym, cls) {
