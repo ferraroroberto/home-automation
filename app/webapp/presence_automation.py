@@ -15,6 +15,7 @@ from app.webapp.alarm_notify import (
     OUTCOME_OK,
     SOURCE_PRESENCE,
     check_security_transitions,
+    confirm_alarm_action,
     record_alarm_action,
 )
 from app.webapp.alarm_scene_automation import consider_security_read
@@ -32,7 +33,7 @@ from src.presence_engine import (
 )
 from src.presence_hidden import load_hidden_presence_ids
 from src.push_notifications import send_push
-from src.risco_client import control_system, fetch_security_state
+from src.risco_client import fetch_security_state
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ async def tick() -> None:
 
     outcome = "started"
     try:
-        updated = await control_system(decision.action)
+        updated = await confirm_alarm_action(decision.action)
         outcome = updated.mode
         mark_decision_applied(decision, outcome)
         # Someone arrived and the system disarmed: clear the transient kids-home
