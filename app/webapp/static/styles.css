@@ -562,9 +562,9 @@ button, input, select, textarea {
 
 /* ----------------------------------------------------------- AC summary */
 .ac-summary { padding: 6px 12px; margin-bottom: var(--gap); }
-.ac-summary-empty { margin: 8px 0; }
+.ac-summary-empty { margin: var(--space-sm) 0; }
 .snapshot-note { margin: 10px 0 0; }
-.ac-snapshot-note { padding-top: 8px; border-top: 1px solid var(--line); }
+.ac-snapshot-note { padding-top: var(--space-sm); border-top: 1px solid var(--line); }
 .ac-line {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -639,13 +639,13 @@ button, input, select, textarea {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 .metric-label { font-size: var(--font-caption); color: var(--muted); }
 .metric-value { font-size: var(--font-heading-lg); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ----------------------------------------------------- today split cards */
-.split-card { padding: 12px; margin-bottom: 12px; }
+.split-card { padding: 12px; margin-bottom: var(--gap); }
 .split-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .split-title { margin: 0; font-size: var(--font-label); }
 .split-total { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -674,15 +674,15 @@ button, input, select, textarea {
 .split-pct { display: block; margin-top: 6px; }
 
 /* ----------------------------------------------------------- savings */
-.savings-card { padding: 12px; margin-bottom: 12px; }
+.savings-card { padding: 12px; margin-bottom: var(--gap); }
 .savings-title { margin: 0; font-size: var(--font-label); }
-.savings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.savings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); margin-top: 10px; }
 .savings-stat { display: flex; flex-direction: column; gap: 3px; }
 .savings-label { font-size: var(--font-caption); color: var(--muted); }
 .savings-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* --------------------------------------------- cost & savings breakdown */
-.cost-card { padding: 12px; margin-bottom: 12px; }
+.cost-card { padding: 12px; margin-bottom: var(--gap); }
 .cost-table-wrap { width: 100%; overflow-x: auto; }
 .cost-table {
   width: 100%;
@@ -720,7 +720,7 @@ button, input, select, textarea {
 .cost-summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: var(--space-sm);
   margin-top: 12px;
 }
 .cost-stat { display: flex; flex-direction: column; gap: 2px; }
@@ -730,7 +730,7 @@ button, input, select, textarea {
 .cost-note { margin: 10px 0 0; }
 
 /* ------------------------------------------------------- solar forecast */
-.forecast-card { padding: 12px; margin-bottom: 12px; }
+.forecast-card { padding: 12px; margin-bottom: var(--gap); }
 /* "Expected generation +X kWh" — neutral primary text (the green identity lives
    on the chart's actual-generation area; the headline is informational). Sized
    at the body role (like .split-total), not heading-lg, so it stays in scale. */
@@ -748,13 +748,13 @@ button, input, select, textarea {
 }
 
 /* ----------------------------------------------------- energy charts */
-.chart-card { padding: 12px; margin-bottom: 12px; }
-.chart-title { margin: 0 0 8px; font-size: var(--font-label); }
+.chart-card { padding: 12px; margin-bottom: var(--gap); }
+.chart-title { margin: 0 0 var(--space-sm); font-size: var(--font-label); }
 .chart-wrap { position: relative; width: 100%; }
 .chart-wrap-live { height: 200px; }
 .chart-wrap-agg { height: 230px; }
 .chart-wrap-forecast { height: 230px; }
-.chart-empty { margin: 8px 0 0; text-align: center; }
+.chart-empty { margin: var(--space-sm) 0 0; text-align: center; }
 
 .range-tabs { display: flex; gap: 5px; margin-bottom: 12px; }
 /* Canonical range-tab: one height everywhere (--control-h, 36px — issue #361
@@ -844,7 +844,7 @@ button, input, select, textarea {
   color: var(--ink);
   white-space: nowrap;
 }
-.weather-current { display: flex; align-items: center; gap: 8px; }
+.weather-current { display: flex; align-items: center; gap: var(--space-sm); }
 .weather-current-icon { font-size: var(--font-heading-lg); line-height: 1; color: var(--ink); }
 .weather-current-temp {
   font-size: var(--font-body);
@@ -905,13 +905,13 @@ button, input, select, textarea {
 .unit-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .unit-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   flex: 1;
   min-width: 0;
   background: none;
@@ -1004,7 +1004,7 @@ button, input, select, textarea {
   align-items: flex-start;
   color: var(--accent);
 }
-.unit-rule-target .value { gap: 4px; }
+.unit-rule-target .value { gap: var(--space-xs); }
 .unit-rule-icon {
   width: 18px;
   height: 18px;
@@ -1131,7 +1131,7 @@ button, input, select, textarea {
 .plugs-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: var(--space-sm);
 }
 .plugs-stat {
   display: flex;
@@ -1150,7 +1150,7 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-sm);
   min-width: 0;
 }
 .plugs-toolbar .range-tab { flex: none; }
@@ -1207,7 +1207,7 @@ button, input, select, textarea {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  row-gap: 8px;
+  row-gap: var(--space-sm);
 }
 .ups-identity { min-width: 0; }
 .ups-title {
@@ -1254,7 +1254,7 @@ button, input, select, textarea {
 .ups-stats {
   display: grid;
   grid-template-columns: repeat(5, minmax(62px, 1fr));
-  gap: 8px;
+  gap: var(--space-sm);
   min-width: 0;
 }
 .ups-stat {
@@ -1504,7 +1504,7 @@ button.device-row-name:hover { text-decoration: underline; }
 .lights-toolbar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-sm);
   margin: 0 0 10px;
 }
 
@@ -1594,7 +1594,7 @@ button.device-row-name:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   height: var(--control-h);
   padding: 0 8px;
   border: 1px solid var(--line);
@@ -1660,11 +1660,11 @@ button.device-row-name:hover { text-decoration: underline; }
 /* -------------------------------------------------------- security tab */
 .security-card {
   padding: 12px;
-  margin-bottom: 12px;
+  margin-bottom: var(--gap);
 }
 /* System-state line: one centered line, sized like the other tab headers. */
 .security-state {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1707,7 +1707,7 @@ button.device-row-name:hover { text-decoration: underline; }
    distinct "Clear" CTA; unavailable actions fade out. */
 .security-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-sm);
   margin-top: 12px;
 }
 .security-action {
@@ -1760,8 +1760,8 @@ button.device-row-name:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
   border-top: 1px solid var(--line);
 }
 .security-event:first-child,
@@ -1819,7 +1819,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   align-items: center;
   justify-content: space-between;
   min-width: 0;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 .security-zone-flags {
   color: var(--muted);
@@ -1887,7 +1887,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 5px;
-  margin-top: 8px;
+  margin-top: var(--space-sm);
 }
 .alarm-schedule-day {
   min-height: 32px;
@@ -1909,12 +1909,12 @@ button.security-zone-name:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
   gap: 10px;
-  margin-top: 8px;
+  margin-top: var(--space-sm);
 }
 .alarm-schedule-fields label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
   color: var(--muted);
   font-size: var(--font-caption);
   font-weight: 600;
@@ -1959,13 +1959,13 @@ button.security-zone-name:hover { text-decoration: underline; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-sm);
 }
 .wake-alarm-once {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: var(--space-sm);
   color: var(--muted);
   font-size: var(--font-caption);
   font-weight: 600;
@@ -1973,7 +1973,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .wake-alarm-date {
   width: 100%;
   box-sizing: border-box;
-  margin-top: 8px;
+  margin-top: var(--space-sm);
 }
 .alarm-schedule-entry.is-ringing {
   border-color: color-mix(in srgb, var(--attention) 40%, var(--line));
@@ -1983,14 +1983,14 @@ button.security-zone-name:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 0 0 12px;
+  margin: 0 0 var(--gap);
 }
 .wake-ringing-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 12px;
+  padding: var(--space-sm) 12px;
   border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--attention) 12%, transparent);
@@ -2012,7 +2012,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 }
 .wake-timers-section {
   margin-top: 18px;
-  padding-top: 16px;
+  padding-top: var(--space-md);
   border-top: 1px solid var(--line-muted);
 }
 /* .wake-timer-presets is a .range-tabs instance; drop its default bottom margin
@@ -2021,7 +2021,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .wake-timer-custom {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-sm);
   margin-top: 10px;
 }
 .wake-timer-input {
@@ -2050,7 +2050,7 @@ button.security-zone-name:hover { text-decoration: underline; }
    alarm). Separated from the timers block like .wake-timers-section is. */
 .wake-voice-hint {
   margin: 18px 0 0;
-  padding-top: 16px;
+  padding-top: var(--space-md);
   border-top: 1px solid var(--line-muted);
   line-height: 1.5;
 }
@@ -2059,7 +2059,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-  padding: 8px 0;
+  padding: var(--space-sm) 0;
   border-top: 1px solid var(--line);
 }
 .wake-timer-row:first-child { border-top: 0; }
@@ -2076,12 +2076,12 @@ button.security-zone-name:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 8px;
+  margin-top: var(--space-sm);
 }
 .scene-pairing-fields label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
   color: var(--muted);
   font-size: var(--font-caption);
   font-weight: 600;
@@ -2101,12 +2101,12 @@ button.security-zone-name:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 8px;
+  margin-top: var(--space-sm);
 }
 .security-override-fields label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
   color: var(--muted);
   font-size: var(--font-caption);
   font-weight: 600;
@@ -2123,7 +2123,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .presence-body-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   white-space: nowrap;
   margin: 10px 14px 0;
   line-height: 1.2;
@@ -2131,9 +2131,9 @@ button.security-zone-name:hover { text-decoration: underline; }
 .presence-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-sm);
   align-items: center;
-  padding: 8px 0;
+  padding: var(--space-sm) 0;
   border-top: 1px solid var(--line);
 }
 .presence-row:first-child { border-top: 0; }
@@ -2206,7 +2206,7 @@ button.presence-name:hover { text-decoration: underline; }
 }
 .presence-settings {
   display: grid;
-  gap: 8px;
+  gap: var(--space-sm);
   padding: 14px;
 }
 .presence-settings .big-btn {
@@ -2378,7 +2378,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .detail-section .detail-section-body .row:first-child { border-top: none; }
 .detail-hint { margin: 8px 0 2px; }
 .schedule-list { display: flex; flex-direction: column; gap: 10px; }
-.schedule-empty { margin: 4px 0 0; }
+.schedule-empty { margin: var(--space-xs) 0 0; }
 .schedule-entry {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -2388,7 +2388,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .schedule-entry-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
-  gap: 8px;
+  gap: var(--space-sm);
   align-items: center;
 }
 .schedule-enabled {
@@ -2399,7 +2399,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
   font-size: var(--font-label);
   font-weight: 600;
 }
-.schedule-profile { margin-top: 8px; }
+.schedule-profile { margin-top: var(--space-sm); }
 .schedule-profile .row { padding: 9px 0; }
 .schedule-delete {
   position: relative;
@@ -2588,7 +2588,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
      than centred against it (#210). The leading icon is re-centred below so it
      keeps reading aligned with the title. */
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-sm);
   min-width: 0;
   line-height: 1;
 }
@@ -2617,7 +2617,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 
 /* Build-identity footer (which build the PWA is running). */
 .page-foot {
-  margin: 16px 4px;
+  margin: var(--space-md) var(--space-xs);
   text-align: center;
 }
 .page-foot p { margin: 2px 0; }
@@ -2700,7 +2700,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   justify-self: end;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   min-width: 0;
 }
 .net-wifi-summary .range-tab:not([hidden]) {
@@ -2850,7 +2850,7 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 .net-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-sm);
   margin-bottom: 10px;
 }
 .net-stat-chip {
@@ -2926,9 +2926,9 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-devices-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   min-height: var(--control-h);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-xs);
 }
 .net-devices-head .range-tab:not([hidden]) {
   flex: 0 0 auto;
@@ -2939,7 +2939,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-sort {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   flex: 1 1 auto;
   min-width: 0;
   font-size: var(--font-caption);
@@ -2993,7 +2993,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 
 /* Reusable confirm modal (issue #129) — same shell as the detail dialogs, with
    a side-by-side Cancel / confirm action row. */
-.confirm-message { margin: 4px 0 16px; }
+.confirm-message { margin: var(--space-xs) 0 var(--space-md); }
 .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .confirm-cancel { background: var(--card-off); color: var(--ink); }
 .confirm-ok.is-danger {
@@ -3025,7 +3025,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas: "check name move" "check mac pill";
   align-items: center; column-gap: 12px; row-gap: 2px;
-  padding: 8px 0; border-top: 1px solid var(--line);
+  padding: var(--space-sm) 0; border-top: 1px solid var(--line);
 }
 /* Leading per-row switch for the selective apply (#176 step 2, switch-ified
    #360); the spacer keeps non-pending rows' columns aligned with the ticked
@@ -3067,14 +3067,14 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-pill-create { color: var(--accent); background: var(--accent-soft); }
 .net-dhcp-pill-change { color: var(--attention); background: color-mix(in srgb, var(--attention) 16%, transparent); }
 .net-dhcp-row-warn .net-dhcp-name { color: var(--attention); }
-.net-dhcp-warnings { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.net-dhcp-warnings { margin: var(--space-sm) 0; display: flex; flex-direction: column; gap: var(--space-xs); }
 .net-dhcp-warning {
   margin: 0; font-size: var(--font-caption); color: var(--attention);
 }
 .net-dhcp-note { margin: 12px 4px 2px; }
 
 /* On the router now — the live reservations, deletable to free a slot (#176 step 1). */
-.net-dhcp-existing-wrap { margin-bottom: 8px; }
+.net-dhcp-existing-wrap { margin-bottom: var(--space-sm); }
 .net-dhcp-existing { display: flex; flex-direction: column; }
 .net-dhcp-existing-row {
   display: grid;
@@ -3116,7 +3116,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-manual { margin-top: 10px; }
 .net-dhcp-manual-summary {
   font-size: var(--font-caption); color: var(--muted); cursor: pointer;
-  list-style: none; padding: 4px 0;
+  list-style: none; padding: var(--space-xs) 0;
 }
 .net-dhcp-manual-summary::-webkit-details-marker { display: none; }
 .net-dhcp-manual-form {
@@ -3142,7 +3142,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 
 /* Suggested-section header with its all/none toggle. */
-.net-dhcp-suggest-head { display: flex; align-items: center; gap: 8px; }
+.net-dhcp-suggest-head { display: flex; align-items: center; gap: var(--space-sm); }
 .net-dhcp-selectall {
   font-size: var(--font-caption); font-weight: 700; color: var(--accent);
   background: var(--accent-soft); border: 0; border-radius: var(--radius-pill);
@@ -3154,9 +3154,9 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-random-note { color: var(--muted); font-style: italic; }
 
 /* Staged manual adds shown as removable chips. */
-.net-dhcp-manual-staged { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.net-dhcp-manual-staged { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-sm) 0 0; }
 .net-dhcp-chip {
-  display: inline-flex; align-items: center; gap: 4px;
+  display: inline-flex; align-items: center; gap: var(--space-xs);
   font-size: var(--font-caption); padding: 3px 6px 3px 10px; border-radius: var(--radius-pill);
   background: var(--accent-soft); color: var(--accent);
   border: 1px solid var(--accent-border-strong);
@@ -3199,8 +3199,8 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
   border-top: 1px solid var(--line);
 }
 .camera-row:first-child { border-top: 0; }
@@ -3211,7 +3211,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   align-items: center;
   justify-content: space-between;
   min-width: 0;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 .camera-row-name {
   min-width: 0;
@@ -3262,7 +3262,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Detail modal snapshot — the still grabbed at open time. */
 .camera-snapshot {
   width: 100%; display: block; border-radius: var(--radius-md);
-  background: var(--video-matte); aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: 4px;
+  background: var(--video-matte); aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: var(--space-xs);
 }
 .camera-snapshot.is-loading { opacity: 0.4; }
 /* Styled placeholder shown instead of the raw broken-image box when the fresh
@@ -3270,13 +3270,13 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    + label instead of a photo. */
 .camera-snapshot-empty {
   width: 100%; border-radius: var(--radius-md);
-  background: var(--card-off); aspect-ratio: 16 / 9; margin-bottom: 4px;
+  background: var(--card-off); aspect-ratio: 16 / 9; margin-bottom: var(--space-xs);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px; color: var(--muted); font-size: var(--font-caption);
 }
 .camera-snapshot-empty .icon { width: 24px; height: 24px; }
 .camera-live-open {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
+  display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
   width: 100%; margin-top: 14px;
 }
 .camera-live-open .icon { width: 18px; height: 18px; }
@@ -3293,7 +3293,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .camera-live-controls {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; margin-top: 14px; flex-wrap: wrap;
+  gap: var(--space-md); margin-top: 14px; flex-wrap: wrap;
 }
 .camera-dpad {
   /* Directional cluster — Up centered on top, Left/Down/Right below (issue
@@ -3320,7 +3320,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-ptz-btn.ptz-up .icon { transform: rotate(-90deg); }
 .camera-ptz-btn.ptz-down .icon { transform: rotate(90deg); }
 .camera-ptz-btn.ptz-left .icon { transform: rotate(180deg); }
-.camera-live-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.camera-live-actions { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 .camera-live-actions .range-tab {
   min-width: 44px;
 }
@@ -3343,7 +3343,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   flex: none; align-self: center;
 }
 .camera-presets, .camera-coords {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+  display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-top: 12px;
 }
 .camera-presets-list { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .camera-presets-empty { font-size: var(--font-caption); }
@@ -3415,7 +3415,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    pattern (chevron-only, no native triangle marker — issue #363) — just a
    compact, unpadded variant since this sits inside a dialog, not a card. */
 .activity-legend { margin-bottom: var(--space-sm); }
-.activity-legend > .collapse-summary { padding: 4px 0; }
+.activity-legend > .collapse-summary { padding: var(--space-xs) 0; }
 .activity-legend > .collapse-summary .collapse-main { color: var(--accent); font-weight: 600; }
 .activity-legend-body { padding: var(--space-xs) 0 var(--space-sm); font-size: var(--font-caption); }
 .activity-legend-body dl { margin: 2px 0 14px; }
@@ -3432,7 +3432,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Filters: drop the per-row separator the shared .detail-card .row draws above
    each selector — a single hairline (on the list below) is the only divider. */
 .activity-filters { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
-.activity-filters .row { flex: 1 1 140px; border-top: 0; padding: 8px 0; }
+.activity-filters .row { flex: 1 1 140px; border-top: 0; padding: var(--space-sm) 0; }
 
 /* Results = a clean hairline list like the Net-tab device table: no filled
    cards, just a subtle rule between rows; alerts get a very subtle wash. */
