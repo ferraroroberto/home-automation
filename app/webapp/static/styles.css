@@ -530,6 +530,17 @@ button, input, select, textarea {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* Give each label its own compositing layer so its glyphs are NOT
+       rasterized into the pill's backdrop-filter texture (see the .tabs rule
+       above: translateZ(0) + will-change + backdrop-filter). On iOS WebKit,
+       flipping the bar visibility:hidden→visible when a <dialog> closes
+       re-composites that backdrop layer without re-rasterizing text baked into
+       it — so the labels came back blank until a class/theme change forced a
+       repaint. An own layer keeps the glyphs out of the stale texture and they
+       repaint on show. iOS-only bug; desktop WebKit composites differently and
+       never reproduced it. */
+    transform: translateZ(0);
+    backface-visibility: hidden;
   }
 
   /* Never let the floating bar hover over a modal / overlay. Hide it with
