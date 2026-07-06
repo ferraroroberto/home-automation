@@ -24,6 +24,15 @@ from src.security_schedules import SecurityScheduleEntry, load_security_schedule
 
 logger = logging.getLogger(__name__)
 
+# Backoff before treating a read-back mismatch (or a raised RiscoCommandError)
+# as a real failure - a momentary RISCO cloud/panel lag often resolves itself
+# a few seconds later (issue #388: a false "FAILED" alert fired on a transient
+# lag even though the disarm had actually gone through). No extra grace delay
+# before the *first* check: control_system() already re-reads the panel right
+# after issuing the command, so that first read is effectively the grace
+# period. Worst case before alerting: 30 + 60 + 120 = 210s.
+_RETRY_DELAYS_S: tuple[int, ...] = (30, 60, 120)
+
 
 @dataclass(frozen=True)
 class SecurityScheduleConfig:
@@ -55,50 +64,51 @@ def load_security_schedule_config() -> SecurityScheduleConfig:
 async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
     logger.info("⏰ Applying alarm schedule %s (%s %s)", entry.id, entry.time, entry.action)
     detail = entry.time
-    try:
-        state = await control_system(entry.action)
-    except Exception as exc:  # noqa: BLE001 - record then re-raise so tick() retries
-        # An automatic arm/disarm failed (e.g. panel offline during an outage):
-        # log it and alert once per day. Re-raise so tick() leaves last_fire_day
-        # unset and retries within the grace window.
-        record_alarm_action(
-            source=SOURCE_SCHEDULE,
-            action=entry.action,
-            outcome=OUTCOME_ERROR,
-            error=str(exc),
-            detail=detail,
-            reason=f"schedule {entry.id}",
-            dedupe_key=f"schedule:{entry.id}",
-        )
-        raise
-    if not action_took_effect(entry.action, state):
-        # The WebUI call didn't raise, but the panel's re-read state doesn't
-        # match what we asked for - e.g. a door/window was open when arming.
-        # Treat it exactly like a failed command: alert and re-raise so tick()
-        # leaves last_fire_day unset and retries within the grace window.
+    error = "unknown error"
+    for delay in (0, *_RETRY_DELAYS_S):
+        if delay:
+            logger.warning(
+                "⚠️ Alarm schedule %s not confirmed yet - retrying %s in %ds",
+                entry.id, entry.action, delay,
+            )
+            await asyncio.sleep(delay)
+        try:
+            state = await control_system(entry.action)
+        except Exception as exc:  # noqa: BLE001 - retried below; recorded only once exhausted
+            error = str(exc)
+            continue
+        if action_took_effect(entry.action, state):
+            record_alarm_action(
+                source=SOURCE_SCHEDULE,
+                action=entry.action,
+                outcome=OUTCOME_OK,
+                detail=detail,
+                reason=f"schedule {entry.id}",
+            )
+            # Record the scheduled action the same way a manual one is recorded, so the
+            # presence automation won't immediately undo it (e.g. disarm a perimeter the
+            # 11pm schedule just armed because people are home). A real away→home arrival
+            # afterwards still disarms, since that advances the person's transition time.
+            note_manual_alarm_action(entry.action)
+            return
+        # The WebUI call didn't raise, but the panel's re-read state doesn't match
+        # what we asked for - e.g. a door/window was open when arming, or (issue
+        # #388) a transient cloud lag that a retry usually clears.
         error = f"panel read back '{state.mode}' after {entry.action}, not the expected state"
-        record_alarm_action(
-            source=SOURCE_SCHEDULE,
-            action=entry.action,
-            outcome=OUTCOME_ERROR,
-            error=error,
-            detail=detail,
-            reason=f"schedule {entry.id}",
-            dedupe_key=f"schedule:{entry.id}",
-        )
-        raise RiscoCommandError(error)
+
+    # Every attempt (initial + all retries) failed to confirm the expected state:
+    # log + alert once per day, and re-raise so tick() leaves last_fire_day unset
+    # and retries again on its own next poll.
     record_alarm_action(
         source=SOURCE_SCHEDULE,
         action=entry.action,
-        outcome=OUTCOME_OK,
+        outcome=OUTCOME_ERROR,
+        error=error,
         detail=detail,
         reason=f"schedule {entry.id}",
+        dedupe_key=f"schedule:{entry.id}",
     )
-    # Record the scheduled action the same way a manual one is recorded, so the
-    # presence automation won't immediately undo it (e.g. disarm a perimeter the
-    # 11pm schedule just armed because people are home). A real away→home arrival
-    # afterwards still disarms, since that advances the person's transition time.
-    note_manual_alarm_action(entry.action)
+    raise RiscoCommandError(error)
 
 
 async def tick(config: SecurityScheduleConfig, state: _EngineState, now: Optional[datetime] = None) -> None:

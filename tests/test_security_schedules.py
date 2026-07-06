@@ -101,6 +101,9 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
     monkeypatch.setattr(engine, "control_system", fake_control)
     # Prevent real Telegram sends and real log writes during this unit test.
     monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    # No inner backoff retries here - this test is about tick()'s own outer
+    # retry (calling tick() again on the next poll), not _apply_schedule's.
+    monkeypatch.setattr(engine, "_RETRY_DELAYS_S", ())
 
     config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
     state = engine._EngineState(last_fire_day={})
@@ -135,6 +138,7 @@ def test_security_schedule_tick_alerts_on_confirmed_arm_mismatch(monkeypatch) ->
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
     monkeypatch.setattr(engine, "control_system", fake_control)
     monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(engine, "_RETRY_DELAYS_S", ())
 
     config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
     state = engine._EngineState(last_fire_day={})
@@ -163,6 +167,7 @@ def test_security_schedule_tick_alerts_on_confirmed_disarm_mismatch(monkeypatch)
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
     monkeypatch.setattr(engine, "control_system", fake_control)
     monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(engine, "_RETRY_DELAYS_S", ())
 
     config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
     state = engine._EngineState(last_fire_day={})
@@ -199,3 +204,67 @@ def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
     assert state.last_fire_day == {"disarm-ok": "2026-06-22"}
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "disarm", "ok")]
+
+
+def test_apply_schedule_retries_transient_mismatch_and_does_not_alert(monkeypatch) -> None:
+    """A read-back mismatch that clears on retry (issue #388's 05:00 false
+    alarm - a transient RISCO cloud lag) must not alert at all."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entry = SecurityScheduleEntry(id="disarm-lag", time="05:00", days=["mon"], action="disarm")
+    calls: list[str] = []
+
+    async def fake_control(action: str) -> object:
+        calls.append(action)
+        # First two attempts still read back the pre-disarm state; the third
+        # (after the cloud lag clears) confirms disarmed.
+        return _FakeState("perimeter" if len(calls) < 3 else "disarmed")
+
+    monkeypatch.setattr(engine, "control_system", fake_control)
+    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(engine, "note_manual_alarm_action", lambda action: None)
+    monkeypatch.setattr(engine, "_RETRY_DELAYS_S", (0, 0, 0))
+
+    asyncio.run(engine._apply_schedule(entry))
+
+    assert calls == ["disarm", "disarm", "disarm"]
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes == [("schedule", "disarm", "ok")]
+
+
+def test_apply_schedule_alerts_once_after_exhausting_all_retries(monkeypatch) -> None:
+    """A genuine persistent failure - mismatched on every attempt, including a
+    raised RiscoCommandError - still alerts, exactly once, after the last retry."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entry = SecurityScheduleEntry(id="arm-stuck", time="21:00", days=["mon"], action="arm")
+    calls: list[str] = []
+
+    async def fake_control(action: str) -> object:
+        calls.append(action)
+        if len(calls) == 2:
+            raise engine.RiscoCommandError("panel unreachable")
+        return _FakeState("disarmed")
+
+    monkeypatch.setattr(engine, "control_system", fake_control)
+    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(engine, "_RETRY_DELAYS_S", (0, 0, 0))
+
+    try:
+        asyncio.run(engine._apply_schedule(entry))
+        raised = False
+    except engine.RiscoCommandError:
+        raised = True
+
+    assert raised is True
+    # Initial attempt + all three retries = 4 calls, one alert at the end.
+    assert calls == ["arm", "arm", "arm", "arm"]
+    assert len(recorded) == 1
+    assert recorded[0]["source"] == "schedule"
+    assert recorded[0]["action"] == "arm"
+    assert recorded[0]["outcome"] == "error"
+    assert recorded[0]["dedupe_key"] == "schedule:arm-stuck"
