@@ -106,33 +106,49 @@ def action_took_effect(action: str, state: SecurityState) -> bool:
 
 
 async def confirm_alarm_action(action: str) -> SecurityState:
-    """Issue ``action`` once, then confirm it took effect - retrying read-only.
+    """Issue ``action``, retrying with backoff until confirmed or exhausted.
 
     Shared by the schedule engine and the presence automation so both retry
-    identically. Raises :class:`RiscoCommandError` with the last-seen error
-    only once every retry in :data:`CONFIRM_RETRY_DELAYS_S` is exhausted.
+    identically. Sequence: issue the command once; on each backoff delay in
+    :data:`CONFIRM_RETRY_DELAYS_S`, wait, then re-read state read-only
+    (``fetch_security_state()``). If that still doesn't confirm and there is
+    another retry left, resend the command - a genuinely dropped command
+    needs a fresh attempt, a read-only wait alone won't fix it - before
+    moving on to the next delay. The very last retry is a read-only
+    confirmation only; once it fails there is nothing left to try, so we give
+    up. Raises :class:`RiscoCommandError` with the last-seen error only once
+    every retry is exhausted (~210s worst case: 30 + 60 + 120s).
     """
 
     error = "unknown error"
-    try:
-        state = await control_system(action)
-        if action_took_effect(action, state):
-            return state
-        error = f"panel read back '{state.mode}' after {action}, not the expected state"
-    except Exception as exc:  # noqa: BLE001 - confirmed below via read-only retries
-        error = str(exc)
 
-    for delay in CONFIRM_RETRY_DELAYS_S:
-        logger.warning("⚠️ Alarm %s not confirmed yet - retrying read-only in %ds", action, delay)
-        await asyncio.sleep(delay)
+    async def _check(pending) -> Optional[SecurityState]:
+        nonlocal error
         try:
-            state = await fetch_security_state()
-        except Exception as exc:  # noqa: BLE001 - retried until delays are exhausted
+            state = await pending
+        except Exception as exc:  # noqa: BLE001 - surfaced only once every retry is exhausted
             error = str(exc)
-            continue
+            return None
         if action_took_effect(action, state):
             return state
         error = f"panel read back '{state.mode}' after {action}, not the expected state"
+        return None
+
+    confirmed = await _check(control_system(action))
+    if confirmed is not None:
+        return confirmed
+
+    delays = CONFIRM_RETRY_DELAYS_S
+    for i, delay in enumerate(delays):
+        logger.warning("⚠️ Alarm %s not confirmed yet - rechecking in %ds", action, delay)
+        await asyncio.sleep(delay)
+        confirmed = await _check(fetch_security_state())
+        if confirmed is not None:
+            return confirmed
+        if i < len(delays) - 1:
+            confirmed = await _check(control_system(action))
+            if confirmed is not None:
+                return confirmed
 
     raise RiscoCommandError(error)
 
