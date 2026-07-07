@@ -13,8 +13,10 @@ All of them share the same three-step shape:
 
 1. **Always** appends the event to the local activity log (``logs/power.jsonl``).
 2. **Conditionally** sends a Telegram message — only when the matching
-   :class:`PowerNotifyPrefs` toggle is on and a notifier is configured. A
-   delivery failure is logged and swallowed so it can never break the monitor.
+   :class:`PowerNotifyPrefs` toggle is on and a notifier is configured, via
+   :func:`_send_with_retry` (one short retry on a transient failure — see its
+   docstring). A delivery failure that survives the retry is logged and
+   swallowed so it can never break the monitor.
 3. For the shutdown pair, the OS-level action (:mod:`src.host_shutdown`) is
    invoked through an injectable seam so tests never touch the real ``shutdown``
    command.
@@ -26,7 +28,8 @@ on first observation) is the caller's job — see :mod:`app.webapp.power_monitor
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, Optional
+import time
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from src.activity_log import append_activity
 from src.host_shutdown import cancel_shutdown, initiate_shutdown
@@ -35,6 +38,36 @@ from src.notify_config import build_alarm_notifier
 from src.power_notify_prefs import PowerNotifyPrefs, load_power_notify_prefs
 
 logger = logging.getLogger(__name__)
+
+# One short retry before giving up on a Telegram send. These power alerts are
+# edge-triggered and fired exactly once per transition (see power_monitor.py)
+# — with no retry, a single transient failure (e.g. the router itself
+# rebooting for a moment right as mains power returns) permanently loses that
+# one alert (issue #394). Kept short since the send is synchronous/blocking.
+# Read fresh on every call (not a default-arg binding) so tests can
+# monkeypatch it directly.
+_SEND_RETRY_DELAYS_S: Tuple[float, ...] = (3.0,)
+
+
+def _send_with_retry(notifier: Notifier, text: str) -> None:
+    """Send ``text`` via ``notifier``, retrying per :data:`_SEND_RETRY_DELAYS_S`.
+
+    Raises the last :class:`NotifierError` only once every retry is
+    exhausted — the caller decides whether to log/swallow it, same as a bare
+    ``notifier.send_text`` call.
+    """
+
+    last_exc: Optional[NotifierError] = None
+    for attempt in range(len(_SEND_RETRY_DELAYS_S) + 1):
+        try:
+            notifier.send_text(text)
+            return
+        except NotifierError as exc:
+            last_exc = exc
+            if attempt < len(_SEND_RETRY_DELAYS_S):
+                time.sleep(_SEND_RETRY_DELAYS_S[attempt])
+    assert last_exc is not None
+    raise last_exc
 
 
 def _compose_message(lost: bool, detail: Optional[str]) -> str:
@@ -76,7 +109,7 @@ def record_power_event(
     if notifier is None:
         return
     try:
-        notifier.send_text(_compose_message(lost, detail))
+        _send_with_retry(notifier, _compose_message(lost, detail))
     except NotifierError as exc:  # delivery must never break the monitor loop
         logger.warning("⚠️ Telegram power notification failed: %s", exc)
 
@@ -117,7 +150,7 @@ def record_low_battery_shutdown(
     notifier = notifier_factory()
     if notifier is not None:
         try:
-            notifier.send_text(_compose_shutdown_message(detail))
+            _send_with_retry(notifier, _compose_shutdown_message(detail))
         except NotifierError as exc:  # delivery must never break the monitor loop
             logger.warning("⚠️ Telegram low-battery shutdown notification failed: %s", exc)
 
