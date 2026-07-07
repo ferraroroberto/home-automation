@@ -33,8 +33,26 @@ class FakeNotifier:
 
 
 class BoomNotifier:
+    def __init__(self) -> None:
+        self.attempts = 0
+
     def send_text(self, text: str) -> None:
+        self.attempts += 1
         raise NotifierError("boom")
+
+
+class FlakyNotifier:
+    """Fails on the first attempt, then succeeds — a transient send failure."""
+
+    def __init__(self) -> None:
+        self.sent: List[str] = []
+        self.attempts = 0
+
+    def send_text(self, text: str) -> None:
+        self.attempts += 1
+        if self.attempts == 1:
+            raise NotifierError("transient")
+        self.sent.append(text)
 
 
 def _read_power_log(tmp_path: Path) -> List[dict]:
@@ -96,12 +114,32 @@ def test_power_restored_respects_toggle(tmp_path: Path, monkeypatch) -> None:
 
 def test_power_delivery_failure_swallowed(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    # Skip the real retry delay — this test cares about exhaustion behavior,
+    # not timing.
+    monkeypatch.setattr(power_notify, "_SEND_RETRY_DELAYS_S", ())
+    boom = BoomNotifier()
     power_notify.record_power_event(
         lost=True,
         prefs_loader=lambda: PowerNotifyPrefs(power_lost=True),
-        notifier_factory=lambda: BoomNotifier(),
+        notifier_factory=lambda: boom,
     )
     assert _read_power_log(tmp_path)[0]["mains_online"] is False
+    assert boom.attempts == 1
+
+
+def test_power_restored_delivered_after_transient_failure(tmp_path: Path, monkeypatch) -> None:
+    """Issue #394: a single transient send failure must not permanently lose
+    the edge-triggered "restored" alert — one retry should still deliver it."""
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    monkeypatch.setattr(power_notify.time, "sleep", lambda _seconds: None)
+    flaky = FlakyNotifier()
+    power_notify.record_power_event(
+        lost=False,
+        prefs_loader=lambda: PowerNotifyPrefs(power_restored=True),
+        notifier_factory=lambda: flaky,
+    )
+    assert flaky.attempts == 2
+    assert len(flaky.sent) == 1 and "restored" in flaky.sent[0]
 
 
 # --------------------------------------------- record_low_battery_shutdown
@@ -148,6 +186,7 @@ def test_low_battery_shutdown_disabled_logs_only(tmp_path: Path, monkeypatch) ->
 
 def test_low_battery_shutdown_delivery_failure_still_shuts_down(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    monkeypatch.setattr(power_notify, "_SEND_RETRY_DELAYS_S", ())
     calls: List[dict] = []
     result = power_notify.record_low_battery_shutdown(
         prefs_loader=lambda: PowerNotifyPrefs(auto_shutdown_low_battery=True),
