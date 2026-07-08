@@ -123,7 +123,7 @@ class CachingStaticFiles(StaticFiles):
                 )
             media_type, _ = mimetypes.guess_type(str(path))
             return Response(
-                content=BUILD_INFO.stamp_js(body),
+                content=BUILD_INFO.stamp_js(body, path),
                 status_code=status_code,
                 media_type=media_type or "text/javascript",
                 headers={"Cache-Control": _LONG_CACHE},
