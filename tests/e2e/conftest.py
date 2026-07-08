@@ -41,6 +41,8 @@ from typing import Callable, Dict, IO, Iterator, List, Optional
 import pytest
 from playwright.sync_api import BrowserContext, Page, Route
 
+from app.webapp.event_loop import LOOP_FACTORY
+
 logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -160,6 +162,8 @@ def base_url() -> Iterator[str]:
     cmd = [
         sys.executable, "-m", "uvicorn", "app.webapp.server:app",
         "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning",
+        "--loop",
+        LOOP_FACTORY,
     ]
     if https:
         cmd += ["--ssl-keyfile", str(_KEY), "--ssl-certfile", str(_CERT)]
