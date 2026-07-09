@@ -102,10 +102,13 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
             raise engine.RiscoCommandError("panel down")
         return _FakeState("armed")
 
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     # Prevent real Telegram sends and real log writes during this unit test.
-    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
     config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
     state = engine._EngineState(last_fire_day={})
@@ -137,9 +140,12 @@ def test_security_schedule_tick_alerts_after_confirm_exhausts_retries(monkeypatc
     async def fake_confirm(action: str) -> object:
         raise engine.RiscoCommandError(f"panel read back 'disarmed' after {action}, not the expected state")
 
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
     config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
     state = engine._EngineState(last_fire_day={})
@@ -164,9 +170,12 @@ def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
     async def fake_confirm(action: str) -> object:
         return _FakeState("disarmed")
 
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
     config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
     state = engine._EngineState(last_fire_day={})

@@ -24,7 +24,7 @@ _MODE_TO_HVAC = {
     "Cool": HVACMode.COOL,
     "Dry": HVACMode.DRY,
     "Fan": HVACMode.FAN_ONLY,
-    "Auto": HVACMode.HEAT_COOL,
+    "Automatic": HVACMode.HEAT_COOL,
 }
 _HVAC_TO_MODE = {v: k for k, v in _MODE_TO_HVAC.items() if v is not HVACMode.OFF}
 

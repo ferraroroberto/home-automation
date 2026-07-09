@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 
 from src.wake_alarms import (
@@ -92,17 +93,20 @@ def test_wake_alarm_tick_fires_once_and_disables_one_shot(monkeypatch) -> None:
     saved: list = []
     notified: list = []
 
+    async def fake_notify(message: str) -> None:
+        notified.append(message)
+
     monkeypatch.setattr(engine, "load_wake_alarms", lambda: [recurring, one_shot])
     monkeypatch.setattr(engine, "save_wake_alarms", lambda entries: saved.append(entries))
-    monkeypatch.setattr(engine, "_notify", lambda message: notified.append(message))
+    monkeypatch.setattr(engine, "_notify", fake_notify)
 
     config = engine.WakeAlarmConfig(enabled=True, poll_interval_s=15)
     state = engine._EngineState(last_fire_day={})
     now = datetime(2026, 6, 22, 7, 0, 10)
 
     try:
-        engine.tick(config, state, now)
-        engine.tick(config, state, now)  # same tick again — must not re-fire either entry
+        asyncio.run(engine.tick(config, state, now))
+        asyncio.run(engine.tick(config, state, now))  # same tick again — must not re-fire either entry
 
         assert len(notified) == 2  # one per entry, only on the first tick
         assert state.last_fire_day == {"daily": "2026-06-22", "once": "2026-06-22"}

@@ -173,7 +173,7 @@ def _should_notify(prefs: AlarmNotifyPrefs, source: str, action: str, outcome: s
     return bool(getattr(prefs, f"{source}_{_verb(action)}", False))
 
 
-def record_alarm_action(
+async def record_alarm_action(
     *,
     source: str,
     action: str,
@@ -236,7 +236,12 @@ def record_alarm_action(
     if notifier is None:
         return
     try:
-        notifier.send_text(_compose_message(source, action, outcome, error, detail))
+        # notifier.send_text is blocking network I/O called from an async tick
+        # sharing uvicorn's single event loop — thread it off so a slow/failing
+        # send can't stall the webapp.
+        await asyncio.to_thread(
+            notifier.send_text, _compose_message(source, action, outcome, error, detail)
+        )
     except NotifierError as exc:  # delivery must never break the automation loop
         logger.warning("⚠️ Telegram alarm notification failed: %s", exc)
 
@@ -257,7 +262,7 @@ _SECURITY_MESSAGES = {
 }
 
 
-def record_security_event(
+async def record_security_event(
     *,
     kind: str,
     active: bool,
@@ -295,12 +300,13 @@ def record_security_event(
     if notifier is None:
         return
     try:
-        notifier.send_text(message)
+        # See record_alarm_action: blocking send, threaded off the event loop.
+        await asyncio.to_thread(notifier.send_text, message)
     except NotifierError as exc:
         logger.warning("⚠️ Telegram security notification failed: %s", exc)
 
 
-def check_security_transitions(
+async def check_security_transitions(
     *,
     intrusion: Optional[bool],
     ac_lost: bool,
@@ -334,7 +340,7 @@ def check_security_transitions(
             continue
         if kind == "intrusion" and value is False:
             continue  # intrusion cleared — not an alert
-        record_security_event(
+        await record_security_event(
             kind=kind,
             active=value,
             log_detail=log_details.get(kind),

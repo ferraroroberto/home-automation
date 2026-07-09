@@ -82,40 +82,43 @@ def dismiss_alarm(alarm_id: str) -> bool:
     return False
 
 
-def _notify(message: str) -> None:
+async def _notify(message: str) -> None:
     notifier = build_alarm_notifier()
     if notifier is None:
         return
     try:
-        notifier.send_text(message)
+        # notifier.send_text is blocking network I/O called from an async tick
+        # sharing uvicorn's single event loop — thread it off so a slow/failing
+        # send can't stall the webapp.
+        await asyncio.to_thread(notifier.send_text, message)
     except NotifierError as exc:  # delivery must never break the loop
         logger.warning("⚠️ Wake-alarm notify failed: %s", exc)
 
 
-def _fire_alarm(entry: WakeAlarmEntry) -> None:
+async def _fire_alarm(entry: WakeAlarmEntry) -> None:
     logger.info("⏰ Wake alarm ringing: %s (%s)", entry.label or entry.id, entry.time)
     _ringing_alarm_ids.add(entry.id)
-    _notify(f"⏰ Wake alarm ringing — {entry.label or entry.time}")
+    await _notify(f"⏰ Wake alarm ringing — {entry.label or entry.time}")
     append_activity("wake_alarms", {"kind": "alarm", "id": entry.id, "label": entry.label, "time": entry.time})
 
 
-def _fire_timer(entry: WakeTimerEntry) -> None:
+async def _fire_timer(entry: WakeTimerEntry) -> None:
     logger.info("⏱️ Timer ringing: %s (%ss)", entry.label or entry.id, entry.seconds)
-    _notify(f"⏱️ Timer ringing — {entry.label or (str(entry.seconds) + 's')}")
+    await _notify(f"⏱️ Timer ringing — {entry.label or (str(entry.seconds) + 's')}")
     append_activity("wake_alarms", {"kind": "timer", "id": entry.id, "label": entry.label, "seconds": entry.seconds})
 
 
-def test_fire_alarm(alarm_id: str) -> bool:
+async def test_fire_alarm(alarm_id: str) -> bool:
     """Fire one alarm's ring immediately, regardless of its schedule. ``True`` if found."""
 
     for entry in load_wake_alarms():
         if entry.id == alarm_id:
-            _fire_alarm(entry)
+            await _fire_alarm(entry)
             return True
     return False
 
 
-def tick(config: WakeAlarmConfig, state: _EngineState, now: Optional[datetime] = None) -> None:
+async def tick(config: WakeAlarmConfig, state: _EngineState, now: Optional[datetime] = None) -> None:
     """Fire every due alarm at most once per local date; expire due timers."""
 
     instant = now or datetime.now()
@@ -133,7 +136,7 @@ def tick(config: WakeAlarmConfig, state: _EngineState, now: Optional[datetime] =
         if due:
             state.last_fire_day[entry.id] = today
             try:
-                _fire_alarm(entry)
+                await _fire_alarm(entry)
             except Exception as exc:  # noqa: BLE001 — never kill the loop
                 logger.warning("⚠️ Wake alarm fire failed for %s: %s", entry.id, exc)
             if entry.date:  # one-shot — disable after firing
@@ -145,7 +148,7 @@ def tick(config: WakeAlarmConfig, state: _EngineState, now: Optional[datetime] =
 
     for timer in mark_expired(instant.timestamp()):
         try:
-            _fire_timer(timer)
+            await _fire_timer(timer)
         except Exception as exc:  # noqa: BLE001 — never kill the loop
             logger.warning("⚠️ Timer fire failed for %s: %s", timer.id, exc)
 
@@ -156,7 +159,7 @@ async def _run(config: WakeAlarmConfig) -> None:
     try:
         while True:
             try:
-                tick(config, state)
+                await tick(config, state)
             except Exception as exc:  # noqa: BLE001 — a read failure never kills the loop
                 logger.warning("⚠️ Wake-alarm tick failed: %s", exc)
             await asyncio.sleep(config.poll_interval_s)

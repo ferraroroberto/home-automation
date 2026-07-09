@@ -27,6 +27,7 @@ on first observation) is the caller's job — see :mod:`app.webapp.power_monitor
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -77,7 +78,7 @@ def _compose_message(lost: bool, detail: Optional[str]) -> str:
     return f"✅ Mains power restored — UPS back on mains{suffix}"
 
 
-def record_power_event(
+async def record_power_event(
     *,
     lost: bool,
     detail: Optional[str] = None,
@@ -109,7 +110,10 @@ def record_power_event(
     if notifier is None:
         return
     try:
-        _send_with_retry(notifier, _compose_message(lost, detail))
+        # _send_with_retry is blocking (network I/O + a sleep-based retry) and
+        # this coroutine runs on an async tick sharing uvicorn's single event
+        # loop — thread it off so a slow/failing send can't stall the webapp.
+        await asyncio.to_thread(_send_with_retry, notifier, _compose_message(lost, detail))
     except NotifierError as exc:  # delivery must never break the monitor loop
         logger.warning("⚠️ Telegram power notification failed: %s", exc)
 
@@ -119,7 +123,7 @@ def _compose_shutdown_message(detail: Optional[str]) -> str:
     return f"🔴 UPS battery critically low — PC shutting down now{suffix}"
 
 
-def record_low_battery_shutdown(
+async def record_low_battery_shutdown(
     *,
     detail: Optional[str] = None,
     extra: Optional[Dict[str, Any]] = None,
@@ -150,7 +154,9 @@ def record_low_battery_shutdown(
     notifier = notifier_factory()
     if notifier is not None:
         try:
-            _send_with_retry(notifier, _compose_shutdown_message(detail))
+            # See record_power_event: blocking send + retry, threaded off the
+            # event loop so it can't stall the webapp.
+            await asyncio.to_thread(_send_with_retry, notifier, _compose_shutdown_message(detail))
         except NotifierError as exc:  # delivery must never break the monitor loop
             logger.warning("⚠️ Telegram low-battery shutdown notification failed: %s", exc)
 

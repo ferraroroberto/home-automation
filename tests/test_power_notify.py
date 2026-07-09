@@ -90,11 +90,11 @@ def test_power_prefs_round_trip(tmp_path: Path) -> None:
 def test_power_lost_notifies_and_logs(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
     notifier = FakeNotifier()
-    power_notify.record_power_event(
+    asyncio.run(power_notify.record_power_event(
         lost=True, detail="59min runtime",
         prefs_loader=lambda: PowerNotifyPrefs(power_lost=True),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert len(notifier.sent) == 1 and "LOST" in notifier.sent[0]
     assert _read_power_log(tmp_path)[0]["event"] == "power_lost"
 
@@ -103,11 +103,11 @@ def test_power_restored_respects_toggle(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
     notifier = FakeNotifier()
     # power_restored off → logged, not sent.
-    power_notify.record_power_event(
+    asyncio.run(power_notify.record_power_event(
         lost=False,
         prefs_loader=lambda: PowerNotifyPrefs(power_restored=False),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert notifier.sent == []
     assert _read_power_log(tmp_path)[0]["event"] == "power_restored"
 
@@ -118,11 +118,11 @@ def test_power_delivery_failure_swallowed(tmp_path: Path, monkeypatch) -> None:
     # not timing.
     monkeypatch.setattr(power_notify, "_SEND_RETRY_DELAYS_S", ())
     boom = BoomNotifier()
-    power_notify.record_power_event(
+    asyncio.run(power_notify.record_power_event(
         lost=True,
         prefs_loader=lambda: PowerNotifyPrefs(power_lost=True),
         notifier_factory=lambda: boom,
-    )
+    ))
     assert _read_power_log(tmp_path)[0]["mains_online"] is False
     assert boom.attempts == 1
 
@@ -133,11 +133,11 @@ def test_power_restored_delivered_after_transient_failure(tmp_path: Path, monkey
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
     monkeypatch.setattr(power_notify.time, "sleep", lambda _seconds: None)
     flaky = FlakyNotifier()
-    power_notify.record_power_event(
+    asyncio.run(power_notify.record_power_event(
         lost=False,
         prefs_loader=lambda: PowerNotifyPrefs(power_restored=True),
         notifier_factory=lambda: flaky,
-    )
+    ))
     assert flaky.attempts == 2
     assert len(flaky.sent) == 1 and "restored" in flaky.sent[0]
 
@@ -154,12 +154,12 @@ def test_low_battery_shutdown_enabled_notifies_and_shuts_down(tmp_path: Path, mo
         calls.append(kwargs)
         return True
 
-    result = power_notify.record_low_battery_shutdown(
+    result = asyncio.run(power_notify.record_low_battery_shutdown(
         detail="12min runtime",
         prefs_loader=lambda: PowerNotifyPrefs(auto_shutdown_low_battery=True),
         notifier_factory=lambda: notifier,
         shutdown_fn=fake_shutdown,
-    )
+    ))
     assert result is True
     assert len(notifier.sent) == 1 and "shutting down" in notifier.sent[0]
     assert calls == [{"grace_seconds": 180, "message": "Low UPS battery — PC shutting down to avoid data loss"}]
@@ -173,11 +173,11 @@ def test_low_battery_shutdown_disabled_logs_only(tmp_path: Path, monkeypatch) ->
     notifier = FakeNotifier()
     calls: List[dict] = []
 
-    result = power_notify.record_low_battery_shutdown(
+    result = asyncio.run(power_notify.record_low_battery_shutdown(
         prefs_loader=lambda: PowerNotifyPrefs(auto_shutdown_low_battery=False),
         notifier_factory=lambda: notifier,
         shutdown_fn=lambda **kw: calls.append(kw) or True,
-    )
+    ))
     assert result is False
     assert notifier.sent == []
     assert calls == []
@@ -188,11 +188,11 @@ def test_low_battery_shutdown_delivery_failure_still_shuts_down(tmp_path: Path, 
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
     monkeypatch.setattr(power_notify, "_SEND_RETRY_DELAYS_S", ())
     calls: List[dict] = []
-    result = power_notify.record_low_battery_shutdown(
+    result = asyncio.run(power_notify.record_low_battery_shutdown(
         prefs_loader=lambda: PowerNotifyPrefs(auto_shutdown_low_battery=True),
         notifier_factory=lambda: BoomNotifier(),
         shutdown_fn=lambda **kw: calls.append(kw) or True,
-    )
+    ))
     assert result is True
     assert len(calls) == 1
 
@@ -216,7 +216,11 @@ def _ups(mains_online: bool, runtime_seconds: int = 3600) -> UpsState:
 
 def test_monitor_baseline_then_transitions(monkeypatch) -> None:
     events: List[bool] = []
-    monkeypatch.setattr(PM, "record_power_event", lambda **kw: events.append(kw["lost"]))
+
+    async def fake_record_power_event(**kw) -> None:
+        events.append(kw["lost"])
+
+    monkeypatch.setattr(PM, "record_power_event", fake_record_power_event)
 
     holder = {"ups": _ups(True)}
     monkeypatch.setattr(PM, "fetch_ups_state", lambda: holder["ups"])
@@ -238,7 +242,11 @@ def test_monitor_baseline_then_transitions(monkeypatch) -> None:
 
 def test_monitor_ignores_unavailable_ups(monkeypatch) -> None:
     events: List[bool] = []
-    monkeypatch.setattr(PM, "record_power_event", lambda **kw: events.append(kw["lost"]))
+
+    async def fake_record_power_event(**kw) -> None:
+        events.append(kw["lost"])
+
+    monkeypatch.setattr(PM, "record_power_event", fake_record_power_event)
     monkeypatch.setattr(PM, "fetch_ups_state", lambda: UpsState(available=False, source="none"))
     state = PM._MonitorState()
     asyncio.run(PM.tick(state))
@@ -249,11 +257,16 @@ def test_monitor_ignores_unavailable_ups(monkeypatch) -> None:
 
 
 def test_monitor_triggers_shutdown_once_below_threshold(monkeypatch) -> None:
-    monkeypatch.setattr(PM, "record_power_event", lambda **kw: None)
+    async def fake_record_power_event(**kw) -> None:
+        pass
+
+    monkeypatch.setattr(PM, "record_power_event", fake_record_power_event)
     shutdown_calls: List[Optional[str]] = []
-    monkeypatch.setattr(
-        PM, "record_low_battery_shutdown", lambda **kw: shutdown_calls.append(kw.get("detail"))
-    )
+
+    async def fake_record_low_battery_shutdown(**kw) -> None:
+        shutdown_calls.append(kw.get("detail"))
+
+    monkeypatch.setattr(PM, "record_low_battery_shutdown", fake_record_low_battery_shutdown)
     cancel_calls: List[bool] = []
     monkeypatch.setattr(PM, "record_low_battery_shutdown_cancelled", lambda: cancel_calls.append(True))
 
@@ -284,11 +297,17 @@ def test_monitor_triggers_shutdown_once_below_threshold(monkeypatch) -> None:
 
 def test_monitor_triggers_shutdown_on_first_observation_when_already_critical(monkeypatch) -> None:
     """A safety measure, unlike the mains-transition alert, fires even at startup."""
-    monkeypatch.setattr(PM, "record_power_event", lambda **kw: None)
+
+    async def fake_record_power_event(**kw) -> None:
+        pass
+
+    monkeypatch.setattr(PM, "record_power_event", fake_record_power_event)
     shutdown_calls: List[Optional[str]] = []
-    monkeypatch.setattr(
-        PM, "record_low_battery_shutdown", lambda **kw: shutdown_calls.append(kw.get("detail"))
-    )
+
+    async def fake_record_low_battery_shutdown(**kw) -> None:
+        shutdown_calls.append(kw.get("detail"))
+
+    monkeypatch.setattr(PM, "record_low_battery_shutdown", fake_record_low_battery_shutdown)
     monkeypatch.setattr(PM, "fetch_ups_state", lambda: _ups(False, runtime_seconds=300))
 
     state = PM._MonitorState()
@@ -299,11 +318,16 @@ def test_monitor_triggers_shutdown_on_first_observation_when_already_critical(mo
 
 
 def test_monitor_unknown_runtime_never_triggers_shutdown(monkeypatch) -> None:
-    monkeypatch.setattr(PM, "record_power_event", lambda **kw: None)
+    async def fake_record_power_event(**kw) -> None:
+        pass
+
+    monkeypatch.setattr(PM, "record_power_event", fake_record_power_event)
     shutdown_calls: List[Optional[str]] = []
-    monkeypatch.setattr(
-        PM, "record_low_battery_shutdown", lambda **kw: shutdown_calls.append(kw.get("detail"))
-    )
+
+    async def fake_record_low_battery_shutdown(**kw) -> None:
+        shutdown_calls.append(kw.get("detail"))
+
+    monkeypatch.setattr(PM, "record_low_battery_shutdown", fake_record_low_battery_shutdown)
     monkeypatch.setattr(PM, "fetch_ups_state", lambda: _ups(False, runtime_seconds=None))
 
     state = PM._MonitorState()
