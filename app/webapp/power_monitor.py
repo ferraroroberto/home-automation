@@ -77,7 +77,7 @@ async def tick(state: _MonitorState) -> None:
 
     if changed:
         lost = state.last_mains_online is True and online is False
-        record_power_event(lost=lost, detail=_runtime_detail(ups) if lost else None)
+        await record_power_event(lost=lost, detail=_runtime_detail(ups) if lost else None)
 
     state.last_mains_online = online
 
@@ -93,7 +93,7 @@ async def tick(state: _MonitorState) -> None:
         and ups.runtime_seconds <= LOW_BATTERY_RUNTIME_THRESHOLD_S
     ):
         state.low_battery_shutdown_triggered = True
-        record_low_battery_shutdown(detail=_runtime_detail(ups))
+        await record_low_battery_shutdown(detail=_runtime_detail(ups))
 
 
 async def _run(interval_s: int) -> None:

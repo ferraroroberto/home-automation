@@ -179,15 +179,15 @@ async def post_security_action(action: str) -> Dict[str, Any]:
         note_manual_alarm_action(action)
         # Manual actions are logged for the local activity record but never push
         # a notification — the user is already at the app.
-        record_alarm_action(source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK)
+        await record_alarm_action(source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK)
         return _state_payload(state)
     except (RiscoConfigError, RiscoCommandError) as exc:
-        record_alarm_action(
+        await record_alarm_action(
             source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR, error=str(exc)
         )
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
-        record_alarm_action(
+        await record_alarm_action(
             source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR, error=str(exc)
         )
         raise _http_error(exc)

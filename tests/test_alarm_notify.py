@@ -121,13 +121,13 @@ def test_manual_logs_but_never_notifies(tmp_path: Path, monkeypatch) -> None:
     _redirect_logs(monkeypatch, tmp_path)
     notifier = FakeNotifier()
     # Even with every toggle on, a manual source must not push.
-    AN.record_alarm_action(
+    asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_MANUAL,
         action="arm",
         outcome=AN.OUTCOME_OK,
         prefs_loader=lambda: AlarmNotifyPrefs(schedule_arm=True, error=True),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert notifier.sent == []
     rows = _read_log(tmp_path)
     assert rows[0]["source"] == "manual" and rows[0]["event"] == "set"
@@ -137,18 +137,18 @@ def test_automatic_success_respects_toggle(tmp_path: Path, monkeypatch) -> None:
     _redirect_logs(monkeypatch, tmp_path)
     notifier = FakeNotifier()
     # presence_arm off → logged, not sent.
-    AN.record_alarm_action(
+    asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_OK,
         prefs_loader=lambda: AlarmNotifyPrefs(presence_arm=False),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert notifier.sent == []
     # presence_arm on → sent.
-    AN.record_alarm_action(
+    asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_OK,
         prefs_loader=lambda: AlarmNotifyPrefs(presence_arm=True),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert len(notifier.sent) == 1
     assert "armed" in notifier.sent[0]
     assert len(_read_log(tmp_path)) == 2  # both attempts logged
@@ -157,12 +157,12 @@ def test_automatic_success_respects_toggle(tmp_path: Path, monkeypatch) -> None:
 def test_error_uses_error_toggle_and_carries_text(tmp_path: Path, monkeypatch) -> None:
     _redirect_logs(monkeypatch, tmp_path)
     notifier = FakeNotifier()
-    AN.record_alarm_action(
+    asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_SCHEDULE, action="arm", outcome=AN.OUTCOME_ERROR,
         error="RISCO rejected 'arm': D:",
         prefs_loader=lambda: AlarmNotifyPrefs(error=True, schedule_arm=False),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert len(notifier.sent) == 1
     assert "FAILED" in notifier.sent[0]
     assert "RISCO rejected 'arm': D:" in notifier.sent[0]
@@ -170,23 +170,23 @@ def test_error_uses_error_toggle_and_carries_text(tmp_path: Path, monkeypatch) -
 
 def test_no_notifier_is_safe_noop(tmp_path: Path, monkeypatch) -> None:
     _redirect_logs(monkeypatch, tmp_path)
-    AN.record_alarm_action(
+    asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_SCHEDULE, action="disarm", outcome=AN.OUTCOME_OK,
         prefs_loader=lambda: AlarmNotifyPrefs(schedule_disarm=True),
         notifier_factory=lambda: None,
-    )
+    ))
     assert _read_log(tmp_path)[0]["event"] == "unset"  # logged, no crash
 
 
 def test_delivery_failure_is_swallowed(tmp_path: Path, monkeypatch) -> None:
     _redirect_logs(monkeypatch, tmp_path)
     # Must not raise even though the notifier blows up.
-    AN.record_alarm_action(
+    asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_SCHEDULE, action="arm", outcome=AN.OUTCOME_ERROR,
         error="boom",
         prefs_loader=lambda: AlarmNotifyPrefs(error=True),
         notifier_factory=lambda: BoomNotifier(),
-    )
+    ))
     assert _read_log(tmp_path)[0]["outcome"] == "error"
 
 
@@ -195,12 +195,12 @@ def test_error_dedupes_once_per_day_but_logs_every_attempt(tmp_path: Path, monke
     notifier = FakeNotifier()
     day = datetime(2026, 6, 29, 7, 0, 0)
     for _ in range(3):
-        AN.record_alarm_action(
+        asyncio.run(AN.record_alarm_action(
             source=AN.SOURCE_SCHEDULE, action="arm", outcome=AN.OUTCOME_ERROR,
             error="panel offline", dedupe_key="schedule:weekday", now=day,
             prefs_loader=lambda: AlarmNotifyPrefs(error=True),
             notifier_factory=lambda: notifier,
-        )
+        ))
     # One notification despite three failed retries...
     assert len(notifier.sent) == 1
     # ...but every attempt is in the activity log (so retry count is visible).
@@ -210,13 +210,13 @@ def test_error_dedupes_once_per_day_but_logs_every_attempt(tmp_path: Path, monke
     assert dedupe == {"schedule:weekday": "2026-06-29"}
 
     # A new day re-arms the alert.
-    AN.record_alarm_action(
+    asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_SCHEDULE, action="arm", outcome=AN.OUTCOME_ERROR,
         error="panel offline", dedupe_key="schedule:weekday",
         now=datetime(2026, 6, 30, 7, 0, 0),
         prefs_loader=lambda: AlarmNotifyPrefs(error=True),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert len(notifier.sent) == 2
 
 
@@ -230,24 +230,24 @@ def test_security_transitions_baseline_then_intrusion_onset(tmp_path: Path, monk
     tracker = {"intrusion": None, "ac_lost": None}
 
     # First observation sets the baseline — no alert even though ac_lost is True.
-    AN.check_security_transitions(
+    asyncio.run(AN.check_security_transitions(
         intrusion=False, ac_lost=True, state=tracker,
         prefs_loader=prefs, notifier_factory=lambda: notifier,
-    )
+    ))
     assert notifier.sent == []
 
     # Intrusion goes false→true → exactly one 🚨 alert.
-    AN.check_security_transitions(
+    asyncio.run(AN.check_security_transitions(
         intrusion=True, ac_lost=True, state=tracker,
         prefs_loader=prefs, notifier_factory=lambda: notifier,
-    )
+    ))
     assert len(notifier.sent) == 1 and "TRIGGERED" in notifier.sent[0]
 
     # Intrusion clearing is not an alert.
-    AN.check_security_transitions(
+    asyncio.run(AN.check_security_transitions(
         intrusion=False, ac_lost=True, state=tracker,
         prefs_loader=prefs, notifier_factory=lambda: notifier,
-    )
+    ))
     assert len(notifier.sent) == 1
 
 
@@ -265,18 +265,18 @@ def test_security_transitions_ignores_unreadable_intrusion_poll(tmp_path: Path, 
     prefs = lambda: AlarmNotifyPrefs(intrusion=True, ac_lost=True)
     tracker = {"intrusion": True, "ac_lost": True}  # already latched from a prior real onset
 
-    AN.check_security_transitions(
+    asyncio.run(AN.check_security_transitions(
         intrusion=None, ac_lost=True, state=tracker,
         prefs_loader=prefs, notifier_factory=lambda: notifier,
-    )
+    ))
     assert notifier.sent == []
     assert tracker["intrusion"] is True  # left untouched, not reset
 
     # The still-latched flag reasserting itself as True must not re-fire.
-    AN.check_security_transitions(
+    asyncio.run(AN.check_security_transitions(
         intrusion=True, ac_lost=True, state=tracker,
         prefs_loader=prefs, notifier_factory=lambda: notifier,
-    )
+    ))
     assert notifier.sent == []
 
 
@@ -287,13 +287,13 @@ def test_intrusion_log_carries_diagnostic_flags_but_telegram_stays_clean(
     notifier = FakeNotifier()
     tracker = {"intrusion": False, "ac_lost": None}
 
-    AN.check_security_transitions(
+    asyncio.run(AN.check_security_transitions(
         intrusion=True, ac_lost=False,
         intrusion_detail="ongoing_alarm=False memory_alarm=True",
         state=tracker,
         prefs_loader=lambda: AlarmNotifyPrefs(intrusion=True),
         notifier_factory=lambda: notifier,
-    )
+    ))
     rows = _read_log(tmp_path)
     assert rows[0]["diagnostic"] == "ongoing_alarm=False memory_alarm=True"
     assert len(notifier.sent) == 1
@@ -306,19 +306,19 @@ def test_security_ac_lost_alerts_both_directions_and_respects_toggle(tmp_path: P
     tracker = {"intrusion": False, "ac_lost": False}  # baseline already set
 
     # ac_lost off → no alert on the transition.
-    AN.check_security_transitions(
+    asyncio.run(AN.check_security_transitions(
         intrusion=False, ac_lost=True, state=dict(tracker),
         prefs_loader=lambda: AlarmNotifyPrefs(ac_lost=False),
         notifier_factory=lambda: notifier,
-    )
+    ))
     assert notifier.sent == []
 
     # ac_lost on → both loss and restore alert.
     on = lambda: AlarmNotifyPrefs(ac_lost=True)
-    AN.check_security_transitions(intrusion=False, ac_lost=True, state=tracker,
-                                  prefs_loader=on, notifier_factory=lambda: notifier)
-    AN.check_security_transitions(intrusion=False, ac_lost=False, state=tracker,
-                                  prefs_loader=on, notifier_factory=lambda: notifier)
+    asyncio.run(AN.check_security_transitions(intrusion=False, ac_lost=True, state=tracker,
+                                  prefs_loader=on, notifier_factory=lambda: notifier))
+    asyncio.run(AN.check_security_transitions(intrusion=False, ac_lost=False, state=tracker,
+                                  prefs_loader=on, notifier_factory=lambda: notifier))
     assert len(notifier.sent) == 2
     assert "lost mains" in notifier.sent[0]
     assert "restored" in notifier.sent[1]

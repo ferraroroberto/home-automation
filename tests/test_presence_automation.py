@@ -50,8 +50,11 @@ def _wire_common(monkeypatch) -> None:
     async def fake_fetch_security_state() -> _FakeSecurity:
         return _FakeSecurity("disarmed")
 
+    async def fake_check_security_transitions(**kw) -> None:
+        pass
+
     monkeypatch.setattr(PA, "fetch_security_state", fake_fetch_security_state)
-    monkeypatch.setattr(PA, "check_security_transitions", lambda **kw: None)
+    monkeypatch.setattr(PA, "check_security_transitions", fake_check_security_transitions)
     monkeypatch.setattr(PA, "consider_security_read", lambda security: None)
     monkeypatch.setattr(PA, "consider_security_override", lambda security: None)
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
@@ -72,10 +75,13 @@ def test_presence_tick_applies_arm_via_confirm_helper_and_records_ok(monkeypatch
         assert action == "arm"
         return _FakeConfirmState("armed")
 
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
     monkeypatch.setattr(PA, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(PA, "mark_decision_applied", lambda d, o: applied.append((d, o)))
     monkeypatch.setattr(PA, "set_kids_home_override", lambda v: None)
-    monkeypatch.setattr(PA, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
 
     asyncio.run(PA.tick())
 
@@ -102,8 +108,11 @@ def test_presence_tick_alerts_only_after_confirm_helper_exhausts_retries(monkeyp
     async def fake_confirm(action: str) -> _FakeConfirmState:
         raise RiscoCommandError("RISCO rejected 'arm': D:")
 
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
     monkeypatch.setattr(PA, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(PA, "record_alarm_action", lambda **kw: recorded.append(kw))
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
 
     asyncio.run(PA.tick())
 

@@ -61,7 +61,7 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
         # Every attempt (initial + all read-only retries) failed to confirm the
         # expected state: log + alert once per day, and re-raise so tick() leaves
         # last_fire_day unset and retries again on its own next poll.
-        record_alarm_action(
+        await record_alarm_action(
             source=SOURCE_SCHEDULE,
             action=entry.action,
             outcome=OUTCOME_ERROR,
@@ -71,7 +71,7 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
             dedupe_key=f"schedule:{entry.id}",
         )
         raise
-    record_alarm_action(
+    await record_alarm_action(
         source=SOURCE_SCHEDULE,
         action=entry.action,
         outcome=OUTCOME_OK,

@@ -89,7 +89,7 @@ class HomeAutomationApi:
 
     async def set_zone_bypass(self, zone_id: str | int, bypass: bool) -> dict[str, Any]:
         return await self.request(
-            "POST", f"/api/security/zones/{zone_id}/bypass", json={"bypassed": bypass}
+            "POST", f"/api/security/zones/{zone_id}/bypass", json={"bypass": bypass}
         )
 
     async def energy(self) -> dict[str, Any]:

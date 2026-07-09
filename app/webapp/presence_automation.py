@@ -55,7 +55,7 @@ async def tick() -> None:
     # successful poll re-observing a still-latched, days-old memory_alarm
     # manufactured a false→true "new" intrusion and paged for nothing).
     intrusion = None if ongoing is None and memory is None else bool(ongoing or memory)
-    check_security_transitions(
+    await check_security_transitions(
         intrusion=intrusion,
         ac_lost=bool(security.ac_lost),
         intrusion_detail=f"ongoing_alarm={ongoing} memory_alarm={memory}",
@@ -98,7 +98,7 @@ async def tick() -> None:
             set_kids_home_override(False)
         logger.info("✅ Presence automation %s -> %s", decision.reason, decision.action)
         send_push("Presence automation", f"{decision.reason}: {decision.action}")
-        record_alarm_action(
+        await record_alarm_action(
             source=SOURCE_PRESENCE,
             action=decision.action,
             outcome=OUTCOME_OK,
@@ -109,7 +109,7 @@ async def tick() -> None:
         logger.warning("⚠️ Presence automation action failed: %s", exc)
         # Failure leaves the decision un-applied, so the loop retries every tick;
         # de-dupe the alert to once per day per presence transition kind.
-        record_alarm_action(
+        await record_alarm_action(
             source=SOURCE_PRESENCE,
             action=decision.action,
             outcome=OUTCOME_ERROR,

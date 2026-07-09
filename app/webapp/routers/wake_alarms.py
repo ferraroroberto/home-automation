@@ -161,7 +161,7 @@ async def voice_cancel_wake_alarm() -> Dict[str, Any]:
 
 @router.post("/api/wake-alarms/{alarm_id}/test")
 async def test_wake_alarm(alarm_id: str) -> Dict[str, Any]:
-    if not test_fire_alarm(alarm_id):
+    if not await test_fire_alarm(alarm_id):
         raise HTTPException(status_code=404, detail=f"unknown alarm '{alarm_id}'")
     return {"id": alarm_id, "ringing": True}
 
