@@ -170,25 +170,50 @@ async def get_security_events(count: int = 50) -> Dict[str, Any]:
         raise _http_error(exc)
 
 
+# Callers that identify themselves via the X-Automation-Source header (issue
+# #405): the HA custom integration and the ESPHome voice-PE rest_commands. Any
+# other value (including the header being absent, e.g. the webapp PWA's own
+# fetch calls) falls back to "webapp" — the one caller that needs no header
+# since it's the default.
+_KNOWN_ACTORS = frozenset({"ha", "voice-pe"})
+_AUTOMATION_SOURCE_HEADER = "x-automation-source"
+
+
+def _actor_from_request(request: Request) -> str:
+    raw = (request.headers.get(_AUTOMATION_SOURCE_HEADER) or "").strip().lower()
+    return raw if raw in _KNOWN_ACTORS else "webapp"
+
+
 @router.post("/api/security/{action}")
-async def post_security_action(action: str) -> Dict[str, Any]:
+async def post_security_action(action: str, request: Request) -> Dict[str, Any]:
     if action not in ACTIONS:
         raise HTTPException(status_code=400, detail=f"unknown action '{action}'")
+    actor = _actor_from_request(request)
     try:
         state = await control_system(action)
         note_manual_alarm_action(action)
         # Manual actions are logged for the local activity record but never push
         # a notification — the user is already at the app.
-        await record_alarm_action(source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK)
+        await record_alarm_action(
+            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK, actor=actor
+        )
         return _state_payload(state)
     except (RiscoConfigError, RiscoCommandError) as exc:
         await record_alarm_action(
-            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR, error=str(exc)
+            source=SOURCE_MANUAL,
+            action=action,
+            outcome=OUTCOME_ERROR,
+            error=str(exc),
+            actor=actor,
         )
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         await record_alarm_action(
-            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR, error=str(exc)
+            source=SOURCE_MANUAL,
+            action=action,
+            outcome=OUTCOME_ERROR,
+            error=str(exc),
+            actor=actor,
         )
         raise _http_error(exc)
 

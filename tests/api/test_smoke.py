@@ -813,6 +813,45 @@ def test_security_route_surfaces_trouble_and_ac_lost(
     assert "display_name" in zones[0]
 
 
+def test_security_action_tags_actor_from_automation_source_header(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``POST /api/security/{action}`` tags ``logs/alarm.jsonl`` with the caller (issue #405).
+
+    ``X-Automation-Source: ha`` / ``voice-pe`` map to that actor; an absent or
+    unrecognized header falls back to ``webapp`` (the PWA's own fetch calls,
+    which send no such header).
+    """
+    state = SecurityState(reachable=True, label="Armed", mode="armed")
+
+    async def fake_control_system(action: str):
+        return state
+
+    recorded: list[str | None] = []
+
+    async def fake_record_alarm_action(*, actor=None, **kwargs) -> None:
+        recorded.append(actor)
+
+    monkeypatch.setattr("app.webapp.routers.security.control_system", fake_control_system)
+    monkeypatch.setattr("app.webapp.routers.security.note_manual_alarm_action", lambda action: None)
+    monkeypatch.setattr(
+        "app.webapp.routers.security.record_alarm_action", fake_record_alarm_action
+    )
+
+    assert client.post("/api/security/arm").status_code == 200
+    assert client.post(
+        "/api/security/arm", headers={"X-Automation-Source": "ha"}
+    ).status_code == 200
+    assert client.post(
+        "/api/security/arm", headers={"X-Automation-Source": "voice-pe"}
+    ).status_code == 200
+    assert client.post(
+        "/api/security/arm", headers={"X-Automation-Source": "bogus"}
+    ).status_code == 200
+
+    assert recorded == ["webapp", "ha", "voice-pe", "webapp"]
+
+
 def test_security_zone_rename_persists(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

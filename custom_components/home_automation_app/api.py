@@ -38,6 +38,7 @@ class HomeAutomationApi:
         path: str,
         *,
         json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Call one app API endpoint and return its JSON object body."""
         headers = {}
@@ -45,6 +46,8 @@ class HomeAutomationApi:
             headers["Authorization"] = (
                 self._token if self._token.lower().startswith("bearer ") else f"Bearer {self._token}"
             )
+        if extra_headers:
+            headers.update(extra_headers)
         url = urljoin(self._base_url, path.lstrip("/"))
         try:
             async with self._session.request(
@@ -85,7 +88,11 @@ class HomeAutomationApi:
         return await self.request("GET", "/api/security")
 
     async def control_security(self, action: str) -> dict[str, Any]:
-        return await self.request("POST", f"/api/security/{action}")
+        # Tags this alarm command as HA-originated in logs/alarm.jsonl (issue
+        # #405) so it's distinguishable from the webapp PWA and voice-PE.
+        return await self.request(
+            "POST", f"/api/security/{action}", extra_headers={"X-Automation-Source": "ha"}
+        )
 
     async def set_zone_bypass(self, zone_id: str | int, bypass: bool) -> dict[str, Any]:
         return await self.request(

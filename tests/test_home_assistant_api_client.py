@@ -83,7 +83,24 @@ def test_api_client_control_security_reuses_common_request_logic() -> None:
         assert payload == {"mode": "perimeter"}
         assert session.calls[0]["method"] == "POST"
         assert session.calls[0]["url"] == "http://app.local/api/security/perimeter"
-        assert session.calls[0]["headers"] == {}
+        assert session.calls[0]["headers"] == {"X-Automation-Source": "ha"}
+
+    asyncio.run(run())
+
+
+def test_api_client_control_security_tags_source_alongside_bearer() -> None:
+    """issue #405 — the app's alarm.jsonl distinguishes this integration's calls."""
+
+    async def run() -> None:
+        session = _Session(_Response(200, {"mode": "armed"}))
+        api = HomeAutomationApi(session, "https://ha-pc.example:8447", "secret")
+
+        await api.control_security("arm")
+
+        assert session.calls[0]["headers"] == {
+            "Authorization": "Bearer secret",
+            "X-Automation-Source": "ha",
+        }
 
     asyncio.run(run())
 

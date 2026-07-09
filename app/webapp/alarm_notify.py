@@ -181,6 +181,7 @@ async def record_alarm_action(
     error: Optional[str] = None,
     detail: Optional[str] = None,
     reason: Optional[str] = None,
+    actor: Optional[str] = None,
     dedupe_key: Optional[str] = None,
     extra: Optional[Dict[str, Any]] = None,
     now: Optional[datetime] = None,
@@ -196,6 +197,9 @@ async def record_alarm_action(
         error: the failure text (carried verbatim into the message) when ``error``.
         detail: short human context (schedule time, presence reason) for the message.
         reason: stored in the activity log (not the message) for audit.
+        actor: for ``source=manual`` only, which caller issued the command —
+            ``webapp`` / ``ha`` / ``voice-pe`` (issue #405). Omitted for
+            schedule/presence sources, which are already unambiguous.
         dedupe_key: when set, an ``error`` notifies at most once per local day per key.
         now / prefs_loader / notifier_factory: injection seams for tests.
     """
@@ -213,6 +217,8 @@ async def record_alarm_action(
         record["reason"] = reason
     if detail:
         record["detail"] = detail
+    if actor:
+        record["actor"] = actor
     if extra:
         record.update(extra)
     append_activity("alarm", record)

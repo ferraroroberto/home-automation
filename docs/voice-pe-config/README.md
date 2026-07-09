@@ -19,6 +19,8 @@ The full phrase lists are in `custom_sentences/en/alarm.yaml` — widen them fre
 
 Arming, perimeter, partial and status are one-shot. **Disarm requires a spoken code** (`voice_disarm_pin`) in the same utterance — a wrong or missing code never calls disarm. That voice code is a gate layered on top of the RISCO panel PIN the app already holds server-side, so the real panel PIN is never spoken aloud.
 
+Each alarm `rest_command` (`alarm_arm` / `alarm_partial` / `alarm_perimeter` / `alarm_disarm`) sends an `x-automation-source: voice-pe` header alongside its bearer token, so `logs/alarm.jsonl`'s `manual` entries tag voice-triggered commands with `actor: "voice-pe"` — distinct from the webapp PWA (`actor: "webapp"`) and the HA integration (`actor: "ha"`, issue #405). Useful for ruling voice in or out when an arm/disarm wasn't expected.
+
 ### Wake alarms (issue #306)
 
 A **separate** feature from the RISCO alarm above — every phrase says "wake alarm" / "wake-up alarm" so the two grammars never collide. These drive the app's persisted wake-alarm list (Step 1, `/api/wake-alarms`); a fired alarm rings on the Home-tab card.

@@ -131,6 +131,25 @@ def test_manual_logs_but_never_notifies(tmp_path: Path, monkeypatch) -> None:
     assert notifier.sent == []
     rows = _read_log(tmp_path)
     assert rows[0]["source"] == "manual" and rows[0]["event"] == "set"
+    assert "actor" not in rows[0]  # omitted when not passed — backward compatible
+
+
+def test_manual_records_actor_when_provided(tmp_path: Path, monkeypatch) -> None:
+    """issue #405 — distinguishes webapp/ha/voice-pe callers in logs/alarm.jsonl."""
+    _redirect_logs(monkeypatch, tmp_path)
+    notifier = FakeNotifier()
+    for actor in ("webapp", "ha", "voice-pe"):
+        asyncio.run(AN.record_alarm_action(
+            source=AN.SOURCE_MANUAL,
+            action="arm",
+            outcome=AN.OUTCOME_OK,
+            actor=actor,
+            prefs_loader=lambda: AlarmNotifyPrefs(),
+            notifier_factory=lambda: notifier,
+        ))
+    rows = _read_log(tmp_path)
+    assert [row["actor"] for row in rows] == ["webapp", "ha", "voice-pe"]
+    assert notifier.sent == []  # actor tagging never changes the manual no-notify policy
 
 
 def test_automatic_success_respects_toggle(tmp_path: Path, monkeypatch) -> None:
