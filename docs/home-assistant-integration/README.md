@@ -36,6 +36,8 @@ Do not commit the token, LAN host names, room names, unit IDs, or HA's live `/co
 
 The alarm mapping intentionally preserves the old deterministic voice behavior: the previous custom `rest_command.alarm_perimeter` and `rest_command.alarm_partial` actions become native HA service calls on `alarm_control_panel.home_alarm`.
 
+`control_security()` (`custom_components/home_automation_app/api.py`) sends `X-Automation-Source: ha` on every alarm POST, so `logs/alarm.jsonl`'s `manual` entries tag this integration's commands with `actor: "ha"` — distinct from the webapp PWA (`actor: "webapp"`, the default) and the voice-PE `rest_command`s (`actor: "voice-pe"`, issue #405). Useful when debugging an unexpected arm/disarm: check `logs/alarm.jsonl` for which caller issued it before assuming a person did.
+
 ## Voice usage
 
 After HA discovers the entities, Tier-1 built-in intents should cover the compatible surfaces:

@@ -16,6 +16,7 @@ rest_command:
     method: POST
     headers:
       authorization: !secret app_api_authorization
+      x-automation-source: "voice-pe"
     verify_ssl: false
     timeout: 30
   alarm_partial:
@@ -23,6 +24,7 @@ rest_command:
     method: POST
     headers:
       authorization: !secret app_api_authorization
+      x-automation-source: "voice-pe"
     verify_ssl: false
     timeout: 30
   alarm_perimeter:
@@ -30,6 +32,7 @@ rest_command:
     method: POST
     headers:
       authorization: !secret app_api_authorization
+      x-automation-source: "voice-pe"
     verify_ssl: false
     timeout: 30
   alarm_disarm:
@@ -37,6 +40,7 @@ rest_command:
     method: POST
     headers:
       authorization: !secret app_api_authorization
+      x-automation-source: "voice-pe"
     verify_ssl: false
     timeout: 30
   alarm_status:

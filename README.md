@@ -196,7 +196,13 @@ alternative to the RISCO cloud event log so you can see what was attempted, how
 often, and whether it worked. It is written through the reusable
 `src.activity_log.append_activity(consumer, event)` facility (one append-only
 JSONL writer, `logs/<consumer>.jsonl`), which the presence trigger log
-(`logs/presence_triggers.jsonl`) now also routes through.
+(`logs/presence_triggers.jsonl`) now also routes through. `source: manual`
+entries also carry an `actor` field — `webapp` (the PWA's own Security tab,
+the default when no header is sent), `ha` (the Home Assistant integration), or
+`voice-pe` (the ESPHome voice bridge) — so an unexpected manual arm/disarm can
+be traced to its caller without guessing (issue #405). RISCO's own cloud event
+log cannot make this distinction: every command, automated or manual, goes out
+under the same dedicated WebUI account.
 
 Config in `.env`:
 
