@@ -47,6 +47,15 @@ REM ============================================================================
 
 setlocal EnableDelayedExpansion
 set "SCRIPT_DIR=%~dp0"
+REM  `%~dp0` always ends in a trailing backslash, which is what the path joins
+REM  below want -- but NOT what a quoted argument can carry. Windows argv parsing
+REM  treats an odd run of backslashes before a closing quote as escaping that
+REM  quote, so `-ScriptDir "%SCRIPT_DIR%"` swallows the rest of the command line
+REM  and every later switch (-TrayMatch, -Ports, ...) arrives EMPTY -- detect
+REM  matches nothing, reclaim reclaims nothing, and --restart silently degrades
+REM  to the adopt-the-stale-build start this template exists to prevent
+REM  (project-scaffolding#145). Pass the de-slashed copy as the argument.
+set "SCRIPT_DIR_ARG=%SCRIPT_DIR:~0,-1%"
 
 cd /d "%SCRIPT_DIR%" || exit /b 1
 
@@ -75,15 +84,6 @@ REM     ports as a comma list, e.g. 8445,8446 . Exclude any mutex-shared port. =
 set "OWNED_PORTS=8447"
 REM Optional override. Leave blank to verify http://127.0.0.1:<first-owned-port>/api/version.
 set "VERSION_URL="
-
-REM %~dp0 (SCRIPT_DIR) always ends in a trailing backslash. A quoted CLI arg
-REM ending "...\" is misparsed by Windows argv parsing: an odd run of
-REM backslashes before the closing quote escapes it instead of closing the
-REM string, so everything past -ScriptDir gets swallowed into one argument
-REM (observed: "positional parameter cannot be found that accepts argument
-REM 'app.tray -VersionUrl \"'"). Strip the trailing backslash before passing.
-set "SCRIPT_DIR_ARG=%SCRIPT_DIR%"
-if "%SCRIPT_DIR_ARG:~-1%"=="\" set "SCRIPT_DIR_ARG=%SCRIPT_DIR_ARG:~0,-1%"
 
 set "RESTART_ARG="
 if defined WANT_RESTART set "RESTART_ARG=-Restart"
