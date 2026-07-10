@@ -234,7 +234,15 @@ button, input, select, textarea {
 .app {
   max-width: 772px;
   margin: 0 auto;
-  padding: 0 var(--gap) 24px;
+}
+/* Desktop-only on purpose (disjoint media condition, per the vendored nav
+   README's "Don't diverge" rule): on the mobile-pill breakpoint
+   `_vendored/nav/nav-tabs.css` owns .app's padding — safe-area-inset-top on
+   top, nav-pill clearance on the bottom. That file loads BEFORE this one, so
+   an unconditioned `padding` shorthand here silently wins the cascade and
+   flattens both (issue #420: content under the iOS status bar). */
+@media (pointer: fine), (min-width: 521px) {
+  .app { padding: 0 var(--gap) 24px; }
 }
 
 /* ---------------------------------------------------- icons (Lucide) */
