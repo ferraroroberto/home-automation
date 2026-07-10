@@ -281,27 +281,11 @@ button, input, select, textarea {
    the cascade. `.tab.active`, sizing, the standalone fixed-inset .app shell,
    and the visualViewport pin all live there; do not re-add them here.
 
-   Desktop-icon override: the vendored file hides .tab-icon on desktop and
-   shows .tab-emoji instead, but this app has shown a Lucide SVG icon on every
-   tab since issue #77 and has no .tab-emoji markup — reverting to emoji-only
-   would be a visible regression nobody asked for. This is a component defect
-   (filed upstream as project-scaffolding#142: desktop should show the icon
-   like the mobile pill does, not hide it) rather than a per-app preference;
-   once that lands and is re-vendored fleet-wide this override can go. Longhand
-   `display` (not a shorthand) so it doesn't fight another property the
-   vendored rule sets at the same specificity. */
-@media (pointer: fine), (min-width: 521px) {
-  .tab-icon { display: inline-block; width: 1.05em; height: 1.05em; margin-right: 0.35em; }
-}
-
-/* Narrow non-touch windows (issue #365): once the vendored file's own clip
-   idiom hides .tab-label, the icon's trailing margin-right above leaves a
-   lopsided gap where the label used to be — the vendored fix zeroes that gap
-   for .tab-emoji, which this app doesn't use, so it's re-declared here for
-   .tab-icon instead. */
-@media (pointer: fine) and (max-width: 520px) {
-  .tab-icon { margin-right: 0; }
-}
+   The former desktop-icon override (project-scaffolding#142) is gone: the
+   vendored file now shows .tab-icon at every width itself, with `.tab` as a
+   centred flex row so the icon leads the label — re-adding a per-app
+   width/margin rule here would double the icon-to-label gap by stacking on
+   top of the vendored `.tab`'s flex `gap`. See home-automation#414. */
 
 /* Mobile-pill icon-size override: every nav icon carries both the shared
    .icon utility class (width/height: 1em, used by every icon in this app)
