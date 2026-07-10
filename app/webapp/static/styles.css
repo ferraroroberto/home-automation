@@ -317,6 +317,28 @@ button, input, select, textarea {
   }
 }
 
+/* Narrow non-touch windows (a squeezed desktop browser, fine-pointer tablets):
+   the row of icon+label tabs no longer fits and, without a strategy, the
+   labels collide with the next tab's icon (issue #365). Collapse to
+   icon-only — the label stays in the accessibility tree via the clip idiom
+   (display:none would strip the button's accessible name). The coarse-pointer
+   pill below is untouched: it matches (pointer: coarse) first and never
+   reaches this state. Mirrors the fix already vendored into
+   project-scaffolding's nav-tabs.css (which cites this same issue) — this
+   repo hasn't adopted the vendored nav yet (#184), so it's ported here
+   directly rather than left unhandled until that migration lands. */
+@media (pointer: fine) and (max-width: 520px) {
+  .tab-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .tab-icon { margin-right: 0; }
+}
+
 /* Mobile / installed-PWA navigation — app-launcher's floating bottom tab bar
    (issue #57). Gated on touch + narrow width so desktop (pointer: fine) keeps
    the top segmented control byte-for-byte unchanged. Colours are adapted to the
