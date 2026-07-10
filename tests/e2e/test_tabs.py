@@ -154,6 +154,35 @@ def test_nav_at_rest_after_plug_modal_with_autofocus(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
+def test_app_padding_owned_by_vendored_nav_on_mobile(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """#420: on the mobile-pill breakpoint the vendored nav-tabs.css owns
+    .app's padding (safe-area top + nav-pill bottom clearance). It loads
+    BEFORE styles.css, so an unconditioned ``padding`` shorthand on the base
+    .app rule silently wins the cascade and flattens both — the PWA then
+    renders under the iOS status bar and behind the floating pill."""
+    mock_api(sample_units)
+    mock_energy()
+    _boot(page, base_url)
+
+    metrics = page.evaluate(
+        "() => { const s = getComputedStyle(document.querySelector('.app'));"
+        " return { mobilePill: matchMedia('(pointer: coarse) and (max-width: 520px)').matches,"
+        " top: parseFloat(s.paddingTop), bottom: parseFloat(s.paddingBottom) }; }"
+    )
+    if metrics["mobilePill"]:
+        # env(safe-area-inset-*) is 0 under emulation, so the floors are
+        # --gap (12px) on top and margin+bar+margin+gap (≈115px) below.
+        assert metrics["top"] >= 12, metrics
+        assert metrics["bottom"] >= 100, metrics
+    else:
+        # Desktop keeps the styles.css padding: 0 var(--gap) 24px.
+        assert metrics["top"] == 0, metrics
+        assert metrics["bottom"] == 24, metrics
+
+
 def test_home_shows_ac_summary_line_per_unit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
