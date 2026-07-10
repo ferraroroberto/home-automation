@@ -971,6 +971,21 @@ The unit detail modal has two optional automation sections:
   simple off event, or an on event that applies a full profile (mode, target
   temperature, fan, and vanes) at that time.
 
+**Known issue — night idle-jump correlates with musty smell + buzzing (#386).**
+One unit intermittently produces a stale/musty (humidity-like) smell and a
+buzzing noise at night that only stops once the setpoint is manually touched.
+Likely not a control-logic defect: the idle jump above is by design (#114,
+specifically to avoid power-cycling the compressor), and the symptoms line up
+with mechanical/moisture behavior *during* that idle state — an inverter
+compressor/EEV hunting at minimum modulation (buzz, which any setpoint change
+resolves by forcing the valve to reposition) and a coil that isn't cold enough
+to actively condense/drain while the fan still moves air across it (musty
+smell). Recommended next step is a physical inspection of the unit's filter,
+coil, and condensate drain, not a software power-cycle override — reversing
+#114's tradeoff wouldn't address a wet coil and risks compressor wear for no
+benefit. See #386 for the full investigation notes; close it once the
+inspection outcome is known.
+
 Rules and schedules are evaluated server-side by the tray-owned webapp, so they
 work while the PWA is closed. Runtime files live in gitignored
 `config/hvac_rules.json` and `config/hvac_schedules.json`; committed samples show
