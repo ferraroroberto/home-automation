@@ -19,7 +19,7 @@ import {
 } from './state.js';
 import { icon } from './icons.js';
 import { jsonApi, hideLogin } from './api.js';
-import { setTab, wireTabs, onTabChange, initialTab } from './tabs.js';
+import { wireTabs } from './tabs.js';
 import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';
 import {
   loadUnits,
@@ -160,10 +160,6 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // dialog can open.
   installDialogScrollLock();
 
-  // Tabs: register the energy controller as the tab-change hook, then select
-  // the remembered tab — setTab fires onEnergyTab, which also sets the poll
-  // cadence (fast on Energy, slow elsewhere) and lazily builds the charts.
-  wireTabs();
   wireUnitsControls();
   wireEnergyControls();
   wirePlugsToggle();
@@ -189,19 +185,22 @@ els.loginForm.addEventListener('submit', async function (ev) {
   restoreVmSnapshot();
   restoreLightsSnapshot();
   restoreNetworkSnapshot();
-  // Energy, Plugs, Lights, Network, and Security adjust their own polling cadence on tab change,
-  // so fan the single switcher hook out to each controller.
-  onTabChange(function (tab) {
+  // Tabs: wireTabs (nav-tabs.js, issue #184) restores the remembered tab and
+  // fires this fan-out callback immediately for it, so it must run last —
+  // after every wireXControls()/restoreXSnapshot() call above — replacing
+  // the old three-step wireTabs() + onTabChange() + setTab(initialTab()).
+  // Energy, Plugs, Lights, Network, and Security each adjust their own
+  // polling cadence on tab change.
+  wireTabs(function (tab) {
     onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onVmTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab);
   });
-  setTab(initialTab());
 
   // AC units only matter on Home (summary tile) and AC (cards), so poll them
   // only while one of those tabs is active rather than every 30s everywhere
-  // (#209). setTab(initialTab()) above fires onTabChange for the default
-  // 'home'/'ac' tab, which calls units.js's onUnitsTab -> loadUnits()
-  // immediately — so there is no separate boot fetch for units here (unlike
-  // loadEnergy() / startWeatherPolling() below, whose tabs' onTabChange hooks
+  // (#209). wireTabs() above fires the fan-out callback for the default
+  // 'home'/'ac' tab immediately, which calls units.js's onUnitsTab ->
+  // loadUnits() — so there is no separate boot fetch for units here (unlike
+  // loadEnergy() / startWeatherPolling() below, whose tabs' onChange hooks
   // don't fetch on every tab, hence the explicit boot call).
   loadEnergy();
   startWeatherPolling();
