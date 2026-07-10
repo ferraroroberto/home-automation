@@ -13,6 +13,7 @@ import { esc } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { confirmAction } from './network.js';
 import { createPoller } from './poll.js';
+import { toggleMarkup } from './toggle.js';
 
 const POLL_MS = 30_000;
 
@@ -70,7 +71,7 @@ function render(tile, vm) {
     '<button type="button" class="toggle vm-toggle' + (toggleOn ? ' on' : '') + '"' +
     ' role="switch" aria-checked="' + (toggleOn ? 'true' : 'false') + '"' +
     (disabled ? ' disabled' : '') + ' aria-label="Home Assistant VM power">' +
-    '<span class="knob"></span><span class="toggle-label">' + (toggleOn ? 'ON' : 'OFF') + '</span></button>';
+    toggleMarkup(toggleOn) + '</button>';
 
   // IP·MAC are hidden per design, but kept as a hover tooltip so the "is it on
   // the reserved address?" check is still one mouse-over away.

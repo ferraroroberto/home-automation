@@ -20,7 +20,7 @@ import {
 import { icon } from './icons.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
-import { toggleHtml, setToggleState, isToggleOn, wireToggle } from './toggle.js';
+import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 const DEFAULT_RANGE = [16, 31];
 let currentScheduleEntries = [];
@@ -175,8 +175,7 @@ function renderCardInto(card, unit) {
   power.className = 'toggle' + (on ? ' on' : '');
   power.setAttribute('role', 'switch');
   power.setAttribute('aria-checked', on ? 'true' : 'false');
-  power.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (on ? 'ON' : 'OFF') + '</span>';
+  power.innerHTML = toggleMarkup(on);
   power.addEventListener('click', function () {
     applyControl(unit.unit_id, { power: !on });
   });
@@ -509,8 +508,7 @@ function renderAcSummary() {
     toggle.setAttribute('role', 'switch');
     toggle.setAttribute('aria-checked', on ? 'true' : 'false');
     toggle.setAttribute('aria-label', 'Power ' + (displayLabel(u) || 'unit'));
-    toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-      (on ? 'ON' : 'OFF') + '</span>';
+    toggle.innerHTML = toggleMarkup(on);
     toggle.addEventListener('click', function () {
       applyControl(u.unit_id, { power: !on });
     });

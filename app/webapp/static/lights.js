@@ -10,6 +10,7 @@ import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { emptyStateEl } from './icons.js';
 import { createPoller } from './poll.js';
+import { toggleMarkup } from './toggle.js';
 
 const POLL_MS = 15_000;
 
@@ -214,8 +215,7 @@ function buildCard(light) {
     toggle.setAttribute('role', 'switch');
     toggle.setAttribute('aria-checked', on ? 'true' : 'false');
     toggle.setAttribute('aria-label', 'Power ' + label(light));
-    toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-      (on ? 'ON' : 'OFF') + '</span>';
+    toggle.innerHTML = toggleMarkup(on);
     toggle.addEventListener('click', function () { applyLight(light, { on: !on }); });
     top.appendChild(toggle);
   }

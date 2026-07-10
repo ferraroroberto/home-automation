@@ -21,6 +21,7 @@ import {
   setWifiChannelData,
 } from './charts.js';
 import { renderNetwork } from './network.js';
+import { toggleMarkup } from './toggle.js';
 
 const WIFI_BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
 
@@ -235,8 +236,7 @@ function renderNetWifiHiddenToggle(b) {
   const on = !!b.hidden;
   btn.className = 'toggle' + (on ? ' on' : ' off');
   btn.setAttribute('aria-checked', on ? 'true' : 'false');
-  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (on ? 'ON' : 'OFF') + '</span>';
+  btn.innerHTML = toggleMarkup(on);
 }
 
 function openNetWifiDetail(wifiId) {

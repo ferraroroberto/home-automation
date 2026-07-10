@@ -15,6 +15,7 @@ import { jsonApi } from './api.js';
 import { fmtW } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { createPoller } from './poll.js';
+import { toggleMarkup } from './toggle.js';
 
 const POLL_MS = 15_000;
 
@@ -140,8 +141,7 @@ function buildPlugRow(device) {
     toggle.setAttribute('role', 'switch');
     toggle.setAttribute('aria-checked', on ? 'true' : 'false');
     toggle.setAttribute('aria-label', 'Power ' + (plugLabel(device) || 'device'));
-    toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-      (on ? 'ON' : 'OFF') + '</span>';
+    toggle.innerHTML = toggleMarkup(on);
     toggle.addEventListener('click', function () { toggleSwitch(device, toggle); });
     row.appendChild(toggle);
   }
@@ -215,8 +215,7 @@ function renderPlugHiddenToggle(hidden) {
   if (!btn) return;
   btn.className = 'toggle' + (hidden ? ' on' : ' off');
   btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
-  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (hidden ? 'ON' : 'OFF') + '</span>';
+  btn.innerHTML = toggleMarkup(hidden);
 }
 
 function openPlugDetail(deviceId) {

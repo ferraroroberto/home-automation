@@ -65,6 +65,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._zone_lookup import _zone_name_for
 from src.activity_log import append_activity
 from src.alarm_scene import (
     DEFAULT_HUB_BASE_URL,
@@ -151,20 +152,6 @@ def load_alarm_scene_config() -> AlarmSceneConfig:
 # cursor in ``src.alarm_scene_cursor`` — not this dict — precisely so a
 # process restart doesn't lose track of which alarms were already captured.
 _state: Dict[str, object] = {"last_baseline": None, "last_event_scan": None, "event_scan_running": False}
-
-
-def _zone_name_for(zone_id: int, security: object) -> str:
-    """Look up a zone's display name from the live zone list (id->name only).
-
-    Only the id->name mapping is used here — the zone list's *metadata* is
-    stable, unlike its momentary ``triggered`` flag, which is what made the old
-    per-poll zone resolution racy (issue #325).
-    """
-
-    for zone in getattr(security, "zones", None) or []:
-        if int(getattr(zone, "id", -1)) == zone_id:
-            return str(getattr(zone, "name", "") or zone_id)
-    return str(zone_id)
 
 
 def _resolve_pairings(

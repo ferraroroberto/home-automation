@@ -19,16 +19,12 @@ same load/save shape as ``security_schedules`` / ``display_names``.
 
 from __future__ import annotations
 
-import json
-import logging
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
-from src._atomic_json import write_json_atomic
-
-logger = logging.getLogger(__name__)
+from src._schedule_store import read_json, save_json
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 PAIRINGS_PATH = _CONFIG_DIR / "alarm_scene_pairings.json"
@@ -44,21 +40,6 @@ class ScenePairing:
     preset_token: Optional[str] = None
     preset_name: Optional[str] = None
     enabled: bool = True
-
-
-def _read_json(path: Path) -> Any:
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty", path, exc)
-        return []
-
-
-def _save(path: Path, data: List[dict]) -> None:
-    write_json_atomic(path, data)
-    logger.info("💾 Saved %s", path)
 
 
 def _safe_id(value: Any, fallback: str) -> str:
@@ -113,7 +94,7 @@ def load_scene_pairings(path: Optional[Path] = None) -> List[ScenePairing]:
     """Return the persisted pairing list, or ``[]`` if absent/unreadable."""
 
     target = Path(path) if path is not None else PAIRINGS_PATH
-    return _clean_list(_read_json(target))
+    return _clean_list(read_json(target, []))
 
 
 def save_scene_pairings(
@@ -122,7 +103,7 @@ def save_scene_pairings(
     """Atomically persist the whole pairing list."""
 
     target = Path(path) if path is not None else PAIRINGS_PATH
-    _save(target, [asdict(pairing) for pairing in pairings])
+    save_json(target, [asdict(pairing) for pairing in pairings])
 
 
 def set_scene_pairings(

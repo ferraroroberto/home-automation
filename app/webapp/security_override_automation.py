@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._zone_lookup import _zone_name_for
 from src import telemetry
 from src.risco_client import fetch_events, set_zone_bypass
 from src.security_override import load_overrides
@@ -79,13 +80,6 @@ def load_override_automation_config() -> OverrideAutomationConfig:
 # disk via ``src.security_override_session``, precisely so a restart doesn't
 # lose track mid-session (same reasoning as issue #325's cursor).
 _state: Dict[str, object] = {"last_scan": None, "scan_running": False}
-
-
-def _zone_name_for(zone_id: int, security: object) -> str:
-    for zone in getattr(security, "zones", None) or []:
-        if int(getattr(zone, "id", -1)) == zone_id:
-            return str(getattr(zone, "name", "") or zone_id)
-    return str(zone_id)
 
 
 async def _auto_bypass(zone_id: int, max_retries: int, trigger_count: int) -> None:
