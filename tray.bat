@@ -20,15 +20,15 @@ REM  Detection matches the tray process by command line + this project's .venv
 REM  path via CIM, then kills BY PID with /T. We never blanket-kill pythonw, so
 REM  sister-app trays and any other python processes are untouched.
 REM
-REM  The CIM detection + port reclaim live in app\tray\tray_lifecycle.ps1 (a
-REM  committed helper shelled to with -File), NOT inline `powershell -Command
-REM  "..."`. Inline, the CIM -Filter's nested quotes inside this batch's quotes
-REM  inside a `for /f usebackq` backtick block get mangled when tray.bat is
-REM  launched non-interactively (Git Bash -> `cmd /c "tray.bat --restart"`, or a
-REM  finisher skill's Bash tool): the inline command returns empty, nothing is
-REM  killed, and --restart silently degrades to a plain start that adopts the
-REM  stale webapp and reports success. -File removes the nested quoting, so
-REM  detection/reclaim behave identically from any caller (project-scaffolding#54).
+REM  The full detect -> kill -> reclaim -> start -> verify lifecycle lives in
+REM  app\tray\tray_lifecycle.ps1 (a committed helper shelled to with -File), NOT
+REM  in cmd-side `for /f` output capture or inline `powershell -Command "..."`.
+REM  Both cmd shapes have failed under non-interactive nested callers (Git Bash
+REM  -> `cmd /c "tray.bat --restart"`, or a finisher skill's Bash tool): detect
+REM  output came back empty, nothing was killed, and --restart silently degraded
+REM  to a plain start that adopted the stale webapp and reported success.
+REM  Delegating once to PowerShell makes behavior identical from any caller and
+REM  lets stale git_sha verification fail loudly (project-scaffolding#54).
 REM
 REM  --restart is orphan-proof: besides killing the tray subtree, it reclaims
 REM  this app's owned service ports by their owning PID, regardless of process
@@ -47,9 +47,6 @@ REM ============================================================================
 
 setlocal EnableDelayedExpansion
 set "SCRIPT_DIR=%~dp0"
-set "VENV_DIR=%SCRIPT_DIR%.venv\Scripts"
-set "VENV_PYW=%VENV_DIR%\pythonw.exe"
-set "VENV_PY=%VENV_DIR%\python.exe"
 
 cd /d "%SCRIPT_DIR%" || exit /b 1
 
@@ -72,43 +69,15 @@ if not exist "%TRAY_PS%" (
     echo ERROR: missing tray helper "%TRAY_PS%" -- vendor app\tray\tray_lifecycle.ps1 from the scaffold.
     exit /b 1
 )
-set "TRAY_PIDS="
-for /f "usebackq delims=" %%P in (`%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" detect -VenvDir "%TRAY_VENV%" -TrayMatch "app\.tray"`) do (
-    if defined TRAY_PIDS (set "TRAY_PIDS=!TRAY_PIDS! %%P") else (set "TRAY_PIDS=%%P")
-)
 
-if defined TRAY_PIDS if not defined WANT_RESTART (
-    echo %APP_NAME% tray is already running ^(PID: !TRAY_PIDS!^).
-    echo Run "tray.bat --restart" to stop it and start fresh.
-    exit /b 0
-)
+REM === ADAPT (4/4): replace __OWNED_PORTS__ with this tray's exclusively-owned
+REM     ports as a comma list, e.g. 8445,8446 . Exclude any mutex-shared port. ===
+set "OWNED_PORTS=8447"
+REM Optional override. Leave blank to verify http://127.0.0.1:<first-owned-port>/api/version.
+set "VERSION_URL="
 
-if defined WANT_RESTART (
-    if defined TRAY_PIDS (
-        echo Stopping previous %APP_NAME% tray ^(PID: !TRAY_PIDS!^)...
-        for %%P in (!TRAY_PIDS!) do (
-            taskkill /T /F /PID %%P >nul 2>&1
-        )
-    )
-    REM Orphan-proof: reclaim this app's owned service ports from ANY holder
-    REM whose CommandLine is under this repo's .venv, even one detached from the
-    REM tray subtree above. CommandLine scope (not image path) is load-bearing --
-    REM see the header note.
-    REM === ADAPT (4/4): replace __OWNED_PORTS__ with this tray's exclusively-owned
-    REM     ports as a comma list, e.g. 8445,8446 . Exclude any mutex-shared port. ===
-    set "RECLAIM_VENV=%SCRIPT_DIR%.venv"
-    %PS% -NoProfile -NonInteractive -File "%TRAY_PS%" reclaim -VenvDir "!RECLAIM_VENV!" -Ports "8447"
-    REM Give Windows a moment to release the ports before rebinding.
-    ping 127.0.0.1 -n 3 >nul
-)
+set "RESTART_ARG="
+if defined WANT_RESTART set "RESTART_ARG=-Restart"
 
-REM Prefer pythonw.exe so no console window stays open. The window title
-REM differentiates this tray from sister apps' trays.
-if exist "%VENV_PYW%" (
-    start "%APP_NAME% Tray" "%VENV_PYW%" %TRAY_LAUNCH%
-) else if exist "%VENV_PY%" (
-    start "%APP_NAME% Tray" "%VENV_PY%" %TRAY_LAUNCH%
-) else (
-    start "%APP_NAME% Tray" pythonw %TRAY_LAUNCH%
-)
-exit /b 0
+%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR%" -VenvDir "%TRAY_VENV%" -TrayMatch "app\.tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
+exit /b %ERRORLEVEL%
