@@ -18,16 +18,12 @@ template. Atomic temp-file + ``os.replace`` write, the same load/save shape as
 
 from __future__ import annotations
 
-import json
-import logging
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
-from src._atomic_json import write_json_atomic
-
-logger = logging.getLogger(__name__)
+from src._schedule_store import read_json, save_json
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 OVERRIDES_PATH = _CONFIG_DIR / "security_override.json"
@@ -47,21 +43,6 @@ class OverrideEntry:
     zone_id: int
     max_retries: int
     enabled: bool = True
-
-
-def _read_json(path: Path) -> Any:
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty", path, exc)
-        return []
-
-
-def _save(path: Path, data: List[dict]) -> None:
-    write_json_atomic(path, data)
-    logger.info("💾 Saved %s", path)
 
 
 def _safe_id(value: Any, fallback: str) -> str:
@@ -117,14 +98,14 @@ def load_overrides(path: Optional[Path] = None) -> List[OverrideEntry]:
     """Return the persisted override list, or ``[]`` if absent/unreadable."""
 
     target = Path(path) if path is not None else OVERRIDES_PATH
-    return _clean_list(_read_json(target))
+    return _clean_list(read_json(target, []))
 
 
 def save_overrides(entries: List[OverrideEntry], path: Optional[Path] = None) -> None:
     """Atomically persist the whole override list."""
 
     target = Path(path) if path is not None else OVERRIDES_PATH
-    _save(target, [asdict(entry) for entry in entries])
+    save_json(target, [asdict(entry) for entry in entries])
 
 
 def set_overrides(

@@ -6,16 +6,12 @@ from explicit home/away webhooks keyed by stable person ids.
 
 from __future__ import annotations
 
-import json
-import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-from src._atomic_json import write_json_atomic
-
-logger = logging.getLogger(__name__)
+from src._schedule_store import read_json, save_json
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 STATE_PATH = _CONFIG_DIR / "presence_state.json"
@@ -76,21 +72,6 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _read_json(path: Path) -> Any:
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty", path, exc)
-        return {}
-
-
-def _write_json(path: Path, data: Dict[str, Any]) -> None:
-    write_json_atomic(path, data)
-    logger.info("💾 Saved %s", path)
-
-
 def _iso(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat()
 
@@ -108,12 +89,12 @@ def _parse_dt(value: Any) -> Optional[datetime]:
 
 
 def _load_state(path: Optional[Path] = None) -> Dict[str, Any]:
-    raw = _read_json(Path(path) if path is not None else STATE_PATH)
+    raw = read_json(Path(path) if path is not None else STATE_PATH, {})
     return raw if isinstance(raw, dict) else {}
 
 
 def _save_state(data: Dict[str, Any], path: Optional[Path] = None) -> None:
-    _write_json(Path(path) if path is not None else STATE_PATH, data)
+    save_json(Path(path) if path is not None else STATE_PATH, data)
 
 
 def load_people(path: Optional[Path] = None) -> Dict[str, PersonPresence]:
@@ -191,7 +172,7 @@ def set_person_state(
 def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationConfig:
     """Return persisted presence automation config, defaulting safely off."""
 
-    raw = _read_json(Path(path) if path is not None else AUTOMATION_PATH)
+    raw = read_json(Path(path) if path is not None else AUTOMATION_PATH, {})
     if not isinstance(raw, dict):
         raw = {}
     return PresenceAutomationConfig(
@@ -209,7 +190,7 @@ def save_automation_config(
 ) -> None:
     """Persist presence automation config."""
 
-    _write_json(Path(path) if path is not None else AUTOMATION_PATH, asdict(config))
+    save_json(Path(path) if path is not None else AUTOMATION_PATH, asdict(config))
 
 
 def _automation_meta(raw: Dict[str, Any]) -> Dict[str, Any]:

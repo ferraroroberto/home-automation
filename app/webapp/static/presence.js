@@ -21,7 +21,7 @@ import {
   THIS_DEVICE_LOCATION_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
-import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
+import { toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 export function fmtTime(value) {
   if (!value) return '-';
@@ -565,8 +565,7 @@ function renderPresenceHiddenToggle(entity) {
   btn.title = isThisDevice ? 'This device is always shown when browser location is enabled' : '';
   btn.className = 'toggle' + (hidden ? ' on' : ' off');
   btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
-  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (hidden ? 'ON' : 'OFF') + '</span>';
+  btn.innerHTML = toggleMarkup(hidden);
 }
 
 function closePresenceDetail() {

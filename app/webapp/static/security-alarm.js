@@ -17,6 +17,7 @@ import { state, els, toast, SECURITY_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi } from './api.js';
 import { fmtTime } from './presence.js';
 import { renderSecurity } from './security.js';
+import { toggleMarkup } from './toggle.js';
 
 // The full alarm-control row, in display order. Always rendered; the live state
 // machine decides which are tappable and which is the current (selected) one.
@@ -375,8 +376,7 @@ export function renderZones() {
     toggle.setAttribute('role', 'switch');
     toggle.setAttribute('aria-checked', active ? 'true' : 'false');
     toggle.setAttribute('aria-label', 'Detector active ' + zoneLabel(zone));
-    toggle.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-      (active ? 'ON' : 'OFF') + '</span>';
+    toggle.innerHTML = toggleMarkup(active);
     toggle.addEventListener('click', function () { setBypass(zone, active, toggle); });
     row.appendChild(toggle);
 
@@ -425,8 +425,7 @@ function renderZoneHiddenToggle(zone) {
   const hidden = !!zone.hidden;
   btn.className = 'toggle' + (hidden ? ' on' : ' off');
   btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
-  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (hidden ? 'ON' : 'OFF') + '</span>';
+  btn.innerHTML = toggleMarkup(hidden);
 }
 
 function renderZoneTroubleIgnoreToggle(zone) {
@@ -435,8 +434,7 @@ function renderZoneTroubleIgnoreToggle(zone) {
   const ignored = !!zone.trouble_ignored;
   btn.className = 'toggle' + (ignored ? ' on' : ' off');
   btn.setAttribute('aria-checked', ignored ? 'true' : 'false');
-  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (ignored ? 'ON' : 'OFF') + '</span>';
+  btn.innerHTML = toggleMarkup(ignored);
 }
 
 // Detail-modal staging (#203): name + Hidden commit on Save. zoneStaged holds the

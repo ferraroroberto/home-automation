@@ -20,6 +20,7 @@ import {
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
 import { renderNetwork } from './network.js';
+import { toggleMarkup } from './toggle.js';
 
 // Mirrors src.network_client._WEAK_SIGNAL_PCT — a wireless client below this is
 // counted in the "Weak" chip and dimmed in the list.
@@ -325,8 +326,7 @@ function renderImportantToggle(d) {
   const on = !!d.important;
   btn.className = 'toggle' + (on ? ' on' : ' off');
   btn.setAttribute('aria-checked', on ? 'true' : 'false');
-  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (on ? 'ON' : 'OFF') + '</span>';
+  btn.innerHTML = toggleMarkup(on);
 }
 
 function renderNetDeviceHiddenToggle(d) {
@@ -335,8 +335,7 @@ function renderNetDeviceHiddenToggle(d) {
   const on = !!d.hidden;
   btn.className = 'toggle' + (on ? ' on' : ' off');
   btn.setAttribute('aria-checked', on ? 'true' : 'false');
-  btn.innerHTML = '<span class="knob"></span><span class="toggle-label">' +
-    (on ? 'ON' : 'OFF') + '</span>';
+  btn.innerHTML = toggleMarkup(on);
 }
 
 function openNetDeviceDetail(mac) {
