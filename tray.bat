@@ -76,8 +76,17 @@ set "OWNED_PORTS=8447"
 REM Optional override. Leave blank to verify http://127.0.0.1:<first-owned-port>/api/version.
 set "VERSION_URL="
 
+REM %~dp0 (SCRIPT_DIR) always ends in a trailing backslash. A quoted CLI arg
+REM ending "...\" is misparsed by Windows argv parsing: an odd run of
+REM backslashes before the closing quote escapes it instead of closing the
+REM string, so everything past -ScriptDir gets swallowed into one argument
+REM (observed: "positional parameter cannot be found that accepts argument
+REM 'app.tray -VersionUrl \"'"). Strip the trailing backslash before passing.
+set "SCRIPT_DIR_ARG=%SCRIPT_DIR%"
+if "%SCRIPT_DIR_ARG:~-1%"=="\" set "SCRIPT_DIR_ARG=%SCRIPT_DIR_ARG:~0,-1%"
+
 set "RESTART_ARG="
 if defined WANT_RESTART set "RESTART_ARG=-Restart"
 
-%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR%" -VenvDir "%TRAY_VENV%" -TrayMatch "app\.tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
+%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR_ARG%" -VenvDir "%TRAY_VENV%" -TrayMatch "app\.tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
 exit /b %ERRORLEVEL%
