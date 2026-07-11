@@ -1,6 +1,6 @@
 /* Shared helpers for the RISCO detector-scoped editors (security-scene.js,
- * security-override.js): both build a detector dropdown from the same
- * already-loaded security state and render options into a plain <select>.
+ * security-override.js): both build detector options from the same
+ * already-loaded security state.
  */
 
 'use strict';
@@ -12,18 +12,4 @@ export function detectorOptions() {
   return zones.map(function (zone) {
     return { id: zone.id, name: (zone.display_name || zone.name || String(zone.id)) };
   });
-}
-
-export function buildSelect(className, options, value, onChange) {
-  const sel = document.createElement('select');
-  sel.className = 'select-native ' + className;
-  options.forEach(function (opt) {
-    const o = document.createElement('option');
-    o.value = String(opt.value);
-    o.textContent = opt.label;
-    sel.appendChild(o);
-  });
-  sel.value = value == null ? '' : String(value);
-  sel.addEventListener('change', onChange);
-  return sel;
 }

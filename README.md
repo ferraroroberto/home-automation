@@ -151,7 +151,9 @@ frosted toast on tap, then re-renders from the panel's live state.
 **Weekly alarm schedules.** The Alarm tab includes a collapsible **Schedules**
 card for multiple local weekly schedule entries. Each entry can be enabled,
 assigned to any weekday combination, given a time, and set to `Disarm`,
-`Partial`, `Perimeter`, or `Full`. The tray-owned webapp evaluates these entries
+`Partial`, `Perimeter`, or `Full`. Saved schedules appear as compact summary
+rows; tap a row or **Add schedule** to edit in a dialog, where **Save** commits
+the change and closing discards it. The tray-owned webapp evaluates these entries
 server-side, fires each entry at most once per calendar day, and logs failed
 alarm commands without stopping the scheduler so a transient RISCO error can be
 retried on the next poll. The entries live in gitignored
@@ -775,8 +777,10 @@ Anthropic-shape `/v1/messages`) per the fleet rule — never an inline `claude -
 wrapper. A hub or parse failure degrades to an "AI analysis unavailable — verify
 manually" verdict and never breaks the alarm path.
 
-**Configure pairings** in the **Security tab → Scene capture** card (detector →
-camera → PTZ preset dropdowns), or by hand in gitignored
+**Configure pairings** in the **Security tab → Scene capture** card. Saved
+pairings appear as compact detector-to-camera rows; tap a row or **Add pairing**
+to edit the detector, camera, and optional PTZ preset in a dialog. Closing the
+dialog without **Save** discards the change. Pairings can also be edited by hand in gitignored
 `config/alarm_scene_pairings.json` (copy `config/alarm_scene_pairings.sample.json`;
 each entry is `{zone_id, camera_id, preset_token?, preset_name?, enabled}`). API:
 `GET/PUT /api/security/scene-pairings`.
@@ -812,8 +816,10 @@ persisted to gitignored `config/security_override_session.json`. Each
 auto-bypass/restore is logged to the unified activity log (`GET
 /api/activity?domain=security`, `event_type` `auto_bypass` / `auto_unbypass`).
 
-**Configure** in the **Security tab → Override** card (detector + "bypass
-after N triggers" dropdowns), or by hand in gitignored
+**Configure** in the **Security tab → Override** card. Saved rules appear as
+compact detector + threshold rows; tap a row or **Add override** to edit the
+detector and "bypass after N triggers" threshold in a dialog. Closing without
+**Save** discards the change. Rules can also be edited by hand in gitignored
 `config/security_override.json` (copy `config/security_override.sample.json`;
 each entry is `{zone_id, max_retries, enabled}`, `max_retries` clamped to
 1-3). API: `GET/PUT /api/security/overrides`.

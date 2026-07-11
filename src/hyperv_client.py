@@ -89,8 +89,8 @@ class HyperVState:
 _STATUS_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 $name = $env:HA_VM_NAME
-$vm = Get-VM -Name $name
-$net = Get-VMNetworkAdapter -VMName $name -ErrorAction SilentlyContinue
+$vm = Get-VM -ComputerName localhost -Name $name
+$net = Get-VMNetworkAdapter -VM $vm -ErrorAction SilentlyContinue
 $ipv4 = $null
 $mac = $null
 if ($net) {
@@ -111,8 +111,8 @@ if ($net) {
 # ``Start-VM`` on a running VM is a silent no-op (so "already running" can't come
 # from it — we pre-check). ``Stop-VM -Force`` is a graceful ACPI shutdown without
 # the confirmation prompt — NOT a hard power-off (that is ``-TurnOff``, never used).
-_START_SCRIPT = "$ErrorActionPreference='Stop'; Start-VM -Name $env:HA_VM_NAME"
-_STOP_SCRIPT = "$ErrorActionPreference='Stop'; Stop-VM -Name $env:HA_VM_NAME -Force"
+_START_SCRIPT = "$ErrorActionPreference='Stop'; Start-VM -ComputerName localhost -Name $env:HA_VM_NAME"
+_STOP_SCRIPT = "$ErrorActionPreference='Stop'; Stop-VM -ComputerName localhost -Name $env:HA_VM_NAME -Force"
 
 
 def fetch_hyperv_state() -> HyperVState:

@@ -61,6 +61,23 @@ def test_fan_change_posts_fan_speed(
     expect(card.locator("select.unit-fan")).to_have_value("Three")
 
 
+def test_unit_header_has_44px_target_without_overlapping_controls(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    mock_api(sample_units)
+    _boot(page, base_url)
+    card = page.locator('[data-unit-id="unit-1"]')
+    header = card.locator(".unit-header").bounding_box()
+    fan = card.locator(".unit-fan-control").bounding_box()
+    power = card.locator(".toggle").bounding_box()
+    assert header is not None and fan is not None and power is not None
+    assert header["height"] >= 44
+    assert header["x"] + header["width"] <= fan["x"]
+    assert header["x"] + header["width"] <= power["x"]
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
 def test_target_clamped_at_min(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:

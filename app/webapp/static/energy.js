@@ -14,6 +14,7 @@
 
 import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { emptyStateEl } from './icons.js';
 import { esc, group, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
@@ -36,6 +37,72 @@ const CO2_KG_PER_KWH = 0.4;       // grid emission factor (kg CO₂ avoided / kW
 const CO2_KG_PER_TREE_YEAR = 21;  // sequestration per tree-year
 
 let todayTimer = null;
+let energyViewState = 'idle';
+let energyLastGood = null;
+let energyUpdatedAt = null;
+let energyLiveUnavailable = false;
+
+function setEnergyViewState(next, opts) {
+  energyViewState = next;
+  if (opts && opts.updatedAt) energyUpdatedAt = opts.updatedAt;
+  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
+    energyLiveUnavailable = opts.liveUnavailable;
+  }
+}
+
+function lastUpdatedLabel() {
+  const raw = energyUpdatedAt || state.snapshotUpdatedAt.energyLive;
+  const updated = raw instanceof Date ? raw : new Date(raw || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderEnergyFeedback() {
+  if (!els.paneEnergy || !els.energyFeedback) return;
+  els.paneEnergy.dataset.state = energyViewState;
+  els.paneEnergy.setAttribute('aria-busy', energyViewState === 'loading' ? 'true' : 'false');
+  els.energyFeedback.innerHTML = '';
+  els.energyFeedback.hidden = false;
+  if (energyViewState === 'loading') {
+    els.energyFeedback.appendChild(emptyStateEl('refresh-cw', 'Reading live energy…'));
+    return;
+  }
+  if (energyViewState === 'error') {
+    els.energyFeedback.appendChild(emptyStateEl('zap', 'Live energy unavailable', {
+      actionLabel: 'Retry',
+      onAction: function () { loadEnergy(); },
+    }));
+    return;
+  }
+  if (energyViewState === 'stale') {
+    const note = document.createElement('p');
+    note.className = 'muted small energy-stale-note';
+    note.textContent = energyLiveUnavailable
+      ? lastUpdatedLabel() + ' · live data unavailable'
+      : snapshotLabel('energyLive');
+    els.energyFeedback.appendChild(note);
+    return;
+  }
+  els.energyFeedback.hidden = true;
+}
+
+function markEnergyFailure() {
+  setEnergyViewState(energyLastGood ? 'stale' : 'error', {
+    liveUnavailable: true,
+  });
+  reportFetchFailure(
+    'energy',
+    { message: 'live data unavailable' },
+    'live energy'
+  );
+  renderEnergyFeedback();
+  if (energyLastGood) {
+    els.liveMeta.textContent = '· ' + lastUpdatedLabel() + ' · live data unavailable';
+  }
+}
 
 // --------------------------------------------------------------- formatting
 // group / fmtW / fmtPct / esc live in the shared format.js (issue #383).
@@ -120,6 +187,7 @@ export function renderEnergy(e) {
   renderFlowCard(energyFlowRefs, e, solar);
   renderFlowCard(homeFlowRefs, e, solar);
   els.homeEnergyFlow.hidden = false;
+  renderEnergyFeedback();
 
   // --- Live efficiency tiles. ---
   els.liveSelfSuff.textContent = fmtFracPct(selfSufficiencyFrac(solar, e.house_consumption_w));
@@ -156,16 +224,30 @@ function gridFlowW(e) {
 }
 
 export async function loadEnergy() {
+  if (!energyLastGood) {
+    setEnergyViewState('loading', { liveUnavailable: false });
+    renderEnergyFeedback();
+  }
   try {
     const body = await jsonApi('/api/energy');
+    if (!body) {
+      markEnergyFailure();
+      return;
+    }
     reportFetchOk('energy');
     saveSnapshot('energyLive', body);
-    if (body) renderEnergy(body);
+    energyLastGood = body;
+    setEnergyViewState('ready', {
+      updatedAt: new Date(),
+      liveUnavailable: false,
+    });
+    renderEnergy(body);
   } catch (exc) {
     // A hard fetch failure (network/500) is surfaced once per outage; the live
     // values keep their last render. A successful fetch that simply has no live
     // data (meter/inverter unreachable) is handled inline in renderEnergy.
-    reportFetchFailure('energy', exc, 'live energy');
+    if (String(exc.message) === 'auth required') return;
+    markEnergyFailure();
   }
 }
 
@@ -229,7 +311,14 @@ async function loadToday() {
 
 export function restoreEnergySnapshots() {
   const live = restoreSnapshot('energyLive');
-  if (live) renderEnergy(live);
+  if (live) {
+    energyLastGood = live;
+    setEnergyViewState('stale', {
+      updatedAt: state.snapshotUpdatedAt.energyLive,
+      liveUnavailable: false,
+    });
+    renderEnergy(live);
+  }
   const today = restoreSnapshot('energyToday');
   if (today) renderToday(today && today.bucket);
 }

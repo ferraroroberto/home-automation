@@ -231,6 +231,12 @@ button, input, select, textarea {
   font: inherit;
 }
 
+/* Expand isolated compact controls to the 44px interaction floor without
+   changing their visible size. Adjacent adopters must leave 10px+ between
+   34px controls so these 5px extensions never overlap. */
+.hit-target { position: relative; }
+.hit-target::before { content: ""; position: absolute; inset: -5px; }
+
 .app {
   max-width: 772px;
   margin: 0 auto;
@@ -351,6 +357,8 @@ button, input, select, textarea {
 .ac-temp { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------- energy flow diagram */
+.energy-feedback { margin: 0 0 var(--gap); }
+.energy-stale-note { margin: 0 4px; color: var(--attention); }
 /* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
    self-evident, and the time duplicated the phone clock — #74). */
 .flow-card { padding: 12px; margin-bottom: var(--gap); }
@@ -625,7 +633,7 @@ button, input, select, textarea {
 /* Groups the theme toggle with the nav-debug toggle (#300) so both sit
    together on the right of the weather tile, per the same "left of the
    sun/moon icon" placement the theme toggle already uses. */
-.weather-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.weather-actions { display: flex; align-items: center; gap: 12px; flex: none; }
 /* Standard icon-only button for a control nested inside a card (same recipe
    as .detail-close's dialog-header close button): a subtle contrast
    background instead of the tile's own bg, not a bare floating icon. */
@@ -672,6 +680,7 @@ button, input, select, textarea {
 .unit-header {
   display: flex;
   align-items: center;
+  min-height: 44px;
   gap: var(--space-sm);
   flex: 1;
   min-width: 0;
@@ -918,6 +927,8 @@ button, input, select, textarea {
 .plugs-hidden-count { line-height: 1; }
 
 .plugs-note { margin: 10px 4px; }
+.plugs-feedback { margin: 0 0 var(--gap); }
+.plugs-stale-note { margin: 0 4px; color: var(--attention); }
 
 /* Home-tab plug summary as a single line at the weather-tile height (#253):
    identity (icon + "Plugs" + total) left, On/Off counts inline, the total live
@@ -961,6 +972,8 @@ button, input, select, textarea {
 .ups-tile.is-unavailable {
   opacity: 0.75;
 }
+.ups-tile > .empty-state { padding: var(--space-sm) 0; }
+.ups-stale-note { margin: var(--space-sm) 0 0; color: var(--attention); }
 /* One unified layout for both the Home and Plugs tiles (#207 follow-up): the
    identity sits top-left, the status pill is pinned to the top-right corner,
    and the stat row runs full-width beneath. No separate desktop/mobile shape. */
@@ -1091,6 +1104,8 @@ button, input, select, textarea {
   margin-bottom: var(--gap);
 }
 .vm-tile.is-unavailable { opacity: 0.85; }
+.vm-tile > .empty-state { padding: var(--space-sm) 0; }
+.vm-stale-note { margin: var(--space-sm) 0 0; color: var(--attention); }
 .vm-main {
   display: flex;
   align-items: center;
@@ -1241,8 +1256,8 @@ button.device-row-name:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   background: var(--card-off);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -1419,6 +1434,12 @@ button.device-row-name:hover { text-decoration: underline; }
 }
 
 /* -------------------------------------------------------- security tab */
+.security-feedback { margin: 0 0 var(--gap); }
+.security-stale-note,
+.security-live-feedback { margin: var(--space-sm) 4px 0; color: var(--attention); }
+#paneSecurity[data-state="loading"] > :not(.security-feedback),
+#paneSecurity[data-state="error"] > :not(.security-feedback) { display: none; }
+
 .security-card {
   padding: 12px;
   margin-bottom: var(--gap);
@@ -1502,7 +1523,7 @@ button.device-row-name:hover { text-decoration: underline; }
 @media (max-width: 430px) {
   .security-actions { gap: 5px; }
   .security-action {
-    min-height: 40px;
+    min-height: 44px;
     font-size: var(--font-caption);
     padding-inline: 3px;
   }
@@ -1641,6 +1662,45 @@ button.security-zone-name:hover { text-decoration: underline; }
   flex-direction: column;
   gap: 10px;
 }
+.automation-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-sm);
+  border-top: 1px solid var(--line);
+}
+.automation-summary-row:first-child { border-top: 0; }
+.automation-summary-main {
+  appearance: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  min-height: 56px;
+  padding: var(--space-sm) 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.automation-summary-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.automation-summary-title { font-weight: 700; font-variant-numeric: tabular-nums; }
+.automation-summary-meta {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.automation-summary-chevron { width: 18px; height: 18px; color: var(--muted); }
+.automation-summary-row > .toggle { margin-inline: 5px; }
 .alarm-schedule-entry .schedule-entry-head {
   grid-template-columns: minmax(0, 1fr) auto;
 }
@@ -1651,7 +1711,7 @@ button.security-zone-name:hover { text-decoration: underline; }
   margin-top: var(--space-sm);
 }
 .alarm-schedule-day {
-  min-height: 32px;
+  min-height: 44px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--card);
@@ -1831,56 +1891,8 @@ button.security-zone-name:hover { text-decoration: underline; }
   font-weight: 700;
   color: var(--muted);
 }
-/* Alarm-scene pairing rows reuse the schedule entry/field styling (issue #162),
-   with three equal columns for Detector / Camera / Position. */
-.scene-pairing-fields {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: var(--space-sm);
-}
-.scene-pairing-fields label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 600;
-}
-.scene-pairing-fields .select-native {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
 .scene-pairings-body .schedule-add-btn { margin-top: 10px; }
-@media (max-width: 420px) {
-  .scene-pairing-fields { grid-template-columns: 1fr; }
-}
-/* Override rows reuse the same schedule entry/field styling, with two equal
-   columns for Detector / Bypass-after (issue #341). */
-.security-override-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: var(--space-sm);
-}
-.security-override-fields label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 600;
-}
-.security-override-fields .select-native {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
 .security-override-body .schedule-add-btn { margin-top: 10px; }
-@media (max-width: 420px) {
-  .security-override-fields { grid-template-columns: 1fr; }
-}
 .presence-body-summary {
   display: flex;
   align-items: center;
@@ -1969,6 +1981,51 @@ button.presence-name:hover { text-decoration: underline; }
   display: grid;
   gap: var(--space-sm);
   padding: 14px;
+}
+.schedule-editor-days-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.schedule-editor-days-label { font-weight: 600; }
+.schedule-editor-delete {
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-sm);
+  border: 1px solid color-mix(in srgb, var(--deficit) 30%, var(--line));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--deficit) 10%, transparent);
+  color: var(--deficit);
+  font-weight: 700;
+  cursor: pointer;
+}
+.ac-feedback { margin: 0 0 var(--gap); }
+.ac-stale-note { margin: 0 4px; color: var(--attention); }
+.presence-settings > .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--row-sm);
+}
+.presence-settings > .row > span { min-width: 0; }
+.presence-settings > .row > .input-native,
+.presence-settings > .row > .toggle {
+  justify-self: end;
+  box-sizing: border-box;
+}
+#locationLabel,
+#locationLat,
+#locationLon {
+  width: 8.5rem;
+}
+#locationLat,
+#locationLon {
+  text-align: right;
+}
+#presenceArmMinutes,
+#presenceStaleMinutes {
+  width: 5rem;
+  text-align: right;
 }
 .presence-settings .big-btn {
   min-height: 38px;
@@ -2384,6 +2441,13 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .page-foot p { margin: 2px 0; }
 
 /* ----------------------------------------------------------- network (LAN) */
+/* Initial/unavailable feedback replaces the placeholder-filled Network shell;
+   stale feedback stays compact above the preserved last-good content. */
+.network-feedback { margin: 0 0 var(--gap); }
+.network-stale-note { margin: 0 4px; color: var(--attention); }
+#paneNetwork[data-state="loading"] > :not(.network-feedback),
+#paneNetwork[data-state="error"] > :not(.network-feedback) { display: none; }
+
 /* Internet-health tile — modelled on the energy flow-card: a big status word,
    a quiet latency/loss caption, the sticky last speed-test result, and the
    opt-in speed-test button. */

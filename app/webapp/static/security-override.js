@@ -16,10 +16,16 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { detectorOptions, buildSelect } from './security-shared.js';
-import { buildToggle } from './toggle.js';
+import { icon } from './icons.js';
+import { detectorOptions } from './security-shared.js';
+import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { confirmAction } from './network.js';
 
 const RETRY_OPTIONS = [1, 2, 3];
+let editorIndex = null;
+let editorOverrideId = null;
+let editorReturnFocus = null;
+let stagedOverride = null;
 
 function overrideDefaults() {
   return {
@@ -30,8 +36,8 @@ function overrideDefaults() {
   };
 }
 
-function normalizedOverrides() {
-  return (state.securityOverrides || []).map(function (entry, idx) {
+function normalizedOverrides(entries) {
+  return (entries || state.securityOverrides || []).map(function (entry, idx) {
     const zoneId = Number(entry.zone_id);
     const retries = Number(entry.max_retries);
     return {
@@ -43,12 +49,73 @@ function normalizedOverrides() {
   });
 }
 
+function setSelectOptions(select, options, value) {
+  select.innerHTML = '';
+  options.forEach(function (entry) {
+    const option = document.createElement('option');
+    option.value = String(entry.value);
+    option.textContent = entry.label;
+    select.appendChild(option);
+  });
+  select.value = value == null ? '' : String(value);
+}
+
+function detectorName(zoneId) {
+  const detector = detectorOptions().find(function (entry) { return Number(entry.id) === Number(zoneId); });
+  return detector ? detector.name : 'Unknown detector';
+}
+
+function openOverrideEditor(index, trigger) {
+  editorIndex = index;
+  const source = index == null ? overrideDefaults() : state.securityOverrides[index];
+  stagedOverride = { ...source };
+  editorOverrideId = stagedOverride.id;
+  editorReturnFocus = trigger || null;
+  els.securityOverrideEditorTitle.textContent = index == null ? 'Add override' : 'Edit override';
+  setToggleState(els.securityOverrideEnabled, stagedOverride.enabled);
+  setSelectOptions(
+    els.securityOverrideZone,
+    [{ value: '', label: 'Select…' }].concat(detectorOptions().map(function (entry) {
+      return { value: entry.id, label: entry.name };
+    })),
+    stagedOverride.zone_id
+  );
+  setSelectOptions(
+    els.securityOverrideRetries,
+    RETRY_OPTIONS.map(function (count) {
+      return { value: count, label: count + (count === 1 ? ' trigger' : ' triggers') };
+    }),
+    stagedOverride.max_retries
+  );
+  els.securityOverrideDelete.hidden = index == null;
+  if (typeof els.securityOverrideDialog.showModal === 'function') els.securityOverrideDialog.showModal();
+  else els.securityOverrideDialog.setAttribute('open', '');
+  els.securityOverrideZone.focus();
+}
+
+function closeOverrideEditor() {
+  if (typeof els.securityOverrideDialog.close === 'function') els.securityOverrideDialog.close();
+  else els.securityOverrideDialog.removeAttribute('open');
+}
+
+function restoreEditorFocus() {
+  let target = editorReturnFocus && editorReturnFocus.isConnected ? editorReturnFocus : null;
+  if (!target && editorOverrideId) {
+    const row = els.securityOverrides.querySelector('[data-override-id="' + CSS.escape(editorOverrideId) + '"]');
+    if (row) target = row.querySelector('.automation-summary-main');
+  }
+  if (!target) target = els.securityOverrideAdd;
+  editorIndex = null;
+  editorOverrideId = null;
+  editorReturnFocus = null;
+  stagedOverride = null;
+  if (target) requestAnimationFrame(function () { target.focus(); });
+}
+
 export function renderSecurityOverrides() {
   if (!els.securityOverrides || !els.securityOverridesNote) return;
   els.securityOverrides.innerHTML = '';
   state.securityOverrides = normalizedOverrides();
-
-  const detectors = detectorOptions();
 
   if (els.securityOverridesCount) {
     const enabled = state.securityOverrides.filter(function (o) { return o.enabled !== false; }).length;
@@ -65,72 +132,39 @@ export function renderSecurityOverrides() {
   els.securityOverridesNote.hidden = true;
 
   state.securityOverrides.forEach(function (entry, idx) {
-    const card = document.createElement('div');
-    card.className = 'schedule-entry security-override-entry';
-    card.dataset.overrideId = entry.id;
+    const row = document.createElement('div');
+    row.className = 'list-row automation-summary-row';
+    row.dataset.overrideId = entry.id;
 
-    const head = document.createElement('div');
-    head.className = 'schedule-entry-head';
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'automation-summary-main';
+    main.setAttribute('aria-label', 'Edit override for ' + detectorName(entry.zone_id));
+    const copy = document.createElement('span');
+    copy.className = 'automation-summary-copy';
+    const title = document.createElement('span');
+    title.className = 'automation-summary-title';
+    title.textContent = detectorName(entry.zone_id);
+    const meta = document.createElement('span');
+    meta.className = 'automation-summary-meta';
+    meta.textContent = 'Bypass after ' + entry.max_retries +
+      (entry.max_retries === 1 ? ' trigger' : ' triggers');
+    copy.appendChild(title);
+    copy.appendChild(meta);
+    main.appendChild(copy);
+    main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
+    main.addEventListener('click', function () { openOverrideEditor(idx, main); });
+    row.appendChild(main);
 
-    const enabled = document.createElement('label');
-    enabled.className = 'schedule-enabled';
-    const enabledText = document.createElement('span');
-    enabledText.textContent = 'Enabled';
-    enabled.appendChild(enabledText);
-    enabled.appendChild(buildToggle('security-override-enabled', entry.enabled, function (on) {
-      state.securityOverrides[idx].enabled = on;
-      saveSecurityOverrides();
-    }));
-    head.appendChild(enabled);
-
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'schedule-delete';
-    del.setAttribute('aria-label', 'Delete override');
-    del.textContent = '×';
-    del.addEventListener('click', function () {
-      state.securityOverrides.splice(idx, 1);
-      saveSecurityOverrides();
+    const enabled = buildToggle('security-override-enabled', entry.enabled, function (on) {
+      const proposed = state.securityOverrides.map(function (override, overrideIndex) {
+        return overrideIndex === idx ? { ...override, enabled: on } : override;
+      });
+      saveSecurityOverrides(proposed);
     });
-    head.appendChild(del);
-    card.appendChild(head);
-
-    const fields = document.createElement('div');
-    fields.className = 'security-override-fields';
-
-    // Detector
-    const zoneLabel = document.createElement('label');
-    const zoneText = document.createElement('span');
-    zoneText.textContent = 'Detector';
-    const zoneOpts = [{ value: '', label: 'Select…' }].concat(
-      detectors.map(function (d) { return { value: d.id, label: d.name }; })
-    );
-    const zoneSel = buildSelect('security-override-zone', zoneOpts, entry.zone_id, function (ev) {
-      const v = ev.target.value;
-      state.securityOverrides[idx].zone_id = v === '' ? null : Number(v);
-      saveSecurityOverrides();
-    });
-    zoneLabel.appendChild(zoneText);
-    zoneLabel.appendChild(zoneSel);
-    fields.appendChild(zoneLabel);
-
-    // Retries
-    const retriesLabel = document.createElement('label');
-    const retriesText = document.createElement('span');
-    retriesText.textContent = 'Bypass after';
-    const retriesOpts = RETRY_OPTIONS.map(function (n) {
-      return { value: n, label: n + (n === 1 ? ' trigger' : ' triggers') };
-    });
-    const retriesSel = buildSelect('security-override-retries', retriesOpts, entry.max_retries, function (ev) {
-      state.securityOverrides[idx].max_retries = Number(ev.target.value);
-      saveSecurityOverrides();
-    });
-    retriesLabel.appendChild(retriesText);
-    retriesLabel.appendChild(retriesSel);
-    fields.appendChild(retriesLabel);
-
-    card.appendChild(fields);
-    els.securityOverrides.appendChild(card);
+    enabled.setAttribute('aria-label', 'Enable override for ' + detectorName(entry.zone_id));
+    row.appendChild(enabled);
+    els.securityOverrides.appendChild(row);
   });
 }
 
@@ -150,37 +184,78 @@ export async function loadSecurityOverrides() {
   renderSecurityOverrides();
 }
 
-async function saveSecurityOverrides() {
-  state.securityOverrides = normalizedOverrides();
+async function saveSecurityOverrides(entries) {
+  const previous = state.securityOverrides;
+  state.securityOverrides = normalizedOverrides(entries);
   renderSecurityOverrides();
-  // Only persist complete overrides — an in-progress row with no detector
-  // chosen yet is kept in the UI but not sent (the backend would drop it anyway).
-  const entries = state.securityOverrides.filter(function (o) { return o.zone_id != null; });
+  const complete = state.securityOverrides.filter(function (entry) { return entry.zone_id != null; });
   try {
     const body = await jsonApi('/api/security/overrides', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: entries }),
+      body: JSON.stringify({ entries: complete }),
     });
-    // Re-merge any incomplete (unsaved) rows on top of the persisted set so the
-    // user doesn't lose a half-filled row they're still editing.
-    const saved = (body && body.entries) || [];
-    const incomplete = state.securityOverrides.filter(function (o) { return o.zone_id == null; });
-    state.securityOverrides = saved.concat(incomplete);
+    state.securityOverrides = (body && body.entries) || [];
     renderSecurityOverrides();
     toast('Override saved', 'success');
+    return true;
   } catch (exc) {
+    state.securityOverrides = previous;
+    renderSecurityOverrides();
     if (String(exc.message) !== 'auth required') {
-      toast('Override save failed: ' + (exc.message || exc), 'error');
+      toast("Couldn't save override", 'error');
     }
+    return false;
   }
 }
 
 export function wireSecurityOverrides() {
-  if (!els.securityOverrideAdd) return;
+  if (!els.securityOverrideAdd || !els.securityOverrideDialog) return;
+  wireToggle(els.securityOverrideEnabled, function (on) {
+    if (stagedOverride) stagedOverride.enabled = on;
+  });
   els.securityOverrideAdd.addEventListener('click', function () {
-    state.securityOverrides = normalizedOverrides();
-    state.securityOverrides.push(overrideDefaults());
-    renderSecurityOverrides();
+    openOverrideEditor(null, els.securityOverrideAdd);
+  });
+  els.securityOverrideEditorClose.addEventListener('click', closeOverrideEditor);
+  els.securityOverrideDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.securityOverrideDialog) closeOverrideEditor();
+  });
+  els.securityOverrideDialog.addEventListener('close', restoreEditorFocus);
+  els.securityOverrideZone.addEventListener('change', function () {
+    if (!stagedOverride) return;
+    stagedOverride.zone_id = els.securityOverrideZone.value === ''
+      ? null : Number(els.securityOverrideZone.value);
+  });
+  els.securityOverrideRetries.addEventListener('change', function () {
+    if (stagedOverride) stagedOverride.max_retries = Number(els.securityOverrideRetries.value);
+  });
+  els.securityOverrideSave.addEventListener('click', async function () {
+    if (!stagedOverride) return;
+    if (stagedOverride.zone_id == null) {
+      toast('Choose a detector', 'warning');
+      els.securityOverrideZone.focus();
+      return;
+    }
+    stagedOverride.enabled = isToggleOn(els.securityOverrideEnabled);
+    const proposed = state.securityOverrides.slice();
+    if (editorIndex == null) proposed.push(stagedOverride);
+    else proposed[editorIndex] = stagedOverride;
+    els.securityOverrideSave.disabled = true;
+    const saved = await saveSecurityOverrides(proposed);
+    els.securityOverrideSave.disabled = false;
+    if (saved) closeOverrideEditor();
+  });
+  els.securityOverrideDelete.addEventListener('click', async function () {
+    if (editorIndex == null) return;
+    const ok = await confirmAction({
+      title: 'Delete this alarm override?',
+      message: 'This detector override will be removed permanently.',
+      okLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    const proposed = state.securityOverrides.filter(function (_entry, idx) { return idx !== editorIndex; });
+    if (await saveSecurityOverrides(proposed)) closeOverrideEditor();
   });
 }
