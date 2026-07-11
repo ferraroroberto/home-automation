@@ -92,3 +92,11 @@ def test_vm_name_raises_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_vm_name_returns_trimmed(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HA_VM_NAME", "  Home Assistant  ")
     assert H.vm_name() == "Home Assistant"
+
+
+def test_powershell_commands_target_localhost_explicitly() -> None:
+    """Tray environments may omit COMPUTERNAME; never rely on cmdlet defaults."""
+    assert "Get-VM -ComputerName localhost" in H._STATUS_SCRIPT
+    assert "Get-VMNetworkAdapter -VM $vm" in H._STATUS_SCRIPT
+    assert "Start-VM -ComputerName localhost" in H._START_SCRIPT
+    assert "Stop-VM -ComputerName localhost" in H._STOP_SCRIPT
