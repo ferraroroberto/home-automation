@@ -183,6 +183,61 @@ def test_app_padding_owned_by_vendored_nav_on_mobile(
         assert metrics["bottom"] == 24, metrics
 
 
+def test_weather_icon_controls_have_non_overlapping_44px_targets(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/weather",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "available": True,
+                "label": "Home",
+                "weather_code": 0,
+                "is_day": True,
+                "temperature_c": 24,
+                "forecast_code": 1,
+                "temp_min_c": 18,
+                "temp_max_c": 27,
+            }),
+        ),
+    )
+    _boot(page, base_url)
+    expect(page.locator("#weatherTile")).to_be_visible()
+
+    geometry = page.locator(".weather-icon-btn").evaluate_all("""
+        buttons => buttons.map(button => {
+          const rect = button.getBoundingClientRect();
+          const pseudo = getComputedStyle(button, '::before');
+          const expand = value => {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) && parsed < 0 ? -parsed : 0;
+          };
+          return {
+            visualWidth: rect.width,
+            visualHeight: rect.height,
+            left: rect.left - expand(pseudo.left),
+            right: rect.right + expand(pseudo.right),
+            top: rect.top - expand(pseudo.top),
+            bottom: rect.bottom + expand(pseudo.bottom),
+          };
+        })
+    """)
+    assert len(geometry) == 2
+    for target in geometry:
+        assert target["visualWidth"] == 34
+        assert target["visualHeight"] == 34
+        assert target["right"] - target["left"] >= 44
+        assert target["bottom"] - target["top"] >= 44
+    assert geometry[0]["right"] <= geometry[1]["left"]
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
+
 def test_home_shows_ac_summary_line_per_unit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
@@ -196,6 +251,284 @@ def test_home_shows_ac_summary_line_per_unit(
     # One scannable line per unit: name + an actionable power toggle (issue #72).
     expect(page.locator("#acSummary")).to_contain_text("Office")
     expect(page.locator("#acSummary .ac-line-toggle")).to_have_count(len(sample_units))
+
+
+def test_vm_tile_distinguishes_loading_from_not_found(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/hyperv' || url.endsWith('/api/hyperv')) {
+            return new Promise(function(resolve) {
+              setTimeout(function() {
+                resolve(new Response(JSON.stringify({
+                  hyperv: {available: false, state: 'not_found'}
+                }), {
+                  status: 200,
+                  headers: {'Content-Type': 'application/json'},
+                }));
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    _boot(page, base_url)
+
+    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#homeVmTile .empty-state-message")).to_have_text(
+        "Reading Home Assistant status…"
+    )
+    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "empty")
+    expect(page.locator("#homeVmTile .empty-state-message")).to_have_text(
+        "Home Assistant VM not found"
+    )
+
+
+def test_vm_tile_shows_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"Hyper-V host 192.0.2.80 timed out after 10 seconds"}',
+        ),
+    )
+    _boot(page, base_url)
+
+    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "error")
+    expect(page.locator("#homeVmTile .empty-state-message")).to_have_text(
+        "Home Assistant status unavailable"
+    )
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.80")
+
+
+def test_vm_status_error_keeps_start_action_when_vm_is_identified(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "hyperv": {
+                    "available": False,
+                    "name": "Fixture HA",
+                    "state": "unknown",
+                    "error": "Get-VM status failed",
+                }
+            }),
+        ),
+    )
+    page.route(
+        "**/api/hyperv/start",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "hyperv": {
+                    "available": True,
+                    "name": "Fixture HA",
+                    "state": "running",
+                    "uptime_seconds": 0,
+                }
+            }),
+        ),
+    )
+    _boot(page, base_url)
+
+    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "error")
+    start = page.locator("#homeVmTile .empty-state-action")
+    expect(start).to_have_text("Start Home Assistant")
+    expect(start).to_be_enabled()
+    start.click()
+
+    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#homeVmTile")).to_contain_text("online")
+    expect(page.locator("#homeVmTile .vm-toggle")).to_be_enabled()
+
+
+def test_vm_command_failure_uses_concise_toast(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "hyperv": {
+                    "available": False,
+                    "name": "Fixture HA",
+                    "state": "unknown",
+                }
+            }),
+        ),
+    )
+    page.route(
+        "**/api/hyperv/start",
+        lambda route: route.fulfill(
+            status=502,
+            content_type="application/json",
+            body='{"detail":"Start-VM host 192.0.2.80 Value cannot be null Parameter name: name"}',
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#homeVmTile .empty-state-action").click()
+
+    expect(page.locator("#toast")).to_have_text("Couldn't start Home Assistant")
+    expect(page.locator("#toast")).not_to_contain_text("Start-VM")
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.80")
+
+
+def test_vm_poll_failure_preserves_status_and_disables_power(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    failing = {"value": False}
+    vm = {
+        "available": True,
+        "state": "running",
+        "uptime_seconds": 3600,
+        "ip_address": "192.0.2.81",
+    }
+
+    def handle_vm(route) -> None:
+        if failing["value"]:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body='{"detail":"Hyper-V host 192.0.2.80 timed out after 10 seconds"}',
+            )
+            return
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"hyperv": vm}),
+        )
+
+    page.route("**/api/hyperv", handle_vm)
+    _boot(page, base_url)
+    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#homeVmTile")).to_contain_text("online")
+    expect(page.locator("#homeVmTile .vm-toggle")).to_be_enabled()
+
+    failing["value"] = True
+    page.locator("#tabAc").click()
+    page.locator("#tabHome").click()
+
+    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#homeVmTile")).to_contain_text("online")
+    expect(page.locator("#homeVmTile .vm-toggle")).to_be_disabled()
+    expect(page.locator("#homeVmTile")).to_contain_text("Last updated")
+    expect(page.locator("#homeVmTile")).to_contain_text("live data unavailable")
+    expect(page.locator("#homeVmTile")).not_to_contain_text("192.0.2.80")
+
+
+def test_ac_tab_distinguishes_loading_from_true_empty(
+    page: Page, base_url: str, mock_energy: Callable,
+) -> None:
+    mock_energy()
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/units' || url.endsWith('/api/units')) {
+            return new Promise(function(resolve) {
+              setTimeout(function() {
+                resolve(new Response(JSON.stringify({units: []}), {
+                  status: 200,
+                  headers: {'Content-Type': 'application/json'},
+                }));
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    _boot(page, base_url)
+    page.locator("#tabAc").click()
+
+    expect(page.locator("#paneAc")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#acFeedback .empty-state-message")).to_have_text(
+        "Reading AC units…"
+    )
+    expect(page.locator("#paneAc")).to_have_attribute("data-state", "empty")
+    expect(page.locator("#acFeedback .empty-state-message")).to_have_text(
+        "No AC units configured"
+    )
+
+
+def test_ac_tab_shows_contextual_unavailable_state(
+    page: Page, base_url: str, mock_energy: Callable,
+) -> None:
+    mock_energy()
+    page.route(
+        "**/api/units",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"melcloud.example.internal timed out after 10 seconds"}',
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabAc").click()
+
+    expect(page.locator("#paneAc")).to_have_attribute("data-state", "error")
+    expect(page.locator("#acFeedback .empty-state-message")).to_have_text(
+        "AC units unavailable"
+    )
+    expect(page.locator("#toast")).not_to_contain_text("melcloud.example.internal")
+
+
+def test_ac_poll_failure_preserves_units_and_disables_actions(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    _boot(page, base_url)
+    page.locator("#tabAc").click()
+    expect(page.locator(".unit-card")).to_have_count(len(sample_units))
+
+    page.unroute("**/api/units")
+    page.route(
+        "**/api/units",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"melcloud.example.internal timed out after 10 seconds"}',
+        ),
+    )
+    page.locator("#tabEnergy").click()
+    page.locator("#tabAc").click()
+
+    expect(page.locator("#paneAc")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#acFeedback")).to_contain_text("Last updated")
+    expect(page.locator("#acFeedback")).to_contain_text("live data unavailable")
+    expect(page.locator(".unit-card")).to_have_count(len(sample_units))
+    expect(page.locator("#unitsGrid button:enabled, #unitsGrid select:enabled")).to_have_count(0)
+    expect(page.locator("#acSummary .ac-line-toggle:enabled")).to_have_count(0)
+    expect(page.locator("#acFeedback")).not_to_contain_text("melcloud.example.internal")
 
 
 def test_units_snapshot_paints_before_live_refresh(
@@ -280,6 +613,546 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#costFoot")).to_contain_text("€0.37")
 
 
+def test_energy_tab_shows_loading_before_first_live_result(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/energy' || url.endsWith('/api/energy')) {
+            return new Promise(function(resolve, reject) {
+              setTimeout(function() {
+                originalFetch(input, init).then(resolve, reject);
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+
+    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#energyFeedback .empty-state-message")).to_have_text(
+        "Reading live energy…"
+    )
+    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#energyFeedback")).to_be_hidden()
+
+
+def test_energy_tab_shows_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable,
+) -> None:
+    mock_api(sample_units)
+    page.route(
+        "**/api/energy",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"SMA meter 192.0.2.90 timed out after 10 seconds"}',
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+
+    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "error")
+    expect(page.locator("#energyFeedback .empty-state-message")).to_have_text(
+        "Live energy unavailable"
+    )
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.90")
+
+
+def test_energy_poll_failure_preserves_and_labels_last_good_flow(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+    expect(page.locator("#flowPv")).to_have_text("2,500 W")
+
+    page.route(
+        "**/api/energy",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"SMA meter 192.0.2.90 timed out after 10 seconds"}',
+        ),
+    )
+    page.locator("#tabAc").click()
+    page.locator("#tabEnergy").click()
+
+    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#flowPv")).to_have_text("2,500 W")
+    expect(page.locator("#energyFeedback")).to_contain_text("Last updated")
+    expect(page.locator("#energyFeedback")).to_contain_text("live data unavailable")
+    expect(page.locator("#energyFeedback")).not_to_contain_text("192.0.2.90")
+
+
+def test_energy_chart_tick_budget_updates_with_viewport(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    samples = [
+        {
+            "ts": 1_700_000_000 + index * 300,
+            "pv_power_w": 2_000.0 + index * 10,
+            "house_consumption_w": 1_200.0,
+            "grid_import_w": 0.0,
+            "grid_export_w": 800.0 + index * 10,
+            "pv_surplus_w": 800.0 + index * 10,
+            "inverter_reachable": True,
+            "meter_reachable": True,
+        }
+        for index in range(24)
+    ]
+    buckets = [
+        {
+            "key": f"2026-06-19T{index:02d}",
+            "label": f"{index:02d}:00",
+            "pv_wh": 1_800.0,
+            "house_wh": 1_100.0,
+            "import_wh": 0.0,
+            "export_wh": 700.0,
+            "pv_n": 60,
+            "pv_missing": False,
+        }
+        for index in range(24)
+    ]
+    page.set_viewport_size({"width": 390, "height": 844})
+    mock_api(sample_units)
+    mock_energy(samples=samples, buckets=buckets)
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+
+    page.wait_for_function(
+        "() => Chart.getChart(document.querySelector('#liveChart'))?.data.labels.length >= 24"
+    )
+    phone_budget = page.locator("#liveChart").evaluate(
+        "canvas => Chart.getChart(canvas).options.scales.x.ticks.maxTicksLimit"
+    )
+    assert phone_budget == 4
+
+    page.set_viewport_size({"width": 772, "height": 844})
+    page.wait_for_function(
+        "() => Chart.getChart(document.querySelector('#liveChart'))"
+        ".options.scales.x.ticks.maxTicksLimit === 8"
+    )
+
+
+def test_energy_series_have_non_colour_visual_cues(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+    page.wait_for_function(
+        "() => Chart.getChart(document.querySelector('#liveChart'))?.data.datasets.length === 3"
+    )
+
+    styles = page.locator("#liveChart").evaluate(
+        "canvas => Chart.getChart(canvas).data.datasets.map(dataset => ({"
+        " label: dataset.label,"
+        " border_dash: dataset.borderDash || null,"
+        " point_style: dataset.pointStyle || null"
+        "}))"
+    )
+    assert styles == [
+        {"label": "Generation", "border_dash": [], "point_style": "circle"},
+        {"label": "Grid-supplied", "border_dash": [8, 4], "point_style": "rectRot"},
+        {"label": "Consumption", "border_dash": [2, 4], "point_style": "triangle"},
+    ]
+
+
+def test_security_tab_shows_loading_before_first_result(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/security' || url.endsWith('/api/security')) {
+            return new Promise(function(resolve, reject) {
+              setTimeout(function() {
+                originalFetch(input, init).then(resolve, reject);
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#securityFeedback .empty-state-message")).to_have_text(
+        "Reading security status…"
+    )
+    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#securityState")).to_contain_text("Not armed")
+
+
+def test_security_tab_shows_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.route(
+        "**/api/security",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"risco.example.internal timed out after 10 seconds"}',
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "error")
+    expect(page.locator("#securityFeedback .empty-state-message")).to_have_text(
+        "Security unavailable"
+    )
+    expect(page.locator("#securityState")).to_be_hidden()
+    expect(page.locator("#toast")).not_to_contain_text("risco.example.internal")
+
+
+def test_security_poll_failure_preserves_state_and_disables_actions(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+    expect(page.locator("#homeSecurityState")).to_contain_text("Not armed")
+
+    page.route(
+        "**/api/security",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"risco.example.internal timed out after 10 seconds"}',
+        ),
+    )
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#securityFeedback")).to_contain_text("Last updated")
+    expect(page.locator("#securityFeedback")).to_contain_text("live data unavailable")
+    expect(page.locator("#securityState")).to_contain_text("Not armed")
+    expect(page.locator("#securityActions .security-action:enabled")).to_have_count(0)
+    expect(page.locator("#homeSecurityActions .security-action:enabled")).to_have_count(0)
+    expect(page.locator("#securityFeedback")).not_to_contain_text(
+        "risco.example.internal"
+    )
+
+
+def test_cameras_distinguish_loading_from_true_empty(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.route(
+        "**/api/cameras",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"cameras":[]}',
+        ),
+    )
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/cameras' || url.endsWith('/api/cameras')) {
+            return new Promise(function(resolve, reject) {
+              setTimeout(function() {
+                originalFetch(input, init).then(resolve, reject);
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#camerasList")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#camerasList .empty-state-message")).to_have_text(
+        "Reading cameras…"
+    )
+    expect(page.locator("#camerasList")).to_have_attribute("data-state", "empty")
+    expect(page.locator("#camerasList .empty-state-message")).to_have_text(
+        "No cameras configured"
+    )
+
+
+def test_cameras_show_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.route(
+        "**/api/cameras",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"camera 192.0.2.50 timed out after 10 seconds"}',
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#camerasList")).to_have_attribute("data-state", "error")
+    expect(page.locator("#camerasList .empty-state-message")).to_have_text(
+        "Cameras unavailable"
+    )
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.50")
+
+
+def test_camera_refresh_failure_preserves_last_good_rows(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    failing = {"value": False}
+    camera = {
+        "id": "front-door",
+        "display_name": "Front door",
+        "reachable": True,
+        "model": "Fixture camera",
+        "recording": False,
+        "ptz_presets": False,
+        "ptz_absolute": False,
+    }
+
+    def handle_cameras(route) -> None:
+        if failing["value"]:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body='{"detail":"camera 192.0.2.50 timed out after 10 seconds"}',
+            )
+            return
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"cameras": [camera]}),
+        )
+
+    page.route("**/api/cameras", handle_cameras)
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    expect(page.locator("#camerasList .camera-row")).to_have_count(1)
+
+    failing["value"] = True
+    page.locator("#tabHome").click()
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#camerasList")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#camerasList .camera-row")).to_have_count(1)
+    expect(page.locator("#camerasNote")).to_contain_text("Last updated")
+    expect(page.locator("#camerasNote")).to_contain_text("live data unavailable")
+    expect(page.locator("#camerasNote")).not_to_contain_text("192.0.2.50")
+
+
+def test_presence_distinguishes_loading_from_true_empty(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence({
+        "available": True,
+        "total_count": 0,
+        "located_count": 0,
+        "home_count": 0,
+        "away_count": 0,
+        "unknown_count": 0,
+        "all_away": False,
+        "home_radius_m": 200,
+        "entities": [],
+        "diagnostics": {
+            "available": True,
+            "reason": "ok",
+            "detail": "",
+            "refreshed_at": "2026-06-22T10:00:00+00:00",
+        },
+    })
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/presence' || url.endsWith('/api/presence')) {
+            return new Promise(function(resolve, reject) {
+              setTimeout(function() {
+                originalFetch(input, init).then(resolve, reject);
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#presenceList")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#presenceList .empty-state-message")).to_have_text(
+        "Reading presence…"
+    )
+    expect(page.locator("#presenceList")).to_have_attribute("data-state", "empty")
+    expect(page.locator("#presenceList .empty-state-message")).to_have_text(
+        "No presence entities configured"
+    )
+
+
+def test_presence_shows_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.route(
+        "**/api/presence",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"icloud.example.internal timed out after 10 seconds"}',
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#presenceList")).to_have_attribute("data-state", "error")
+    expect(page.locator("#presenceList .empty-state-message")).to_have_text(
+        "Presence unavailable"
+    )
+    expect(page.locator("#toast")).not_to_contain_text("icloud.example.internal")
+
+
+def test_presence_refresh_failure_preserves_last_good_rows(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    expect(page.locator("#presenceList .presence-row")).to_have_count(3)
+
+    page.route(
+        "**/api/presence",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"icloud.example.internal timed out after 10 seconds"}',
+        ),
+    )
+    page.locator("#tabHome").click()
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#presenceList")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#presenceList .presence-row")).to_have_count(3)
+    expect(page.locator("#presenceSummary")).to_have_text("1 home · 1 away · 1 unknown")
+    expect(page.locator("#presenceNote")).to_contain_text("Last updated")
+    expect(page.locator("#presenceNote")).to_contain_text("live data unavailable")
+    expect(page.locator("#presenceKidsHome")).to_be_disabled()
+    expect(page.locator("#presenceNote")).not_to_contain_text(
+        "icloud.example.internal"
+    )
+
+
+def test_presence_settings_use_compact_right_aligned_controls(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("details.presence-card > summary").click()
+    page.locator("details.presence-settings-card > summary").click()
+
+    control_ids = [
+        "locationLabel",
+        "locationLat",
+        "locationLon",
+        "presenceAutoEnabled",
+        "presenceArmMinutes",
+        "presenceStaleMinutes",
+        "presenceDisarmOnArrival",
+    ]
+    boxes = {
+        control_id: page.locator(f"#{control_id}").bounding_box()
+        for control_id in control_ids
+    }
+    assert all(box is not None for box in boxes.values())
+    right_edges = {
+        round(box["x"] + box["width"])
+        for box in boxes.values()
+        if box is not None
+    }
+    assert len(right_edges) == 1, boxes
+
+    assert boxes["locationLabel"]["width"] == boxes["locationLat"]["width"]
+    assert boxes["locationLabel"]["width"] == boxes["locationLon"]["width"]
+    assert boxes["locationLat"]["width"] <= 144
+    assert boxes["locationLon"]["width"] <= 144
+    assert boxes["presenceArmMinutes"]["width"] <= 88
+    assert boxes["presenceStaleMinutes"]["width"] <= 88
+
+    rows = page.locator(".presence-settings > .row")
+    for index in range(rows.count()):
+        label_box = rows.nth(index).locator(":scope > span").bounding_box()
+        control_box = rows.nth(index).locator(":scope > input, :scope > button").bounding_box()
+        assert label_box is not None and control_box is not None
+        assert label_box["x"] + label_box["width"] <= control_box["x"] - 8
+
+
 def test_security_tab_renders_presence_spike(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -316,15 +1189,268 @@ def test_security_tab_adds_alarm_schedule(
     page.locator("#paneSecurity .security-schedules-card > summary").click()
     page.locator("#securityScheduleAdd").click()
 
-    entry = page.locator(".alarm-schedule-entry")
-    expect(entry).to_have_count(1)
-    entry.locator(".alarm-schedule-time").fill("22:30")
-    entry.locator(".alarm-schedule-action").select_option("perimeter")
-    entry.locator(".alarm-schedule-day", has_text="Sat").click()
-    entry.locator(".alarm-schedule-day", has_text="Sun").click()
+    dialog = page.locator("#securityScheduleDialog")
+    expect(dialog).to_be_visible()
+    expect(page.locator("#securitySchedules .automation-summary-row")).to_have_count(0)
+    page.locator("#securityScheduleTime").fill("22:30")
+    page.locator("#securityScheduleAction").select_option("perimeter")
+    dialog.locator(".alarm-schedule-day", has_text="Sat").click()
+    dialog.locator(".alarm-schedule-day", has_text="Sun").click()
+    page.locator("#securityScheduleSave").click()
 
-    expect(entry.locator(".alarm-schedule-action")).to_have_value("perimeter")
+    expect(dialog).to_be_hidden()
+    row = page.locator("#securitySchedules .automation-summary-row")
+    expect(row).to_have_count(1)
+    expect(row).to_contain_text("22:30")
+    expect(row).to_contain_text("Perimeter · Every day")
     expect(page.locator("#securitySchedulesCount")).to_contain_text("1 active")
+    expect(page.locator("#securityScheduleAdd")).to_be_focused()
+
+    row.locator(".automation-summary-main").click()
+    expect(dialog).to_be_visible()
+    expect(page.locator("#securityScheduleTime")).to_have_value("22:30")
+    expect(page.locator("#securityScheduleAction")).to_have_value("perimeter")
+
+
+def test_security_schedule_cancel_discards_unsaved_add(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("#paneSecurity .security-schedules-card > summary").click()
+    page.locator("#securityScheduleAdd").click()
+    page.locator("#securityScheduleTime").fill("05:45")
+    page.keyboard.press("Escape")
+
+    expect(page.locator("#securityScheduleDialog")).to_be_hidden()
+    expect(page.locator("#securitySchedules .automation-summary-row")).to_have_count(0)
+    expect(page.locator("#securityScheduleAdd")).to_be_focused()
+
+
+def test_security_tab_adds_scene_pairing_in_editor(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    pairings: List[Dict] = []
+
+    def handle_pairings(route) -> None:
+        if route.request.method == "PUT":
+            pairings[:] = (route.request.post_data_json or {}).get("entries", [])
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"entries": pairings}),
+        )
+
+    def handle_cameras(route) -> None:
+        if route.request.url.endswith("/presets"):
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"presets": [{"token": "garden", "name": "Garden"}]}),
+            )
+            return
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"cameras": [{"id": "front-camera", "display_name": "Front camera"}]}),
+        )
+
+    page.route("**/api/security/scene-pairings", handle_pairings)
+    page.route("**/api/cameras**", handle_cameras)
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("#paneSecurity .scene-pairings-card > summary").click()
+    page.locator("#scenePairingAdd").click()
+
+    dialog = page.locator("#scenePairingDialog")
+    expect(dialog).to_be_visible()
+    expect(page.locator("#scenePairings .automation-summary-row")).to_have_count(0)
+    page.locator("#scenePairingZone").select_option("1")
+    page.locator("#scenePairingCamera").select_option("front-camera")
+    expect(page.locator("#scenePairingPreset option", has_text="Garden")).to_have_count(1)
+    page.locator("#scenePairingPreset").select_option("garden")
+    page.locator("#scenePairingSave").click()
+
+    expect(dialog).to_be_hidden()
+    row = page.locator("#scenePairings .automation-summary-row")
+    expect(row).to_have_count(1)
+    expect(row).to_contain_text("Front Door")
+    expect(row).to_contain_text("Front camera · Garden")
+    expect(page.locator("#scenePairingsCount")).to_contain_text("1 active")
+    expect(page.locator("#scenePairingAdd")).to_be_focused()
+
+    row.locator(".automation-summary-main").click()
+    expect(dialog).to_be_visible()
+    expect(page.locator("#scenePairingZone")).to_have_value("1")
+    expect(page.locator("#scenePairingCamera")).to_have_value("front-camera")
+    expect(page.locator("#scenePairingPreset")).to_have_value("garden")
+
+
+def test_scene_pairing_cancel_discards_unsaved_add(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.route(
+        "**/api/security/scene-pairings",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body='{"entries":[]}'
+        ),
+    )
+    page.route(
+        "**/api/cameras**",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body='{"cameras":[{"id":"front-camera","display_name":"Front camera"}]}'
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("#paneSecurity .scene-pairings-card > summary").click()
+    page.locator("#scenePairingAdd").click()
+    page.locator("#scenePairingZone").select_option("1")
+    page.keyboard.press("Escape")
+
+    expect(page.locator("#scenePairingDialog")).to_be_hidden()
+    expect(page.locator("#scenePairings .automation-summary-row")).to_have_count(0)
+    expect(page.locator("#scenePairingAdd")).to_be_focused()
+
+
+def test_security_tab_adds_override_in_editor(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    overrides: List[Dict] = []
+
+    def handle_overrides(route) -> None:
+        if route.request.method == "PUT":
+            overrides[:] = (route.request.post_data_json or {}).get("entries", [])
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"entries": overrides}),
+        )
+
+    page.route("**/api/security/overrides", handle_overrides)
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("#paneSecurity .security-override-card > summary").click()
+    page.locator("#securityOverrideAdd").click()
+
+    dialog = page.locator("#securityOverrideDialog")
+    expect(dialog).to_be_visible()
+    expect(page.locator("#securityOverrides .automation-summary-row")).to_have_count(0)
+    page.locator("#securityOverrideZone").select_option("1")
+    page.locator("#securityOverrideRetries").select_option("2")
+    page.locator("#securityOverrideSave").click()
+
+    expect(dialog).to_be_hidden()
+    row = page.locator("#securityOverrides .automation-summary-row")
+    expect(row).to_have_count(1)
+    expect(row).to_contain_text("Front Door")
+    expect(row).to_contain_text("Bypass after 2 triggers")
+    expect(page.locator("#securityOverridesCount")).to_contain_text("1 active")
+    expect(page.locator("#securityOverrideAdd")).to_be_focused()
+
+    row.locator(".automation-summary-main").click()
+    expect(dialog).to_be_visible()
+    expect(page.locator("#securityOverrideZone")).to_have_value("1")
+    expect(page.locator("#securityOverrideRetries")).to_have_value("2")
+
+
+def test_security_override_cancel_discards_unsaved_add(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.route(
+        "**/api/security/overrides",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body='{"entries":[]}'
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("#paneSecurity .security-override-card > summary").click()
+    page.locator("#securityOverrideAdd").click()
+    page.locator("#securityOverrideZone").select_option("1")
+    page.keyboard.press("Escape")
+
+    expect(page.locator("#securityOverrideDialog")).to_be_hidden()
+    expect(page.locator("#securityOverrides .automation-summary-row")).to_have_count(0)
+    expect(page.locator("#securityOverrideAdd")).to_be_focused()
+
+
+def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _boot(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    action_boxes = page.locator("#securityActions .security-action").evaluate_all("""
+        controls => controls.map(control => {
+          const rect = control.getBoundingClientRect();
+          return {left: rect.left, right: rect.right, width: rect.width, height: rect.height};
+        })
+    """)
+    assert len(action_boxes) == 4
+    assert all(box["height"] >= 44 for box in action_boxes)
+    assert all(action_boxes[index]["right"] <= action_boxes[index + 1]["left"] for index in range(3))
+
+    page.locator("#paneSecurity .security-schedules-card > summary").click()
+    page.locator("#securityScheduleAdd").click()
+    day_boxes = page.locator(".alarm-schedule-day").evaluate_all("""
+        controls => controls.map(control => {
+          const rect = control.getBoundingClientRect();
+          return {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+                  width: rect.width, height: rect.height};
+        })
+    """)
+    assert len(day_boxes) == 7
+    assert all(box["height"] >= 44 and box["width"] >= 44 for box in day_boxes), day_boxes
+    for index, first in enumerate(day_boxes):
+        for second in day_boxes[index + 1:]:
+            overlaps = not (
+                first["right"] <= second["left"]
+                or second["right"] <= first["left"]
+                or first["bottom"] <= second["top"]
+                or second["bottom"] <= first["top"]
+            )
+            assert not overlaps
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
 
 
 def test_this_device_presence_is_diagnostic_only(

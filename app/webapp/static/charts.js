@@ -59,10 +59,20 @@ function alphaFill(color, a) {
   return 'rgba(' + d[0] + ',' + d[1] + ',' + d[2] + ',' + a + ')';
 }
 
-function baseScales(pal, unit) {
+function energyTickBudget(width) {
+  return Number(width) <= 480 ? 4 : 8;
+}
+
+function baseScales(pal, unit, width) {
   return {
     x: {
-      ticks: { color: pal.muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+      ticks: {
+        color: pal.muted,
+        maxRotation: 0,
+        autoSkip: true,
+        autoSkipPadding: 12,
+        maxTicksLimit: energyTickBudget(width || window.innerWidth),
+      },
       grid: { display: false },
     },
     y: {
@@ -100,6 +110,22 @@ function envelope(label, color) {
   };
 }
 
+function energyDatasets(pal) {
+  const generation = area('Generation', pal.gen);
+  generation.borderDash = [];
+  generation.pointStyle = 'circle';
+
+  const grid = area('Grid-supplied', pal.grid);
+  grid.borderDash = [8, 4];
+  grid.pointStyle = 'rectRot';
+
+  const consumption = envelope('Consumption', pal.muted);
+  consumption.borderDash = [2, 4];
+  consumption.pointStyle = 'triangle';
+
+  return [generation, grid, consumption];
+}
+
 function commonOptions(pal, unit, spanGaps) {
   return {
     responsive: true,
@@ -110,6 +136,9 @@ function commonOptions(pal, unit, spanGaps) {
     elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 2 } },
     plugins: { legend: legend(pal) },
     scales: baseScales(pal, unit),
+    onResize: function (chart, size) {
+      chart.options.scales.x.ticks.maxTicksLimit = energyTickBudget(size.width);
+    },
   };
 }
 
@@ -120,11 +149,7 @@ export function createLiveChart(canvas) {
     type: 'line',
     data: {
       labels: [],
-      datasets: [
-        area('Generation', pal.gen),
-        area('Grid-supplied', pal.grid),
-        envelope('Consumption', pal.muted),
-      ],
+      datasets: energyDatasets(pal),
     },
     // spanGaps:false — asleep generation should read as a gap, not a 0.
     options: commonOptions(pal, 'W', false),
@@ -171,11 +196,7 @@ export function createAggChart(canvas) {
     type: 'line',
     data: {
       labels: [],
-      datasets: [
-        area('Generation', pal.gen),
-        area('Grid-supplied', pal.grid),
-        envelope('Consumption', pal.muted),
-      ],
+      datasets: energyDatasets(pal),
     },
     options: commonOptions(pal, 'kWh', true),
   });

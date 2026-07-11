@@ -10,6 +10,7 @@ the reachable ones, and the reachable-only toggle for no-IP adapters.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Callable, Dict, List
 
@@ -46,6 +47,206 @@ def test_plugs_tab_renders_all_devices(
     expect(page.locator(".device-row")).to_have_count(len(sample_plugs))
     expect(page.locator("#plugsList")).to_contain_text("Test Heater")
     expect(page.locator("#blindsList")).to_contain_text("Test Blind")
+
+
+def test_plugs_distinguish_loading_from_true_empty(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_tuya([])
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/tuya' || url.endsWith('/api/tuya')) {
+            return new Promise(function(resolve, reject) {
+              setTimeout(function() {
+                originalFetch(input, init).then(resolve, reject);
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    page.locator("#tabPlugs").click()
+
+    expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
+        "Reading plugs and blinds…"
+    )
+    expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "empty")
+    expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
+        "No Smart Life devices configured"
+    )
+
+
+def test_plugs_show_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_tuya([])
+    page.route(
+        "**/api/tuya",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"device 192.0.2.60 timed out after 10 seconds"}',
+        ),
+    )
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    page.locator("#tabPlugs").click()
+
+    expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "error")
+    expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
+        "Plugs and blinds unavailable"
+    )
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.60")
+
+
+def test_plug_refresh_failure_preserves_last_good_rows(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    _boot_plugs(
+        page, base_url, sample_units, sample_plugs,
+        mock_api, mock_energy, mock_tuya,
+    )
+    expect(page.locator(".device-row")).to_have_count(len(sample_plugs))
+
+    page.route(
+        "**/api/tuya",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"device 192.0.2.60 timed out after 10 seconds"}',
+        ),
+    )
+    page.locator("#tabHome").click()
+    page.locator("#tabPlugs").click()
+
+    expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "stale")
+    expect(page.locator(".device-row")).to_have_count(len(sample_plugs))
+    expect(page.locator("#plugsFeedback")).to_contain_text("Last updated")
+    expect(page.locator("#plugsFeedback")).to_contain_text("live data unavailable")
+    expect(page.locator("#plugsFeedback")).not_to_contain_text("192.0.2.60")
+
+
+def test_ups_distinguishes_loading_from_not_detected(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_tuya([])
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/ups' || url.endsWith('/api/ups')) {
+            return new Promise(function(resolve) {
+              setTimeout(function() {
+                resolve(new Response(JSON.stringify({
+                  ups: {available: false, source: 'none', error: null}
+                }), {
+                  status: 200,
+                  headers: {'Content-Type': 'application/json'},
+                }));
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+
+    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#homeUpsTile .empty-state-message")).to_have_text(
+        "Reading UPS status…"
+    )
+    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "empty")
+    expect(page.locator("#homeUpsTile .empty-state-message")).to_have_text(
+        "No UPS detected"
+    )
+
+
+def test_ups_shows_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/ups",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"nut host 192.0.2.70 timed out after 10 seconds"}',
+        ),
+    )
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+
+    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "error")
+    expect(page.locator("#homeUpsTile .empty-state-message")).to_have_text(
+        "UPS status unavailable"
+    )
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.70")
+
+
+def test_ups_poll_failure_preserves_last_good_status(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    failing = {"value": False}
+    ups = {
+        "available": True,
+        "source": "nut",
+        "status": "online",
+        "mains_online": True,
+        "battery_charge_pct": 90,
+        "runtime_seconds": 3600,
+        "alarms": [],
+    }
+
+    def handle_ups(route) -> None:
+        if failing["value"]:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body='{"detail":"nut host 192.0.2.70 timed out after 10 seconds"}',
+            )
+            return
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"ups": ups}),
+        )
+
+    page.route("**/api/ups", handle_ups)
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#homeUpsTile")).to_contain_text("90%")
+
+    failing["value"] = True
+    page.locator("#tabAc").click()
+    page.locator("#tabHome").click()
+
+    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#homeUpsTile")).to_contain_text("90%")
+    expect(page.locator("#homeUpsTile")).to_contain_text("Last updated")
+    expect(page.locator("#homeUpsTile")).to_contain_text("live data unavailable")
+    expect(page.locator("#homeUpsTile")).not_to_contain_text("192.0.2.70")
 
 
 def test_metered_plug_shows_watts(
@@ -109,11 +310,21 @@ def test_blind_has_icon_controls(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
     # The blind lives in the Blinds card with three up/stop/down icon buttons.
     buttons = page.locator('[data-device-id="cover-1"] .blind-btn')
     expect(buttons).to_have_count(3)
+    boxes = buttons.evaluate_all("""
+        controls => controls.map(control => {
+          const rect = control.getBoundingClientRect();
+          return {left: rect.left, right: rect.right, width: rect.width, height: rect.height};
+        })
+    """)
+    assert all(box["width"] == 44 and box["height"] == 44 for box in boxes)
+    assert all(boxes[index]["right"] <= boxes[index + 1]["left"] for index in range(2))
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     # Open is actionable and does not raise (stub acks the action).
     page.locator('[data-device-id="cover-1"] .blind-btn[data-action="open"]').click()
 

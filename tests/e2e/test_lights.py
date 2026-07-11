@@ -47,6 +47,77 @@ def test_lights_tab_renders_reachable_and_offline_lights(
     expect(offline.locator(".light-unavailable")).to_contain_text("timed out")
 
 
+def test_lights_tab_distinguishes_loading_from_true_empty(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/lights' || url.endsWith('/api/lights')) {
+            return new Promise(function(resolve) {
+              setTimeout(function() {
+                resolve(new Response(JSON.stringify({lights: []}), {
+                  status: 200,
+                  headers: {'Content-Type': 'application/json'},
+                }));
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    page.locator("#tabLights").click()
+
+    expect(page.locator("#lightsGrid")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#lightsGrid .empty-state-message")).to_have_text(
+        "Reading Elgato lights…"
+    )
+    expect(page.locator("#lightsGrid")).to_have_attribute("data-state", "empty")
+    expect(page.locator("#lightsGrid .empty-state-message")).to_have_text(
+        "No lights configured or discovered"
+    )
+
+
+def test_lights_tab_shows_contextual_unavailable_state(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/lights",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"raw host 192.0.2.10 timed out after 10 seconds"}',
+        ),
+    )
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    page.locator("#tabLights").click()
+
+    expect(page.locator("#lightsGrid")).to_have_attribute("data-state", "error")
+    expect(page.locator("#lightsGrid .empty-state-message")).to_have_text(
+        "Lights unavailable"
+    )
+    expect(page.locator("#lightsNote")).to_have_text(
+        "Live light data is unavailable. Check the light connection, then retry."
+    )
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.10")
+
+
 def test_lights_controls_round_trip(
     page: Page,
     base_url: str,
@@ -202,5 +273,7 @@ def test_lights_refresh_failure_keeps_partial_data_note(
     page.get_by_test_id("lights-refresh").click()
 
     expect(page.locator(".light-card")).to_have_count(2)
-    expect(page.locator("#lightsNote")).to_contain_text("Showing last successful light data")
-    expect(page.locator("#lightsNote")).to_contain_text("No Elgato lights found")
+    expect(page.locator("#lightsGrid")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#lightsNote")).to_contain_text("Last updated")
+    expect(page.locator("#lightsNote")).to_contain_text("live data unavailable")
+    expect(page.locator("#lightsNote")).not_to_contain_text("ELGATO_LIGHT_HOSTS")

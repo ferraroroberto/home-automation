@@ -75,6 +75,106 @@ def test_network_tab_groups_devices_and_switches_sort(
     expect(page.locator("#netDevices")).to_be_hidden()
 
 
+def test_network_tab_shows_loading_before_first_result(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    page.add_init_script("""
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/network' || url.endsWith('/api/network')) {
+            return new Promise(function(resolve, reject) {
+              setTimeout(function() {
+                originalFetch(input, init).then(resolve, reject);
+              }, 750);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """)
+    _boot(page, base_url)
+    page.locator("#tabNetwork").click()
+
+    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
+        "Reading network status…"
+    )
+    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#netInternetStatus")).to_have_text("Online")
+
+
+def test_network_tab_shows_contextual_unavailable_state(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/network**",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"router 192.0.2.1 timed out after 10 seconds"}',
+        ),
+    )
+    _boot(page, base_url)
+    page.locator("#tabNetwork").click()
+
+    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "error")
+    expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
+        "Network unavailable"
+    )
+    expect(page.locator("#netInternetStatus")).to_be_hidden()
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.1")
+
+
+def test_network_poll_failure_preserves_and_labels_last_good_data(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    _boot(page, base_url)
+    page.locator("#tabNetwork").click()
+    expect(page.locator("#netInternetStatus")).to_have_text("Online")
+
+    page.unroute("**/api/network**")
+    page.route(
+        "**/api/network**",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"router 192.0.2.1 timed out after 10 seconds"}',
+        ),
+    )
+    page.locator("#tabHome").click()
+    page.locator("#tabNetwork").click()
+
+    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#netFeedback")).to_contain_text("Last updated")
+    expect(page.locator("#netFeedback")).to_contain_text("live data unavailable")
+    expect(page.locator("#netInternetStatus")).to_have_text("Online")
+    expect(page.locator("#netApReboot")).to_be_disabled()
+    expect(page.locator("#netRouterReboot")).to_be_disabled()
+    expect(page.locator("#netFeedback")).not_to_contain_text("192.0.2.1")
+
+
 def test_network_header_uses_equal_chips_and_compact_offline_toggle(
     page: Page,
     base_url: str,
@@ -248,7 +348,9 @@ def test_network_tab_retries_after_first_load_failure(
 
     page.locator("#tabNetwork").click()
 
-    expect(page.locator("#netDevicesNote")).to_contain_text("Temporary network read failure")
+    expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
+        "Network unavailable"
+    )
     expect(page.locator("#netInternetStatus")).to_have_text("Online", timeout=20_000)
-    expect(page.locator("#netDevicesNote")).to_be_hidden()
+    expect(page.locator("#netFeedback")).to_be_hidden()
     expect(page.locator("#netDevices .net-device-name-text").first).to_have_text("Alpha Laptop")

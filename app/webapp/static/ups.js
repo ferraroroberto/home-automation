@@ -8,6 +8,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { emptyStateEl } from './icons.js';
 import { esc, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
@@ -16,6 +17,37 @@ import { createPoller } from './poll.js';
 const POLL_MS = 15_000;
 
 let lastMainsOnline = null;
+let upsViewState = 'idle';
+let upsUpdatedAt = null;
+let upsLiveUnavailable = false;
+
+function setUpsViewState(next, opts) {
+  upsViewState = next;
+  if (opts && opts.updatedAt) upsUpdatedAt = opts.updatedAt;
+  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
+    upsLiveUnavailable = opts.liveUnavailable;
+  }
+}
+
+function lastUpdatedLabel() {
+  const raw = upsUpdatedAt || state.snapshotUpdatedAt.ups;
+  const updated = raw instanceof Date ? raw : new Date(raw || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderUpsState(tile, iconName, message, retry) {
+  tile.hidden = false;
+  tile.classList.remove('is-on-battery', 'is-unavailable');
+  tile.innerHTML = '';
+  tile.appendChild(emptyStateEl(iconName, message, retry ? {
+    actionLabel: 'Retry',
+    onAction: function () { loadUps(); },
+  } : null));
+}
 
 function fmtVolt(v) {
   return v == null ? '—' : Number(v).toFixed(1) + ' V';
@@ -48,6 +80,20 @@ function renderStat(label, value) {
 
 function renderUpsTile(tile, ups, compact) {
   if (!tile) return;
+  tile.dataset.state = upsViewState;
+  tile.setAttribute('aria-busy', upsViewState === 'loading' ? 'true' : 'false');
+  if (upsViewState === 'loading') {
+    renderUpsState(tile, 'refresh-cw', 'Reading UPS status…', false);
+    return;
+  }
+  if (upsViewState === 'empty') {
+    renderUpsState(tile, 'battery-charging', 'No UPS detected', true);
+    return;
+  }
+  if (upsViewState === 'error') {
+    renderUpsState(tile, 'battery-charging', 'UPS status unavailable', true);
+    return;
+  }
   tile.hidden = false;
   const available = ups && ups.available === true;
   const onBattery = available && ups.mains_online === false;
@@ -56,7 +102,9 @@ function renderUpsTile(tile, ups, compact) {
   tile.classList.toggle('is-unavailable', !available);
 
   const title = 'UPS';
-  const snapshot = isSnapshotRestored('ups') ? '<span class="snapshot-badge">' + esc(snapshotLabel('ups')) + '</span>' : '';
+  const snapshot = isSnapshotRestored('ups') && upsViewState !== 'stale'
+    ? '<span class="snapshot-badge">' + esc(snapshotLabel('ups')) + '</span>'
+    : '';
   const identity =
     '<div class="ups-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg><span>' + esc(title) + '</span>' + snapshot + '</div>';
 
@@ -72,6 +120,14 @@ function renderUpsTile(tile, ups, compact) {
       '<span>' + esc(fmtRuntime(ups && ups.runtime_seconds)) + '</span></span>' +
       '<span class="ups-status">' + esc(statusText(ups)) + '</span>' +
       '</div>';
+    if (upsViewState === 'stale') {
+      const note = document.createElement('p');
+      note.className = 'muted small ups-stale-note';
+      note.textContent = upsLiveUnavailable
+        ? lastUpdatedLabel() + ' · live data unavailable'
+        : snapshotLabel('ups');
+      tile.appendChild(note);
+    }
     return;
   }
 
@@ -119,16 +175,27 @@ function handleTransition(next) {
 }
 
 export async function loadUps() {
+  if (!state.ups) {
+    setUpsViewState('loading', { liveUnavailable: false });
+    renderUps();
+  }
   try {
     const body = await jsonApi('/api/ups');
     reportFetchOk('ups');
     saveSnapshot('ups', body);
     state.ups = (body && body.ups) || null;
+    setUpsViewState(state.ups && state.ups.available === true ? 'ready' : 'empty', {
+      updatedAt: new Date(),
+      liveUnavailable: false,
+    });
     handleTransition(state.ups);
     renderUps();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    reportFetchFailure('ups', exc, 'UPS');
+    setUpsViewState(state.ups && state.ups.available === true ? 'stale' : 'error', {
+      liveUnavailable: true,
+    });
+    reportFetchFailure('ups', { message: 'live data unavailable' }, 'UPS');
     renderUps();
   }
 }
@@ -137,6 +204,10 @@ export function restoreUpsSnapshot() {
   const body = restoreSnapshot('ups');
   if (!body) return;
   state.ups = (body && body.ups) || null;
+  setUpsViewState(state.ups && state.ups.available === true ? 'stale' : 'empty', {
+    updatedAt: state.snapshotUpdatedAt.ups,
+    liveUnavailable: false,
+  });
   renderUps();
 }
 

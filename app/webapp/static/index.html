@@ -393,9 +393,9 @@
           </div>
         </div>
         <div class="weather-actions">
-          <button id="navDebugBtn" type="button" class="weather-icon-btn"
+          <button id="navDebugBtn" type="button" class="weather-icon-btn hit-target"
                   title="Toggle nav debug overlay" aria-label="Toggle nav debug overlay" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg></button>
-          <button id="weatherThemeBtn" type="button" class="weather-icon-btn"
+          <button id="weatherThemeBtn" type="button" class="weather-icon-btn hit-target"
                   title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         </div>
       </section>
@@ -405,6 +405,7 @@
       <section class="card security-card" aria-label="Alarm controls">
         <h2 id="homeSecurityState" class="security-state">Alarm state: —</h2>
         <div id="homeSecurityActions" class="security-actions" aria-label="Alarm actions"></div>
+        <p id="homeSecurityFeedback" class="muted small security-live-feedback" role="status" hidden></p>
       </section>
 
       <!-- AC summary: one line per unit with an inline power toggle (issue #72).
@@ -529,11 +530,13 @@
 
     <!-- =============================== AC =============================== -->
     <section id="paneAc" class="pane" role="tabpanel" aria-labelledby="tabAc" aria-label="AC units" hidden>
+      <div id="acFeedback" class="ac-feedback" role="status" hidden></div>
       <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
     </section>
 
     <!-- ============================= ENERGY ============================= -->
     <section id="paneEnergy" class="pane" role="tabpanel" aria-labelledby="tabEnergy" aria-label="Energy monitoring" hidden>
+      <div id="energyFeedback" class="energy-feedback" role="status" hidden></div>
       <!-- Live energy-flow diagram: ☀️ Solar feeds 🏠 Home, the 🗼 Grid makes up
            the difference (or absorbs the surplus). Values + arrow directions
            come from GET /api/energy; an asleep inverter dims the Solar node. -->
@@ -740,6 +743,7 @@
           </div>
         </div>
       </section>
+      <div id="plugsFeedback" class="plugs-feedback" role="status" hidden></div>
       <!-- Plugs and blinds are split into two collapsible cards (collapsed by
            default), each rendering its devices as a compact divider-separated
            row list — the same low-chrome style as the Network "Attached
@@ -816,8 +820,8 @@
         <button id="lightsAllOn" type="button" class="range-tab" data-testid="lights-all-on">All on</button>
         <button id="lightsAllOff" type="button" class="range-tab" data-testid="lights-all-off">All off</button>
       </div>
-      <section id="lightsGrid" class="lights-grid" aria-label="Elgato lights"></section>
-      <p id="lightsNote" class="muted small lights-note" hidden></p>
+      <section id="lightsGrid" class="lights-grid" aria-label="Elgato lights" aria-live="polite"></section>
+      <p id="lightsNote" class="muted small lights-note" role="status" hidden></p>
     </section>
 
     <!-- ============================= NETWORK ============================ -->
@@ -827,6 +831,7 @@
          only while open (the AP SOAP read is comparatively expensive). The
          speed test never auto-runs — it is an explicit button (issue #129). -->
     <section id="paneNetwork" class="pane" role="tabpanel" aria-labelledby="tabNetwork" aria-label="Network" hidden>
+      <div id="netFeedback" class="network-feedback" role="status" hidden></div>
       <!-- Internet-health tile — big online/offline word, latency + loss
            caption, last speed-test result, and the opt-in "Run speed test". -->
       <section class="card net-internet" aria-label="Internet health">
@@ -993,6 +998,7 @@
 
     <!-- ============================= SECURITY ============================ -->
     <section id="paneSecurity" class="pane" role="tabpanel" aria-labelledby="tabSecurity" aria-label="Security" hidden>
+      <div id="securityFeedback" class="security-feedback" role="status" hidden></div>
       <section class="card security-card" aria-label="Alarm controls">
         <h2 id="securityState" class="security-state">Alarm state: —</h2>
         <div id="securityActions" class="security-actions" aria-label="Alarm actions"></div>
@@ -1034,7 +1040,7 @@
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
-        <div id="camerasList" class="cameras-list"></div>
+        <div id="camerasList" class="cameras-list" aria-live="polite"></div>
         <p id="camerasNote" class="muted small security-note" hidden></p>
       </details>
 
@@ -1087,8 +1093,8 @@
           <span id="presenceSummary">—</span>
           <span id="presenceHiddenCount" class="security-hidden-count" hidden></span>
         </p>
-        <div id="presenceList" class="presence-list"></div>
-        <p id="presenceNote" class="muted small security-note" hidden></p>
+        <div id="presenceList" class="presence-list" aria-live="polite"></div>
+        <p id="presenceNote" class="muted small security-note" role="status" hidden></p>
         <p id="presenceRefreshNote" class="muted small security-note"></p>
         <details class="presence-settings-card">
           <summary class="collapse-summary">
@@ -1222,11 +1228,109 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+  <dialog id="securityOverrideDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="securityOverrideEditorTitle">Override</h2>
+        <button id="securityOverrideEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row">
+        <span>Enabled</span>
+        <button id="securityOverrideEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable alarm override">
+          <span class="knob"></span><span class="toggle-label">ON</span>
+        </button>
+      </div>
+      <label class="row">
+        <span>Detector</span>
+        <select id="securityOverrideZone" class="select-native"></select>
+      </label>
+      <label class="row">
+        <span>Bypass after</span>
+        <select id="securityOverrideRetries" class="select-native"></select>
+      </label>
+
+      <button id="securityOverrideDelete" type="button" class="schedule-editor-delete" hidden>Delete override</button>
+
+      <div class="detail-actions">
+        <button id="securityOverrideSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="scenePairingDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="scenePairingEditorTitle">Scene pairing</h2>
+        <button id="scenePairingEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row">
+        <span>Enabled</span>
+        <button id="scenePairingEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable scene pairing">
+          <span class="knob"></span><span class="toggle-label">ON</span>
+        </button>
+      </div>
+      <label class="row">
+        <span>Detector</span>
+        <select id="scenePairingZone" class="select-native"></select>
+      </label>
+      <label class="row">
+        <span>Camera</span>
+        <select id="scenePairingCamera" class="select-native"></select>
+      </label>
+      <label class="row">
+        <span>Position</span>
+        <select id="scenePairingPreset" class="select-native"></select>
+      </label>
+
+      <button id="scenePairingDelete" type="button" class="schedule-editor-delete" hidden>Delete pairing</button>
+
+      <div class="detail-actions">
+        <button id="scenePairingSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="securityScheduleDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="securityScheduleEditorTitle">Schedule</h2>
+        <button id="securityScheduleEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row">
+        <span>Enabled</span>
+        <button id="securityScheduleEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable schedule">
+          <span class="knob"></span><span class="toggle-label">ON</span>
+        </button>
+      </div>
+      <label class="row">
+        <span>Time</span>
+        <input id="securityScheduleTime" type="time" class="input-native" value="21:00">
+      </label>
+      <label class="row">
+        <span>Action</span>
+        <select id="securityScheduleAction" class="select-native"></select>
+      </label>
+      <div class="schedule-editor-days-block">
+        <span class="schedule-editor-days-label">Days</span>
+        <div id="securityScheduleDays" class="alarm-schedule-days"></div>
+      </div>
+
+      <button id="securityScheduleDelete" type="button" class="schedule-editor-delete" hidden>Delete schedule</button>
+
+      <div class="detail-actions">
+        <button id="securityScheduleSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="detailDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="detailName">Unit</h2>
-        <button id="detailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="detailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -1313,7 +1417,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="lightDetailName">Light</h2>
-        <button id="lightDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="lightDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -1341,7 +1445,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="plugDetailName">Device</h2>
-        <button id="plugDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="plugDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -1372,7 +1476,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="zoneDetailName">Detector</h2>
-        <button id="zoneDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="zoneDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Type</span><span id="zoneDetailType" class="muted">—</span></div>
@@ -1413,7 +1517,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cameraDetailName">Camera</h2>
-        <button id="cameraDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="cameraDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <img id="cameraSnapshot" class="camera-snapshot" alt="Camera snapshot">
       <div id="cameraSnapshotEmpty" class="camera-snapshot-empty" hidden>
@@ -1439,7 +1543,7 @@
     <div class="detail-card camera-live-card">
       <div class="detail-header">
         <h2 id="cameraLiveName">Camera</h2>
-        <button id="cameraLiveClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="cameraLiveClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="camera-live-stage">
         <img id="cameraLiveImg" class="camera-live-img" alt="Live camera view">
@@ -1482,7 +1586,7 @@
     <div class="detail-card camera-zoom-card">
       <div class="detail-header">
         <h2 id="cameraZoomName">Camera</h2>
-        <button id="cameraZoomClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="cameraZoomClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <img id="cameraZoomImg" class="camera-zoom-img" alt="Last camera snapshot">
     </div>
@@ -1493,7 +1597,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="presenceDetailName">Presence</h2>
-        <button id="presenceDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="presenceDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Status</span><span id="presenceDetailStatus" class="muted">—</span></div>
@@ -1527,7 +1631,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="netDeviceDetailName">Device</h2>
-        <button id="netDeviceDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="netDeviceDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Status</span><span id="netDeviceStatus" class="muted">—</span></div>
@@ -1582,7 +1686,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="netWifiDetailName">Wi-Fi</h2>
-        <button id="netWifiDetailClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="netWifiDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Status</span><span id="netWifiDetailStatus" class="muted">—</span></div>
@@ -1613,7 +1717,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="confirmTitle">Confirm</h2>
-        <button id="confirmClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="confirmClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="confirmMessage" class="muted confirm-message">— no data</p>
       <div class="confirm-actions">
@@ -1630,7 +1734,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2><svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Activity log</h2>
-        <button id="activityClose" type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="activityClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <nav class="range-tabs activity-modes" role="tablist" aria-label="View">

@@ -13,6 +13,12 @@ import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
 
 const POLL_MS = 15_000;
+const LIGHTS_UNAVAILABLE_COPY =
+  'Live light data is unavailable. Check the light connection, then retry.';
+
+let lightsViewState = 'idle';
+let lightsUpdatedAt = null;
+let lightsLiveUnavailable = false;
 
 function label(light) {
   return light.display_name || light.name || light.light_id || 'Elgato light';
@@ -55,6 +61,36 @@ function updateBulkControls() {
   const allOff = reachable.length > 0 && reachable.every(function (light) { return light.on !== true; });
   els.lightsAllOn.disabled = !reachable.length || allOn;
   els.lightsAllOff.disabled = !reachable.length || allOff;
+}
+
+function setLightsViewState(next, opts) {
+  lightsViewState = next;
+  if (opts && opts.updatedAt) lightsUpdatedAt = opts.updatedAt;
+  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
+    lightsLiveUnavailable = opts.liveUnavailable;
+  }
+}
+
+function lastUpdatedLabel() {
+  const raw = lightsUpdatedAt || state.snapshotUpdatedAt.lights;
+  const updated = raw instanceof Date ? raw : new Date(raw || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function markLightsFailure() {
+  setLightsViewState(state.lights.length ? 'stale' : 'error', {
+    liveUnavailable: true,
+  });
+  reportFetchFailure(
+    'lights',
+    { message: 'live data unavailable' },
+    'lights'
+  );
+  renderLights();
 }
 
 function wait(ms) {
@@ -302,29 +338,40 @@ async function saveLightName() {
   }
 }
 
-// Canonical empty-state block (issue #362): icon + one-line reason + Retry,
-// rendered into the grid itself whenever there are zero lights — whether that
-// is a clean "none configured" response or the aftermath of a failed fetch.
-// `lightsNote` still carries the longer diagnostic/setup hint underneath.
-function showLightsEmpty() {
+function showLightsState(iconName, message, retry) {
   els.lightsGrid.innerHTML = '';
-  els.lightsGrid.appendChild(emptyStateEl('lightbulb', 'No lights reachable', {
+  const options = retry ? {
     actionLabel: 'Retry',
     onAction: function () { loadLights(); },
-  }));
+  } : null;
+  els.lightsGrid.appendChild(emptyStateEl(iconName, message, options));
 }
 
 export function renderLights() {
   els.lightsGrid.innerHTML = '';
+  els.lightsGrid.dataset.state = lightsViewState;
+  els.lightsGrid.setAttribute('aria-busy', lightsViewState === 'loading' ? 'true' : 'false');
   if (!state.lights.length) {
     updateBulkControls();
-    showLightsEmpty();
-    els.lightsNote.hidden = false;
-    els.lightsNote.textContent =
-      'Add ELGATO_LIGHT_HOSTS=host[:9123] to .env or enable Bonjour/mDNS.';
+    if (lightsViewState === 'loading') {
+      showLightsState('refresh-cw', 'Reading Elgato lights…', false);
+      els.lightsNote.hidden = true;
+    } else if (lightsViewState === 'error') {
+      showLightsState('lightbulb', 'Lights unavailable', true);
+      els.lightsNote.hidden = false;
+      els.lightsNote.textContent = LIGHTS_UNAVAILABLE_COPY;
+    } else {
+      showLightsState('lightbulb', 'No lights configured or discovered', true);
+      els.lightsNote.hidden = false;
+      els.lightsNote.textContent =
+        'Add ELGATO_LIGHT_HOSTS=host[:9123] to .env or enable Bonjour/mDNS.';
+    }
     return;
   }
-  if (isSnapshotRestored('lights')) {
+  if (lightsViewState === 'stale' && lightsLiveUnavailable) {
+    els.lightsNote.hidden = false;
+    els.lightsNote.textContent = lastUpdatedLabel() + ' · live data unavailable';
+  } else if (isSnapshotRestored('lights')) {
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = snapshotLabel('lights');
   } else {
@@ -338,21 +385,23 @@ export function renderLights() {
 }
 
 export async function loadLights() {
+  if (!state.lights.length) {
+    setLightsViewState('loading', { liveUnavailable: false });
+    renderLights();
+  }
   try {
     const body = await jsonApi('/api/lights');
     reportFetchOk('lights');
     saveSnapshot('lights', body);
     state.lights = (body && body.lights) || [];
+    setLightsViewState(state.lights.length ? 'ready' : 'empty', {
+      updatedAt: new Date(),
+      liveUnavailable: false,
+    });
     renderLights();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    reportFetchFailure('lights', exc, 'lights');
-    if (!state.lights.length) showLightsEmpty();
-    updateBulkControls();
-    els.lightsNote.hidden = false;
-    els.lightsNote.textContent = state.lights.length
-      ? 'Showing last successful light data. Refresh failed: ' + (exc.message || 'Failed to load Elgato lights.')
-      : (exc.message || 'Failed to load Elgato lights.');
+    markLightsFailure();
   }
 }
 
@@ -360,6 +409,10 @@ export function restoreLightsSnapshot() {
   const body = restoreSnapshot('lights');
   if (!body) return;
   state.lights = (body && body.lights) || [];
+  setLightsViewState(state.lights.length ? 'stale' : 'empty', {
+    updatedAt: state.snapshotUpdatedAt.lights,
+    liveUnavailable: false,
+  });
   renderLights();
 }
 
@@ -383,15 +436,15 @@ export function wireLightControls() {
         reportFetchOk('lights');
         saveSnapshot('lights', body);
         state.lights = (body && body.lights) || [];
+        setLightsViewState(state.lights.length ? 'ready' : 'empty', {
+          updatedAt: new Date(),
+          liveUnavailable: false,
+        });
         renderLights();
         toast('Lights refreshed', 'success');
       } catch (exc) {
         if (String(exc.message) !== 'auth required') {
-          reportFetchFailure('lights', exc, 'lights');
-          els.lightsNote.hidden = false;
-          els.lightsNote.textContent = state.lights.length
-            ? 'Showing last successful light data. Refresh failed: ' + (exc.message || 'Failed to load Elgato lights.')
-            : (exc.message || 'Failed to load Elgato lights.');
+          markLightsFailure();
         }
       } finally {
         els.lightsRefresh.disabled = false;

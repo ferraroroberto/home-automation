@@ -10,8 +10,9 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
+import { icon } from './icons.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
-import { buildToggle } from './toggle.js';
+import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { confirmAction } from './network.js';
 
 const DAYS = [
@@ -24,6 +25,11 @@ const DAYS = [
   ['sun', 'Sun'],
 ];
 
+let editorIndex = null;
+let editorScheduleId = null;
+let editorReturnFocus = null;
+let stagedSchedule = null;
+
 function scheduleDefaults() {
   return {
     id: 'schedule-' + Date.now().toString(36),
@@ -34,8 +40,8 @@ function scheduleDefaults() {
   };
 }
 
-function normalizedSchedules() {
-  return (state.securitySchedules || []).map(function (entry, idx) {
+function normalizedSchedules(entries) {
+  return (entries || state.securitySchedules || []).map(function (entry, idx) {
     const days = Array.isArray(entry.days) && entry.days.length
       ? entry.days.filter(function (day) { return DAYS.some(function (d) { return d[0] === day; }); })
       : DAYS.map(function (day) { return day[0]; });
@@ -60,6 +66,82 @@ function renderScheduleCount() {
   }
 }
 
+function daysSummary(days) {
+  const active = DAYS.map(function (day) { return day[0]; }).filter(function (day) {
+    return days.includes(day);
+  });
+  if (active.length === 7) return 'Every day';
+  if (active.join(',') === 'mon,tue,wed,thu,fri') return 'Weekdays';
+  if (active.join(',') === 'sat,sun') return 'Weekends';
+  return DAYS.filter(function (day) { return active.includes(day[0]); })
+    .map(function (day) { return day[1]; }).join(', ');
+}
+
+function renderEditorDays() {
+  if (!els.securityScheduleDays || !stagedSchedule) return;
+  els.securityScheduleDays.innerHTML = '';
+  DAYS.forEach(function (day) {
+    const btn = document.createElement('button');
+    const active = stagedSchedule.days.includes(day[0]);
+    btn.type = 'button';
+    btn.className = 'alarm-schedule-day' + (active ? ' active' : '');
+    btn.textContent = day[1];
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    btn.addEventListener('click', function () {
+      const current = stagedSchedule.days.slice();
+      const pos = current.indexOf(day[0]);
+      if (pos >= 0 && current.length > 1) current.splice(pos, 1);
+      else if (pos < 0) current.push(day[0]);
+      stagedSchedule.days = DAYS.map(function (d) { return d[0]; })
+        .filter(function (value) { return current.includes(value); });
+      renderEditorDays();
+    });
+    els.securityScheduleDays.appendChild(btn);
+  });
+}
+
+function openScheduleEditor(index, trigger) {
+  editorIndex = index;
+  const source = index == null ? scheduleDefaults() : state.securitySchedules[index];
+  stagedSchedule = {
+    id: source.id,
+    enabled: source.enabled !== false,
+    time: source.time || '21:00',
+    days: source.days.slice(),
+    action: source.action,
+  };
+  editorScheduleId = stagedSchedule.id;
+  editorReturnFocus = trigger || null;
+  els.securityScheduleEditorTitle.textContent = index == null ? 'Add schedule' : 'Edit schedule';
+  setToggleState(els.securityScheduleEnabled, stagedSchedule.enabled);
+  els.securityScheduleTime.value = stagedSchedule.time;
+  els.securityScheduleAction.value = stagedSchedule.action;
+  els.securityScheduleDelete.hidden = index == null;
+  renderEditorDays();
+  if (typeof els.securityScheduleDialog.showModal === 'function') els.securityScheduleDialog.showModal();
+  else els.securityScheduleDialog.setAttribute('open', '');
+  els.securityScheduleTime.focus();
+}
+
+function closeScheduleEditor() {
+  if (typeof els.securityScheduleDialog.close === 'function') els.securityScheduleDialog.close();
+  else els.securityScheduleDialog.removeAttribute('open');
+}
+
+function restoreEditorFocus() {
+  let target = editorReturnFocus && editorReturnFocus.isConnected ? editorReturnFocus : null;
+  if (!target && editorScheduleId) {
+    const row = els.securitySchedules.querySelector('[data-schedule-id="' + CSS.escape(editorScheduleId) + '"]');
+    if (row) target = row.querySelector('.automation-summary-main');
+  }
+  if (!target) target = els.securityScheduleAdd;
+  editorIndex = null;
+  editorScheduleId = null;
+  editorReturnFocus = null;
+  stagedSchedule = null;
+  if (target) requestAnimationFrame(function () { target.focus(); });
+}
+
 export function renderSchedules() {
   if (!els.securitySchedules || !els.securitySchedulesNote) return;
   els.securitySchedules.innerHTML = '';
@@ -73,105 +155,39 @@ export function renderSchedules() {
   els.securitySchedulesNote.hidden = true;
 
   state.securitySchedules.forEach(function (entry, idx) {
-    const card = document.createElement('div');
-    card.className = 'schedule-entry alarm-schedule-entry';
-    card.dataset.scheduleId = entry.id;
+    const row = document.createElement('div');
+    row.className = 'list-row automation-summary-row';
+    row.dataset.scheduleId = entry.id;
 
-    const head = document.createElement('div');
-    head.className = 'schedule-entry-head';
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'automation-summary-main';
+    main.setAttribute('aria-label', 'Edit schedule at ' + entry.time);
 
-    const enabled = document.createElement('label');
-    enabled.className = 'schedule-enabled';
-    const enabledText = document.createElement('span');
-    enabledText.textContent = 'Enabled';
-    enabled.appendChild(enabledText);
-    enabled.appendChild(buildToggle('alarm-schedule-enabled', entry.enabled, function (on) {
-      state.securitySchedules[idx].enabled = on;
-      saveSecuritySchedules();
-    }));
-    head.appendChild(enabled);
+    const copy = document.createElement('span');
+    copy.className = 'automation-summary-copy';
+    const title = document.createElement('span');
+    title.className = 'automation-summary-title';
+    title.textContent = entry.time;
+    const meta = document.createElement('span');
+    meta.className = 'automation-summary-meta';
+    meta.textContent = ACTION_LABELS[entry.action] + ' · ' + daysSummary(entry.days);
+    copy.appendChild(title);
+    copy.appendChild(meta);
+    main.appendChild(copy);
+    main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
+    main.addEventListener('click', function () { openScheduleEditor(idx, main); });
+    row.appendChild(main);
 
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'schedule-delete';
-    del.setAttribute('aria-label', 'Delete alarm schedule');
-    del.textContent = '×';
-    del.addEventListener('click', async function () {
-      const ok = await confirmAction({
-        title: 'Delete this alarm schedule?',
-        message: 'This schedule will be removed permanently.',
-        okLabel: 'Delete',
-        danger: true,
+    const enabled = buildToggle('alarm-schedule-enabled', entry.enabled, function (on) {
+      const proposed = state.securitySchedules.map(function (schedule, scheduleIndex) {
+        return scheduleIndex === idx ? { ...schedule, enabled: on } : schedule;
       });
-      if (!ok) return;
-      state.securitySchedules.splice(idx, 1);
-      saveSecuritySchedules();
+      saveSecuritySchedules(proposed);
     });
-    head.appendChild(del);
-    card.appendChild(head);
-
-    const fields = document.createElement('div');
-    fields.className = 'alarm-schedule-fields';
-
-    const timeLabel = document.createElement('label');
-    const timeText = document.createElement('span');
-    timeText.textContent = 'Time';
-    const time = document.createElement('input');
-    time.type = 'time';
-    time.className = 'input-native alarm-schedule-time';
-    time.value = entry.time;
-    time.addEventListener('change', function () {
-      state.securitySchedules[idx].time = time.value || '21:00';
-      saveSecuritySchedules();
-    });
-    timeLabel.appendChild(timeText);
-    timeLabel.appendChild(time);
-    fields.appendChild(timeLabel);
-
-    const actionLabel = document.createElement('label');
-    const actionText = document.createElement('span');
-    actionText.textContent = 'Action';
-    const action = document.createElement('select');
-    action.className = 'select-native alarm-schedule-action';
-    ACTIONS.forEach(function (name) {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = ACTION_LABELS[name];
-      action.appendChild(opt);
-    });
-    action.value = entry.action;
-    action.addEventListener('change', function () {
-      state.securitySchedules[idx].action = action.value;
-      saveSecuritySchedules();
-    });
-    actionLabel.appendChild(actionText);
-    actionLabel.appendChild(action);
-    fields.appendChild(actionLabel);
-    card.appendChild(fields);
-
-    const days = document.createElement('div');
-    days.className = 'alarm-schedule-days';
-    DAYS.forEach(function (day) {
-      const btn = document.createElement('button');
-      const active = entry.days.includes(day[0]);
-      btn.type = 'button';
-      btn.className = 'alarm-schedule-day' + (active ? ' active' : '');
-      btn.textContent = day[1];
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-      btn.addEventListener('click', function () {
-        const current = state.securitySchedules[idx].days.slice();
-        const pos = current.indexOf(day[0]);
-        if (pos >= 0 && current.length > 1) current.splice(pos, 1);
-        else if (pos < 0) current.push(day[0]);
-        state.securitySchedules[idx].days = DAYS.map(function (d) { return d[0]; })
-          .filter(function (value) { return current.includes(value); });
-        saveSecuritySchedules();
-      });
-      days.appendChild(btn);
-    });
-    card.appendChild(days);
-
-    els.securitySchedules.appendChild(card);
+    enabled.setAttribute('aria-label', 'Enable schedule at ' + entry.time);
+    row.appendChild(enabled);
+    els.securitySchedules.appendChild(row);
   });
 }
 
@@ -191,8 +207,9 @@ export async function loadSecuritySchedules() {
   renderSchedules();
 }
 
-async function saveSecuritySchedules() {
-  state.securitySchedules = normalizedSchedules();
+async function saveSecuritySchedules(entries) {
+  const previous = state.securitySchedules;
+  state.securitySchedules = normalizedSchedules(entries);
   renderSchedules();
   try {
     const body = await jsonApi('/api/security/schedules', {
@@ -203,17 +220,62 @@ async function saveSecuritySchedules() {
     state.securitySchedules = (body && body.entries) || [];
     renderSchedules();
     toast('Schedules saved', 'success');
+    return true;
   } catch (exc) {
+    state.securitySchedules = previous;
+    renderSchedules();
     if (String(exc.message) !== 'auth required') {
-      toast('Schedule save failed: ' + (exc.message || exc), 'error');
+      toast("Couldn't save schedules", 'error');
     }
+    return false;
   }
 }
 
 export function wireSecuritySchedules() {
-  if (!els.securityScheduleAdd) return;
+  if (!els.securityScheduleAdd || !els.securityScheduleDialog) return;
+  ACTIONS.forEach(function (name) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = ACTION_LABELS[name];
+    els.securityScheduleAction.appendChild(option);
+  });
+  wireToggle(els.securityScheduleEnabled, function (on) {
+    if (stagedSchedule) stagedSchedule.enabled = on;
+  });
   els.securityScheduleAdd.addEventListener('click', function () {
-    state.securitySchedules.push(scheduleDefaults());
-    saveSecuritySchedules();
+    openScheduleEditor(null, els.securityScheduleAdd);
+  });
+  els.securityScheduleEditorClose.addEventListener('click', closeScheduleEditor);
+  els.securityScheduleDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.securityScheduleDialog) closeScheduleEditor();
+  });
+  els.securityScheduleDialog.addEventListener('close', restoreEditorFocus);
+  els.securityScheduleSave.addEventListener('click', async function () {
+    if (!stagedSchedule) return;
+    stagedSchedule.enabled = isToggleOn(els.securityScheduleEnabled);
+    stagedSchedule.time = els.securityScheduleTime.value || '21:00';
+    stagedSchedule.action = ACTIONS.includes(els.securityScheduleAction.value)
+      ? els.securityScheduleAction.value : 'arm';
+    const proposed = state.securitySchedules.slice();
+    if (editorIndex == null) proposed.push(stagedSchedule);
+    else proposed[editorIndex] = stagedSchedule;
+    els.securityScheduleSave.disabled = true;
+    const saved = await saveSecuritySchedules(proposed);
+    els.securityScheduleSave.disabled = false;
+    if (saved) closeScheduleEditor();
+  });
+  els.securityScheduleDelete.addEventListener('click', async function () {
+    if (editorIndex == null) return;
+    const ok = await confirmAction({
+      title: 'Delete this alarm schedule?',
+      message: 'This schedule will be removed permanently.',
+      okLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    const proposed = state.securitySchedules.filter(function (_entry, idx) {
+      return idx !== editorIndex;
+    });
+    if (await saveSecuritySchedules(proposed)) closeScheduleEditor();
   });
 }

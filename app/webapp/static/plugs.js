@@ -13,11 +13,83 @@
 import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi } from './api.js';
 import { fmtW } from './format.js';
-import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
+import { emptyStateEl } from './icons.js';
 
 const POLL_MS = 15_000;
+
+let plugsViewState = 'idle';
+let plugsUpdatedAt = null;
+let plugsLiveUnavailable = false;
+
+function setPlugsViewState(next, opts) {
+  plugsViewState = next;
+  if (opts && opts.updatedAt) plugsUpdatedAt = opts.updatedAt;
+  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
+    plugsLiveUnavailable = opts.liveUnavailable;
+  }
+}
+
+function lastUpdatedLabel() {
+  const raw = plugsUpdatedAt || state.snapshotUpdatedAt.plugs;
+  const updated = raw instanceof Date ? raw : new Date(raw || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderPlugsFeedback() {
+  if (!els.plugsFeedback) return;
+  els.plugsFeedback.dataset.state = plugsViewState;
+  els.plugsFeedback.innerHTML = '';
+  els.plugsFeedback.hidden = false;
+  if (plugsViewState === 'loading') {
+    els.plugsFeedback.appendChild(
+      emptyStateEl('plug-zap', 'Reading plugs and blinds…')
+    );
+    return;
+  }
+  if (plugsViewState === 'empty') {
+    els.plugsFeedback.appendChild(emptyStateEl('plug-zap', 'No Smart Life devices configured', {
+      actionLabel: 'Retry',
+      onAction: function () { loadPlugs(); },
+    }));
+    return;
+  }
+  if (plugsViewState === 'error') {
+    els.plugsFeedback.appendChild(emptyStateEl('plug-zap', 'Plugs and blinds unavailable', {
+      actionLabel: 'Retry',
+      onAction: function () { loadPlugs(); },
+    }));
+    return;
+  }
+  if (plugsViewState === 'stale') {
+    const note = document.createElement('p');
+    note.className = 'muted small plugs-stale-note';
+    note.textContent = plugsLiveUnavailable
+      ? lastUpdatedLabel() + ' · live data unavailable'
+      : snapshotLabel('plugs');
+    els.plugsFeedback.appendChild(note);
+    return;
+  }
+  els.plugsFeedback.hidden = true;
+}
+
+function markPlugsFailure() {
+  setPlugsViewState(state.plugs.length ? 'stale' : 'error', {
+    liveUnavailable: true,
+  });
+  reportFetchFailure(
+    'plugs',
+    { message: 'live data unavailable' },
+    'plugs'
+  );
+  renderPlugs();
+}
 
 // --------------------------------------------------------------- formatting
 function deviceById(id) {
@@ -341,6 +413,7 @@ function renderHiddenToggle() {
 export function renderPlugs() {
   els.plugsList.innerHTML = '';
   els.blindsList.innerHTML = '';
+  renderPlugsFeedback();
   renderStats();
 
   // Update toggle button label to reflect current state.
@@ -350,10 +423,7 @@ export function renderPlugs() {
   }
 
   if (!state.plugs.length) {
-    els.plugsNote.hidden = false;
-    els.plugsNote.textContent =
-      'No Smart Life devices. Refresh devices.json on the home network ' +
-      '(python -m tinytuya wizard) to capture them.';
+    els.plugsNote.hidden = true;
     if (els.plugsHiddenCount) els.plugsHiddenCount.hidden = true;
     state.plugsUserHiddenCount = 0;
     renderHiddenToggle();
@@ -361,12 +431,7 @@ export function renderPlugs() {
     setListCard(els.blindsCard, els.blindsCount, 0);
     return;
   }
-  if (isSnapshotRestored('plugs')) {
-    els.plugsNote.hidden = false;
-    els.plugsNote.textContent = snapshotLabel('plugs');
-  } else {
-    els.plugsNote.hidden = true;
-  }
+  els.plugsNote.hidden = true;
 
   const sorted = state.plugs.slice().sort(function (a, b) {
     return (a.name || '').localeCompare(b.name || '');
@@ -449,15 +514,17 @@ export function wirePlugsRefresh() {
       reportFetchOk('plugs');
       saveSnapshot('plugs', body);
       state.plugs = (body && body.devices) || [];
+      setPlugsViewState(state.plugs.length ? 'ready' : 'empty', {
+        updatedAt: new Date(),
+        liveUnavailable: false,
+      });
       renderPlugs();
       const info = (body && body.refresh) || {};
       const recovered = (info.updated && info.updated.length) || 0;
       toast(info.detail || 'Plugs refreshed', recovered ? 'success' : '');
     } catch (exc) {
       if (String(exc.message) !== 'auth required') {
-        reportFetchFailure('plugs', exc, 'plugs');
-        els.plugsNote.hidden = false;
-        els.plugsNote.textContent = exc.message || 'Failed to refresh devices.';
+        markPlugsFailure();
       }
     } finally {
       els.plugsRefresh.disabled = false;
@@ -482,23 +549,23 @@ export function wirePlugDetail() {
 }
 
 export async function loadPlugs() {
+  if (!state.plugs.length) {
+    setPlugsViewState('loading', { liveUnavailable: false });
+    renderPlugs();
+  }
   try {
     const body = await jsonApi('/api/tuya');
     reportFetchOk('plugs');
     saveSnapshot('plugs', body);
     state.plugs = (body && body.devices) || [];
+    setPlugsViewState(state.plugs.length ? 'ready' : 'empty', {
+      updatedAt: new Date(),
+      liveUnavailable: false,
+    });
     renderPlugs();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    // Missing devices.json (503) or a read error — guide, don't crash. The
-    // inline note stays for context; the toast surfaces the reason once.
-    reportFetchFailure('plugs', exc, 'plugs');
-    if (!state.plugs.length) {
-      els.plugsList.innerHTML = '';
-      els.blindsList.innerHTML = '';
-    }
-    els.plugsNote.hidden = false;
-    els.plugsNote.textContent = exc.message || 'Failed to load devices.';
+    markPlugsFailure();
   }
 }
 
@@ -506,6 +573,10 @@ export function restorePlugsSnapshot() {
   const body = restoreSnapshot('plugs');
   if (!body) return;
   state.plugs = (body && body.devices) || [];
+  setPlugsViewState(state.plugs.length ? 'stale' : 'empty', {
+    updatedAt: state.snapshotUpdatedAt.plugs,
+    liveUnavailable: false,
+  });
   renderPlugs();
 }
 

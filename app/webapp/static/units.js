@@ -15,15 +15,87 @@ import {
   state,
   els,
   toast,
+  reportFetchFailure,
+  reportFetchOk,
   modeIcon,
 } from './state.js';
-import { icon } from './icons.js';
+import { emptyStateEl, icon } from './icons.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 const DEFAULT_RANGE = [16, 31];
 let currentScheduleEntries = [];
+let acViewState = 'idle';
+let acUpdatedAt = null;
+let acLiveUnavailable = false;
+
+function setAcViewState(next, opts) {
+  acViewState = next;
+  if (opts && opts.updatedAt) acUpdatedAt = opts.updatedAt;
+  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
+    acLiveUnavailable = opts.liveUnavailable;
+  }
+}
+
+function lastUpdatedLabel() {
+  const raw = acUpdatedAt || state.snapshotUpdatedAt.units;
+  const updated = raw instanceof Date ? raw : new Date(raw || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderAcFeedback() {
+  if (!els.paneAc || !els.acFeedback) return;
+  els.paneAc.dataset.state = acViewState;
+  els.paneAc.setAttribute('aria-busy', acViewState === 'loading' ? 'true' : 'false');
+  els.acFeedback.innerHTML = '';
+  els.acFeedback.hidden = false;
+  if (acViewState === 'loading') {
+    els.acFeedback.appendChild(emptyStateEl('refresh-cw', 'Reading AC units…'));
+    return;
+  }
+  if (acViewState === 'empty') {
+    els.acFeedback.appendChild(emptyStateEl('snowflake', 'No AC units configured', {
+      actionLabel: 'Retry',
+      onAction: function () { loadUnits(); },
+    }));
+    return;
+  }
+  if (acViewState === 'error') {
+    els.acFeedback.appendChild(emptyStateEl('snowflake', 'AC units unavailable', {
+      actionLabel: 'Retry',
+      onAction: function () { loadUnits(); },
+    }));
+    return;
+  }
+  if (acViewState === 'stale') {
+    const note = document.createElement('p');
+    note.className = 'muted small ac-stale-note';
+    note.textContent = acLiveUnavailable
+      ? lastUpdatedLabel() + ' · live data unavailable'
+      : snapshotLabel('units');
+    els.acFeedback.appendChild(note);
+    return;
+  }
+  els.acFeedback.hidden = true;
+}
+
+function markAcFailure() {
+  setAcViewState(state.units.length ? 'stale' : 'error', {
+    liveUnavailable: true,
+  });
+  reportFetchFailure(
+    'units',
+    { message: 'live data unavailable' },
+    'AC units'
+  );
+  renderAll();
+  renderAcSummary();
+}
 
 // Detail-modal staging (#202): edits to mode/fan/vanes, display name, the
 // temperature rule and the schedules are held locally and only written when the
@@ -267,10 +339,16 @@ function displayLabel(unit) {
 
 function renderAll() {
   els.grid.innerHTML = '';
+  renderAcFeedback();
   const sorted = state.units.slice().sort(function (a, b) {
     return displayLabel(a).localeCompare(displayLabel(b));
   });
   sorted.forEach(function (u) { els.grid.appendChild(buildCard(u)); });
+  if (acViewState === 'stale') {
+    els.grid.querySelectorAll('button, select').forEach(function (control) {
+      control.disabled = true;
+    });
+  }
 }
 
 // ----------------------------------------------------------- detail modal
@@ -475,7 +553,9 @@ function renderAcSummary() {
   if (!state.units.length) {
     const empty = document.createElement('p');
     empty.className = 'muted small ac-summary-empty';
-    empty.textContent = 'No units.';
+    if (acViewState === 'loading') empty.textContent = 'Reading AC units…';
+    else if (acViewState === 'error') empty.textContent = 'AC units unavailable.';
+    else empty.textContent = 'No AC units configured.';
     els.acSummary.appendChild(empty);
     return;
   }
@@ -509,6 +589,7 @@ function renderAcSummary() {
     toggle.setAttribute('aria-checked', on ? 'true' : 'false');
     toggle.setAttribute('aria-label', 'Power ' + (displayLabel(u) || 'unit'));
     toggle.innerHTML = toggleMarkup(on);
+    toggle.disabled = acViewState === 'stale';
     toggle.addEventListener('click', function () {
       applyControl(u.unit_id, { power: !on });
     });
@@ -518,26 +599,38 @@ function renderAcSummary() {
     row.appendChild(toggle);
     els.acSummary.appendChild(row);
   });
-  if (isSnapshotRestored('units')) {
+  if (acViewState === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small snapshot-note ac-snapshot-note';
-    note.textContent = snapshotLabel('units');
+    note.textContent = acLiveUnavailable
+      ? lastUpdatedLabel() + ' · live data unavailable'
+      : snapshotLabel('units');
     els.acSummary.appendChild(note);
   }
 }
 
 // --------------------------------------------------------------- boot
 export async function loadUnits() {
+  if (!state.units.length) {
+    setAcViewState('loading', { liveUnavailable: false });
+    renderAll();
+    renderAcSummary();
+  }
   try {
     const body = await jsonApi('/api/units');
+    reportFetchOk('units');
     saveSnapshot('units', body);
     state.units = (body && body.units) || [];
+    setAcViewState(state.units.length ? 'ready' : 'empty', {
+      updatedAt: new Date(),
+      liveUnavailable: false,
+    });
     renderAll();
     renderAcSummary();
   } catch (exc) {
     // A 401 already surfaced the login overlay (api.js → showLogin); stay quiet.
     if (String(exc.message) === 'auth required') return;
-    toast('Load failed: ' + (exc.message || exc), 'error');
+    markAcFailure();
   }
 }
 
@@ -545,6 +638,10 @@ export function restoreUnitsSnapshot() {
   const body = restoreSnapshot('units');
   if (!body) return;
   state.units = (body && body.units) || [];
+  setAcViewState(state.units.length ? 'stale' : 'empty', {
+    updatedAt: state.snapshotUpdatedAt.units,
+    liveUnavailable: false,
+  });
   renderAll();
   renderAcSummary();
 }

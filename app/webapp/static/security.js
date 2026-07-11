@@ -16,6 +16,7 @@
 
 import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
+import { emptyStateEl } from './icons.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
 import { renderScenePairings, loadScenePairings } from './security-scene.js';
@@ -35,6 +36,85 @@ export { wireSecurityNotify } from './security-notify.js';
 
 const POLL_MS = 10_000;
 
+let securityViewState = 'idle';
+let securityUpdatedAt = null;
+
+function setSecurityViewState(next, opts) {
+  securityViewState = next;
+  if (opts && opts.updatedAt) securityUpdatedAt = opts.updatedAt;
+}
+
+function lastUpdatedLabel() {
+  const updated = securityUpdatedAt instanceof Date
+    ? securityUpdatedAt
+    : new Date(securityUpdatedAt || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderSecurityFeedback() {
+  if (!els.paneSecurity || !els.securityFeedback) return;
+  els.paneSecurity.dataset.state = securityViewState;
+  els.securityFeedback.innerHTML = '';
+  els.securityFeedback.hidden = false;
+
+  if (securityViewState === 'loading') {
+    els.securityFeedback.appendChild(
+      emptyStateEl('shield-check', 'Reading security status…')
+    );
+  } else if (securityViewState === 'error') {
+    els.securityFeedback.appendChild(emptyStateEl('shield-check', 'Security unavailable', {
+      actionLabel: 'Retry',
+      onAction: function () { loadSecurity(); },
+    }));
+  } else if (securityViewState === 'stale') {
+    const note = document.createElement('p');
+    note.className = 'muted small security-stale-note';
+    note.textContent = lastUpdatedLabel() + ' · live data unavailable';
+    els.securityFeedback.appendChild(note);
+  } else {
+    els.securityFeedback.hidden = true;
+  }
+
+  if (!els.homeSecurityFeedback) return;
+  if (securityViewState === 'loading') {
+    els.homeSecurityFeedback.textContent = 'Reading security status…';
+    els.homeSecurityFeedback.hidden = false;
+  } else if (securityViewState === 'error') {
+    els.homeSecurityFeedback.textContent = 'Security unavailable';
+    els.homeSecurityFeedback.hidden = false;
+  } else if (securityViewState === 'stale') {
+    els.homeSecurityFeedback.textContent = lastUpdatedLabel() + ' · live data unavailable';
+    els.homeSecurityFeedback.hidden = false;
+  } else {
+    els.homeSecurityFeedback.hidden = true;
+  }
+}
+
+function disableSecurityActions() {
+  [els.securityActions, els.homeSecurityActions].forEach(function (container) {
+    if (!container) return;
+    container.querySelectorAll('.security-action').forEach(function (button) {
+      button.disabled = true;
+      button.title = 'Live security state unavailable';
+    });
+  });
+}
+
+function markSecurityFailure() {
+  setSecurityViewState(state.security ? 'stale' : 'error');
+  reportFetchFailure(
+    'security',
+    { message: 'live data unavailable' },
+    'security'
+  );
+  renderSecurityFeedback();
+  disableSecurityActions();
+}
+
 export function renderSecurity() {
   renderState();
   renderActions();
@@ -44,15 +124,28 @@ export function renderSecurity() {
   renderEvents();
   renderZones();
   renderPresence();
+  renderSecurityFeedback();
+  if (securityViewState === 'stale') disableSecurityActions();
 }
 
 async function loadSecurityState() {
-  state.security = await jsonApi('/api/security');
-  renderSecurity();
-  if (state.tab === 'security') loadPresence();
+  try {
+    state.security = await jsonApi('/api/security');
+    reportFetchOk('security');
+    setSecurityViewState('ready', { updatedAt: new Date() });
+    renderSecurity();
+    if (state.tab === 'security') loadPresence();
+  } catch (exc) {
+    if (String(exc.message) === 'auth required') return;
+    markSecurityFailure();
+  }
 }
 
 export async function loadSecurity() {
+  if (!state.security) {
+    setSecurityViewState('loading');
+    renderSecurityFeedback();
+  }
   try {
     const results = await Promise.all([
       jsonApi('/api/security'),
@@ -63,16 +156,11 @@ export async function loadSecurity() {
     state.securityEvents = (results[1] && results[1].events) || [];
     if (results[2]) state.securitySchedules = results[2].entries || [];
     reportFetchOk('security');
+    setSecurityViewState('ready', { updatedAt: new Date() });
     renderSecurity();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    // The inline note keeps the reason in place; the toast surfaces it once.
-    reportFetchFailure('security', exc, 'security');
-    state.security = null;
-    state.securityEvents = [];
-    renderSecurity();
-    els.securityEventsNote.hidden = false;
-    els.securityEventsNote.textContent = exc.message || 'Failed to load security.';
+    markSecurityFailure();
   }
 }
 

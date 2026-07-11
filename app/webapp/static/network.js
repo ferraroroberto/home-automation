@@ -25,7 +25,13 @@ import {
 } from './state.js';
 import { jsonApi } from './api.js';
 import { fmtPct } from './format.js';
-import { restoreSnapshot, saveSnapshot } from './snapshots.js';
+import {
+  isSnapshotRestored,
+  restoreSnapshot,
+  saveSnapshot,
+  snapshotLabel,
+} from './snapshots.js';
+import { emptyStateEl } from './icons.js';
 import { restyleWifiChannelChart } from './charts.js';
 import { createPoller } from './poll.js';
 import {
@@ -51,6 +57,9 @@ const POLL_MS = 15_000;
 
 let speedtestRunning = false;
 let networkLoading = false;
+let networkViewState = 'idle';
+let networkUpdatedAt = null;
+let networkLiveUnavailable = false;
 // Last successful speed-test result, kept across polls (a normal poll returns
 // null Mbps, which would otherwise wipe the displayed figure each cycle).
 let lastSpeed = null;
@@ -66,6 +75,72 @@ function fmtUptime(seconds) {
   if (d > 0) return d + 'd ' + h + 'h';
   if (h > 0) return h + 'h ' + m + 'm';
   return m + 'm';
+}
+
+function setNetworkViewState(next, opts) {
+  networkViewState = next;
+  if (opts && opts.updatedAt) networkUpdatedAt = opts.updatedAt;
+  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
+    networkLiveUnavailable = opts.liveUnavailable;
+  }
+}
+
+function lastUpdatedLabel() {
+  const raw = networkUpdatedAt || state.snapshotUpdatedAt.network;
+  const updated = raw instanceof Date ? raw : new Date(raw || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function renderNetworkFeedback() {
+  if (!els.paneNetwork || !els.netFeedback) return;
+  els.paneNetwork.dataset.state = networkViewState;
+  els.netFeedback.innerHTML = '';
+  els.netFeedback.hidden = false;
+
+  if (networkViewState === 'loading') {
+    els.netFeedback.appendChild(emptyStateEl('wifi', 'Reading network status…'));
+    return;
+  }
+  if (networkViewState === 'error') {
+    els.netFeedback.appendChild(emptyStateEl('wifi', 'Network unavailable', {
+      actionLabel: 'Retry',
+      onAction: function () { loadNetwork(); },
+    }));
+    return;
+  }
+  if (networkViewState === 'stale') {
+    const note = document.createElement('p');
+    note.className = 'muted small network-stale-note';
+    note.textContent = networkLiveUnavailable
+      ? lastUpdatedLabel() + ' · live data unavailable'
+      : snapshotLabel('network');
+    els.netFeedback.appendChild(note);
+    return;
+  }
+  els.netFeedback.hidden = true;
+}
+
+function disableStaleNetworkActions() {
+  [els.netApReboot, els.netRouterReboot].forEach(function (button) {
+    if (button) button.disabled = true;
+  });
+}
+
+function markNetworkFailure() {
+  setNetworkViewState(state.network ? 'stale' : 'error', {
+    liveUnavailable: true,
+  });
+  reportFetchFailure(
+    'network',
+    { message: 'live data unavailable' },
+    'network'
+  );
+  renderNetworkFeedback();
+  if (state.network) disableStaleNetworkActions();
 }
 
 // --------------------------------------------------- reusable confirm dialog
@@ -219,6 +294,10 @@ function renderNetwork() {
     ? (net.devices || []).filter(function (d) { return state.networkShowHiddenDevices || !d.hidden; })
     : []);
   renderDevices(net ? net.devices : []);
+  renderNetworkFeedback();
+  if (networkViewState === 'stale' && networkLiveUnavailable) {
+    disableStaleNetworkActions();
+  }
 }
 
 // renderNetwork is the orchestrator the sub-modules call back into after a
@@ -230,19 +309,24 @@ async function loadNetwork(opts) {
   const speedtest = !!(opts && opts.speedtest);
   if (networkLoading) return false;
   networkLoading = true;
+  if (!speedtest && !state.network) {
+    setNetworkViewState('loading', { liveUnavailable: false });
+    renderNetworkFeedback();
+  }
   try {
     const url = speedtest ? '/api/network?speedtest=1' : '/api/network';
     state.network = await jsonApi(url);
     reportFetchOk('network');
     if (!speedtest) saveSnapshot('network', state.network);
+    setNetworkViewState('ready', {
+      updatedAt: new Date(),
+      liveUnavailable: false,
+    });
     renderNetwork();
     return true;
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    reportFetchFailure('network', exc, 'network');
-    // Keep any last-good render in place; surface the reason in the device note.
-    els.netDevicesNote.hidden = false;
-    els.netDevicesNote.textContent = exc.message || 'Failed to load network.';
+    markNetworkFailure();
     return false;
   } finally {
     networkLoading = false;
@@ -253,6 +337,10 @@ export function restoreNetworkSnapshot() {
   const body = restoreSnapshot('network');
   if (!body) return;
   state.network = body;
+  setNetworkViewState('stale', {
+    updatedAt: state.snapshotUpdatedAt.network,
+    liveUnavailable: false,
+  });
   renderNetwork();
 }
 

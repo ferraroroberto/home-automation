@@ -27,6 +27,40 @@ def test_modal_shows_mode_and_both_vanes(
     expect(page.locator("#detailVaneHorizontalRow")).to_be_visible()
 
 
+def test_all_dialog_close_buttons_use_compact_44px_targets(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    mock_api(sample_units)
+    _open_detail(page, base_url, "unit-1")
+
+    close_buttons = page.locator(".detail-close")
+    expect(close_buttons).to_have_count(15)
+    expect(page.locator(".detail-close.hit-target")).to_have_count(15)
+
+    geometry = page.locator("#detailClose").evaluate("""
+        button => {
+          const rect = button.getBoundingClientRect();
+          const pseudo = getComputedStyle(button, '::before');
+          const expand = value => {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) && parsed < 0 ? -parsed : 0;
+          };
+          return {
+            visualWidth: rect.width,
+            visualHeight: rect.height,
+            effectiveWidth: rect.width + expand(pseudo.left) + expand(pseudo.right),
+            effectiveHeight: rect.height + expand(pseudo.top) + expand(pseudo.bottom),
+          };
+        }
+    """)
+    assert geometry == {
+        "visualWidth": 34,
+        "visualHeight": 34,
+        "effectiveWidth": 44,
+        "effectiveHeight": 44,
+    }
+
+
 def test_vane_rows_gated_on_capability(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:

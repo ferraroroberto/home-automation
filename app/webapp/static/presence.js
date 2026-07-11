@@ -21,7 +21,12 @@ import {
   THIS_DEVICE_LOCATION_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
+import { emptyStateEl } from './icons.js';
 import { toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
+
+let presenceViewState = 'idle';
+let presenceUpdatedAt = null;
+let presenceTransportUnavailable = false;
 
 export function fmtTime(value) {
   if (!value) return '-';
@@ -119,13 +124,79 @@ function renderKidsHomeToggle() {
   const on = !!(state.presence && state.presence.kids_home_override);
   els.presenceKidsHome.classList.toggle('active', on);
   els.presenceKidsHome.setAttribute('aria-pressed', on ? 'true' : 'false');
+  els.presenceKidsHome.disabled = presenceViewState !== 'ready';
+}
+
+function setPresenceViewState(next, opts) {
+  presenceViewState = next;
+  if (opts && opts.updatedAt) presenceUpdatedAt = opts.updatedAt;
+  if (opts && Object.prototype.hasOwnProperty.call(opts, 'transportUnavailable')) {
+    presenceTransportUnavailable = opts.transportUnavailable;
+  }
+}
+
+function lastUpdatedLabel() {
+  const updated = presenceUpdatedAt instanceof Date
+    ? presenceUpdatedAt
+    : new Date(presenceUpdatedAt || '');
+  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
+  return 'Last updated ' + updated.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function showPresenceState(message, retry) {
+  const options = retry ? {
+    actionLabel: 'Retry',
+    onAction: function () { loadPresence(); },
+  } : null;
+  els.presenceList.appendChild(emptyStateEl('smartphone', message, options));
+}
+
+function hidePresenceRefreshNote() {
+  if (els.presenceRefreshNote) els.presenceRefreshNote.hidden = true;
+}
+
+function markPresenceFailure() {
+  const hasLastGood = !!(state.presence && state.presence.available !== false);
+  setPresenceViewState(hasLastGood ? 'stale' : 'error', {
+    transportUnavailable: true,
+  });
+  reportFetchFailure(
+    'presence',
+    { message: 'live data unavailable' },
+    'presence'
+  );
+  renderPresence();
 }
 
 export function renderPresence() {
   renderKidsHomeToggle();
   if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
   els.presenceList.innerHTML = '';
+  els.presenceList.dataset.state = presenceViewState;
+  els.presenceList.setAttribute(
+    'aria-busy',
+    presenceViewState === 'loading' ? 'true' : 'false'
+  );
   const presence = state.presence;
+  if (presenceViewState === 'loading') {
+    els.presenceSummary.textContent = 'Loading';
+    showPresenceState('Reading presence…', false);
+    els.presenceNote.hidden = true;
+    hidePresenceRefreshNote();
+    return;
+  }
+  if (presenceViewState === 'error' && presenceTransportUnavailable) {
+    els.presenceSummary.textContent = 'Unavailable';
+    showPresenceState('Presence unavailable', true);
+    els.presenceNote.hidden = false;
+    els.presenceNote.textContent =
+      'Live presence data is unavailable. Check the connection, then retry.';
+    hidePresenceRefreshNote();
+    return;
+  }
   if (!presence) {
     els.presenceSummary.textContent = '—';
     els.presenceNote.hidden = true;
@@ -133,10 +204,12 @@ export function renderPresence() {
   }
   if (presence.available === false) {
     els.presenceSummary.textContent = 'Unavailable';
+    showPresenceState('Presence unavailable', false);
     els.presenceNote.hidden = false;
     els.presenceNote.textContent = presence.reason === '2fa_required'
       ? 'iCloud needs 2FA; run the CLI once to refresh the trusted session.'
       : (presence.detail || 'Presence is not configured.');
+    hidePresenceRefreshNote();
     return;
   }
 
@@ -171,8 +244,23 @@ export function renderPresence() {
     els.presenceHiddenToggle.classList.toggle('active', state.presenceShowHidden);
   }
 
-  els.presenceNote.hidden = visible.length > 0;
-  els.presenceNote.textContent = visible.length ? '' : 'No presence entities.';
+  if (!entities.length) {
+    showPresenceState('No presence entities configured', false);
+    els.presenceNote.hidden = true;
+    renderPresenceRefreshNote();
+    renderPresenceAutomationNote();
+    return;
+  }
+
+  if (presenceViewState === 'stale') {
+    els.presenceNote.hidden = false;
+    els.presenceNote.textContent = lastUpdatedLabel() + ' · live data unavailable';
+  } else {
+    els.presenceNote.hidden = visible.length > 0;
+    els.presenceNote.textContent = visible.length ? '' : 'No presence entities shown.';
+  }
+
+  if (!visible.length) showPresenceState('No presence entities shown', false);
 
   visible
     .forEach(function (entity) {
@@ -231,6 +319,7 @@ export function renderPresence() {
 
 function renderPresenceRefreshNote() {
   if (!els.presenceRefreshNote) return;
+  els.presenceRefreshNote.hidden = false;
   const diag = (state.presence && state.presence.diagnostics) || {};
   const interval = Math.max(1, Math.round((Number(diag.refresh_interval_s) || 300) / 60));
   const last = diag.refreshed_at ? fmtTime(diag.refreshed_at) : 'not yet';
@@ -255,14 +344,26 @@ function renderPresenceAutomationNote() {
 }
 
 export async function loadPresence() {
+  if (!state.presence) {
+    setPresenceViewState('loading', { transportUnavailable: false });
+    renderPresence();
+  }
   try {
     state.presence = await jsonApi('/api/presence');
     reportFetchOk('presence');
+    const entities = (state.presence && state.presence.entities) || [];
+    const hasEntities = entities.length > 0 || !!state.thisDevicePresence;
+    setPresenceViewState(
+      state.presence && state.presence.available === false
+        ? 'error'
+        : (hasEntities ? 'ready' : 'empty'),
+      { updatedAt: new Date(), transportUnavailable: false }
+    );
     refreshThisDeviceLocation();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    reportFetchFailure('presence', exc, 'presence');
-    state.presence = { available: false, reason: 'error', detail: exc.message || String(exc) };
+    markPresenceFailure();
+    return;
   }
   renderPresence();
 }
