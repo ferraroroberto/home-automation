@@ -6,9 +6,9 @@ and only that card re-renders from the response.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e._geometry import assert_no_horizontal_overflow
 
@@ -18,6 +18,18 @@ def _boot(page: Page, base_url: str) -> None:
     # Unit cards live in the AC tab now — activate it before interacting.
     page.locator("#tabAc").click()
     page.wait_for_selector(".unit-card", state="visible")
+
+
+def _stable_bounding_box(locator: Locator) -> Optional[Dict[str, float]]:
+    """Wait for visibility, then measure. Under full-suite load the card grid
+    can re-render between the wait and the read, so retry once if the first
+    read still lands mid-repaint (#431)."""
+    expect(locator).to_be_visible()
+    box = locator.bounding_box()
+    if box is None:
+        expect(locator).to_be_visible()
+        box = locator.bounding_box()
+    return box
 
 
 def test_power_toggle_posts_and_rerenders(
@@ -70,9 +82,9 @@ def test_unit_header_has_44px_target_without_overlapping_controls(
     mock_api(sample_units)
     _boot(page, base_url)
     card = page.locator('[data-unit-id="unit-1"]')
-    header = card.locator(".unit-header").bounding_box()
-    fan = card.locator(".unit-fan-control").bounding_box()
-    power = card.locator(".toggle").bounding_box()
+    header = _stable_bounding_box(card.locator(".unit-header"))
+    fan = _stable_bounding_box(card.locator(".unit-fan-control"))
+    power = _stable_bounding_box(card.locator(".toggle"))
     assert header is not None and fan is not None and power is not None
     assert header["height"] >= 44
     assert header["x"] + header["width"] <= fan["x"]

@@ -11,9 +11,10 @@ import copy
 import json
 from typing import Callable, Dict, List
 
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e._geometry import (
+    EffectiveRect,
     assert_min_target,
     assert_no_horizontal_overflow,
     assert_no_overlap,
@@ -26,6 +27,18 @@ from tests.e2e._geometry import (
 def _boot(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
+
+
+def _stable_effective_rects(locator: Locator) -> List[EffectiveRect]:
+    """Wait for the first match to be visible, then measure. Under full-suite
+    load a tab click's re-render can still land the read mid-repaint, so
+    retry once if a rect comes back implausibly small (#431)."""
+    expect(locator.first).to_be_visible()
+    rects = effective_rects(locator)
+    if any(r.effective.width < 1 or r.effective.height < 1 for r in rects):
+        expect(locator.first).to_be_visible()
+        rects = effective_rects(locator)
+    return rects
 
 
 def test_tab_navigation_switches_panes(
@@ -1405,7 +1418,7 @@ def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
     page.locator("#tabSecurity").click()
 
     actions = page.locator("#securityActions .security-action")
-    action_boxes = effective_rects(actions)
+    action_boxes = _stable_effective_rects(actions)
     assert len(action_boxes) == 4
     assert all(box.effective.height >= 44 for box in action_boxes)
     # The four actions sit left-to-right with no shared tap zone.
@@ -1417,7 +1430,7 @@ def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
     page.locator("#paneSecurity .security-schedules-card > summary").click()
     page.locator("#securityScheduleAdd").click()
     days = page.locator(".alarm-schedule-day")
-    assert len(effective_rects(days)) == 7
+    assert len(_stable_effective_rects(days)) == 7
     assert_min_target(days)
     assert_no_overlap(days)
     assert_no_horizontal_overflow(page)
