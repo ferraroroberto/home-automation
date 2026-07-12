@@ -113,19 +113,27 @@ async def get_energy_aggregate(
     return {"range": range, "buckets": buckets}
 
 
-# Nominal day-count per window for prorating the fixed standing charge. ``total``
-# is sized to the actual span of retained data instead (computed below).
+# Nominal day-count per window for prorating the fixed standing charge, capped
+# by the actual span of retained history (see :func:`_window_days`) so a young
+# history doesn't get charged a full nominal window's worth of fixed cost.
 _WINDOW_DAYS = {"day": 1.0, "week": 7.0, "month": 30.0, "year": 365.0}
 
 
 def _window_days(range_: str, buckets: List[Dict[str, Any]]) -> float:
-    """Days the window spans, for prorating fixed costs."""
-    if range_ in _WINDOW_DAYS:
-        return _WINDOW_DAYS[range_]
-    if not buckets:  # total, but no history yet
+    """Days the window spans, for prorating fixed costs.
+
+    Capped at the actual span of retained history: while history is younger
+    than a range's nominal window (e.g. 23 days of data but a 365-day "year"
+    window), "year" would otherwise be charged a full year of fixed cost
+    against far less actual consumption — the same inflated-bill bug ``total``
+    already avoids by measuring its real span.
+    """
+    nominal = _WINDOW_DAYS.get(range_)
+    if not buckets:  # no history yet
         return 0.0
     first = min(int(b["hour_start"]) for b in buckets)
-    return max(1.0, (time.time() - first) / 86_400.0)
+    span = max(1.0, (time.time() - first) / 86_400.0)
+    return min(nominal, span) if nominal is not None else span
 
 
 @router.get("/api/energy/cost")

@@ -508,6 +508,12 @@ documented in [`docs/tariff-model.md`](docs/tariff-model.md).
 > data (hourly rollups are kept `ENERGY_HOURLY_RETENTION_DAYS`, default ~400
 > days). A freshly-started instance shows mostly empty long windows until history
 > builds up — this is an estimate from monitored data, not your utility's meter.
+> While history is younger than a window's nominal length (e.g. a few weeks old,
+> vs. `month`'s 30 days or `year`'s 365), that window's fixed standing charge is
+> prorated over the *actual* retained span rather than the full nominal one —
+> otherwise `year` would charge a full year of fixed cost against a few weeks of
+> real consumption. Expect `month`/`year`/`total` to show identical consumption,
+> cost, and fixed-charge figures until history genuinely exceeds 30/365 days.
 
 ## Activity log (events & telemetry)
 
