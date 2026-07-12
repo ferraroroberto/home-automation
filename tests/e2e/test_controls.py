@@ -10,6 +10,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
+from tests.e2e._geometry import assert_no_horizontal_overflow
+
 
 def _boot(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
@@ -75,7 +77,7 @@ def test_unit_header_has_44px_target_without_overlapping_controls(
     assert header["height"] >= 44
     assert header["x"] + header["width"] <= fan["x"]
     assert header["x"] + header["width"] <= power["x"]
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    assert_no_horizontal_overflow(page)
 
 
 def test_target_clamped_at_min(
