@@ -13,6 +13,15 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
+from tests.e2e._geometry import (
+    assert_min_target,
+    assert_no_horizontal_overflow,
+    assert_no_overlap,
+    chart_dataset_cues,
+    chart_tick_budget,
+    effective_rects,
+)
+
 
 def _boot(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
@@ -210,32 +219,16 @@ def test_weather_icon_controls_have_non_overlapping_44px_targets(
     _boot(page, base_url)
     expect(page.locator("#weatherTile")).to_be_visible()
 
-    geometry = page.locator(".weather-icon-btn").evaluate_all("""
-        buttons => buttons.map(button => {
-          const rect = button.getBoundingClientRect();
-          const pseudo = getComputedStyle(button, '::before');
-          const expand = value => {
-            const parsed = parseFloat(value);
-            return Number.isFinite(parsed) && parsed < 0 ? -parsed : 0;
-          };
-          return {
-            visualWidth: rect.width,
-            visualHeight: rect.height,
-            left: rect.left - expand(pseudo.left),
-            right: rect.right + expand(pseudo.right),
-            top: rect.top - expand(pseudo.top),
-            bottom: rect.bottom + expand(pseudo.bottom),
-          };
-        })
-    """)
-    assert len(geometry) == 2
-    for target in geometry:
-        assert target["visualWidth"] == 34
-        assert target["visualHeight"] == 34
-        assert target["right"] - target["left"] >= 44
-        assert target["bottom"] - target["top"] >= 44
-    assert geometry[0]["right"] <= geometry[1]["left"]
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    buttons = page.locator(".weather-icon-btn")
+    targets = effective_rects(buttons)
+    assert len(targets) == 2
+    for target in targets:
+        assert (target.visual.width, target.visual.height) == (34, 34)
+    assert_min_target(buttons)
+    assert_no_overlap(buttons)
+    # The two compact controls sit left-to-right with no shared tap zone.
+    assert targets[0].effective.right <= targets[1].effective.left
+    assert_no_horizontal_overflow(page)
 
 
 def test_home_shows_ac_summary_line_per_unit(
@@ -734,10 +727,7 @@ def test_energy_chart_tick_budget_updates_with_viewport(
     page.wait_for_function(
         "() => Chart.getChart(document.querySelector('#liveChart'))?.data.labels.length >= 24"
     )
-    phone_budget = page.locator("#liveChart").evaluate(
-        "canvas => Chart.getChart(canvas).options.scales.x.ticks.maxTicksLimit"
-    )
-    assert phone_budget == 4
+    assert chart_tick_budget(page, "#liveChart").max_ticks_limit == 4
 
     page.set_viewport_size({"width": 772, "height": 844})
     page.wait_for_function(
@@ -758,17 +748,11 @@ def test_energy_series_have_non_colour_visual_cues(
         "() => Chart.getChart(document.querySelector('#liveChart'))?.data.datasets.length === 3"
     )
 
-    styles = page.locator("#liveChart").evaluate(
-        "canvas => Chart.getChart(canvas).data.datasets.map(dataset => ({"
-        " label: dataset.label,"
-        " border_dash: dataset.borderDash || null,"
-        " point_style: dataset.pointStyle || null"
-        "}))"
-    )
-    assert styles == [
-        {"label": "Generation", "border_dash": [], "point_style": "circle"},
-        {"label": "Grid-supplied", "border_dash": [8, 4], "point_style": "rectRot"},
-        {"label": "Consumption", "border_dash": [2, 4], "point_style": "triangle"},
+    cues = chart_dataset_cues(page, "#liveChart")
+    assert [(c.label, c.border_dash, c.point_style) for c in cues] == [
+        ("Generation", [], "circle"),
+        ("Grid-supplied", [8, 4], "rectRot"),
+        ("Consumption", [2, 4], "triangle"),
     ]
 
 
@@ -1420,37 +1404,23 @@ def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
     _boot(page, base_url)
     page.locator("#tabSecurity").click()
 
-    action_boxes = page.locator("#securityActions .security-action").evaluate_all("""
-        controls => controls.map(control => {
-          const rect = control.getBoundingClientRect();
-          return {left: rect.left, right: rect.right, width: rect.width, height: rect.height};
-        })
-    """)
+    actions = page.locator("#securityActions .security-action")
+    action_boxes = effective_rects(actions)
     assert len(action_boxes) == 4
-    assert all(box["height"] >= 44 for box in action_boxes)
-    assert all(action_boxes[index]["right"] <= action_boxes[index + 1]["left"] for index in range(3))
+    assert all(box.effective.height >= 44 for box in action_boxes)
+    # The four actions sit left-to-right with no shared tap zone.
+    assert all(
+        action_boxes[index].effective.right <= action_boxes[index + 1].effective.left
+        for index in range(3)
+    )
 
     page.locator("#paneSecurity .security-schedules-card > summary").click()
     page.locator("#securityScheduleAdd").click()
-    day_boxes = page.locator(".alarm-schedule-day").evaluate_all("""
-        controls => controls.map(control => {
-          const rect = control.getBoundingClientRect();
-          return {left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
-                  width: rect.width, height: rect.height};
-        })
-    """)
-    assert len(day_boxes) == 7
-    assert all(box["height"] >= 44 and box["width"] >= 44 for box in day_boxes), day_boxes
-    for index, first in enumerate(day_boxes):
-        for second in day_boxes[index + 1:]:
-            overlaps = not (
-                first["right"] <= second["left"]
-                or second["right"] <= first["left"]
-                or first["bottom"] <= second["top"]
-                or second["bottom"] <= first["top"]
-            )
-            assert not overlaps
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    days = page.locator(".alarm-schedule-day")
+    assert len(effective_rects(days)) == 7
+    assert_min_target(days)
+    assert_no_overlap(days)
+    assert_no_horizontal_overflow(page)
 
 
 def test_this_device_presence_is_diagnostic_only(

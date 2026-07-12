@@ -16,6 +16,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
+from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rects
+
 
 def _boot_plugs(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
@@ -316,15 +318,14 @@ def test_blind_has_icon_controls(
     # The blind lives in the Blinds card with three up/stop/down icon buttons.
     buttons = page.locator('[data-device-id="cover-1"] .blind-btn')
     expect(buttons).to_have_count(3)
-    boxes = buttons.evaluate_all("""
-        controls => controls.map(control => {
-          const rect = control.getBoundingClientRect();
-          return {left: rect.left, right: rect.right, width: rect.width, height: rect.height};
-        })
-    """)
-    assert all(box["width"] == 44 and box["height"] == 44 for box in boxes)
-    assert all(boxes[index]["right"] <= boxes[index + 1]["left"] for index in range(2))
-    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    boxes = effective_rects(buttons)
+    assert all((box.visual.width, box.visual.height) == (44, 44) for box in boxes)
+    # The three icon buttons sit left-to-right with no shared tap zone.
+    assert all(
+        boxes[index].effective.right <= boxes[index + 1].effective.left
+        for index in range(2)
+    )
+    assert_no_horizontal_overflow(page)
     # Open is actionable and does not raise (stub acks the action).
     page.locator('[data-device-id="cover-1"] .blind-btn[data-action="open"]').click()
 

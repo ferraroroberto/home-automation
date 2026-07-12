@@ -1152,6 +1152,15 @@ Energy-tab render (hero numbers + charts), and the Plugs tab (metered-plug
 watts, a switch round-trip, cover controls, and an offline device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14.
 
+Rendered-geometry design checks (44px effective touch targets, non-overlap,
+horizontal overflow, live Chart.js tick/cue config) go through
+`tests/e2e/_geometry.py` — vendored **byte-identical** from
+`project-scaffolding/tests/e2e/_geometry.py` (like `app/tray/single_instance.py`;
+never fork it, upstream changes first). `tests/e2e/test_design_matrix.py` runs
+the helper's 320/390/430/772px × light/dark matrix against the home view,
+driving the theme through the app's own `home-automation.theme` localStorage
+boot path with a per-leg check that the theme actually applied.
+
 ```powershell
 & .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 & .\.venv\Scripts\python.exe -m playwright install chromium webkit

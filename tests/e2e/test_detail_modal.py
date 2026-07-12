@@ -6,6 +6,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
+from tests.e2e._geometry import effective_rect
+
 
 def _open_detail(page: Page, base_url: str, unit_id: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
@@ -37,28 +39,10 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     expect(close_buttons).to_have_count(15)
     expect(page.locator(".detail-close.hit-target")).to_have_count(15)
 
-    geometry = page.locator("#detailClose").evaluate("""
-        button => {
-          const rect = button.getBoundingClientRect();
-          const pseudo = getComputedStyle(button, '::before');
-          const expand = value => {
-            const parsed = parseFloat(value);
-            return Number.isFinite(parsed) && parsed < 0 ? -parsed : 0;
-          };
-          return {
-            visualWidth: rect.width,
-            visualHeight: rect.height,
-            effectiveWidth: rect.width + expand(pseudo.left) + expand(pseudo.right),
-            effectiveHeight: rect.height + expand(pseudo.top) + expand(pseudo.bottom),
-          };
-        }
-    """)
-    assert geometry == {
-        "visualWidth": 34,
-        "visualHeight": 34,
-        "effectiveWidth": 44,
-        "effectiveHeight": 44,
-    }
+    target = effective_rect(page.locator("#detailClose"))
+    # Exact compact-control contract: 34px visual box, 44px effective hit area.
+    assert (target.visual.width, target.visual.height) == (34, 34)
+    assert (target.effective.width, target.effective.height) == (44, 44)
 
 
 def test_vane_rows_gated_on_capability(
