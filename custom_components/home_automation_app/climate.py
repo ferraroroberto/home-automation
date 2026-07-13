@@ -38,7 +38,6 @@ async def async_setup_platform(
 
 class HomeAutomationClimate(CoordinatorEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
 
     def __init__(self, coordinator: Any, unit_id: str) -> None:
         super().__init__(coordinator)
@@ -59,6 +58,15 @@ class HomeAutomationClimate(CoordinatorEntity, ClimateEntity):
     @property
     def available(self) -> bool:
         return bool(self._unit.get("unit_id"))
+
+    @property
+    def supported_features(self) -> ClimateEntityFeature:
+        features = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
+        if self._unit.get("has_vane_vertical"):
+            features |= ClimateEntityFeature.SWING_MODE
+        if self._unit.get("has_vane_horizontal"):
+            features |= ClimateEntityFeature.SWING_HORIZONTAL_MODE
+        return features
 
     @property
     def current_temperature(self) -> float | None:
@@ -110,6 +118,26 @@ class HomeAutomationClimate(CoordinatorEntity, ClimateEntity):
         modes = [str(value) for value in self._unit.get("fan_speeds") or []]
         return modes or ["Auto"]
 
+    @property
+    def swing_mode(self) -> str | None:
+        return self._unit.get("vane_vertical") if self._unit.get("has_vane_vertical") else None
+
+    @property
+    def swing_modes(self) -> list[str] | None:
+        if not self._unit.get("has_vane_vertical"):
+            return None
+        return [str(value) for value in self._unit.get("vane_vertical_options") or []] or None
+
+    @property
+    def swing_horizontal_mode(self) -> str | None:
+        return self._unit.get("vane_horizontal") if self._unit.get("has_vane_horizontal") else None
+
+    @property
+    def swing_horizontal_modes(self) -> list[str] | None:
+        if not self._unit.get("has_vane_horizontal"):
+            return None
+        return [str(value) for value in self._unit.get("vane_horizontal_options") or []] or None
+
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         payload: dict[str, Any] = {"power": hvac_mode is not HVACMode.OFF}
         if hvac_mode is not HVACMode.OFF and hvac_mode in _HVAC_TO_MODE:
@@ -127,4 +155,14 @@ class HomeAutomationClimate(CoordinatorEntity, ClimateEntity):
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         await get_api(self.hass).control_unit(self._unit_id, {"fan_speed": fan_mode})
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_swing_mode(self, swing_mode: str) -> None:
+        await get_api(self.hass).control_unit(self._unit_id, {"vane_vertical_direction": swing_mode})
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_swing_horizontal_mode(self, swing_horizontal_mode: str) -> None:
+        await get_api(self.hass).control_unit(
+            self._unit_id, {"vane_horizontal_direction": swing_horizontal_mode}
+        )
         await self.coordinator.async_request_refresh()
