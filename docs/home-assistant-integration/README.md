@@ -28,7 +28,7 @@ Do not commit the token, LAN host names, room names, unit IDs, or HA's live `/co
 
 | App source | HA domain | Notes |
 |---|---|---|
-| `GET /api/units` / `POST /api/units/{id}` | `climate` | Power, mode, target temperature, fan mode. |
+| `GET /api/units` / `POST /api/units/{id}` | `climate` | Power, mode, target temperature, fan mode, and vane direction (`swing_mode` = vertical, `swing_horizontal_mode` = horizontal — each exposed only on units whose `has_vane_vertical`/`has_vane_horizontal` capability is true). |
 | `GET /api/tuya` / `POST /api/tuya/{id}/switch` | `switch` | Switch-capable Tuya devices only. Hidden/offline devices are unavailable. |
 | `GET /api/security` / `POST /api/security/{action}` | `alarm_control_panel` | `arm_away` = full arm, `arm_home` = existing RISCO perimeter command, `arm_night` = existing RISCO partial command, `disarm` = existing disarm endpoint. |
 | `GET /api/security` zones | `binary_sensor` | One sensor per RISCO zone, with bypass/trouble attributes. |
@@ -44,6 +44,8 @@ After HA discovers the entities, Tier-1 built-in intents should cover the compat
 
 - "turn on `<AC name>`" / "turn off `<AC name>`"
 - "set `<AC name>` to 23 degrees"
+- "set `<AC name>` swing to `<direction>`" (vertical vane, units with `has_vane_vertical`)
+- "set `<AC name>` horizontal swing to `<direction>`" (horizontal vane, units with `has_vane_horizontal`)
 - "turn on `<plug name>`" / "turn off `<plug name>`"
 - "arm home" → RISCO perimeter
 - "arm night" → RISCO partial
