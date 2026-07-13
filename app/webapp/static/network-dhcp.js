@@ -15,6 +15,7 @@ import { els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { confirmAction } from './network.js';
 import { buildToggle } from './toggle.js';
+import { icon } from './_vendored/icons/icons.js';
 
 let dhcpPlanLoading = false;
 let dhcpPlanLoaded = false;
@@ -373,7 +374,8 @@ function renderDhcpPlan(plan) {
   warnings.forEach(function (w) {
     const p = document.createElement('p');
     p.className = 'net-dhcp-warning';
-    p.textContent = '⚠️ ' + w;
+    p.innerHTML = icon('triangle-alert') + ' ';
+    p.append(w);
     els.netDhcpWarnings.appendChild(p);
   });
 
@@ -388,7 +390,7 @@ function renderDhcpPlan(plan) {
     let note = used + ' of ' + cap + ' reservations used · ' + (free || 0) + ' free.';
     note += pendingCount
       ? ' ' + pendingCount + ' suggestion(s) available to add.'
-      : ' Everything suggested is already reserved. ✅';
+      : ' Everything suggested is already reserved.';
     els.netDhcpNote.textContent = note;
   } else {
     els.netDhcpNote.textContent = pendingCount + ' suggestion(s) to add.';
@@ -476,7 +478,7 @@ async function applyDhcpChanges() {
     ? lastDhcpPlan.reservations_used : 0;
   const usedAfter = used - removes.length + stagedCreateCount();
   const overflowNote = usedAfter > cap
-    ? ' ⚠️ That needs ' + usedAfter + ' slots but the router only has ' + cap
+    ? ' That needs ' + usedAfter + ' slots but the router only has ' + cap
       + ' — remove more, or untick some adds (the rest will be skipped).'
     : '';
   const parts = [];

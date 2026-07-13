@@ -8,7 +8,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
-import { emptyStateEl } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
 import { esc, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';

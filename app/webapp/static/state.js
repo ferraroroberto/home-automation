@@ -589,8 +589,9 @@ export function toast(msg, kind) {
 }
 
 // ------------------------------------------------------ mode presentation
-// Mode → Lucide glyph name (rendered through icon() from icons.js at the call
-// sites; this returns the bare name, not markup).
+// Mode → Lucide glyph name (rendered through icon() from the vendored
+// _vendored/icons/icons.js at the call sites; this returns the bare name, not
+// markup).
 const MODE_ICONS = {
   Heat: 'flame',
   Cool: 'snowflake',

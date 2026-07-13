@@ -31,7 +31,7 @@ import {
   saveSnapshot,
   snapshotLabel,
 } from './snapshots.js';
-import { emptyStateEl } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
 import { restyleWifiChannelChart } from './charts.js';
 import { createPoller } from './poll.js';
 import {

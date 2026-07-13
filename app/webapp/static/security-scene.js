@@ -15,7 +15,7 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { icon } from './icons.js';
+import { icon } from './_vendored/icons/icons.js';
 import { detectorOptions } from './security-shared.js';
 import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { confirmAction } from './network.js';

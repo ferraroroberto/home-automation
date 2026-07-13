@@ -16,7 +16,7 @@
 
 import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
-import { emptyStateEl } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
 import { renderScenePairings, loadScenePairings } from './security-scene.js';

@@ -10,7 +10,7 @@
 
 import { els } from './state.js';
 import { jsonApi } from './api.js';
-import { icon } from './icons.js';
+import { icon } from './_vendored/icons/icons.js';
 
 const WEATHER_MS = 600_000;  // 10 min — weather barely moves
 

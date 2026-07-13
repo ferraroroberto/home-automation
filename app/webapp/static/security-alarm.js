@@ -18,6 +18,7 @@ import { jsonApi } from './api.js';
 import { fmtTime } from './presence.js';
 import { renderSecurity } from './security.js';
 import { toggleMarkup } from './toggle.js';
+import { icon } from './_vendored/icons/icons.js';
 
 // The full alarm-control row, in display order. Always rendered; the live state
 // machine decides which are tappable and which is the current (selected) one.
@@ -205,7 +206,7 @@ function renderStateInto(el) {
   if (security && security.ac_lost) {
     const badge = document.createElement('span');
     badge.className = 'security-aclost-badge';
-    badge.textContent = '⚠ AC power lost';
+    badge.innerHTML = icon('triangle-alert') + ' AC power lost';
     badge.title = 'The alarm panel lost mains power and is running on backup battery';
     el.appendChild(badge);
   }
@@ -216,7 +217,7 @@ function renderStateInto(el) {
   if (security && troubled > 0) {
     const badge = document.createElement('span');
     badge.className = 'security-trouble-badge';
-    badge.textContent = '⚠ Trouble (' + troubled + ')';
+    badge.innerHTML = icon('triangle-alert') + ' Trouble (' + troubled + ')';
     badge.title = troubled + ' detector(s) reporting trouble — see the Detectors list';
     el.appendChild(badge);
   }
@@ -403,7 +404,7 @@ function openZoneDetail(zoneId) {
     ? '—' : ('Type ' + zone.type);
   els.zoneDetailStatus.textContent = zone.triggered
     ? 'Triggered' : (zone.bypassed ? 'Bypassed' : 'Active');
-  els.zoneDetailTrouble.textContent = zone.trouble ? '⚠ Yes' : 'No';
+  els.zoneDetailTrouble.innerHTML = zone.trouble ? icon('triangle-alert') + ' Yes' : 'No';
   els.zoneDisplayName.value = zone.display_name || '';
   els.zoneDisplayName.placeholder = zone.name || 'Custom label…';
   // Original RISCO name, so the custom label maps back to the physical detector.

@@ -16,7 +16,7 @@ import { fmtW } from './format.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
-import { emptyStateEl } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
 
 const POLL_MS = 15_000;
 

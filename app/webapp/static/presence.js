@@ -21,7 +21,7 @@ import {
   THIS_DEVICE_LOCATION_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
-import { emptyStateEl } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
 import { toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 let presenceViewState = 'idle';

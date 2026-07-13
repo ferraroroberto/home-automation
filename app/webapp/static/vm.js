@@ -9,7 +9,8 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
-import { emptyStateEl } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
+import { icon } from './_vendored/icons/icons.js';
 import { esc } from './format.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { confirmAction } from './network.js';
@@ -80,7 +81,8 @@ function statusBadge(vm) {
   }
   if (!vm || vm.available !== true) {
     const text = vm && vm.state === 'not_found' ? 'not found' : 'unavailable';
-    return { mod: 'unavailable', dot: '⚠', text: text };
+    // Sprite icon instead of a text dot — dotHtml below renders it unescaped.
+    return { mod: 'unavailable', icon: 'triangle-alert', text: text };
   }
   if (vm.state === 'running') {
     const up = fmtUptime(vm.uptime_seconds);
@@ -125,6 +127,7 @@ function render(tile, vm) {
   tile.classList.toggle('is-running', running);
 
   const badge = statusBadge(vm);
+  const dotHtml = badge.icon ? icon(badge.icon) : esc(badge.dot);
 
   // The same on/off switch as AC power / plugs: on = running. Toggling it
   // starts (off→on) or stops (on→off, confirm-gated). Disabled while a change
@@ -149,7 +152,7 @@ function render(tile, vm) {
   tile.innerHTML =
     '<div class="vm-main">' +
     '  <div class="vm-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-cpu"></use></svg><span>HA</span></div>' +
-    '  <span class="vm-status vm-status-' + badge.mod + '">' + esc(badge.dot) + ' ' + esc(badge.text) + '</span>' +
+    '  <span class="vm-status vm-status-' + badge.mod + '">' + dotHtml + ' ' + esc(badge.text) + '</span>' +
     '  ' + toggle +
     '</div>';
 

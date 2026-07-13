@@ -12,6 +12,7 @@
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { buildToggle } from './toggle.js';
+import { icon } from './_vendored/icons/icons.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -74,7 +75,8 @@ function renderRingingBanner() {
     const row = document.createElement('div');
     row.className = 'wake-ringing-row';
     const text = document.createElement('span');
-    text.textContent = '⏰ ' + (entry.label || entry.time) + ' is ringing';
+    text.innerHTML = icon('alarm-clock') + ' ';
+    text.append((entry.label || entry.time) + ' is ringing');
     row.appendChild(text);
     const dismiss = document.createElement('button');
     dismiss.type = 'button';
@@ -88,7 +90,8 @@ function renderRingingBanner() {
     const row = document.createElement('div');
     row.className = 'wake-ringing-row';
     const text = document.createElement('span');
-    text.textContent = '⏱️ ' + (timer.label || (timer.seconds + 's')) + ' is done';
+    text.innerHTML = icon('timer') + ' ';
+    text.append((timer.label || (timer.seconds + 's')) + ' is done');
     row.appendChild(text);
     const dismiss = document.createElement('button');
     dismiss.type = 'button';
