@@ -95,7 +95,7 @@ proxy and was removed in #227; per-detector battery/connection differentiation
 would need the panel's local interface, which isn't exposed (investigated in #220).
 
 **AC-power-lost alert (issue #99).** When the panel loses mains power and runs on
-backup battery, a red **`⚠ AC power lost`** badge appears on the `Alarm state`
+backup battery, a red **`AC power lost`** badge (warning icon + text) appears on the `Alarm state`
 line (Home + Security tiles) from the aggregate `ac_lost` flag, clearing when
 mains power returns.
 
@@ -117,7 +117,7 @@ header then shows an `N hidden` counter and a **Show hidden / Hide** switch that
 reveals the hidden detectors (dimmed) on demand so they can be un-hidden.
 
 **Ignoring a detector's trouble (issue #225).** A detector's `Trouble` flag rolls
-up to a **`⚠ Trouble (N)`** badge on the Home/Security `Alarm state` line counting
+up to a **`Trouble (N)`** badge (warning icon + count) on the Home/Security `Alarm state` line counting
 detectors that are troubled. For a known/accepted trouble (a detector that can't be
 serviced yet), the detail modal has an **Ignore trouble** toggle: an ignored
 detector reads muted **`Trouble — ignored`** in the list and is dropped from the

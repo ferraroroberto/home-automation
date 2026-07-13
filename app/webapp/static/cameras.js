@@ -18,7 +18,8 @@
 import { els, state, toast, readToken, reportFetchOk, reportFetchFailure } from './state.js';
 import { api, jsonApi } from './api.js';
 import { confirmAction } from './network.js';
-import { emptyStateEl } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
+import { icon } from './_vendored/icons/icons.js';
 
 let snapshotUrl = null;   // objectURL for the detail-modal snapshot (revoked on replace)
 let liveRecording = false;
@@ -442,7 +443,7 @@ function renderPresets() {
     rename.type = 'button';
     rename.className = 'camera-preset-rename';
     rename.setAttribute('aria-label', 'Rename ' + (p.name || p.token));
-    rename.textContent = '✎';
+    rename.innerHTML = icon('pencil');
     rename.addEventListener('click', function () { renamePreset(p.token, p.name || ''); });
     const del = document.createElement('button');
     del.type = 'button';

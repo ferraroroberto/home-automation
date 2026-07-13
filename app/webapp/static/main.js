@@ -17,7 +17,7 @@ import {
   writeToken,
   THEME_KEY,
 } from './state.js';
-import { icon } from './icons.js';
+import { icon } from './_vendored/icons/icons.js';
 import { jsonApi, hideLogin } from './api.js';
 import { wireTabs } from './tabs.js';
 import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';

@@ -19,7 +19,8 @@ import {
   reportFetchOk,
   modeIcon,
 } from './state.js';
-import { emptyStateEl, icon } from './icons.js';
+import { emptyStateEl } from './empty-state.js';
+import { icon } from './_vendored/icons/icons.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
