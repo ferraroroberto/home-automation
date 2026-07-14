@@ -234,6 +234,21 @@ Worth knowing:
 - The `answers` wildcard reply is transcribed by the pipeline's STT with its configured language hint (`en` here) — a Spanish answer leans on Whisper's multilingual tolerance. If answers mis-transcribe, that's the STT hint, not hassil.
 - Changing the automation is a `configuration.yaml` change: full restart, not `conversation.reload`.
 
+## Mixing English and Spanish
+
+The pipeline handles both languages with **one** STT model and no per-turn language switching, and the layering is what makes that safe:
+
+- **Whisper is one multilingual model, not an English model.** `large-v3-turbo` transcribes ~100 languages with the same network; the pipeline's `stt_language: en` is a *decoding hint* that biases output toward English, not a filter. A clearly-Spanish utterance under the `en` hint usually still transcribes as correct Spanish — the audio evidence overwhelms the prior. The known failure mode when hint and audio disagree is not gibberish: it's that Whisper occasionally **translates** ("leche, huevos y pan" → "milk, eggs and bread") or anglicizes a word.
+- **hassil doesn't know what a language is.** Sentence matching is string matching against the transcribed text — Spanish trigger phrases live in the `custom_sentences/en/` file and match fine (the folder only has to agree with the pipeline's configured language, not with the words). List both languages' phrasings for every intent.
+- **Free-text payloads land in an LLM, which absorbs transcription wobble.** The wildcard fragment ("leche a cuatro") is parsed server-side by fuzzy meaning-match against real inventory/entity names — a slightly mangled word usually still matches, and even the translate-to-English failure mode survives, because the parser matches by meaning, not spelling.
+
+So: rigid matching only on the trigger phrases (memorized, in either language); everything open-vocabulary flows through tolerant layers.
+
+**Worst case** is a long, fully-Spanish free-text answer in a multi-turn flow — there the whole payload rides on Spanish STT quality under the `en` hint. If a phrase mis-fires, diagnose in this order:
+
+1. **What did Whisper actually hear?** `GET http://192.168.0.13:8000/admin/api/telemetry/recent?limit=10` shows the raw transcript. Correct Spanish text + wrong outcome = a matching/parsing gap (widen sentences or improve the server prompt). Translated/mangled text = an STT-hint problem.
+2. **STT-hint problem escalation (config-only, no firmware):** clone the "Focused local assistant" pipeline with `stt_language: es` and bind it to a wake-word slot — each puck has two device-side slots (see `voice-control.md` "Wake words"), so e.g. "Okay Nabu" stays the English-hinted brain and "Hey Mycroft" becomes its Spanish-hinted twin on a rebound slot. Same hub, same agent, one select change per puck.
+
 ## Reload vs restart
 
 | You changed | To apply |

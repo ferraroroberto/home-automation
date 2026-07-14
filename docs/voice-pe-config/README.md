@@ -59,7 +59,7 @@ Voice control of the **grocery-shopping-automation** sibling app on `:8502` (its
 
 Secret: `grocery_api_authorization` (the `Bearer` header for `:8502`). The grocery app currently ships with bearer auth **disabled**, so the live value is a placeholder (`Bearer grocery-auth-disabled`) that its middleware ignores — if that app's auth is ever enabled (`scripts/gen_token.py` there), update this secret to the real token and nothing else changes.
 
-Known limits: the pipeline's STT language hint is `en`, so the Spanish follow-up leans on Whisper's multilingual tolerance — verified phrasings are in the sentences file; if a Spanish reply mis-transcribes, that is an STT-hint gap, not a matching bug. HA's built-in `shopping_list` integration also owns some English list phrasings; the custom sentences above take priority when loaded.
+Known limits: the pipeline's STT language hint is `en`, so the Spanish follow-up leans on Whisper's multilingual tolerance — usually fine (one multilingual model; the hint biases, it doesn't filter), with occasional translate-to-English as the failure mode, which the meaning-based parser still survives. The full explanation, the diagnosis order (raw transcript from hub telemetry first), and the config-only escalation (a Spanish-hinted twin pipeline on a spare wake-word slot) are in [`../voice-commands-howto.md`](../voice-commands-howto.md) "Mixing English and Spanish". HA's built-in `shopping_list` integration also owns some English list phrasings; the custom sentences above take priority when loaded.
 
 ### Timers — already work, nothing to deploy
 
