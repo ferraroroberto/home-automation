@@ -75,6 +75,18 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
+  # Grocery list (issue #315) — the grocery-shopping-automation app on :8502
+  # (grocery#86). One parameterized command: the app decides everything from
+  # {intent, text}; `tojson` keeps free spoken text JSON-safe.
+  grocery_voice:
+    url: "https://192.168.0.13:8502/api/voice/command"
+    method: POST
+    headers:
+      authorization: !secret grocery_api_authorization
+      content-type: "application/json"
+    payload: '{"intent": "{{ intent }}", "text": {{ text | default("") | tojson }}}'
+    verify_ssl: false
+    timeout: 30
 
 intent_script:
   AlarmArmFull:
@@ -168,4 +180,87 @@ intent_script:
     speech:
       text: >-
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
+
+  # Grocery list one-shots (issue #315). The app parses the free Spanish
+  # fragment and returns a ready-made `speech` string; these just relay it.
+  GroceryTarget:
+    action:
+      - service: rest_command.grocery_voice
+        data:
+          intent: target
+          text: "{{ details }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach the grocery list.{% endif %}
+
+  GroceryStock:
+    action:
+      - service: rest_command.grocery_voice
+        data:
+          intent: stock
+          text: "{{ details }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach the grocery list.{% endif %}
+
+  GroceryQuery:
+    action:
+      - service: rest_command.grocery_voice
+        data:
+          intent: query
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach the grocery list.{% endif %}
+
+# Multi-turn grocery add (issue #315): the trigger phrase opens a follow-up
+# question on the same puck (assist_satellite.ask_question, HA 2025.7+), the
+# free Spanish answer is captured by a bare wildcard and relayed to the app,
+# and the app's reply is announced back. A labeled `automation` instance —
+# it merges with the UI-managed `automation: !include automations.yaml`.
+automation grocery_voice:
+  - id: grocery_voice_add_multiturn
+    alias: "Grocery: add items by voice (multi-turn)"
+    mode: single
+    triggers:
+      - trigger: conversation
+        command:
+          - "[I] (want|need) to add (stuff|things|items|something) to the (grocery|shopping) list"
+          - "add (stuff|things|items|something) to the (grocery|shopping) list"
+          - "quiero añadir [(cosas|algo)] a la lista [de la compra]"
+          - "añadir [(cosas|algo)] a la lista [de la compra]"
+    actions:
+      # Silence the triggering turn — the question below is the reply.
+      - set_conversation_response: ""
+      - variables:
+          satellite: >-
+            {% set from_device = device_entities(trigger.device_id) | select('search', '^assist_satellite\.') | list if trigger.device_id else [] %}
+            {{ from_device | first if from_device else states.assist_satellite | map(attribute='entity_id') | list | first }}
+      - action: assist_satellite.ask_question
+        data:
+          entity_id: "{{ satellite }}"
+          question: "What would you like to add?"
+          answers:
+            - id: items
+              sentences:
+                - "{items}"
+        response_variable: answer
+      - action: rest_command.grocery_voice
+        data:
+          intent: add
+          text: "{{ answer.slots.items if answer is defined and answer.slots is defined else '' }}"
+        response_variable: r
+      - action: assist_satellite.announce
+        data:
+          entity_id: "{{ satellite }}"
+          message: >-
+            {% if r is defined and r.status == 200 %}{{ r.content.speech }}{% else %}Sorry, the grocery list did not respond.{% endif %}
 # <<< home-automation:voice-pe-alarm <<<

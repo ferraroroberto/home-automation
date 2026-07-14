@@ -122,9 +122,13 @@ def test_required_secret_keys_detects_present_and_missing() -> None:
 def test_required_secret_keys_never_returns_values() -> None:
     """The check must surface key NAMES only — never the secret value."""
     secret_value = "Bearer super-secret-token-value"
-    secrets = f"app_api_authorization: {secret_value}\nvoice_disarm_pin: 1234\n"
+    secrets = (
+        f"app_api_authorization: {secret_value}\n"
+        "voice_disarm_pin: 1234\n"
+        "grocery_api_authorization: Bearer other\n"
+    )
     present, missing = H.required_secret_keys_present(secrets)
-    assert present == ["app_api_authorization", "voice_disarm_pin"]
+    assert present == ["app_api_authorization", "voice_disarm_pin", "grocery_api_authorization"]
     assert missing == []
     # neither return list leaks the value
     assert secret_value not in present and secret_value not in missing
@@ -186,11 +190,13 @@ def test_committed_snippet_is_a_canonical_block() -> None:
 
 
 # ------------------------------------------------- multi-sentence-file deploy
-def test_sentence_files_includes_wake_alarm() -> None:
-    """Both alarm.yaml and the new wake_alarm.yaml are in the deploy set, and
-    each local source file actually exists (a missing one would crash deploy)."""
+def test_sentence_files_globs_every_repo_yaml() -> None:
+    """The deploy set is globbed from custom_sentences/en/ — every repo-owned
+    sentences file must appear with its matching remote path, so a new feature's
+    yaml can never be silently skipped (that's how grocery.yaml went missing,
+    issue #315)."""
     remotes = {remote for _, remote in H.SENTENCE_FILES}
-    assert H.REMOTE_ALARM_SENTENCES in remotes
-    assert H.REMOTE_WAKE_ALARM_SENTENCES in remotes
+    for name in ("alarm.yaml", "wake_alarm.yaml", "grocery.yaml"):
+        assert f"{H.REMOTE_SENTENCES_DIR}/{name}" in remotes
     for local_file, _ in H.SENTENCE_FILES:
         assert local_file.exists(), f"missing sentence source: {local_file}"

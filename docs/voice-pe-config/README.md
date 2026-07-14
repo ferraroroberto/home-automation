@@ -38,6 +38,29 @@ A **separate** feature from the RISCO alarm above — every phrase says "wake al
 
 The sentence lists are in `custom_sentences/en/wake_alarm.yaml`. Both the set and cancel intents reuse the existing `!secret app_api_authorization` — **no new secret**.
 
+### Grocery list (issue #315)
+
+Voice control of the **grocery-shopping-automation** sibling app on `:8502` (its issue #86 built the endpoint). The app's Excel-backed inventory is the store — the shopping list is derived (`comprar = cantidad − tenemos`). All intelligence is server-side: HA relays the free **Spanish** fragment to `POST /api/voice/command` with a deterministic intent, the app's hub-LLM parse matches items/quantities against the inventory, Python applies, and HA speaks back the returned `speech` string. Same doctrine as everything above: the LLM does language understanding only — it can never pick the operation or redirect a mutation (an invented row index is demoted to a new-item server-side).
+
+**One-shot commands** (`custom_sentences/en/grocery.yaml` — Spanish phrasings live in the `en/` file on purpose; hassil matches the transcribed text whatever language the words are):
+
+| You say (after "Okay Nabu, …") | Intent | What happens |
+|---|---|---|
+| "pon el objetivo de leche a cuatro" · "set the target for {…}" | `GroceryTarget` | sets the item's target (`cantidad`) |
+| "anota que tenemos dos botellas de aceite" · "tenemos {…}" · "no quedan {…}" | `GroceryStock` | sets the item's have-count (`tenemos`) |
+| "qué hay que comprar" · "lee la lista de la compra" · "what's on the shopping list" | `GroceryQuery` | reads back the to-buy summary (no LLM call) |
+
+**Multi-turn add** (the #315 headline flow) is **not** a custom sentence — it is the conversation-triggered automation `automation grocery_voice:` in the managed block, using `assist_satellite.ask_question` (HA 2025.7+):
+
+1. "Okay Nabu, **quiero añadir cosas a la lista**" (or "I want to add stuff to the grocery list")
+2. The same puck asks: *"What would you like to add?"*
+3. You answer in free Spanish: *"leche, dos huevos y pan"* — captured whole by a wildcard answer
+4. The app parses/matches/applies and the puck announces the confirmation (e.g. *"Added leche, 2 huevos and pan blanco to the list"*). An item that matches nothing is **created** with empty super/buscador — grocery#87 (product search) will fill those; until then the Items tab is the manual path.
+
+Secret: `grocery_api_authorization` (the `Bearer` header for `:8502`). The grocery app currently ships with bearer auth **disabled**, so the live value is a placeholder (`Bearer grocery-auth-disabled`) that its middleware ignores — if that app's auth is ever enabled (`scripts/gen_token.py` there), update this secret to the real token and nothing else changes.
+
+Known limits: the pipeline's STT language hint is `en`, so the Spanish follow-up leans on Whisper's multilingual tolerance — usually fine (one multilingual model; the hint biases, it doesn't filter), with occasional translate-to-English as the failure mode, which the meaning-based parser still survives. The full explanation, the diagnosis order (raw transcript from hub telemetry first), and the config-only escalation (a Spanish-hinted twin pipeline on a spare wake-word slot) are in [`../voice-commands-howto.md`](../voice-commands-howto.md) "Mixing English and Spanish". HA's built-in `shopping_list` integration also owns some English list phrasings; the custom sentences above take priority when loaded.
+
 ### Timers — already work, nothing to deploy
 
 Home Assistant's built-in Assist intents (`HassStartTimer` / `HassCancelTimer` / …, since "Voice Chapter 7") give you ad-hoc countdown timers **with zero config in this repo**:
@@ -50,10 +73,11 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 
 - `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml` (RISCO security alarm)
 - `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
-- `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **both** feature's `rest_command` / `intent_script` entries)
-- `secrets.snippet.yaml` → add both keys to `/config/secrets.yaml` **with real values** (never committed)
+- `custom_sentences/en/grocery.yaml` → `/config/custom_sentences/en/grocery.yaml` (grocery list, #315)
+- `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **every** feature's `rest_command` / `intent_script` / `automation` entries)
+- `secrets.snippet.yaml` → add all keys to `/config/secrets.yaml` **with real values** (never committed)
 
-`ha_config_sync.py deploy` pushes **every** file under `custom_sentences/en/` (both `alarm.yaml` and `wake_alarm.yaml`) plus the managed config block, in one run.
+`ha_config_sync.py deploy` pushes **every** `*.yaml` under `custom_sentences/en/` (globbed, not a hardcoded list — a new feature's sentences file deploys with no script change) plus the managed config block, in one run.
 
 ## Deploy by code (preferred) — `scripts/ha_config_sync.py`
 

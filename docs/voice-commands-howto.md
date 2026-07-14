@@ -191,6 +191,64 @@ Pair it with a **no-code prompt** intent (literal "disarm" with no `{code}`) tha
 tells the user how — never actuates. The voice code is a *gate layered on top of* the
 panel PIN the app already holds server-side; the real PIN is never spoken.
 
+## Multi-turn commands (`assist_satellite.ask_question`)
+
+An `intent_script` is one-shot by construction — it cannot hold a follow-up question open. When a command genuinely needs a second turn (the grocery add flow, #315: the trigger names the *operation*, the reply carries the *payload*), use a **conversation-triggered automation** with `assist_satellite.ask_question` (HA 2025.7+):
+
+```yaml
+automation my_feature:
+  - id: my_multiturn_command
+    mode: single
+    triggers:
+      - trigger: conversation
+        command:
+          - "I want to add (stuff|things) to the (grocery|shopping) list"
+    actions:
+      - set_conversation_response: ""          # silence the triggering turn
+      - variables:
+          satellite: >-                        # the puck that heard the trigger
+            {% set from_device = device_entities(trigger.device_id) | select('search', '^assist_satellite\.') | list if trigger.device_id else [] %}
+            {{ from_device | first if from_device else states.assist_satellite | map(attribute='entity_id') | list | first }}
+      - action: assist_satellite.ask_question
+        data:
+          entity_id: "{{ satellite }}"
+          question: "What would you like to add?"
+          answers:
+            - id: items
+              sentences: ["{items}"]           # bare wildcard = capture everything
+        response_variable: answer
+      - action: rest_command.my_feature
+        data: { text: "{{ answer.slots.items if answer is defined and answer.slots is defined else '' }}" }
+        response_variable: r
+      - action: assist_satellite.announce
+        data:
+          entity_id: "{{ satellite }}"
+          message: "{{ r.content.speech if r is defined and r.status == 200 else 'Sorry, that did not respond.' }}"
+```
+
+Worth knowing:
+
+- **The trigger sentences live in the automation, not `custom_sentences/`** — conversation triggers use the same hassil syntax but are registered by the automation itself.
+- A labeled `automation <name>:` key merges cleanly with the UI-managed `automation: !include automations.yaml` — put it in the managed config block.
+- `ask_question` targets a **satellite entity**, so it cannot be exercised by the text probe (`conversation.process` has no satellite) — the fallback template above picks the first puck, but the real question/answer/announce loop is only testable **by voice on the device**. Text-probing the trigger sentence will still fire the question aloud on a real puck: don't do it at night.
+- The `answers` wildcard reply is transcribed by the pipeline's STT with its configured language hint (`en` here) — a Spanish answer leans on Whisper's multilingual tolerance. If answers mis-transcribe, that's the STT hint, not hassil.
+- Changing the automation is a `configuration.yaml` change: full restart, not `conversation.reload`.
+
+## Mixing English and Spanish
+
+The pipeline handles both languages with **one** STT model and no per-turn language switching, and the layering is what makes that safe:
+
+- **Whisper is one multilingual model, not an English model.** `large-v3-turbo` transcribes ~100 languages with the same network; the pipeline's `stt_language: en` is a *decoding hint* that biases output toward English, not a filter. A clearly-Spanish utterance under the `en` hint usually still transcribes as correct Spanish — the audio evidence overwhelms the prior. The known failure mode when hint and audio disagree is not gibberish: it's that Whisper occasionally **translates** ("leche, huevos y pan" → "milk, eggs and bread") or anglicizes a word.
+- **hassil doesn't know what a language is.** Sentence matching is string matching against the transcribed text — Spanish trigger phrases live in the `custom_sentences/en/` file and match fine (the folder only has to agree with the pipeline's configured language, not with the words). List both languages' phrasings for every intent.
+- **Free-text payloads land in an LLM, which absorbs transcription wobble.** The wildcard fragment ("leche a cuatro") is parsed server-side by fuzzy meaning-match against real inventory/entity names — a slightly mangled word usually still matches, and even the translate-to-English failure mode survives, because the parser matches by meaning, not spelling.
+
+So: rigid matching only on the trigger phrases (memorized, in either language); everything open-vocabulary flows through tolerant layers.
+
+**Worst case** is a long, fully-Spanish free-text answer in a multi-turn flow — there the whole payload rides on Spanish STT quality under the `en` hint. If a phrase mis-fires, diagnose in this order:
+
+1. **What did Whisper actually hear?** `GET http://192.168.0.13:8000/admin/api/telemetry/recent?limit=10` shows the raw transcript. Correct Spanish text + wrong outcome = a matching/parsing gap (widen sentences or improve the server prompt). Translated/mangled text = an STT-hint problem.
+2. **STT-hint problem escalation (config-only, no firmware):** clone the "Focused local assistant" pipeline with `stt_language: es` and bind it to a wake-word slot — each puck has two device-side slots (see `voice-control.md` "Wake words"), so e.g. "Okay Nabu" stays the English-hinted brain and "Hey Mycroft" becomes its Spanish-hinted twin on a rebound slot. Same hub, same agent, one select change per puck.
+
 ## Reload vs restart
 
 | You changed | To apply |
