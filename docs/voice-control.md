@@ -158,11 +158,18 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
   `/config/backups/voice-brain-rewire/`. To revert, set `chat_model` back to
   `claude-haiku-4-5` and `ha core restart`.
 
-### Pipeline ("Focused local assistant")
+### Pipelines
 
-Conversation agent = **Extended OpenAI Conversation**; STT = **Custom Whisper**; TTS =
-**Piper (amy)**; **"Prefer handling commands locally" = ON**; wake word "Okay Nabu" (see
-**Wake words** below).
+**"Focused local assistant"** (English, wake word "Okay Nabu"): conversation agent =
+**Extended OpenAI Conversation**; STT = **Custom Whisper** (`stt_language: en`); TTS =
+**hub Piper (amy)**; **"Prefer handling commands locally" = ON**.
+
+**"Asistente (es)"** (Spanish, wake word "Hey Jarvis" — #315): conversation agent =
+**Home Assistant built-in** (deterministic only, no LLM fallback); STT = **Custom
+Whisper** (`stt_language: es`); TTS = **Piper add-on** (`tts.piper`, voice
+`es_ES-sharvard-medium`). Created directly in `/config/.storage/assist_pipeline.pipelines`
+(backup under `/config/backups/voice-es-pipeline/`); the grocery bridge and its spoken
+help menu live here.
 
 ### Wake words — two per puck, each bound to a pipeline
 
@@ -174,15 +181,17 @@ null` in `/config/.storage/assist_pipeline.pipelines`. Each puck exposes a *Wake
 (`select.home_assistant_voice_<id>_wake_word[_2]` / `…_assistant[_2]`). The *Assistant*
 select is what names the pipeline that fires when its wake word is heard.
 
-Both pucks are configured identically — a deliberate fast/smart split:
+Both pucks are configured identically — a deliberate English/Spanish split (#315):
 
 | Wake word | Routes to pipeline | What it does |
 |---|---|---|
-| **"Okay Nabu"** (slot 1) | **Focused local assistant** | Hub stack — Custom Whisper STT → Extended OpenAI (local-first, then the Haiku LLM) → Piper TTS. Commands, freeform questions, and the alarm bridge. Slower on freeform (LLM path). |
-| **"Hey Jarvis"** (slot 2) | **Home Assistant** (the *preferred* pipeline) | Built-in intent engine with the default STT/TTS — fast, fully local, command-only, no LLM. |
+| **"Okay Nabu"** (slot 1) | **Focused local assistant** (en) | Hub stack — Custom Whisper STT (en hint) → Extended OpenAI (local-first, then the LLM) → hub Piper TTS (`amy`). English commands, freeform questions, the alarm + wake-alarm bridges. |
+| **"Hey Jarvis"** (slot 2) | **Asistente (es)** | The Spanish assistant — Custom Whisper STT (es hint) → **built-in deterministic agent** (no LLM fallback) → **Piper add-on TTS** (`es_ES-sharvard-medium`). The grocery-list bridge lives here; "¿qué puedo hacer?" speaks the command menu. |
 
-So say **"Hey Jarvis"** for instant built-in commands, **"Okay Nabu"** for anything that
-needs the LLM.
+So say **"Okay Nabu"** in English, **"Hey Jarvis"** in Spanish. Language is a
+pipeline-level property (STT hint, TTS voice, and sentence matching all follow it), so
+the wake word *is* the language switch — see `voice-commands-howto.md` "Mixing English
+and Spanish" for why mid-conversation switching can't work.
 
 **Available wake words are limited to the firmware built-ins** — `no_wake_word`,
 `Hey Jarvis`, `Hey Mycroft`, `Okay Nabu` (the on-device microWakeWord models baked into the
@@ -263,11 +272,12 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
 
 ## Known constraints
 
-- The setup wizard installs a temporary **wyoming Piper** TTS + **speech-to-phrase** STT
-  baseline; these are superseded by the hub pipeline and are slated for removal. That local
-  wyoming Piper add-on is **not** the hub Piper this pipeline now uses — the hub serves
-  Piper over the OpenAI-shape `/v1/audio/speech` route addressed by the sfortis integration,
-  whereas the wyoming add-on is a separate, unused engine. Don't confuse the two.
+- Two Pipers, both load-bearing — don't confuse them. The **hub Piper** (OpenAI-shape
+  `/v1/audio/speech`, sfortis integration, voice `amy`) serves the English pipeline; the
+  **wyoming Piper add-on** on the VM (`core_piper`, voice `es_ES-sharvard-medium` since
+  #315) serves the Spanish pipeline's TTS. The add-on was the setup wizard's leftover
+  baseline and was slated for removal until the Spanish pipeline repurposed it — it
+  stays. (**speech-to-phrase** remains installed but unused.)
 - Local hub models are text-only; OpenAI-shape tool-use on the local llama backends requires
   `--jinja`. The hub's `claude -p` path accepts a `tools` payload but its tool-call emission
   is unverified — prefer deterministic routing (Tier 1) for actions.

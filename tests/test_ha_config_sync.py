@@ -191,12 +191,16 @@ def test_committed_snippet_is_a_canonical_block() -> None:
 
 # ------------------------------------------------- multi-sentence-file deploy
 def test_sentence_files_globs_every_repo_yaml() -> None:
-    """The deploy set is globbed from custom_sentences/en/ — every repo-owned
-    sentences file must appear with its matching remote path, so a new feature's
-    yaml can never be silently skipped (that's how grocery.yaml went missing,
-    issue #315)."""
+    """The deploy set is globbed across every custom_sentences/<lang>/ dir —
+    every repo-owned sentences file must appear with its matching remote path,
+    so a new feature's (or language's) yaml can never be silently skipped
+    (that's how grocery.yaml went missing, issue #315)."""
     remotes = {remote for _, remote in H.SENTENCE_FILES}
-    for name in ("alarm.yaml", "wake_alarm.yaml", "grocery.yaml"):
-        assert f"{H.REMOTE_SENTENCES_DIR}/{name}" in remotes
+    for lang, name in (
+        ("en", "alarm.yaml"),
+        ("en", "wake_alarm.yaml"),
+        ("es", "grocery.yaml"),
+    ):
+        assert f"{H.REMOTE_SENTENCES_ROOT}/{lang}/{name}" in remotes
     for local_file, _ in H.SENTENCE_FILES:
         assert local_file.exists(), f"missing sentence source: {local_file}"

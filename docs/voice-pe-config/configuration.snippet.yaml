@@ -181,8 +181,23 @@ intent_script:
       text: >-
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
 
-  # Grocery list one-shots (issue #315). The app parses the free Spanish
-  # fragment and returns a ready-made `speech` string; these just relay it.
+  # Grocery list (issue #315) — SPANISH-ONLY flows on the "Asistente (es)"
+  # pipeline (wake word "Hey Jarvis"): es-hinted STT, es_ES Piper voice,
+  # deterministic built-in agent. The app parses the free Spanish fragment
+  # and returns a ready-made Spanish `speech` string; these just relay it.
+  GroceryAdd:
+    action:
+      - service: rest_command.grocery_voice
+        data:
+          intent: add
+          text: "{{ details }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Lo siento, no puedo conectar con la lista.{% endif %}
+
   GroceryTarget:
     action:
       - service: rest_command.grocery_voice
@@ -194,7 +209,7 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach the grocery list.{% endif %}
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Lo siento, no puedo conectar con la lista.{% endif %}
 
   GroceryStock:
     action:
@@ -207,7 +222,22 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach the grocery list.{% endif %}
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Lo siento, no puedo conectar con la lista.{% endif %}
+
+  # "no quedan huevos" — the sentence consumed the zero cue, so re-prefix it
+  # before the app parses (zero-phrase → stock 0, grocery#89).
+  GroceryOut:
+    action:
+      - service: rest_command.grocery_voice
+        data:
+          intent: stock
+          text: "no quedan {{ details }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Lo siento, no puedo conectar con la lista.{% endif %}
 
   GroceryQuery:
     action:
@@ -219,22 +249,26 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach the grocery list.{% endif %}
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Lo siento, no puedo conectar con la lista.{% endif %}
+
+  # Spoken menu (the voice cheat sheet, #437's twin). Static — no rest call.
+  GroceryHelp:
+    speech:
+      text: >-
+        Puedes decir: añade leche y dos huevos. Pon el objetivo de leche a cuatro. Anota que tenemos dos aceites. No quedan huevos. Qué hay que comprar. O di: quiero añadir cosas a la lista, y te preguntaré qué quieres.
 
 # Multi-turn grocery add (issue #315): the trigger phrase opens a follow-up
 # question on the same puck (assist_satellite.ask_question, HA 2025.7+), the
 # free Spanish answer is captured by a bare wildcard and relayed to the app,
-# and the app's reply is announced back. A labeled `automation` instance —
-# it merges with the UI-managed `automation: !include automations.yaml`.
+# and the app's Spanish reply is announced back. A labeled `automation`
+# instance — merges with the UI-managed `automation: !include automations.yaml`.
 automation grocery_voice:
   - id: grocery_voice_add_multiturn
-    alias: "Grocery: add items by voice (multi-turn)"
+    alias: "Grocery: add items by voice (multi-turn, es)"
     mode: single
     triggers:
       - trigger: conversation
         command:
-          - "[I] (want|need) to add (stuff|things|items|something) to the (grocery|shopping) list"
-          - "add (stuff|things|items|something) to the (grocery|shopping) list"
           - "quiero añadir [(cosas|algo)] a la lista [de la compra]"
           - "añadir [(cosas|algo)] a la lista [de la compra]"
     actions:
@@ -247,7 +281,7 @@ automation grocery_voice:
       - action: assist_satellite.ask_question
         data:
           entity_id: "{{ satellite }}"
-          question: "What would you like to add?"
+          question: "¿Qué quieres añadir?"
           answers:
             - id: items
               sentences:
@@ -262,5 +296,5 @@ automation grocery_voice:
         data:
           entity_id: "{{ satellite }}"
           message: >-
-            {% if r is defined and r.status == 200 %}{{ r.content.speech }}{% else %}Sorry, the grocery list did not respond.{% endif %}
+            {% if r is defined and r.status == 200 %}{{ r.content.speech }}{% else %}Lo siento, la lista no responde.{% endif %}
 # <<< home-automation:voice-pe-alarm <<<
