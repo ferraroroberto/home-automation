@@ -93,7 +93,10 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
 [`voice-pe-config/`](voice-pe-config/).
 
 - **Installed config:** [`voice-pe-config/`](voice-pe-config/) — `custom_sentences/en/
-  alarm.yaml`, `configuration.snippet.yaml`, `secrets.snippet.yaml`.
+  alarm.yaml`, `configuration.snippet.yaml`, `secrets.snippet.yaml`. The same directory
+  also carries the wake-alarm (#306) and grocery-list (#315) bridges — the grocery one
+  targets the sibling grocery-shopping-automation app on `:8502` and includes the first
+  **multi-turn** flow (`assist_satellite.ask_question`); see its README section.
 - **Adding more commands:** [`voice-commands-howto.md`](voice-commands-howto.md) — the
   reusable recipe (hassil sentence syntax, the `stop`/`action_response` gotcha,
   reload-vs-restart, code-gating, and testing a command without speaking). Read this

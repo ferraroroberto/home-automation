@@ -191,6 +191,49 @@ Pair it with a **no-code prompt** intent (literal "disarm" with no `{code}`) tha
 tells the user how — never actuates. The voice code is a *gate layered on top of* the
 panel PIN the app already holds server-side; the real PIN is never spoken.
 
+## Multi-turn commands (`assist_satellite.ask_question`)
+
+An `intent_script` is one-shot by construction — it cannot hold a follow-up question open. When a command genuinely needs a second turn (the grocery add flow, #315: the trigger names the *operation*, the reply carries the *payload*), use a **conversation-triggered automation** with `assist_satellite.ask_question` (HA 2025.7+):
+
+```yaml
+automation my_feature:
+  - id: my_multiturn_command
+    mode: single
+    triggers:
+      - trigger: conversation
+        command:
+          - "I want to add (stuff|things) to the (grocery|shopping) list"
+    actions:
+      - set_conversation_response: ""          # silence the triggering turn
+      - variables:
+          satellite: >-                        # the puck that heard the trigger
+            {% set from_device = device_entities(trigger.device_id) | select('search', '^assist_satellite\.') | list if trigger.device_id else [] %}
+            {{ from_device | first if from_device else states.assist_satellite | map(attribute='entity_id') | list | first }}
+      - action: assist_satellite.ask_question
+        data:
+          entity_id: "{{ satellite }}"
+          question: "What would you like to add?"
+          answers:
+            - id: items
+              sentences: ["{items}"]           # bare wildcard = capture everything
+        response_variable: answer
+      - action: rest_command.my_feature
+        data: { text: "{{ answer.slots.items if answer is defined and answer.slots is defined else '' }}" }
+        response_variable: r
+      - action: assist_satellite.announce
+        data:
+          entity_id: "{{ satellite }}"
+          message: "{{ r.content.speech if r is defined and r.status == 200 else 'Sorry, that did not respond.' }}"
+```
+
+Worth knowing:
+
+- **The trigger sentences live in the automation, not `custom_sentences/`** — conversation triggers use the same hassil syntax but are registered by the automation itself.
+- A labeled `automation <name>:` key merges cleanly with the UI-managed `automation: !include automations.yaml` — put it in the managed config block.
+- `ask_question` targets a **satellite entity**, so it cannot be exercised by the text probe (`conversation.process` has no satellite) — the fallback template above picks the first puck, but the real question/answer/announce loop is only testable **by voice on the device**. Text-probing the trigger sentence will still fire the question aloud on a real puck: don't do it at night.
+- The `answers` wildcard reply is transcribed by the pipeline's STT with its configured language hint (`en` here) — a Spanish answer leans on Whisper's multilingual tolerance. If answers mis-transcribe, that's the STT hint, not hassil.
+- Changing the automation is a `configuration.yaml` change: full restart, not `conversation.reload`.
+
 ## Reload vs restart
 
 | You changed | To apply |
