@@ -71,19 +71,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Repo-owned source files → their live destinations on the HA VM.
 SNIPPET_FILE = PROJECT_ROOT / "docs" / "voice-pe-config" / "configuration.snippet.yaml"
-_SENTENCES_DIR = PROJECT_ROOT / "docs" / "voice-pe-config" / "custom_sentences" / "en"
+_SENTENCES_ROOT = PROJECT_ROOT / "docs" / "voice-pe-config" / "custom_sentences"
 REMOTE_CONFIG = "/config/configuration.yaml"
-REMOTE_SENTENCES_DIR = "/config/custom_sentences/en"
+REMOTE_SENTENCES_ROOT = "/config/custom_sentences"
 REMOTE_SECRETS = "/config/secrets.yaml"
 BACKUP_DIR = "/config/backups/home-automation"
 
-# Every repo-owned custom-sentence file → its live destination. Globbed, not
-# hardcoded: a new *.yaml under custom_sentences/en/ deploys with no script
-# change (issue #315's grocery.yaml was silently skipped by a hardcoded list).
+# Every repo-owned custom-sentence file → its live destination. Globbed across
+# every language dir, not hardcoded: a new *.yaml under custom_sentences/<lang>/
+# deploys with no script change (issue #315's grocery.yaml was silently skipped
+# by a hardcoded list; the es/ dir arrived with the Spanish-pipeline redesign).
 # Each is pushed whole; a sentences-only change applies with conversation.reload.
 SENTENCE_FILES = tuple(
-    (path, f"{REMOTE_SENTENCES_DIR}/{path.name}")
-    for path in sorted(_SENTENCES_DIR.glob("*.yaml"))
+    (path, f"{REMOTE_SENTENCES_ROOT}/{path.parent.name}/{path.name}")
+    for path in sorted(_SENTENCES_ROOT.glob("*/*.yaml"))
 )
 
 # Marker comments that delimit the block this tool owns inside the otherwise

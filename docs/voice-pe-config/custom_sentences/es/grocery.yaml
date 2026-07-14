@@ -1,0 +1,69 @@
+# Home Assistant custom sentences — grocery voice commands in SPANISH (#315).
+#
+# Install at the HA VM path: /config/custom_sentences/es/grocery.yaml
+#
+# These match on the "Asistente (es)" pipeline (language es — wake word
+# "Hey Jarvis"): Spanish-hinted Whisper STT, Spanish Piper TTS, and the
+# built-in deterministic conversation agent (no LLM fallback — unmatched
+# speech gets "no entiendo", never a hallucination). The {details} wildcard
+# fragment is parsed server-side by the grocery app (/api/voice/command),
+# which now replies in Spanish (grocery#89).
+#
+# Critical accented words are written as (qué|que)-style alternatives so a
+# transcription with or without the accent matches either way.
+language: "es"
+
+lists:
+  details:
+    wildcard: true
+
+intents:
+  # One-shot add — the deterministic primary path ("añade leche y dos huevos").
+  GroceryAdd:
+    data:
+      - sentences:
+          - "(añade|añadir|apunta) {details} (a|en) la lista [de la compra]"
+          - "(añade|apunta) {details}"
+          - "pon {details} en la lista [de la compra]"
+
+  # Set an item's target ("pon el objetivo de leche a cuatro").
+  GroceryTarget:
+    data:
+      - sentences:
+          - "(pon|cambia) el objetivo de {details}"
+          - "objetivo de {details}"
+
+  # Record current stock ("anota que tenemos dos aceites").
+  GroceryStock:
+    data:
+      - sentences:
+          - "(anota|apunta) que tenemos {details}"
+          - "tenemos {details}"
+
+  # Out-of-stock ("no quedan huevos") — separate intent because the sentence
+  # consumes the zero cue: its intent_script re-prefixes "no quedan" so the
+  # app's parser sees the zero-phrase and sets stock to 0.
+  GroceryOut:
+    data:
+      - sentences:
+          - "no (queda|quedan) {details}"
+          - "se (acabó|acabo) (el|la|los|las) {details}"
+          - "se (acabó|acabo) {details}"
+
+  # Read back the shopping list.
+  GroceryQuery:
+    data:
+      - sentences:
+          - "(qué|que) hay que comprar"
+          - "(qué|que) hay en la lista [de la compra]"
+          - "(lee|léeme|leeme|dime) la lista [de la compra]"
+          - "lista de la compra"
+
+  # Spoken menu — the voice twin of the in-app cheat sheet (#437).
+  GroceryHelp:
+    data:
+      - sentences:
+          - "(qué|que) puedo (hacer|decir|pedir)"
+          - "[(cuáles|cuales) son] [mis] opciones"
+          - "(qué|que) opciones (hay|tengo)"
+          - "ayuda"
