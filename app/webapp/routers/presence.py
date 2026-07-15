@@ -316,7 +316,19 @@ async def _cache_for_locate(*, now: datetime) -> PresenceDiagnosticsCache:
         return get_cache()
 
 
-def _place_speech(display_name: str, place: str) -> str:
+def _locate_lang(lang: str) -> str:
+    """Clamp the voice-bridge language hint to the two served pipelines (#446)."""
+
+    return "es" if lang.strip().lower().startswith("es") else "en"
+
+
+def _place_speech(display_name: str, place: str, *, lang: str = "en") -> str:
+    if lang == "es":
+        if place == "Home":
+            return f"{display_name} está en casa."
+        if place in ("Away", UNKNOWN_PLACE):
+            return f"{display_name} está fuera — no sé exactamente dónde."
+        return f"{display_name} está en {place}."
     if place == "Home":
         return f"{display_name} is home."
     if place in ("Away", UNKNOWN_PLACE):
@@ -324,11 +336,19 @@ def _place_speech(display_name: str, place: str) -> str:
     return f"{display_name} is at {place}."
 
 
-def _broken_source_speech(display_name: str, cache: PresenceDiagnosticsCache) -> str:
+def _broken_source_speech(
+    display_name: str, cache: PresenceDiagnosticsCache, *, lang: str = "en"
+) -> str:
     """Speech for a person known only via a role/display-name alias that isn't in
     either live source right now — normally an iCloud-only entity whose Find My
     refresh is currently failing, not a person who is just "away" (#442)."""
 
+    if lang == "es":
+        if cache.reason == "2fa_required":
+            return f"El localizador de {display_name} necesita re-autenticación de iCloud."
+        if cache.reason in ("error", "not_configured"):
+            return f"El localizador de {display_name} no funciona — necesita re-autenticación."
+        return f"No encuentro la ubicación de {display_name} ahora mismo."
     if cache.reason == "2fa_required":
         return f"{display_name}'s location tracking needs iCloud re-authentication."
     if cache.reason in ("error", "not_configured"):
@@ -351,13 +371,16 @@ async def _resolved_away_place(entity: PresenceEntity, place: str) -> str:
 
 
 @router.get("/api/presence/locate")
-async def get_presence_locate(who: str) -> Dict[str, Any]:
+async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
     """Resolve a spoken name/role to a current place — the voice-bridge endpoint (#438).
 
     Reads the background diagnostics refresher's cache, same as ``GET
     /api/presence``, but refreshes on demand when that cache is stale (#442).
+    ``lang=es`` makes the ready-made ``speech`` Spanish for the "Hey Jarvis"
+    pipeline (#446); resolution itself is language-agnostic.
     """
 
+    lang = _locate_lang(lang)
     now = now_utc()
     roles = load_presence_roles()
     names = load_presence_display_names()
@@ -377,14 +400,19 @@ async def get_presence_locate(who: str) -> Dict[str, Any]:
         known_names=known_names,
     )
     if entity_id is None:
+        not_found_speech = (
+            f"No sé quién es {who.strip()}."
+            if lang == "es"
+            else f"I don't know who {who.strip()} is."
+        )
         result = {
             "found": False,
             "entity_id": None,
             "name": who.strip(),
             "place": None,
-            "speech": f"I don't know who {who.strip()} is.",
+            "speech": not_found_speech,
         }
-        append_activity("presence_locate", {"who": who, **result})
+        append_activity("presence_locate", {"who": who, "lang": lang, **result})
         return result
 
     display_name = names.get(entity_id) or known_names.get(entity_id) or entity_id
@@ -399,7 +427,7 @@ async def get_presence_locate(who: str) -> Dict[str, Any]:
             places=places,
         )
         place = await _resolved_away_place(entity, place)
-        speech = _place_speech(display_name, place)
+        speech = _place_speech(display_name, place, lang=lang)
     elif entity_id in people:
         person = people[entity_id]
         place = resolve_place(
@@ -409,16 +437,16 @@ async def get_presence_locate(who: str) -> Dict[str, Any]:
             has_location=False,
             places=places,
         )
-        speech = _place_speech(display_name, place)
+        speech = _place_speech(display_name, place, lang=lang)
     else:
         # Known via a role/display-name alias but absent from both live sources
         # right now — the Find My cache is empty because the diagnostics
         # refresher is down, not because this person is simply "away" (#442).
         place = UNKNOWN_PLACE
-        speech = _broken_source_speech(display_name, cache)
+        speech = _broken_source_speech(display_name, cache, lang=lang)
 
     result = {"found": True, "entity_id": entity_id, "name": display_name, "place": place, "speech": speech}
-    append_activity("presence_locate", {"who": who, **result})
+    append_activity("presence_locate", {"who": who, "lang": lang, **result})
     return result
 
 

@@ -401,9 +401,9 @@ def _api_request(cfg: HaConfig, method: str, path: str, body: Optional[dict] = N
         raise HaSyncError("api_conn", f"HA API at {cfg.url} unreachable: {exc.reason}") from exc
 
 
-def conversation_process(cfg: HaConfig, text: str) -> Tuple[str, str, bool]:
+def conversation_process(cfg: HaConfig, text: str, language: str = "en") -> Tuple[str, str, bool]:
     status, payload = _api_request(cfg, "POST", "/api/conversation/process",
-                                   {"text": text, "language": "en"})
+                                   {"text": text, "language": language})
     if status != 200:
         raise HaSyncError("api_probe", f"conversation/process returned HTTP {status}.")
     return parse_conversation_reply(payload)
@@ -678,7 +678,7 @@ def cmd_rollback(cfg: HaConfig) -> int:
 # --------------------------------------------------------------------------- #
 # Subcommand: probe
 # --------------------------------------------------------------------------- #
-def cmd_probe(cfg: HaConfig, text: str, actuate: bool) -> int:
+def cmd_probe(cfg: HaConfig, text: str, actuate: bool, language: str = "en") -> int:
     if text != DEFAULT_PROBE_TEXT and not actuate:
         _fail(
             f"Custom probe text {text!r} may actuate a device. Re-run with --actuate "
@@ -686,11 +686,11 @@ def cmd_probe(cfg: HaConfig, text: str, actuate: bool) -> int:
         )
         return 1
     try:
-        speech, rtype, matched = conversation_process(cfg, text)
+        speech, rtype, matched = conversation_process(cfg, text, language=language)
     except HaSyncError as exc:
         _fail(f"[{exc.category}] {exc.message}")
         return 1
-    print(f"Probe text : {text!r}")
+    print(f"Probe text : {text!r} (language {language})")
     print(f"Reply type : {rtype}")
     print(f"Spoken     : {speech!r}")
     print(f"Matched local intent: {'yes' if matched else 'no (fell through to the LLM?)'}")
@@ -720,6 +720,8 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--text", default=DEFAULT_PROBE_TEXT, help="phrase to send")
     pr.add_argument("--actuate", action="store_true",
                     help="acknowledge a non-default phrase may actuate a device")
+    pr.add_argument("--language", default="en",
+                    help="sentence language to match against (e.g. es for the Spanish pipeline)")
     return p
 
 
@@ -737,7 +739,7 @@ def main(argv: Optional[list] = None) -> int:
     if args.command == "rollback":
         return cmd_rollback(cfg)
     if args.command == "probe":
-        return cmd_probe(cfg, text=args.text, actuate=args.actuate)
+        return cmd_probe(cfg, text=args.text, actuate=args.actuate, language=args.language)
     return 2
 
 

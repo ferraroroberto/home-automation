@@ -44,9 +44,11 @@ Read-only query — no actuation, so no code-gating needed. `{who}` is a free-te
 
 | You say (after "Okay Nabu, …") | Intent | App call |
 |---|---|---|
-| "where's dad" · "where is mom" · "where's Roberto" · "locate Ana" · "find dad" | locate (read) | `GET /api/presence/locate?who=<text>` → speaks the resolved place, or that it doesn't know who/where |
+| "where's dad" · "where is mom" · "where's Roberto" · "locate Ana" · "find dad" | locate (read) | `GET /api/presence/locate?who=<text>&lang=en` → speaks the resolved place, or that it doesn't know who/where |
 
-The sentence list is in `custom_sentences/en/locate.yaml`. Named places and household-role aliases are configured from the Security tab's Presence card ("Places" and each person's detail-modal "Role" field) — nothing in `custom_sentences/` needs editing to add a new person or place. Reuses the existing `!secret app_api_authorization` — **no new secret**.
+Also on the Spanish pipeline (after "Hey Jarvis, …", #446): "¿dónde está papá?" · "donde esta mamá" · "localiza a Roberto" · "encuentra a Ana" — `custom_sentences/es/locate.yaml` sets a fixed `lang: es` slot, so the shared `intent_script.Locate` calls the app with `lang=es` and the reply is spoken Spanish ("Roberto está en casa"). Resolution is language-agnostic and variant-tolerant server-side (`src.presence_roles`): accents, doubled letters ("Anna" ↔ "Ana"), and kinship synonyms ("mum"/"mamá" → mom, "daddy"/"papá" → dad) all fold to the configured role/name.
+
+The English sentence list is in `custom_sentences/en/locate.yaml`. Named places and household-role aliases are configured from the Security tab's Presence card ("Places" and each person's detail-modal "Role" field) — nothing in `custom_sentences/` needs editing to add a new person or place. Reuses the existing `!secret app_api_authorization` — **no new secret**.
 
 ### Grocery list (issue #315) — Spanish, on its own pipeline
 
@@ -85,6 +87,7 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 - `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
 - `custom_sentences/en/locate.yaml` → `/config/custom_sentences/en/locate.yaml` (family locator, #438)
 - `custom_sentences/es/grocery.yaml` → `/config/custom_sentences/es/grocery.yaml` (grocery list in Spanish, #315)
+- `custom_sentences/es/locate.yaml` → `/config/custom_sentences/es/locate.yaml` (family locator in Spanish, #446)
 - `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **every** feature's `rest_command` / `intent_script` / `automation` entries)
 - `secrets.snippet.yaml` → add all keys to `/config/secrets.yaml` **with real values** (never committed)
 
@@ -149,7 +152,7 @@ Use this only when SSH/script deploy is unavailable (add-on down, key not yet pr
 - Read-only first: "Okay Nabu, what's the alarm status?" → it speaks the current state.
 - Then a full cycle: "perimeter on" → check the app's Security tab → "disarm \<code\>".
 - **Wake alarms:** "set a wake alarm for 7 am on weekdays" → it speaks it back → confirm it appears on the Home-tab card (or `GET /api/wake-alarms`) → "cancel my wake alarm". Text-probe without speaking: `… -m scripts.ha_config_sync probe --text "set a wake alarm for 7 am" --actuate` (a reply of type `action_done` = matched locally).
-- **Family locator:** set a role (Security tab → Presence → a person's detail modal → "Role") and at least one named place (Presence → "Places"), then "Okay Nabu, where's \<role\>" → it speaks the resolved place. Text-probe: `… -m scripts.ha_config_sync probe --text "where's dad"`.
+- **Family locator:** set a role (Security tab → Presence → a person's detail modal → "Role") and at least one named place (Presence → "Places"), then "Okay Nabu, where's \<role\>" → it speaks the resolved place. Text-probe: `… -m scripts.ha_config_sync probe --text "where's dad"`. Spanish (#446): "Hey Jarvis, ¿dónde está papá?" → "Roberto está en casa"; text-probe with `--text "donde esta papa" --language es --actuate`.
 - **Timers (native, no deploy):** "set a timer for 2 minutes" → wait for the TTS chime; "cancel the timer".
 
 ## Requirements
