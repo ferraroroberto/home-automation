@@ -444,6 +444,7 @@ loop is *zero-config infrastructure that lives outside the repo*.
 | Same test passes locally, fails in CI               | CI is headless, local is headed. Some Streamlit components render slightly differently. Use `wait_for_selector` aggressively. |
 | Agent loops forever                                  | No action cap in the prompt. Always include "≤ N actions, then report."                           |
 | Screenshot is huge in tokens                         | Vision tokens are expensive. Snapshot instead. Screenshot only on failure.                         |
+| WebKit full-suite run: verbose log shows every test PASSED, then no summary line ever prints (0% CPU, hung indefinitely) | Stale `WebKitNetworkProcess.exe` zombies from a previously-killed run wedge the Node driver's exit-time cleanup, blocking `browser.close()`/`playwright.stop()` forever (#440). Check with `Get-CimInstance Win32_Process -Filter "Name='WebKitNetworkProcess.exe'"` — `taskkill /F` reports "no running instance" for these because they're already dead, handle-held zombies (only a reboot, or the exit of whatever holds the handle, clears them). `conftest.py`'s `browser`/`playwright` fixture teardown is bounded (`E2E_TEARDOWN_TIMEOUT_S`, default 15s) and force-kills the driver process on timeout so pytest always reaches its summary — no action needed, this is handled automatically. |
 
 ---
 

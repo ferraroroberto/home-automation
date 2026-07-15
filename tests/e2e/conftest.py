@@ -32,6 +32,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.request
 from urllib.parse import unquote
@@ -39,7 +40,7 @@ from pathlib import Path
 from typing import Callable, Dict, IO, Iterator, List, Optional
 
 import pytest
-from playwright.sync_api import BrowserContext, Page, Route
+from playwright.sync_api import Browser, BrowserContext, Page, Playwright, Route, sync_playwright
 
 from app.webapp.event_loop import LOOP_FACTORY
 
@@ -51,6 +52,13 @@ _KEY = _REPO_ROOT / "webapp" / "certificates" / "key.pem"
 _ADOPT_PORT = 8447
 _IPHONE_DEVICE = "iPhone 14"
 _DEFAULT_TIMEOUT_MS = int(os.environ.get("E2E_DEFAULT_TIMEOUT_MS", "15000"))
+# Bound for the session-scoped browser/driver teardown (#440): a stale
+# WebKitNetworkProcess zombie from a previously-killed run can wedge
+# browser.close()/playwright.stop() forever, so pytest never reaches its
+# final summary line even though every test already passed. Bounding the
+# wait lets pytest proceed to exit regardless; the worst case is a leaked
+# driver process, not a hung suite.
+_TEARDOWN_TIMEOUT_S = float(os.environ.get("E2E_TEARDOWN_TIMEOUT_S", "15"))
 # Throwaway telemetry DB for the autobooted webapp, so a control action in the
 # e2e flow can't mirror events into the real webapp/telemetry.sqlite3 (#296).
 _E2E_TELEMETRY_DB = Path(tempfile.gettempdir()) / "ha_e2e_telemetry.sqlite3"
@@ -230,6 +238,91 @@ def base_url() -> Iterator[str]:
 
 
 # --------------------------------------------------------------- browser
+def _driver_pid(pw: Optional[Playwright]) -> Optional[int]:
+    """Best-effort reach into Playwright's private driver-process handle so a
+    wedged teardown (#440) can be force-killed. ``pw.stop`` is the
+    ``PlaywrightContextManager.__exit__`` bound method (see
+    ``playwright/sync_api/_context_manager.py``); its ``__self__`` holds the
+    connection → transport → asyncio subprocess chain down to the Node
+    driver's PID. Reaches into ``_impl`` privates on purpose — there is no
+    public accessor — so this degrades to ``None`` (no forced kill, just a
+    log warning) rather than raising if a future Playwright version changes
+    this shape.
+    """
+    if pw is None:
+        return None
+    try:
+        ctx_mgr = pw.stop.__self__  # type: ignore[attr-defined]
+        return ctx_mgr._connection._transport._proc.pid  # type: ignore[attr-defined]
+    except Exception:
+        return None
+
+
+def _bounded_teardown(fn: Callable[[], None], label: str, driver_pid: Optional[int]) -> None:
+    """Run a session-scope teardown call bound to a hard wall-clock limit (#440).
+
+    A stale WebKitNetworkProcess zombie from a previously-killed run can wedge
+    the Node driver's own exit-time cleanup, so ``browser.close()`` /
+    ``playwright.stop()`` never return and pytest hangs after the last test,
+    never reaching its summary line. Playwright's sync API is greenlet-based
+    and thread-affine (``fn`` must run on THIS thread — see the
+    ``greenlet.error: Cannot switch to a different thread`` a naive
+    background-thread call raises), so a watchdog thread can't just call
+    ``fn`` for us. What it *can* safely do off-thread is force-kill the
+    driver's OS process; that breaks the pipe ``fn`` is blocked reading from,
+    which Playwright's own error path (`Connection.cleanup()`) turns into an
+    exception rather than a silent hang, letting pytest proceed.
+    """
+    done = threading.Event()
+    timed_out = threading.Event()
+
+    def _watchdog() -> None:
+        if done.wait(timeout=_TEARDOWN_TIMEOUT_S):
+            return
+        timed_out.set()
+        logger.warning(
+            "⚠️ %s did not complete within %.0fs — force-killing the driver "
+            "process (known WebKitNetworkProcess zombie hang, #440)",
+            label, _TEARDOWN_TIMEOUT_S,
+        )
+        if driver_pid is None:
+            return
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(driver_pid)],
+                    capture_output=True, timeout=10,
+                )
+            else:
+                os.kill(driver_pid, signal.SIGKILL)
+        except Exception:
+            logger.warning("⚠️ could not force-kill driver pid %s", driver_pid)
+
+    threading.Thread(target=_watchdog, name="e2e-teardown-watchdog", daemon=True).start()
+    try:
+        fn()
+    except Exception:
+        if not timed_out.is_set():
+            raise
+        logger.warning("⚠️ %s raised after forced kill (expected) — ignoring", label)
+    finally:
+        done.set()
+
+
+@pytest.fixture(scope="session")
+def playwright() -> Iterator[Playwright]:
+    pw = sync_playwright().start()
+    yield pw
+    _bounded_teardown(pw.stop, "playwright.stop()", _driver_pid(pw))
+
+
+@pytest.fixture(scope="session")
+def browser(launch_browser: Callable[..., Browser], playwright: Playwright) -> Iterator[Browser]:
+    browser_instance = launch_browser()
+    yield browser_instance
+    _bounded_teardown(browser_instance.close, "browser.close()", _driver_pid(playwright))
+
+
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args: dict, browser_name: str, playwright) -> dict:
     # Self-signed cert — the SPA won't load otherwise.
