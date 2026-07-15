@@ -33,6 +33,14 @@ from src.presence_engine import (
     set_person_state,
 )
 from src.presence_hidden import load_hidden_presence_ids, set_presence_hidden
+from src.presence_places import (
+    UNKNOWN_PLACE,
+    PresencePlace,
+    load_presence_places,
+    resolve_place,
+    set_presence_places,
+)
+from src.presence_roles import load_presence_roles, resolve_person, set_presence_role
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +49,30 @@ router = APIRouter()
 _REVERSE_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
-def _entity_payload(entity: PresenceEntity, *, source: str = "icloud") -> Dict[str, Any]:
+def _entity_payload(
+    entity: PresenceEntity, *, source: str = "icloud", places: list[PresencePlace] | None = None
+) -> Dict[str, Any]:
     payload = asdict(entity)
     last_seen = entity.last_seen
     payload["last_seen"] = last_seen.isoformat() if last_seen else None
     payload["source"] = source
+    payload["current_place"] = resolve_place(
+        latitude=entity.latitude,
+        longitude=entity.longitude,
+        at_home=entity.at_home,
+        has_location=entity.has_location,
+        places=places or [],
+    )
     return payload
 
 
-def _person_payload(person_id: str, *, now: datetime) -> Dict[str, Any]:
+def _person_payload(
+    person_id: str, *, now: datetime, places: list[PresencePlace] | None = None
+) -> Dict[str, Any]:
     people = load_people()
     names = load_presence_display_names()
     hidden = load_hidden_presence_ids()
+    roles = load_presence_roles()
     person = people[person_id]
     cfg = load_automation_config()
     age_s = (now - person.updated_at).total_seconds()
@@ -61,6 +81,7 @@ def _person_payload(person_id: str, *, now: datetime) -> Dict[str, Any]:
         "entity_id": person_id,
         "name": person_id,
         "display_name": names.get(person_id) or None,
+        "role": roles.get(person_id) or None,
         "hidden": person_id in hidden,
         "model": None,
         "device_class": "Person",
@@ -75,6 +96,13 @@ def _person_payload(person_id: str, *, now: datetime) -> Dict[str, Any]:
         "state": person.state,
         "source": person.source,
         "stale": age_s > cfg.stale_after_s,
+        "current_place": resolve_place(
+            latitude=None,
+            longitude=None,
+            at_home=at_home,
+            has_location=False,
+            places=places or [],
+        ),
     }
 
 
@@ -82,15 +110,18 @@ def _presence_payload(entities: list[PresenceEntity]) -> Dict[str, Any]:
     now = now_utc()
     names = load_presence_display_names()
     hidden = load_hidden_presence_ids()
+    roles = load_presence_roles()
+    places = load_presence_places()
     diagnostic_entities = []
     for entity in entities:
-        item = _entity_payload(entity, source="icloud")
+        item = _entity_payload(entity, source="icloud", places=places)
         item["display_name"] = names.get(entity.entity_id) or None
+        item["role"] = roles.get(entity.entity_id) or None
         item["hidden"] = entity.entity_id in hidden
         item["stale"] = False
         diagnostic_entities.append(item)
 
-    local_people = [_person_payload(pid, now=now) for pid in sorted(load_people())]
+    local_people = [_person_payload(pid, now=now, places=places) for pid in sorted(load_people())]
     all_entities = local_people + diagnostic_entities
     visible = [e for e in all_entities if not e.get("hidden")]
     located = [entity for entity in visible if entity.get("latitude") is not None and entity.get("longitude") is not None]
@@ -210,6 +241,111 @@ async def update_presence_hidden_safe(
         raise HTTPException(status_code=400, detail="entity_id is required")
     set_presence_hidden(entity_id, payload.hidden)
     return {"entity_id": entity_id, "hidden": payload.hidden}
+
+
+class PresenceRolePayload(BaseModel):
+    entity_id: str
+    role: str
+
+
+@router.put("/api/presence/role")
+async def update_presence_role(payload: PresenceRolePayload) -> Dict[str, Any]:
+    """Set or clear a household-role alias (e.g. "dad"/"mom") for voice lookup (#438)."""
+
+    entity_id = payload.entity_id.strip()
+    if not entity_id:
+        raise HTTPException(status_code=400, detail="entity_id is required")
+    role = payload.role.strip()
+    set_presence_role(entity_id, role)
+    return {"entity_id": entity_id, "role": role or None}
+
+
+def _places_payload(places: list[PresencePlace]) -> Dict[str, Any]:
+    return {"places": [asdict(place) for place in places], "count": len(places)}
+
+
+@router.get("/api/presence/places")
+async def get_presence_places() -> Dict[str, Any]:
+    """Return the configured named places for the locator (#438)."""
+
+    return _places_payload(load_presence_places())
+
+
+@router.put("/api/presence/places")
+async def update_presence_places(request: Request) -> Dict[str, Any]:
+    """Replace the whole named-place list (browser-managed dense collection)."""
+
+    body = await request.json()
+    entries = body.get("places") if isinstance(body, dict) else None
+    if not isinstance(entries, list):
+        raise HTTPException(status_code=400, detail="places must be a list")
+    return _places_payload(set_presence_places(entries))
+
+
+@router.get("/api/presence/locate")
+async def get_presence_locate(who: str) -> Dict[str, Any]:
+    """Resolve a spoken name/role to a current place — the voice-bridge endpoint (#438).
+
+    Cached-only by design (no new iCloud locate cost): reads whatever the
+    background diagnostics refresher already holds, same as ``GET /api/presence``.
+    """
+
+    now = now_utc()
+    roles = load_presence_roles()
+    names = load_presence_display_names()
+    cache = get_cache()
+    places = load_presence_places()
+
+    icloud_entities = {entity.entity_id: entity for entity in cache.entities}
+    people = load_people()
+    known_ids = list(people) + list(icloud_entities)
+    known_names = {eid: entity.name for eid, entity in icloud_entities.items()}
+
+    entity_id = resolve_person(
+        who,
+        roles=roles,
+        display_names=names,
+        known_ids=known_ids,
+        known_names=known_names,
+    )
+    if entity_id is None:
+        return {
+            "found": False,
+            "entity_id": None,
+            "name": who.strip(),
+            "place": None,
+            "speech": f"I don't know who {who.strip()} is.",
+        }
+
+    display_name = names.get(entity_id) or known_names.get(entity_id) or entity_id
+
+    if entity_id in icloud_entities:
+        entity = icloud_entities[entity_id]
+        place = resolve_place(
+            latitude=entity.latitude,
+            longitude=entity.longitude,
+            at_home=entity.at_home,
+            has_location=entity.has_location,
+            places=places,
+        )
+    else:
+        person = people[entity_id]
+        place = resolve_place(
+            latitude=None,
+            longitude=None,
+            at_home=person.state == "home",
+            has_location=False,
+            places=places,
+        )
+
+    if place == "Home":
+        speech = f"{display_name} is home."
+    elif place in ("Away", UNKNOWN_PLACE):
+        speech = f"{display_name} is away — I don't know exactly where."
+    else:
+        speech = f"{display_name} is at {place}."
+
+    return {"found": True, "entity_id": entity_id, "name": display_name, "place": place, "speech": speech}
 
 
 @router.get("/api/presence/automation")

@@ -51,6 +51,10 @@ export const state = {
   presence: null,
   thisDevicePresence: null,
   presencePlaces: {},
+  // Configured named places for the voice locator (issue #438), from
+  // GET/PUT /api/presence/places. Distinct from presencePlaces above (that's
+  // the reverse-geocode cache keyed by coordinates).
+  presencePlacesList: [],
   location: null,
   presenceAutomation: null,
   presenceShowHidden: false,
@@ -218,7 +222,31 @@ export const els = {
   presenceMapFrame: document.getElementById('presenceMapFrame'),
   presenceDisplayName: document.getElementById('presenceDisplayName'),
   presenceOriginalName: document.getElementById('presenceOriginalName'),
+  presenceRole: document.getElementById('presenceRole'),
   presenceHiddenDetailToggle: document.getElementById('presenceHiddenDetailToggle'),
+  // Named-places dense-collection card (issue #438).
+  presencePlacesList: document.getElementById('presencePlacesList'),
+  presencePlacesNote: document.getElementById('presencePlacesNote'),
+  presencePlaceAdd: document.getElementById('presencePlaceAdd'),
+  presencePlaceDialog: document.getElementById('presencePlaceDialog'),
+  presencePlaceEditorTitle: document.getElementById('presencePlaceEditorTitle'),
+  presencePlaceEditorClose: document.getElementById('presencePlaceEditorClose'),
+  presencePlaceLabel: document.getElementById('presencePlaceLabel'),
+  presencePlaceLat: document.getElementById('presencePlaceLat'),
+  presencePlaceLon: document.getElementById('presencePlaceLon'),
+  presencePlaceRadius: document.getElementById('presencePlaceRadius'),
+  presencePlaceUseBrowser: document.getElementById('presencePlaceUseBrowser'),
+  presencePlacePickMap: document.getElementById('presencePlacePickMap'),
+  presencePlaceDelete: document.getElementById('presencePlaceDelete'),
+  presencePlaceSave: document.getElementById('presencePlaceSave'),
+  // Map-pin picker dialog (issue #438).
+  presenceMapPickerDialog: document.getElementById('presenceMapPickerDialog'),
+  presenceMapPickerClose: document.getElementById('presenceMapPickerClose'),
+  presenceMapPicker: document.getElementById('presenceMapPicker'),
+  presenceMapPickerCoords: document.getElementById('presenceMapPickerCoords'),
+  presenceMapPickerConfirm: document.getElementById('presenceMapPickerConfirm'),
+  // Home-tab "Mom & Dad locator" card (issue #438).
+  locatorList: document.getElementById('locatorList'),
   // Detector (zone) detail + rename modal
   zoneDialog: document.getElementById('zoneDialog'),
   zoneDetailName: document.getElementById('zoneDetailName'),

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "gym",
+    "label": "the gym",
+    "lat": 0.0,
+    "lon": 0.0,
+    "radius_m": 150.0
+  },
+  {
+    "id": "roberto-work",
+    "label": "Roberto's work",
+    "lat": 0.0,
+    "lon": 0.0,
+    "radius_m": 150.0
+  }
+]

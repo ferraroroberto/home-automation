@@ -1967,20 +1967,74 @@ button.presence-name {
   cursor: pointer;
 }
 button.presence-name:hover { text-decoration: underline; }
-.presence-settings-card {
+/* Home-tab "Mom & Dad locator" card (issue #438) — mirrors .presence-list /
+   .presence-row's grid (name+role left, resolved place+last-seen right). */
+.locator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 14px 14px;
+}
+.locator-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) 0;
   border-top: 1px solid var(--line);
 }
-.presence-settings-card > .collapse-summary {
+.locator-row:first-child { border-top: 0; }
+.locator-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.locator-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.locator-role {
+  text-transform: capitalize;
+}
+.locator-status {
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+}
+.locator-place {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.locator-meta {
+  white-space: nowrap;
+}
+.presence-settings-card,
+.presence-places-card {
+  border-top: 1px solid var(--line);
+}
+.presence-settings-card > .collapse-summary,
+.presence-places-card > .collapse-summary {
   height: 48px;
   padding: 0 14px;
 }
-.presence-settings-card[open] > .collapse-summary {
+.presence-settings-card[open] > .collapse-summary,
+.presence-places-card[open] > .collapse-summary {
   border-bottom: 1px solid var(--line);
 }
 .presence-settings {
   display: grid;
   gap: var(--space-sm);
   padding: 14px;
+}
+.presence-places-body {
+  padding: 12px 14px 14px;
 }
 .schedule-editor-days-block {
   padding: 12px 0;
@@ -2027,10 +2081,6 @@ button.presence-name:hover { text-decoration: underline; }
   width: 5rem;
   text-align: right;
 }
-.presence-settings .big-btn {
-  min-height: 38px;
-  font-size: var(--font-caption);
-}
 /* Notification toggle lists (alarm + power cards): label on the left, the
    canonical .toggle switch flush right — mirrors the detail-modal .row
    convention (issue #360). */
@@ -2066,6 +2116,38 @@ button.presence-name:hover { text-decoration: underline; }
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--input-bg);
+}
+/* Place editor's two lat/lon fill helpers share one full-width row (so
+   "Pick on map…" ends flush right, aligned with Delete/Save below) and take
+   .detail-save-btn as the size reference: same min-height and inherited font
+   instead of .big-btn's 48px / --font-body. */
+.place-coord-btns {
+  display: flex;
+  gap: 8px;
+}
+.place-coord-btns .big-btn {
+  flex: 1;
+  min-height: var(--control-h);
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* Interactive location-picker map (issue #438) — vendored Leaflet over the
+   presence-places editor. Taller than .presence-map-frame (a static embed):
+   picking a pin needs more room than glancing at one. */
+.place-map-picker {
+  width: 100%;
+  height: min(50vh, 360px);
+  margin: 4px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  overflow: hidden;
+}
+.place-map-pin {
+  color: var(--accent);
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
 }
 @media (max-width: 430px) {
   .security-event {

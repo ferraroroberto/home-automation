@@ -38,6 +38,16 @@ A **separate** feature from the RISCO alarm above — every phrase says "wake al
 
 The sentence lists are in `custom_sentences/en/wake_alarm.yaml`. Both the set and cancel intents reuse the existing `!secret app_api_authorization` — **no new secret**.
 
+### Family locator (issue #438) — "where's mom/dad"
+
+Read-only query — no actuation, so no code-gating needed. `{who}` is a free-text wildcard capturing the spoken name or household role; the app resolves it via role aliases (set from the Security tab's Presence card), display-name overrides, or raw names, then answers with the resolved place — a configured named place (e.g. "the gym"), "home", or "away" (cached Find My data only; no new iCloud locate cost).
+
+| You say (after "Okay Nabu, …") | Intent | App call |
+|---|---|---|
+| "where's dad" · "where is mom" · "where's Roberto" · "locate Ana" · "find dad" | locate (read) | `GET /api/presence/locate?who=<text>` → speaks the resolved place, or that it doesn't know who/where |
+
+The sentence list is in `custom_sentences/en/locate.yaml`. Named places and household-role aliases are configured from the Security tab's Presence card ("Places" and each person's detail-modal "Role" field) — nothing in `custom_sentences/` needs editing to add a new person or place. Reuses the existing `!secret app_api_authorization` — **no new secret**.
+
 ### Grocery list (issue #315) — Spanish, on its own pipeline
 
 Voice control of the **grocery-shopping-automation** sibling app on `:8502` (its #86 built the endpoint, its #89 made the replies Spanish). The app's Excel-backed inventory is the store — the shopping list is derived (`comprar = cantidad − tenemos`). All intelligence is server-side: HA relays the free Spanish fragment to `POST /api/voice/command` with a deterministic intent, the app's hub-LLM parse matches items/quantities against the inventory, Python applies, and HA speaks back the returned Spanish `speech` string. Same doctrine as everything above: the LLM does language understanding only — it can never pick the operation or redirect a mutation (an invented row index is demoted to a new-item server-side).
@@ -73,6 +83,7 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 
 - `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml` (RISCO security alarm)
 - `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
+- `custom_sentences/en/locate.yaml` → `/config/custom_sentences/en/locate.yaml` (family locator, #438)
 - `custom_sentences/es/grocery.yaml` → `/config/custom_sentences/es/grocery.yaml` (grocery list in Spanish, #315)
 - `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **every** feature's `rest_command` / `intent_script` / `automation` entries)
 - `secrets.snippet.yaml` → add all keys to `/config/secrets.yaml` **with real values** (never committed)
@@ -138,6 +149,7 @@ Use this only when SSH/script deploy is unavailable (add-on down, key not yet pr
 - Read-only first: "Okay Nabu, what's the alarm status?" → it speaks the current state.
 - Then a full cycle: "perimeter on" → check the app's Security tab → "disarm \<code\>".
 - **Wake alarms:** "set a wake alarm for 7 am on weekdays" → it speaks it back → confirm it appears on the Home-tab card (or `GET /api/wake-alarms`) → "cancel my wake alarm". Text-probe without speaking: `… -m scripts.ha_config_sync probe --text "set a wake alarm for 7 am" --actuate` (a reply of type `action_done` = matched locally).
+- **Family locator:** set a role (Security tab → Presence → a person's detail modal → "Role") and at least one named place (Presence → "Places"), then "Okay Nabu, where's \<role\>" → it speaks the resolved place. Text-probe: `… -m scripts.ha_config_sync probe --text "where's dad"`.
 - **Timers (native, no deploy):** "set a timer for 2 minutes" → wait for the TTS chime; "cancel the timer".
 
 ## Requirements

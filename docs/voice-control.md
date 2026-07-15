@@ -94,9 +94,17 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
 
 - **Installed config:** [`voice-pe-config/`](voice-pe-config/) — `custom_sentences/en/
   alarm.yaml`, `configuration.snippet.yaml`, `secrets.snippet.yaml`. The same directory
-  also carries the wake-alarm (#306) and grocery-list (#315) bridges — the grocery one
-  targets the sibling grocery-shopping-automation app on `:8502` and includes the first
-  **multi-turn** flow (`assist_satellite.ask_question`); see its README section.
+  also carries the wake-alarm (#306), family-locator (#438), and grocery-list (#315)
+  bridges — the grocery one targets the sibling grocery-shopping-automation app on
+  `:8502` and includes the first **multi-turn** flow (`assist_satellite.ask_question`);
+  see its README section.
+- **Family locator (#438):** a read-only "where's mom/dad" query — `{who}` (a spoken
+  name or household role) resolves server-side against role aliases / display names
+  (`src.presence_roles`), then answers with the person's current place from cached Find
+  My data matched against user-configured named places (`src.presence_places`) — home,
+  a named place (e.g. "the gym"), or away. No new iCloud locate cost. Configured entirely
+  from the webapp (Security tab → Presence card → per-person "Role" + "Places"), not from
+  YAML. See [`voice-pe-config/README.md`](voice-pe-config/README.md#family-locator-issue-438--wheres-momdad).
 - **Adding more commands:** [`voice-commands-howto.md`](voice-commands-howto.md) — the
   reusable recipe (hassil sentence syntax, the `stop`/`action_response` gotcha,
   reload-vs-restart, code-gating, and testing a command without speaking). Read this

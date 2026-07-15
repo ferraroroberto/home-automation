@@ -39,7 +39,7 @@ import { onUpsTab, restoreUpsSnapshot } from './ups.js';
 import { wirePowerNotify } from './ups-notify.js';
 import { onVmTab, restoreVmSnapshot } from './vm.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
-import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wireSecurityNotify } from './security.js';
+import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security.js';
 import { onWakeAlarmsTab, wireWakeAlarms } from './wake-alarms.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
@@ -173,6 +173,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireScenePairings();
   wireSecurityOverrides();
   wirePresenceControls();
+  wirePresencePlaces();
   wireSecurityNotify();
   wireWakeAlarms();
   wireCameras();

@@ -1,0 +1,24 @@
+# Home Assistant custom sentences — "where's mom/dad" family locator (#438).
+#
+# Install at the HA VM path: /config/custom_sentences/en/locate.yaml
+#
+# {who} is a free-text wildcard: it captures whatever name or household role
+# the user speaks (e.g. "dad", "mom", "Roberto", "Ana"), which the app resolves
+# via role aliases / display names / raw names (src.presence_roles.resolve_person)
+# before answering with the current place. Read-only query — no actuation, so
+# no code-gating needed (unlike the alarm's AlarmDisarmWithCode).
+language: "en"
+
+lists:
+  who:
+    wildcard: true
+
+intents:
+  Locate:
+    data:
+      - sentences:
+          - "(where's|where is|wheres) {who}"
+          - "(where's|where is|wheres) my {who}"
+          - "(what's|what is|whats) {who}[']s location"
+          - "locate {who}"
+          - "find {who}"

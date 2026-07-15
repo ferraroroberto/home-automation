@@ -22,6 +22,7 @@ import { renderSchedules, loadSecuritySchedules } from './security-schedules.js'
 import { renderScenePairings, loadScenePairings } from './security-scene.js';
 import { renderSecurityOverrides, loadSecurityOverrides } from './security-override.js';
 import { renderPresence, loadPresence, loadLocation, loadPresenceAutomation } from './presence.js';
+import { renderPresencePlaces, loadPresencePlaces } from './presence-places.js';
 import { loadNotifyPrefs } from './security-notify.js';
 import { createPoller } from './poll.js';
 
@@ -32,6 +33,7 @@ export { wireSecuritySchedules } from './security-schedules.js';
 export { wireScenePairings } from './security-scene.js';
 export { wireSecurityOverrides } from './security-override.js';
 export { wirePresenceControls } from './presence.js';
+export { wirePresencePlaces } from './presence-places.js';
 export { wireSecurityNotify } from './security-notify.js';
 
 const POLL_MS = 10_000;
@@ -124,6 +126,7 @@ export function renderSecurity() {
   renderEvents();
   renderZones();
   renderPresence();
+  renderPresencePlaces();
   renderSecurityFeedback();
   if (securityViewState === 'stale') disableSecurityActions();
 }
@@ -134,7 +137,9 @@ async function loadSecurityState() {
     reportFetchOk('security');
     setSecurityViewState('ready', { updatedAt: new Date() });
     renderSecurity();
-    if (state.tab === 'security') loadPresence();
+    // Presence also polls on Home (the locator card, issue #438) — same
+    // precedent as the alarm tile being actionable on Home too (issue #72).
+    if (state.tab === 'security' || state.tab === 'home') loadPresence();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     markSecurityFailure();
@@ -171,10 +176,11 @@ export function onSecurityTab(tab) {
   // as well as on the Security tab (issue #72).
   if (tab === 'security' || tab === 'home') {
     loadSecurity();
+    loadPresence();
     if (tab === 'security') {
-      loadPresence();
       loadLocation();
       loadPresenceAutomation();
+      loadPresencePlaces();
       loadSecuritySchedules();
       loadScenePairings();
       loadSecurityOverrides();
