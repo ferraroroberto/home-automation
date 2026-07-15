@@ -304,6 +304,17 @@ Alarm behavior:
 - Any manual alarm action in the UI suppresses automation until a later presence transition.
 - Each attempted transition appends a JSONL audit row to `logs/presence_triggers.jsonl` (gitignored).
 
+### Family locator — "where's mom/dad" (#438)
+
+A voice-queryable locator layered on top of the same presence data above — read-only, no new iCloud locate cost. Two pieces, both configured from the Security tab's Presence card:
+
+- **Places** (Presence card → **Places**): named places (e.g. "the gym", "Roberto's work") with a radius, so the locator can say "Roberto is at the gym" instead of just a distance from home. Add one by typing coordinates, tapping **Use my current location**, or **Pick on map…** (an interactive Leaflet map — click/drag the pin, then confirm; the label auto-suggests via reverse-geocoding the picked point).
+- **Role** (a person's detail modal → **Role**): an optional household-role alias (e.g. "dad", "mom") alongside their display name, so "where's dad" and "where's Roberto" resolve to the same person.
+
+`GET /api/presence` gains a `current_place` field per entity — the closest configured place within its radius, else "Home"/"Away" (from cached Find My coordinates for iCloud entities, or the webhook `home`/`away` state for Shortcut-backed people, which carry no coordinates). A collapsible **"Mom & Dad locator"** card on the Home tab shows this at a glance for every tracked (non-hidden) person — with their role as a badge when one is set — sourced from the same poll as the Presence card (no extra network cadence).
+
+The voice bridge (`GET /api/presence/locate?who=<text>`, resolved via role → display name → raw name, in that order) is wired as a Tier-1 deterministic Home Assistant command — see [`docs/voice-pe-config/README.md`](docs/voice-pe-config/README.md#family-locator-issue-438--wheres-momdad) for the installed sentence list and [`docs/voice-control.md`](docs/voice-control.md) for the architecture.
+
 ### Web Push setup
 
 Web Push is browser-native push for the installed PWA. The app stores a browser subscription locally and uses VAPID keys to send a notification from the server when a presence transition fires. There is no third-party notification account, but iOS requires the dashboard to be opened as an installed PWA from the home screen before push subscriptions work.

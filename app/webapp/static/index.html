@@ -13,6 +13,7 @@
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/icon-512.png">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/static/styles.css">
   <title>Home Automation</title>
   <script>
@@ -97,6 +98,10 @@
     <symbol id="i-clock" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" />
       <path d="M12 6v6l4 2" />
+    </symbol>
+    <symbol id="i-map-pin" viewBox="0 0 24 24" fill="none">
+      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+      <circle cx="12" cy="10" r="3" />
     </symbol>
     <symbol id="i-sun" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="4" />
@@ -536,6 +541,22 @@
             5&nbsp;minutes”.
           </p>
         </div>
+      </details>
+
+      <!-- "Where's mom/dad" locator (issue #438) — resolved current place per
+           tracked (non-hidden) person — role badge when one is set — from the
+           same cached GET /api/presence data the Security-tab Presence card polls
+           (no new network cadence). Collapsible, styled like the wake-alarms
+           card above. -->
+      <details class="card card--collapsible locator-card" aria-label="Family locator">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+            <h3 class="collapse-title">Mom &amp; Dad locator</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div id="locatorList" class="locator-list" aria-live="polite"></div>
       </details>
 
       <!-- Activity log (#289): a button — not a tab — opening the admin/telemetry
@@ -1164,6 +1185,25 @@
             <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
           </div>
         </details>
+
+        <!-- Named places for the "where's mom/dad" voice locator (issue #438).
+             Dense-collection editor — same summary-row + staged-dialog contract
+             as the alarm-schedules card above. -->
+        <details class="presence-places-card" id="presencePlacesCard">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+              <h3 class="collapse-title">Places</h3>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="presence-places-body">
+            <p class="muted small">Named places (e.g. "the gym", "Roberto's work") the voice locator can name instead of just a distance from home.</p>
+            <div id="presencePlacesList" class="alarm-schedule-list"></div>
+            <p id="presencePlacesNote" class="muted small security-note" hidden></p>
+            <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
+          </div>
+        </details>
       </details>
 
       <details class="card card--collapsible security-card security-notify-card" aria-label="Notifications">
@@ -1344,6 +1384,64 @@
 
       <div class="detail-actions">
         <button id="securityScheduleSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Named-place add/edit dialog (issue #438). Lat/lon can be typed directly,
+       filled from the device's own location, or picked on the map below. -->
+  <dialog id="presencePlaceDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="presencePlaceEditorTitle">Place</h2>
+        <button id="presencePlaceEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Label</span>
+        <input id="presencePlaceLabel" type="text" class="input-native" placeholder="e.g. the gym">
+      </label>
+      <label class="row">
+        <span>Latitude</span>
+        <input id="presencePlaceLat" type="number" step="0.000001" class="input-native" placeholder="—">
+      </label>
+      <label class="row">
+        <span>Longitude</span>
+        <input id="presencePlaceLon" type="number" step="0.000001" class="input-native" placeholder="—">
+      </label>
+      <label class="row">
+        <span>Radius (m)</span>
+        <input id="presencePlaceRadius" type="number" min="10" step="10" class="input-native" value="150">
+      </label>
+
+      <div class="place-coord-btns">
+        <button id="presencePlaceUseBrowser" type="button" class="big-btn">Use my current location</button>
+        <button id="presencePlacePickMap" type="button" class="big-btn">Pick on map…</button>
+      </div>
+
+      <button id="presencePlaceDelete" type="button" class="schedule-editor-delete" hidden>Delete place</button>
+
+      <div class="detail-actions">
+        <button id="presencePlaceSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Interactive map-pin picker (issue #438) — an alternative to "Use my
+       current location" for a place that isn't where the phone is right now.
+       Leaflet is vendored self-hosted (static/vendor/leaflet/), OSM raster
+       tiles fetched at runtime; lazy-initialized on first open. -->
+  <dialog id="presenceMapPickerDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Pick a location</h2>
+        <button id="presenceMapPickerClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small">Tap or drag the pin to the place you mean.</p>
+      <div id="presenceMapPicker" class="place-map-picker"></div>
+      <p id="presenceMapPickerCoords" class="muted small">—</p>
+      <div class="detail-actions">
+        <button id="presenceMapPickerConfirm" type="button" class="detail-save-btn">Use this location</button>
       </div>
     </div>
   </dialog>
@@ -1636,6 +1734,12 @@
       </label>
       <p id="presenceOriginalName" class="muted small zone-original-name"></p>
 
+      <label class="row">
+        <span>Role</span>
+        <input id="presenceRole" type="text" class="input-native" placeholder="e.g. dad, mom…">
+      </label>
+      <p class="muted small">Lets the voice locator answer "where's dad" the same as "where's Roberto".</p>
+
       <div class="row">
         <span>Hidden</span>
         <button id="presenceHiddenDetailToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide presence entity">
@@ -1827,6 +1931,7 @@
 
   <!-- Chart.js (vendored UMD, v4.4.7) — exposes window.Chart for charts.js. -->
   <script src="/static/vendor/chart.umd.min.js"></script>
+  <script src="/static/vendor/leaflet/leaflet.js"></script>
   <script type="module" src="/static/main.js"></script>
 </body>
 </html>

@@ -50,6 +50,17 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
+  # Family locator (issue #438) — read-only "where's mom/dad" query. {who} is
+  # the spoken name/role; the app resolves it and returns a ready-made speech
+  # string (found or not), same "app owns the spoken text" pattern as the wake
+  # alarms/grocery commands below.
+  presence_locate:
+    url: "https://192.168.0.13:8447/api/presence/locate?who={{ who | urlencode }}"
+    method: GET
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 15
   # Wake alarms (issue #306) — distinct from the RISCO alarm above. {when} is
   # the spoken time/schedule; the app parses it and returns a spoken reply.
   wake_alarm_set:
@@ -146,6 +157,21 @@ intent_script:
   AlarmDisarmPrompt:
     speech:
       text: "To disarm, say disarm followed by your code."
+
+  # Family locator (issue #438). Read-only — the app resolves {who} and
+  # returns a ready-made `speech` string either way, so this template just
+  # relays it (same relay-only shape as the wake-alarm/grocery intents below).
+  Locate:
+    action:
+      - service: rest_command.presence_locate
+        data:
+          who: "{{ who }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach the locator.{% endif %}
 
   # Wake alarms (issue #306). The app parses the spoken time and returns a
   # ready-made `speech` string, so these templates just relay it.

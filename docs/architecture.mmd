@@ -26,7 +26,7 @@ flowchart TB
   end
 
   subgraph core["src/ — UI-free device clients & domain logic"]
-    CLIENTS["melcloud_client · sma_client · risco_client/risco_webui ·\ntuya_client · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine ·\nups_client (+host_shutdown) · hyperv_client"]
+    CLIENTS["melcloud_client · sma_client · risco_client/risco_webui ·\ntuya_client · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine/\npresence_places/presence_roles · ups_client (+host_shutdown) ·\nhyperv_client"]
     DOMAIN["tariff · pv_forecast · hvac_automation · dhcp_plan ·\ntelemetry / energy_history / network_history"]
     STORES["display_names & sibling rename/hidden/prefs stores\n(_atomic_json · _schedule_store · _toggle_prefs)"]
     NOTIFY["notify/ (TelegramNotifier) + push_notifications.py"]
@@ -59,7 +59,7 @@ flowchart TB
     SERVER["server.py + middleware.py"]
     ROUTERS["routers/ — units · energy · security · network · dhcp_plan ·\ncameras · presence · hyperv · tuya · ups · lights · weather ·\npush · wake_alarms · auth · misc"]
     BGTASKS["background tasks (app lifespan) — sampler · automation ·\nsecurity_automation · presence_automation · wake_alarm_automation ·\nsecurity_override_automation · power_monitor"]
-    STATIC["static/ — PWA (main.js, tabs.js + per-tab modules,\nservice worker, Chart.js vendor)"]
+    STATIC["static/ — PWA (main.js, tabs.js + per-tab modules,\nservice worker, Chart.js + Leaflet vendor)"]
   end
 
   CLIENTS --> ROUTERS
