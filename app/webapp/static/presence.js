@@ -171,11 +171,30 @@ function markPresenceFailure() {
   renderPresence();
 }
 
+// Fail loud when the Find My diagnostics source itself is broken (#442) —
+// distinct from a person simply being "away, unknown exact location".
+const LOCATOR_BROKEN_SOURCE_REASONS = ['error', '2fa_required', 'not_configured'];
+function renderLocatorSourceNote() {
+  if (!els.locatorSourceNote) return;
+  const diag = (state.presence && state.presence.diagnostics) || {};
+  const broken = diag.available === false && LOCATOR_BROKEN_SOURCE_REASONS.indexOf(diag.reason) !== -1;
+  if (!broken) {
+    els.locatorSourceNote.hidden = true;
+    els.locatorSourceNote.textContent = '';
+    return;
+  }
+  els.locatorSourceNote.textContent = diag.reason === '2fa_required'
+    ? 'Find My needs iCloud re-authentication (2FA).'
+    : 'Find My location tracking is down — needs re-authentication.';
+  els.locatorSourceNote.hidden = false;
+}
+
 // "Where's mom/dad" Home-tab locator (issue #438) — derives from the same
 // state.presence entities the Security-tab Presence card already polls, so
 // there is no separate fetch/poll cadence for this card.
 function renderLocator() {
   if (!els.locatorList) return;
+  renderLocatorSourceNote();
   els.locatorList.innerHTML = '';
   if (presenceViewState === 'loading' && !state.presence) {
     els.locatorList.appendChild(emptyStateEl('map-pin', 'Reading locations…'));
@@ -186,22 +205,20 @@ function renderLocator() {
     els.locatorList.appendChild(emptyStateEl('map-pin', 'Locator unavailable'));
     return;
   }
-  const visible = (presence.entities || []).filter(function (e) { return !e.hidden; });
+  // Only entities with a role alias appear here — a role is what makes "where's
+  // dad/mom" answerable at all, and it doubles as an explicit opt-in so the
+  // card doesn't list every tracked device/person by default (#442).
+  const visible = (presence.entities || []).filter(function (e) { return !e.hidden && e.role; });
   if (!visible.length) {
     els.locatorList.appendChild(emptyStateEl(
       'map-pin',
-      "No tracked devices yet — they appear in the Security tab's Presence card"
+      'No one has a role yet — set one (e.g. "dad", "mom") in a person’s detail modal'
     ));
     return;
   }
   visible
     .slice()
-    .sort(function (a, b) {
-      if (!!a.role !== !!b.role) return a.role ? -1 : 1;
-      const ka = a.role || presenceEntityLabel(a);
-      const kb = b.role || presenceEntityLabel(b);
-      return ka.localeCompare(kb, undefined, { sensitivity: 'base' });
-    })
+    .sort(function (a, b) { return a.role.localeCompare(b.role, undefined, { sensitivity: 'base' }); })
     .forEach(function (entity) {
       const row = document.createElement('div');
       row.className = 'locator-row';
@@ -212,20 +229,21 @@ function renderLocator() {
       name.className = 'locator-name';
       name.textContent = presenceEntityLabel(entity);
       main.appendChild(name);
-      if (entity.role) {
-        const role = document.createElement('span');
-        role.className = 'locator-role muted small';
-        role.textContent = entity.role;
-        main.appendChild(role);
-      }
+      const role = document.createElement('span');
+      role.className = 'locator-role muted small';
+      role.textContent = entity.role;
+      main.appendChild(role);
       row.appendChild(main);
 
       const status = document.createElement('span');
       status.className = 'locator-status';
       const place = document.createElement('span');
       place.className = 'locator-place';
-      place.textContent = entity.current_place || 'Unknown';
+      place.textContent = entity.current_place === 'Away'
+        ? (placeLabel(entity) || 'Away')
+        : (entity.current_place || 'Unknown');
       status.appendChild(place);
+      ensurePlaceLabel(entity);
       if (entity.last_seen) {
         const seen = document.createElement('span');
         seen.className = 'locator-meta muted small';
@@ -689,6 +707,7 @@ function openPresenceDetail(entityId) {
     els.presenceRole.disabled = isThisDevice(entity);
   }
   renderPresenceHiddenToggle(entity);
+  if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
   if (typeof els.presenceDialog.showModal === 'function') els.presenceDialog.showModal();
   else els.presenceDialog.setAttribute('open', '');
   els.presenceDisplayName.focus();
@@ -747,7 +766,7 @@ function closePresenceDetail() {
   else els.presenceDialog.removeAttribute('open');
 }
 
-async function savePresenceName() {
+async function savePresenceDetail() {
   if (!state.selectedPresenceId) return;
   const id = state.selectedPresenceId;
   const newName = els.presenceDisplayName.value.trim();
@@ -755,49 +774,38 @@ async function savePresenceName() {
     state.thisDevicePresence = Object.assign({}, state.thisDevicePresence, { display_name: newName || null });
     els.presenceDetailName.textContent = presenceEntityLabel(state.thisDevicePresence);
     renderPresence();
+    if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
     return;
   }
+  const newRole = els.presenceRole ? els.presenceRole.value.trim() : '';
   try {
-    await jsonApi('/api/presence/entity-display-name', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity_id: id, display_name: newName }),
-    });
+    await Promise.all([
+      jsonApi('/api/presence/entity-display-name', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity_id: id, display_name: newName }),
+      }),
+      jsonApi('/api/presence/role', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity_id: id, role: newRole }),
+      }),
+    ]);
     if (state.presence && Array.isArray(state.presence.entities)) {
       state.presence.entities = state.presence.entities.map(function (e) {
-        return e.entity_id === id ? Object.assign({}, e, { display_name: newName || null }) : e;
+        return e.entity_id === id
+          ? Object.assign({}, e, { display_name: newName || null, role: newRole || null })
+          : e;
       });
     }
     const entity = presenceById(id);
     if (entity) els.presenceDetailName.textContent = presenceEntityLabel(entity);
     renderPresence();
-    toast('Name saved', 'success');
+    if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
+    toast('Saved', 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
-      toast('Failed to save name: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
-async function savePresenceRole() {
-  if (!state.selectedPresenceId || state.selectedPresenceId === '__this_device__') return;
-  const id = state.selectedPresenceId;
-  const newRole = els.presenceRole.value.trim();
-  try {
-    await jsonApi('/api/presence/role', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity_id: id, role: newRole }),
-    });
-    if (state.presence && Array.isArray(state.presence.entities)) {
-      state.presence.entities = state.presence.entities.map(function (e) {
-        return e.entity_id === id ? Object.assign({}, e, { role: newRole || null }) : e;
-      });
-    }
-    toast('Role saved', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save role: ' + (exc.message || exc), 'error');
+      toast('Failed to save: ' + (exc.message || exc), 'error');
     }
   }
 }
@@ -916,18 +924,16 @@ export function wirePresenceControls() {
       if (ev.target === els.presenceDialog) closePresenceDetail();
     });
   }
-  if (els.presenceDisplayName) {
-    els.presenceDisplayName.addEventListener('blur', savePresenceName);
-    els.presenceDisplayName.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Enter') { ev.preventDefault(); els.presenceDisplayName.blur(); }
+  [els.presenceDisplayName, els.presenceRole].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('input', function () {
+      if (els.presenceDetailSave) els.presenceDetailSave.disabled = false;
     });
-  }
-  if (els.presenceRole) {
-    els.presenceRole.addEventListener('blur', savePresenceRole);
-    els.presenceRole.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Enter') { ev.preventDefault(); els.presenceRole.blur(); }
+    el.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); savePresenceDetail(); }
     });
-  }
+  });
+  if (els.presenceDetailSave) els.presenceDetailSave.addEventListener('click', savePresenceDetail);
   if (els.presenceHiddenDetailToggle) {
     els.presenceHiddenDetailToggle.addEventListener('click', togglePresenceHidden);
   }
