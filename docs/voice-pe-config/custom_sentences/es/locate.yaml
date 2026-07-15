@@ -1,0 +1,29 @@
+# Home Assistant custom sentences — family locator in SPANISH (#446).
+#
+# Install at the HA VM path: /config/custom_sentences/es/locate.yaml
+#
+# These match on the "Asistente (es)" pipeline (language es — wake word
+# "Hey Jarvis"), same as the grocery bridge. {who} is a free-text wildcard
+# resolved server-side (src.presence_roles.resolve_person), which folds
+# accents and kinship variants — "papá"/"papa" both resolve to the dad role.
+# The fixed `lang: es` slot rides through intent_script.Locate so the app
+# answers in Spanish (the pipeline's Piper voice is es_ES).
+#
+# Critical accented words are written as (dónde|donde)-style alternatives so
+# a transcription with or without the accent matches either way.
+language: "es"
+
+lists:
+  who:
+    wildcard: true
+
+intents:
+  Locate:
+    data:
+      - sentences:
+          - "(dónde|donde) (está|esta) [mi] {who}"
+          - "(dónde|donde) anda {who}"
+          - "localiza [a] {who}"
+          - "encuentra [a] {who}"
+        slots:
+          lang: "es"

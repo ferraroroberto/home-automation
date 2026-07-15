@@ -186,6 +186,48 @@ def test_presence_locate_reports_home_and_unknown_person(
     assert body["speech"] == "I don't know who grandma is."
 
 
+def test_presence_locate_accepts_variants_and_speaks_spanish(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Kinship variants resolve, and ``lang=es`` answers in Spanish (#446)."""
+    import src.presence_display_names as pdn
+    import src.presence_places as pp
+    import src.presence_roles as pr
+    from src.presence_engine import PersonPresence
+
+    monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
+    monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
+    monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
+    pr.set_presence_role("ana", "mom")
+
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.load_people",
+        lambda: {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))},
+    )
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.get_cache",
+        lambda: PresenceDiagnosticsCache(
+            entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
+        ),
+    )
+
+    # Whisper-heard variants of the configured role resolve on the default (en) path.
+    for spoken in ("mum", "mummy", "mama"):
+        body = client.get("/api/presence/locate", params={"who": spoken}).json()
+        assert body["found"] is True, spoken
+        assert body["speech"] == "ana is home."
+
+    # The Spanish pipeline gets Spanish speech, accents optional.
+    for spoken in ("mamá", "mama"):
+        body = client.get("/api/presence/locate", params={"who": spoken, "lang": "es"}).json()
+        assert body["found"] is True, spoken
+        assert body["speech"] == "ana está en casa."
+
+    body = client.get("/api/presence/locate", params={"who": "grandma", "lang": "es"}).json()
+    assert body["found"] is False
+    assert body["speech"] == "No sé quién es grandma."
+
+
 def test_presence_locate_refreshes_stale_cache_on_demand(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
