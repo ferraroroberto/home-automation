@@ -1773,7 +1773,8 @@ button.security-zone-name:hover { text-decoration: underline; }
 /* Home cards space themselves with their own bottom margin (there is no flex
    gap on the pane) — match the --gap the ac-summary/plugs-summary siblings use
    so the gap below this card equals the others. */
-.wake-alarms-card { margin-bottom: var(--gap); }
+.wake-alarms-card,
+.locator-card { margin-bottom: var(--gap); }
 .wake-section-head {
   color: var(--muted);
   font-size: var(--font-caption);

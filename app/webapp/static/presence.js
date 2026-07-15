@@ -186,17 +186,22 @@ function renderLocator() {
     els.locatorList.appendChild(emptyStateEl('map-pin', 'Locator unavailable'));
     return;
   }
-  const withRole = (presence.entities || []).filter(function (e) { return e.role && !e.hidden; });
-  if (!withRole.length) {
+  const visible = (presence.entities || []).filter(function (e) { return !e.hidden; });
+  if (!visible.length) {
     els.locatorList.appendChild(emptyStateEl(
       'map-pin',
-      "No one configured yet — set a role in the Security tab's Presence card"
+      "No tracked devices yet — they appear in the Security tab's Presence card"
     ));
     return;
   }
-  withRole
+  visible
     .slice()
-    .sort(function (a, b) { return a.role.localeCompare(b.role, undefined, { sensitivity: 'base' }); })
+    .sort(function (a, b) {
+      if (!!a.role !== !!b.role) return a.role ? -1 : 1;
+      const ka = a.role || presenceEntityLabel(a);
+      const kb = b.role || presenceEntityLabel(b);
+      return ka.localeCompare(kb, undefined, { sensitivity: 'base' });
+    })
     .forEach(function (entity) {
       const row = document.createElement('div');
       row.className = 'locator-row';
@@ -206,11 +211,13 @@ function renderLocator() {
       const name = document.createElement('span');
       name.className = 'locator-name';
       name.textContent = presenceEntityLabel(entity);
-      const role = document.createElement('span');
-      role.className = 'locator-role muted small';
-      role.textContent = entity.role;
       main.appendChild(name);
-      main.appendChild(role);
+      if (entity.role) {
+        const role = document.createElement('span');
+        role.className = 'locator-role muted small';
+        role.textContent = entity.role;
+        main.appendChild(role);
+      }
       row.appendChild(main);
 
       const status = document.createElement('span');
