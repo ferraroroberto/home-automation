@@ -117,6 +117,44 @@ A known wart, captured in the how-to: the shipped intents speak off the HTTP `20
 arm that the panel silently refuses (e.g. a zone left open) is still confirmed aloud —
 the recommended fix is to read the *resulting* state back before speaking (#241).
 
+### STT vocabulary bias — household names (#444)
+
+"Ok Nabu, where's dad" was intermittently mis-transcribed by Whisper as "where's
+that" — a phonetic near-miss for this household's non-native-English accent, verified
+via text probe (`--text "where is that"` reproduces the exact failure; `--text "where
+is dad"` resolves correctly). The fix biases whisper's recognition toward the
+household's names/roles, but **not** via the HA integration's `prompt` option (see
+above — verified as a no-op on this whisper.cpp build). Instead:
+
+- `local-llm-hub#290` added a gitignored local overlay
+  (`config/transcription_glossary.local.json`) to the hub's existing launch-time
+  `boost_terms` vocabulary-boosting mechanism (issue #91), so private vocabulary never
+  has to be committed to that public repo.
+- The overlay is populated live-only on the hub host with this household's names/roles
+  (`dad`, `mom`, `papá`, `mamá`, plus first names) — not committed here or there, per
+  the same "repo is public, no real names in git" rule as `config/presence_roles.json`.
+  Binds on the next `whisper` model-row (re)start (Models tab or admin API — boosting
+  is a launch-time arg, not a live toggle).
+- `voice-transcriber#131` was a **prerequisite**: port 8090 is mutex-shared between
+  that project and `local-llm-hub`, and voice-transcriber's `whisper_server.yaml`
+  defaulted to `mode: local`, which hard-fails if it ever needs to (re)start while the
+  hub's process holds the port — flipped to `mode: external` (graceful reuse) so
+  handing the port to the hub's boosted instance can't silently break dictation later.
+
+**What's verified vs. not:** the boost vocabulary is confirmed live in the running
+whisper-server's actual `--prompt` argument (checked via its process command line), and
+round-trip TTS→STT probes confirm boosting has no observable effect on
+already-unambiguous words ("dad", "mom" transcribe correctly with or without it — no
+regression). What synthetic testing **cannot** prove is whether boosting actually
+corrects this household's specific accent-driven confusion — clean TTS audio never
+reproduces the ambiguity a real accent creates, and a `Nonna`-mishearing probe used as
+a proxy showed no measurable correction from boosting alone. The real acceptance test
+is physical: say "Ok Nabu, where's dad" a few times and check
+`logs/presence_locate.jsonl` for `who: dad` resolving correctly. If it still misfires,
+whisper's prompt-based biasing may simply be too weak for this specific confusion, and
+the issue's own "last resort" (phonetic-confusion tolerance in
+`src.presence_roles.resolve_person`) would need reconsidering.
+
 ## Setup reference
 
 ### Substrate
@@ -141,6 +179,13 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 
 - **OpenAI Whisper Cloud** (STT) — entry "Custom Whisper": provider *Custom*, URL
   `http://192.168.0.13:8000/v1/audio/transcriptions`, model `whisper`, key = hub token.
+  Its options flow exposes a per-request `prompt` field, but **do not set it** —
+  verified empirically (#444) that this whisper.cpp server build silently ignores
+  a per-request prompt entirely (its own request form doesn't even list one); the
+  only mechanism that measurably biases recognition is the hub's launch-time
+  `--carry-initial-prompt` + `boost_terms`. Household-name STT bias (mishearing
+  "dad" as "that", #444) is wired there instead — see "STT vocabulary bias"
+  below.
 - **OpenAI TTS** (sfortis) — entry "OpenAI TTS - Hub Orpheus": endpoint
   `http://192.168.0.13:8000/v1/audio/speech`, model **`piper`**, voice **`amy`** (→
   `en_US-amy-medium`), `audio_format` mp3, chime OFF, key = hub token. Was Orpheus
