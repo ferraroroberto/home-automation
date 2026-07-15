@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import logging
 from dataclasses import asdict
@@ -15,7 +16,8 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_int
-from app.webapp.presence_refresher import get_cache, refresh_once
+from app.webapp.presence_refresher import PresenceDiagnosticsCache, get_cache, refresh_once
+from src.activity_log import append_activity
 from src.location_config import LocationConfig, load_location_config, save_location_config
 from src.presence_client import PresenceEntity
 from src.presence_display_names import (
@@ -282,18 +284,84 @@ async def update_presence_places(request: Request) -> Dict[str, Any]:
     return _places_payload(set_presence_places(entries))
 
 
+_LOCATE_STALE_AFTER_S_DEFAULT = 120
+_LOCATE_REFRESH_TIMEOUT_S_DEFAULT = 5
+
+
+def _cache_is_stale(cache: PresenceDiagnosticsCache, *, now: datetime) -> bool:
+    if cache.refreshed_at is None:
+        return True
+    stale_after_s = max(0, _env_int("PRESENCE_LOCATE_STALE_AFTER_S", _LOCATE_STALE_AFTER_S_DEFAULT))
+    return (now - cache.refreshed_at).total_seconds() > stale_after_s
+
+
+async def _cache_for_locate(*, now: datetime) -> PresenceDiagnosticsCache:
+    """Cached by default; a bounded on-demand refresh when the cache is stale (#442).
+
+    A locate query is user-initiated and rare, so one extra Apple round-trip per
+    question is acceptable and doesn't change the background refresh cadence
+    (``GET /api/presence`` still reads the cache as-is, no refresh triggered).
+    """
+
+    cache = get_cache()
+    if not _cache_is_stale(cache, now=now):
+        return cache
+    timeout_s = max(1, _env_int("PRESENCE_LOCATE_REFRESH_TIMEOUT_S", _LOCATE_REFRESH_TIMEOUT_S_DEFAULT))
+    try:
+        return await asyncio.wait_for(refresh_once(), timeout=timeout_s)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "⚠️ On-demand presence refresh timed out after %ds; using cached snapshot", timeout_s
+        )
+        return get_cache()
+
+
+def _place_speech(display_name: str, place: str) -> str:
+    if place == "Home":
+        return f"{display_name} is home."
+    if place in ("Away", UNKNOWN_PLACE):
+        return f"{display_name} is away — I don't know exactly where."
+    return f"{display_name} is at {place}."
+
+
+def _broken_source_speech(display_name: str, cache: PresenceDiagnosticsCache) -> str:
+    """Speech for a person known only via a role/display-name alias that isn't in
+    either live source right now — normally an iCloud-only entity whose Find My
+    refresh is currently failing, not a person who is just "away" (#442)."""
+
+    if cache.reason == "2fa_required":
+        return f"{display_name}'s location tracking needs iCloud re-authentication."
+    if cache.reason in ("error", "not_configured"):
+        return f"{display_name}'s location tracking is down — needs re-authentication."
+    return f"I can't find {display_name}'s location right now."
+
+
+async def _resolved_away_place(entity: PresenceEntity, place: str) -> str:
+    """Reverse-geocode a located-but-unmatched-place entity instead of a bare
+    "Away" (#442) — e.g. "Gran Via, Barcelona", mirroring the reverse-geocoded
+    label the Presence card already shows for the same coordinates. Only
+    "Away" (real coordinates, no configured place matched) is eligible; a
+    named-place match or a missing location passes through unchanged."""
+
+    if place != "Away" or entity.latitude is None or entity.longitude is None:
+        return place
+    result = await _reverse_geocode(entity.latitude, entity.longitude)
+    label = result.get("label") if isinstance(result, dict) else ""
+    return label or place
+
+
 @router.get("/api/presence/locate")
 async def get_presence_locate(who: str) -> Dict[str, Any]:
     """Resolve a spoken name/role to a current place — the voice-bridge endpoint (#438).
 
-    Cached-only by design (no new iCloud locate cost): reads whatever the
-    background diagnostics refresher already holds, same as ``GET /api/presence``.
+    Reads the background diagnostics refresher's cache, same as ``GET
+    /api/presence``, but refreshes on demand when that cache is stale (#442).
     """
 
     now = now_utc()
     roles = load_presence_roles()
     names = load_presence_display_names()
-    cache = get_cache()
+    cache = await _cache_for_locate(now=now)
     places = load_presence_places()
 
     icloud_entities = {entity.entity_id: entity for entity in cache.entities}
@@ -309,13 +377,15 @@ async def get_presence_locate(who: str) -> Dict[str, Any]:
         known_names=known_names,
     )
     if entity_id is None:
-        return {
+        result = {
             "found": False,
             "entity_id": None,
             "name": who.strip(),
             "place": None,
             "speech": f"I don't know who {who.strip()} is.",
         }
+        append_activity("presence_locate", {"who": who, **result})
+        return result
 
     display_name = names.get(entity_id) or known_names.get(entity_id) or entity_id
 
@@ -328,7 +398,9 @@ async def get_presence_locate(who: str) -> Dict[str, Any]:
             has_location=entity.has_location,
             places=places,
         )
-    else:
+        place = await _resolved_away_place(entity, place)
+        speech = _place_speech(display_name, place)
+    elif entity_id in people:
         person = people[entity_id]
         place = resolve_place(
             latitude=None,
@@ -337,15 +409,17 @@ async def get_presence_locate(who: str) -> Dict[str, Any]:
             has_location=False,
             places=places,
         )
-
-    if place == "Home":
-        speech = f"{display_name} is home."
-    elif place in ("Away", UNKNOWN_PLACE):
-        speech = f"{display_name} is away — I don't know exactly where."
+        speech = _place_speech(display_name, place)
     else:
-        speech = f"{display_name} is at {place}."
+        # Known via a role/display-name alias but absent from both live sources
+        # right now — the Find My cache is empty because the diagnostics
+        # refresher is down, not because this person is simply "away" (#442).
+        place = UNKNOWN_PLACE
+        speech = _broken_source_speech(display_name, cache)
 
-    return {"found": True, "entity_id": entity_id, "name": display_name, "place": place, "speech": speech}
+    result = {"found": True, "entity_id": entity_id, "name": display_name, "place": place, "speech": speech}
+    append_activity("presence_locate", {"who": who, **result})
+    return result
 
 
 @router.get("/api/presence/automation")
@@ -427,12 +501,15 @@ def _short_place(display_name: str) -> str:
     return " · ".join(parts[:3]) if parts else display_name
 
 
-@router.get("/api/location/reverse")
-async def reverse_location(lat: float, lon: float) -> Dict[str, Any]:
-    """Return a short place label for coordinates using OpenStreetMap Nominatim."""
+async def _reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
+    """Look up (and cache) a short place label for coordinates via Nominatim.
 
-    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
-        raise HTTPException(status_code=400, detail="lat/lon out of range")
+    Shared by the browser-facing ``/api/location/reverse`` endpoint and the
+    voice-bridge locate resolution (#442) — same cache, so a coordinate already
+    looked up for the Presence card's place label costs nothing to reuse for
+    speech.
+    """
+
     key = f"{lat:.4f},{lon:.4f}"
     if key in _REVERSE_CACHE:
         return _REVERSE_CACHE[key]
@@ -452,3 +529,12 @@ async def reverse_location(lat: float, lon: float) -> Dict[str, Any]:
     payload = {"available": bool(label), "label": label}
     _REVERSE_CACHE[key] = payload
     return payload
+
+
+@router.get("/api/location/reverse")
+async def reverse_location(lat: float, lon: float) -> Dict[str, Any]:
+    """Return a short place label for coordinates using OpenStreetMap Nominatim."""
+
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        raise HTTPException(status_code=400, detail="lat/lon out of range")
+    return await _reverse_geocode(lat, lon)

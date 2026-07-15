@@ -247,6 +247,8 @@ export const els = {
   presenceMapPickerConfirm: document.getElementById('presenceMapPickerConfirm'),
   // Home-tab "Mom & Dad locator" card (issue #438).
   locatorList: document.getElementById('locatorList'),
+  locatorSourceNote: document.getElementById('locatorSourceNote'),
+  presenceDetailSave: document.getElementById('presenceDetailSave'),
   // Detector (zone) detail + rename modal
   zoneDialog: document.getElementById('zoneDialog'),
   zoneDetailName: document.getElementById('zoneDetailName'),

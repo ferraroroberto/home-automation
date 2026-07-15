@@ -1775,6 +1775,11 @@ button.security-zone-name:hover { text-decoration: underline; }
    so the gap below this card equals the others. */
 .wake-alarms-card,
 .locator-card { margin-bottom: var(--gap); }
+.locator-source-note {
+  margin: 0 4px var(--space-sm);
+  color: var(--attention);
+  font-size: var(--font-caption);
+}
 .wake-section-head {
   color: var(--muted);
   font-size: var(--font-caption);
