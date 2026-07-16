@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from typing import Callable, Dict, List
 
 from playwright.sync_api import Locator, Page, expect
@@ -27,19 +28,6 @@ from tests.e2e._geometry import (
 def _boot(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-
-
-def _open_ha_card(page: Page) -> None:
-    """Open the #239 disclosure without letting a UI test touch live HA."""
-    page.route(
-        "**/api/ha",
-        lambda route: route.fulfill(
-            status=200,
-            content_type="application/json",
-            body='{"satellites":[],"interactions":[],"voice_transcriber":true}',
-        ),
-    )
-    page.locator("#homeAssistantCard > summary").click()
 
 
 def _stable_effective_rects(locator: Locator) -> List[EffectiveRect]:
@@ -299,14 +287,13 @@ def test_vm_tile_distinguishes_loading_from_not_found(
     """)
     _boot(page, base_url)
 
-    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "loading")
-    expect(page.locator("#homeVmTile .empty-state-message")).to_have_text(
-        "Reading Home Assistant status…"
-    )
-    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "empty")
-    expect(page.locator("#homeVmTile .empty-state-message")).to_have_text(
-        "Home Assistant VM not found"
-    )
+    # #461: the summary row is the whole VM surface — status text + switch.
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "loading")
+    expect(page.locator("#homeAssistantSummaryState")).to_have_text("Reading status…")
+    expect(page.locator("#homeVmToggle")).to_be_disabled()
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "empty")
+    expect(page.locator("#homeAssistantSummaryState")).to_have_text("VM not found")
+    expect(page.locator("#homeVmToggle")).to_be_disabled()
 
 
 def test_vm_tile_shows_contextual_unavailable_state(
@@ -325,10 +312,8 @@ def test_vm_tile_shows_contextual_unavailable_state(
     )
     _boot(page, base_url)
 
-    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "error")
-    expect(page.locator("#homeVmTile .empty-state-message")).to_have_text(
-        "Home Assistant status unavailable"
-    )
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "error")
+    expect(page.locator("#homeAssistantSummaryState")).to_have_text("status unavailable")
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.80")
 
 
@@ -370,16 +355,21 @@ def test_vm_status_error_keeps_start_action_when_vm_is_identified(
     )
     _boot(page, base_url)
 
-    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "error")
-    start = page.locator("#homeVmTile .empty-state-action")
-    expect(start).to_have_text("Start Home Assistant")
-    expect(start).to_be_enabled()
-    _open_ha_card(page)
-    start.click()
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "error")
+    # An unreachable-but-identified VM keeps the summary switch usable for
+    # start (#461: the switch replaced the old tile's "Start Home Assistant").
+    toggle = page.locator("#homeVmToggle")
+    expect(toggle).to_be_enabled()
+    expect(toggle).to_have_attribute("aria-checked", "false")
+    toggle.click()
 
-    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "ready")
-    expect(page.locator("#homeVmTile")).to_contain_text("online")
-    expect(page.locator("#homeVmTile .vm-toggle")).to_be_enabled()
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "ready")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("online")
+    expect(toggle).to_be_enabled()
+    expect(toggle).to_have_attribute("aria-checked", "true")
+    # The switch lives inside the card's <summary>: clicking it must never
+    # fold or unfold the card.
+    expect(page.locator("#homeAssistantCard")).not_to_have_attribute("open", "")
 
 
 def test_vm_command_failure_uses_concise_toast(
@@ -411,8 +401,7 @@ def test_vm_command_failure_uses_concise_toast(
         ),
     )
     _boot(page, base_url)
-    _open_ha_card(page)
-    page.locator("#homeVmTile .empty-state-action").click()
+    page.locator("#homeVmToggle").click()
 
     expect(page.locator("#toast")).to_have_text("Couldn't start Home Assistant")
     expect(page.locator("#toast")).not_to_contain_text("Start-VM")
@@ -449,20 +438,23 @@ def test_vm_poll_failure_preserves_status_and_disables_power(
 
     page.route("**/api/hyperv", handle_vm)
     _boot(page, base_url)
-    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "ready")
-    expect(page.locator("#homeVmTile")).to_contain_text("online")
-    expect(page.locator("#homeVmTile .vm-toggle")).to_be_enabled()
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "ready")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("online")
+    expect(page.locator("#homeVmToggle")).to_be_enabled()
 
     failing["value"] = True
     page.locator("#tabAc").click()
     page.locator("#tabHome").click()
 
-    expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "stale")
-    expect(page.locator("#homeVmTile")).to_contain_text("online")
-    expect(page.locator("#homeVmTile .vm-toggle")).to_be_disabled()
-    expect(page.locator("#homeVmTile")).to_contain_text("Last updated")
-    expect(page.locator("#homeVmTile")).to_contain_text("live data unavailable")
-    expect(page.locator("#homeVmTile")).not_to_contain_text("192.0.2.80")
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "stale")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("online")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("cached")
+    expect(page.locator("#homeVmToggle")).to_be_disabled()
+    # The stale detail moved into the status text's tooltip (#461).
+    expect(page.locator("#homeAssistantSummaryState")).to_have_attribute(
+        "title", re.compile("Last updated .+ · live data unavailable")
+    )
+    expect(page.locator("#homeAssistantSummaryState")).not_to_contain_text("192.0.2.80")
 
 
 def test_ac_tab_distinguishes_loading_from_true_empty(

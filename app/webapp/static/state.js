@@ -335,7 +335,7 @@ export const els = {
   notifyAutoShutdown: document.getElementById('notifyAutoShutdown'),
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
   // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
-  homeVmTile: document.getElementById('homeVmTile'),
+  homeVmToggle: document.getElementById('homeVmToggle'),
   homeAssistantCard: document.getElementById('homeAssistantCard'),
   homeAssistantSummaryState: document.getElementById('homeAssistantSummaryState'),
   haSatellitesList: document.getElementById('haSatellitesList'),

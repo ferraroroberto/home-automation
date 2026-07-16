@@ -1094,79 +1094,16 @@ button, input, select, textarea {
   margin-left: auto;
 }
 
-/* Home Assistant Hyper-V VM tile (issue #240) — one line: identity left, a
-   status pill + Start/Stop on the right, with a muted IP·MAC sub-line beneath.
-   Reuses the same pill/token vocabulary as the UPS tile for visual identity. */
-.vm-tile {
-  /* Match the weather tile: same padding so the two single-row tiles read as
-     equal height; the status pill + toggle sit vertically centred on the row. */
-  padding: 12px 14px;
-  margin-bottom: var(--gap);
-}
-.vm-tile.is-unavailable { opacity: 0.85; }
-.vm-tile > .empty-state { padding: var(--space-sm) 0; }
-.vm-stale-note { margin: var(--space-sm) 0 0; color: var(--attention); }
-.vm-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.vm-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45em;
-  min-width: 0;
-  flex: 1 1 auto;          /* push the status pill + button to the right */
-  font-weight: 700;
-  color: var(--ink);
-}
-.vm-title .title-icon { width: 1.1em; height: 1.1em; margin-right: 0; flex: none; }
-.vm-title > span:first-of-type {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.vm-status {
-  flex: none;
-  font-size: var(--font-body);
-  font-weight: 700;
-  padding: 2px 10px;
-  border-radius: var(--radius-pill);
-  white-space: nowrap;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--muted) 14%, transparent);
-}
-.vm-status-running {
-  color: var(--on);
-  background: color-mix(in srgb, var(--on) 14%, transparent);
-}
-.vm-status-unavailable {
-  color: var(--deficit);
-  background: color-mix(in srgb, var(--deficit) 16%, transparent);
-}
-.vm-status-transition {
-  color: var(--attention);
-  background: color-mix(in srgb, var(--attention) 16%, transparent);
-}
-/* The control is the canonical .toggle switch (on = running), same as AC power
-   and plugs; .vm-toggle only needs to sit flush at the row's right edge. */
-.vm-toggle { flex: none; }
-.vm-meta { margin-top: 6px; }
-
-/* Home Assistant disclosure (#239): the former one-line VM card is now the
-   folded summary for VM + Voice PE. Detailed network work happens only open. */
+/* Home Assistant disclosure (#239; #461 folded the old VM body tile away):
+   the summary row is the whole VM surface — live status text + the canonical
+   .toggle power switch (on = running, same as AC power and plugs) — and the
+   body is nothing but the equidistant folded subsections. */
 .ha-card { margin-bottom: var(--gap); }
-.ha-card-body { padding: 2px 14px 12px; }
 .ha-summary-state { margin-left: auto; white-space: nowrap; }
 .ha-summary-running { color: var(--on); }
 .ha-summary-unavailable { color: var(--deficit); }
 .ha-summary-transition { color: var(--attention); }
-.ha-vm-row {
-  margin: 0;
-  padding: 10px 0;
-}
+.vm-toggle { flex: none; }
 .ha-note { margin: 9px 0 0; }
 .ha-satellite-list,
 .ha-interaction-list { display: flex; flex-direction: column; }
@@ -1235,6 +1172,10 @@ button, input, select, textarea {
    pattern — a hairline-separated 48px .collapse-summary per section, all
    folded by default. Rules shared with the presence nested cards below. */
 .ha-subsection-body { padding: 12px 14px 14px; }
+/* The first subsection sits directly under the open card's summary, which
+   already draws its own border-bottom — a border-top here would double the
+   hairline and break the uniform row rhythm. */
+.ha-card > summary + .ha-subsection { border-top: 0; }
 
 /* Voice reference sections (#437, shared with the "What can I do?" guide in
    #461). The spoken example is the one thing the eye should land on, so it

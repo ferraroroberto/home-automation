@@ -149,7 +149,9 @@ def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
 
     card.locator("> summary").click()
     expect(card).to_have_attribute("open", "")
-    expect(page.locator("#homeVmTile .vm-title use")).to_have_attribute("href", "#i-timer")
+    # #461: the VM surface is the summary itself — status text + power switch.
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("online")
+    expect(page.locator("#homeVmToggle")).to_have_attribute("aria-checked", "true")
 
     # #461: everything but the uptime tile lives in Presence-style nested
     # subsections, all folded by default, each with a hit-target summary.

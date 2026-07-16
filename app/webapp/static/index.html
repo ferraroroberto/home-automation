@@ -505,21 +505,24 @@
            expands it into Voice PE rooms + push-to-talk (issue #239). Closed by
            default; detailed HA polling runs only while this disclosure is open. -->
       <details id="homeAssistantCard" class="card card--collapsible ha-card" aria-label="Home Assistant">
+        <!-- The summary is the whole VM surface (#461): live status text plus
+             the power switch (same summary-embedded-control pattern as the
+             Presence card's "Kids home" pill — its click never folds the card).
+             Body content is only the folded-by-default subsections, so every
+             row reads equidistant. -->
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-house"></use></svg>
             <h3 class="collapse-title">Home Assistant</h3>
             <span id="homeAssistantSummaryState" class="muted small">Reading status…</span>
           </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          <span class="security-zones-tools">
+            <button id="homeVmToggle" type="button" class="toggle vm-toggle" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </span>
         </summary>
-        <!-- Main part: the HA VM uptime tile, always visible while the card is
-             open. Everything else lives in the folded-by-default subsections
-             below — the same nested-details pattern as the Security tab's
-             Presence card (#461). -->
-        <div class="ha-card-body">
-          <section id="homeVmTile" class="vm-tile ha-vm-row" aria-label="Home Assistant VM" hidden></section>
-        </div>
 
         <details id="haSatellitesCard" class="ha-subsection" aria-label="Voice satellites">
           <summary class="collapse-summary">

@@ -1,22 +1,28 @@
-/* Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
+/* Home Assistant Hyper-V VM control (Home tab — issue #240; #461 folded the
+ * old body tile into the HA card's summary).
  *
  * Reads GET /api/hyperv and controls the VM via POST /api/hyperv/{start|stop}.
- * The backend shells out to Hyper-V on the host PC and addresses the VM by name,
- * so this tile is independent of the VM's LAN IP. Stop is confirm-gated (it
- * drops Home Assistant); Start is not. Polled only while the Home tab is active. */
+ * The backend shells out to Hyper-V on the host PC and addresses the VM by
+ * name, so this is independent of the VM's LAN IP. Stop is confirm-gated (it
+ * drops Home Assistant); Start is not. Polled only while the Home tab is
+ * active.
+ *
+ * The whole surface is the HA card's summary row: the status text
+ * (#homeAssistantSummaryState) and the power switch (#homeVmToggle) — there is
+ * no body tile any more. The card element carries data-vm-state as the
+ * machine-readable state hook (tests); IP·MAC and the stale-snapshot detail
+ * live in the status text's hover tooltip.
+ */
 
 'use strict';
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
-import { emptyStateEl } from './empty-state.js';
-import { icon } from './_vendored/icons/icons.js';
-import { esc } from './format.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { confirmAction } from './network.js';
 import { createPoller } from './poll.js';
 import { createViewState } from './view-state.js';
-import { toggleMarkup } from './toggle.js';
+import { setToggleState } from './toggle.js';
 
 const POLL_MS = 30_000;
 
@@ -29,25 +35,18 @@ function viewStateFor(vm) {
   return vm.available === true ? 'ready' : 'error';
 }
 
-function renderVmState(tile, iconName, message, action) {
-  tile.hidden = false;
-  tile.title = '';
-  tile.classList.remove('is-unavailable', 'is-running');
-  tile.innerHTML = '';
-  const stateEl = emptyStateEl(iconName, message, action ? {
-    actionLabel: action.label,
-    onAction: action.onAction,
-  } : null);
-  tile.appendChild(stateEl);
-  const button = stateEl.querySelector('.empty-state-action');
-  if (button && action && action.disabled) button.disabled = true;
-}
-
-function renderSummaryState(text, modifier) {
+function renderSummaryState(text, modifier, title) {
   if (!els.homeAssistantSummaryState) return;
   els.homeAssistantSummaryState.textContent = text;
+  els.homeAssistantSummaryState.title = title || '';
   els.homeAssistantSummaryState.className =
     'muted small ha-summary-state ha-summary-' + modifier;
+}
+
+function renderToggle(on, disabled) {
+  if (!els.homeVmToggle) return;
+  setToggleState(els.homeVmToggle, on);
+  els.homeVmToggle.disabled = !!disabled;
 }
 
 function fmtUptime(seconds) {
@@ -62,103 +61,67 @@ function fmtUptime(seconds) {
   return h + 'h ' + (mins % 60) + 'm';
 }
 
-// Status badge: dot + text + a CSS modifier driving the colour.
+// Status text + the CSS modifier driving its colour.
 function statusBadge(vm) {
   if (pending) {
-    return { mod: 'transition', dot: '◐', text: pending === 'start' ? 'starting…' : 'stopping…' };
+    return { mod: 'transition', text: pending === 'start' ? 'starting…' : 'stopping…' };
   }
   if (!vm || vm.available !== true) {
-    const text = vm && vm.state === 'not_found' ? 'not found' : 'unavailable';
-    // Sprite icon instead of a text dot — dotHtml below renders it unescaped.
-    return { mod: 'unavailable', icon: 'triangle-alert', text: text };
+    return { mod: 'unavailable', text: vm && vm.state === 'not_found' ? 'not found' : 'unavailable' };
   }
   if (vm.state === 'running') {
     const up = fmtUptime(vm.uptime_seconds);
-    return { mod: 'running', dot: '●', text: up ? 'online · up ' + up : 'online' };
+    return { mod: 'running', text: up ? 'online · up ' + up : 'online' };
   }
-  if (vm.state === 'off') return { mod: 'off', dot: '○', text: 'off' };
+  if (vm.state === 'off') return { mod: 'off', text: 'off' };
   // Transient Hyper-V states (saved/paused/starting/stopping).
-  return { mod: 'transition', dot: '◐', text: vm.state };
+  return { mod: 'transition', text: vm.state };
 }
 
-function render(tile, vm) {
-  if (!tile) return;
-  tile.dataset.state = vmView.state;
-  tile.setAttribute('aria-busy', vmView.state === 'loading' ? 'true' : 'false');
+function render(vm) {
+  if (els.homeAssistantCard) els.homeAssistantCard.dataset.vmState = vmView.state;
   if (vmView.state === 'loading') {
     renderSummaryState('Reading status…', 'transition');
-    renderVmState(tile, 'refresh-cw', 'Reading Home Assistant status…', null);
+    renderToggle(false, true);
     return;
   }
   if (vmView.state === 'empty') {
     renderSummaryState('VM not found', 'unavailable');
-    renderVmState(tile, 'cpu', 'Home Assistant VM not found', {
-      label: 'Retry',
-      onAction: function () { loadVm(); },
-    });
+    renderToggle(false, true);
     return;
   }
   if (vmView.state === 'error') {
     renderSummaryState('status unavailable', 'unavailable');
+    // An unreachable-but-identified VM can still be started — keep the switch
+    // usable for that (the old tile's "Start Home Assistant" action).
     const canStart = !!(vm && vm.name && vm.state !== 'not_found');
-    renderVmState(tile, 'cpu', 'Home Assistant status unavailable', canStart ? {
-      label: busy ? 'Starting…' : 'Start Home Assistant',
-      onAction: onToggle,
-      disabled: busy,
-    } : {
-      label: 'Retry',
-      onAction: function () { loadVm(); },
-    });
+    renderToggle(pending === 'start', busy || !canStart);
     return;
   }
-  tile.hidden = false;
+
   const available = !!(vm && vm.available === true);
   const running = !!(vm && vm.state === 'running');
-  tile.classList.toggle('is-unavailable', !available);
-  tile.classList.toggle('is-running', running);
-
   const badge = statusBadge(vm);
-  renderSummaryState(badge.text, badge.mod);
-  const dotHtml = badge.icon ? icon(badge.icon) : esc(badge.dot);
+  const stale = vmView.state === 'stale';
 
-  // The same on/off switch as AC power / plugs: on = running. Toggling it
-  // starts (off→on) or stops (on→off, confirm-gated). Disabled while a change
-  // is in flight, or when the VM isn't in a settled, actionable state (e.g.
-  // insufficient rights → can't control). While pending it slides to the target.
-  const actionable = available && (vm.state === 'running' || vm.state === 'off');
-  const toggleOn = pending ? (pending === 'start') : running;
-  const disabled = busy || !actionable || vmView.state === 'stale';
-  const toggle =
-    '<button type="button" class="toggle vm-toggle' + (toggleOn ? ' on' : '') + '"' +
-    ' role="switch" aria-checked="' + (toggleOn ? 'true' : 'false') + '"' +
-    (disabled ? ' disabled' : '') + ' aria-label="Home Assistant VM power">' +
-    toggleMarkup(toggleOn) + '</button>';
-
-  // IP·MAC are hidden per design, but kept as a hover tooltip so the "is it on
-  // the reserved address?" check is still one mouse-over away.
-  const meta = [];
-  if (vm && vm.ip_address) meta.push(vm.ip_address);
-  if (vm && vm.mac_address) meta.push(vm.mac_address);
-  tile.title = meta.length ? meta.join(' · ') : '';
-
-  tile.innerHTML =
-    '<div class="vm-main">' +
-    '  <div class="vm-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-timer"></use></svg><span>HA</span></div>' +
-    '  <span class="vm-status vm-status-' + badge.mod + '">' + dotHtml + ' ' + esc(badge.text) + '</span>' +
-    '  ' + toggle +
-    '</div>';
-
-  if (vmView.state === 'stale') {
-    const note = document.createElement('p');
-    note.className = 'muted small vm-stale-note';
-    note.textContent = vmView.liveUnavailable
+  // IP·MAC are hidden per design but kept one hover away; a stale snapshot
+  // says so in the text and carries its age in the same tooltip.
+  const tip = [];
+  if (vm && vm.ip_address) tip.push(vm.ip_address);
+  if (vm && vm.mac_address) tip.push(vm.mac_address);
+  if (stale) {
+    tip.push(vmView.liveUnavailable
       ? vmView.lastUpdatedLabel() + ' · live data unavailable'
-      : snapshotLabel('hyperv');
-    tile.appendChild(note);
+      : snapshotLabel('hyperv'));
   }
+  renderSummaryState(badge.text + (stale ? ' · cached' : ''), badge.mod, tip.join(' · '));
 
-  const btn = tile.querySelector('.vm-toggle');
-  if (btn && !disabled) btn.addEventListener('click', onToggle);
+  // Same on/off switch as AC power / plugs: on = running. Toggling starts
+  // (off→on) or stops (on→off, confirm-gated). Disabled while a change is in
+  // flight, or when the VM isn't in a settled, actionable state. While
+  // pending it slides to the target.
+  const actionable = available && (vm.state === 'running' || vm.state === 'off');
+  renderToggle(pending ? pending === 'start' : running, busy || !actionable || stale);
 }
 
 async function onToggle() {
@@ -206,8 +169,18 @@ async function onToggle() {
   }
 }
 
+export function wireVm() {
+  if (!els.homeVmToggle) return;
+  els.homeVmToggle.addEventListener('click', function (ev) {
+    // The switch lives inside the card's <summary> — never fold the card.
+    ev.preventDefault();
+    ev.stopPropagation();
+    onToggle();
+  });
+}
+
 export function renderVm() {
-  render(els.homeVmTile, state.vm);
+  render(state.vm);
 }
 
 export async function loadVm() {
