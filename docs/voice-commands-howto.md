@@ -27,8 +27,10 @@ live in [`voice-control.md`](voice-control.md), the secret-free installed config
    → TTS  (hub Piper)             speaks the intent_script reply
 ```
 
-You add three things per command: **a sentence set**, **an intent_script**, **a
-rest_command**. Everything else (wake word, STT, agent, TTS) is already wired.
+You add three things per command in Home Assistant — **a sentence set**, **an
+intent_script**, **a rest_command** — plus one entry in this repo's
+[cheat sheet](../src/voice_commands.py) so the command is discoverable from the phone.
+Everything else (wake word, STT, agent, TTS) is already wired.
 
 ## The 5-minute recipe
 
@@ -100,6 +102,18 @@ HAOS host SSH on `:22222` (that's a break-glass developer channel, not used here
    change; it prints that a `configuration.yaml` change needs `--restart`). Then probe
    by text before you speak — `ha_config_sync.py probe`, or see
    [Testing](#testing-without-talking).
+
+6. **Add it to the in-app cheat sheet** (issue #437) — a command nobody can find is a
+   command nobody uses. Append it to the right group in
+   [`src/voice_commands.py`](../src/voice_commands.py); the Home tab's "What can I say?"
+   card and `GET /api/voice-commands` pick it up with no other change. A whole new
+   feature gets a new `VoiceCommandGroup`. Give every phrasing its wake word — **the
+   wake word is the language switch** ("Okay Nabu" English, "Hey Jarvis" Spanish), so a
+   command on the Spanish pipeline must say so. `tests/test_voice_commands.py` enforces
+   the shape; **never put a real code or secret in a phrase** — publish the
+   `<your code>` placeholder, as the disarm command does. Update
+   [`voice-pe-config/README.md`](voice-pe-config/README.md)'s table in the same PR: it
+   stays the record of *what is deployed*, the cheat sheet is *what the phone shows*.
 
 ## hassil sentence syntax (cheat-sheet)
 

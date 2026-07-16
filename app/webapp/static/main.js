@@ -42,6 +42,7 @@ import { onHaTab, wireHa } from './ha.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security.js';
 import { onWakeAlarmsTab, wireWakeAlarms } from './wake-alarms.js';
+import { wireVoiceCommands } from './voice-commands.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
 import { startWeatherPolling } from './weather.js';
@@ -177,6 +178,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wirePresencePlaces();
   wireSecurityNotify();
   wireWakeAlarms();
+  wireVoiceCommands();
   wireCameras();
   wireNetworkControls();
   wireActivity();

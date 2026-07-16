@@ -534,6 +534,26 @@
         </div>
       </details>
 
+      <!-- Voice cheat sheet (issue #437) — the companion to the HA card's
+           push-to-talk mic above: that card's "What can I do?" covers what this
+           webapp does with Home Assistant, this one covers what you can *say* to
+           the pucks. Content comes from GET /api/voice-commands (curated in
+           src/voice_commands.py), fetched on first open and never polled.
+           Collapsible, styled like the wake-alarms card below. -->
+      <details id="voiceCommandsCard" class="card card--collapsible voice-commands-card" aria-label="Voice commands cheat sheet">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
+            <h3 class="collapse-title">What can I say?</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="voice-commands-body">
+          <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
+          <p id="voiceCommandsNote" class="muted small ha-note">Open to load the voice commands.</p>
+        </div>
+      </details>
+
       <!-- Wake alarms & timers (issue #304) — Alexa-style alarms/timers that
            ring/notify at a set time. Distinct from the RISCO "Alarm controls"
            card above: this never arms/disarms the security system. Collapsible
