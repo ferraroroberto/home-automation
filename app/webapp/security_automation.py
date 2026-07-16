@@ -15,6 +15,7 @@ from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
     SOURCE_SCHEDULE,
+    automatic_alarm_action_lock,
     confirm_alarm_action,
     record_alarm_action,
 )
@@ -56,7 +57,15 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
     logger.info("⏰ Applying alarm schedule %s (%s %s)", entry.id, entry.time, entry.action)
     detail = entry.time
     try:
-        await confirm_alarm_action(entry.action)
+        async with automatic_alarm_action_lock():
+            # Publish the deliberate command before the panel can enter its new
+            # mode. Presence compares arrivals to this timestamp, so an older,
+            # previously unconsumed arrival cannot undo an in-flight schedule.
+            # Keeping this marker after a failed confirm is intentional: a
+            # delayed panel transition still belongs to this arm request, while
+            # any genuinely later arrival has a newer transition timestamp.
+            note_manual_alarm_action(entry.action)
+            await confirm_alarm_action(entry.action)
     except RiscoCommandError as exc:
         # Every attempt (initial + all read-only retries) failed to confirm the
         # expected state: log + alert once per day, and re-raise so tick() leaves
@@ -78,11 +87,6 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
         detail=detail,
         reason=f"schedule {entry.id}",
     )
-    # Record the scheduled action the same way a manual one is recorded, so the
-    # presence automation won't immediately undo it (e.g. disarm a perimeter the
-    # 11pm schedule just armed because people are home). A real away→home arrival
-    # afterwards still disarms, since that advances the person's transition time.
-    note_manual_alarm_action(entry.action)
 
 
 async def tick(config: SecurityScheduleConfig, state: _EngineState, now: Optional[datetime] = None) -> None:
