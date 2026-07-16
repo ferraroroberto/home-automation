@@ -112,6 +112,7 @@ export const state = {
   // RISCO `security` alarm above — these ring/notify, they don't arm/disarm.
   wakeAlarms: [],
   wakeTimers: [],
+  voiceCommands: [],
 };
 
 // ----------------------------------------------------------------- DOM
@@ -466,6 +467,10 @@ export const els = {
   confirmOk: document.getElementById('confirmOk'),
   // Read-only AC summary (Home tab)
   acSummary: document.getElementById('acSummary'),
+  // Voice cheat sheet (Home tab, issue #437)
+  voiceCommandsCard: document.getElementById('voiceCommandsCard'),
+  voiceCommandsList: document.getElementById('voiceCommandsList'),
+  voiceCommandsNote: document.getElementById('voiceCommandsNote'),
   // Wake alarms + timers (Home tab, issue #304)
   wakeRingingBanner: document.getElementById('wakeRingingBanner'),
   wakeAlarmsList: document.getElementById('wakeAlarmsList'),
