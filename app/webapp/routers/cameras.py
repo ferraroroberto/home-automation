@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+from app.webapp.routers._helpers import make_http_error_mapper
 from src.camera_client import (
     CameraCommandError,
     CameraConfigError,
@@ -52,13 +53,7 @@ _PTZ_STEP_SPEED = 0.4
 _MJPEG_BOUNDARY = "frame"
 
 
-def _http_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, CameraConfigError):
-        return HTTPException(status_code=503, detail=str(exc))
-    if isinstance(exc, CameraCommandError):
-        return HTTPException(status_code=502, detail=str(exc))
-    logger.warning("⚠️ Failed to call cameras: %s", exc)
-    return HTTPException(status_code=502, detail=f"failed to call cameras: {exc}")
+_http_error = make_http_error_mapper(CameraConfigError, CameraCommandError, noun="cameras")
 
 
 @router.post("/api/cameras/stream-token")

@@ -32,9 +32,10 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, ContextManager, Dict, Iterable, List, Optional, Tuple
+
+from src._sqlite import connect as _sqlite_connect
 
 logger = logging.getLogger("network_history")
 
@@ -60,19 +61,9 @@ def _norm(mac: str) -> str:
 
 
 # --------------------------------------------------------------- connection
-@contextmanager
-def _connect(path: Optional[Path] = None) -> Iterator[sqlite3.Connection]:
+def _connect(path: Optional[Path] = None) -> ContextManager[sqlite3.Connection]:
     """Open a WAL-mode SQLite connection (mirrors the energy-history store)."""
-    target = Path(path) if path is not None else DEFAULT_DB_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(target), timeout=10)
-    conn.row_factory = sqlite3.Row
-    try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        yield conn
-    finally:
-        conn.close()
+    return _sqlite_connect(DEFAULT_DB_PATH, path)
 
 
 def init_db(path: Optional[Path] = None) -> None:

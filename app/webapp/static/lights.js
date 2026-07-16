@@ -6,6 +6,7 @@
 'use strict';
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
+import { createViewState } from './view-state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { emptyStateEl } from './empty-state.js';
@@ -16,9 +17,7 @@ const POLL_MS = 15_000;
 const LIGHTS_UNAVAILABLE_COPY =
   'Live light data is unavailable. Check the light connection, then retry.';
 
-let lightsViewState = 'idle';
-let lightsUpdatedAt = null;
-let lightsLiveUnavailable = false;
+const lightsView = createViewState('lights');
 
 function label(light) {
   return light.display_name || light.name || light.light_id || 'Elgato light';
@@ -63,26 +62,8 @@ function updateBulkControls() {
   els.lightsAllOff.disabled = !reachable.length || allOff;
 }
 
-function setLightsViewState(next, opts) {
-  lightsViewState = next;
-  if (opts && opts.updatedAt) lightsUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
-    lightsLiveUnavailable = opts.liveUnavailable;
-  }
-}
-
-function lastUpdatedLabel() {
-  const raw = lightsUpdatedAt || state.snapshotUpdatedAt.lights;
-  const updated = raw instanceof Date ? raw : new Date(raw || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function markLightsFailure() {
-  setLightsViewState(state.lights.length ? 'stale' : 'error', {
+  lightsView.set(state.lights.length ? 'stale' : 'error', {
     liveUnavailable: true,
   });
   reportFetchFailure(
@@ -349,14 +330,14 @@ function showLightsState(iconName, message, retry) {
 
 export function renderLights() {
   els.lightsGrid.innerHTML = '';
-  els.lightsGrid.dataset.state = lightsViewState;
-  els.lightsGrid.setAttribute('aria-busy', lightsViewState === 'loading' ? 'true' : 'false');
+  els.lightsGrid.dataset.state = lightsView.state;
+  els.lightsGrid.setAttribute('aria-busy', lightsView.state === 'loading' ? 'true' : 'false');
   if (!state.lights.length) {
     updateBulkControls();
-    if (lightsViewState === 'loading') {
+    if (lightsView.state === 'loading') {
       showLightsState('refresh-cw', 'Reading Elgato lights…', false);
       els.lightsNote.hidden = true;
-    } else if (lightsViewState === 'error') {
+    } else if (lightsView.state === 'error') {
       showLightsState('lightbulb', 'Lights unavailable', true);
       els.lightsNote.hidden = false;
       els.lightsNote.textContent = LIGHTS_UNAVAILABLE_COPY;
@@ -368,9 +349,9 @@ export function renderLights() {
     }
     return;
   }
-  if (lightsViewState === 'stale' && lightsLiveUnavailable) {
+  if (lightsView.state === 'stale' && lightsView.liveUnavailable) {
     els.lightsNote.hidden = false;
-    els.lightsNote.textContent = lastUpdatedLabel() + ' · live data unavailable';
+    els.lightsNote.textContent = lightsView.lastUpdatedLabel() + ' · live data unavailable';
   } else if (isSnapshotRestored('lights')) {
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = snapshotLabel('lights');
@@ -386,7 +367,7 @@ export function renderLights() {
 
 export async function loadLights() {
   if (!state.lights.length) {
-    setLightsViewState('loading', { liveUnavailable: false });
+    lightsView.set('loading', { liveUnavailable: false });
     renderLights();
   }
   try {
@@ -394,7 +375,7 @@ export async function loadLights() {
     reportFetchOk('lights');
     saveSnapshot('lights', body);
     state.lights = (body && body.lights) || [];
-    setLightsViewState(state.lights.length ? 'ready' : 'empty', {
+    lightsView.set(state.lights.length ? 'ready' : 'empty', {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -409,7 +390,7 @@ export function restoreLightsSnapshot() {
   const body = restoreSnapshot('lights');
   if (!body) return;
   state.lights = (body && body.lights) || [];
-  setLightsViewState(state.lights.length ? 'stale' : 'empty', {
+  lightsView.set(state.lights.length ? 'stale' : 'empty', {
     updatedAt: state.snapshotUpdatedAt.lights,
     liveUnavailable: false,
   });
@@ -436,7 +417,7 @@ export function wireLightControls() {
         reportFetchOk('lights');
         saveSnapshot('lights', body);
         state.lights = (body && body.lights) || [];
-        setLightsViewState(state.lights.length ? 'ready' : 'empty', {
+        lightsView.set(state.lights.length ? 'ready' : 'empty', {
           updatedAt: new Date(),
           liveUnavailable: false,
         });

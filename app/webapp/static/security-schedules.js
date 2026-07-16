@@ -8,12 +8,12 @@
 
 'use strict';
 
-import { state, els, toast } from './state.js';
+import { state, els } from './state.js';
 import { jsonApi } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
 import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { confirmAction } from './network.js';
+import { denseListEditor } from './dense-editor.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -24,11 +24,6 @@ const DAYS = [
   ['sat', 'Sat'],
   ['sun', 'Sun'],
 ];
-
-let editorIndex = null;
-let editorScheduleId = null;
-let editorReturnFocus = null;
-let stagedSchedule = null;
 
 function scheduleDefaults() {
   return {
@@ -78,21 +73,22 @@ function daysSummary(days) {
 }
 
 function renderEditorDays() {
-  if (!els.securityScheduleDays || !stagedSchedule) return;
+  const staged = scheduleEditor.staged;
+  if (!els.securityScheduleDays || !staged) return;
   els.securityScheduleDays.innerHTML = '';
   DAYS.forEach(function (day) {
     const btn = document.createElement('button');
-    const active = stagedSchedule.days.includes(day[0]);
+    const active = staged.days.includes(day[0]);
     btn.type = 'button';
     btn.className = 'alarm-schedule-day' + (active ? ' active' : '');
     btn.textContent = day[1];
     btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     btn.addEventListener('click', function () {
-      const current = stagedSchedule.days.slice();
+      const current = staged.days.slice();
       const pos = current.indexOf(day[0]);
       if (pos >= 0 && current.length > 1) current.splice(pos, 1);
       else if (pos < 0) current.push(day[0]);
-      stagedSchedule.days = DAYS.map(function (d) { return d[0]; })
+      staged.days = DAYS.map(function (d) { return d[0]; })
         .filter(function (value) { return current.includes(value); });
       renderEditorDays();
     });
@@ -100,47 +96,51 @@ function renderEditorDays() {
   });
 }
 
-function openScheduleEditor(index, trigger) {
-  editorIndex = index;
-  const source = index == null ? scheduleDefaults() : state.securitySchedules[index];
-  stagedSchedule = {
-    id: source.id,
-    enabled: source.enabled !== false,
-    time: source.time || '21:00',
-    days: source.days.slice(),
-    action: source.action,
-  };
-  editorScheduleId = stagedSchedule.id;
-  editorReturnFocus = trigger || null;
-  els.securityScheduleEditorTitle.textContent = index == null ? 'Add schedule' : 'Edit schedule';
-  setToggleState(els.securityScheduleEnabled, stagedSchedule.enabled);
-  els.securityScheduleTime.value = stagedSchedule.time;
-  els.securityScheduleAction.value = stagedSchedule.action;
-  els.securityScheduleDelete.hidden = index == null;
-  renderEditorDays();
-  if (typeof els.securityScheduleDialog.showModal === 'function') els.securityScheduleDialog.showModal();
-  else els.securityScheduleDialog.setAttribute('open', '');
-  els.securityScheduleTime.focus();
-}
-
-function closeScheduleEditor() {
-  if (typeof els.securityScheduleDialog.close === 'function') els.securityScheduleDialog.close();
-  else els.securityScheduleDialog.removeAttribute('open');
-}
-
-function restoreEditorFocus() {
-  let target = editorReturnFocus && editorReturnFocus.isConnected ? editorReturnFocus : null;
-  if (!target && editorScheduleId) {
-    const row = els.securitySchedules.querySelector('[data-schedule-id="' + CSS.escape(editorScheduleId) + '"]');
-    if (row) target = row.querySelector('.automation-summary-main');
-  }
-  if (!target) target = els.securityScheduleAdd;
-  editorIndex = null;
-  editorScheduleId = null;
-  editorReturnFocus = null;
-  stagedSchedule = null;
-  if (target) requestAnimationFrame(function () { target.focus(); });
-}
+const scheduleEditor = denseListEditor({
+  dialog: els.securityScheduleDialog,
+  addButton: els.securityScheduleAdd,
+  closeButton: els.securityScheduleEditorClose,
+  saveButton: els.securityScheduleSave,
+  deleteButton: els.securityScheduleDelete,
+  titleEl: els.securityScheduleEditorTitle,
+  listEl: els.securitySchedules,
+  focusEl: els.securityScheduleTime,
+  rowIdAttr: 'data-schedule-id',
+  titles: { add: 'Add schedule', edit: 'Edit schedule' },
+  deleteConfirm: {
+    title: 'Delete this alarm schedule?',
+    message: 'This schedule will be removed permanently.',
+  },
+  toasts: { saved: 'Schedules saved', failed: "Couldn't save schedules" },
+  defaults: scheduleDefaults,
+  stage: function (source) {
+    return {
+      id: source.id,
+      enabled: source.enabled !== false,
+      time: source.time || '21:00',
+      days: source.days.slice(),
+      action: source.action,
+    };
+  },
+  getEntries: function () { return state.securitySchedules; },
+  setEntries: function (entries) { state.securitySchedules = entries; },
+  normalize: normalizedSchedules,
+  render: renderSchedules,
+  populate: function (staged) {
+    setToggleState(els.securityScheduleEnabled, staged.enabled);
+    els.securityScheduleTime.value = staged.time;
+    els.securityScheduleAction.value = staged.action;
+    renderEditorDays();
+  },
+  collect: function (staged) {
+    staged.enabled = isToggleOn(els.securityScheduleEnabled);
+    staged.time = els.securityScheduleTime.value || '21:00';
+    staged.action = ACTIONS.includes(els.securityScheduleAction.value)
+      ? els.securityScheduleAction.value : 'arm';
+  },
+  endpoint: '/api/security/schedules',
+  bodyKey: 'entries',
+});
 
 export function renderSchedules() {
   if (!els.securitySchedules || !els.securitySchedulesNote) return;
@@ -176,14 +176,14 @@ export function renderSchedules() {
     copy.appendChild(meta);
     main.appendChild(copy);
     main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
-    main.addEventListener('click', function () { openScheduleEditor(idx, main); });
+    main.addEventListener('click', function () { scheduleEditor.open(idx, main); });
     row.appendChild(main);
 
     const enabled = buildToggle('alarm-schedule-enabled', entry.enabled, function (on) {
       const proposed = state.securitySchedules.map(function (schedule, scheduleIndex) {
         return scheduleIndex === idx ? { ...schedule, enabled: on } : schedule;
       });
-      saveSecuritySchedules(proposed);
+      scheduleEditor.save(proposed);
     });
     enabled.setAttribute('aria-label', 'Enable schedule at ' + entry.time);
     row.appendChild(enabled);
@@ -207,30 +207,6 @@ export async function loadSecuritySchedules() {
   renderSchedules();
 }
 
-async function saveSecuritySchedules(entries) {
-  const previous = state.securitySchedules;
-  state.securitySchedules = normalizedSchedules(entries);
-  renderSchedules();
-  try {
-    const body = await jsonApi('/api/security/schedules', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: state.securitySchedules }),
-    });
-    state.securitySchedules = (body && body.entries) || [];
-    renderSchedules();
-    toast('Schedules saved', 'success');
-    return true;
-  } catch (exc) {
-    state.securitySchedules = previous;
-    renderSchedules();
-    if (String(exc.message) !== 'auth required') {
-      toast("Couldn't save schedules", 'error');
-    }
-    return false;
-  }
-}
-
 export function wireSecuritySchedules() {
   if (!els.securityScheduleAdd || !els.securityScheduleDialog) return;
   ACTIONS.forEach(function (name) {
@@ -240,42 +216,7 @@ export function wireSecuritySchedules() {
     els.securityScheduleAction.appendChild(option);
   });
   wireToggle(els.securityScheduleEnabled, function (on) {
-    if (stagedSchedule) stagedSchedule.enabled = on;
+    if (scheduleEditor.staged) scheduleEditor.staged.enabled = on;
   });
-  els.securityScheduleAdd.addEventListener('click', function () {
-    openScheduleEditor(null, els.securityScheduleAdd);
-  });
-  els.securityScheduleEditorClose.addEventListener('click', closeScheduleEditor);
-  els.securityScheduleDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.securityScheduleDialog) closeScheduleEditor();
-  });
-  els.securityScheduleDialog.addEventListener('close', restoreEditorFocus);
-  els.securityScheduleSave.addEventListener('click', async function () {
-    if (!stagedSchedule) return;
-    stagedSchedule.enabled = isToggleOn(els.securityScheduleEnabled);
-    stagedSchedule.time = els.securityScheduleTime.value || '21:00';
-    stagedSchedule.action = ACTIONS.includes(els.securityScheduleAction.value)
-      ? els.securityScheduleAction.value : 'arm';
-    const proposed = state.securitySchedules.slice();
-    if (editorIndex == null) proposed.push(stagedSchedule);
-    else proposed[editorIndex] = stagedSchedule;
-    els.securityScheduleSave.disabled = true;
-    const saved = await saveSecuritySchedules(proposed);
-    els.securityScheduleSave.disabled = false;
-    if (saved) closeScheduleEditor();
-  });
-  els.securityScheduleDelete.addEventListener('click', async function () {
-    if (editorIndex == null) return;
-    const ok = await confirmAction({
-      title: 'Delete this alarm schedule?',
-      message: 'This schedule will be removed permanently.',
-      okLabel: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
-    const proposed = state.securitySchedules.filter(function (_entry, idx) {
-      return idx !== editorIndex;
-    });
-    if (await saveSecuritySchedules(proposed)) closeScheduleEditor();
-  });
+  scheduleEditor.wire();
 }

@@ -20,11 +20,11 @@ import { api, jsonApi } from './api.js';
 import { confirmAction } from './network.js';
 import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
+import { createViewState } from './view-state.js';
 
 let snapshotUrl = null;   // objectURL for the detail-modal snapshot (revoked on replace)
 let liveRecording = false;
-let camerasViewState = 'idle';
-let camerasUpdatedAt = null;
+const camerasView = createViewState();
 // Cache-bust token per camera for the persisted thumbnail. Seeded once per page
 // load (so a tab visit shows the current file) and bumped whenever we grab a
 // fresh frame (so the thumbnail updates immediately after open/screenshot).
@@ -70,22 +70,6 @@ function cameraStatus(cam) {
   return parts.join(' · ');
 }
 
-function setCamerasViewState(next, opts) {
-  camerasViewState = next;
-  if (opts && opts.updatedAt) camerasUpdatedAt = opts.updatedAt;
-}
-
-function lastUpdatedLabel() {
-  const updated = camerasUpdatedAt instanceof Date
-    ? camerasUpdatedAt
-    : new Date(camerasUpdatedAt || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function showCamerasState(message, retry) {
   const options = retry ? {
     actionLabel: 'Retry',
@@ -95,7 +79,7 @@ function showCamerasState(message, retry) {
 }
 
 function markCamerasFailure() {
-  setCamerasViewState((state.cameras || []).length ? 'stale' : 'error');
+  camerasView.set((state.cameras || []).length ? 'stale' : 'error');
   reportFetchFailure(
     'cameras',
     { message: 'live data unavailable' },
@@ -145,17 +129,17 @@ function buildThumb(cam) {
 
 function renderCameras() {
   els.camerasList.innerHTML = '';
-  els.camerasList.dataset.state = camerasViewState;
+  els.camerasList.dataset.state = camerasView.state;
   els.camerasList.setAttribute(
     'aria-busy',
-    camerasViewState === 'loading' ? 'true' : 'false'
+    camerasView.state === 'loading' ? 'true' : 'false'
   );
   const cameras = state.cameras || [];
   if (!cameras.length) {
-    if (camerasViewState === 'loading') {
+    if (camerasView.state === 'loading') {
       showCamerasState('Reading cameras…', false);
       els.camerasNote.hidden = true;
-    } else if (camerasViewState === 'error') {
+    } else if (camerasView.state === 'error') {
       showCamerasState('Cameras unavailable', true);
       els.camerasNote.hidden = false;
       els.camerasNote.textContent =
@@ -166,9 +150,9 @@ function renderCameras() {
     }
     return;
   }
-  if (camerasViewState === 'stale') {
+  if (camerasView.state === 'stale') {
     els.camerasNote.hidden = false;
-    els.camerasNote.textContent = lastUpdatedLabel() + ' · live data unavailable';
+    els.camerasNote.textContent = camerasView.lastUpdatedLabel() + ' · live data unavailable';
   } else {
     els.camerasNote.hidden = true;
   }
@@ -214,7 +198,7 @@ function renderCameras() {
 
 export async function loadCameras() {
   if (!(state.cameras || []).length) {
-    setCamerasViewState('loading');
+    camerasView.set('loading');
     renderCameras();
   }
   await _ensureCameraToken();
@@ -222,7 +206,7 @@ export async function loadCameras() {
     const body = await jsonApi('/api/cameras');
     state.cameras = (body && body.cameras) || [];
     reportFetchOk('cameras');
-    setCamerasViewState(state.cameras.length ? 'ready' : 'empty', {
+    camerasView.set(state.cameras.length ? 'ready' : 'empty', {
       updatedAt: new Date(),
     });
     renderCameras();

@@ -34,6 +34,7 @@ from typing import Dict, Optional
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._task_loop import run_loop
 from src.hvac_automation import (
     load_rules,
     load_schedules,
@@ -209,23 +210,18 @@ class _EngineState:
 
 async def _run(config: AutomationConfig) -> None:
     """Poll → apply schedules → nudge setpoints, until cancelled."""
-    logger.info(
-        "🤖 HVAC automation started (poll %ds, adjust %ds, buffer %.1f°C)",
-        config.poll_interval_s,
-        config.adjust_interval_s,
-        config.buffer_c,
-    )
     state = _EngineState(last_adjust={}, last_fire_day={})
-    try:
-        while True:
-            try:
-                await _tick(config, state)
-            except Exception as exc:  # noqa: BLE001 — a read failure never kills the loop
-                logger.warning("⚠️ HVAC automation tick failed: %s", exc)
-            await asyncio.sleep(config.poll_interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 HVAC automation stopped")
-        raise
+    await run_loop(
+        lambda: _tick(config, state),
+        config.poll_interval_s,
+        logger=logger,
+        name="HVAC automation",
+        start_msg=(
+            "🤖 HVAC automation started (poll %ds, adjust %ds, buffer %.1f°C)"
+            % (config.poll_interval_s, config.adjust_interval_s, config.buffer_c)
+        ),
+        tick_fail_msg="⚠️ HVAC automation tick failed: %s",
+    )
 
 
 def start_automation() -> Optional[asyncio.Task]:

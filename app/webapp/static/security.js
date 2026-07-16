@@ -17,6 +17,7 @@
 import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 import { emptyStateEl } from './empty-state.js';
+import { createViewState } from './view-state.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
 import { renderScenePairings, loadScenePairings } from './security-scene.js';
@@ -38,58 +39,41 @@ export { wireSecurityNotify } from './security-notify.js';
 
 const POLL_MS = 10_000;
 
-let securityViewState = 'idle';
-let securityUpdatedAt = null;
-
-function setSecurityViewState(next, opts) {
-  securityViewState = next;
-  if (opts && opts.updatedAt) securityUpdatedAt = opts.updatedAt;
-}
-
-function lastUpdatedLabel() {
-  const updated = securityUpdatedAt instanceof Date
-    ? securityUpdatedAt
-    : new Date(securityUpdatedAt || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const securityView = createViewState();
 
 function renderSecurityFeedback() {
   if (!els.paneSecurity || !els.securityFeedback) return;
-  els.paneSecurity.dataset.state = securityViewState;
+  els.paneSecurity.dataset.state = securityView.state;
   els.securityFeedback.innerHTML = '';
   els.securityFeedback.hidden = false;
 
-  if (securityViewState === 'loading') {
+  if (securityView.state === 'loading') {
     els.securityFeedback.appendChild(
       emptyStateEl('shield-check', 'Reading security status…')
     );
-  } else if (securityViewState === 'error') {
+  } else if (securityView.state === 'error') {
     els.securityFeedback.appendChild(emptyStateEl('shield-check', 'Security unavailable', {
       actionLabel: 'Retry',
       onAction: function () { loadSecurity(); },
     }));
-  } else if (securityViewState === 'stale') {
+  } else if (securityView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small security-stale-note';
-    note.textContent = lastUpdatedLabel() + ' · live data unavailable';
+    note.textContent = securityView.lastUpdatedLabel() + ' · live data unavailable';
     els.securityFeedback.appendChild(note);
   } else {
     els.securityFeedback.hidden = true;
   }
 
   if (!els.homeSecurityFeedback) return;
-  if (securityViewState === 'loading') {
+  if (securityView.state === 'loading') {
     els.homeSecurityFeedback.textContent = 'Reading security status…';
     els.homeSecurityFeedback.hidden = false;
-  } else if (securityViewState === 'error') {
+  } else if (securityView.state === 'error') {
     els.homeSecurityFeedback.textContent = 'Security unavailable';
     els.homeSecurityFeedback.hidden = false;
-  } else if (securityViewState === 'stale') {
-    els.homeSecurityFeedback.textContent = lastUpdatedLabel() + ' · live data unavailable';
+  } else if (securityView.state === 'stale') {
+    els.homeSecurityFeedback.textContent = securityView.lastUpdatedLabel() + ' · live data unavailable';
     els.homeSecurityFeedback.hidden = false;
   } else {
     els.homeSecurityFeedback.hidden = true;
@@ -107,7 +91,7 @@ function disableSecurityActions() {
 }
 
 function markSecurityFailure() {
-  setSecurityViewState(state.security ? 'stale' : 'error');
+  securityView.set(state.security ? 'stale' : 'error');
   reportFetchFailure(
     'security',
     { message: 'live data unavailable' },
@@ -128,14 +112,14 @@ export function renderSecurity() {
   renderPresence();
   renderPresencePlaces();
   renderSecurityFeedback();
-  if (securityViewState === 'stale') disableSecurityActions();
+  if (securityView.state === 'stale') disableSecurityActions();
 }
 
 async function loadSecurityState() {
   try {
     state.security = await jsonApi('/api/security');
     reportFetchOk('security');
-    setSecurityViewState('ready', { updatedAt: new Date() });
+    securityView.set('ready', { updatedAt: new Date() });
     renderSecurity();
     // Presence also polls on Home (the locator card, issue #438) — same
     // precedent as the alarm tile being actionable on Home too (issue #72).
@@ -148,7 +132,7 @@ async function loadSecurityState() {
 
 export async function loadSecurity() {
   if (!state.security) {
-    setSecurityViewState('loading');
+    securityView.set('loading');
     renderSecurityFeedback();
   }
   try {
@@ -161,7 +145,7 @@ export async function loadSecurity() {
     state.securityEvents = (results[1] && results[1].events) || [];
     if (results[2]) state.securitySchedules = results[2].entries || [];
     reportFetchOk('security');
-    setSecurityViewState('ready', { updatedAt: new Date() });
+    securityView.set('ready', { updatedAt: new Date() });
     renderSecurity();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;

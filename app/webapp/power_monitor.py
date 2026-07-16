@@ -35,6 +35,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._task_loop import run_loop
 from app.webapp.power_notify import (
     record_low_battery_shutdown,
     record_low_battery_shutdown_cancelled,
@@ -97,18 +98,15 @@ async def tick(state: _MonitorState) -> None:
 
 
 async def _run(interval_s: int) -> None:
-    logger.info("🔌 Power monitor started (poll %ds)", interval_s)
     state = _MonitorState()
-    try:
-        while True:
-            try:
-                await tick(state)
-            except Exception as exc:  # noqa: BLE001 - a read failure never kills the loop
-                logger.warning("⚠️ Power monitor tick failed: %s", exc)
-            await asyncio.sleep(interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 Power monitor stopped")
-        raise
+    await run_loop(
+        lambda: tick(state),
+        interval_s,
+        logger=logger,
+        name="Power monitor",
+        start_msg="🔌 Power monitor started (poll %ds)" % interval_s,
+        tick_fail_msg="⚠️ Power monitor tick failed: %s",
+    )
 
 
 def start_power_monitor() -> Optional[asyncio.Task]:

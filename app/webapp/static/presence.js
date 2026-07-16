@@ -28,6 +28,7 @@ import {
 import { jsonApi } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { toggleMarkup } from './toggle.js';
+import { createViewState } from './view-state.js';
 import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocationControls } from './presence-location.js';
 import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
 import { wirePresencePushControls } from './presence-push.js';
@@ -37,9 +38,7 @@ import { wirePresencePushControls } from './presence-push.js';
 export { loadLocation } from './presence-location.js';
 export { loadPresenceAutomation } from './presence-automation.js';
 
-let presenceViewState = 'idle';
-let presenceUpdatedAt = null;
-let presenceTransportUnavailable = false;
+const presenceView = createViewState();
 
 export function fmtTime(value) {
   if (!value) return '-';
@@ -132,25 +131,6 @@ function sourceLabel(entity) {
   return entity.source || 'Unknown';
 }
 
-function setPresenceViewState(next, opts) {
-  presenceViewState = next;
-  if (opts && opts.updatedAt) presenceUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'transportUnavailable')) {
-    presenceTransportUnavailable = opts.transportUnavailable;
-  }
-}
-
-function lastUpdatedLabel() {
-  const updated = presenceUpdatedAt instanceof Date
-    ? presenceUpdatedAt
-    : new Date(presenceUpdatedAt || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function showPresenceState(message, retry) {
   const options = retry ? {
     actionLabel: 'Retry',
@@ -165,8 +145,8 @@ function hidePresenceRefreshNote() {
 
 function markPresenceFailure() {
   const hasLastGood = !!(state.presence && state.presence.available !== false);
-  setPresenceViewState(hasLastGood ? 'stale' : 'error', {
-    transportUnavailable: true,
+  presenceView.set(hasLastGood ? 'stale' : 'error', {
+    liveUnavailable: true,
   });
   reportFetchFailure(
     'presence',
@@ -201,7 +181,7 @@ function renderLocator() {
   if (!els.locatorList) return;
   renderLocatorSourceNote();
   els.locatorList.innerHTML = '';
-  if (presenceViewState === 'loading' && !state.presence) {
+  if (presenceView.state === 'loading' && !state.presence) {
     els.locatorList.appendChild(emptyStateEl('map-pin', 'Reading locations…'));
     return;
   }
@@ -263,23 +243,23 @@ function renderLocator() {
 
 export function renderPresence() {
   renderLocator();
-  renderKidsHomeToggle(presenceViewState === 'ready');
+  renderKidsHomeToggle(presenceView.state === 'ready');
   if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
   els.presenceList.innerHTML = '';
-  els.presenceList.dataset.state = presenceViewState;
+  els.presenceList.dataset.state = presenceView.state;
   els.presenceList.setAttribute(
     'aria-busy',
-    presenceViewState === 'loading' ? 'true' : 'false'
+    presenceView.state === 'loading' ? 'true' : 'false'
   );
   const presence = state.presence;
-  if (presenceViewState === 'loading') {
+  if (presenceView.state === 'loading') {
     els.presenceSummary.textContent = 'Loading';
     showPresenceState('Reading presence…', false);
     els.presenceNote.hidden = true;
     hidePresenceRefreshNote();
     return;
   }
-  if (presenceViewState === 'error' && presenceTransportUnavailable) {
+  if (presenceView.state === 'error' && presenceView.liveUnavailable) {
     els.presenceSummary.textContent = 'Unavailable';
     showPresenceState('Presence unavailable', true);
     els.presenceNote.hidden = false;
@@ -343,9 +323,9 @@ export function renderPresence() {
     return;
   }
 
-  if (presenceViewState === 'stale') {
+  if (presenceView.state === 'stale') {
     els.presenceNote.hidden = false;
-    els.presenceNote.textContent = lastUpdatedLabel() + ' · live data unavailable';
+    els.presenceNote.textContent = presenceView.lastUpdatedLabel() + ' · live data unavailable';
   } else {
     els.presenceNote.hidden = visible.length > 0;
     els.presenceNote.textContent = visible.length ? '' : 'No presence entities shown.';
@@ -421,7 +401,7 @@ function renderPresenceRefreshNote() {
 
 export async function loadPresence() {
   if (!state.presence) {
-    setPresenceViewState('loading', { transportUnavailable: false });
+    presenceView.set('loading', { liveUnavailable: false });
     renderPresence();
   }
   try {
@@ -429,11 +409,11 @@ export async function loadPresence() {
     reportFetchOk('presence');
     const entities = (state.presence && state.presence.entities) || [];
     const hasEntities = entities.length > 0 || !!state.thisDevicePresence;
-    setPresenceViewState(
+    presenceView.set(
       state.presence && state.presence.available === false
         ? 'error'
         : (hasEntities ? 'ready' : 'empty'),
-      { updatedAt: new Date(), transportUnavailable: false }
+      { updatedAt: new Date(), liveUnavailable: false }
     );
     refreshThisDeviceLocation();
   } catch (exc) {

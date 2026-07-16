@@ -24,60 +24,41 @@ import { icon } from './_vendored/icons/icons.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
+import { createViewState } from './view-state.js';
 
 const DEFAULT_RANGE = [16, 31];
 let currentScheduleEntries = [];
-let acViewState = 'idle';
-let acUpdatedAt = null;
-let acLiveUnavailable = false;
-
-function setAcViewState(next, opts) {
-  acViewState = next;
-  if (opts && opts.updatedAt) acUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
-    acLiveUnavailable = opts.liveUnavailable;
-  }
-}
-
-function lastUpdatedLabel() {
-  const raw = acUpdatedAt || state.snapshotUpdatedAt.units;
-  const updated = raw instanceof Date ? raw : new Date(raw || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const acView = createViewState('units');
 
 function renderAcFeedback() {
   if (!els.paneAc || !els.acFeedback) return;
-  els.paneAc.dataset.state = acViewState;
-  els.paneAc.setAttribute('aria-busy', acViewState === 'loading' ? 'true' : 'false');
+  els.paneAc.dataset.state = acView.state;
+  els.paneAc.setAttribute('aria-busy', acView.state === 'loading' ? 'true' : 'false');
   els.acFeedback.innerHTML = '';
   els.acFeedback.hidden = false;
-  if (acViewState === 'loading') {
+  if (acView.state === 'loading') {
     els.acFeedback.appendChild(emptyStateEl('refresh-cw', 'Reading AC units…'));
     return;
   }
-  if (acViewState === 'empty') {
+  if (acView.state === 'empty') {
     els.acFeedback.appendChild(emptyStateEl('snowflake', 'No AC units configured', {
       actionLabel: 'Retry',
       onAction: function () { loadUnits(); },
     }));
     return;
   }
-  if (acViewState === 'error') {
+  if (acView.state === 'error') {
     els.acFeedback.appendChild(emptyStateEl('snowflake', 'AC units unavailable', {
       actionLabel: 'Retry',
       onAction: function () { loadUnits(); },
     }));
     return;
   }
-  if (acViewState === 'stale') {
+  if (acView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small ac-stale-note';
-    note.textContent = acLiveUnavailable
-      ? lastUpdatedLabel() + ' · live data unavailable'
+    note.textContent = acView.liveUnavailable
+      ? acView.lastUpdatedLabel() + ' · live data unavailable'
       : snapshotLabel('units');
     els.acFeedback.appendChild(note);
     return;
@@ -86,7 +67,7 @@ function renderAcFeedback() {
 }
 
 function markAcFailure() {
-  setAcViewState(state.units.length ? 'stale' : 'error', {
+  acView.set(state.units.length ? 'stale' : 'error', {
     liveUnavailable: true,
   });
   reportFetchFailure(
@@ -345,7 +326,7 @@ function renderAll() {
     return displayLabel(a).localeCompare(displayLabel(b));
   });
   sorted.forEach(function (u) { els.grid.appendChild(buildCard(u)); });
-  if (acViewState === 'stale') {
+  if (acView.state === 'stale') {
     els.grid.querySelectorAll('button, select').forEach(function (control) {
       control.disabled = true;
     });
@@ -554,8 +535,8 @@ function renderAcSummary() {
   if (!state.units.length) {
     const empty = document.createElement('p');
     empty.className = 'muted small ac-summary-empty';
-    if (acViewState === 'loading') empty.textContent = 'Reading AC units…';
-    else if (acViewState === 'error') empty.textContent = 'AC units unavailable.';
+    if (acView.state === 'loading') empty.textContent = 'Reading AC units…';
+    else if (acView.state === 'error') empty.textContent = 'AC units unavailable.';
     else empty.textContent = 'No AC units configured.';
     els.acSummary.appendChild(empty);
     return;
@@ -590,7 +571,7 @@ function renderAcSummary() {
     toggle.setAttribute('aria-checked', on ? 'true' : 'false');
     toggle.setAttribute('aria-label', 'Power ' + (displayLabel(u) || 'unit'));
     toggle.innerHTML = toggleMarkup(on);
-    toggle.disabled = acViewState === 'stale';
+    toggle.disabled = acView.state === 'stale';
     toggle.addEventListener('click', function () {
       applyControl(u.unit_id, { power: !on });
     });
@@ -600,11 +581,11 @@ function renderAcSummary() {
     row.appendChild(toggle);
     els.acSummary.appendChild(row);
   });
-  if (acViewState === 'stale') {
+  if (acView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small snapshot-note ac-snapshot-note';
-    note.textContent = acLiveUnavailable
-      ? lastUpdatedLabel() + ' · live data unavailable'
+    note.textContent = acView.liveUnavailable
+      ? acView.lastUpdatedLabel() + ' · live data unavailable'
       : snapshotLabel('units');
     els.acSummary.appendChild(note);
   }
@@ -613,7 +594,7 @@ function renderAcSummary() {
 // --------------------------------------------------------------- boot
 export async function loadUnits() {
   if (!state.units.length) {
-    setAcViewState('loading', { liveUnavailable: false });
+    acView.set('loading', { liveUnavailable: false });
     renderAll();
     renderAcSummary();
   }
@@ -622,7 +603,7 @@ export async function loadUnits() {
     reportFetchOk('units');
     saveSnapshot('units', body);
     state.units = (body && body.units) || [];
-    setAcViewState(state.units.length ? 'ready' : 'empty', {
+    acView.set(state.units.length ? 'ready' : 'empty', {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -639,7 +620,7 @@ export function restoreUnitsSnapshot() {
   const body = restoreSnapshot('units');
   if (!body) return;
   state.units = (body && body.units) || [];
-  setAcViewState(state.units.length ? 'stale' : 'empty', {
+  acView.set(state.units.length ? 'stale' : 'empty', {
     updatedAt: state.snapshotUpdatedAt.units,
     liveUnavailable: false,
   });

@@ -24,6 +24,7 @@ from typing import Dict, Optional, Set
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._task_loop import run_loop
 from src.activity_log import append_activity
 from src.notify import NotifierError
 from src.notify_config import build_alarm_notifier
@@ -154,18 +155,15 @@ async def tick(config: WakeAlarmConfig, state: _EngineState, now: Optional[datet
 
 
 async def _run(config: WakeAlarmConfig) -> None:
-    logger.info("⏰ Wake alarms started (poll %ds)", config.poll_interval_s)
     state = _EngineState(last_fire_day={})
-    try:
-        while True:
-            try:
-                await tick(config, state)
-            except Exception as exc:  # noqa: BLE001 — a read failure never kills the loop
-                logger.warning("⚠️ Wake-alarm tick failed: %s", exc)
-            await asyncio.sleep(config.poll_interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 Wake alarms stopped")
-        raise
+    await run_loop(
+        lambda: tick(config, state),
+        config.poll_interval_s,
+        logger=logger,
+        name="Wake alarms",
+        start_msg="⏰ Wake alarms started (poll %ds)" % config.poll_interval_s,
+        tick_fail_msg="⚠️ Wake-alarm tick failed: %s",
+    )
 
 
 def start_wake_alarms() -> Optional[asyncio.Task]:

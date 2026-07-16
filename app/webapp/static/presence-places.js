@@ -12,14 +12,9 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { confirmAction } from './network.js';
+import { denseListEditor } from './dense-editor.js';
 
 const DEFAULT_RADIUS_M = 150;
-
-let editorIndex = null;
-let editorPlaceId = null;
-let editorReturnFocus = null;
-let stagedPlace = null;
 
 let mapPicker = null; // { map, marker } — created lazily on first "Pick on map".
 
@@ -82,7 +77,7 @@ export function renderPresencePlaces() {
     copy.appendChild(title);
     copy.appendChild(meta);
     main.appendChild(copy);
-    main.addEventListener('click', function () { openPlaceEditor(idx, main); });
+    main.addEventListener('click', function () { placeEditor.open(idx, main); });
     row.appendChild(main);
     els.presencePlacesList.appendChild(row);
   });
@@ -104,71 +99,51 @@ export async function loadPresencePlaces() {
   renderPresencePlaces();
 }
 
-async function savePresencePlaces(entries) {
-  const previous = state.presencePlacesList;
-  state.presencePlacesList = normalizedPlaces(entries);
-  renderPresencePlaces();
-  try {
-    const body = await jsonApi('/api/presence/places', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ places: state.presencePlacesList }),
-    });
-    state.presencePlacesList = (body && body.places) || [];
-    renderPresencePlaces();
-    toast('Places saved', 'success');
-    return true;
-  } catch (exc) {
-    state.presencePlacesList = previous;
-    renderPresencePlaces();
-    if (String(exc.message) !== 'auth required') {
-      toast("Couldn't save places", 'error');
-    }
-    return false;
-  }
-}
-
-function openPlaceEditor(index, trigger) {
-  editorIndex = index;
-  const source = index == null ? placeDefaults() : state.presencePlacesList[index];
-  stagedPlace = {
-    id: source.id,
-    label: source.label,
-    lat: source.lat,
-    lon: source.lon,
-    radius_m: source.radius_m,
-  };
-  editorPlaceId = stagedPlace.id;
-  editorReturnFocus = trigger || null;
-  els.presencePlaceEditorTitle.textContent = index == null ? 'Add place' : 'Edit place';
-  els.presencePlaceLabel.value = stagedPlace.label;
-  els.presencePlaceLat.value = stagedPlace.lat || '';
-  els.presencePlaceLon.value = stagedPlace.lon || '';
-  els.presencePlaceRadius.value = stagedPlace.radius_m;
-  els.presencePlaceDelete.hidden = index == null;
-  if (typeof els.presencePlaceDialog.showModal === 'function') els.presencePlaceDialog.showModal();
-  else els.presencePlaceDialog.setAttribute('open', '');
-  els.presencePlaceLabel.focus();
-}
-
-function closePlaceEditor() {
-  if (typeof els.presencePlaceDialog.close === 'function') els.presencePlaceDialog.close();
-  else els.presencePlaceDialog.removeAttribute('open');
-}
-
-function restoreEditorFocus() {
-  let target = editorReturnFocus && editorReturnFocus.isConnected ? editorReturnFocus : null;
-  if (!target && editorPlaceId) {
-    const row = els.presencePlacesList.querySelector('[data-place-id="' + CSS.escape(editorPlaceId) + '"]');
-    if (row) target = row.querySelector('.automation-summary-main');
-  }
-  if (!target) target = els.presencePlaceAdd;
-  editorIndex = null;
-  editorPlaceId = null;
-  editorReturnFocus = null;
-  stagedPlace = null;
-  if (target) requestAnimationFrame(function () { target.focus(); });
-}
+const placeEditor = denseListEditor({
+  dialog: els.presencePlaceDialog,
+  addButton: els.presencePlaceAdd,
+  closeButton: els.presencePlaceEditorClose,
+  saveButton: els.presencePlaceSave,
+  deleteButton: els.presencePlaceDelete,
+  titleEl: els.presencePlaceEditorTitle,
+  listEl: els.presencePlacesList,
+  focusEl: els.presencePlaceLabel,
+  rowIdAttr: 'data-place-id',
+  titles: { add: 'Add place', edit: 'Edit place' },
+  deleteConfirm: {
+    title: 'Delete this place?',
+    message: 'This named place will be removed permanently.',
+  },
+  toasts: { saved: 'Places saved', failed: "Couldn't save places" },
+  defaults: placeDefaults,
+  stage: function (source) {
+    return {
+      id: source.id,
+      label: source.label,
+      lat: source.lat,
+      lon: source.lon,
+      radius_m: source.radius_m,
+    };
+  },
+  getEntries: function () { return state.presencePlacesList; },
+  setEntries: function (entries) { state.presencePlacesList = entries; },
+  normalize: normalizedPlaces,
+  render: renderPresencePlaces,
+  populate: function (staged) {
+    els.presencePlaceLabel.value = staged.label;
+    els.presencePlaceLat.value = staged.lat || '';
+    els.presencePlaceLon.value = staged.lon || '';
+    els.presencePlaceRadius.value = staged.radius_m;
+  },
+  collect: function (staged) {
+    staged.label = (els.presencePlaceLabel.value || '').trim() || staged.id;
+    staged.lat = Number(els.presencePlaceLat.value) || 0;
+    staged.lon = Number(els.presencePlaceLon.value) || 0;
+    staged.radius_m = Math.max(10, Number(els.presencePlaceRadius.value) || DEFAULT_RADIUS_M);
+  },
+  endpoint: '/api/presence/places',
+  bodyKey: 'places',
+});
 
 function useBrowserLocationForPlace() {
   if (!navigator.geolocation) {
@@ -269,43 +244,9 @@ async function confirmMapPicker() {
 
 export function wirePresencePlaces() {
   if (!els.presencePlaceAdd || !els.presencePlaceDialog) return;
-  els.presencePlaceAdd.addEventListener('click', function () {
-    openPlaceEditor(null, els.presencePlaceAdd);
-  });
-  els.presencePlaceEditorClose.addEventListener('click', closePlaceEditor);
-  els.presencePlaceDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.presencePlaceDialog) closePlaceEditor();
-  });
-  els.presencePlaceDialog.addEventListener('close', restoreEditorFocus);
   if (els.presencePlaceUseBrowser) els.presencePlaceUseBrowser.addEventListener('click', useBrowserLocationForPlace);
   if (els.presencePlacePickMap) els.presencePlacePickMap.addEventListener('click', openMapPicker);
-
-  els.presencePlaceSave.addEventListener('click', async function () {
-    if (!stagedPlace) return;
-    stagedPlace.label = (els.presencePlaceLabel.value || '').trim() || stagedPlace.id;
-    stagedPlace.lat = Number(els.presencePlaceLat.value) || 0;
-    stagedPlace.lon = Number(els.presencePlaceLon.value) || 0;
-    stagedPlace.radius_m = Math.max(10, Number(els.presencePlaceRadius.value) || DEFAULT_RADIUS_M);
-    const proposed = state.presencePlacesList.slice();
-    if (editorIndex == null) proposed.push(stagedPlace);
-    else proposed[editorIndex] = stagedPlace;
-    els.presencePlaceSave.disabled = true;
-    const saved = await savePresencePlaces(proposed);
-    els.presencePlaceSave.disabled = false;
-    if (saved) closePlaceEditor();
-  });
-  els.presencePlaceDelete.addEventListener('click', async function () {
-    if (editorIndex == null) return;
-    const ok = await confirmAction({
-      title: 'Delete this place?',
-      message: 'This named place will be removed permanently.',
-      okLabel: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
-    const proposed = state.presencePlacesList.filter(function (_entry, idx) { return idx !== editorIndex; });
-    if (await savePresencePlaces(proposed)) closePlaceEditor();
-  });
+  placeEditor.wire();
 
   if (els.presenceMapPickerClose) els.presenceMapPickerClose.addEventListener('click', closeMapPicker);
   if (els.presenceMapPickerDialog) {
