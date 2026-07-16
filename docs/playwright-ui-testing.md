@@ -1,29 +1,17 @@
 # End-to-end UI testing with Playwright (didactic)
 
-Personal reference for how I test browser-served apps (Streamlit, Flask, etc.)
-in this stack. Captures the *mental model*, the *setup*, and the *reasoning*
-behind the choices — not just the commands. If I'm bootstrapping on a fresh
-PC, this is the doc I read.
+Personal reference for how I test browser-served apps (Streamlit, Flask, etc.) in this stack. Captures the *mental model*, the *setup*, and the *reasoning* behind the choices — not just the commands. If I'm bootstrapping on a fresh PC, this is the doc I read.
 
-> **Audience.** Me, plus any AI coding agent I hand a project to.
-> **Status.** Living reference, not a changelog. Update in place when the
-> recipe changes.
+> **Audience.** Me, plus any AI coding agent I hand a project to. **Status.** Living reference, not a changelog. Update in place when the recipe changes.
 
 ---
 
 ## TL;DR
 
 - I run **two distinct testing loops**, on purpose. Don't conflate them.
-- **Loop 1 = headed, agent-driven, throwaway.** During development, an AI
-  agent (Claude Code, Codex CLI, etc.) drives a real Chromium window via
-  the Playwright MCP server in `--headed` mode. I watch on screen. Nothing
-  is committed.
-- **Loop 2 = headless, pytest-playwright, permanent.** Optional. Lives at
-  `tests/e2e/`. No LLM in the loop, runs in CI or pre-push, costs $0 per
-  run. Only added when a behavior is worth pinning down forever.
-- **Why split?** Different audiences (me-now vs future-me), different cost
-  models, different lifespans. Mixing them creates either bloated test
-  suites or expensive throwaway "tests."
+- **Loop 1 = headed, agent-driven, throwaway.** During development, an AI agent (Claude Code, Codex CLI, etc.) drives a real Chromium window via the Playwright MCP server in `--headed` mode. I watch on screen. Nothing is committed.
+- **Loop 2 = headless, pytest-playwright, permanent.** Optional. Lives at `tests/e2e/`. No LLM in the loop, runs in CI or pre-push, costs $0 per run. Only added when a behavior is worth pinning down forever.
+- **Why split?** Different audiences (me-now vs future-me), different cost models, different lifespans. Mixing them creates either bloated test suites or expensive throwaway "tests."
 
 ---
 
@@ -31,15 +19,10 @@ PC, this is the doc I read.
 
 Browser testing usually fails one of two ways:
 
-1. **Manual click-through forever** — works, but I burn 10 min after every
-   change. Doesn't scale; I skip it and ship bugs.
-2. **Big test framework upfront** — invest two days writing Page Objects
-   and fixtures, end up with a fragile suite that breaks on every CSS
-   tweak. Fix-the-tests becomes its own job.
+1. **Manual click-through forever** — works, but I burn 10 min after every change. Doesn't scale; I skip it and ship bugs.
+2. **Big test framework upfront** — invest two days writing Page Objects and fixtures, end up with a fragile suite that breaks on every CSS tweak. Fix-the-tests becomes its own job.
 
-The fix is recognising that **"I want to verify this change"** and
-**"I want to prevent this regression forever"** are different problems,
-and they deserve different machinery.
+The fix is recognising that **"I want to verify this change"** and **"I want to prevent this regression forever"** are different problems, and they deserve different machinery.
 
 | Aspect       | Loop 1 — Verification              | Loop 2 — Regression                 |
 | ------------ | ---------------------------------- | ----------------------------------- |

@@ -1,22 +1,10 @@
 # home-automation
 
-Control your Mitsubishi Electric units from your phone — a mobile-first,
-installable **PWA** over **MELCloud Home**, ahead of building a solar
-load-balancing automation on top of it.
+Control your Mitsubishi Electric units from your phone — a mobile-first, installable **PWA** over **MELCloud Home**, ahead of building a solar load-balancing automation on top of it.
 
-> **Platform note.** These units migrated from classic MELCloud
-> (`app.melcloud.com`) to **MELCloud Home**, which is a different API. The
-> classic `pymelcloud` library cannot see them. This project uses
-> [`aiomelcloudhome`](https://github.com/erwindouna/aiomelcloudhome) — a
-> pure-async client that does the PKCE login over HTTP (no browser). Use
-> your **MELCloud Home** credentials in `.env`.
+> **Platform note.** These units migrated from classic MELCloud (`app.melcloud.com`) to **MELCloud Home**, which is a different API. The classic `pymelcloud` library cannot see them. This project uses [`aiomelcloudhome`](https://github.com/erwindouna/aiomelcloudhome) — a pure-async client that does the PKCE login over HTTP (no browser). Use your **MELCloud Home** credentials in `.env`.
 
-The product is a **FastAPI + static PWA**: a card grid showing every unit at
-once, each card carrying the everyday controls inline (on/off, target
-temperature, fan speed, room-temperature readout); a per-unit detail modal
-holds the rest (operation mode + the two vanes). It is reachable over
-**Tailscale**, behind a real Let's Encrypt HTTPS endpoint (`tailscale cert`)
-and an optional bearer token. Two ways to reach it once running:
+The product is a **FastAPI + static PWA**: a card grid showing every unit at once, each card carrying the everyday controls inline (on/off, target temperature, fan speed, room-temperature readout); a per-unit detail modal holds the rest (operation mode + the two vanes). It is reachable over **Tailscale**, behind a real Let's Encrypt HTTPS endpoint (`tailscale cert`) and an optional bearer token. Two ways to reach it once running:
 
 - **Tailscale** (anywhere on the tailnet, including this PC): `https://<pc>.<tailnet>.ts.net:8447` — trusted cert, no per-device setup
 - **Loopback** (plain desktop access on the PC): `http://localhost:8447` — plain HTTP; `https://localhost` would warn (the cert is for the `.ts.net` name — see [HTTPS](#https-tailscale-cert))
