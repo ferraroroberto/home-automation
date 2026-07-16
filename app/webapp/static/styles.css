@@ -1121,7 +1121,7 @@ button, input, select, textarea {
   font-weight: 700;
   color: var(--ink);
 }
-.vm-title .title-icon { width: 1.1em; height: 1.1em; flex: none; }
+.vm-title .title-icon { width: 1.1em; height: 1.1em; margin-right: 0; flex: none; }
 .vm-title > span:first-of-type {
   min-width: 0;
   overflow: hidden;
@@ -1154,6 +1154,143 @@ button, input, select, textarea {
    and plugs; .vm-toggle only needs to sit flush at the row's right edge. */
 .vm-toggle { flex: none; }
 .vm-meta { margin-top: 6px; }
+
+/* Home Assistant disclosure (#239): the former one-line VM card is now the
+   folded summary for VM + Voice PE. Detailed network work happens only open. */
+.ha-card { margin-bottom: var(--gap); }
+.ha-card-body { padding: 2px 14px 12px; }
+.ha-summary-state { margin-left: auto; white-space: nowrap; }
+.ha-summary-running { color: var(--on); }
+.ha-summary-unavailable { color: var(--deficit); }
+.ha-summary-transition { color: var(--attention); }
+.ha-vm-row {
+  margin: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ha-help-open {
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-xs);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.ha-help-identity { display: inline-flex; align-items: center; gap: var(--space-sm); }
+.ha-help-identity .icon { width: 18px; height: 18px; }
+.ha-help-chevron { width: 18px; height: 18px; color: var(--muted); }
+.ha-section-head {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: var(--font-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ha-note { margin: 9px 0 0; }
+.ha-satellite-list,
+.ha-interaction-list { display: flex; flex-direction: column; }
+.ha-satellite-row,
+.ha-interaction-row {
+  min-height: 52px;
+  border-top: 1px solid var(--line-muted);
+  padding: 10px 0;
+}
+.ha-satellite-row:first-child,
+.ha-interaction-row:first-child { border-top: 0; }
+.ha-satellite-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ha-satellite-row.is-offline { opacity: 0.62; }
+.ha-satellite-copy { min-width: 0; flex: 1 1 auto; }
+.ha-satellite-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ha-satellite-state {
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+.ha-satellite-state.is-online {
+  color: var(--on);
+  background: color-mix(in srgb, var(--on) 14%, transparent);
+}
+.ha-live-transcript { margin: 4px 0 0; color: var(--accent); }
+.ha-live-transcript:empty { display: none; }
+.ha-mic-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--accent);
+}
+.ha-mic-btn .icon { width: 20px; height: 20px; }
+.ha-mic-btn.recording {
+  color: var(--deficit);
+  background: color-mix(in srgb, var(--deficit) 12%, var(--card));
+}
+.ha-mic-btn:disabled { opacity: 0.45; }
+.ha-interactions-head { margin-top: 16px; }
+.ha-interaction-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ha-interaction-room { font-weight: 700; }
+.ha-interaction-text,
+.ha-interaction-response,
+.ha-interaction-meta { margin: 3px 0 0; overflow-wrap: anywhere; }
+.ha-help-dialog .detail-header h2 { font-size: var(--font-body); }
+.ha-help-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.ha-help-item h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--ink);
+  font-size: var(--font-label);
+  line-height: 1.25;
+}
+.ha-help-item h3 .icon { width: 18px; height: 18px; color: var(--accent); }
+.ha-help-item p { margin: var(--space-xs) 0 0 26px; color: var(--muted); line-height: 1.5; }
+.ha-help-note {
+  margin-top: var(--space-sm);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--muted);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+.ha-help-note strong { color: var(--ink); }
+.ha-help-note ul { margin: var(--space-xs) 0 0; padding-left: 18px; }
+.ha-help-note li + li { margin-top: var(--space-xs); }
 @media (max-width: 720px) {
   .plugs-summary-row {
     grid-template-columns: 1fr;

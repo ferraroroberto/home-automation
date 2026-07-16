@@ -37,6 +37,9 @@ Routes (split across ``app/webapp/routers/``):
     GET  /api/presence           → local + cached presence     (presence)
     GET  /api/hyperv             → Home Assistant VM status     (hyperv)
     POST /api/hyperv/{action}    → start/stop the HA VM         (hyperv)
+    GET  /api/ha                 → Voice PE rooms/interactions   (ha)
+    POST /api/ha/satellites/{id}/announce → room push-to-talk   (ha)
+    POST /api/ha/transcribe/*    → Voice Transcriber proxy      (ha)
     GET  /api/activity           → unified event log (filtered) (activity)
     POST /api/nav-debug          → append a nav-pin debug event (nav_debug)
     GET  /api/wake-alarms        → recurring/one-shot wake alarms (wake_alarms)
@@ -60,6 +63,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
+import aiohttp
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
@@ -67,7 +71,7 @@ from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import activity, auth, cameras, dhcp_plan, energy, hyperv, lights, misc, nav_debug, network, presence, push, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, wake_alarms, weather
+from app.webapp.routers import activity, auth, cameras, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, presence, push, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
@@ -77,6 +81,7 @@ from app.webapp.security_automation import start_security_schedules
 from app.webapp.wake_alarm_automation import start_wake_alarms
 from app.webapp.sampler import start_sampler
 from app.webapp.telemetry_sampler import start_telemetry_sampler
+from app.webapp.ha_trace_collector import start_ha_trace_collector
 from src import telemetry
 from src.push_notifications import validate_push_config
 from src.webapp_config import load_webapp_config
@@ -159,6 +164,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:  # noqa: BLE001 — push validation is non-critical to serving
         logger.warning("⚠️  Web Push config validation failed: %s", exc)
 
+    # One shared outbound pool for request-driven HA + Voice Transcriber calls.
+    # In particular, live dictation sends a chunk every second; reusing this
+    # pool avoids constructing a new client/socket pool for every chunk.
+    app.state.outbound_http = aiohttp.ClientSession()
+
     tasks = [
         t for t in (
             start_sampler(),
@@ -169,6 +179,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             start_security_schedules(),
             start_wake_alarms(),
             start_power_monitor(),
+            start_ha_trace_collector(),
         )
         if t is not None
     ]
@@ -180,6 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         for task in tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+        await app.state.outbound_http.close()
 
 
 def create_app() -> FastAPI:
@@ -227,6 +239,7 @@ def create_app() -> FastAPI:
     app.include_router(presence.router)
     app.include_router(push.router)
     app.include_router(hyperv.router)
+    app.include_router(ha.router)
     app.include_router(activity.router)
     app.include_router(nav_debug.router)
     app.include_router(wake_alarms.router)

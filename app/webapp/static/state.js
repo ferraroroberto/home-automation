@@ -23,6 +23,8 @@ export const state = {
   ups: null,
   // Home Assistant Hyper-V VM state from GET /api/hyperv (issue #240).
   vm: null,
+  // HA-owned Voice PE rooms + recent interactions from GET /api/ha (#239).
+  ha: null,
   // Elgato light cards from GET /api/lights.
   lights: [],
   // device_id whose rename modal is open (or null).
@@ -333,6 +335,15 @@ export const els = {
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
   // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
   homeVmTile: document.getElementById('homeVmTile'),
+  homeAssistantCard: document.getElementById('homeAssistantCard'),
+  homeAssistantSummaryState: document.getElementById('homeAssistantSummaryState'),
+  haSatellitesList: document.getElementById('haSatellitesList'),
+  haSatellitesNote: document.getElementById('haSatellitesNote'),
+  haInteractionsList: document.getElementById('haInteractionsList'),
+  haInteractionsNote: document.getElementById('haInteractionsNote'),
+  haHelpOpen: document.getElementById('haHelpOpen'),
+  haHelpDialog: document.getElementById('haHelpDialog'),
+  haHelpClose: document.getElementById('haHelpClose'),
   // Plug rename modal
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),

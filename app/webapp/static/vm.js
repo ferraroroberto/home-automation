@@ -62,6 +62,13 @@ function renderVmState(tile, iconName, message, action) {
   if (button && action && action.disabled) button.disabled = true;
 }
 
+function renderSummaryState(text, modifier) {
+  if (!els.homeAssistantSummaryState) return;
+  els.homeAssistantSummaryState.textContent = text;
+  els.homeAssistantSummaryState.className =
+    'muted small ha-summary-state ha-summary-' + modifier;
+}
+
 function fmtUptime(seconds) {
   if (seconds == null) return '';
   const total = Math.max(0, Math.round(Number(seconds)));
@@ -98,10 +105,12 @@ function render(tile, vm) {
   tile.dataset.state = vmViewState;
   tile.setAttribute('aria-busy', vmViewState === 'loading' ? 'true' : 'false');
   if (vmViewState === 'loading') {
+    renderSummaryState('Reading status…', 'transition');
     renderVmState(tile, 'refresh-cw', 'Reading Home Assistant status…', null);
     return;
   }
   if (vmViewState === 'empty') {
+    renderSummaryState('VM not found', 'unavailable');
     renderVmState(tile, 'cpu', 'Home Assistant VM not found', {
       label: 'Retry',
       onAction: function () { loadVm(); },
@@ -109,6 +118,7 @@ function render(tile, vm) {
     return;
   }
   if (vmViewState === 'error') {
+    renderSummaryState('status unavailable', 'unavailable');
     const canStart = !!(vm && vm.name && vm.state !== 'not_found');
     renderVmState(tile, 'cpu', 'Home Assistant status unavailable', canStart ? {
       label: busy ? 'Starting…' : 'Start Home Assistant',
@@ -127,6 +137,7 @@ function render(tile, vm) {
   tile.classList.toggle('is-running', running);
 
   const badge = statusBadge(vm);
+  renderSummaryState(badge.text, badge.mod);
   const dotHtml = badge.icon ? icon(badge.icon) : esc(badge.dot);
 
   // The same on/off switch as AC power / plugs: on = running. Toggling it
@@ -151,7 +162,7 @@ function render(tile, vm) {
 
   tile.innerHTML =
     '<div class="vm-main">' +
-    '  <div class="vm-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-cpu"></use></svg><span>HA</span></div>' +
+    '  <div class="vm-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-timer"></use></svg><span>HA</span></div>' +
     '  <span class="vm-status vm-status-' + badge.mod + '">' + dotHtml + ' ' + esc(badge.text) + '</span>' +
     '  ' + toggle +
     '</div>';

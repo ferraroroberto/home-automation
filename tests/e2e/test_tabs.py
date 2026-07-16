@@ -29,6 +29,19 @@ def _boot(page: Page, base_url: str) -> None:
     page.wait_for_selector("#paneHome", state="visible")
 
 
+def _open_ha_card(page: Page) -> None:
+    """Open the #239 disclosure without letting a UI test touch live HA."""
+    page.route(
+        "**/api/ha",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"satellites":[],"interactions":[],"voice_transcriber":true}',
+        ),
+    )
+    page.locator("#homeAssistantCard summary").click()
+
+
 def _stable_effective_rects(locator: Locator) -> List[EffectiveRect]:
     """Wait for the first match to be visible, then measure. Under full-suite
     load a tab click's re-render can still land the read mid-repaint, so
@@ -361,6 +374,7 @@ def test_vm_status_error_keeps_start_action_when_vm_is_identified(
     start = page.locator("#homeVmTile .empty-state-action")
     expect(start).to_have_text("Start Home Assistant")
     expect(start).to_be_enabled()
+    _open_ha_card(page)
     start.click()
 
     expect(page.locator("#homeVmTile")).to_have_attribute("data-state", "ready")
@@ -397,6 +411,7 @@ def test_vm_command_failure_uses_concise_toast(
         ),
     )
     _boot(page, base_url)
+    _open_ha_card(page)
     page.locator("#homeVmTile .empty-state-action").click()
 
     expect(page.locator("#toast")).to_have_text("Couldn't start Home Assistant")

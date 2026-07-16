@@ -205,6 +205,9 @@ def base_url() -> Iterator[str]:
             "SECURITY_SCHEDULES_ENABLED": "0",
             "PRESENCE_ICLOUD_REFRESH_ENABLED": "0",
             "PRESENCE_AUTOMATION_ENGINE_ENABLED": "0",
+            # Assist trace ingestion is a production background read. Browser
+            # tests stub /api/ha and must never inspect the live HA instance.
+            "HA_TRACE_ENABLED": "0",
         },
     )
     if sys.platform == "win32":
@@ -345,6 +348,20 @@ def _bound_default_timeouts(context: BrowserContext) -> None:
 
 
 # --------------------------------------------------------- API stubbing
+@pytest.fixture(autouse=True)
+def _stub_home_assistant_api(page: Page) -> None:
+    """Never let a browser regression test inspect the household's live HA."""
+
+    page.route(
+        "**/api/ha",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"satellites":[],"interactions":[],"voice_transcriber":true}',
+        ),
+    )
+
+
 @pytest.fixture
 def mock_api(page: Page) -> Callable[[List[Dict]], List[Dict]]:
     """Install route stubs for the units API on ``page``.

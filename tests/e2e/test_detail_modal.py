@@ -36,9 +36,9 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     _open_detail(page, base_url, "unit-1")
 
     close_buttons = page.locator(".detail-close")
-    # 15 + presencePlaceDialog + presenceMapPickerDialog (issue #438).
-    expect(close_buttons).to_have_count(17)
-    expect(page.locator(".detail-close.hit-target")).to_have_count(17)
+    # 15 + the two presence dialogs (#438) + HA capabilities help (#239).
+    expect(close_buttons).to_have_count(18)
+    expect(page.locator(".detail-close.hit-target")).to_have_count(18)
 
     target = effective_rect(page.locator("#detailClose"))
     # Exact compact-control contract: 34px visual box, 44px effective hit area.

@@ -229,6 +229,11 @@
     <symbol id="i-square" viewBox="0 0 24 24" fill="none">
       <rect x="3" y="3" width="18" height="18" rx="2" />
     </symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none">
+      <path d="M12 19v3" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <rect x="9" y="2" width="6" height="13" rx="3" />
+    </symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="none">
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
@@ -343,6 +348,11 @@
       <line x1="10" x2="14" y1="2" y2="2" />
       <line x1="12" x2="15" y1="14" y2="11" />
       <circle cx="12" cy="14" r="8" />
+    </symbol>
+    <symbol id="i-circle-help" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 1 1 5.83 1c0 2-3 3-3 3" />
+      <path d="M12 17h.01" />
     </symbol>
   </svg>
 
@@ -491,11 +501,38 @@
         </div>
       </section>
 
-      <!-- Home Assistant Hyper-V VM (GET /api/hyperv) — last Home tile. Status +
-           Start/Stop for the VM hosting Home Assistant; addressed by name, so
-           the tile is independent of the VM's IP. Home-tab only; hidden until
-           the first read. Issue #240. -->
-      <section id="homeVmTile" class="card vm-tile" aria-label="Home Assistant VM" hidden></section>
+      <!-- Home Assistant consumes the existing neutral VM tile in-place and
+           expands it into Voice PE rooms + push-to-talk (issue #239). Closed by
+           default; detailed HA polling runs only while this disclosure is open. -->
+      <details id="homeAssistantCard" class="card card--collapsible ha-card" aria-label="Home Assistant">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+            <h3 class="collapse-title">Home Assistant</h3>
+            <span id="homeAssistantSummaryState" class="muted small">Reading status…</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="ha-card-body">
+          <section id="homeVmTile" class="vm-tile ha-vm-row" aria-label="Home Assistant VM" hidden></section>
+
+          <button id="haHelpOpen" type="button" class="ha-help-open" aria-haspopup="dialog" aria-controls="haHelpDialog">
+            <span class="ha-help-identity">
+              <svg class="icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
+              <span>What can I do?</span>
+            </span>
+            <svg class="icon ha-help-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </button>
+
+          <div class="ha-section-head">Voice satellites</div>
+          <div id="haSatellitesList" class="ha-satellite-list" aria-live="polite"></div>
+          <p id="haSatellitesNote" class="muted small ha-note">Open to load Home Assistant rooms.</p>
+
+          <div class="ha-section-head ha-interactions-head">Recent interactions</div>
+          <div id="haInteractionsList" class="ha-interaction-list"></div>
+          <p id="haInteractionsNote" class="muted small ha-note">No interactions recorded while this web app was running.</p>
+        </div>
+      </details>
 
       <!-- Wake alarms & timers (issue #304) — Alexa-style alarms/timers that
            ring/notify at a set time. Distinct from the RISCO "Alarm controls"
@@ -1854,6 +1891,41 @@
       <div class="confirm-actions">
         <button id="confirmCancel" type="button" class="big-btn confirm-cancel">Cancel</button>
         <button id="confirmOk" type="button" class="big-btn confirm-ok" data-testid="confirm-ok">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Home Assistant capabilities guide (#239): static, user-facing help for
+       the three shipped workflows and their ownership/retention boundaries. -->
+  <dialog id="haHelpDialog" class="detail-dialog ha-help-dialog" aria-labelledby="haHelpTitle">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="haHelpTitle"><svg class="icon title-icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>What can I do?</h2>
+        <button id="haHelpClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <section class="ha-help-item">
+        <h3><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h3>
+        <p>Check each Home Assistant room, whether its Voice satellite is online, what it is doing, and its current speaker volume.</p>
+      </section>
+
+      <section class="ha-help-item">
+        <h3><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h3>
+        <p>Tap that room’s microphone, speak, then tap Stop. You will see the transcript while you talk; the final text is announced through that room’s satellite.</p>
+      </section>
+
+      <section class="ha-help-item">
+        <h3><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h3>
+        <p>See what Home Assistant heard, which local or fallback intent handled it, what action ran, and the spoken response.</p>
+      </section>
+
+      <div class="ha-help-note">
+        <strong>Good to know</strong>
+        <ul>
+          <li>Room and satellite names are owned in Home Assistant; change them there.</li>
+          <li>Only one microphone records at a time. Push-to-talk announces transcribed text, not the original voice recording or an assistant command.</li>
+          <li>Recent interactions are best-effort and are collected only while this webapp is running.</li>
+        </ul>
       </div>
     </div>
   </dialog>
