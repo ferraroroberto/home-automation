@@ -1,50 +1,35 @@
 r"""FastAPI webapp — mobile-first MELCloud Home control dashboard.
 
-Routes (split across ``app/webapp/routers/``):
+Routes are split across ``app/webapp/routers/`` — one module per mount,
+listed below in the same order they're mounted in ``create_app()``. Each
+module's own docstring documents its exact endpoints; kept as one line per
+module here (not a per-endpoint table) so this list can't drift out of sync
+with the router set the way the old exhaustive table did (#453).
 
-    GET  /                       → static/index.html        (misc)
-    GET  /static/{file}          → CSS / JS / icons          (static mount)
-    GET  /healthz                → liveness probe            (misc)
-    GET  /api/version            → build identity (git_sha)  (misc)
-    POST /api/login              → password → bearer token   (auth)
-    GET  /api/units              → live state of every unit  (units)
-    POST /api/units/{id}         → write controls + read back (units)
-    GET  /api/energy             → live SMA energy flow       (energy)
-    GET  /api/weather            → current weather (Open-Meteo) (weather)
-    GET  /api/tuya               → local Tuya devices + watts (tuya)
-    POST /api/tuya/{id}/switch   → on/off a Tuya plug/light   (tuya)
-    POST /api/tuya/{id}/cover    → open/close/stop a blind     (tuya)
-    GET  /api/ups                → local USB UPS telemetry     (ups)
-    GET  /api/lights             → Elgato lights state         (lights)
-    POST /api/lights/{id}        → Elgato light controls       (lights)
-    GET  /api/security           → RISCO alarm state           (security)
-    POST /api/security/{action}  → arm/disarm/perimeter alarm  (security)
-    GET  /api/security/schedules → weekly alarm schedules      (security_schedules)
-    GET  /api/network            → LAN health + device list    (network)
-    POST /api/network/access-point/reboot → reboot the AP      (network)
-    POST /api/network/router/reboot → reboot the router        (network)
-    PUT  /api/network/devices/{mac}/display_name → rename device (network)
-    PUT  /api/network/devices/{mac}/hidden → hide device       (network)
-    POST /api/network/devices/{mac}/important → mark device important (network)
-    PUT  /api/network/wifi/display_name → rename Wi-Fi radio   (network)
-    PUT  /api/network/wifi/hidden → hide Wi-Fi radio           (network)
-    GET  /api/network/dhcp-plan  → DHCP reservation plan        (dhcp_plan)
-    POST /api/network/dhcp-plan/apply → apply pending plan rows (dhcp_plan)
-    POST /api/network/dhcp-bindings → add a manual reservation  (dhcp_plan)
-    POST /api/network/dhcp-bindings/delete → delete a reservation (dhcp_plan)
-    PUT  /api/network/dhcp-overrides/{mac} → set category override (dhcp_plan)
-    POST /api/network/dhcp-reservations/apply → staged batch apply (dhcp_plan)
-    GET  /api/presence           → local + cached presence     (presence)
-    GET  /api/hyperv             → Home Assistant VM status     (hyperv)
-    POST /api/hyperv/{action}    → start/stop the HA VM         (hyperv)
-    GET  /api/ha                 → Voice PE rooms/interactions   (ha)
-    POST /api/ha/satellites/{id}/announce → room push-to-talk   (ha)
-    POST /api/ha/transcribe/*    → Voice Transcriber proxy      (ha)
-    GET  /api/activity           → unified event log (filtered) (activity)
-    POST /api/nav-debug          → append a nav-pin debug event (nav_debug)
-    GET  /api/wake-alarms        → recurring/one-shot wake alarms (wake_alarms)
-    POST /api/wake-alarms/{id}/test → fire an alarm immediately   (wake_alarms)
-    GET  /api/wake-timers        → active app-native timers      (wake_alarms)
+    misc               → /, /healthz, /api/version
+    (static mount)     → /static/*                        (StaticFiles, mounted in create_app — not a router)
+    auth               → /api/login
+    units              → /api/units*                    (MELCloud Home units)
+    energy             → /api/energy*                   (SMA flow/history/cost/forecast)
+    weather            → /api/weather
+    tuya               → /api/tuya*                      (Smart Life / Tuya plugs, blinds)
+    ups                → /api/ups*                        (USB UPS + notify prefs)
+    lights             → /api/lights*                     (Elgato lights)
+    cameras            → /api/cameras*                    (RTSP/ONVIF, snapshot, stream, PTZ, presets)
+    security           → /api/security, /api/security/events, /api/security/{action}, zones
+    security_schedules → /api/security/schedules
+    security_scene     → /api/security/scene-pairings
+    security_override  → /api/security/overrides
+    security_notify    → /api/security/notify-prefs
+    network            → /api/network*                    (LAN health, AP/router reboot, device/wifi hide, wifi rename)
+    dhcp_plan          → /api/network/dhcp-plan*, /dhcp-bindings*, /dhcp-overrides*, /dhcp-reservations*
+    presence           → /api/presence*, /api/location*
+    push               → /api/push*                       (browser Web Push)
+    hyperv             → /api/hyperv*                      (Home Assistant VM status/start/stop)
+    ha                 → /api/ha*                          (Voice PE rooms, push-to-talk, transcribe proxy)
+    activity           → /api/activity*                    (unified event log)
+    nav_debug          → /api/nav-debug                    (client nav-pin diagnostics)
+    wake_alarms        → /api/wake-alarms*, /api/wake-timers*
 
 Run with::
 

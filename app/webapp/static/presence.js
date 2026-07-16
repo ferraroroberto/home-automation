@@ -1,11 +1,18 @@
-/* Presence card controller (split out of security.js, issue #197).
+/* Presence card controller — boot/core (split out of security.js, issue #197;
+ * further split, issue #454).
  *
- * Owns the people list, hide/rename, the home-location editor, the alarm
- * automation knobs, and Web Push enrolment. Reads through GET /api/presence,
- * /api/location and /api/presence/automation; writes are PUT/POST calls that
- * re-render from the returned live state. This is a leaf module: it depends
- * only on ./state.js and ./api.js, so other security sub-modules may import its
- * shared formatter (fmtTime) without creating a cycle.
+ * Owns the people list (render, hide, rename), the detail modal, and the
+ * "where's mom/dad" locator card — this is a leaf-ish module: it depends only
+ * on ./state.js and ./api.js plus its three feature sibling modules (issue
+ * #454 maintainability split, mirroring the network.js → network-devices/
+ * wifi/dhcp.js boot + feature-module pattern):
+ *   ./presence-location.js    home-location editor + "this device" browser GPS
+ *   ./presence-automation.js  alarm-automation knobs (arm delay, kids-home)
+ *   ./presence-push.js        Web Push enrolment
+ * Reads through GET /api/presence, /api/location and /api/presence/automation
+ * (the latter two owned by the sub-modules); writes are PUT/POST calls that
+ * re-render from the returned live state. Other security sub-modules may
+ * import the shared formatter (fmtTime) without creating a cycle.
  */
 
 'use strict';
@@ -17,13 +24,19 @@ import {
   reportFetchFailure,
   reportFetchOk,
   PRESENCE_SHOW_HIDDEN_KEY,
-  THIS_DEVICE_PRESENCE_KEY,
-  THIS_DEVICE_LOCATION_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
 import { emptyStateEl } from './empty-state.js';
-import { toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
+import { toggleMarkup } from './toggle.js';
 import { createViewState } from './view-state.js';
+import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocationControls } from './presence-location.js';
+import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
+import { wirePresencePushControls } from './presence-push.js';
+
+// Re-export so callers (security.js, main.js) keep a single import surface —
+// same convention security.js itself uses for its own sub-modules.
+export { loadLocation } from './presence-location.js';
+export { loadPresenceAutomation } from './presence-automation.js';
 
 const presenceView = createViewState();
 
@@ -116,14 +129,6 @@ function sourceLabel(entity) {
   if (entity.source === 'icloud') return 'Find My';
   if (entity.source === 'browser') return 'Browser GPS · diagnostic only';
   return entity.source || 'Unknown';
-}
-
-function renderKidsHomeToggle() {
-  if (!els.presenceKidsHome) return;
-  const on = !!(state.presence && state.presence.kids_home_override);
-  els.presenceKidsHome.classList.toggle('active', on);
-  els.presenceKidsHome.setAttribute('aria-pressed', on ? 'true' : 'false');
-  els.presenceKidsHome.disabled = presenceView.state !== 'ready';
 }
 
 function showPresenceState(message, retry) {
@@ -238,7 +243,7 @@ function renderLocator() {
 
 export function renderPresence() {
   renderLocator();
-  renderKidsHomeToggle();
+  renderKidsHomeToggle(presenceView.state === 'ready');
   if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
   els.presenceList.innerHTML = '';
   els.presenceList.dataset.state = presenceView.state;
@@ -394,21 +399,6 @@ function renderPresenceRefreshNote() {
     ' min. This device is browser GPS only: it updates only while this tab/PWA is open and is not used for alarm automation. Alarm automation uses Shortcut webhook people. Last Find My refresh: ' + last + '.';
 }
 
-function renderPresenceAutomationNote() {
-  if (!els.presenceAutomationNote || !els.presenceAutoEnabled) return;
-  const entities = (state.presence && state.presence.entities) || [];
-  const hasWebhookPerson = entities.some(function (entity) {
-    return entity.source === 'webhook' && !entity.hidden;
-  });
-  if (isToggleOn(els.presenceAutoEnabled) && !hasWebhookPerson) {
-    els.presenceAutomationNote.textContent = 'Configure iOS Shortcut arrive/leave webhooks before enabling alarm automation. Browser GPS and Find My diagnostics do not drive arm/disarm.';
-    els.presenceAutomationNote.hidden = false;
-  } else {
-    els.presenceAutomationNote.hidden = true;
-    els.presenceAutomationNote.textContent = '';
-  }
-}
-
 export async function loadPresence() {
   if (!state.presence) {
     presenceView.set('loading', { liveUnavailable: false });
@@ -432,239 +422,6 @@ export async function loadPresence() {
     return;
   }
   renderPresence();
-}
-
-function distanceMeters(lat1, lon1, lat2, lon2) {
-  const radius = 6371000;
-  const p1 = lat1 * Math.PI / 180;
-  const p2 = lat2 * Math.PI / 180;
-  const dp = (lat2 - lat1) * Math.PI / 180;
-  const dl = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dp / 2) * Math.sin(dp / 2) +
-    Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
-  return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function buildThisDevicePresence(lat, lon, accuracy, lastSeen) {
-  const home = state.location || {};
-  let distance = null;
-  let atHome = null;
-  if (Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lon))) {
-    distance = distanceMeters(Number(home.lat), Number(home.lon), lat, lon);
-    atHome = distance <= ((state.presence && state.presence.home_radius_m) || 200);
-  }
-  const seen = lastSeen || new Date().toISOString();
-  const seenAt = new Date(seen).getTime();
-  const staleAfterMs = Math.max(10 * 60 * 1000, Number((state.presence && state.presence.refresh_interval_s) || 300) * 2000);
-  return {
-    entity_id: '__this_device__',
-    name: 'This device',
-    display_name: null,
-    hidden: false,
-    model: null,
-    device_class: 'Browser',
-    latitude: lat,
-    longitude: lon,
-    horizontal_accuracy_m: accuracy || null,
-    last_seen: seen,
-    battery_level_pct: null,
-    battery_status: null,
-    distance_from_home_m: distance,
-    at_home: atHome,
-    source: 'browser',
-    stale: Number.isFinite(seenAt) ? (Date.now() - seenAt > staleAfterMs) : false,
-  };
-}
-
-function storeThisDeviceLocation(lat, lon, accuracy, lastSeen) {
-  try {
-    localStorage.setItem(THIS_DEVICE_PRESENCE_KEY, 'true');
-    localStorage.setItem(THIS_DEVICE_LOCATION_KEY, JSON.stringify({
-      lat: lat,
-      lon: lon,
-      accuracy: accuracy || null,
-      last_seen: lastSeen,
-    }));
-  } catch (_) { /* private mode */ }
-}
-
-function hydrateThisDeviceLocation() {
-  try {
-    const raw = localStorage.getItem(THIS_DEVICE_LOCATION_KEY);
-    let cached = raw ? JSON.parse(raw) : null;
-    if (!cached && localStorage.getItem(THIS_DEVICE_PRESENCE_KEY) === 'true') {
-      const home = state.location || {};
-      if (Number.isFinite(Number(home.lat)) && Number.isFinite(Number(home.lon))) {
-        cached = {
-          lat: Number(home.lat),
-          lon: Number(home.lon),
-          accuracy: null,
-          last_seen: new Date(Date.now() - 11 * 60 * 1000).toISOString(),
-        };
-      }
-    }
-    if (!cached) return false;
-    const lat = Number(cached.lat);
-    const lon = Number(cached.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
-    state.thisDevicePresence = buildThisDevicePresence(lat, lon, Number(cached.accuracy) || null, cached.last_seen);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-function updateThisDeviceFromPosition(pos) {
-  const lat = pos.coords.latitude;
-  const lon = pos.coords.longitude;
-  const lastSeen = new Date().toISOString();
-  const accuracy = pos.coords.accuracy || null;
-  state.thisDevicePresence = buildThisDevicePresence(lat, lon, accuracy, lastSeen);
-  storeThisDeviceLocation(lat, lon, accuracy, lastSeen);
-  renderPresence();
-}
-
-function refreshThisDeviceLocation() {
-  if (!navigator.geolocation) return;
-  try {
-    if (localStorage.getItem(THIS_DEVICE_PRESENCE_KEY) !== 'true') return;
-  } catch (_) {
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(updateThisDeviceFromPosition, function () {
-    hydrateThisDeviceLocation();
-    renderPresence();
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
-}
-
-// Re-fetch Find My diagnostics on demand. No longer wired to a button (the
-// background refresher owns the cadence); still called after a home-location
-// change so the new distances appear immediately.
-async function refreshPresenceDiagnostics() {
-  try {
-    await jsonApi('/api/presence/refresh', { method: 'POST' });
-    await loadPresence();
-    toast('Presence refreshed', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Presence refresh failed: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
-// "Kids home" override: when on, the everyone-away webhook arms perimeter
-// instead of full. Auto-resets server-side on the next disarm-on-arrival.
-async function toggleKidsHome() {
-  const next = !(state.presence && state.presence.kids_home_override);
-  try {
-    await jsonApi('/api/presence/kids_home_override', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: next }),
-    });
-    await loadPresence();
-    toast(next ? 'Kids home on · perimeter when away' : 'Kids home off', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Kids home toggle failed: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
-export async function loadLocation() {
-  if (!els.locationLat || !els.locationLon) return;
-  try {
-    state.location = await jsonApi('/api/location');
-    els.locationLabel.value = state.location.label || '';
-    els.locationLat.value = state.location.lat == null ? '' : state.location.lat;
-    els.locationLon.value = state.location.lon == null ? '' : state.location.lon;
-    if (hydrateThisDeviceLocation()) renderPresence();
-    refreshThisDeviceLocation();
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Location failed: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
-function locationPayload() {
-  const lat = Number(els.locationLat.value);
-  const lon = Number(els.locationLon.value);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return { lat: lat, lon: lon, label: (els.locationLabel.value || '').trim() };
-}
-
-async function saveLocation() {
-  const payload = locationPayload();
-  if (!payload) return;
-  try {
-    state.location = await jsonApi('/api/location', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    toast('Location saved', 'success');
-    await refreshPresenceDiagnostics();
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Location failed: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
-function useBrowserLocation() {
-  if (!navigator.geolocation) {
-    toast('Location unavailable in this browser', 'error');
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(function (pos) {
-    els.locationLat.value = pos.coords.latitude.toFixed(6);
-    els.locationLon.value = pos.coords.longitude.toFixed(6);
-    if (!els.locationLabel.value.trim()) els.locationLabel.value = 'Home';
-    updateThisDeviceFromPosition(pos);
-    saveLocation();
-  }, function (err) {
-    toast('Location failed: ' + err.message, 'error');
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-}
-
-export async function loadPresenceAutomation() {
-  if (!els.presenceAutoEnabled) return;
-  try {
-    state.presenceAutomation = await jsonApi('/api/presence/automation');
-    const cfg = state.presenceAutomation || {};
-    setToggleState(els.presenceAutoEnabled, cfg.enabled === true);
-    els.presenceArmMinutes.value = Math.round((Number(cfg.arm_away_after_s) || 0) / 60);
-    els.presenceStaleMinutes.value = Math.round((Number(cfg.stale_after_s) || 3600) / 60);
-    setToggleState(els.presenceDisarmOnArrival, cfg.disarm_on_arrival !== false);
-    renderPresenceAutomationNote();
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Automation settings failed: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
-async function savePresenceAutomation() {
-  const payload = {
-    enabled: isToggleOn(els.presenceAutoEnabled),
-    arm_away_after_s: Math.max(0, Number(els.presenceArmMinutes.value || 0)) * 60,
-    stale_after_s: Math.max(1, Number(els.presenceStaleMinutes.value || 1)) * 60,
-    disarm_on_arrival: isToggleOn(els.presenceDisarmOnArrival),
-  };
-  try {
-    state.presenceAutomation = await jsonApi('/api/presence/automation', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    renderPresenceAutomationNote();
-    toast('Automation saved', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Automation save failed: ' + (exc.message || exc), 'error');
-    }
-  }
 }
 
 // --------------------------------------------------- presence detail + config
@@ -818,45 +575,6 @@ async function togglePresenceHidden() {
   }
 }
 
-function base64UrlToUint8Array(value) {
-  const padding = '='.repeat((4 - value.length % 4) % 4);
-  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = window.atob(base64);
-  const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
-  return out;
-}
-
-async function subscribePush() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    toast('Notifications unavailable in this browser', 'error');
-    return;
-  }
-  try {
-    const cfg = await jsonApi('/api/push/config');
-    if (!cfg.available || !cfg.public_key) {
-      toast('Web Push keys are not configured', 'error');
-      return;
-    }
-    const registration = await navigator.serviceWorker.register('/static/sw.js');
-    const existing = await registration.pushManager.getSubscription();
-    const sub = existing || await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: base64UrlToUint8Array(cfg.public_key),
-    });
-    await jsonApi('/api/push/subscriptions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sub.toJSON()),
-    });
-    toast('Notifications enabled', 'success');
-  } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Notifications failed: ' + (exc.message || exc), 'error');
-    }
-  }
-}
-
 export function wirePresenceControls() {
   try {
     if (localStorage.getItem(PRESENCE_SHOW_HIDDEN_KEY) === 'true') {
@@ -878,25 +596,9 @@ export function wirePresenceControls() {
       renderPresence();
     });
   }
-  if (els.presenceKidsHome) {
-    // The button lives in the <summary>, so swallow the click to toggle the
-    // override instead of collapsing the card.
-    els.presenceKidsHome.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      toggleKidsHome();
-    });
-  }
-  if (els.locationUseBrowser) els.locationUseBrowser.addEventListener('click', useBrowserLocation);
-  [els.locationLabel, els.locationLat, els.locationLon].forEach(function (el) {
-    if (el) el.addEventListener('blur', saveLocation);
-  });
-  [els.presenceArmMinutes, els.presenceStaleMinutes].forEach(function (el) {
-    if (el) el.addEventListener('change', savePresenceAutomation);
-  });
-  wireToggle(els.presenceAutoEnabled, savePresenceAutomation);
-  wireToggle(els.presenceDisarmOnArrival, savePresenceAutomation);
-  if (els.pushSubscribe) els.pushSubscribe.addEventListener('click', subscribePush);
+  wirePresenceAutomationControls();
+  wirePresenceLocationControls();
+  wirePresencePushControls();
 
   if (els.presenceDetailClose) els.presenceDetailClose.addEventListener('click', closePresenceDetail);
   if (els.presenceDialog) {
