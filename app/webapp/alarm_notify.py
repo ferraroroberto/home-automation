@@ -28,6 +28,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
+from weakref import WeakKeyDictionary
 
 from src.activity_log import append_activity
 from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
@@ -56,6 +57,24 @@ CONFIRM_RETRY_DELAYS_S: tuple[int, ...] = (30, 60, 120)
 # Per-day error-notify de-dupe: dedupe_key -> "YYYY-MM-DD".
 # Persisted to disk so a tray restart does not re-fire the same-day alert.
 _DEDUPE_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "alarm_notify_dedupe.json"
+
+# Schedule and presence run as independent tasks on the webapp event loop. Keep
+# one lock per loop so tests that create a fresh loop for each case do not reuse
+# an asyncio primitive bound to a closed loop.
+_AUTOMATIC_ACTION_LOCKS: WeakKeyDictionary[
+    asyncio.AbstractEventLoop, asyncio.Lock
+] = WeakKeyDictionary()
+
+
+def automatic_alarm_action_lock() -> asyncio.Lock:
+    """Return the current event loop's schedule/presence command lock."""
+
+    loop = asyncio.get_running_loop()
+    lock = _AUTOMATIC_ACTION_LOCKS.get(loop)
+    if lock is None:
+        lock = asyncio.Lock()
+        _AUTOMATIC_ACTION_LOCKS[loop] = lock
+    return lock
 
 
 def _load_dedupe() -> Dict[str, str]:
