@@ -128,13 +128,14 @@ def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
     expect(card).not_to_have_attribute("open", "")
     expect(page.locator("#haSatellitesList")).to_be_hidden()
     assert calls["ha"] == 0
-    expect(card.locator("summary .collapse-icon use")).to_have_attribute("href", "#i-house")
-    ha_icon = card.locator("summary .collapse-icon").bounding_box()
+    card_summary_icon = card.locator("> summary .collapse-icon")
+    expect(card_summary_icon.locator("use")).to_have_attribute("href", "#i-house")
+    ha_icon = card_summary_icon.bounding_box()
     wake_icon = page.locator(".wake-alarms-card summary .collapse-icon").bounding_box()
     assert ha_icon is not None and wake_icon is not None
     assert ha_icon["width"] == wake_icon["width"]
     assert ha_icon["height"] == wake_icon["height"]
-    ha_icon_offset = card.locator("summary .collapse-icon").evaluate(
+    ha_icon_offset = card_summary_icon.evaluate(
         "icon => icon.getBoundingClientRect().top - icon.closest('summary').getBoundingClientRect().top"
     )
     wake_icon_offset = page.locator(".wake-alarms-card summary .collapse-icon").evaluate(
@@ -146,8 +147,19 @@ def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
         card.element_handle(),
     )
 
-    card.locator("summary").click()
+    card.locator("> summary").click()
     expect(card).to_have_attribute("open", "")
+    expect(page.locator("#homeVmTile .vm-title use")).to_have_attribute("href", "#i-timer")
+
+    # #461: everything but the uptime tile lives in Presence-style nested
+    # subsections, all folded by default, each with a hit-target summary.
+    for section_id in ("haSatellitesCard", "haInteractionsCard", "haHelpCard", "voiceCommandsCard"):
+        section = page.locator("#" + section_id)
+        expect(section).not_to_have_attribute("open", "")
+        box = section.locator("summary").bounding_box()
+        assert box is not None and box["height"] >= 44, section_id
+
+    page.locator("#haSatellitesCard summary").click()
     expect(page.locator('.ha-satellite-row[data-entity="assist_satellite.kitchen"]')).to_contain_text(
         "Kitchen"
     )
@@ -155,21 +167,17 @@ def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
         "Volume 75%"
     )
     expect(page.locator('.ha-satellite-row[data-entity="assist_satellite.bedroom"] .ha-mic-btn')).to_be_disabled()
-    expect(page.locator(".ha-interaction-row")).to_contain_text("Where is mom?")
-    expect(page.locator("#homeVmTile .vm-title use")).to_have_attribute("href", "#i-timer")
 
-    help_button = page.locator("#haHelpOpen")
-    help_box = help_button.bounding_box()
-    assert help_box is not None and help_box["height"] >= 44
-    help_button.click()
-    dialog = page.locator("#haHelpDialog")
-    expect(dialog).to_be_visible()
-    expect(dialog).to_contain_text("See the voice layer")
-    expect(dialog).to_contain_text("Talk to a room")
-    expect(dialog).to_contain_text("Review recent interactions")
-    expect(dialog).to_contain_text("Room and satellite names are owned in Home Assistant")
-    dialog.locator("#haHelpClose").click()
-    expect(dialog).to_be_hidden()
+    page.locator("#haInteractionsCard summary").click()
+    expect(page.locator(".ha-interaction-row")).to_contain_text("Where is mom?")
+
+    help_card = page.locator("#haHelpCard")
+    help_card.locator("summary").click()
+    expect(help_card).to_have_attribute("open", "")
+    expect(help_card).to_contain_text("See the voice layer")
+    expect(help_card).to_contain_text("Talk to a room")
+    expect(help_card).to_contain_text("Review recent interactions")
+    expect(help_card).to_contain_text("Room and satellite names are owned in Home Assistant")
     assert calls["ha"] >= 1
 
 
@@ -230,7 +238,8 @@ def test_streamed_partial_finishes_and_announces_to_selected_room(
 
     page.route("**/api/ha/satellites/assist_satellite.kitchen/announce", handle_announce)
     _boot(page, base_url, sample_units, mock_api, mock_energy)
-    page.locator("#homeAssistantCard summary").click()
+    page.locator("#homeAssistantCard > summary").click()
+    page.locator("#haSatellitesCard summary").click()
 
     row = page.locator('.ha-satellite-row[data-entity="assist_satellite.kitchen"]')
     mic = row.locator(".ha-mic-btn")

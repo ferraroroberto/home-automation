@@ -39,7 +39,7 @@ def _open_ha_card(page: Page) -> None:
             body='{"satellites":[],"interactions":[],"voice_transcriber":true}',
         ),
     )
-    page.locator("#homeAssistantCard summary").click()
+    page.locator("#homeAssistantCard > summary").click()
 
 
 def _stable_effective_rects(locator: Locator) -> List[EffectiveRect]:

@@ -342,9 +342,6 @@ export const els = {
   haSatellitesNote: document.getElementById('haSatellitesNote'),
   haInteractionsList: document.getElementById('haInteractionsList'),
   haInteractionsNote: document.getElementById('haInteractionsNote'),
-  haHelpOpen: document.getElementById('haHelpOpen'),
-  haHelpDialog: document.getElementById('haHelpDialog'),
-  haHelpClose: document.getElementById('haHelpClose'),
   // Plug rename modal
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),

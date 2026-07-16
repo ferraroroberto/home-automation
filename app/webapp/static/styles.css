@@ -1166,36 +1166,6 @@ button, input, select, textarea {
 .ha-vm-row {
   margin: 0;
   padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-}
-.ha-help-open {
-  width: 100%;
-  min-height: 44px;
-  margin-top: var(--space-xs);
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--accent);
-  font: inherit;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.ha-help-identity { display: inline-flex; align-items: center; gap: var(--space-sm); }
-.ha-help-identity .icon { width: 18px; height: 18px; }
-.ha-help-chevron { width: 18px; height: 18px; color: var(--muted); }
-.ha-section-head {
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: var(--font-label);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .ha-note { margin: 9px 0 0; }
 .ha-satellite-list,
@@ -1251,7 +1221,6 @@ button, input, select, textarea {
   background: color-mix(in srgb, var(--deficit) 12%, var(--card));
 }
 .ha-mic-btn:disabled { opacity: 0.45; }
-.ha-interactions-head { margin-top: 16px; }
 .ha-interaction-main {
   display: flex;
   align-items: baseline;
@@ -1262,39 +1231,14 @@ button, input, select, textarea {
 .ha-interaction-text,
 .ha-interaction-response,
 .ha-interaction-meta { margin: 3px 0 0; overflow-wrap: anywhere; }
-.ha-help-dialog .detail-header h2 { font-size: var(--font-body); }
-.ha-help-item {
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-}
-.ha-help-item h3 {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  color: var(--ink);
-  font-size: var(--font-label);
-  line-height: 1.25;
-}
-.ha-help-item h3 .icon { width: 18px; height: 18px; color: var(--accent); }
-.ha-help-item p { margin: var(--space-xs) 0 0 26px; color: var(--muted); line-height: 1.5; }
-.ha-help-note {
-  margin-top: var(--space-sm);
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--input-bg);
-  color: var(--muted);
-  font-size: var(--font-caption);
-  line-height: 1.45;
-}
-.ha-help-note strong { color: var(--ink); }
-.ha-help-note ul { margin: var(--space-xs) 0 0; padding-left: 18px; }
-.ha-help-note li + li { margin-top: var(--space-xs); }
+/* HA-card nested subsections (#461): the Presence card's nested-details
+   pattern — a hairline-separated 48px .collapse-summary per section, all
+   folded by default. Rules shared with the presence nested cards below. */
+.ha-subsection-body { padding: 12px 14px 14px; }
 
-/* Voice cheat sheet (#437). Reference content, so it leans on the same
-   hairline-separated section rhythm as .ha-help-item above; the spoken example
-   is the one thing the eye should land on, so it gets the only filled surface. */
+/* Voice reference sections (#437, shared with the "What can I do?" guide in
+   #461). The spoken example is the one thing the eye should land on, so it
+   gets the only filled surface. */
 .voice-group { padding: 12px 0; border-top: 1px solid var(--line); }
 .voice-group:first-child { border-top: 0; padding-top: var(--space-xs); }
 .voice-group-head {
@@ -2214,16 +2158,19 @@ button.presence-name:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 .presence-settings-card,
-.presence-places-card {
+.presence-places-card,
+.ha-subsection {
   border-top: 1px solid var(--line);
 }
 .presence-settings-card > .collapse-summary,
-.presence-places-card > .collapse-summary {
+.presence-places-card > .collapse-summary,
+.ha-subsection > .collapse-summary {
   height: 48px;
   padding: 0 14px;
 }
 .presence-settings-card[open] > .collapse-summary,
-.presence-places-card[open] > .collapse-summary {
+.presence-places-card[open] > .collapse-summary,
+.ha-subsection[open] > .collapse-summary {
   border-bottom: 1px solid var(--line);
 }
 .presence-settings {

@@ -1,10 +1,11 @@
-/* Voice-command cheat sheet (issue #437) — Home-tab card.
+/* Voice-command cheat sheet (issue #437) — a folded subsection of the Home
+ * Assistant card (#461).
  *
- * The companion to the Home Assistant card's push-to-talk mic (#239): that
- * card's "What can I do?" dialog explains what *this webapp* does with Home
- * Assistant; this card answers the different question of what you can *say* to
- * the pucks. Content is the curated catalogue in src/voice_commands.py, served
- * by GET /api/voice-commands.
+ * The companion to that card's push-to-talk mic (#239): its "What can I do?"
+ * subsection explains what *this webapp* does with Home Assistant; this one
+ * answers the different question of what you can *say* to the pucks. Content
+ * is the curated catalogue in src/voice_commands.py, served by
+ * GET /api/voice-commands.
  *
  * Static reference — fetched once, on first open, and never polled: it only
  * changes when the app is redeployed with a new command wired.

@@ -165,18 +165,6 @@ export function onHaTab(tab) {
 export function wireHa() {
   if (!els.homeAssistantCard) return;
   els.homeAssistantCard.addEventListener('toggle', updatePolling);
-  if (els.haHelpOpen && els.haHelpDialog) {
-    els.haHelpOpen.addEventListener('click', function () {
-      if (typeof els.haHelpDialog.showModal === 'function') els.haHelpDialog.showModal();
-      else els.haHelpDialog.setAttribute('open', '');
-    });
-  }
-  if (els.haHelpClose && els.haHelpDialog) {
-    els.haHelpClose.addEventListener('click', function () {
-      if (typeof els.haHelpDialog.close === 'function') els.haHelpDialog.close();
-      else els.haHelpDialog.removeAttribute('open');
-    });
-  }
 }
 
 function voiceEventUrl(sessionId) {

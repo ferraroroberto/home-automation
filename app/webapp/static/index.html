@@ -513,45 +513,94 @@
           </span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
+        <!-- Main part: the HA VM uptime tile, always visible while the card is
+             open. Everything else lives in the folded-by-default subsections
+             below — the same nested-details pattern as the Security tab's
+             Presence card (#461). -->
         <div class="ha-card-body">
           <section id="homeVmTile" class="vm-tile ha-vm-row" aria-label="Home Assistant VM" hidden></section>
+        </div>
 
-          <button id="haHelpOpen" type="button" class="ha-help-open" aria-haspopup="dialog" aria-controls="haHelpDialog">
-            <span class="ha-help-identity">
-              <svg class="icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
-              <span>What can I do?</span>
+        <details id="haSatellitesCard" class="ha-subsection" aria-label="Voice satellites">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-satellite-dish"></use></svg>
+              <h3 class="collapse-title">Voice satellites</h3>
             </span>
-            <svg class="icon ha-help-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </button>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="ha-subsection-body">
+            <div id="haSatellitesList" class="ha-satellite-list" aria-live="polite"></div>
+            <p id="haSatellitesNote" class="muted small ha-note">Open to load Home Assistant rooms.</p>
+          </div>
+        </details>
 
-          <div class="ha-section-head">Voice satellites</div>
-          <div id="haSatellitesList" class="ha-satellite-list" aria-live="polite"></div>
-          <p id="haSatellitesNote" class="muted small ha-note">Open to load Home Assistant rooms.</p>
+        <details id="haInteractionsCard" class="ha-subsection" aria-label="Recent interactions">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+              <h3 class="collapse-title">Recent interactions</h3>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="ha-subsection-body">
+            <div id="haInteractionsList" class="ha-interaction-list"></div>
+            <p id="haInteractionsNote" class="muted small ha-note">No interactions recorded while this web app was running.</p>
+          </div>
+        </details>
 
-          <div class="ha-section-head ha-interactions-head">Recent interactions</div>
-          <div id="haInteractionsList" class="ha-interaction-list"></div>
-          <p id="haInteractionsNote" class="muted small ha-note">No interactions recorded while this web app was running.</p>
-        </div>
-      </details>
+        <!-- Home Assistant capabilities guide (#239, restructured in #461 from a
+             modal into a subsection): static, user-facing help for the three
+             shipped workflows. Shares the voice-group classes with the cheat
+             sheet below so the two reference sections read identically. -->
+        <details id="haHelpCard" class="ha-subsection" aria-label="What can I do?">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
+              <h3 class="collapse-title">What can I do?</h3>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="ha-subsection-body">
+            <section class="voice-group">
+              <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h4>
+              <p class="voice-group-summary muted small">Check each Home Assistant room, whether its Voice satellite is online, what it is doing, and its current speaker volume.</p>
+            </section>
+            <section class="voice-group">
+              <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h4>
+              <p class="voice-group-summary muted small">Tap that room’s microphone, speak, then tap Stop. You will see the transcript while you talk; the final text is announced through that room’s satellite.</p>
+            </section>
+            <section class="voice-group">
+              <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h4>
+              <p class="voice-group-summary muted small">See what Home Assistant heard, which local or fallback intent handled it, what action ran, and the spoken response.</p>
+              <ul class="voice-group-notes muted small">
+                <li>Room and satellite names are owned in Home Assistant; change them there.</li>
+                <li>Only one microphone records at a time. Push-to-talk announces transcribed text, not the original voice recording or an assistant command.</li>
+                <li>Recent interactions are best-effort and are collected only while this webapp is running.</li>
+              </ul>
+            </section>
+          </div>
+        </details>
 
-      <!-- Voice cheat sheet (issue #437) — the companion to the HA card's
-           push-to-talk mic above: that card's "What can I do?" covers what this
-           webapp does with Home Assistant, this one covers what you can *say* to
-           the pucks. Content comes from GET /api/voice-commands (curated in
-           src/voice_commands.py), fetched on first open and never polled.
-           Collapsible, styled like the wake-alarms card below. -->
-      <details id="voiceCommandsCard" class="card card--collapsible voice-commands-card" aria-label="Voice commands cheat sheet">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
-            <h3 class="collapse-title">What can I say?</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="voice-commands-body">
-          <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
-          <p id="voiceCommandsNote" class="muted small ha-note">Open to load the voice commands.</p>
-        </div>
+        <!-- Voice cheat sheet (issue #437, folded into this card in #461) — the
+             companion to the push-to-talk mic above: "What can I do?" covers
+             what this webapp does with Home Assistant, this one covers what you
+             can *say* to the pucks. Content comes from GET /api/voice-commands
+             (curated in src/voice_commands.py), fetched on first open and never
+             polled. -->
+        <details id="voiceCommandsCard" class="ha-subsection" aria-label="What can I say?">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
+              <h3 class="collapse-title">What can I say?</h3>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="ha-subsection-body">
+            <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
+            <p id="voiceCommandsNote" class="muted small ha-note">Open to load the voice commands.</p>
+          </div>
+        </details>
       </details>
 
       <!-- Wake alarms & timers (issue #304) — Alexa-style alarms/timers that
@@ -1915,40 +1964,6 @@
     </div>
   </dialog>
 
-  <!-- Home Assistant capabilities guide (#239): static, user-facing help for
-       the three shipped workflows and their ownership/retention boundaries. -->
-  <dialog id="haHelpDialog" class="detail-dialog ha-help-dialog" aria-labelledby="haHelpTitle">
-    <div class="detail-card">
-      <div class="detail-header">
-        <h2 id="haHelpTitle"><svg class="icon title-icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>What can I do?</h2>
-        <button id="haHelpClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
-      </div>
-
-      <section class="ha-help-item">
-        <h3><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h3>
-        <p>Check each Home Assistant room, whether its Voice satellite is online, what it is doing, and its current speaker volume.</p>
-      </section>
-
-      <section class="ha-help-item">
-        <h3><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h3>
-        <p>Tap that room’s microphone, speak, then tap Stop. You will see the transcript while you talk; the final text is announced through that room’s satellite.</p>
-      </section>
-
-      <section class="ha-help-item">
-        <h3><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h3>
-        <p>See what Home Assistant heard, which local or fallback intent handled it, what action ran, and the spoken response.</p>
-      </section>
-
-      <div class="ha-help-note">
-        <strong>Good to know</strong>
-        <ul>
-          <li>Room and satellite names are owned in Home Assistant; change them there.</li>
-          <li>Only one microphone records at a time. Push-to-talk announces transcribed text, not the original voice recording or an assistant command.</li>
-          <li>Recent interactions are best-effort and are collected only while this webapp is running.</li>
-        </ul>
-      </div>
-    </div>
-  </dialog>
 
   <!-- Activity / telemetry overlay (#289): the unified, filterable event history,
        opened from the Home "Activity log" button. Read-only; rows come from
