@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -64,6 +64,35 @@ def make_display_name_endpoint(
     endpoint.__name__ = f"set_{id_field}_display_name"
     router.put(path)(endpoint)
     return endpoint
+
+
+ExcTypes = Union[Type[Exception], Tuple[Type[Exception], ...]]
+
+
+def make_http_error_mapper(
+    config_exc: ExcTypes,
+    command_exc: ExcTypes,
+    *,
+    noun: str,
+) -> Callable[[Exception], HTTPException]:
+    """Build a device/service ``_http_error(exc)`` mapper.
+
+    Collapses the identical "config error → 503, command error → 502, anything
+    else → 502 + a warning log" shape duplicated across the security / lights /
+    cameras / dhcp_plan routers, differing only in which exception classes each
+    checks. ``noun`` names the thing being called for the fallback log/detail
+    text (e.g. ``"RISCO Cloud"``, ``"Elgato lights"``).
+    """
+
+    def _http_error(exc: Exception) -> HTTPException:
+        if isinstance(exc, config_exc):
+            return HTTPException(status_code=503, detail=str(exc))
+        if isinstance(exc, command_exc):
+            return HTTPException(status_code=502, detail=str(exc))
+        logger.warning("⚠️ Failed to call %s: %s", noun, exc)
+        return HTTPException(status_code=502, detail=f"failed to call {noun}: {exc}")
+
+    return _http_error
 
 
 async def _json_body(request: Request) -> Dict[str, Any]:

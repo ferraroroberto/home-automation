@@ -23,6 +23,7 @@ import {
   createForecastChart, setForecastData, restyleForecast,
 } from './charts.js';
 import { createPoller } from './poll.js';
+import { createViewState } from './view-state.js';
 
 const LIVE_MS = 5_000;
 const SLOW_MS = 30_000;
@@ -37,51 +38,31 @@ const CO2_KG_PER_KWH = 0.4;       // grid emission factor (kg CO₂ avoided / kW
 const CO2_KG_PER_TREE_YEAR = 21;  // sequestration per tree-year
 
 let todayTimer = null;
-let energyViewState = 'idle';
 let energyLastGood = null;
-let energyUpdatedAt = null;
-let energyLiveUnavailable = false;
-
-function setEnergyViewState(next, opts) {
-  energyViewState = next;
-  if (opts && opts.updatedAt) energyUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
-    energyLiveUnavailable = opts.liveUnavailable;
-  }
-}
-
-function lastUpdatedLabel() {
-  const raw = energyUpdatedAt || state.snapshotUpdatedAt.energyLive;
-  const updated = raw instanceof Date ? raw : new Date(raw || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const energyView = createViewState('energyLive');
 
 function renderEnergyFeedback() {
   if (!els.paneEnergy || !els.energyFeedback) return;
-  els.paneEnergy.dataset.state = energyViewState;
-  els.paneEnergy.setAttribute('aria-busy', energyViewState === 'loading' ? 'true' : 'false');
+  els.paneEnergy.dataset.state = energyView.state;
+  els.paneEnergy.setAttribute('aria-busy', energyView.state === 'loading' ? 'true' : 'false');
   els.energyFeedback.innerHTML = '';
   els.energyFeedback.hidden = false;
-  if (energyViewState === 'loading') {
+  if (energyView.state === 'loading') {
     els.energyFeedback.appendChild(emptyStateEl('refresh-cw', 'Reading live energy…'));
     return;
   }
-  if (energyViewState === 'error') {
+  if (energyView.state === 'error') {
     els.energyFeedback.appendChild(emptyStateEl('zap', 'Live energy unavailable', {
       actionLabel: 'Retry',
       onAction: function () { loadEnergy(); },
     }));
     return;
   }
-  if (energyViewState === 'stale') {
+  if (energyView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small energy-stale-note';
-    note.textContent = energyLiveUnavailable
-      ? lastUpdatedLabel() + ' · live data unavailable'
+    note.textContent = energyView.liveUnavailable
+      ? energyView.lastUpdatedLabel() + ' · live data unavailable'
       : snapshotLabel('energyLive');
     els.energyFeedback.appendChild(note);
     return;
@@ -90,7 +71,7 @@ function renderEnergyFeedback() {
 }
 
 function markEnergyFailure() {
-  setEnergyViewState(energyLastGood ? 'stale' : 'error', {
+  energyView.set(energyLastGood ? 'stale' : 'error', {
     liveUnavailable: true,
   });
   reportFetchFailure(
@@ -100,7 +81,7 @@ function markEnergyFailure() {
   );
   renderEnergyFeedback();
   if (energyLastGood) {
-    els.liveMeta.textContent = '· ' + lastUpdatedLabel() + ' · live data unavailable';
+    els.liveMeta.textContent = '· ' + energyView.lastUpdatedLabel() + ' · live data unavailable';
   }
 }
 
@@ -225,7 +206,7 @@ function gridFlowW(e) {
 
 export async function loadEnergy() {
   if (!energyLastGood) {
-    setEnergyViewState('loading', { liveUnavailable: false });
+    energyView.set('loading', { liveUnavailable: false });
     renderEnergyFeedback();
   }
   try {
@@ -237,7 +218,7 @@ export async function loadEnergy() {
     reportFetchOk('energy');
     saveSnapshot('energyLive', body);
     energyLastGood = body;
-    setEnergyViewState('ready', {
+    energyView.set('ready', {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -313,7 +294,7 @@ export function restoreEnergySnapshots() {
   const live = restoreSnapshot('energyLive');
   if (live) {
     energyLastGood = live;
-    setEnergyViewState('stale', {
+    energyView.set('stale', {
       updatedAt: state.snapshotUpdatedAt.energyLive,
       liveUnavailable: false,
     });

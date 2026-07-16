@@ -34,7 +34,11 @@ from app.webapp.alarm_notify import (
     SOURCE_MANUAL,
     record_alarm_action,
 )
-from app.webapp.routers._helpers import _bool_field
+from app.webapp.routers._helpers import (
+    DisplayNamePayload,
+    _bool_field,
+    make_http_error_mapper,
+)
 from src.presence_engine import note_manual_alarm_action
 from src.risco_client import (
     ACTIONS,
@@ -137,13 +141,7 @@ def _events_payload(events: List[object]) -> Dict[str, Any]:
     return {"events": [asdict(event) for event in events]}
 
 
-def _http_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, RiscoConfigError):
-        return HTTPException(status_code=503, detail=str(exc))
-    if isinstance(exc, RiscoCommandError):
-        return HTTPException(status_code=502, detail=str(exc))
-    logger.warning("Failed to call RISCO Cloud: %s", exc)
-    return HTTPException(status_code=502, detail=f"failed to call RISCO Cloud: {exc}")
+_http_error = make_http_error_mapper(RiscoConfigError, RiscoCommandError, noun="RISCO Cloud")
 
 
 @router.get("/api/security")
@@ -227,10 +225,6 @@ async def post_zone_bypass(zone_id: int, request: Request) -> Dict[str, Any]:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
-
-
-class DisplayNamePayload(BaseModel):
-    display_name: str
 
 
 @router.put("/api/security/zones/{zone_id}/display_name")

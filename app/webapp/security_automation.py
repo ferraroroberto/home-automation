@@ -11,6 +11,7 @@ from typing import Dict, Optional
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._task_loop import run_loop
 from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
@@ -111,18 +112,15 @@ async def tick(config: SecurityScheduleConfig, state: _EngineState, now: Optiona
 
 
 async def _run(config: SecurityScheduleConfig) -> None:
-    logger.info("🛡️ Alarm schedules started (poll %ds)", config.poll_interval_s)
     state = _EngineState(last_fire_day={})
-    try:
-        while True:
-            try:
-                await tick(config, state)
-            except Exception as exc:  # noqa: BLE001 - a read failure never kills the loop
-                logger.warning("⚠️ Alarm schedule tick failed: %s", exc)
-            await asyncio.sleep(config.poll_interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 Alarm schedules stopped")
-        raise
+    await run_loop(
+        lambda: tick(config, state),
+        config.poll_interval_s,
+        logger=logger,
+        name="Alarm schedules",
+        start_msg="🛡️ Alarm schedules started (poll %ds)" % config.poll_interval_s,
+        tick_fail_msg="⚠️ Alarm schedule tick failed: %s",
+    )
 
 
 def start_security_schedules() -> Optional[asyncio.Task]:

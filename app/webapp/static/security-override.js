@@ -19,13 +19,9 @@ import { jsonApi } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { detectorOptions } from './security-shared.js';
 import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { confirmAction } from './network.js';
+import { denseListEditor } from './dense-editor.js';
 
 const RETRY_OPTIONS = [1, 2, 3];
-let editorIndex = null;
-let editorOverrideId = null;
-let editorReturnFocus = null;
-let stagedOverride = null;
 
 function overrideDefaults() {
   return {
@@ -65,52 +61,58 @@ function detectorName(zoneId) {
   return detector ? detector.name : 'Unknown detector';
 }
 
-function openOverrideEditor(index, trigger) {
-  editorIndex = index;
-  const source = index == null ? overrideDefaults() : state.securityOverrides[index];
-  stagedOverride = { ...source };
-  editorOverrideId = stagedOverride.id;
-  editorReturnFocus = trigger || null;
-  els.securityOverrideEditorTitle.textContent = index == null ? 'Add override' : 'Edit override';
-  setToggleState(els.securityOverrideEnabled, stagedOverride.enabled);
-  setSelectOptions(
-    els.securityOverrideZone,
-    [{ value: '', label: 'Select…' }].concat(detectorOptions().map(function (entry) {
-      return { value: entry.id, label: entry.name };
-    })),
-    stagedOverride.zone_id
-  );
-  setSelectOptions(
-    els.securityOverrideRetries,
-    RETRY_OPTIONS.map(function (count) {
-      return { value: count, label: count + (count === 1 ? ' trigger' : ' triggers') };
-    }),
-    stagedOverride.max_retries
-  );
-  els.securityOverrideDelete.hidden = index == null;
-  if (typeof els.securityOverrideDialog.showModal === 'function') els.securityOverrideDialog.showModal();
-  else els.securityOverrideDialog.setAttribute('open', '');
-  els.securityOverrideZone.focus();
-}
-
-function closeOverrideEditor() {
-  if (typeof els.securityOverrideDialog.close === 'function') els.securityOverrideDialog.close();
-  else els.securityOverrideDialog.removeAttribute('open');
-}
-
-function restoreEditorFocus() {
-  let target = editorReturnFocus && editorReturnFocus.isConnected ? editorReturnFocus : null;
-  if (!target && editorOverrideId) {
-    const row = els.securityOverrides.querySelector('[data-override-id="' + CSS.escape(editorOverrideId) + '"]');
-    if (row) target = row.querySelector('.automation-summary-main');
-  }
-  if (!target) target = els.securityOverrideAdd;
-  editorIndex = null;
-  editorOverrideId = null;
-  editorReturnFocus = null;
-  stagedOverride = null;
-  if (target) requestAnimationFrame(function () { target.focus(); });
-}
+const overrideEditor = denseListEditor({
+  dialog: els.securityOverrideDialog,
+  addButton: els.securityOverrideAdd,
+  closeButton: els.securityOverrideEditorClose,
+  saveButton: els.securityOverrideSave,
+  deleteButton: els.securityOverrideDelete,
+  titleEl: els.securityOverrideEditorTitle,
+  listEl: els.securityOverrides,
+  focusEl: els.securityOverrideZone,
+  rowIdAttr: 'data-override-id',
+  titles: { add: 'Add override', edit: 'Edit override' },
+  deleteConfirm: {
+    title: 'Delete this alarm override?',
+    message: 'This detector override will be removed permanently.',
+  },
+  toasts: { saved: 'Override saved', failed: "Couldn't save override" },
+  defaults: overrideDefaults,
+  getEntries: function () { return state.securityOverrides; },
+  setEntries: function (entries) { state.securityOverrides = entries; },
+  normalize: normalizedOverrides,
+  render: renderSecurityOverrides,
+  populate: function (staged) {
+    setToggleState(els.securityOverrideEnabled, staged.enabled);
+    setSelectOptions(
+      els.securityOverrideZone,
+      [{ value: '', label: 'Select…' }].concat(detectorOptions().map(function (entry) {
+        return { value: entry.id, label: entry.name };
+      })),
+      staged.zone_id
+    );
+    setSelectOptions(
+      els.securityOverrideRetries,
+      RETRY_OPTIONS.map(function (count) {
+        return { value: count, label: count + (count === 1 ? ' trigger' : ' triggers') };
+      }),
+      staged.max_retries
+    );
+  },
+  collect: function (staged) {
+    if (staged.zone_id == null) {
+      toast('Choose a detector', 'warning');
+      els.securityOverrideZone.focus();
+      return false;
+    }
+    staged.enabled = isToggleOn(els.securityOverrideEnabled);
+  },
+  endpoint: '/api/security/overrides',
+  bodyKey: 'entries',
+  payloadEntries: function (entries) {
+    return entries.filter(function (entry) { return entry.zone_id != null; });
+  },
+});
 
 export function renderSecurityOverrides() {
   if (!els.securityOverrides || !els.securityOverridesNote) return;
@@ -153,14 +155,14 @@ export function renderSecurityOverrides() {
     copy.appendChild(meta);
     main.appendChild(copy);
     main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
-    main.addEventListener('click', function () { openOverrideEditor(idx, main); });
+    main.addEventListener('click', function () { overrideEditor.open(idx, main); });
     row.appendChild(main);
 
     const enabled = buildToggle('security-override-enabled', entry.enabled, function (on) {
       const proposed = state.securityOverrides.map(function (override, overrideIndex) {
         return overrideIndex === idx ? { ...override, enabled: on } : override;
       });
-      saveSecurityOverrides(proposed);
+      overrideEditor.save(proposed);
     });
     enabled.setAttribute('aria-label', 'Enable override for ' + detectorName(entry.zone_id));
     row.appendChild(enabled);
@@ -184,78 +186,20 @@ export async function loadSecurityOverrides() {
   renderSecurityOverrides();
 }
 
-async function saveSecurityOverrides(entries) {
-  const previous = state.securityOverrides;
-  state.securityOverrides = normalizedOverrides(entries);
-  renderSecurityOverrides();
-  const complete = state.securityOverrides.filter(function (entry) { return entry.zone_id != null; });
-  try {
-    const body = await jsonApi('/api/security/overrides', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: complete }),
-    });
-    state.securityOverrides = (body && body.entries) || [];
-    renderSecurityOverrides();
-    toast('Override saved', 'success');
-    return true;
-  } catch (exc) {
-    state.securityOverrides = previous;
-    renderSecurityOverrides();
-    if (String(exc.message) !== 'auth required') {
-      toast("Couldn't save override", 'error');
-    }
-    return false;
-  }
-}
-
 export function wireSecurityOverrides() {
   if (!els.securityOverrideAdd || !els.securityOverrideDialog) return;
   wireToggle(els.securityOverrideEnabled, function (on) {
-    if (stagedOverride) stagedOverride.enabled = on;
+    if (overrideEditor.staged) overrideEditor.staged.enabled = on;
   });
-  els.securityOverrideAdd.addEventListener('click', function () {
-    openOverrideEditor(null, els.securityOverrideAdd);
-  });
-  els.securityOverrideEditorClose.addEventListener('click', closeOverrideEditor);
-  els.securityOverrideDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.securityOverrideDialog) closeOverrideEditor();
-  });
-  els.securityOverrideDialog.addEventListener('close', restoreEditorFocus);
   els.securityOverrideZone.addEventListener('change', function () {
-    if (!stagedOverride) return;
-    stagedOverride.zone_id = els.securityOverrideZone.value === ''
+    const staged = overrideEditor.staged;
+    if (!staged) return;
+    staged.zone_id = els.securityOverrideZone.value === ''
       ? null : Number(els.securityOverrideZone.value);
   });
   els.securityOverrideRetries.addEventListener('change', function () {
-    if (stagedOverride) stagedOverride.max_retries = Number(els.securityOverrideRetries.value);
+    const staged = overrideEditor.staged;
+    if (staged) staged.max_retries = Number(els.securityOverrideRetries.value);
   });
-  els.securityOverrideSave.addEventListener('click', async function () {
-    if (!stagedOverride) return;
-    if (stagedOverride.zone_id == null) {
-      toast('Choose a detector', 'warning');
-      els.securityOverrideZone.focus();
-      return;
-    }
-    stagedOverride.enabled = isToggleOn(els.securityOverrideEnabled);
-    const proposed = state.securityOverrides.slice();
-    if (editorIndex == null) proposed.push(stagedOverride);
-    else proposed[editorIndex] = stagedOverride;
-    els.securityOverrideSave.disabled = true;
-    const saved = await saveSecurityOverrides(proposed);
-    els.securityOverrideSave.disabled = false;
-    if (saved) closeOverrideEditor();
-  });
-  els.securityOverrideDelete.addEventListener('click', async function () {
-    if (editorIndex == null) return;
-    const ok = await confirmAction({
-      title: 'Delete this alarm override?',
-      message: 'This detector override will be removed permanently.',
-      okLabel: 'Delete',
-      danger: true,
-    });
-    if (!ok) return;
-    const proposed = state.securityOverrides.filter(function (_entry, idx) { return idx !== editorIndex; });
-    if (await saveSecurityOverrides(proposed)) closeOverrideEditor();
-  });
+  overrideEditor.wire();
 }

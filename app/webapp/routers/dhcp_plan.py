@@ -40,6 +40,7 @@ from typing import Any, Dict, List, Mapping, Optional, Set
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.webapp.routers._helpers import make_http_error_mapper
 from src.dhcp_overrides import load_dhcp_overrides, set_dhcp_override
 from src.dhcp_plan import (
     Assignment,
@@ -64,6 +65,8 @@ from src.network_display_names import load_network_display_names, normalize_mac
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_http_error = make_http_error_mapper(NetworkConfigError, NetworkCommandError, noun="the network")
 
 
 def _assignment_dict(a: Assignment) -> Dict[str, Any]:
@@ -244,11 +247,10 @@ async def get_dhcp_plan() -> Dict[str, Any]:
     """
     try:
         plan, existing_rows, online_macs = await _compute_dhcp_plan()
-    except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+    except (NetworkConfigError, NetworkCommandError) as exc:
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001 — surface any unexpected error
-        logger.warning("⚠️  Failed to read network for DHCP plan: %s", exc)
-        raise HTTPException(status_code=502, detail=f"failed to read network: {exc}")
+        raise _http_error(exc)
     return _dhcp_plan_dict(plan, existing_rows, online_macs)
 
 
@@ -275,11 +277,10 @@ async def apply_dhcp_plan(payload: Optional[DhcpApplyPayload] = None) -> Dict[st
     """
     try:
         plan, _existing_rows, _online_macs = await _compute_dhcp_plan()
-    except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+    except (NetworkConfigError, NetworkCommandError) as exc:
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to read network for DHCP apply: %s", exc)
-        raise HTTPException(status_code=502, detail=f"failed to read network: {exc}")
+        raise _http_error(exc)
 
     # A None allow-list = apply everything pending; an explicit list filters to it
     # (normalised so the client's casing/separators don't matter). An empty list is
@@ -300,13 +301,10 @@ async def apply_dhcp_plan(payload: Optional[DhcpApplyPayload] = None) -> Dict[st
 
     try:
         results = await apply_dhcp_bindings(rows)
-    except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except NetworkCommandError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except (NetworkConfigError, NetworkCommandError) as exc:
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  DHCP apply failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"apply failed: {exc}")
+        raise _http_error(exc)
 
     applied = sum(1 for r in results if r.get("ok"))
     skipped = sum(1 for r in results if r.get("skipped"))
@@ -354,13 +352,10 @@ async def delete_dhcp_reservation(payload: DhcpDeletePayload) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="invalid reservation id")
     try:
         await delete_dhcp_binding(inst_id)
-    except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except NetworkCommandError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except (NetworkConfigError, NetworkCommandError) as exc:
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  DHCP binding delete failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"delete failed: {exc}")
+        raise _http_error(exc)
     return {"ok": True, "inst_id": inst_id}
 
 
@@ -434,20 +429,17 @@ async def add_dhcp_reservation(payload: DhcpManualBindingPayload) -> Dict[str, A
     except HTTPException:
         raise
     except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001 — pre-check is best-effort
         logger.warning("⚠️  Could not pre-check existing bindings: %s", exc)
 
     name = binding_name((payload.name or "").strip() or mac, mac)
     try:
         results = await apply_dhcp_bindings([{"name": name, "mac": mac, "ip": ip}])
-    except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except NetworkCommandError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except (NetworkConfigError, NetworkCommandError) as exc:
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Manual DHCP binding failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"add failed: {exc}")
+        raise _http_error(exc)
     row = results[0] if results else {"ok": False, "error": "no result"}
     if not row.get("ok"):
         # Surface the real reason (e.g. the full-table cap) with a 409, not a 200.
@@ -476,11 +468,10 @@ async def apply_dhcp_reservations(payload: DhcpReservationsApplyPayload) -> Dict
     """
     try:
         plan, _existing_rows, _online = await _compute_dhcp_plan()
-    except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+    except (NetworkConfigError, NetworkCommandError) as exc:
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to read network for DHCP apply: %s", exc)
-        raise HTTPException(status_code=502, detail=f"failed to read network: {exc}")
+        raise _http_error(exc)
 
     # Map each requested plan MAC → its planned {name, mac, ip} (create/change only).
     want = {normalize_mac(m) for m in payload.add_macs}
@@ -522,13 +513,10 @@ async def apply_dhcp_reservations(payload: DhcpReservationsApplyPayload) -> Dict
 
     try:
         results = await apply_dhcp_changes(removes, add_rows)
-    except NetworkConfigError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except NetworkCommandError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except (NetworkConfigError, NetworkCommandError) as exc:
+        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  DHCP changes apply failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"apply failed: {exc}")
+        raise _http_error(exc)
 
     removed = sum(1 for r in results if r.get("op") == "remove" and r.get("ok"))
     added = sum(1 for r in results if r.get("op") == "add" and r.get("ok"))

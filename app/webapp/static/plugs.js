@@ -15,63 +15,44 @@ import { jsonApi } from './api.js';
 import { fmtW } from './format.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { createPoller } from './poll.js';
+import { createViewState } from './view-state.js';
 import { toggleMarkup } from './toggle.js';
 import { emptyStateEl } from './empty-state.js';
 
 const POLL_MS = 15_000;
 
-let plugsViewState = 'idle';
-let plugsUpdatedAt = null;
-let plugsLiveUnavailable = false;
-
-function setPlugsViewState(next, opts) {
-  plugsViewState = next;
-  if (opts && opts.updatedAt) plugsUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
-    plugsLiveUnavailable = opts.liveUnavailable;
-  }
-}
-
-function lastUpdatedLabel() {
-  const raw = plugsUpdatedAt || state.snapshotUpdatedAt.plugs;
-  const updated = raw instanceof Date ? raw : new Date(raw || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const plugsView = createViewState('plugs');
 
 function renderPlugsFeedback() {
   if (!els.plugsFeedback) return;
-  els.plugsFeedback.dataset.state = plugsViewState;
+  els.plugsFeedback.dataset.state = plugsView.state;
   els.plugsFeedback.innerHTML = '';
   els.plugsFeedback.hidden = false;
-  if (plugsViewState === 'loading') {
+  if (plugsView.state === 'loading') {
     els.plugsFeedback.appendChild(
       emptyStateEl('plug-zap', 'Reading plugs and blinds…')
     );
     return;
   }
-  if (plugsViewState === 'empty') {
+  if (plugsView.state === 'empty') {
     els.plugsFeedback.appendChild(emptyStateEl('plug-zap', 'No Smart Life devices configured', {
       actionLabel: 'Retry',
       onAction: function () { loadPlugs(); },
     }));
     return;
   }
-  if (plugsViewState === 'error') {
+  if (plugsView.state === 'error') {
     els.plugsFeedback.appendChild(emptyStateEl('plug-zap', 'Plugs and blinds unavailable', {
       actionLabel: 'Retry',
       onAction: function () { loadPlugs(); },
     }));
     return;
   }
-  if (plugsViewState === 'stale') {
+  if (plugsView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small plugs-stale-note';
-    note.textContent = plugsLiveUnavailable
-      ? lastUpdatedLabel() + ' · live data unavailable'
+    note.textContent = plugsView.liveUnavailable
+      ? plugsView.lastUpdatedLabel() + ' · live data unavailable'
       : snapshotLabel('plugs');
     els.plugsFeedback.appendChild(note);
     return;
@@ -80,7 +61,7 @@ function renderPlugsFeedback() {
 }
 
 function markPlugsFailure() {
-  setPlugsViewState(state.plugs.length ? 'stale' : 'error', {
+  plugsView.set(state.plugs.length ? 'stale' : 'error', {
     liveUnavailable: true,
   });
   reportFetchFailure(
@@ -514,7 +495,7 @@ export function wirePlugsRefresh() {
       reportFetchOk('plugs');
       saveSnapshot('plugs', body);
       state.plugs = (body && body.devices) || [];
-      setPlugsViewState(state.plugs.length ? 'ready' : 'empty', {
+      plugsView.set(state.plugs.length ? 'ready' : 'empty', {
         updatedAt: new Date(),
         liveUnavailable: false,
       });
@@ -550,7 +531,7 @@ export function wirePlugDetail() {
 
 export async function loadPlugs() {
   if (!state.plugs.length) {
-    setPlugsViewState('loading', { liveUnavailable: false });
+    plugsView.set('loading', { liveUnavailable: false });
     renderPlugs();
   }
   try {
@@ -558,7 +539,7 @@ export async function loadPlugs() {
     reportFetchOk('plugs');
     saveSnapshot('plugs', body);
     state.plugs = (body && body.devices) || [];
-    setPlugsViewState(state.plugs.length ? 'ready' : 'empty', {
+    plugsView.set(state.plugs.length ? 'ready' : 'empty', {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -573,7 +554,7 @@ export function restorePlugsSnapshot() {
   const body = restoreSnapshot('plugs');
   if (!body) return;
   state.plugs = (body && body.devices) || [];
-  setPlugsViewState(state.plugs.length ? 'stale' : 'empty', {
+  plugsView.set(state.plugs.length ? 'stale' : 'empty', {
     updatedAt: state.snapshotUpdatedAt.plugs,
     liveUnavailable: false,
   });

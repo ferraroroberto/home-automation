@@ -13,31 +13,12 @@ import { esc, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from './poll.js';
+import { createViewState } from './view-state.js';
 
 const POLL_MS = 15_000;
 
 let lastMainsOnline = null;
-let upsViewState = 'idle';
-let upsUpdatedAt = null;
-let upsLiveUnavailable = false;
-
-function setUpsViewState(next, opts) {
-  upsViewState = next;
-  if (opts && opts.updatedAt) upsUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
-    upsLiveUnavailable = opts.liveUnavailable;
-  }
-}
-
-function lastUpdatedLabel() {
-  const raw = upsUpdatedAt || state.snapshotUpdatedAt.ups;
-  const updated = raw instanceof Date ? raw : new Date(raw || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const upsView = createViewState('ups');
 
 function renderUpsState(tile, iconName, message, retry) {
   tile.hidden = false;
@@ -80,17 +61,17 @@ function renderStat(label, value) {
 
 function renderUpsTile(tile, ups, compact) {
   if (!tile) return;
-  tile.dataset.state = upsViewState;
-  tile.setAttribute('aria-busy', upsViewState === 'loading' ? 'true' : 'false');
-  if (upsViewState === 'loading') {
+  tile.dataset.state = upsView.state;
+  tile.setAttribute('aria-busy', upsView.state === 'loading' ? 'true' : 'false');
+  if (upsView.state === 'loading') {
     renderUpsState(tile, 'refresh-cw', 'Reading UPS status…', false);
     return;
   }
-  if (upsViewState === 'empty') {
+  if (upsView.state === 'empty') {
     renderUpsState(tile, 'battery-charging', 'No UPS detected', true);
     return;
   }
-  if (upsViewState === 'error') {
+  if (upsView.state === 'error') {
     renderUpsState(tile, 'battery-charging', 'UPS status unavailable', true);
     return;
   }
@@ -102,7 +83,7 @@ function renderUpsTile(tile, ups, compact) {
   tile.classList.toggle('is-unavailable', !available);
 
   const title = 'UPS';
-  const snapshot = isSnapshotRestored('ups') && upsViewState !== 'stale'
+  const snapshot = isSnapshotRestored('ups') && upsView.state !== 'stale'
     ? '<span class="snapshot-badge">' + esc(snapshotLabel('ups')) + '</span>'
     : '';
   const identity =
@@ -120,11 +101,11 @@ function renderUpsTile(tile, ups, compact) {
       '<span>' + esc(fmtRuntime(ups && ups.runtime_seconds)) + '</span></span>' +
       '<span class="ups-status">' + esc(statusText(ups)) + '</span>' +
       '</div>';
-    if (upsViewState === 'stale') {
+    if (upsView.state === 'stale') {
       const note = document.createElement('p');
       note.className = 'muted small ups-stale-note';
-      note.textContent = upsLiveUnavailable
-        ? lastUpdatedLabel() + ' · live data unavailable'
+      note.textContent = upsView.liveUnavailable
+        ? upsView.lastUpdatedLabel() + ' · live data unavailable'
         : snapshotLabel('ups');
       tile.appendChild(note);
     }
@@ -176,7 +157,7 @@ function handleTransition(next) {
 
 export async function loadUps() {
   if (!state.ups) {
-    setUpsViewState('loading', { liveUnavailable: false });
+    upsView.set('loading', { liveUnavailable: false });
     renderUps();
   }
   try {
@@ -184,7 +165,7 @@ export async function loadUps() {
     reportFetchOk('ups');
     saveSnapshot('ups', body);
     state.ups = (body && body.ups) || null;
-    setUpsViewState(state.ups && state.ups.available === true ? 'ready' : 'empty', {
+    upsView.set(state.ups && state.ups.available === true ? 'ready' : 'empty', {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -192,7 +173,7 @@ export async function loadUps() {
     renderUps();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    setUpsViewState(state.ups && state.ups.available === true ? 'stale' : 'error', {
+    upsView.set(state.ups && state.ups.available === true ? 'stale' : 'error', {
       liveUnavailable: true,
     });
     reportFetchFailure('ups', { message: 'live data unavailable' }, 'UPS');
@@ -204,7 +185,7 @@ export function restoreUpsSnapshot() {
   const body = restoreSnapshot('ups');
   if (!body) return;
   state.ups = (body && body.ups) || null;
-  setUpsViewState(state.ups && state.ups.available === true ? 'stale' : 'empty', {
+  upsView.set(state.ups && state.ups.available === true ? 'stale' : 'empty', {
     updatedAt: state.snapshotUpdatedAt.ups,
     liveUnavailable: false,
   });

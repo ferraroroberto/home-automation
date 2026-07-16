@@ -19,7 +19,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 
+from app.webapp._task_loop import run_loop
 from src.energy_history import (
     EnergyHistoryConfig,
     compact_and_prune,
@@ -32,36 +34,43 @@ from src.sma_client import fetch_energy_state
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class _SamplerState:
+    """In-memory timing state (not persisted): monotonic ts of the last compact."""
+
+    last_compact: float = 0.0
+
+
+async def _tick(config: EnergyHistoryConfig, state: _SamplerState) -> None:
+    try:
+        sample = await fetch_energy_state()
+        await asyncio.to_thread(record_sample, sample)
+    except Exception as exc:  # noqa: BLE001 — never let a read kill the loop
+        logger.warning("⚠️ Energy sample failed: %s", exc)
+
+    now = time.monotonic()
+    if now - state.last_compact >= config.compact_interval_s:
+        try:
+            await asyncio.to_thread(compact_and_prune, config)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️ Energy compaction failed: %s", exc)
+        state.last_compact = now
+
+
 async def _run(config: EnergyHistoryConfig) -> None:
     """Sample → persist → periodically compact, until cancelled."""
     await asyncio.to_thread(init_db)
-    logger.info(
-        "📈 Energy sampler started (persist %ds, compact %ds, raw retention %dd)",
+    state = _SamplerState()
+    await run_loop(
+        lambda: _tick(config, state),
         config.persist_interval_s,
-        config.compact_interval_s,
-        config.raw_retention_days,
+        logger=logger,
+        name="Energy sampler",
+        start_msg=(
+            "📈 Energy sampler started (persist %ds, compact %ds, raw retention %dd)"
+            % (config.persist_interval_s, config.compact_interval_s, config.raw_retention_days)
+        ),
     )
-    last_compact = 0.0
-    try:
-        while True:
-            try:
-                state = await fetch_energy_state()
-                await asyncio.to_thread(record_sample, state)
-            except Exception as exc:  # noqa: BLE001 — never let a read kill the loop
-                logger.warning("⚠️ Energy sample failed: %s", exc)
-
-            now = time.monotonic()
-            if now - last_compact >= config.compact_interval_s:
-                try:
-                    await asyncio.to_thread(compact_and_prune, config)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("⚠️ Energy compaction failed: %s", exc)
-                last_compact = now
-
-            await asyncio.sleep(config.persist_interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 Energy sampler stopped")
-        raise
 
 
 def start_sampler() -> asyncio.Task | None:

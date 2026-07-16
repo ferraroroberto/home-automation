@@ -15,6 +15,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._task_loop import run_loop
 from src.presence_client import (
     PresenceAuthError,
     PresenceConfigError,
@@ -91,14 +92,13 @@ async def refresh_once() -> PresenceDiagnosticsCache:
 
 
 async def _run(interval_s: int) -> None:
-    logger.info("📍 Presence diagnostics refresher started (interval %ds)", interval_s)
-    try:
-        while True:
-            await refresh_once()
-            await asyncio.sleep(interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 Presence diagnostics refresher stopped")
-        raise
+    await run_loop(
+        refresh_once,
+        interval_s,
+        logger=logger,
+        name="Presence diagnostics refresher",
+        start_msg="📍 Presence diagnostics refresher started (interval %ds)" % interval_s,
+    )
 
 
 def start_presence_refresher() -> Optional[asyncio.Task]:

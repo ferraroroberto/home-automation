@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._task_loop import run_loop
 from src import telemetry
 from src import telemetry_adapters as adapters
 
@@ -125,28 +126,37 @@ async def _sample_once(config: TelemetrySamplerConfig) -> int:
     return written
 
 
+@dataclass
+class _SamplerState:
+    """In-memory timing state (not persisted): monotonic ts of the last compact."""
+
+    last_compact: float = 0.0
+
+
+async def _tick(config: TelemetrySamplerConfig, state: _SamplerState) -> None:
+    await _sample_once(config)
+    now = time.monotonic()
+    if now - state.last_compact >= config.compact_interval_s:
+        try:
+            await asyncio.to_thread(telemetry.compact_and_prune)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️ Telemetry compaction failed: %s", exc)
+        state.last_compact = now
+
+
 async def _run(config: TelemetrySamplerConfig) -> None:
     await asyncio.to_thread(telemetry.init_db)
-    logger.info(
-        "📊 Telemetry sampler started (every %ds; domains: %s)",
+    state = _SamplerState()
+    await run_loop(
+        lambda: _tick(config, state),
         config.interval_s,
-        ", ".join(_enabled_domains(config)) or "none",
+        logger=logger,
+        name="Telemetry sampler",
+        start_msg=(
+            "📊 Telemetry sampler started (every %ds; domains: %s)"
+            % (config.interval_s, ", ".join(_enabled_domains(config)) or "none")
+        ),
     )
-    last_compact = 0.0
-    try:
-        while True:
-            await _sample_once(config)
-            now = time.monotonic()
-            if now - last_compact >= config.compact_interval_s:
-                try:
-                    await asyncio.to_thread(telemetry.compact_and_prune)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("⚠️ Telemetry compaction failed: %s", exc)
-                last_compact = now
-            await asyncio.sleep(config.interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 Telemetry sampler stopped")
-        raise
 
 
 def start_telemetry_sampler() -> "asyncio.Task | None":

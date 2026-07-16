@@ -34,6 +34,7 @@ import {
 import { emptyStateEl } from './empty-state.js';
 import { restyleWifiChannelChart } from './charts.js';
 import { createPoller } from './poll.js';
+import { createViewState } from './view-state.js';
 import {
   renderStats,
   renderDevices,
@@ -57,9 +58,7 @@ const POLL_MS = 15_000;
 
 let speedtestRunning = false;
 let networkLoading = false;
-let networkViewState = 'idle';
-let networkUpdatedAt = null;
-let networkLiveUnavailable = false;
+const networkView = createViewState('network');
 // Last successful speed-test result, kept across polls (a normal poll returns
 // null Mbps, which would otherwise wipe the displayed figure each cycle).
 let lastSpeed = null;
@@ -77,46 +76,28 @@ function fmtUptime(seconds) {
   return m + 'm';
 }
 
-function setNetworkViewState(next, opts) {
-  networkViewState = next;
-  if (opts && opts.updatedAt) networkUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
-    networkLiveUnavailable = opts.liveUnavailable;
-  }
-}
-
-function lastUpdatedLabel() {
-  const raw = networkUpdatedAt || state.snapshotUpdatedAt.network;
-  const updated = raw instanceof Date ? raw : new Date(raw || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function renderNetworkFeedback() {
   if (!els.paneNetwork || !els.netFeedback) return;
-  els.paneNetwork.dataset.state = networkViewState;
+  els.paneNetwork.dataset.state = networkView.state;
   els.netFeedback.innerHTML = '';
   els.netFeedback.hidden = false;
 
-  if (networkViewState === 'loading') {
+  if (networkView.state === 'loading') {
     els.netFeedback.appendChild(emptyStateEl('wifi', 'Reading network status…'));
     return;
   }
-  if (networkViewState === 'error') {
+  if (networkView.state === 'error') {
     els.netFeedback.appendChild(emptyStateEl('wifi', 'Network unavailable', {
       actionLabel: 'Retry',
       onAction: function () { loadNetwork(); },
     }));
     return;
   }
-  if (networkViewState === 'stale') {
+  if (networkView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small network-stale-note';
-    note.textContent = networkLiveUnavailable
-      ? lastUpdatedLabel() + ' · live data unavailable'
+    note.textContent = networkView.liveUnavailable
+      ? networkView.lastUpdatedLabel() + ' · live data unavailable'
       : snapshotLabel('network');
     els.netFeedback.appendChild(note);
     return;
@@ -131,7 +112,7 @@ function disableStaleNetworkActions() {
 }
 
 function markNetworkFailure() {
-  setNetworkViewState(state.network ? 'stale' : 'error', {
+  networkView.set(state.network ? 'stale' : 'error', {
     liveUnavailable: true,
   });
   reportFetchFailure(
@@ -295,7 +276,7 @@ function renderNetwork() {
     : []);
   renderDevices(net ? net.devices : []);
   renderNetworkFeedback();
-  if (networkViewState === 'stale' && networkLiveUnavailable) {
+  if (networkView.state === 'stale' && networkView.liveUnavailable) {
     disableStaleNetworkActions();
   }
 }
@@ -310,7 +291,7 @@ async function loadNetwork(opts) {
   if (networkLoading) return false;
   networkLoading = true;
   if (!speedtest && !state.network) {
-    setNetworkViewState('loading', { liveUnavailable: false });
+    networkView.set('loading', { liveUnavailable: false });
     renderNetworkFeedback();
   }
   try {
@@ -318,7 +299,7 @@ async function loadNetwork(opts) {
     state.network = await jsonApi(url);
     reportFetchOk('network');
     if (!speedtest) saveSnapshot('network', state.network);
-    setNetworkViewState('ready', {
+    networkView.set('ready', {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -337,7 +318,7 @@ export function restoreNetworkSnapshot() {
   const body = restoreSnapshot('network');
   if (!body) return;
   state.network = body;
-  setNetworkViewState('stale', {
+  networkView.set('stale', {
     updatedAt: state.snapshotUpdatedAt.network,
     liveUnavailable: false,
   });

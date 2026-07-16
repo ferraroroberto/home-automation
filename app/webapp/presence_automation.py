@@ -10,6 +10,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._task_loop import run_loop
 from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
@@ -158,17 +159,14 @@ async def tick() -> None:
 
 
 async def _run(interval_s: int) -> None:
-    logger.info("🛡️ Presence alarm automation started (poll %ds)", interval_s)
-    try:
-        while True:
-            try:
-                await tick()
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("⚠️ Presence automation tick failed: %s", exc)
-            await asyncio.sleep(interval_s)
-    except asyncio.CancelledError:
-        logger.info("🛑 Presence alarm automation stopped")
-        raise
+    await run_loop(
+        tick,
+        interval_s,
+        logger=logger,
+        name="Presence alarm automation",
+        start_msg="🛡️ Presence alarm automation started (poll %ds)" % interval_s,
+        tick_fail_msg="⚠️ Presence automation tick failed: %s",
+    )
 
 
 def start_presence_automation() -> Optional[asyncio.Task]:

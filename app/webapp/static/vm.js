@@ -15,37 +15,18 @@ import { esc } from './format.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { confirmAction } from './network.js';
 import { createPoller } from './poll.js';
+import { createViewState } from './view-state.js';
 import { toggleMarkup } from './toggle.js';
 
 const POLL_MS = 30_000;
 
 let busy = false;       // a start/stop is in flight — disable the toggle, skip overlap
 let pending = null;     // 'start' | 'stop' while that action is in flight
-let vmViewState = 'idle';
-let vmUpdatedAt = null;
-let vmLiveUnavailable = false;
-
-function setVmViewState(next, opts) {
-  vmViewState = next;
-  if (opts && opts.updatedAt) vmUpdatedAt = opts.updatedAt;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
-    vmLiveUnavailable = opts.liveUnavailable;
-  }
-}
+const vmView = createViewState('hyperv');
 
 function viewStateFor(vm) {
   if (!vm || vm.state === 'not_found') return 'empty';
   return vm.available === true ? 'ready' : 'error';
-}
-
-function lastUpdatedLabel() {
-  const raw = vmUpdatedAt || state.snapshotUpdatedAt.hyperv;
-  const updated = raw instanceof Date ? raw : new Date(raw || '');
-  if (Number.isNaN(updated.getTime())) return 'Last updated earlier';
-  return 'Last updated ' + updated.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function renderVmState(tile, iconName, message, action) {
@@ -102,14 +83,14 @@ function statusBadge(vm) {
 
 function render(tile, vm) {
   if (!tile) return;
-  tile.dataset.state = vmViewState;
-  tile.setAttribute('aria-busy', vmViewState === 'loading' ? 'true' : 'false');
-  if (vmViewState === 'loading') {
+  tile.dataset.state = vmView.state;
+  tile.setAttribute('aria-busy', vmView.state === 'loading' ? 'true' : 'false');
+  if (vmView.state === 'loading') {
     renderSummaryState('Reading status…', 'transition');
     renderVmState(tile, 'refresh-cw', 'Reading Home Assistant status…', null);
     return;
   }
-  if (vmViewState === 'empty') {
+  if (vmView.state === 'empty') {
     renderSummaryState('VM not found', 'unavailable');
     renderVmState(tile, 'cpu', 'Home Assistant VM not found', {
       label: 'Retry',
@@ -117,7 +98,7 @@ function render(tile, vm) {
     });
     return;
   }
-  if (vmViewState === 'error') {
+  if (vmView.state === 'error') {
     renderSummaryState('status unavailable', 'unavailable');
     const canStart = !!(vm && vm.name && vm.state !== 'not_found');
     renderVmState(tile, 'cpu', 'Home Assistant status unavailable', canStart ? {
@@ -146,7 +127,7 @@ function render(tile, vm) {
   // insufficient rights → can't control). While pending it slides to the target.
   const actionable = available && (vm.state === 'running' || vm.state === 'off');
   const toggleOn = pending ? (pending === 'start') : running;
-  const disabled = busy || !actionable || vmViewState === 'stale';
+  const disabled = busy || !actionable || vmView.state === 'stale';
   const toggle =
     '<button type="button" class="toggle vm-toggle' + (toggleOn ? ' on' : '') + '"' +
     ' role="switch" aria-checked="' + (toggleOn ? 'true' : 'false') + '"' +
@@ -167,11 +148,11 @@ function render(tile, vm) {
     '  ' + toggle +
     '</div>';
 
-  if (vmViewState === 'stale') {
+  if (vmView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small vm-stale-note';
-    note.textContent = vmLiveUnavailable
-      ? lastUpdatedLabel() + ' · live data unavailable'
+    note.textContent = vmView.liveUnavailable
+      ? vmView.lastUpdatedLabel() + ' · live data unavailable'
       : snapshotLabel('hyperv');
     tile.appendChild(note);
   }
@@ -202,7 +183,7 @@ async function onToggle() {
     state.vm = (body && body.hyperv) || state.vm;
     saveSnapshot('hyperv', body);
     reportFetchOk('hyperv');
-    setVmViewState(viewStateFor(state.vm), {
+    vmView.set(viewStateFor(state.vm), {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -231,7 +212,7 @@ export function renderVm() {
 
 export async function loadVm() {
   if (!state.vm) {
-    setVmViewState('loading', { liveUnavailable: false });
+    vmView.set('loading', { liveUnavailable: false });
     renderVm();
   }
   try {
@@ -239,14 +220,14 @@ export async function loadVm() {
     reportFetchOk('hyperv');
     saveSnapshot('hyperv', body);
     state.vm = (body && body.hyperv) || null;
-    setVmViewState(viewStateFor(state.vm), {
+    vmView.set(viewStateFor(state.vm), {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
     renderVm();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    setVmViewState(state.vm && state.vm.available === true ? 'stale' : 'error', {
+    vmView.set(state.vm && state.vm.available === true ? 'stale' : 'error', {
       liveUnavailable: true,
     });
     reportFetchFailure(
@@ -262,7 +243,7 @@ export function restoreVmSnapshot() {
   const body = restoreSnapshot('hyperv');
   if (!body) return;
   state.vm = (body && body.hyperv) || null;
-  setVmViewState(state.vm && state.vm.available === true ? 'stale' : viewStateFor(state.vm), {
+  vmView.set(state.vm && state.vm.available === true ? 'stale' : viewStateFor(state.vm), {
     updatedAt: state.snapshotUpdatedAt.hyperv,
     liveUnavailable: false,
   });

@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.webapp.routers._helpers import make_http_error_mapper
 from src.elgato_client import (
     ElgatoCommandError,
     ElgatoConfigError,
@@ -35,13 +36,9 @@ def _light_dict(light: Any, display_names: Dict[str, str]) -> Dict[str, Any]:
     return data
 
 
-def _http_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, (ElgatoConfigError, ElgatoDiscoveryError)):
-        return HTTPException(status_code=503, detail=str(exc))
-    if isinstance(exc, ElgatoCommandError):
-        return HTTPException(status_code=502, detail=str(exc))
-    logger.warning("⚠️ Failed to call Elgato lights: %s", exc)
-    return HTTPException(status_code=502, detail=f"failed to call Elgato lights: {exc}")
+_http_error = make_http_error_mapper(
+    (ElgatoConfigError, ElgatoDiscoveryError), ElgatoCommandError, noun="Elgato lights"
+)
 
 
 @router.get("/api/lights")
