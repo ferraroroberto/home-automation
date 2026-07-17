@@ -195,10 +195,10 @@ export function restoreUpsSnapshot() {
 const schedule = createPoller(loadUps);
 
 export function onUpsTab(tab) {
-  if (tab === 'plugs' || tab === 'home') {
+  if (tab === 'iot' || tab === 'home') {
     loadUps();
-    if (tab === 'plugs') loadPowerNotifyPrefs();
-    schedule(tab === 'plugs' ? POLL_MS : 0);
+    if (tab === 'iot') loadPowerNotifyPrefs();
+    schedule(tab === 'iot' ? POLL_MS : 0);
   } else {
     schedule(0);
   }

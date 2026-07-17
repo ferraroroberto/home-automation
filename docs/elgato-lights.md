@@ -69,7 +69,7 @@ Recommended next PR:
 - Extend `ElgatoLight` with optional hue/saturation, settings, and battery/status fields.
 - Probe `GET /elgato/lights/settings` and `GET /elgato/battery-info` opportunistically, treating `404` as unsupported.
 - Accept and serialize `hue` / `saturation` in `PUT /elgato/lights` only for devices whose current state reports color fields or whose product/features identify a Light Strip.
-- Update the Lights tab to render a color swatch for Light Strip-class devices and battery status for Key Light Mini-class devices when available.
+- Update the Lights card (IoT tab) to render a color swatch for Light Strip-class devices and battery status for Key Light Mini-class devices when available.
 - Add unit/API/e2e tests with monkeypatched fixtures for a Key Light, a Light Strip RGB device, a Key Light Mini battery-capable device, and an offline device.
 
 Explicitly out of scope for that PR: Light Strip Pro JavaScript scene authoring, cloud control, schedules/automation, vendor display-name writes, and restart/identify buttons.

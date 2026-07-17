@@ -94,7 +94,7 @@ export const state = {
   // Wi-Fi diagnostics channel charts on the Network tab.
   wifiChart24: null,
   wifiChart5: null,
-  // Active top-level tab: 'home' | 'ac' | 'energy' | 'plugs' | 'lights' | 'network' | 'security'.
+  // Active top-level tab: 'home' | 'ac' | 'energy' | 'iot' | 'network' | 'security'.
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
   range: 'day',
@@ -303,7 +303,7 @@ export const els = {
   cameraZoomName: document.getElementById('cameraZoomName'),
   cameraZoomClose: document.getElementById('cameraZoomClose'),
   cameraZoomImg: document.getElementById('cameraZoomImg'),
-  // Plugs (Smart Life) tab — split into two collapsible row-list cards.
+  // IoT tab — Plugs / Lights / Blinds, each a collapsible row-list card (#136).
   plugsFeedback: document.getElementById('plugsFeedback'),
   plugsCard: document.getElementById('plugsCard'),
   plugsList: document.getElementById('plugsList'),
@@ -350,11 +350,13 @@ export const els = {
   plugHiddenToggle: document.getElementById('plugHiddenToggle'),
   plugDetailClose: document.getElementById('plugDetailClose'),
   plugSave: document.getElementById('plugSave'),
-  // Elgato Lights tab
+  // Elgato lights — the IoT tab's middle row-list card (#136).
+  lightsCard: document.getElementById('lightsCard'),
+  lightsCount: document.getElementById('lightsCount'),
   lightsAllOn: document.getElementById('lightsAllOn'),
   lightsAllOff: document.getElementById('lightsAllOff'),
   lightsRefresh: document.getElementById('lightsRefresh'),
-  lightsGrid: document.getElementById('lightsGrid'),
+  lightsList: document.getElementById('lightsList'),
   lightsNote: document.getElementById('lightsNote'),
   lightDialog: document.getElementById('lightDialog'),
   lightDetailName: document.getElementById('lightDetailName'),

@@ -30,8 +30,8 @@ def _boot_plugs(
     mock_tuya(sample_plugs)
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    page.locator("#tabPlugs").click()
-    page.wait_for_selector("#panePlugs", state="visible")
+    page.locator("#tabIot").click()
+    page.wait_for_selector("#paneIot", state="visible")
     # Both list cards are collapsed by default — expand them so their rows are
     # visible/interactable (open persists across re-renders).
     page.eval_on_selector_all(
@@ -74,7 +74,7 @@ def test_plugs_distinguish_loading_from_true_empty(
     """)
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    page.locator("#tabPlugs").click()
+    page.locator("#tabIot").click()
 
     expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "loading")
     expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
@@ -103,7 +103,7 @@ def test_plugs_show_contextual_unavailable_state(
     )
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    page.locator("#tabPlugs").click()
+    page.locator("#tabIot").click()
 
     expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "error")
     expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
@@ -131,7 +131,7 @@ def test_plug_refresh_failure_preserves_last_good_rows(
         ),
     )
     page.locator("#tabHome").click()
-    page.locator("#tabPlugs").click()
+    page.locator("#tabIot").click()
 
     expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "stale")
     expect(page.locator(".device-row")).to_have_count(len(sample_plugs))
