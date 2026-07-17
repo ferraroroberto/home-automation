@@ -335,16 +335,13 @@ export const els = {
   notifyAutoShutdown: document.getElementById('notifyAutoShutdown'),
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
   // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
-  homeVmTile: document.getElementById('homeVmTile'),
+  homeVmToggle: document.getElementById('homeVmToggle'),
   homeAssistantCard: document.getElementById('homeAssistantCard'),
   homeAssistantSummaryState: document.getElementById('homeAssistantSummaryState'),
   haSatellitesList: document.getElementById('haSatellitesList'),
   haSatellitesNote: document.getElementById('haSatellitesNote'),
   haInteractionsList: document.getElementById('haInteractionsList'),
   haInteractionsNote: document.getElementById('haInteractionsNote'),
-  haHelpOpen: document.getElementById('haHelpOpen'),
-  haHelpDialog: document.getElementById('haHelpDialog'),
-  haHelpClose: document.getElementById('haHelpClose'),
   // Plug rename modal
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),

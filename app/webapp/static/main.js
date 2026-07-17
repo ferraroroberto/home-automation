@@ -37,7 +37,7 @@ import {
 import { onPlugsTab, wirePlugsRefresh, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
 import { onUpsTab, restoreUpsSnapshot } from './ups.js';
 import { wirePowerNotify } from './ups-notify.js';
-import { onVmTab, restoreVmSnapshot } from './vm.js';
+import { onVmTab, restoreVmSnapshot, wireVm } from './vm.js';
 import { onHaTab, wireHa } from './ha.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security.js';
@@ -178,6 +178,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wirePresencePlaces();
   wireSecurityNotify();
   wireWakeAlarms();
+  wireVm();
   wireVoiceCommands();
   wireCameras();
   wireNetworkControls();
