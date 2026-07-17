@@ -35,9 +35,9 @@ The PWA does **not** poll everything continuously. Each tab's data is fetched on
 | --- | --- | --- | --- |
 | AC units | 30 s | Home, AC | One boot fetch on load; otherwise gated to these tabs (#209). |
 | Energy | 5 s active / 30 s slow | Energy (fast), Home (slow) | SMA reads are lightweight. |
-| Plugs | 15 s | Plugs | Tuya LAN reads. |
-| UPS | 15 s | Plugs, Home | Local NUT/USB-HID read. |
-| Lights | 15 s | Lights | Elgato LAN reads. |
+| Plugs | 15 s | IoT | Tuya LAN reads. |
+| UPS | 15 s | IoT, Home | Local NUT/USB-HID read. |
+| Lights | 15 s | IoT | Elgato LAN reads. |
 | Network | 15 s | Network | AP SOAP + router reads; speed test is button-only. |
 | Security | 10 s | Security, Home | RISCO cloud. |
 | HA VM | 30 s | Home | Hyper-V `Get-VM` on the host (#240). |
@@ -441,8 +441,10 @@ cards, a savings estimate (€ saved on self-consumed PV at the configured tiere
 rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Consumption
 live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
 breakdown** table (grid energy priced per time-of-use period, self-consumed PV
-valued at the avoided rate — see *Electricity tariff* below), **🔌 Plugs** (the local Smart Life
-devices — see below), **💡 Light** (Elgato lights — see below), **📶 Net** (LAN health, the attached-device inventory, and the AP reboot —
+valued at the avoided rate — see *Electricity tariff* below), **🔌 IoT** (every local
+device on one surface — Smart Life plugs, Elgato lights, and blinds, each a
+collapsible row list, plus the UPS tile and power notifications — see below),
+**📶 Net** (LAN health, the attached-device inventory, and the AP reboot —
 see below), and **🛡️ Alarm** (RISCO alarm controls, event log, and
 detector bypass).
 
@@ -619,13 +621,15 @@ Then fetch the device list and local keys:
 
 The wizard writes `devices.json` in the project root. That file contains device IDs, local keys, IPs, protocol versions, and DPS mappings; it is required for LAN-mode control and is gitignored because it contains secrets. TinyTuya may also write `tinytuya.json`; that is gitignored as well. Energy DPS varies by plug model, so `src/tuya_client.py` reads the captured `mapping` block instead of assuming fixed DPS indexes.
 
-### 🔌 Plugs tab
+### 🔌 IoT tab
 
-The PWA's **Plugs** tab is a Smart-Life-style control surface for these local Tuya devices, split into **two collapsible cards — Plugs and Blinds — both collapsed by default** (issue #191). Each renders its devices as a compact divider-separated **row list** in the same low-chrome style as the Network tab's "Attached devices" list, not chunky sub-cards. A **plug row** is a single **name · wattage · on/off** line (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app); a **blind row** is **name + up / stop / down icon buttons** wired to the cover open/stop/close path. A **summary block** above the cards totals devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json` plus local LAN status only.
+The PWA's **IoT** tab is the single surface for every local device, split into **three collapsible cards — Plugs, Lights, and Blinds — all collapsed by default** (issues #191, #136). Each renders its devices as a compact divider-separated **row list** in the same low-chrome style as the Network tab's "Attached devices" list, not chunky sub-cards. A **plug row** is a single **name · wattage · on/off** line (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app); a **light row** is **name + power** with brightness/warmth sliders beneath (see *Elgato lights* below); a **blind row** is **name + up / stop / down icon buttons** wired to the cover open/stop/close path. A **summary block** above the cards totals Tuya devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json`, `/api/lights`, and local LAN status only.
+
+Lights lived on their own top-level tab until #136: they are local device controls like the plugs and blinds, and seven peer tabs was more navigation weight than a phone PWA should carry. Folding them in took the bar to six.
 
 The tab also shows the local **UPS** above the Tuya device summary, rendered as the **same compact one-line tile as the Home tab** (identity · charge% · runtime · status pill). `GET /api/ups` reads the USB-connected APC Smart-UPS through NUT when the local `upsc` server is available, falls back to a one-shot NUT USB-HID probe, then falls back to Windows battery telemetry. The current APC SMT1000IC USB-HID path reliably exposes status, charge, runtime, battery voltage, model, manufacturer, and serial; it does **not** expose `ups.load`, `input.voltage`, or `output.voltage` through NUT on this machine.
 
-**Power notifications (Telegram) + low-battery auto-shutdown.** The Plugs tab has a folded-by-default **Notifications** card (same structure as the Alarm tab's) with three toggles — **Mains power lost**, **Power restored**, and **Auto-shutdown PC when UPS runtime < 15 min (safety)** — all default **on**. The first two push a Telegram message when the UPS crosses between mains and battery. The third is a safety net: persisted to gitignored `config/power_notify_prefs.json` (`…sample.json` committed) via `GET`/`PUT /api/ups/notify-prefs`. Because the browser tile only polls while the Plugs tab is open, reliable alerts need a server-side watcher: a background **power monitor** (`app/webapp/power_monitor.py`, started in the webapp lifespan) reads the UPS every `POWER_MONITOR_POLL_INTERVAL_S` (default 60 s) in a worker thread and fires edge-triggered on the `mains_online` transition. Set `POWER_MONITOR_ENABLED=0` to disable it. Uses the same `src/notify/` Telegram credentials as the alarm alerts; transitions are recorded to gitignored `logs/power.jsonl` via the shared activity log.
+**Power notifications (Telegram) + low-battery auto-shutdown.** The IoT tab has a folded-by-default **Notifications** card (same structure as the Alarm tab's) with three toggles — **Mains power lost**, **Power restored**, and **Auto-shutdown PC when UPS runtime < 15 min (safety)** — all default **on**. The first two push a Telegram message when the UPS crosses between mains and battery. The third is a safety net: persisted to gitignored `config/power_notify_prefs.json` (`…sample.json` committed) via `GET`/`PUT /api/ups/notify-prefs`. Because the browser tile only polls while the IoT tab is open, reliable alerts need a server-side watcher: a background **power monitor** (`app/webapp/power_monitor.py`, started in the webapp lifespan) reads the UPS every `POWER_MONITOR_POLL_INTERVAL_S` (default 60 s) in a worker thread and fires edge-triggered on the `mains_online` transition. Set `POWER_MONITOR_ENABLED=0` to disable it. Uses the same `src/notify/` Telegram credentials as the alarm alerts; transitions are recorded to gitignored `logs/power.jsonl` via the shared activity log.
 
 When the UPS is on battery and its reported runtime drops to **15 minutes or less** (hardcoded, not user-configurable), the auto-shutdown toggle — if on — fires a distinct "shutting down now" Telegram alert and then schedules a graceful Windows shutdown via `src/host_shutdown.py` (`shutdown /s /t 180 /c "…"`): a 180-second grace window so open applications get a chance to autosave/close via `WM_QUERYENDSESSION` before Windows forces the shutdown at the deadline. This fires once per outage (edge-triggered in `power_monitor.py`'s process-memory state) and, unlike the mains-lost/restored alerts, is **not** suppressed on the monitor's first observation — if the webapp restarts while the UPS is already critically low, it still triggers, since this is a safety measure rather than a spam-avoidance one. If mains power returns before the scheduled shutdown completes, the pending shutdown is cancelled (`shutdown /a`) and the trigger resets for the next outage. The shutdown call is hard-blocked under `pytest` (mirrors the Telegram notifier's pytest guard in `src/notify_config.py`) so the test suite can never trigger a real shutdown.
 
@@ -646,13 +650,15 @@ When the UPS is on battery and its reported runtime drops to **15 minutes or les
 
 ## Elgato lights
 
-The **Light** tab controls Elgato Key Light style devices directly over the
-local LAN HTTP API. It is cloud-free at runtime: the backend tries Bonjour/mDNS
-discovery for `_elg._tcp.local.` and also supports an explicit host fallback
-for networks where discovery is blocked. It has per-light power, brightness,
-and warmth controls, exact numeric entry beside each slider, state-aware
-all-on/all-off buttons for reachable lights, and a detail modal that saves a
-custom label in gitignored `config/elgato_display_names.json`. Labels are keyed
+The **Lights** card on the **IoT** tab controls Elgato Key Light style devices
+directly over the local LAN HTTP API. It is cloud-free at runtime: the backend
+tries Bonjour/mDNS discovery for `_elg._tcp.local.` and also supports an
+explicit host fallback for networks where discovery is blocked. Each light is a
+row — name + power on the summary line, brightness and warmth sliders beneath —
+matching its Plugs and Blinds siblings, with exact numeric entry beside each
+slider, state-aware all-on/all-off buttons for reachable lights, and a detail
+modal that saves a custom label in gitignored
+`config/elgato_display_names.json`. Labels are keyed
 by reported MAC address when available, so they survive DHCP/IP changes; older
 host:port labels still load as a fallback until the next save migrates them.
 The detail modal shows the original Elgato identity, LAN address, MAC metadata
@@ -1172,9 +1178,10 @@ webapp (adopting a running one on :8447, else autobooting a disposable
 instance with the energy sampler off) and drives the PWA, **stubbing
 `/api/units`, the `/api/energy*` endpoints, and `/api/tuya*` with fixtures** so
 it never touches the live cloud, the LAN, or actuates real HVAC. Coverage
-includes the Home/AC/Energy/Plugs tab navigation, the Home AC summary, an
-Energy-tab render (hero numbers + charts), and the Plugs tab (metered-plug
-watts, a switch round-trip, cover controls, and an offline device). Runs in two
+includes the Home/AC/Energy/IoT tab navigation, the Home AC summary, an
+Energy-tab render (hero numbers + charts), and the IoT tab (metered-plug
+watts, a switch round-trip, cover controls, light controls, and an offline
+device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14.
 
 Rendered-geometry design checks (44px effective touch targets, non-overlap,

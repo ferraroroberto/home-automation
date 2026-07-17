@@ -199,52 +199,49 @@ function buildSlider(light, key, min, max, value, suffix) {
   return row;
 }
 
-function buildCard(light) {
+// Lights render as compact divider-separated rows, the same shape as their
+// Plugs/Blinds siblings on the IoT tab (#136) — a card per light nested inside
+// the Lights card would read as double chrome, which design.md's list-row
+// contract rejects. Row internals are unconstrained by that contract, so the
+// name + toggle share the summary line and the sliders wrap onto their own line
+// below. The product name is not repeated per row (it is in the detail modal);
+// the row keeps the plug row's name-only identity.
+function buildLightRow(light) {
   const on = light.on === true;
-  const card = document.createElement('article');
-  card.className = 'card light-card';
-  card.dataset.lightId = light.light_id;
-  if (!light.reachable) card.classList.add('is-unavailable');
-  else if (!on) card.classList.add('is-off');
+  const row = document.createElement('div');
+  row.className = 'device-row light-row';
+  row.dataset.lightId = light.light_id;
 
-  const top = document.createElement('div');
-  top.className = 'light-top';
-
-  const text = document.createElement('div');
-  text.className = 'light-title';
   const name = document.createElement('button');
   name.type = 'button';
-  name.className = 'light-name';
+  name.className = 'device-row-name';
   name.title = 'Rename';
   name.textContent = label(light);
   name.addEventListener('click', function () { openLightDetail(light.light_id); });
-  text.appendChild(name);
-  const meta = document.createElement('span');
-  meta.className = 'light-meta';
-  meta.textContent = light.product_name || originalName(light);
-  text.appendChild(meta);
-  top.appendChild(text);
+  row.appendChild(name);
 
-  if (light.reachable) {
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'toggle' + (on ? ' on' : '');
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', on ? 'true' : 'false');
-    toggle.setAttribute('aria-label', 'Power ' + label(light));
-    toggle.innerHTML = toggleMarkup(on);
-    toggle.addEventListener('click', function () { applyLight(light, { on: !on }); });
-    top.appendChild(toggle);
-  }
-  card.appendChild(top);
-
+  // Offline: name + reason only, no controls — the plug-row contract. The row
+  // ellipsizes a long reason, so the full text also rides in the hover title.
   if (!light.reachable) {
-    const note = document.createElement('div');
-    note.className = 'light-unavailable';
+    row.classList.add('is-unavailable');
+    const note = document.createElement('span');
+    note.className = 'device-row-note light-unavailable';
     note.textContent = light.error || 'Unavailable';
-    card.appendChild(note);
-    return card;
+    if (light.error) note.title = light.error;
+    row.appendChild(note);
+    return row;
   }
+  if (!on) row.classList.add('is-off');
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'toggle' + (on ? ' on' : '');
+  toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-checked', on ? 'true' : 'false');
+  toggle.setAttribute('aria-label', 'Power ' + label(light));
+  toggle.innerHTML = toggleMarkup(on);
+  toggle.addEventListener('click', function () { applyLight(light, { on: !on }); });
+  row.appendChild(toggle);
 
   const controls = document.createElement('div');
   controls.className = 'light-controls';
@@ -261,9 +258,9 @@ function buildCard(light) {
     unavailable.textContent = 'Color temperature unavailable';
     controls.appendChild(unavailable);
   }
-  card.appendChild(controls);
+  row.appendChild(controls);
 
-  return card;
+  return row;
 }
 
 function openLightDetail(lightId) {
@@ -320,18 +317,28 @@ async function saveLightName() {
 }
 
 function showLightsState(iconName, message, retry) {
-  els.lightsGrid.innerHTML = '';
+  els.lightsList.innerHTML = '';
   const options = retry ? {
     actionLabel: 'Retry',
     onAction: function () { loadLights(); },
   } : null;
-  els.lightsGrid.appendChild(emptyStateEl(iconName, message, options));
+  els.lightsList.appendChild(emptyStateEl(iconName, message, options));
+}
+
+// Count badge in the card summary, mirroring the Plugs/Blinds cards. Unlike
+// those, the Lights card is never hidden when empty: its empty/error state and
+// Retry action live inside its own body, so hiding the card would strand them.
+function setLightsCount(n) {
+  if (!els.lightsCount) return;
+  els.lightsCount.textContent = String(n);
+  els.lightsCount.hidden = n === 0;
 }
 
 export function renderLights() {
-  els.lightsGrid.innerHTML = '';
-  els.lightsGrid.dataset.state = lightsView.state;
-  els.lightsGrid.setAttribute('aria-busy', lightsView.state === 'loading' ? 'true' : 'false');
+  els.lightsList.innerHTML = '';
+  els.lightsList.dataset.state = lightsView.state;
+  els.lightsList.setAttribute('aria-busy', lightsView.state === 'loading' ? 'true' : 'false');
+  setLightsCount(state.lights.length);
   if (!state.lights.length) {
     updateBulkControls();
     if (lightsView.state === 'loading') {
@@ -361,7 +368,7 @@ export function renderLights() {
   const sorted = state.lights.slice().sort(function (a, b) {
     return label(a).localeCompare(label(b));
   });
-  sorted.forEach(function (light) { els.lightsGrid.appendChild(buildCard(light)); });
+  sorted.forEach(function (light) { els.lightsList.appendChild(buildLightRow(light)); });
   updateBulkControls();
 }
 
@@ -400,7 +407,7 @@ export function restoreLightsSnapshot() {
 const schedule = createPoller(loadLights);
 
 export function onLightsTab(tab) {
-  if (tab === 'lights') {
+  if (tab === 'iot') {
     loadLights();
     schedule(POLL_MS);
   } else {

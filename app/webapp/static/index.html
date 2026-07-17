@@ -379,15 +379,10 @@
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
       <span class="tab-label">Energy</span>
     </button>
-    <button id="tabPlugs" type="button" class="tab" data-tab="plugs"
-            role="tab" aria-selected="false" aria-controls="panePlugs" tabindex="-1">
+    <button id="tabIot" type="button" class="tab" data-tab="iot"
+            role="tab" aria-selected="false" aria-controls="paneIot" tabindex="-1">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
-      <span class="tab-label">Plugs</span>
-    </button>
-    <button id="tabLights" type="button" class="tab" data-tab="lights"
-            role="tab" aria-selected="false" aria-controls="paneLights" tabindex="-1">
-      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
-      <span class="tab-label">Light</span>
+      <span class="tab-label">IoT</span>
     </button>
     <button id="tabNetwork" type="button" class="tab" data-tab="network"
             role="tab" aria-selected="false" aria-controls="paneNetwork" tabindex="-1">
@@ -858,12 +853,15 @@
       </section>
     </section>
 
-    <!-- ============================== PLUGS ============================== -->
-    <!-- Smart Life / Tuya devices: dense card grid, on/off + live watts, with
-         blind controls for covers. Cloud-free — driven by local devices.json
-         and LAN reads only. The empty/error note guides toward refreshing
-         devices.json (never the cloud). -->
-    <section id="panePlugs" class="pane" role="tabpanel" aria-labelledby="tabPlugs" aria-label="Smart Life devices" hidden>
+    <!-- =============================== IOT =============================== -->
+    <!-- IoT: every local device on one surface (issue #136) — Smart Life / Tuya
+         plugs and blinds, Elgato lights, the UPS tile, and power notifications.
+         Lights folded in here from their own top-level tab: they are local
+         device controls like the rest, and seven peer tabs was more navigation
+         weight than a phone PWA should carry. Cloud-free — driven by local
+         devices.json and LAN reads only. The empty/error note guides toward
+         refreshing devices.json (never the cloud). -->
+    <section id="paneIot" class="pane" role="tabpanel" aria-labelledby="tabIot" aria-label="IoT devices" hidden>
       <section id="upsTile" class="card ups-tile ups-tile-compact" aria-label="UPS status" hidden></section>
 
       <!-- Summary: total devices · on · off · live consumption (reachable
@@ -912,6 +910,30 @@
         </summary>
         <div class="device-list-body">
           <section id="plugsList" class="device-list" aria-label="Plugs"></section>
+        </div>
+      </details>
+
+      <!-- Elgato lights — a peer of the Plugs/Blinds row lists, sitting right
+           after Plugs since both are on/off power devices. Its bulk actions
+           live in the card body rather than a pane toolbar, so they stay
+           scoped to lights. -->
+      <details class="card card--collapsible device-list-card" id="lightsCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
+            <h3 class="collapse-title">Lights</h3>
+            <span id="lightsCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="device-list-body">
+          <div class="lights-toolbar" aria-label="Light group controls">
+            <button id="lightsRefresh" type="button" class="range-tab" data-testid="lights-refresh">Refresh</button>
+            <button id="lightsAllOn" type="button" class="range-tab" data-testid="lights-all-on">All on</button>
+            <button id="lightsAllOff" type="button" class="range-tab" data-testid="lights-all-off">All off</button>
+          </div>
+          <section id="lightsList" class="device-list" aria-label="Elgato lights" aria-live="polite"></section>
+          <p id="lightsNote" class="muted small lights-note" role="status" hidden></p>
         </div>
       </details>
 
@@ -964,17 +986,6 @@
         </div>
         <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
       </details>
-    </section>
-
-    <!-- ============================== LIGHTS ============================= -->
-    <section id="paneLights" class="pane" role="tabpanel" aria-labelledby="tabLights" aria-label="Elgato lights" hidden>
-      <div class="lights-toolbar" aria-label="Light group controls">
-        <button id="lightsRefresh" type="button" class="range-tab" data-testid="lights-refresh">Refresh</button>
-        <button id="lightsAllOn" type="button" class="range-tab" data-testid="lights-all-on">All on</button>
-        <button id="lightsAllOff" type="button" class="range-tab" data-testid="lights-all-off">All off</button>
-      </div>
-      <section id="lightsGrid" class="lights-grid" aria-label="Elgato lights" aria-live="polite"></section>
-      <p id="lightsNote" class="muted small lights-note" role="status" hidden></p>
     </section>
 
     <!-- ============================= NETWORK ============================ -->

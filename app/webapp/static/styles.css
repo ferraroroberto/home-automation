@@ -161,7 +161,7 @@
    focus on a plain input/button/switch/summary fell through to the browser's
    native default outline — on Windows Chrome that default is themed off the
    OS accent/highlight color, not this app's --accent, so it renders amber
-   while the one authored .light-name rule renders blue. One tokenized rule
+   while a single authored rule renders blue. One tokenized rule
    here covers every interactive element app-wide; a component keeps its own
    :focus-visible/:focus-within override only where it draws a custom ring
    (e.g. .light-value-edit:focus-within, which already used --accent). */
@@ -1345,60 +1345,21 @@ button.device-row-name:hover { text-decoration: underline; }
 .blind-btn .icon { width: 18px; height: 18px; }
 
 /* ----------------------------------------------------- lights (Elgato) */
-.lights-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--gap);
-}
-@media (min-width: 520px) {
-  .lights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-.lights-note { margin: 10px 4px; }
+/* Lights are a row list on the IoT tab (#136), sharing the .device-row base
+   with plugs and blinds — the is-off / is-unavailable treatments come from
+   there. A light row wraps: name + toggle on the summary line, sliders on
+   their own full-width line beneath. */
+.light-row { flex-wrap: wrap; }
+.light-row .light-controls { flex: 1 0 100%; }
+
+.lights-note { margin: 10px 0; }
 .lights-toolbar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-sm);
-  margin: 0 0 10px;
+  margin: 8px 0 10px;
 }
 
-.light-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  min-width: 0;
-  transition: opacity 0.15s ease;
-}
-.light-card.is-off { background: var(--card-off); }
-.light-card.is-unavailable { background: var(--card-off); opacity: 0.65; }
-
-.light-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.light-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.light-name {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: var(--ink);
-  font-weight: 600;
-  font-size: var(--font-body);
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.light-meta,
 .light-unavailable {
   color: var(--muted);
   font-size: var(--font-caption);

@@ -565,9 +565,9 @@ export function restorePlugsSnapshot() {
 const schedule = createPoller(loadPlugs);
 
 // Called by the tab switcher whenever the active tab changes. LAN reads are
-// expensive, so only poll while the Plugs tab is open; stop when it isn't.
+// expensive, so only poll while the IoT tab is open; stop when it isn't.
 export function onPlugsTab(tab) {
-  if (tab === 'plugs') {
+  if (tab === 'iot') {
     loadPlugs();            // immediate refresh on entry (also the first load)
     schedule(POLL_MS);
   } else if (tab === 'home') {

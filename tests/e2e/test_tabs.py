@@ -12,6 +12,7 @@ import json
 import re
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e._geometry import (
@@ -139,17 +140,40 @@ def test_app_restores_saved_short_tab_with_nav_at_rest(
     """#232: the nav is a body-level sibling of the inner scroller, so the PWA
     can safely restore a short saved tab without floating the fixed bar up."""
     page.add_init_script(
-        "localStorage.setItem('home-automation.tab', 'plugs');"
+        "localStorage.setItem('home-automation.tab', 'iot');"
     )
     mock_api(sample_units)
     mock_energy()
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#panePlugs", state="visible")
+    page.wait_for_selector("#paneIot", state="visible")
 
     expect(page.locator("body > .tabs")).to_have_count(1)
     expect(page.locator("#paneHome")).to_be_hidden()
-    expect(page.locator("#tabPlugs")).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#tabIot")).to_have_attribute("aria-selected", "true")
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
+@pytest.mark.parametrize("retired_tab", ["plugs", "lights"])
+def test_retired_tab_selection_migrates_to_iot(
+    page: Page, base_url: str, retired_tab: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """#136: Plugs and Light folded into IoT. The vendored switcher drops a tab
+    name it doesn't recognise and silently falls back to the first tab, so an
+    installed PWA parked on either one would reopen on Home. tabs.js rewrites
+    the stored key before the switcher reads it."""
+    page.add_init_script(
+        f"localStorage.setItem('home-automation.tab', '{retired_tab}');"
+    )
+    mock_api(sample_units)
+    mock_energy()
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneIot", state="visible")
+
+    expect(page.locator("#paneHome")).to_be_hidden()
+    expect(page.locator("#tabIot")).to_have_attribute("aria-selected", "true")
+    # The rewrite is persisted, not just mapped at read time.
+    assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "iot"
 
 
 def test_nav_at_rest_after_plug_modal_with_autofocus(
@@ -161,8 +185,8 @@ def test_nav_at_rest_after_plug_modal_with_autofocus(
     closing must leave the bar at its locked rest position."""
     mock_tuya(sample_plugs)
     _boot(page, base_url)
-    page.locator("#tabPlugs").click()
-    page.wait_for_selector("#panePlugs", state="visible")
+    page.locator("#tabIot").click()
+    page.wait_for_selector("#paneIot", state="visible")
     # Rows live inside collapsed <details> cards — expand so they're interactable.
     page.eval_on_selector_all(
         "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
