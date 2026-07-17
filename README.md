@@ -1184,6 +1184,10 @@ watts, a switch round-trip, cover controls, light controls, and an offline
 device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14.
 
+As of 2026-07-17 (#464), the suite is 96 test functions / 208 dual-projection
+executions, measured at ~4 min (3m55s) on an idle dev box — CLAUDE.md tracks
+this as a runtime budget, not a fixed test-count cap.
+
 Rendered-geometry design checks (44px effective touch targets, non-overlap,
 horizontal overflow, live Chart.js tick/cue config) go through
 `tests/e2e/_geometry.py` — vendored **byte-identical** from
