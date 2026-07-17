@@ -38,7 +38,8 @@ Optional. Lives at `tests/e2e/`. **Don't create the folder until the first regre
 - Runs via `& .\.venv\Scripts\python.exe -m pytest tests/e2e/` (Windows) / `./.venv/bin/python -m pytest tests/e2e/` (POSIX). No LLM in the loop, zero per-run cost.
 - **One shared session fixture boots the app once per pytest run.** Boot on a fixed or free port; **adopt** an instance already listening rather than spawning a second.
 - **Boot failure is a hard failure — never `pytest.skip`.** A regression suite that skips when the app isn't up reports green on a build it never tested.
-- Keep the suite small — target < 15 tests total. No Page Object Model. Don't gate commits on e2e.
+- Budget by runtime, not test count — add coverage whenever (1)–(3) above hold; there is no fixed cap on test count. No Page Object Model. Don't gate commits on e2e.
+- **Local runtime contract (measured 2026-07-17, #464): 208 executions (96 test functions, dual Chromium + WebKit projection) in ~4 min (3m55s) on an idle dev box.** Investigate if a full run exceeds ~8 min.
 - When you remove a feature, remove its e2e test in the same commit.
 
 ## UX surface
