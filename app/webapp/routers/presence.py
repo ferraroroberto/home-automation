@@ -468,16 +468,45 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
     return result
 
 
+def _duration_phrase(minutes: int, *, lang: str) -> str:
+    """The spoken duration, complete for its language (#474).
+
+    Under an hour, bare minutes; an hour or more, "H hour(s) [M minute(s)]"
+    dropping the minutes when zero. Spanish folds "about" into the leading unit's
+    article ("unos"/"unas"), and the singular is the number word itself — "un
+    minuto", "una hora" (never "un 1 minuto") — with gender agreement (*minutos*
+    masculine, *horas* feminine). English keeps the numeral and gets its "about"
+    from the caller's sentence frame.
+    """
+
+    hours, mins = divmod(minutes, 60)
+    if lang == "es":
+        if hours == 0:
+            return "un minuto" if mins == 1 else f"unos {mins} minutos"
+        head = "una hora" if hours == 1 else f"unas {hours} horas"
+        if mins == 0:
+            return head
+        tail = "un minuto" if mins == 1 else f"{mins} minutos"
+        return f"{head} y {tail}"
+    if hours == 0:
+        return "1 minute" if mins == 1 else f"{mins} minutes"
+    head = "1 hour" if hours == 1 else f"{hours} hours"
+    if mins == 0:
+        return head
+    tail = "1 minute" if mins == 1 else f"{mins} minutes"
+    return f"{head} {tail}"
+
+
 def _eta_speech(display_name: str, duration_s: int, *, lang: str = "en") -> str:
     """Spoken traffic-aware ETA (#470) — the app owns the wording; minutes round
-    up so a sub-minute hop still reads as "about 1 minute" rather than "0"."""
+    up so a sub-minute hop still reads as "about 1 minute", and durations of an
+    hour or more are spoken as hours + minutes rather than raw minutes (#474)."""
 
     minutes = max(1, round(duration_s / 60))
+    phrase = _duration_phrase(minutes, lang=lang)
     if lang == "es":
-        unit = "minuto" if minutes == 1 else "minutos"
-        return f"{display_name} está a unos {minutes} {unit} de casa con el tráfico actual."
-    unit = "minute" if minutes == 1 else "minutes"
-    return f"{display_name} is about {minutes} {unit} from home in current traffic."
+        return f"{display_name} está a {phrase} de casa con el tráfico actual."
+    return f"{display_name} is about {phrase} from home in current traffic."
 
 
 def _eta_unavailable_speech(display_name: str, reason: str, *, lang: str = "en") -> str:
