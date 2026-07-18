@@ -98,16 +98,23 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   bridges — the grocery one targets the sibling grocery-shopping-automation app on
   `:8502` and includes the first **multi-turn** flow (`assist_satellite.ask_question`);
   see its README section.
-- **Family locator (#438):** a read-only "where's mom/dad" query — `{who}` (a spoken
-  name or household role) resolves server-side against role aliases / display names
-  (`src.presence_roles`), then answers with the person's current place from cached Find
-  My data matched against user-configured named places (`src.presence_places`) — home,
-  a named place (e.g. "the gym"), or away. No new iCloud locate cost. Configured entirely
-  from the webapp (Security tab → Presence card → per-person "Role" + "Places"), not from
-  YAML. Resolution is variant-tolerant (accents, "Anna"↔"Ana", "mum"/"mamá"→mom — #446)
-  and the locator also answers in Spanish on the "Hey Mycroft" pipeline ("¿dónde está
-  papá?" → "Roberto está en casa"). See
-  [`voice-pe-config/README.md`](voice-pe-config/README.md#family-locator-issue-438--wheres-momdad).
+- **Family locator (#438) + ETA-home follow-up (#470):** a read-only "where's mom/dad"
+  query — `{who}` (a spoken name or household role) resolves server-side against role
+  aliases / display names (`src.presence_roles`), then answers with the person's current
+  place from cached Find My data matched against user-configured named places
+  (`src.presence_places`) — home, a named place (e.g. "the gym"), or away. No new iCloud
+  locate cost. Configured entirely from the webapp (Security tab → Presence card →
+  per-person "Role" + "Places"), not from YAML. Resolution is variant-tolerant (accents,
+  "Anna"↔"Ana", "mum"/"mamá"→mom — #446) and the locator also answers in Spanish on the
+  "Hey Mycroft" pipeline ("¿dónde está papá?" → "Roberto está en casa"). When the person
+  is **away**, a follow-up question ("how long to get home?", #470) offers a traffic-aware
+  ETA (`GET /api/presence/eta` → `src.travel_time` over the Google Directions API,
+  `departure_time=now`; needs `GOOGLE_MAPS_API_KEY` in the app's `.env`, degrades to a
+  spoken fallback without it). Because the follow-up needs a satellite handle
+  (`assist_satellite.ask_question`), the whole locator is now the `presence_locator`
+  conversation-trigger automation, not an `intent_script` — the `custom_sentences/*/locate.yaml`
+  intents are emptied to hand it the match. See
+  [`voice-pe-config/README.md`](voice-pe-config/README.md#family-locator-issue-438--wheres-momdad--eta-home-follow-up-470).
 - **Adding more commands:** [`voice-commands-howto.md`](voice-commands-howto.md) — the
   reusable recipe (hassil sentence syntax, the `stop`/`action_response` gotcha,
   reload-vs-restart, code-gating, and testing a command without speaking). Read this

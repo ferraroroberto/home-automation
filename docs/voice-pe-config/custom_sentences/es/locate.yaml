@@ -2,28 +2,12 @@
 #
 # Install at the HA VM path: /config/custom_sentences/es/locate.yaml
 #
-# These match on the "Asistente (es)" pipeline (language es — wake word
-# "Hey Mycroft"), same as the grocery bridge. {who} is a free-text wildcard
-# resolved server-side (src.presence_roles.resolve_person), which folds
-# accents and kinship variants — "papá"/"papa" both resolve to the dad role.
-# The fixed `lang: es` slot rides through intent_script.Locate so the app
-# answers in Spanish (the pipeline's Piper voice is es_ES).
-#
-# Critical accented words are written as (dónde|donde)-style alternatives so
-# a transcription with or without the accent matches either way.
+# INTENTIONALLY EMPTY (#470). Same reason as the English file: the Spanish
+# "¿dónde está…?" match and the "¿cuánto tardará en llegar a casa?" follow-up
+# now live in the bilingual `presence_locator` conversation-trigger automation
+# in configuration.snippet.yaml (the `es` trigger id sets lang=es). Emptied
+# rather than deleted because ha_config_sync.py deploys by overwrite and does
+# not prune, so blanking retires the live intent without double-matching.
 language: "es"
 
-lists:
-  who:
-    wildcard: true
-
-intents:
-  Locate:
-    data:
-      - sentences:
-          - "(dónde|donde) (está|esta) [mi] {who}"
-          - "(dónde|donde) anda {who}"
-          - "localiza [a] {who}"
-          - "encuentra [a] {who}"
-        slots:
-          lang: "es"
+intents: {}
