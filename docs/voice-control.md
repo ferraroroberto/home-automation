@@ -105,7 +105,7 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   a named place (e.g. "the gym"), or away. No new iCloud locate cost. Configured entirely
   from the webapp (Security tab → Presence card → per-person "Role" + "Places"), not from
   YAML. Resolution is variant-tolerant (accents, "Anna"↔"Ana", "mum"/"mamá"→mom — #446)
-  and the locator also answers in Spanish on the "Hey Jarvis" pipeline ("¿dónde está
+  and the locator also answers in Spanish on the "Hey Mycroft" pipeline ("¿dónde está
   papá?" → "Roberto está en casa"). See
   [`voice-pe-config/README.md`](voice-pe-config/README.md#family-locator-issue-438--wheres-momdad).
 - **Adding more commands:** [`voice-commands-howto.md`](voice-commands-howto.md) — the
@@ -220,7 +220,7 @@ deploys the repo-owned voice-PE config into `/config` over LAN SSH and validates
 **Extended OpenAI Conversation**; STT = **Custom Whisper** (`stt_language: en`); TTS =
 **hub Piper (amy)**; **"Prefer handling commands locally" = ON**.
 
-**"Asistente (es)"** (Spanish, wake word "Hey Jarvis" — #315): conversation agent =
+**"Asistente (es)"** (Spanish, wake word "Hey Mycroft" — #315, #468): conversation agent =
 **Home Assistant built-in** (deterministic only, no LLM fallback); STT = **Custom
 Whisper** (`stt_language: es`); TTS = **Piper add-on** (`tts.piper`, voice
 `es_ES-sharvard-medium`). Created directly in `/config/.storage/assist_pipeline.pipelines`
@@ -242,9 +242,15 @@ Both pucks are configured identically — a deliberate English/Spanish split (#3
 | Wake word | Routes to pipeline | What it does |
 |---|---|---|
 | **"Okay Nabu"** (slot 1) | **Focused local assistant** (en) | Hub stack — Custom Whisper STT (en hint) → Extended OpenAI (local-first, then the LLM) → hub Piper TTS (`amy`). English commands, freeform questions, the alarm + wake-alarm bridges. |
-| **"Hey Jarvis"** (slot 2) | **Asistente (es)** | The Spanish assistant — Custom Whisper STT (es hint) → **built-in deterministic agent** (no LLM fallback) → **Piper add-on TTS** (`es_ES-sharvard-medium`). Carries the grocery-list bridge ("¿qué puedo hacer?" speaks the command menu), the family locator, and — since #466 — the **RISCO alarm** ("arma la alarma", "¿cómo está la alarma?", "desarma la alarma \<código\>") and **wake alarms** ("pon una alarma para las siete y media entre semana") in Spanish. Same deterministic doctrine: an unmatched phrase gets "no entiendo", never an LLM improvisation. |
+| **"Hey Mycroft"** (slot 2) | **Asistente (es)** | The Spanish assistant — Custom Whisper STT (es hint) → **built-in deterministic agent** (no LLM fallback) → **Piper add-on TTS** (`es_ES-sharvard-medium`). Carries the grocery-list bridge ("¿qué puedo hacer?" speaks the command menu), the family locator, and — since #466 — the **RISCO alarm** ("arma la alarma", "¿cómo está la alarma?", "desarma la alarma \<código\>") and **wake alarms** ("pon una alarma para las siete y media entre semana") in Spanish. Same deterministic doctrine: an unmatched phrase gets "no entiendo", never an LLM improvisation. |
 
-So say **"Okay Nabu"** in English, **"Hey Jarvis"** in Spanish. Language is a
+Slot 2 was originally "Hey Jarvis"; swapped to "Hey Mycroft" in #468 because "Hey Jarvis"
+is the only firmware built-in with no [microWakeWord v2 model](https://github.com/OHF-Voice/micro-wake-word/releases)
+— it still runs the old v1 model, which v2 roughly doubles the accuracy of and specifically
+improves for background noise and non-native accents. Sensitivity was already maxed with no
+other lever, so the fix was the model, not a setting.
+
+So say **"Okay Nabu"** in English, **"Hey Mycroft"** in Spanish. Language is a
 pipeline-level property (STT hint, TTS voice, and sentence matching all follow it), so
 the wake word *is* the language switch — see `voice-commands-howto.md` "Mixing English
 and Spanish" for why mid-conversation switching can't work.
@@ -264,7 +270,7 @@ routes to — is a device-side select, so it needs no firmware flash and no brow
 REST API (loopback or token; `$HA_URL`/`$HA_TOKEN` from `.env`):
 
 ```bash
-# point "Hey Jarvis" (slot 2) at the Focused local assistant instead of Home Assistant
+# point "Hey Mycroft" (slot 2) at the Focused local assistant instead of Home Assistant
 curl -s -X POST -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json" \
   -d '{"entity_id":"select.home_assistant_voice_<id>_assistant_2","option":"Focused local assistant"}' \
   "$HA_URL/api/services/select/select_option"

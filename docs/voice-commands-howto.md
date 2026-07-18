@@ -108,7 +108,7 @@ HAOS host SSH on `:22222` (that's a break-glass developer channel, not used here
    [`src/voice_commands.py`](../src/voice_commands.py); the Home tab's "What can I say?"
    card and `GET /api/voice-commands` pick it up with no other change. A whole new
    feature gets a new `VoiceCommandGroup`. Give every phrasing its wake word — **the
-   wake word is the language switch** ("Okay Nabu" English, "Hey Jarvis" Spanish), so a
+   wake word is the language switch** ("Okay Nabu" English, "Hey Mycroft" Spanish), so a
    command on the Spanish pipeline must say so. `tests/test_voice_commands.py` enforces
    the shape; **never put a real code or secret in a phrase** — publish the
    `<your code>` placeholder, as the disarm command does. Update

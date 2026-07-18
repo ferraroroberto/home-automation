@@ -217,7 +217,7 @@ intent_script:
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% elif (lang | default('en')) == 'es' %}Lo siento, no puedo consultar tus alarmas.{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
 
   # Grocery list (issue #315) — SPANISH-ONLY flows on the "Asistente (es)"
-  # pipeline (wake word "Hey Jarvis"): es-hinted STT, es_ES Piper voice,
+  # pipeline (wake word "Hey Mycroft"): es-hinted STT, es_ES Piper voice,
   # deterministic built-in agent. The app parses the free Spanish fragment
   # and returns a ready-made Spanish `speech` string; these just relay it.
   GroceryAdd:

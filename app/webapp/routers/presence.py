@@ -376,7 +376,7 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
 
     Reads the background diagnostics refresher's cache, same as ``GET
     /api/presence``, but refreshes on demand when that cache is stale (#442).
-    ``lang=es`` makes the ready-made ``speech`` Spanish for the "Hey Jarvis"
+    ``lang=es`` makes the ready-made ``speech`` Spanish for the "Hey Mycroft"
     pipeline (#446); resolution itself is language-agnostic.
     """
 

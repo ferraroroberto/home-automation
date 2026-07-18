@@ -3,7 +3,7 @@
 # Install at the HA VM path: /config/custom_sentences/es/grocery.yaml
 #
 # These match on the "Asistente (es)" pipeline (language es — wake word
-# "Hey Jarvis"): Spanish-hinted Whisper STT, Spanish Piper TTS, and the
+# "Hey Mycroft"): Spanish-hinted Whisper STT, Spanish Piper TTS, and the
 # built-in deterministic conversation agent (no LLM fallback — unmatched
 # speech gets "no entiendo", never a hallucination). The {details} wildcard
 # fragment is parsed server-side by the grocery app (/api/voice/command),
