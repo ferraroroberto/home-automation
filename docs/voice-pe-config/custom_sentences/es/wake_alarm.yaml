@@ -1,0 +1,49 @@
+# Home Assistant custom sentences — wake-alarm voice commands in SPANISH (#466).
+#
+# Install at the HA VM path: /config/custom_sentences/es/wake_alarm.yaml
+#
+# The Spanish twin of custom_sentences/en/wake_alarm.yaml. Same three intent
+# names, so they merge with the English ones and the SHARED intent_scripts in
+# configuration.snippet.yaml fire for either language — each intent here sets a
+# fixed `lang: es` slot, which rides the rest_command to the app so it parses
+# the Spanish spoken time (src/wake_alarms.py, lang="es") and speaks Spanish.
+#
+# Distinct from alarm.yaml (the RISCO security alarm): every sentence says
+# "alarma" only in the wake sense here — the security grammar uses "arma/
+# perímetro/parcial", so the two never collide. Matches on the "Asistente (es)"
+# pipeline (built-in deterministic agent, no LLM).
+language: "es"
+
+# {when} is a free-text wildcard: the spoken Spanish time + schedule ("las
+# siete de la mañana", "mañana a mediodía", "entre semana") parsed server-side.
+lists:
+  when:
+    wildcard: true
+
+intents:
+  WakeAlarmSet:
+    data:
+      - sentences:
+          - "(pon|programa|crea|añade) [una] alarma [para] [las] {when}"
+          - "(despiértame|despiertame|avísame|avisame) [a] [las] {when}"
+          - "alarma [para] [las] {when}"
+        slots:
+          lang: "es"
+
+  WakeAlarmCancel:
+    data:
+      - sentences:
+          - "(cancela|quita|borra|elimina) [mi] [próxima|proxima] alarma[s]"
+          - "(apaga|desactiva) [mi] alarma[s]"
+        slots:
+          lang: "es"
+
+  WakeAlarmList:
+    data:
+      - sentences:
+          - "(qué|que) alarmas tengo [(puestas|configuradas)]"
+          - "(cuáles|cuales) son mis alarmas"
+          - "(dime|léeme|leeme) mis alarmas"
+          - "(cuándo|cuando) (suenan|son) mis alarmas"
+        slots:
+          lang: "es"

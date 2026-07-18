@@ -1,0 +1,85 @@
+# Home Assistant custom sentences — RISCO alarm voice commands in SPANISH (#466).
+#
+# Install at the HA VM path: /config/custom_sentences/es/alarm.yaml
+#
+# The Spanish twin of custom_sentences/en/alarm.yaml. Same six intent names, so
+# they merge additively with the English ones and the SHARED intent_scripts in
+# configuration.snippet.yaml fire regardless of pipeline language — each intent
+# here sets a fixed `lang: es` slot, so those templates speak Spanish back (the
+# same pattern the bilingual Locate intent already uses, #446).
+#
+# Matches on the "Asistente (es)" pipeline: es-hinted Whisper STT, es_ES Piper
+# voice, built-in deterministic agent (no LLM — an unmatched phrase gets "no
+# entiendo", never a hallucinated arm/disarm). Critical accented words are
+# written as (cómo|como)-style alternatives so a transcription with or without
+# the accent matches either way.
+language: "es"
+
+# {code} is a free-text wildcard: whatever is spoken after the disarm verb, for
+# intent_script.AlarmDisarmWithCode to compare against the secret voice PIN.
+lists:
+  code:
+    wildcard: true
+
+intents:
+  AlarmArmFull:
+    data:
+      - sentences:
+          - "(arma|activa|pon|conecta) [la] alarma [(entera|completa|del todo|total)]"
+          - "(arma|activa) [la alarma] (entera|completa|del todo|total)"
+          - "alarma (total|completa|entera)"
+          - "arma[r] [la casa]"
+        slots:
+          lang: "es"
+
+  AlarmPerimeter:
+    data:
+      - sentences:
+          - "(arma|activa|pon|conecta) [el] (perímetro|perimetro)"
+          - "(perímetro|perimetro) [(activo|activado|puesto)]"
+          - "modo (perímetro|perimetro)"
+        slots:
+          lang: "es"
+
+  AlarmPartial:
+    data:
+      - sentences:
+          - "(arma|activa|pon|conecta) [la alarma] [en] parcial"
+          - "parcial [(activo|activada|puesto)]"
+          - "alarma parcial"
+          - "modo parcial"
+        slots:
+          lang: "es"
+
+  AlarmStatus:
+    data:
+      - sentences:
+          - "(cómo|como) (está|esta) [la] alarma"
+          - "(qué|que) estado tiene [la] alarma"
+          - "(está|esta) [la] alarma (armada|activada|puesta)"
+          - "estado de [la] alarma"
+          - "(qué|que) (está|esta) haciendo [la] alarma"
+        slots:
+          lang: "es"
+
+  # Disarm WITH a spoken code — {code} captures the word(s) after the verb;
+  # intent_script.AlarmDisarmWithCode validates it against !secret
+  # voice_disarm_pin before calling disarm.
+  AlarmDisarmWithCode:
+    data:
+      - sentences:
+          - "(desarma|desactiva|apaga|quita) [la] [alarma] {code}"
+          - "(desarma|desactiva|apaga|quita) [el] (perímetro|perimetro|parcial) {code}"
+          - "(perímetro|perimetro|parcial) (fuera|off) {code}"
+        slots:
+          lang: "es"
+
+  # Bare disarm with NO code — never disarms; tells the user how (in Spanish).
+  AlarmDisarmPrompt:
+    data:
+      - sentences:
+          - "(desarma|desactiva|apaga|quita) [la] alarma"
+          - "(desarma|desactiva|apaga|quita) [el] (perímetro|perimetro|parcial)"
+          - "(perímetro|perimetro|parcial) (fuera|off)"
+        slots:
+          lang: "es"

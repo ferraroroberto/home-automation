@@ -86,21 +86,32 @@ class VoicePhrasePayload(BaseModel):
     phrase: str = ""
 
 
+def _norm_lang(lang: str) -> str:
+    """Fold anything not Spanish to English — the two pipelines we serve."""
+    return "es" if str(lang or "").lower().startswith("es") else "en"
+
+
 @router.post("/api/wake-alarms/voice")
-async def voice_set_wake_alarm(payload: VoicePhrasePayload) -> Dict[str, Any]:
+async def voice_set_wake_alarm(
+    payload: VoicePhrasePayload, lang: str = "en"
+) -> Dict[str, Any]:
     """Create a wake alarm from a spoken phrase (HA Assist → ``rest_command``).
 
     The HA ``intent_script`` speaks ``speech`` back to the user. A phrase with
     no recognisable time returns ``ok: false`` and a clarifying line rather than
-    a 4xx, so the voice assistant always has something to say.
+    a 4xx, so the voice assistant always has something to say. ``lang=es`` parses
+    Spanish times and speaks Spanish (the "Asistente (es)" pipeline, #466).
     """
 
-    parsed = parse_spoken_alarm(payload.phrase, datetime.now())
+    lang = _norm_lang(lang)
+    parsed = parse_spoken_alarm(payload.phrase, datetime.now(), lang=lang)
     if parsed is None:
-        return {
-            "ok": False,
-            "speech": "Sorry, I didn't catch a time for that wake alarm.",
-        }
+        speech = (
+            "Perdona, no he entendido la hora para esa alarma."
+            if lang == "es"
+            else "Sorry, I didn't catch a time for that wake alarm."
+        )
+        return {"ok": False, "speech": speech}
     parsed["id"] = f"wake-{uuid4().hex[:6]}"
     try:
         current = load_wake_alarms()
@@ -109,54 +120,78 @@ async def voice_set_wake_alarm(payload: VoicePhrasePayload) -> Dict[str, Any]:
         logger.warning("⚠️ Failed to save voice wake alarm: %s", exc)
         raise HTTPException(status_code=500, detail=f"failed to save wake alarm: {exc}")
     new_entry = next((e for e in entries if e.id == parsed["id"]), entries[-1])
+    described = describe_alarm(new_entry, lang=lang)
+    speech = (
+        f"Alarma configurada para {described}."
+        if lang == "es"
+        else f"Wake alarm set for {described}."
+    )
     return {
         "ok": True,
         "id": new_entry.id,
         "time": new_entry.time,
         "days": new_entry.days,
         "date": new_entry.date,
-        "speech": f"Wake alarm set for {describe_alarm(new_entry)}.",
+        "speech": speech,
     }
 
 
 @router.get("/api/wake-alarms/voice")
-async def voice_list_wake_alarms() -> Dict[str, Any]:
+async def voice_list_wake_alarms(lang: str = "en") -> Dict[str, Any]:
     """A spoken summary of the enabled wake alarms (HA "what wake alarms…")."""
 
+    lang = _norm_lang(lang)
     entries = [entry for entry in load_wake_alarms() if entry.enabled]
     if not entries:
-        return {"count": 0, "speech": "You have no wake alarms set."}
+        speech = (
+            "No tienes ninguna alarma configurada."
+            if lang == "es"
+            else "You have no wake alarms set."
+        )
+        return {"count": 0, "speech": speech}
     entries.sort(key=lambda entry: next_fire(entry, datetime.now()))
-    parts = [describe_alarm(entry) for entry in entries]
+    parts = [describe_alarm(entry, lang=lang) for entry in entries]
     if len(parts) == 1:
         body = parts[0]
+    elif lang == "es":
+        body = ", ".join(parts[:-1]) + " y " + parts[-1]
     else:
         body = ", ".join(parts[:-1]) + ", and " + parts[-1]
-    plural = "" if len(parts) == 1 else "s"
-    return {
-        "count": len(parts),
-        "speech": f"You have {len(parts)} wake alarm{plural}: {body}.",
-    }
+    if lang == "es":
+        noun = "alarma" if len(parts) == 1 else "alarmas"
+        speech = f"Tienes {len(parts)} {noun}: {body}."
+    else:
+        plural = "" if len(parts) == 1 else "s"
+        speech = f"You have {len(parts)} wake alarm{plural}: {body}."
+    return {"count": len(parts), "speech": speech}
 
 
 @router.post("/api/wake-alarms/voice/cancel")
-async def voice_cancel_wake_alarm() -> Dict[str, Any]:
+async def voice_cancel_wake_alarm(lang: str = "en") -> Dict[str, Any]:
     """Cancel the soonest-upcoming enabled wake alarm (repeat for the next)."""
 
+    lang = _norm_lang(lang)
     try:
         current = load_wake_alarms()
         target = soonest_enabled(current, datetime.now())
         if target is None:
-            return {"cancelled": False, "speech": "You have no wake alarms to cancel."}
+            speech = (
+                "No tienes alarmas que cancelar."
+                if lang == "es"
+                else "You have no wake alarms to cancel."
+            )
+            return {"cancelled": False, "speech": speech}
         set_wake_alarms([asdict(e) for e in current if e.id != target.id])
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ Failed to cancel voice wake alarm: %s", exc)
         raise HTTPException(status_code=500, detail=f"failed to cancel wake alarm: {exc}")
-    return {
-        "cancelled": True,
-        "id": target.id,
-        "speech": f"Cancelled your wake alarm for {describe_alarm(target)}.",
-    }
+    described = describe_alarm(target, lang=lang)
+    speech = (
+        f"He cancelado tu alarma de {described}."
+        if lang == "es"
+        else f"Cancelled your wake alarm for {described}."
+    )
+    return {"cancelled": True, "id": target.id, "speech": speech}
 
 
 @router.post("/api/wake-alarms/{alarm_id}/test")

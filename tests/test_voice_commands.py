@@ -96,17 +96,20 @@ def test_locator_is_bilingual_and_grocery_is_spanish_only() -> None:
 
 
 def test_disarm_never_publishes_a_code() -> None:
-    """Only the ``<your code>`` placeholder the voice-pe README already ships.
+    """Only a placeholder — ``<your code>`` (en) / ``<tu código>`` (es) — the
+    voice-pe README already ships, never a real code.
 
     A real code pasted in here would be served to every client of a
     beyond-loopback PWA and committed to a public repo.
     """
 
+    placeholders = {"en": "<your code>", "es": "<tu código>"}
     alarm = next(g for g in VOICE_COMMAND_GROUPS if g.id == "alarm")
     disarm = next(c for c in alarm.commands if c.id == "alarm-disarm")
     for phrasing in disarm.phrasings:
+        placeholder = placeholders[phrasing.lang]
         for text in (*phrasing.phrases, phrasing.example):
-            assert "<your code>" in text, text
+            assert placeholder in text, text
 
 
 def test_no_bare_digits_leak_into_the_alarm_group() -> None:
