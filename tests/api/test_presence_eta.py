@@ -94,7 +94,31 @@ def test_eta_speaks_spanish(
     _patch_travel(monkeypatch, TravelTime(available=True, duration_s=60, duration_text="1 min"))
 
     body = client.get("/api/presence/eta", params={"who": "dad", "lang": "es"}).json()
-    assert body["speech"] == "Roberto's iPhone está a unos 1 minuto de casa con el tráfico actual."
+    assert body["speech"] == "Roberto's iPhone está a un minuto de casa con el tráfico actual."
+
+
+@pytest.mark.parametrize(
+    "seconds, lang, expected",
+    [
+        # < 1h — bare minutes, singular/plural.
+        (18 * 60, "en", "X is about 18 minutes from home in current traffic."),
+        (60, "en", "X is about 1 minute from home in current traffic."),
+        (60, "es", "X está a un minuto de casa con el tráfico actual."),
+        (21 * 60, "es", "X está a unos 21 minutos de casa con el tráfico actual."),
+        # exact hours — minutes dropped, gender + singular.
+        (60 * 60, "en", "X is about 1 hour from home in current traffic."),
+        (2 * 3600, "es", "X está a unas 2 horas de casa con el tráfico actual."),
+        (60 * 60, "es", "X está a una hora de casa con el tráfico actual."),
+        # hours + minutes (the 578-min case that motivated #474).
+        (9 * 3600 + 38 * 60, "en", "X is about 9 hours 38 minutes from home in current traffic."),
+        (9 * 3600 + 38 * 60, "es", "X está a unas 9 horas y 38 minutos de casa con el tráfico actual."),
+        (3600 + 60, "es", "X está a una hora y un minuto de casa con el tráfico actual."),
+    ],
+)
+def test_eta_speech_formats_hours_and_minutes(seconds: int, lang: str, expected: str) -> None:
+    from app.webapp.routers.presence import _eta_speech
+
+    assert _eta_speech("X", seconds, lang=lang) == expected
 
 
 def test_eta_already_home_skips_lookup(
