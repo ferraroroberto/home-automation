@@ -119,11 +119,89 @@ def test_load_presence_config_reads_home_radius(
     monkeypatch.setenv("ICLOUD_EMAIL", "fixture@example.com")
     monkeypatch.setenv("ICLOUD_PASSWORD", "secret")
     monkeypatch.setenv("PRESENCE_HOME_RADIUS_M", "150")
+    monkeypatch.delenv("ICLOUD_EMAIL_2", raising=False)
+    monkeypatch.delenv("ICLOUD_PASSWORD_2", raising=False)
 
     cfg = P.load_presence_config(session_dir=tmp_path)
 
     assert cfg.home_radius_m == 150
     assert cfg.session_dir == tmp_path
+    assert cfg.label == "1"
+
+
+def test_load_presence_configs_single_account_when_no_second(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setattr(P, "load_dotenv", lambda override=True: None)
+    monkeypatch.setenv("ICLOUD_EMAIL", "one@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD", "secret")
+    monkeypatch.delenv("ICLOUD_EMAIL_2", raising=False)
+    monkeypatch.delenv("ICLOUD_PASSWORD_2", raising=False)
+
+    configs = P.load_presence_configs(primary_session_dir=tmp_path)
+
+    assert len(configs) == 1
+    assert configs[0].email == "one@example.com"
+    assert configs[0].label == "1"
+    assert configs[0].session_dir == tmp_path
+
+
+def test_load_presence_configs_includes_second_account(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(P, "load_dotenv", lambda override=True: None)
+    monkeypatch.setenv("ICLOUD_EMAIL", "one@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD", "secret1")
+    monkeypatch.setenv("ICLOUD_EMAIL_2", "two@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD_2", "secret2")
+    monkeypatch.setenv("ICLOUD_SESSION_DIR_2", "webapp/custom_session_2")
+
+    configs = P.load_presence_configs()
+
+    assert [c.email for c in configs] == ["one@example.com", "two@example.com"]
+    assert [c.label for c in configs] == ["1", "2"]
+    assert configs[1].session_dir == P.Path("webapp/custom_session_2")
+
+
+def test_load_presence_configs_second_account_defaults_session_dir(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(P, "load_dotenv", lambda override=True: None)
+    monkeypatch.setenv("ICLOUD_EMAIL", "one@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD", "secret1")
+    monkeypatch.setenv("ICLOUD_EMAIL_2", "two@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD_2", "secret2")
+    monkeypatch.delenv("ICLOUD_SESSION_DIR_2", raising=False)
+
+    configs = P.load_presence_configs()
+
+    assert configs[1].session_dir == P.DEFAULT_SESSION_DIR_2
+
+
+def test_load_presence_configs_skips_partial_second_account(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(P, "load_dotenv", lambda override=True: None)
+    monkeypatch.setenv("ICLOUD_EMAIL", "one@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD", "secret1")
+    monkeypatch.setenv("ICLOUD_EMAIL_2", "two@example.com")
+    monkeypatch.delenv("ICLOUD_PASSWORD_2", raising=False)  # password missing
+
+    configs = P.load_presence_configs()
+
+    assert len(configs) == 1
+    assert configs[0].email == "one@example.com"
+
+
+def test_load_presence_configs_requires_primary_account(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(P, "load_dotenv", lambda override=True: None)
+    monkeypatch.delenv("ICLOUD_EMAIL", raising=False)
+    monkeypatch.delenv("ICLOUD_PASSWORD", raising=False)
+
+    with pytest.raises(P.PresenceConfigError, match="Missing iCloud credentials"):
+        P.load_presence_configs()
 
 
 def test_2fa_without_code_raises_actionable_error() -> None:

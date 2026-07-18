@@ -14,7 +14,7 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-from app.webapp.presence_refresher import PresenceDiagnosticsCache
+from app.webapp.presence_refresher import PresenceAccountStatus, PresenceDiagnosticsCache
 from src.camera_client import CameraInfo
 from src.elgato_client import ElgatoLight
 from src.location_config import LocationConfig
@@ -1866,6 +1866,35 @@ def test_presence_route_returns_unavailable_when_icloud_needs_2fa(
     resp = client.get("/api/presence")
     assert resp.status_code == 200
     assert resp.json()["diagnostics"]["reason"] == "2fa_required"
+
+
+def test_presence_route_surfaces_per_account_partial_state(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A partial two-account outage surfaces per-account diagnostics (#478)."""
+    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.get_cache",
+        lambda: PresenceDiagnosticsCache(
+            entities=[],
+            refreshed_at=datetime(2026, 7, 18, 10, 0, tzinfo=timezone.utc),
+            available=True,
+            reason="partial",
+            detail="1 of 2 iCloud accounts need re-auth (account 2): ...",
+            home_radius_m=200,
+            accounts=[
+                PresenceAccountStatus("1", True, "ok", "", 2),
+                PresenceAccountStatus("2", False, "2fa_required", "needs 2FA", 0),
+            ],
+        ),
+    )
+
+    diag = client.get("/api/presence").json()["diagnostics"]
+    assert diag["reason"] == "partial"
+    assert diag["available"] is True
+    assert [a["label"] for a in diag["accounts"]] == ["1", "2"]
+    assert diag["accounts"][1]["available"] is False
+    assert diag["accounts"][1]["reason"] == "2fa_required"
 
 
 def test_presence_hidden_and_display_name_persist(

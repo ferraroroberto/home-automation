@@ -12,6 +12,10 @@ Run from the project root with the venv interpreter::
 If Apple asks for 2FA, rerun with ``--2fa-code <code>`` from a trusted Apple
 device. Reads ICLOUD_EMAIL / ICLOUD_PASSWORD from ``.env`` and caches the
 trusted session under ``webapp/icloud_session`` by default.
+
+A second account (``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2``) is listed too when
+configured (issue #478). 2FA is per Apple ID, so target one account at a time to
+trust/re-auth it: ``--account 2 --2fa-code <code>``.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from src.presence_client import (
     PresenceConfigError,
     PresenceEntity,
     fetch_presence,
+    load_presence_configs,
 )
 
 
@@ -93,18 +98,19 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Validate this 2FA code without requesting a trusted session.",
     )
+    parser.add_argument(
+        "--account",
+        type=int,
+        help=(
+            "Query/trust only this configured iCloud account (1-based). "
+            "Required alongside --2fa-code, since 2FA is per Apple ID. "
+            "Omit to list every configured account."
+        ),
+    )
     return parser.parse_args()
 
 
-def main() -> None:
-    """Fetch every visible Find My entity and print its live location."""
-
-    args = _parse_args()
-    entities = fetch_presence(
-        verification_code=args.verification_code,
-        trust_session=not args.no_trust,
-    )
-
+def _print_entities(entities: list[PresenceEntity]) -> None:
     if not entities:
         print("No Find My entities found on this iCloud account.")
         return
@@ -115,6 +121,44 @@ def main() -> None:
         print(f"Entity {index}:")
         _print_entity(entity)
         print()
+
+
+def main() -> None:
+    """Fetch every visible Find My entity per configured account and print it."""
+
+    args = _parse_args()
+    configs = load_presence_configs()
+
+    if args.account is not None:
+        if not 1 <= args.account <= len(configs):
+            raise SystemExit(
+                f"❌ --account {args.account} out of range; "
+                f"{len(configs)} account(s) configured."
+            )
+        selected = [(args.account, configs[args.account - 1])]
+    else:
+        if args.verification_code:
+            raise SystemExit(
+                "❌ Specify --account N with --2fa-code; 2FA is per Apple ID."
+            )
+        selected = list(enumerate(configs, start=1))
+
+    for number, config in selected:
+        # The verification code only applies to an explicitly-targeted account.
+        code = args.verification_code if args.account is not None else None
+        if len(configs) > 1:
+            print(f"=== Account {number} ===")
+        try:
+            entities = fetch_presence(
+                config=config,
+                verification_code=code,
+                trust_session=not args.no_trust,
+            )
+        except PresenceAuthError as exc:
+            # Degrade this account only, so a healthy account still prints (#478).
+            print(f"⚠️ {exc}")
+            continue
+        _print_entities(entities)
 
 
 if __name__ == "__main__":
