@@ -148,6 +148,7 @@ def _presence_payload(entities: list[PresenceEntity]) -> Dict[str, Any]:
             "available": cache.available,
             "reason": cache.reason,
             "detail": cache.detail,
+            "accounts": [asdict(account) for account in cache.accounts],
             "refreshed_at": cache.refreshed_at.isoformat() if cache.refreshed_at else None,
             "refresh_interval_s": max(60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", 900)),
         },
@@ -663,6 +664,7 @@ async def post_presence_refresh() -> Dict[str, Any]:
         "available": cache.available,
         "reason": cache.reason,
         "detail": cache.detail,
+        "accounts": [asdict(account) for account in cache.accounts],
         "refreshed_at": cache.refreshed_at.isoformat() if cache.refreshed_at else None,
     }
 

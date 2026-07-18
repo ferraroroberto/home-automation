@@ -9,6 +9,7 @@ config/*.json
 !config/*.sample.json
 webapp/certificates/
 webapp/icloud_session/
+webapp/icloud_session_2/
 webapp/*.log
 logs/
 # Energy-history store (server-side SQLite; per-machine runtime data)

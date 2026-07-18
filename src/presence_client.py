@@ -11,10 +11,21 @@ Config (from ``.env``):
 * ``ICLOUD_SESSION_DIR`` - optional cookie/session cache directory. Defaults to
   ``webapp/icloud_session`` and must remain gitignored because it contains live
   Apple session material.
-* ``PRESENCE_HOME_RADIUS_M`` - optional home radius used to derive home/away.
+* ``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2`` / ``ICLOUD_SESSION_DIR_2`` -
+  optional **second** Apple Account (issue #478). Family Sharing only exposes
+  one account's own devices plus family members sharing location with *that*
+  account's group, so a phone on a different Apple ID never appears in the
+  first account's read. Configuring a second account authenticates it the same
+  way and merges its Find My devices into the same snapshot. Its session dir
+  defaults to ``webapp/icloud_session_2`` (also gitignored). Both vars must be
+  set for the second account to be used; leaving them blank keeps the
+  single-account setup unchanged.
+* ``PRESENCE_HOME_RADIUS_M`` - optional home radius used to derive home/away
+  (shared by every account).
 
 ``pyicloud`` may require an interactive 2FA code the first time a session is
-created, and again when Apple expires the trusted session.
+created, and again when Apple expires the trusted session. 2FA is per Apple ID,
+so each configured account trips it — and is trusted — independently.
 """
 
 from __future__ import annotations
@@ -36,6 +47,9 @@ logger = logging.getLogger("presence")
 DEFAULT_SESSION_DIR = (
     Path(__file__).resolve().parent.parent / "webapp" / "icloud_session"
 )
+DEFAULT_SESSION_DIR_2 = (
+    Path(__file__).resolve().parent.parent / "webapp" / "icloud_session_2"
+)
 DEFAULT_HOME_RADIUS_M = 200.0
 
 
@@ -49,13 +63,14 @@ class PresenceAuthError(RuntimeError):
 
 @dataclass(frozen=True)
 class PresenceConfig:
-    """Runtime iCloud presence config loaded from ``.env``."""
+    """Runtime iCloud presence config for a single Apple Account, from ``.env``."""
 
     email: str
     password: str
     session_dir: Path = DEFAULT_SESSION_DIR
     home_radius_m: float = DEFAULT_HOME_RADIUS_M
     with_family: bool = True
+    label: str = "1"  # 1-based account index, for per-account diagnostics/CLI
 
 
 @dataclass(frozen=True)
@@ -82,10 +97,29 @@ class PresenceEntity:
         return self.latitude is not None and self.longitude is not None
 
 
-def load_presence_config(session_dir: Optional[Path] = None) -> PresenceConfig:
-    """Read iCloud presence settings from ``.env``."""
+def _session_dir_from_env(name: str, default: Path) -> Path:
+    """Resolve a session/cookie directory from ``.env``, falling back to a default."""
+
+    configured = (os.getenv(name) or "").strip()
+    return Path(configured) if configured else default
+
+
+def load_presence_configs(
+    primary_session_dir: Optional[Path] = None,
+) -> list[PresenceConfig]:
+    """Read every configured iCloud account from ``.env`` (issue #478).
+
+    Account 1 (``ICLOUD_EMAIL`` / ``ICLOUD_PASSWORD``) is required and always
+    first. Account 2 (``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2``) is optional and
+    only included when both its email and password are set; a partially-set
+    second account is skipped with a warning rather than failing the read.
+    ``primary_session_dir`` overrides account 1's session directory (used by the
+    CLI/tests) and never affects account 2.
+    """
 
     load_dotenv(override=True)
+    home_radius_m = _env_float("PRESENCE_HOME_RADIUS_M", DEFAULT_HOME_RADIUS_M)
+
     email = (os.getenv("ICLOUD_EMAIL") or "").strip()
     password = (os.getenv("ICLOUD_PASSWORD") or "").strip()
     if not email or not password:
@@ -93,20 +127,53 @@ def load_presence_config(session_dir: Optional[Path] = None) -> PresenceConfig:
             "Missing iCloud credentials. Set ICLOUD_EMAIL and ICLOUD_PASSWORD "
             "in .env before running src.list_presence."
         )
+    primary_dir = (
+        primary_session_dir
+        if primary_session_dir is not None
+        else _session_dir_from_env("ICLOUD_SESSION_DIR", DEFAULT_SESSION_DIR)
+    )
+    configs = [
+        PresenceConfig(
+            email=email,
+            password=password,
+            session_dir=primary_dir,
+            home_radius_m=home_radius_m,
+            label="1",
+        )
+    ]
 
-    configured_session_dir = (os.getenv("ICLOUD_SESSION_DIR") or "").strip()
-    home_radius_m = _env_float("PRESENCE_HOME_RADIUS_M", DEFAULT_HOME_RADIUS_M)
-    target_session_dir = (
-        session_dir
-        if session_dir is not None
-        else Path(configured_session_dir) if configured_session_dir else DEFAULT_SESSION_DIR
-    )
-    return PresenceConfig(
-        email=email,
-        password=password,
-        session_dir=target_session_dir,
-        home_radius_m=home_radius_m,
-    )
+    email2 = (os.getenv("ICLOUD_EMAIL_2") or "").strip()
+    password2 = (os.getenv("ICLOUD_PASSWORD_2") or "").strip()
+    if email2 and password2:
+        configs.append(
+            PresenceConfig(
+                email=email2,
+                password=password2,
+                session_dir=_session_dir_from_env(
+                    "ICLOUD_SESSION_DIR_2", DEFAULT_SESSION_DIR_2
+                ),
+                home_radius_m=home_radius_m,
+                label="2",
+            )
+        )
+    elif email2 or password2:
+        logger.warning(
+            "⚠️ ICLOUD_EMAIL_2/ICLOUD_PASSWORD_2 only partially set; "
+            "second iCloud account skipped."
+        )
+
+    return configs
+
+
+def load_presence_config(session_dir: Optional[Path] = None) -> PresenceConfig:
+    """Read the primary iCloud account settings from ``.env``.
+
+    Retained for callers that only need the first account (and the single-account
+    default of :func:`fetch_presence`); the multi-account read is
+    :func:`load_presence_configs`.
+    """
+
+    return load_presence_configs(primary_session_dir=session_dir)[0]
 
 
 def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

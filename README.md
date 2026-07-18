@@ -229,7 +229,9 @@ Config in `.env`:
 | `ICLOUD_EMAIL` | Apple Account email. |
 | `ICLOUD_PASSWORD` | Apple Account password. |
 | `ICLOUD_SESSION_DIR` | Optional session/cookie cache directory. Default: `webapp/icloud_session`. This contains live Apple auth material and is gitignored. |
-| `PRESENCE_HOME_RADIUS_M` | Radius around `config/location.json` used to classify located devices as home or away. Default: `200`. |
+| `ICLOUD_EMAIL_2` / `ICLOUD_PASSWORD_2` | Optional **second** Apple Account (issue #478). Both must be set to activate it. |
+| `ICLOUD_SESSION_DIR_2` | Optional session/cookie cache for the second account. Default: `webapp/icloud_session_2` (gitignored). |
+| `PRESENCE_HOME_RADIUS_M` | Radius around `config/location.json` used to classify located devices as home or away. Default: `200`. Shared by every account. |
 
 Run the smoke command:
 
@@ -245,7 +247,15 @@ On a fresh or expired session Apple may require 2FA. If the command reports that
 
 The CLI prints each visible Find My entity's name, model/class, coordinates, accuracy, last-seen time, battery, and distance from `config/location.json` when the home location is configured. The app also exposes the same read as `GET /api/presence` and renders a minimal **Presence** card in the Security tab showing home / away / unknown counts plus the entity rows. Do not commit Apple credentials, session cookies, person names, coordinates, or location dumps; this repository is public.
 
-**Re-authenticating after a login failure (issue #442).** `GET /api/presence` diagnostics (`reason`) tell you what broke: `2fa_required` (the trusted session expired — just rerun the 2FA smoke command above), `not_configured` (`.env` is missing `ICLOUD_EMAIL`/`ICLOUD_PASSWORD`), or `error` with a detail message. A detail of *"Invalid email/password combination"* usually means the Apple ID password changed since the session was trusted — update `ICLOUD_PASSWORD` in `.env` and rerun `src.list_presence`. If Apple's response instead says the account was **locked for security reasons** (a real failure mode: the background refresher retries every `PRESENCE_ICLOUD_REFRESH_INTERVAL_S`, so a stale password can trip Apple's own repeated-failed-login lock), that's an Apple-side hold with no code-side fix — unlock/reset the account at [iforgot.apple.com](https://iforgot.apple.com) first, then retry the CLI. `POST /api/presence/refresh` (or the CLI) re-runs the same login once the credentials/account are good again.
+**Two accounts for two phones (issue #478).** Apple's Family Sharing only ever returns the configured account's own devices plus family members who share their location with *that* account's family group, so a phone on a different Apple ID never appears no matter how the read is normalized. Set the `ICLOUD_EMAIL_2` / `ICLOUD_PASSWORD_2` pair (with an optional `ICLOUD_SESSION_DIR_2`) to authenticate that phone's own Apple ID as a second account; its Find My devices are merged into the same `GET /api/presence` snapshot. 2FA is per Apple ID, so trust each account's session separately by targeting it explicitly — `--account 1` / `--account 2`:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_presence --account 2 --2fa-code 123456
+```
+
+With no `--account`, the CLI lists every configured account in turn. A single account needing 2FA (or hitting a login error) no longer blanks the other account's cached entities — the healthy account still populates the snapshot, and the diagnostics report a per-account `accounts[]` breakdown plus a `partial` top-level `reason`.
+
+**Re-authenticating after a login failure (issue #442).** `GET /api/presence` diagnostics (`reason`) tell you what broke: `2fa_required` (the trusted session expired — just rerun the 2FA smoke command above), `not_configured` (`.env` is missing `ICLOUD_EMAIL`/`ICLOUD_PASSWORD`), `error` with a detail message, or `partial` (one of two accounts is broken while the other is healthy — see the `accounts[]` breakdown for which). A detail of *"Invalid email/password combination"* usually means the Apple ID password changed since the session was trusted — update `ICLOUD_PASSWORD` (or `ICLOUD_PASSWORD_2`) in `.env` and rerun `src.list_presence --account <N>`. If Apple's response instead says the account was **locked for security reasons** (a real failure mode: the background refresher retries every `PRESENCE_ICLOUD_REFRESH_INTERVAL_S`, so a stale password can trip Apple's own repeated-failed-login lock), that's an Apple-side hold with no code-side fix — unlock/reset the account at [iforgot.apple.com](https://iforgot.apple.com) first, then retry the CLI. `POST /api/presence/refresh` (or the CLI) re-runs the same login once the credentials/account are good again.
 
 Spike recommendation: use this read path only if the session survives unattended for weeks and returns the two phones reliably. If 2FA/session expiry or missing shared-object data proves brittle, use iOS Shortcuts arrive/leave webhooks for the actual presence trigger and keep this client as an exploratory diagnostic. The follow-up HVAC actions should be separate: everyone away for a grace period powers off idle units; first arrival restores a saved profile. Lighting remains out of scope because this repo has no lighting backend.
 

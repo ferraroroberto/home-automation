@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -18,13 +18,25 @@ from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src.presence_client import (
     PresenceAuthError,
+    PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
     fetch_presence,
-    load_presence_config,
+    load_presence_configs,
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PresenceAccountStatus:
+    """Per-account outcome of the last Find My refresh (issue #478)."""
+
+    label: str
+    available: bool
+    reason: str
+    detail: str = ""
+    entity_count: int = 0
 
 
 @dataclass
@@ -37,9 +49,45 @@ class PresenceDiagnosticsCache:
     reason: str = "not_refreshed"
     detail: str = ""
     home_radius_m: Optional[float] = None
+    accounts: list[PresenceAccountStatus] = field(default_factory=list)
 
 
 _CACHE = PresenceDiagnosticsCache(entities=[])
+
+
+def _aggregate_status(
+    statuses: list[PresenceAccountStatus],
+) -> tuple[str, str]:
+    """Roll per-account outcomes into a single ``(reason, detail)`` (issue #478).
+
+    - all healthy → ``ok``
+    - single account → its own reason/detail verbatim (preserves the pre-#478
+      single-account contract the router speech + PWA note key off)
+    - some healthy, some broken → ``partial`` (the cache still carries the
+      healthy accounts' entities, so the source is not "down")
+    - every account broken → the dominant failure reason, worst-first
+    """
+
+    failed = [s for s in statuses if not s.available]
+    if not failed:
+        return "ok", ""
+    if len(statuses) == 1:
+        return failed[0].reason, failed[0].detail
+
+    combined = "; ".join(
+        f"account {s.label} [{s.reason}] {s.detail}".strip() for s in failed
+    )
+    if len(failed) < len(statuses):
+        broken = ", ".join(s.label for s in failed)
+        return (
+            "partial",
+            f"{len(failed)} of {len(statuses)} iCloud accounts need re-auth "
+            f"(account {broken}): {combined}",
+        )
+    for reason in ("2fa_required", "error", "not_configured"):
+        if any(s.reason == reason for s in failed):
+            return reason, combined
+    return "error", combined
 
 
 def get_cache() -> PresenceDiagnosticsCache:
@@ -48,46 +96,68 @@ def get_cache() -> PresenceDiagnosticsCache:
     return _CACHE
 
 
+def _fetch_account(config: PresenceConfig) -> tuple[list[PresenceEntity], PresenceAccountStatus]:
+    """Fetch one account's Find My devices, mapping failures to a per-account status.
+
+    A failure here degrades only this account — the caller keeps every other
+    account's entities (issue #478), so one Apple ID needing 2FA never blanks the
+    whole snapshot.
+    """
+
+    try:
+        entities = fetch_presence(config=config)
+    except PresenceAuthError as exc:
+        return [], PresenceAccountStatus(config.label, False, "2fa_required", str(exc))
+    except PresenceConfigError as exc:
+        return [], PresenceAccountStatus(config.label, False, "not_configured", str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "⚠️ Failed to refresh iCloud account %s: %s", config.label, exc
+        )
+        return [], PresenceAccountStatus(config.label, False, "error", str(exc))
+    return entities, PresenceAccountStatus(
+        config.label, True, "ok", "", entity_count=len(entities)
+    )
+
+
 async def refresh_once() -> PresenceDiagnosticsCache:
-    """Fetch Find My once into the cache."""
+    """Fetch every configured account's Find My devices once into the cache.
+
+    Each account authenticates independently and degrades independently: a
+    healthy account still populates the cache when another needs 2FA (#478).
+    """
 
     global _CACHE
+    now = datetime.now(timezone.utc)
     try:
-        config = load_presence_config()
-        entities = await asyncio.to_thread(lambda: fetch_presence(config=config))
-        _CACHE = PresenceDiagnosticsCache(
-            entities=entities,
-            refreshed_at=datetime.now(timezone.utc),
-            available=True,
-            reason="ok",
-            detail="",
-            home_radius_m=config.home_radius_m,
-        )
-    except PresenceAuthError as exc:
-        _CACHE = PresenceDiagnosticsCache(
-            entities=[],
-            refreshed_at=datetime.now(timezone.utc),
-            available=False,
-            reason="2fa_required",
-            detail=str(exc),
-        )
+        configs = load_presence_configs()
     except PresenceConfigError as exc:
         _CACHE = PresenceDiagnosticsCache(
             entities=[],
-            refreshed_at=datetime.now(timezone.utc),
+            refreshed_at=now,
             available=False,
             reason="not_configured",
             detail=str(exc),
         )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️ Failed to refresh iCloud presence diagnostics: %s", exc)
-        _CACHE = PresenceDiagnosticsCache(
-            entities=[],
-            refreshed_at=datetime.now(timezone.utc),
-            available=False,
-            reason="error",
-            detail=str(exc),
-        )
+        return _CACHE
+
+    entities: list[PresenceEntity] = []
+    statuses: list[PresenceAccountStatus] = []
+    for config in configs:
+        got, status = await asyncio.to_thread(_fetch_account, config)
+        entities.extend(got)
+        statuses.append(status)
+
+    reason, detail = _aggregate_status(statuses)
+    _CACHE = PresenceDiagnosticsCache(
+        entities=entities,
+        refreshed_at=now,
+        available=any(s.available for s in statuses),
+        reason=reason,
+        detail=detail,
+        home_radius_m=configs[0].home_radius_m,
+        accounts=statuses,
+    )
     return _CACHE
 
 
