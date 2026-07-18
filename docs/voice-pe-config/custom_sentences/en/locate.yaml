@@ -2,23 +2,15 @@
 #
 # Install at the HA VM path: /config/custom_sentences/en/locate.yaml
 #
-# {who} is a free-text wildcard: it captures whatever name or household role
-# the user speaks (e.g. "dad", "mom", "Roberto", "Ana"), which the app resolves
-# via role aliases / display names / raw names (src.presence_roles.resolve_person)
-# before answering with the current place. Read-only query — no actuation, so
-# no code-gating needed (unlike the alarm's AlarmDisarmWithCode).
+# INTENTIONALLY EMPTY (#470). The "where's X" match plus the new "how long to
+# get home?" follow-up now live together as the `presence_locator`
+# conversation-trigger automation in configuration.snippet.yaml — a
+# conversation trigger (unlike this intent_script-backed custom sentence) has a
+# handle on the satellite that asked, which assist_satellite.ask_question needs.
+# The intents are emptied rather than the file deleted because
+# scripts/ha_config_sync.py deploys by overwrite and does not prune removed
+# files, so blanking here is how the live "where's X" intent actually gets
+# retired without double-matching the automation.
 language: "en"
 
-lists:
-  who:
-    wildcard: true
-
-intents:
-  Locate:
-    data:
-      - sentences:
-          - "(where's|where is|wheres) {who}"
-          - "(where's|where is|wheres) my {who}"
-          - "(what's|what is|whats) {who}[']s location"
-          - "locate {who}"
-          - "find {who}"
+intents: {}

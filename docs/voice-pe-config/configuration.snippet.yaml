@@ -61,6 +61,17 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
+  # ETA-home follow-up (issue #470) — the app resolves {who} to their live
+  # location and returns a ready-made traffic-aware `speech` ("… about 18
+  # minutes from home in current traffic"). Longer timeout: it makes a live
+  # Google Directions call. Every failure mode is a spoken fallback, not a 500.
+  presence_eta:
+    url: "https://192.168.0.13:8447/api/presence/eta?who={{ who | urlencode }}&lang={{ lang | default('en') }}"
+    method: GET
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 20
   # Wake alarms (issue #306) — distinct from the RISCO alarm above. {when} is
   # the spoken time/schedule; the app parses it and returns a spoken reply.
   wake_alarm_set:
@@ -159,23 +170,15 @@ intent_script:
       text: >-
         {% if (lang | default('en')) == 'es' %}Para desarmar, di desarma seguido de tu código.{% else %}To disarm, say disarm followed by your code.{% endif %}
 
-  # Family locator (issue #438). Read-only — the app resolves {who} and
-  # returns a ready-made `speech` string either way, so this template just
-  # relays it (same relay-only shape as the wake-alarm/grocery intents below).
-  # Shared by the en and es sentence files (#446): the es one sets a fixed
-  # `lang: es` slot, so the app replies in the pipeline's own language.
-  Locate:
-    action:
-      - service: rest_command.presence_locate
-        data:
-          who: "{{ who }}"
-          lang: "{{ lang | default('en') }}"
-        response_variable: r
-      - stop: "done"
-        response_variable: r
-    speech:
-      text: >-
-        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% elif lang | default('en') == 'es' %}No puedo contactar con el localizador.{% else %}Sorry, I couldn't reach the locator.{% endif %}
+  # Family locator (issue #438) + ETA-home follow-up (issue #470).
+  # The plain "where's mom/dad" relay used to live here as `intent_script.Locate`,
+  # but an intent_script has no handle on the satellite that asked, so it cannot
+  # ask a follow-up question. The locate match + the "how long to get home?"
+  # follow-up now live together as the `presence_locator` conversation-trigger
+  # automation at the end of this block (it has `trigger.device_id`, so it can
+  # call assist_satellite.ask_question). The custom_sentences/{en,es}/locate.yaml
+  # intents are intentionally emptied to hand the "where's X" match to that
+  # automation without double-matching.
 
   # Wake alarms (issue #306). The app parses the spoken time and returns a
   # ready-made `speech` string, so these templates just relay it.
@@ -332,4 +335,90 @@ automation grocery_voice:
           entity_id: "{{ satellite }}"
           message: >-
             {% if r is defined and r.status == 200 %}{{ r.content.speech }}{% else %}Lo siento, la lista no responde.{% endif %}
+
+# Family locator + ETA-home follow-up (issues #438, #446, #470). A conversation
+# trigger (not an intent_script) so the same turn can ask a follow-up question:
+# it needs `trigger.device_id` to resolve the satellite for
+# assist_satellite.ask_question. One automation, two triggers keyed by `id`
+# (en/es) so the app is called with the right `lang` and the puck speaks the
+# pipeline's own language. This replaces intent_script.Locate; the
+# custom_sentences/{en,es}/locate.yaml intents are emptied so only this matches.
+# Works on both pipelines: "Prefer handling commands locally" runs the built-in
+# sentence matcher (which owns conversation triggers) before any LLM agent, the
+# same path the old custom-sentence Locate intent relied on.
+automation presence_locator:
+  - id: presence_locator_with_eta
+    alias: "Presence: where is X + ETA-home follow-up (en/es)"
+    mode: single
+    triggers:
+      - trigger: conversation
+        id: en
+        command:
+          - "(where's|where is|wheres) {who}"
+          - "(where's|where is|wheres) my {who}"
+          - "(what's|what is|whats) {who}[']s location"
+          - "locate {who}"
+          - "find {who}"
+      - trigger: conversation
+        id: es
+        command:
+          - "(dónde|donde) (está|esta) [mi] {who}"
+          - "(dónde|donde) anda {who}"
+          - "localiza [a] {who}"
+          - "encuentra [a] {who}"
+    actions:
+      # Silence the triggering turn — the announcements below are the reply.
+      - set_conversation_response: ""
+      - variables:
+          lang: "{{ 'es' if trigger.id == 'es' else 'en' }}"
+          who: "{{ trigger.slots.who | default('') }}"
+          satellite: >-
+            {% set from_device = device_entities(trigger.device_id) | select('search', '^assist_satellite\.') | list if trigger.device_id else [] %}
+            {{ from_device | first if from_device else states.assist_satellite | map(attribute='entity_id') | list | first }}
+      # 1) Speak where they are (the classic locator answer).
+      - action: rest_command.presence_locate
+        data:
+          who: "{{ who }}"
+          lang: "{{ lang }}"
+        response_variable: loc
+      - action: assist_satellite.announce
+        data:
+          entity_id: "{{ satellite }}"
+          message: >-
+            {% if loc is defined and loc.status == 200 %}{{ loc.content.speech }}{% elif lang == 'es' %}No puedo contactar con el localizador.{% else %}Sorry, I couldn't reach the locator.{% endif %}
+      # 2) Only offer the ETA when they were found and are NOT already home.
+      #    `place` is the canonical label ("Home" in both languages); a false
+      #    condition stops the sequence here (mode: single), so a home/unknown
+      #    answer just ends after the locate reply.
+      - condition: template
+        value_template: "{{ loc is defined and loc.status == 200 and loc.content.found and loc.content.place != 'Home' }}"
+      - action: assist_satellite.ask_question
+        data:
+          entity_id: "{{ satellite }}"
+          question: >-
+            {% if lang == 'es' %}¿Quieres saber cuánto tardará en llegar a casa?{% else %}Do you want to know how long it'll take to get home?{% endif %}
+          answers:
+            - id: "yes"
+              sentences:
+                - "(yes|yeah|yep|sure|please|go on|ok|okay)"
+                - "(sí|si|vale|claro|venga|por favor)"
+            - id: "no"
+              sentences:
+                - "(no|nope|no thanks|that's all)"
+                - "(no|no gracias|nada más|déjalo)"
+        response_variable: answer
+      # 3) On "yes" (an unrecognised answer leaves `answer.id` unset → stop),
+      #    speak the traffic-aware ETA the app computed.
+      - condition: template
+        value_template: "{{ answer is defined and answer.id == 'yes' }}"
+      - action: rest_command.presence_eta
+        data:
+          who: "{{ who }}"
+          lang: "{{ lang }}"
+        response_variable: eta
+      - action: assist_satellite.announce
+        data:
+          entity_id: "{{ satellite }}"
+          message: >-
+            {% if eta is defined and eta.status == 200 %}{{ eta.content.speech }}{% elif lang == 'es' %}No puedo calcular el trayecto ahora mismo.{% else %}I can't work out the trip right now.{% endif %}
 # <<< home-automation:voice-pe-alarm <<<

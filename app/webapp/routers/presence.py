@@ -8,7 +8,7 @@ import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 import aiohttp
 from fastapi import APIRouter, HTTPException, Request
@@ -43,6 +43,7 @@ from src.presence_places import (
     set_presence_places,
 )
 from src.presence_roles import load_presence_roles, resolve_person, set_presence_role
+from src.travel_time import fetch_travel_time
 
 logger = logging.getLogger(__name__)
 
@@ -370,6 +371,38 @@ async def _resolved_away_place(entity: PresenceEntity, place: str) -> str:
     return label or place
 
 
+def _resolve_presence_target(
+    who: str, cache: PresenceDiagnosticsCache
+) -> Tuple[Optional[str], Optional[str], Dict[str, PresenceEntity], Dict[str, Any]]:
+    """Resolve a spoken name/role to ``(entity_id, display_name, icloud, people)``.
+
+    Shared by the locate (#438) and ETA (#470) voice bridges — both fold the
+    spoken ``who`` through role aliases / display names / raw names identically.
+    The two lookup maps ride along so the caller reads coordinates/state without
+    rebuilding them; ``entity_id`` / ``display_name`` are ``None`` when unmatched.
+    """
+
+    roles = load_presence_roles()
+    names = load_presence_display_names()
+    icloud_entities = {entity.entity_id: entity for entity in cache.entities}
+    people = load_people()
+    known_ids = list(people) + list(icloud_entities)
+    known_names = {eid: entity.name for eid, entity in icloud_entities.items()}
+    entity_id = resolve_person(
+        who,
+        roles=roles,
+        display_names=names,
+        known_ids=known_ids,
+        known_names=known_names,
+    )
+    display_name = (
+        (names.get(entity_id) or known_names.get(entity_id) or entity_id)
+        if entity_id is not None
+        else None
+    )
+    return entity_id, display_name, icloud_entities, people
+
+
 @router.get("/api/presence/locate")
 async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
     """Resolve a spoken name/role to a current place — the voice-bridge endpoint (#438).
@@ -382,23 +415,10 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
 
     lang = _locate_lang(lang)
     now = now_utc()
-    roles = load_presence_roles()
-    names = load_presence_display_names()
     cache = await _cache_for_locate(now=now)
     places = load_presence_places()
 
-    icloud_entities = {entity.entity_id: entity for entity in cache.entities}
-    people = load_people()
-    known_ids = list(people) + list(icloud_entities)
-    known_names = {eid: entity.name for eid, entity in icloud_entities.items()}
-
-    entity_id = resolve_person(
-        who,
-        roles=roles,
-        display_names=names,
-        known_ids=known_ids,
-        known_names=known_names,
-    )
+    entity_id, display_name, icloud_entities, people = _resolve_presence_target(who, cache)
     if entity_id is None:
         not_found_speech = (
             f"No sé quién es {who.strip()}."
@@ -414,8 +434,6 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
         }
         append_activity("presence_locate", {"who": who, "lang": lang, **result})
         return result
-
-    display_name = names.get(entity_id) or known_names.get(entity_id) or entity_id
 
     if entity_id in icloud_entities:
         entity = icloud_entities[entity_id]
@@ -448,6 +466,126 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
     result = {"found": True, "entity_id": entity_id, "name": display_name, "place": place, "speech": speech}
     append_activity("presence_locate", {"who": who, "lang": lang, **result})
     return result
+
+
+def _eta_speech(display_name: str, duration_s: int, *, lang: str = "en") -> str:
+    """Spoken traffic-aware ETA (#470) — the app owns the wording; minutes round
+    up so a sub-minute hop still reads as "about 1 minute" rather than "0"."""
+
+    minutes = max(1, round(duration_s / 60))
+    if lang == "es":
+        unit = "minuto" if minutes == 1 else "minutos"
+        return f"{display_name} está a unos {minutes} {unit} de casa con el tráfico actual."
+    unit = "minute" if minutes == 1 else "minutes"
+    return f"{display_name} is about {minutes} {unit} from home in current traffic."
+
+
+def _eta_unavailable_speech(display_name: str, reason: str, *, lang: str = "en") -> str:
+    """Spoken fallback when no ETA could be computed — mirrors the locator's
+    graceful "can't find location" wording rather than surfacing an error."""
+
+    if lang == "es":
+        if reason == "no_api_key":
+            return "El cálculo de trayecto no está configurado."
+        if reason == "no_route":
+            return f"No encuentro una ruta a casa desde donde está {display_name}."
+        return f"No puedo calcular cuánto tardará {display_name} en llegar a casa ahora mismo."
+    if reason == "no_api_key":
+        return "Travel-time lookup isn't set up."
+    if reason == "no_route":
+        return f"I can't find a route home from where {display_name} is."
+    return f"I can't work out how long {display_name} will take to get home right now."
+
+
+@router.get("/api/presence/eta")
+async def get_presence_eta(who: str, lang: str = "en") -> Dict[str, Any]:
+    """Speak a traffic-aware ETA from a person's location to home (#470).
+
+    The follow-up to the locator: once "where's dad" has answered, the voice
+    pipeline offers this. Reuses the same name/role resolution and Find My cache
+    as ``/api/presence/locate`` — the origin is the person's cached coordinates,
+    the destination is the configured home (``config/location.json``), and the
+    duration comes from Google Directions in current traffic. Every failure mode
+    (unknown person, already home, no live location, home not set, no key/route)
+    degrades to a spoken fallback, never an error — same contract as locate.
+    """
+
+    lang = _locate_lang(lang)
+    now = now_utc()
+    cache = await _cache_for_locate(now=now)
+    entity_id, display_name, icloud_entities, people = _resolve_presence_target(who, cache)
+
+    def _reply(speech: str, *, found: bool = True, eta_minutes: Optional[int] = None) -> Dict[str, Any]:
+        result = {
+            "found": found,
+            "entity_id": entity_id,
+            "name": display_name if found else who.strip(),
+            "eta_minutes": eta_minutes,
+            "speech": speech,
+        }
+        append_activity("presence_eta", {"who": who, "lang": lang, **result})
+        return result
+
+    if entity_id is None:
+        speech = (
+            f"No sé quién es {who.strip()}."
+            if lang == "es"
+            else f"I don't know who {who.strip()} is."
+        )
+        return _reply(speech, found=False)
+
+    # Origin coordinates + at-home state, read from the same two sources the
+    # locator uses. A Find My entity may carry live coordinates; a webhook person
+    # carries only a home/away state (no coordinates, so no routable origin).
+    origin: Optional[Tuple[float, float]] = None
+    at_home = False
+    if entity_id in icloud_entities:
+        entity = icloud_entities[entity_id]
+        at_home = entity.at_home is True
+        if entity.has_location and entity.latitude is not None and entity.longitude is not None:
+            origin = (entity.latitude, entity.longitude)
+    elif entity_id in people:
+        at_home = people[entity_id].state == "home"
+    # else: known only via a role/display-name alias, absent from both live
+    # sources right now (the diagnostics refresher is down) — no origin, so the
+    # "no live location" fallback below is the honest answer.
+
+    if at_home:
+        speech = (
+            f"{display_name} ya está en casa."
+            if lang == "es"
+            else f"{display_name} is already home."
+        )
+        return _reply(speech)
+
+    if origin is None:
+        speech = (
+            f"No sé exactamente dónde está {display_name}, así que no puedo calcular el trayecto."
+            if lang == "es"
+            else f"I don't know exactly where {display_name} is, so I can't work out the trip."
+        )
+        return _reply(speech)
+
+    home = load_location_config()
+    if home is None:
+        speech = (
+            "No tengo configurada la ubicación de casa, así que no puedo calcular el trayecto."
+            if lang == "es"
+            else "Home location isn't set, so I can't work out the trip."
+        )
+        return _reply(speech)
+
+    travel = await fetch_travel_time(
+        origin_lat=origin[0],
+        origin_lon=origin[1],
+        dest_lat=home.lat,
+        dest_lon=home.lon,
+    )
+    if not travel.available or travel.duration_s is None:
+        return _reply(_eta_unavailable_speech(display_name, travel.reason, lang=lang))
+
+    minutes = max(1, round(travel.duration_s / 60))
+    return _reply(_eta_speech(display_name, travel.duration_s, lang=lang), eta_minutes=minutes)
 
 
 @router.get("/api/presence/automation")
