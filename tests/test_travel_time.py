@@ -1,9 +1,9 @@
-"""Pure-logic tests for the Google Directions travel-time client (issue #470).
+"""Pure-logic + fetch-path tests for the Google Routes travel-time client (#470/#472).
 
-Only the response-parsing and the no-key short-circuit are exercised — nothing
-here touches the network. The endpoint-level behaviour (resolution, home lookup,
-spoken fallbacks) is covered by ``tests/api/test_presence_eta.py`` with
-``fetch_travel_time`` monkeypatched.
+Nothing here touches the network — the fetch path uses a fake aiohttp session.
+The endpoint-level behaviour (resolution, home lookup, spoken fallbacks) is
+covered by ``tests/api/test_presence_eta.py`` with ``fetch_travel_time``
+monkeypatched.
 """
 
 from __future__ import annotations
@@ -12,57 +12,100 @@ import asyncio
 
 import pytest
 
-from src.travel_time import TravelTime, _parse_directions, fetch_travel_time
+import src.travel_time as tt
+from src.travel_time import ROUTES_URL, TravelTime, _parse_routes, fetch_travel_time
 
 
-def test_parse_prefers_duration_in_traffic() -> None:
-    data = {
-        "status": "OK",
-        "routes": [
-            {"legs": [{
-                "duration": {"value": 900, "text": "15 mins"},
-                "duration_in_traffic": {"value": 1080, "text": "18 mins"},
-            }]}
-        ],
-    }
-    tt = _parse_directions(data)
-    assert tt.available is True
-    assert tt.duration_s == 1080  # in-traffic value wins over free-flow
-    assert tt.duration_text == "18 mins"
+def test_parse_routes_reads_duration_string() -> None:
+    result = _parse_routes({"routes": [{"duration": "1080s"}]})
+    assert result.available is True
+    assert result.duration_s == 1080
+    assert result.duration_text == "1080s"
 
 
-def test_parse_falls_back_to_free_flow_duration() -> None:
-    data = {"status": "OK", "routes": [{"legs": [{"duration": {"value": 600, "text": "10 mins"}}]}]}
-    tt = _parse_directions(data)
-    assert tt.available is True
-    assert tt.duration_s == 600
+def test_parse_routes_empty_routes_is_no_route() -> None:
+    result = _parse_routes({"routes": []})
+    assert result.available is False
+    assert result.reason == "no_route"
 
 
-def test_parse_zero_results_is_no_route() -> None:
-    tt = _parse_directions({"status": "ZERO_RESULTS", "routes": []})
-    assert tt.available is False
-    assert tt.reason == "no_route"
+def test_parse_routes_missing_duration_is_error_not_raise() -> None:
+    assert _parse_routes({"routes": [{"distanceMeters": 5000}]}).reason == "error"
+    assert _parse_routes("nope").reason == "error"
 
 
-@pytest.mark.parametrize("status", ["REQUEST_DENIED", "OVER_QUERY_LIMIT", "INVALID_REQUEST"])
-def test_parse_other_bad_status_is_error(status: str) -> None:
-    tt = _parse_directions({"status": status, "error_message": "boom"})
-    assert tt.available is False
-    assert tt.reason == "error"
-    assert "boom" in tt.detail
+# --------------------------------------------------------------- fetch path
+class _FakeResp:
+    def __init__(self, status: int, payload: object) -> None:
+        self.status = status
+        self._payload = payload
+
+    async def __aenter__(self) -> "_FakeResp":
+        return self
+
+    async def __aexit__(self, *_a: object) -> bool:
+        return False
+
+    async def json(self) -> object:
+        return self._payload
 
 
-def test_parse_malformed_payload_is_error_not_raise() -> None:
-    assert _parse_directions({"status": "OK", "routes": []}).reason == "error"
-    assert _parse_directions("nope").reason == "error"
+class _FakeSession:
+    def __init__(self, status: int, payload: object, capture: dict) -> None:
+        self._status = status
+        self._payload = payload
+        self._capture = capture
+
+    async def __aenter__(self) -> "_FakeSession":
+        return self
+
+    async def __aexit__(self, *_a: object) -> bool:
+        return False
+
+    def post(self, url: str, *, json: object = None, headers: object = None, timeout: object = None):
+        self._capture.update(url=url, json=json, headers=headers)
+        return _FakeResp(self._status, self._payload)
+
+
+def _patch_session(monkeypatch: pytest.MonkeyPatch, status: int, payload: object) -> dict:
+    capture: dict = {}
+    monkeypatch.setattr(tt, "_api_key", lambda: "test-key")
+    monkeypatch.setattr(tt.aiohttp, "ClientSession", lambda: _FakeSession(status, payload, capture))
+    return capture
+
+
+def test_fetch_success_posts_routes_request_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
+    capture = _patch_session(monkeypatch, 200, {"routes": [{"duration": "1080s"}]})
+
+    result = asyncio.run(
+        fetch_travel_time(origin_lat=41.48, origin_lon=2.06, dest_lat=41.40, dest_lon=2.15)
+    )
+    assert result.available is True
+    assert result.duration_s == 1080
+    # Correct endpoint, key header, traffic-aware body.
+    assert capture["url"] == ROUTES_URL
+    assert capture["headers"]["X-Goog-Api-Key"] == "test-key"
+    assert capture["headers"]["X-Goog-FieldMask"] == "routes.duration"
+    assert capture["json"]["routingPreference"] == "TRAFFIC_AWARE"
+    assert capture["json"]["origin"]["location"]["latLng"]["latitude"] == 41.48
+
+
+def test_fetch_api_not_enabled_403_is_error_with_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_session(
+        monkeypatch, 403, {"error": {"message": "Routes API has not been used in project ..."}}
+    )
+    result = asyncio.run(
+        fetch_travel_time(origin_lat=1.0, origin_lon=2.0, dest_lat=3.0, dest_lon=4.0)
+    )
+    assert result.available is False
+    assert result.reason == "error"
+    assert "Routes API" in result.detail
 
 
 def test_fetch_without_api_key_is_unavailable_and_makes_no_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A missing key short-circuits before any HTTP session is created."""
-    import src.travel_time as tt
-
     monkeypatch.setattr(tt, "_api_key", lambda: "")
 
     def _boom(*_a, **_k):  # pragma: no cover - must never be reached

@@ -108,8 +108,8 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   "Anna"↔"Ana", "mum"/"mamá"→mom — #446) and the locator also answers in Spanish on the
   "Hey Mycroft" pipeline ("¿dónde está papá?" → "Roberto está en casa"). When the person
   is **away**, a follow-up question ("how long to get home?", #470) offers a traffic-aware
-  ETA (`GET /api/presence/eta` → `src.travel_time` over the Google Directions API,
-  `departure_time=now`; needs `GOOGLE_MAPS_API_KEY` in the app's `.env`, degrades to a
+  ETA (`GET /api/presence/eta` → `src.travel_time` over the Google Routes API,
+  `routingPreference: TRAFFIC_AWARE`; needs `GOOGLE_MAPS_API_KEY` in the app's `.env`, degrades to a
   spoken fallback without it). Because the follow-up needs a satellite handle
   (`assist_satellite.ask_question`), the whole locator is now the `presence_locator`
   conversation-trigger automation, not an `intent_script` — the `custom_sentences/*/locate.yaml`
