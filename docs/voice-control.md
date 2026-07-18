@@ -242,7 +242,7 @@ Both pucks are configured identically — a deliberate English/Spanish split (#3
 | Wake word | Routes to pipeline | What it does |
 |---|---|---|
 | **"Okay Nabu"** (slot 1) | **Focused local assistant** (en) | Hub stack — Custom Whisper STT (en hint) → Extended OpenAI (local-first, then the LLM) → hub Piper TTS (`amy`). English commands, freeform questions, the alarm + wake-alarm bridges. |
-| **"Hey Jarvis"** (slot 2) | **Asistente (es)** | The Spanish assistant — Custom Whisper STT (es hint) → **built-in deterministic agent** (no LLM fallback) → **Piper add-on TTS** (`es_ES-sharvard-medium`). The grocery-list bridge lives here; "¿qué puedo hacer?" speaks the command menu. |
+| **"Hey Jarvis"** (slot 2) | **Asistente (es)** | The Spanish assistant — Custom Whisper STT (es hint) → **built-in deterministic agent** (no LLM fallback) → **Piper add-on TTS** (`es_ES-sharvard-medium`). Carries the grocery-list bridge ("¿qué puedo hacer?" speaks the command menu), the family locator, and — since #466 — the **RISCO alarm** ("arma la alarma", "¿cómo está la alarma?", "desarma la alarma \<código\>") and **wake alarms** ("pon una alarma para las siete y media entre semana") in Spanish. Same deterministic doctrine: an unmatched phrase gets "no entiendo", never an LLM improvisation. |
 
 So say **"Okay Nabu"** in English, **"Hey Jarvis"** in Spanish. Language is a
 pipeline-level property (STT hint, TTS voice, and sentence matching all follow it), so

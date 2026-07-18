@@ -113,6 +113,8 @@ export const state = {
   wakeAlarms: [],
   wakeTimers: [],
   voiceCommands: [],
+  // Cheat-sheet language filter (#466): 'all' | 'en' | 'es'.
+  voiceLang: 'all',
 };
 
 // ----------------------------------------------------------------- DOM

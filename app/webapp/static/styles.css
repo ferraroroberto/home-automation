@@ -1231,6 +1231,35 @@ button, input, select, textarea {
 .voice-reply .icon { width: 16px; height: 16px; vertical-align: -3px; }
 .voice-group-notes { margin: var(--space-sm) 0 0 26px; padding-left: 18px; line-height: 1.45; }
 .voice-group-notes li + li { margin-top: var(--space-xs); }
+/* Language filter for the cheat sheet (#466): the alarm, wake-alarm and locator
+   commands answer on both pipelines, so an EN/ES/All segmented toggle narrows the
+   list to one language. A single-language build would just show "All" pressed. */
+.voice-lang-toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0 0 var(--space-sm);
+  padding: 2px;
+  border: 1px solid var(--line-muted);
+  border-radius: var(--radius-pill);
+  background: var(--input-bg);
+}
+.voice-lang-toggle button {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 2px var(--space-md);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.voice-lang-toggle button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
 @media (max-width: 720px) {
   .plugs-summary-row {
     grid-template-columns: 1fr;

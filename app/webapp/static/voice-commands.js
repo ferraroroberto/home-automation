@@ -19,6 +19,53 @@ import { icon } from './_vendored/icons/icons.js';
 
 const LANG_LABELS = { en: 'EN', es: 'ES' };
 
+// The cheat-sheet language filter (#466). 'all' shows every phrasing with its
+// EN/ES chip; a specific language narrows to commands that answer in it.
+const LANG_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'en', label: 'EN' },
+  { id: 'es', label: 'ES' },
+];
+
+// Narrow the catalogue to one language: keep only phrasings in `lang`, drop
+// commands left with none, then groups left with no commands. `all` is identity.
+function filterGroupsByLang(groups, lang) {
+  if (lang === 'all') return groups;
+  const out = [];
+  groups.forEach(function (group) {
+    const commands = [];
+    (group.commands || []).forEach(function (command) {
+      const phrasings = (command.phrasings || []).filter(function (p) {
+        return p.lang === lang;
+      });
+      if (phrasings.length) commands.push(Object.assign({}, command, { phrasings: phrasings }));
+    });
+    if (commands.length) out.push(Object.assign({}, group, { commands: commands }));
+  });
+  return out;
+}
+
+function renderLangToggle() {
+  const toggle = document.createElement('div');
+  toggle.className = 'voice-lang-toggle';
+  toggle.setAttribute('role', 'group');
+  toggle.setAttribute('aria-label', 'Filter voice commands by language');
+  LANG_FILTERS.forEach(function (filter) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = filter.label;
+    btn.dataset.testid = 'voice-lang-' + filter.id;
+    btn.setAttribute('aria-pressed', String((state.voiceLang || 'all') === filter.id));
+    btn.addEventListener('click', function () {
+      if (state.voiceLang === filter.id) return;
+      state.voiceLang = filter.id;
+      renderVoiceCommands();
+    });
+    toggle.appendChild(btn);
+  });
+  return toggle;
+}
+
 function renderPhrasing(phrasing, showLang) {
   const wrap = document.createElement('div');
   wrap.className = 'voice-phrasing';
@@ -125,7 +172,19 @@ function renderVoiceCommands() {
   els.voiceCommandsList.innerHTML = '';
   if (!groups.length) return;
   els.voiceCommandsNote.hidden = true;
+
+  // Only offer the language toggle when the catalogue actually spans languages;
+  // an all-English build would just show a dead "All / EN / ES" control.
+  const langs = new Set();
   groups.forEach(function (group) {
+    (group.commands || []).forEach(function (command) {
+      (command.phrasings || []).forEach(function (p) { langs.add(p.lang); });
+    });
+  });
+  if (langs.size > 1) els.voiceCommandsList.appendChild(renderLangToggle());
+
+  const visible = filterGroupsByLang(groups, state.voiceLang || 'all');
+  visible.forEach(function (group) {
     els.voiceCommandsList.appendChild(renderGroup(group));
   });
 }

@@ -138,3 +138,40 @@ def test_voice_list_and_cancel(client: TestClient, monkeypatch, tmp_path) -> Non
 
     again = client.post("/api/wake-alarms/voice/cancel").json()
     assert again == {"cancelled": False, "speech": "You have no wake alarms to cancel."}
+
+
+def test_voice_set_list_cancel_spanish(client: TestClient, monkeypatch, tmp_path) -> None:
+    """?lang=es parses a Spanish spoken time and speaks Spanish throughout (#466)."""
+    import src.wake_alarms as wake_alarms
+
+    monkeypatch.setattr(wake_alarms, "WAKE_ALARMS_PATH", tmp_path / "wake_alarms.json")
+
+    out = client.post(
+        "/api/wake-alarms/voice?lang=es",
+        json={"phrase": "las siete y media entre semana"},
+    ).json()
+    assert out["ok"] is True
+    assert out["time"] == "07:30"
+    assert out["days"] == ["mon", "tue", "wed", "thu", "fri"]
+    assert out["speech"] == "Alarma configurada para las 7 y media de la mañana entre semana."
+
+    summary = client.get("/api/wake-alarms/voice?lang=es").json()
+    assert summary["count"] == 1
+    assert summary["speech"].startswith("Tienes 1 alarma:")
+
+    cancelled = client.post("/api/wake-alarms/voice/cancel?lang=es").json()
+    assert cancelled["cancelled"] is True
+    assert cancelled["speech"].startswith("He cancelado tu alarma de")
+
+    again = client.post("/api/wake-alarms/voice/cancel?lang=es").json()
+    assert again == {"cancelled": False, "speech": "No tienes alarmas que cancelar."}
+
+
+def test_voice_set_rejects_timeless_phrase_spanish(client: TestClient, monkeypatch, tmp_path) -> None:
+    import src.wake_alarms as wake_alarms
+
+    monkeypatch.setattr(wake_alarms, "WAKE_ALARMS_PATH", tmp_path / "wake_alarms.json")
+
+    out = client.post("/api/wake-alarms/voice?lang=es", json={"phrase": "plátano"}).json()
+    assert out["ok"] is False
+    assert out["speech"] == "Perdona, no he entendido la hora para esa alarma."

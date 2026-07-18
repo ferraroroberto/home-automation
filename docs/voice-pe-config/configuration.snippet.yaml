@@ -64,7 +64,7 @@ rest_command:
   # Wake alarms (issue #306) — distinct from the RISCO alarm above. {when} is
   # the spoken time/schedule; the app parses it and returns a spoken reply.
   wake_alarm_set:
-    url: "https://192.168.0.13:8447/api/wake-alarms/voice"
+    url: "https://192.168.0.13:8447/api/wake-alarms/voice?lang={{ lang | default('en') }}"
     method: POST
     headers:
       authorization: !secret app_api_authorization
@@ -73,14 +73,14 @@ rest_command:
     verify_ssl: false
     timeout: 30
   wake_alarm_cancel:
-    url: "https://192.168.0.13:8447/api/wake-alarms/voice/cancel"
+    url: "https://192.168.0.13:8447/api/wake-alarms/voice/cancel?lang={{ lang | default('en') }}"
     method: POST
     headers:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 30
   wake_alarm_list:
-    url: "https://192.168.0.13:8447/api/wake-alarms/voice"
+    url: "https://192.168.0.13:8447/api/wake-alarms/voice?lang={{ lang | default('en') }}"
     method: GET
     headers:
       authorization: !secret app_api_authorization
@@ -108,7 +108,7 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label != 'Disarmed' %}The alarm is now {{ st.label }}.{% else %}{% set open = st.zones | selectattr('triggered') | rejectattr('bypassed') | map(attribute='display_name') | list %}The alarm did not arm{% if open %}; {{ open | join(', ') }} {{ 'is' if open|length == 1 else 'are' }} open{% endif %}.{% endif %}{% else %}Sorry, the alarm did not respond.{% endif %}
+        {% set es = (lang | default('en')) == 'es' %}{% set esl = {'Disarmed':'desarmada','Armed':'armada','Partially armed':'parcialmente armada','Perimeter':'en modo perímetro','Partial':'en modo parcial','Arming':'armándose','Triggered':'disparada'} %}{% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label != 'Disarmed' %}{% if es %}La alarma está ahora {{ esl.get(st.label, 'en un estado desconocido') }}.{% else %}The alarm is now {{ st.label }}.{% endif %}{% else %}{% set open = st.zones | selectattr('triggered') | rejectattr('bypassed') | map(attribute='display_name') | list %}{% if es %}La alarma no se armó{% if open %}; {{ open | join(', ') }} {{ 'está abierto' if open|length == 1 else 'están abiertos' }}{% endif %}.{% else %}The alarm did not arm{% if open %}; {{ open | join(', ') }} {{ 'is' if open|length == 1 else 'are' }} open{% endif %}.{% endif %}{% endif %}{% else %}{% if es %}Lo siento, la alarma no responde.{% else %}Sorry, the alarm did not respond.{% endif %}{% endif %}
 
   AlarmPerimeter:
     action:
@@ -118,7 +118,7 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label != 'Disarmed' %}The alarm is now {{ st.label }}.{% else %}{% set open = st.zones | selectattr('triggered') | rejectattr('bypassed') | map(attribute='display_name') | list %}The alarm did not arm{% if open %}; {{ open | join(', ') }} {{ 'is' if open|length == 1 else 'are' }} open{% endif %}.{% endif %}{% else %}Sorry, the alarm did not respond.{% endif %}
+        {% set es = (lang | default('en')) == 'es' %}{% set esl = {'Disarmed':'desarmada','Armed':'armada','Partially armed':'parcialmente armada','Perimeter':'en modo perímetro','Partial':'en modo parcial','Arming':'armándose','Triggered':'disparada'} %}{% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label != 'Disarmed' %}{% if es %}La alarma está ahora {{ esl.get(st.label, 'en un estado desconocido') }}.{% else %}The alarm is now {{ st.label }}.{% endif %}{% else %}{% set open = st.zones | selectattr('triggered') | rejectattr('bypassed') | map(attribute='display_name') | list %}{% if es %}La alarma no se armó{% if open %}; {{ open | join(', ') }} {{ 'está abierto' if open|length == 1 else 'están abiertos' }}{% endif %}.{% else %}The alarm did not arm{% if open %}; {{ open | join(', ') }} {{ 'is' if open|length == 1 else 'are' }} open{% endif %}.{% endif %}{% endif %}{% else %}{% if es %}Lo siento, la alarma no responde.{% else %}Sorry, the alarm did not respond.{% endif %}{% endif %}
 
   AlarmPartial:
     action:
@@ -128,7 +128,7 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label != 'Disarmed' %}The alarm is now {{ st.label }}.{% else %}{% set open = st.zones | selectattr('triggered') | rejectattr('bypassed') | map(attribute='display_name') | list %}The alarm did not arm{% if open %}; {{ open | join(', ') }} {{ 'is' if open|length == 1 else 'are' }} open{% endif %}.{% endif %}{% else %}Sorry, the alarm did not respond.{% endif %}
+        {% set es = (lang | default('en')) == 'es' %}{% set esl = {'Disarmed':'desarmada','Armed':'armada','Partially armed':'parcialmente armada','Perimeter':'en modo perímetro','Partial':'en modo parcial','Arming':'armándose','Triggered':'disparada'} %}{% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label != 'Disarmed' %}{% if es %}La alarma está ahora {{ esl.get(st.label, 'en un estado desconocido') }}.{% else %}The alarm is now {{ st.label }}.{% endif %}{% else %}{% set open = st.zones | selectattr('triggered') | rejectattr('bypassed') | map(attribute='display_name') | list %}{% if es %}La alarma no se armó{% if open %}; {{ open | join(', ') }} {{ 'está abierto' if open|length == 1 else 'están abiertos' }}{% endif %}.{% else %}The alarm did not arm{% if open %}; {{ open | join(', ') }} {{ 'is' if open|length == 1 else 'are' }} open{% endif %}.{% endif %}{% endif %}{% else %}{% if es %}Lo siento, la alarma no responde.{% else %}Sorry, the alarm did not respond.{% endif %}{% endif %}
 
   AlarmStatus:
     action:
@@ -138,7 +138,7 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}The alarm is {{ action_response.content.label }}.{% else %}Sorry, I could not reach the alarm.{% endif %}
+        {% set es = (lang | default('en')) == 'es' %}{% set esl = {'Disarmed':'desarmada','Armed':'armada','Partially armed':'parcialmente armada','Perimeter':'en modo perímetro','Partial':'en modo parcial','Arming':'armándose','Triggered':'disparada'} %}{% if action_response is defined and action_response.status == 200 %}{% if es %}La alarma está {{ esl.get(action_response.content.label, 'en un estado desconocido') }}.{% else %}The alarm is {{ action_response.content.label }}.{% endif %}{% else %}{% if es %}Lo siento, no puedo contactar con la alarma.{% else %}Sorry, I could not reach the alarm.{% endif %}{% endif %}
 
   AlarmDisarmWithCode:
     action:
@@ -152,11 +152,12 @@ intent_script:
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label == 'Disarmed' %}The alarm is now Disarmed.{% else %}The alarm did not disarm; it is still {{ st.label }}.{% endif %}{% else %}That code is not correct, or the alarm did not respond.{% endif %}
+        {% set es = (lang | default('en')) == 'es' %}{% set esl = {'Disarmed':'desarmada','Armed':'armada','Partially armed':'parcialmente armada','Perimeter':'en modo perímetro','Partial':'en modo parcial','Arming':'armándose','Triggered':'disparada'} %}{% if action_response is defined and action_response.status == 200 %}{% set st = action_response.content %}{% if st.label == 'Disarmed' %}{% if es %}La alarma está ahora desarmada.{% else %}The alarm is now Disarmed.{% endif %}{% else %}{% if es %}La alarma no se desarmó; sigue {{ esl.get(st.label, 'en un estado desconocido') }}.{% else %}The alarm did not disarm; it is still {{ st.label }}.{% endif %}{% endif %}{% else %}{% if es %}Ese código no es correcto, o la alarma no responde.{% else %}That code is not correct, or the alarm did not respond.{% endif %}{% endif %}
 
   AlarmDisarmPrompt:
     speech:
-      text: "To disarm, say disarm followed by your code."
+      text: >-
+        {% if (lang | default('en')) == 'es' %}Para desarmar, di desarma seguido de tu código.{% else %}To disarm, say disarm followed by your code.{% endif %}
 
   # Family locator (issue #438). Read-only — the app resolves {who} and
   # returns a ready-made `speech` string either way, so this template just
@@ -183,32 +184,37 @@ intent_script:
       - service: rest_command.wake_alarm_set
         data:
           when: "{{ when }}"
+          lang: "{{ lang | default('en') }}"
         response_variable: r
       - stop: "done"
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't set that wake alarm.{% endif %}
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% elif (lang | default('en')) == 'es' %}Lo siento, no he podido crear esa alarma.{% else %}Sorry, I couldn't set that wake alarm.{% endif %}
 
   WakeAlarmCancel:
     action:
       - service: rest_command.wake_alarm_cancel
+        data:
+          lang: "{{ lang | default('en') }}"
         response_variable: r
       - stop: "done"
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't cancel your wake alarm.{% endif %}
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% elif (lang | default('en')) == 'es' %}Lo siento, no he podido cancelar tu alarma.{% else %}Sorry, I couldn't cancel your wake alarm.{% endif %}
 
   WakeAlarmList:
     action:
       - service: rest_command.wake_alarm_list
+        data:
+          lang: "{{ lang | default('en') }}"
         response_variable: r
       - stop: "done"
         response_variable: r
     speech:
       text: >-
-        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% elif (lang | default('en')) == 'es' %}Lo siento, no puedo consultar tus alarmas.{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
 
   # Grocery list (issue #315) — SPANISH-ONLY flows on the "Asistente (es)"
   # pipeline (wake word "Hey Jarvis"): es-hinted STT, es_ES Piper voice,

@@ -17,6 +17,8 @@ Sanitized Home Assistant config that turns spoken phrases into **deterministic**
 
 The full phrase lists are in `custom_sentences/en/alarm.yaml` — widen them freely; an unlisted phrasing falls through to the LLM instead of matching locally.
 
+**Also in Spanish on the "Hey Jarvis" pipeline (#466):** the same six intents answer in Spanish — "arma la alarma" · "activa el perímetro" · "alarma parcial" · "¿cómo está la alarma?" · "desarma la alarma \<código\>". The Spanish phrases live in `custom_sentences/es/alarm.yaml` and reuse the **same intent names**, so the shared `intent_script` fires for either language and speaks Spanish back (a `lang: es` slot flips a Jinja label map — "La alarma está desarmada"). The disarm code gate is identical (language-agnostic word match); the panel PIN is still never spoken.
+
 Arming, perimeter, partial and status are one-shot. **Disarm requires a spoken code** (`voice_disarm_pin`) in the same utterance — a wrong or missing code never calls disarm. That voice code is a gate layered on top of the RISCO panel PIN the app already holds server-side, so the real panel PIN is never spoken aloud.
 
 Each alarm `rest_command` (`alarm_arm` / `alarm_partial` / `alarm_perimeter` / `alarm_disarm`) sends an `x-automation-source: voice-pe` header alongside its bearer token, so `logs/alarm.jsonl`'s `manual` entries tag voice-triggered commands with `actor: "voice-pe"` — distinct from the webapp PWA (`actor: "webapp"`) and the HA integration (`actor: "ha"`, issue #405). Useful for ruling voice in or out when an arm/disarm wasn't expected.
@@ -37,6 +39,8 @@ A **separate** feature from the RISCO alarm above — every phrase says "wake al
 - **Schedule:** `on weekdays` (Mon–Fri) · `on weekends` (Sat/Sun) · `every day` · a weekday name (`on monday`) → recurring; `tomorrow` / `today` → a one-shot that auto-disables after it fires. No schedule → every day.
 
 The sentence lists are in `custom_sentences/en/wake_alarm.yaml`. Both the set and cancel intents reuse the existing `!secret app_api_authorization` — **no new secret**.
+
+**Also in Spanish on the "Hey Jarvis" pipeline (#466):** "pon una alarma para las siete y media entre semana" · "despiértame a mediodía mañana" · "¿qué alarmas tengo?" · "cancela mi alarma". The Spanish phrases live in `custom_sentences/es/wake_alarm.yaml`; the intent passes `lang=es` to the app, which parses the Spanish spoken time (`src/wake_alarms.py`, `parse_spoken_alarm(..., lang="es")`) and speaks a Spanish confirmation ("Alarma configurada para las 7 y media de la mañana entre semana"). Supported Spanish time/schedule words: `las siete` · `y media` · `y cuarto` · `menos cuarto` · `mediodía` · `medianoche` · `de la mañana/tarde/noche` · `entre semana` · `(los) fines de semana` · `todos los días` · a weekday name (`los lunes`) · `mañana`/`hoy` (one-shot).
 
 ### Family locator (issue #438) — "where's mom/dad"
 
@@ -88,6 +92,8 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 - `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml` (RISCO security alarm)
 - `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
 - `custom_sentences/en/locate.yaml` → `/config/custom_sentences/en/locate.yaml` (family locator, #438)
+- `custom_sentences/es/alarm.yaml` → `/config/custom_sentences/es/alarm.yaml` (RISCO security alarm in Spanish, #466)
+- `custom_sentences/es/wake_alarm.yaml` → `/config/custom_sentences/es/wake_alarm.yaml` (wake alarms in Spanish, #466)
 - `custom_sentences/es/grocery.yaml` → `/config/custom_sentences/es/grocery.yaml` (grocery list in Spanish, #315)
 - `custom_sentences/es/locate.yaml` → `/config/custom_sentences/es/locate.yaml` (family locator in Spanish, #446)
 - `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **every** feature's `rest_command` / `intent_script` / `automation` entries)
@@ -153,6 +159,7 @@ Use this only when SSH/script deploy is unavailable (add-on down, key not yet pr
 
 - Read-only first: "Okay Nabu, what's the alarm status?" → it speaks the current state.
 - Then a full cycle: "perimeter on" → check the app's Security tab → "disarm \<code\>".
+- **Spanish (#466):** "Hey Jarvis, ¿cómo está la alarma?" → "La alarma está desarmada"; "pon una alarma para las siete y media entre semana" → it speaks the Spanish confirmation. Text-probe without a voice: `… -m scripts.ha_config_sync probe --text "cómo está la alarma" --language es --actuate` (a read; `action_done` = matched), and `--text "pon una alarma para las siete y media entre semana" --language es --actuate` then `--text "cancela mi alarma" --language es --actuate` to clean up.
 - **Wake alarms:** "set a wake alarm for 7 am on weekdays" → it speaks it back → confirm it appears on the Home-tab card (or `GET /api/wake-alarms`) → "cancel my wake alarm". Text-probe without speaking: `… -m scripts.ha_config_sync probe --text "set a wake alarm for 7 am" --actuate` (a reply of type `action_done` = matched locally).
 - **Family locator:** set a role (Security tab → Presence → a person's detail modal → "Role") and at least one named place (Presence → "Places"), then "Okay Nabu, where's \<role\>" → it speaks the resolved place. Text-probe: `… -m scripts.ha_config_sync probe --text "where's dad"`. Spanish (#446): "Hey Jarvis, ¿dónde está papá?" → "Roberto está en casa"; text-probe with `--text "donde esta papa" --language es --actuate`. Whisper mishearing "dad" as "that" (#444) is a transcription-layer issue a text-probe cannot exercise — after the STT vocabulary bias above binds, verify by voice: say "Okay Nabu, where's dad" a few times and confirm `logs/presence_locate.jsonl` shows `who: dad` resolving correctly each time.
 - **Timers (native, no deploy):** "set a timer for 2 minutes" → wait for the TTS chime; "cancel the timer".

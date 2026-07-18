@@ -89,6 +89,12 @@ _ALARM = VoiceCommandGroup(
                     phrases=("alarm on", "full alarm on", "turn the alarm fully on", "fully arm", "activate the alarm"),
                     example="Okay Nabu, alarm on",
                 ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("arma la alarma", "activa la alarma", "alarma total", "arma la casa"),
+                    example="Hey Jarvis, arma la alarma",
+                ),
             ),
         ),
         VoiceCommand(
@@ -102,6 +108,12 @@ _ALARM = VoiceCommandGroup(
                     phrases=("perimeter on", "the perimeter on", "put the perimeter on", "perimeter mode"),
                     example="Okay Nabu, perimeter on",
                 ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("activa el perímetro", "pon el perímetro", "modo perímetro"),
+                    example="Hey Jarvis, activa el perímetro",
+                ),
             ),
         ),
         VoiceCommand(
@@ -114,6 +126,12 @@ _ALARM = VoiceCommandGroup(
                     wake_word=WAKE_WORD_EN,
                     phrases=("partial on", "partial alarm on", "arm partial", "partial mode"),
                     example="Okay Nabu, partial on",
+                ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("alarma parcial", "activa parcial", "modo parcial"),
+                    example="Hey Jarvis, alarma parcial",
                 ),
             ),
         ),
@@ -133,6 +151,12 @@ _ALARM = VoiceCommandGroup(
                     ),
                     example="Okay Nabu, what's the alarm status",
                 ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("¿cómo está la alarma?", "qué estado tiene la alarma", "está armada la alarma"),
+                    example="Hey Jarvis, ¿cómo está la alarma?",
+                ),
             ),
         ),
         VoiceCommand(
@@ -146,6 +170,12 @@ _ALARM = VoiceCommandGroup(
                     phrases=("disarm <your code>", "turn off the alarm <your code>", "perimeter off <your code>"),
                     example="Okay Nabu, disarm <your code>",
                 ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("desarma la alarma <tu código>", "apaga la alarma <tu código>", "perímetro fuera <tu código>"),
+                    example="Hey Jarvis, desarma la alarma <tu código>",
+                ),
             ),
         ),
         VoiceCommand(
@@ -158,6 +188,12 @@ _ALARM = VoiceCommandGroup(
                     wake_word=WAKE_WORD_EN,
                     phrases=("disarm", "alarm off", "perimeter off", "partial off"),
                     example="Okay Nabu, disarm",
+                ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("desarma", "apaga la alarma", "perímetro fuera"),
+                    example="Hey Jarvis, desarma",
                 ),
             ),
         ),
@@ -190,6 +226,17 @@ _WAKE_ALARMS = VoiceCommandGroup(
                     ),
                     example="Okay Nabu, set a wake alarm for 7 am on weekdays",
                 ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=(
+                        "pon una alarma para las 7",
+                        "despiértame a las siete y media",
+                        "pon una alarma para las 7 los fines de semana",
+                        "alarma para las 8 mañana",
+                    ),
+                    example="Hey Jarvis, pon una alarma para las 7 entre semana",
+                ),
             ),
         ),
         VoiceCommand(
@@ -202,6 +249,12 @@ _WAKE_ALARMS = VoiceCommandGroup(
                     wake_word=WAKE_WORD_EN,
                     phrases=("cancel my wake alarm", "delete my wake alarms", "turn off my wake-up alarm"),
                     example="Okay Nabu, cancel my wake alarm",
+                ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("cancela mi alarma", "quita mis alarmas", "apaga mi alarma"),
+                    example="Hey Jarvis, cancela mi alarma",
                 ),
             ),
         ),
@@ -216,6 +269,12 @@ _WAKE_ALARMS = VoiceCommandGroup(
                     phrases=("what wake alarms do I have", "list my wake alarms", "when are my wake alarms"),
                     example="Okay Nabu, what wake alarms do I have",
                 ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=("qué alarmas tengo", "cuáles son mis alarmas", "cuándo suenan mis alarmas"),
+                    example="Hey Jarvis, ¿qué alarmas tengo?",
+                ),
             ),
         ),
     ),
@@ -224,6 +283,8 @@ _WAKE_ALARMS = VoiceCommandGroup(
         "A bare number with no am/pm is taken as spoken (24-hour from 13 up, otherwise AM).",
         "Schedules it understands: on weekdays · on weekends · every day · a weekday name (on monday) all repeat; "
         "tomorrow / today make a one-shot that switches itself off after it rings. Say no schedule and it repeats every day.",
+        "En español: «pon una alarma para las siete y media», «mañana a mediodía», «entre semana», «los fines de semana», "
+        "«todos los días». Sin horario, suena todos los días.",
     ),
 )
 

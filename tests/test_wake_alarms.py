@@ -235,3 +235,63 @@ def test_describe_alarm_phrasing() -> None:
     assert describe_alarm(weekdays) == "7 AM on weekdays"
     assert describe_alarm(WakeAlarmEntry(id="x", time="18:30", days=["sat", "sun"])) == "6:30 PM on weekends"
     assert describe_alarm(WakeAlarmEntry(id="x", time="05:30", date="2026-08-12")) == "5:30 AM on Wednesday August 12"
+
+
+# ---------------------------------------------- Spanish spoken-phrase parsing (#466)
+def _parsed_entry_es(phrase: str) -> WakeAlarmEntry:
+    raw = parse_spoken_alarm(phrase, _NOW, lang="es")
+    assert raw is not None, f"expected a Spanish parse for {phrase!r}"
+    return clean_entry({**raw, "id": "x"}, "x")
+
+
+def test_parse_spoken_alarm_es_time_forms() -> None:
+    assert _parsed_entry_es("las siete de la mañana").time == "07:00"
+    assert _parsed_entry_es("las siete de la tarde").time == "19:00"
+    assert _parsed_entry_es("las siete y media").time == "07:30"
+    assert _parsed_entry_es("las siete y cuarto").time == "07:15"
+    assert _parsed_entry_es("las ocho menos cuarto de la tarde").time == "19:45"
+    assert _parsed_entry_es("las 7 y 30").time == "07:30"
+    assert _parsed_entry_es("mediodía").time == "12:00"
+    assert _parsed_entry_es("medianoche").time == "00:00"
+    assert _parsed_entry_es("la una de la tarde").time == "13:00"
+
+
+def test_parse_spoken_alarm_es_is_accent_tolerant() -> None:
+    # Whisper may drop accents/ñ — both forms must land on the same time/date.
+    assert _parsed_entry_es("las siete de la manana").time == "07:00"
+    assert _parsed_entry_es("mediodia").time == "12:00"
+
+
+def test_parse_spoken_alarm_es_schedules() -> None:
+    assert _parsed_entry_es("las 7 entre semana").days == ["mon", "tue", "wed", "thu", "fri"]
+    assert _parsed_entry_es("las 7 los fines de semana").days == ["sat", "sun"]
+    assert _parsed_entry_es("las 7 todos los días").days == list(DAYS)
+    assert _parsed_entry_es("las 9 los lunes").days == ["mon"]
+    assert _parsed_entry_es("las 7 de la mañana").days == list(DAYS)  # unscheduled → daily
+
+
+def test_parse_spoken_alarm_es_one_shot_dates() -> None:
+    # "de la mañana" is an am-marker, NOT tomorrow; a standalone "mañana" is.
+    morning = _parsed_entry_es("las ocho de la mañana")
+    assert morning.date is None and morning.time == "08:00"
+    tomorrow = _parsed_entry_es("mañana a mediodía")
+    assert tomorrow.date == "2026-07-02" and tomorrow.time == "12:00"
+    today = _parsed_entry_es("hoy a las ocho")
+    assert today.date == "2026-07-01"
+
+
+def test_parse_spoken_alarm_es_rejects_timeless_phrase() -> None:
+    assert parse_spoken_alarm("plátano", _NOW, lang="es") is None
+    assert parse_spoken_alarm("", _NOW, lang="es") is None
+
+
+def test_describe_alarm_es_phrasing() -> None:
+    assert describe_alarm(WakeAlarmEntry(id="x", time="07:00"), lang="es") == "las 7 de la mañana todos los días"
+    weekdays = WakeAlarmEntry(id="x", time="07:30", days=["mon", "tue", "wed", "thu", "fri"])
+    assert describe_alarm(weekdays, lang="es") == "las 7 y media de la mañana entre semana"
+    weekend = WakeAlarmEntry(id="x", time="22:00", days=["sat", "sun"])
+    assert describe_alarm(weekend, lang="es") == "las 10 de la noche los fines de semana"
+    # 19:45 → "menos cuarto" of the following hour, day-part from the real hour.
+    assert describe_alarm(WakeAlarmEntry(id="x", time="19:45"), lang="es") == "las 8 menos cuarto de la tarde todos los días"
+    one_shot = WakeAlarmEntry(id="x", time="12:00", date="2026-07-02")
+    assert describe_alarm(one_shot, lang="es") == "las 12 del mediodía el jueves 2 de julio"

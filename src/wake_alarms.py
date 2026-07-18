@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -168,8 +169,15 @@ def soonest_enabled(
     return min(enabled, key=lambda entry: next_fire(entry, now))
 
 
-def describe_alarm(entry: WakeAlarmEntry) -> str:
-    """A short, speakable description, e.g. ``"7 AM on weekdays"``."""
+def describe_alarm(entry: WakeAlarmEntry, lang: str = "en") -> str:
+    """A short, speakable description, e.g. ``"7 AM on weekdays"``.
+
+    ``lang="es"`` returns the Spanish equivalent ("las 7 de la mañana entre
+    semana") for the "Asistente (es)" pipeline; anything else is English.
+    """
+
+    if lang == "es":
+        return _describe_alarm_es(entry)
 
     hour, minute = (int(part) for part in entry.time.split(":", 1))
     suffix = "AM" if hour < 12 else "PM"
@@ -189,6 +197,80 @@ def describe_alarm(entry: WakeAlarmEntry) -> str:
         return f"{clock} on weekends"
     names = [_DAY_FULL[day] for day in DAYS if day in days]
     return f"{clock} on {', '.join(names)}"
+
+
+# --------------------------------------------------------------------------- #
+# Spanish descriptions ("las 7 de la mañana entre semana") — #466
+# --------------------------------------------------------------------------- #
+_DAY_FULL_ES = {
+    "mon": "lunes", "tue": "martes", "wed": "miércoles", "thu": "jueves",
+    "fri": "viernes", "sat": "sábado", "sun": "domingo",
+}
+_MONTH_ES = (
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+    "septiembre", "octubre", "noviembre", "diciembre",
+)
+
+
+def _clock_es(hour: int, minute: int) -> str:
+    """Spanish spoken clock, e.g. ``"la 1 de la madrugada"`` / ``"las 7 y media
+    de la tarde"`` / ``"las 8 menos cuarto de la tarde"`` (:45 → menos cuarto of
+    the following hour, as Spanish is spoken). The day-part follows the real
+    hour, so 07:45 stays "de la mañana"."""
+
+    if minute == 45:
+        # "menos cuarto" names the following hour: 19:45 → "las 8 menos cuarto".
+        spoken_h = (hour + 1) % 24
+        mins = " menos cuarto"
+    else:
+        spoken_h = hour
+        if minute == 0:
+            mins = ""
+        elif minute == 15:
+            mins = " y cuarto"
+        elif minute == 30:
+            mins = " y media"
+        else:
+            mins = f" y {minute}"
+    h12 = spoken_h % 12 or 12
+    article = "la" if h12 == 1 else "las"
+    if hour == 0:
+        daypart = "de la noche"
+    elif hour < 6:
+        daypart = "de la madrugada"
+    elif hour < 12:
+        daypart = "de la mañana"
+    elif hour == 12:
+        daypart = "del mediodía"
+    elif hour < 21:
+        daypart = "de la tarde"
+    else:
+        daypart = "de la noche"
+    return f"{article} {h12}{mins} {daypart}"
+
+
+def _describe_alarm_es(entry: WakeAlarmEntry) -> str:
+    hour, minute = (int(part) for part in entry.time.split(":", 1))
+    clock = _clock_es(hour, minute)
+
+    if entry.date:
+        day = datetime.strptime(entry.date, "%Y-%m-%d")
+        return (
+            f"{clock} el {_DAY_FULL_ES[day.strftime('%a').lower()[:3]]} "
+            f"{day.day} de {_MONTH_ES[day.month - 1]}"
+        )
+
+    days = list(entry.days or DAYS)
+    if len(days) == 7:
+        return f"{clock} todos los días"
+    if tuple(day for day in DAYS if day in days) == _WEEKDAYS:
+        return f"{clock} entre semana"
+    if tuple(day for day in DAYS if day in days) == _WEEKEND:
+        return f"{clock} los fines de semana"
+    names = [_DAY_FULL_ES[day] for day in DAYS if day in days]
+    if len(names) == 1:
+        return f"{clock} los {names[0]}"
+    return f"{clock} los {', '.join(names[:-1])} y {names[-1]}"
 
 
 # --------------------------------------------------------------------------- #
@@ -264,14 +346,146 @@ def _parse_time(text: str) -> Optional[str]:
     return None
 
 
-def parse_spoken_alarm(phrase: str, now: datetime) -> Optional[Dict[str, Any]]:
+# --------------------------------------------------------------------------- #
+# Spanish spoken-phrase parsing ("las siete de la mañana entre semana") — #466
+# --------------------------------------------------------------------------- #
+_WORD_HOURS_ES = {
+    "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5,
+    "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10, "once": 11,
+    "doce": 12, "mediodia": 12, "medianoche": 0,
+}
+_WEEKDAY_WORDS_ES = {
+    "lunes": "mon", "martes": "tue", "miercoles": "wed", "jueves": "thu",
+    "viernes": "fri", "sabado": "sat", "domingo": "sun",
+}
+
+
+def _strip_accents(text: str) -> str:
+    """Fold accents/ñ so Spanish keyword matching is transcription-tolerant
+    ("mañana"→"manana", "miércoles"→"miercoles")."""
+
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch)
+    )
+
+
+def _word_or_int_es(token: str) -> Optional[int]:
+    token = token.strip()
+    if token.isdigit():
+        return int(token)
+    return _WORD_HOURS_ES.get(token)
+
+
+def _parse_time_es(text: str) -> Optional[str]:
+    """Best-effort HH:MM from a Spanish spoken time fragment (accents already
+    folded by the caller); ``None`` if none found."""
+
+    ampm: Optional[str] = None
+    if re.search(r"de la (manana|madrugada)", text):
+        ampm = "a"
+        text = re.sub(r"de la (manana|madrugada)", " ", text)
+    elif re.search(r"de la (tarde|noche)|del mediodia", text):
+        ampm = "p"
+        text = re.sub(r"de la (tarde|noche)", " ", text)
+
+    if re.search(r"\bmedianoche\b", text):
+        return "00:00"
+    if re.search(r"\bmediodia\b", text):
+        return "12:00"
+
+    hour_word = r"(?:la |las )?(\w+)"
+    m = re.search(rf"\b{hour_word}\s+menos\s+cuarto\b", text)
+    if m and (hour := _word_or_int_es(m.group(1))) is not None:
+        return _fmt_time((hour - 1) % 24, 45, ampm)
+    m = re.search(rf"\b{hour_word}\s+y\s+media\b", text)
+    if m and (hour := _word_or_int_es(m.group(1))) is not None:
+        return _fmt_time(hour, 30, ampm)
+    m = re.search(rf"\b{hour_word}\s+y\s+cuarto\b", text)
+    if m and (hour := _word_or_int_es(m.group(1))) is not None:
+        return _fmt_time(hour, 15, ampm)
+    m = re.search(rf"\b{hour_word}\s+y\s+(\d{{1,2}})\b", text)
+    if m and (hour := _word_or_int_es(m.group(1))) is not None:
+        return _fmt_time(hour, int(m.group(2)), ampm)
+    m = re.search(r"\b(\d{1,2})[:\s](\d{2})\b", text)
+    if m:
+        return _fmt_time(int(m.group(1)), int(m.group(2)), ampm)
+    m = re.search(r"\b(?:la |las )(\w+)\b", text)
+    if m and (hour := _word_or_int_es(m.group(1))) is not None:
+        return _fmt_time(hour, 0, ampm)
+    m = re.search(r"\b(\d{1,2})\b", text)
+    if m:
+        return _fmt_time(int(m.group(1)), 0, ampm)
+    for word, hour in _WORD_HOURS_ES.items():
+        if re.search(rf"\b{word}\b", text):
+            return _fmt_time(hour, 0, ampm)
+    return None
+
+
+def _parse_spoken_alarm_es(phrase: str, now: datetime) -> Optional[Dict[str, Any]]:
+    text = _strip_accents(" ".join(str(phrase or "").lower().split()))
+    days: Optional[List[str]] = None
+    date: Optional[str] = None
+
+    if re.search(r"\bentre semana\b", text):
+        days = list(_WEEKDAYS)
+        text = re.sub(r"\bentre semana\b", " ", text)
+    elif re.search(r"\b(los |el )?fines? de semana\b", text):
+        days = list(_WEEKEND)
+        text = re.sub(r"\b(los |el )?fines? de semana\b", " ", text)
+    elif re.search(r"\b(todos los dias|cada dia|a diario|diariamente)\b", text):
+        days = list(DAYS)
+        text = re.sub(r"\b(todos los dias|cada dia|a diario|diariamente)\b", " ", text)
+
+    # "de la mañana" is an am marker (stripped inside _parse_time_es); a
+    # *standalone* "mañana" means tomorrow — so only treat it as a date when it
+    # is not part of the "de la mañana" day-part.
+    if re.search(r"\bpasado manana\b", text):
+        date = (now + timedelta(days=2)).strftime("%Y-%m-%d")
+        text = re.sub(r"\bpasado manana\b", " ", text)
+    elif re.search(r"\bmanana\b", text) and not re.search(r"de la manana", text):
+        date = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        text = re.sub(r"\bmanana\b", " ", text)
+    elif re.search(r"\b(hoy|esta noche)\b", text):
+        date = now.strftime("%Y-%m-%d")
+        text = re.sub(r"\b(hoy|esta noche)\b", " ", text)
+
+    if days is None and date is None:
+        found = [
+            _WEEKDAY_WORDS_ES[tok] for tok in text.split() if tok in _WEEKDAY_WORDS_ES
+        ]
+        if found:
+            days = [day for day in DAYS if day in set(found)]
+            text = " ".join(t for t in text.split() if t not in _WEEKDAY_WORDS_ES)
+
+    time_str = _parse_time_es(text)
+    if time_str is None:
+        return None
+
+    return {
+        "label": "Despertar",
+        "enabled": True,
+        "time": time_str,
+        "days": days if days is not None else list(DAYS),
+        "date": date,
+    }
+
+
+def parse_spoken_alarm(
+    phrase: str, now: datetime, lang: str = "en"
+) -> Optional[Dict[str, Any]]:
     """Turn a spoken fragment into a raw wake-alarm dict, or ``None`` on no time.
 
     Returns a dict shaped for :func:`clean_entry` (no ``id`` — the caller
     assigns a stable one). Recognises a clock time plus an optional schedule:
     ``tomorrow``/``today`` (one-shot), ``weekdays``/``weekends``/``every day``,
     or a weekday name (recurring). Unscheduled → every day at that time.
+
+    ``lang="es"`` parses the Spanish equivalents ("las siete de la mañana entre
+    semana", "mañana a mediodía") for the "Asistente (es)" pipeline.
     """
+
+    if lang == "es":
+        return _parse_spoken_alarm_es(phrase, now)
 
     text = " ".join(str(phrase or "").lower().split())
     days: Optional[List[str]] = None
