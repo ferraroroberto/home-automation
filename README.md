@@ -262,7 +262,7 @@ Set a shared webhook secret in `.env`:
 | `PRESENCE_ICLOUD_REFRESH_INTERVAL_S` | Optional, default `900` (15 min); minimum 60 seconds between Find My diagnostic refreshes. |
 | `PRESENCE_AUTOMATION_ENGINE_ENABLED` | Optional, default `true`; the persisted automation config still defaults off. |
 | `PRESENCE_AUTOMATION_POLL_INTERVAL_S` | Optional, default `10`; how often the alarm consumer evaluates webhook-backed state. |
-| `GOOGLE_MAPS_API_KEY` | Optional; enables the voice "how long to get home?" ETA follow-up (#470) — a traffic-aware Google Directions drive time from a person's live location to `config/location.json`. Needs the Directions API enabled + billing on the Google Cloud project; env-only, never committed (the repo is public). Absent → the locator still answers "where's X" and the ETA speaks "Travel-time lookup isn't set up." |
+| `GOOGLE_MAPS_API_KEY` | Optional; enables the voice "how long to get home?" ETA follow-up (#470) — a traffic-aware drive time from a person's live location to `config/location.json` via the Google **Routes API** (#472; the legacy Directions API is deprecated). Needs the **Routes API** enabled + billing on the Google Cloud project; env-only, never committed (the repo is public). Absent → the locator still answers "where's X" and the ETA speaks "Travel-time lookup isn't set up." |
 
 Shortcut endpoints:
 

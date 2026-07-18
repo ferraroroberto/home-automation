@@ -1,9 +1,15 @@
-"""Traffic-aware travel time to home via the Google Directions API (issue #470).
+"""Traffic-aware travel time to home via the Google Routes API (issue #470/#472).
 
 The UI-free core behind the voice "how long to get home?" follow-up: given a
-person's current coordinates and the home coordinates, ask Google Directions for
-the driving duration **in current traffic** and hand back a small result the
-caller turns into spoken text.
+person's current coordinates and the home coordinates, ask Google for the
+driving duration **in current traffic** and hand back a small result the caller
+turns into spoken text.
+
+Uses the modern **Routes API** (``directions/v2:computeRoutes``); the legacy
+Directions API this originally called is deprecated and no longer enabled for
+newer Cloud projects (#472). ``routingPreference: TRAFFIC_AWARE`` gives the
+in-traffic duration and defaults the departure to now, so no timestamp handling
+is needed.
 
 Mirrors the presence locator's graceful-degradation contract: this never raises
 for a missing API key, an unreachable API, or no drivable route — it returns a
@@ -28,7 +34,7 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger("melcloud.travel_time")
 
-DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
+ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
 
 @dataclass
@@ -45,7 +51,7 @@ class TravelTime:
 
     available: bool
     duration_s: Optional[int] = None
-    duration_text: Optional[str] = None
+    duration_text: Optional[str] = None  # raw API duration (e.g. "1080s"), for the log breadcrumb
     reason: str = ""
     detail: str = ""
 
@@ -57,36 +63,29 @@ def _api_key() -> str:
     return (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip()
 
 
-def _parse_directions(data: Any) -> TravelTime:
-    """Map a raw Directions JSON body to a ``TravelTime`` (pure, no I/O).
+def _parse_routes(data: Any) -> TravelTime:
+    """Map a Routes API ``computeRoutes`` 200 body to a ``TravelTime`` (pure, no I/O).
 
-    Prefers ``duration_in_traffic`` (present because we send ``departure_time``)
-    and falls back to the free-flow ``duration``. ``ZERO_RESULTS`` is a real "no
-    drivable route" answer; every other non-``OK`` status (REQUEST_DENIED,
-    OVER_QUERY_LIMIT, INVALID_REQUEST, …) is a configuration/quota error.
+    A successful response is ``{"routes": [{"duration": "1080s"}]}`` — the
+    duration is a seconds string with an ``s`` suffix. An empty ``routes`` list
+    is a real "no drivable route" answer. API-level failures (bad key, API not
+    enabled, quota) arrive as 4xx HTTP statuses and are handled in
+    :func:`fetch_travel_time`, not here.
     """
 
     if not isinstance(data, dict):
         return TravelTime(available=False, reason="error", detail="non-object response")
 
-    status = str(data.get("status") or "")
-    if status != "OK":
-        reason = "no_route" if status == "ZERO_RESULTS" else "error"
-        detail = str(data.get("error_message") or status)
-        if reason == "error":
-            logger.warning("⚠️ Directions returned %s: %s", status, detail)
-        return TravelTime(available=False, reason=reason, detail=detail)
+    routes = data.get("routes") or []
+    if not routes:
+        return TravelTime(available=False, reason="no_route")
 
     try:
-        leg = data["routes"][0]["legs"][0]
-        duration = leg.get("duration_in_traffic") or leg["duration"]
-        return TravelTime(
-            available=True,
-            duration_s=int(duration["value"]),
-            duration_text=str(duration.get("text") or ""),
-        )
+        raw = routes[0]["duration"]  # e.g. "1080s"
+        seconds = int(float(str(raw).rstrip("s")))
+        return TravelTime(available=True, duration_s=seconds, duration_text=str(raw))
     except (KeyError, IndexError, TypeError, ValueError) as exc:
-        logger.warning("⚠️ Unexpected Directions payload shape: %s", exc)
+        logger.warning("⚠️ Unexpected Routes payload shape: %s", exc)
         return TravelTime(available=False, reason="error", detail=f"payload: {exc}")
 
 
@@ -100,32 +99,43 @@ async def fetch_travel_time(
 ) -> TravelTime:
     """Return the driving duration from origin to destination, in current traffic.
 
-    ``departure_time=now`` is what unlocks ``duration_in_traffic`` in the
-    Directions response; without it Google returns only the free-flow duration.
-    Any failure (no key, network error, non-``OK`` status) degrades to an
-    ``available=False`` result rather than raising.
+    ``routingPreference: TRAFFIC_AWARE`` gives the in-traffic duration and
+    defaults the departure to now. Any failure (no key, network error, 4xx from
+    the API) degrades to an ``available=False`` result rather than raising.
     """
 
     key = _api_key()
     if not key:
         return TravelTime(available=False, reason="no_api_key")
 
-    params = {
-        "origin": f"{origin_lat},{origin_lon}",
-        "destination": f"{dest_lat},{dest_lon}",
-        "mode": "driving",
-        "departure_time": "now",
-        "traffic_model": "best_guess",
-        "key": key,
+    body = {
+        "origin": {"location": {"latLng": {"latitude": origin_lat, "longitude": origin_lon}}},
+        "destination": {"location": {"latLng": {"latitude": dest_lat, "longitude": dest_lon}}},
+        "travelMode": "DRIVE",
+        "routingPreference": "TRAFFIC_AWARE",
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": key,
+        # Field mask is mandatory on the Routes API; ask only for what we speak.
+        "X-Goog-FieldMask": "routes.duration",
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(DIRECTIONS_URL, params=params, timeout=timeout_s) as resp:
-                if resp.status >= 400:
-                    raise RuntimeError(f"Directions HTTP {resp.status}")
+            async with session.post(
+                ROUTES_URL, json=body, headers=headers, timeout=timeout_s
+            ) as resp:
+                status = resp.status
                 data = await resp.json()
     except Exception as exc:  # noqa: BLE001 - any transport failure is "unavailable"
         logger.warning("⚠️ Travel-time lookup failed: %s", exc)
         return TravelTime(available=False, reason="error", detail=str(exc))
 
-    return _parse_directions(data)
+    if status >= 400:
+        detail = ""
+        if isinstance(data, dict):
+            detail = str((data.get("error") or {}).get("message") or status)
+        logger.warning("⚠️ Routes API HTTP %s: %s", status, detail)
+        return TravelTime(available=False, reason="error", detail=detail)
+
+    return _parse_routes(data)
