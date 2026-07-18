@@ -3,7 +3,7 @@
 # Install at the HA VM path: /config/custom_sentences/es/locate.yaml
 #
 # These match on the "Asistente (es)" pipeline (language es — wake word
-# "Hey Jarvis"), same as the grocery bridge. {who} is a free-text wildcard
+# "Hey Mycroft"), same as the grocery bridge. {who} is a free-text wildcard
 # resolved server-side (src.presence_roles.resolve_person), which folds
 # accents and kinship variants — "papá"/"papa" both resolve to the dad role.
 # The fixed `lang: es` slot rides through intent_script.Locate so the app

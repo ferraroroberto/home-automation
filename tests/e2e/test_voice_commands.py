@@ -3,7 +3,7 @@
 The catalogue (src/voice_commands.py) is bilingual for the alarm, wake-alarm and
 locator groups, so the card offers an All/EN/ES segmented toggle. This drives the
 real GET /api/voice-commands (not stubbed) and checks the toggle narrows the list
-by the wake word each language leads with ("Okay Nabu," = en, "Hey Jarvis," = es).
+by the wake word each language leads with ("Okay Nabu," = en, "Hey Mycroft," = es).
 """
 
 from __future__ import annotations
@@ -61,19 +61,19 @@ def test_language_toggle_filters_by_pipeline(
     # Default "All": both pipelines' examples are present, All is pressed.
     expect(page.locator('[data-testid="voice-lang-all"]')).to_have_attribute("aria-pressed", "true")
     expect(lst).to_contain_text("Okay Nabu,")
-    expect(lst).to_contain_text("Hey Jarvis,")
+    expect(lst).to_contain_text("Hey Mycroft,")
 
     # ES: only Spanish phrasings survive; the English-only built-ins group is gone.
     page.locator('[data-testid="voice-lang-es"]').click()
     expect(page.locator('[data-testid="voice-lang-es"]')).to_have_attribute("aria-pressed", "true")
     expect(page.locator('[data-testid="voice-lang-all"]')).to_have_attribute("aria-pressed", "false")
-    expect(lst).to_contain_text("Hey Jarvis,")
+    expect(lst).to_contain_text("Hey Mycroft,")
     expect(lst).not_to_contain_text("Okay Nabu,")
 
     # EN: mirror — Spanish-only grocery group disappears.
     page.locator('[data-testid="voice-lang-en"]').click()
     expect(lst).to_contain_text("Okay Nabu,")
-    expect(lst).not_to_contain_text("Hey Jarvis,")
+    expect(lst).not_to_contain_text("Hey Mycroft,")
 
 
 def test_alarm_group_is_bilingual_in_the_card(
