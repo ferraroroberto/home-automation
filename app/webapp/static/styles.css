@@ -271,23 +271,6 @@ button, input, select, textarea {
 /* Leading icon on a section title / heading. */
 .title-icon { width: 1.05em; height: 1.05em; margin-right: 0.4em; }
 
-/* ------------------------------------------------------ theme toggle */
-/* The moon/sun toggle button (lives in the Settings block). */
-.header-icon-btn {
-  background: var(--card);
-  color: var(--ink);
-  border: none;
-  border-radius: var(--radius-md);
-  width: 40px;
-  height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.header-icon-btn .icon { width: 1.2rem; height: 1.2rem; }
-.header-icon-btn:active { transform: scale(0.94); }
-
 /* ---------- tabs ----------
    Nav geometry, the desktop segmented control, and the mobile floating pill
    are owned by the vendored _vendored/nav/nav-tabs.css (issue #184) — see its
@@ -1245,7 +1228,7 @@ button, input, select, textarea {
 }
 .voice-lang-toggle button {
   appearance: none;
-  border: 0;
+  border: 1px solid transparent;
   cursor: pointer;
   padding: 2px var(--space-md);
   border-radius: var(--radius-pill);
@@ -1257,8 +1240,9 @@ button, input, select, textarea {
   letter-spacing: 0.04em;
 }
 .voice-lang-toggle button[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--accent-soft);
+  border-color: var(--accent-border-soft);
+  color: var(--accent);
 }
 @media (max-width: 720px) {
   .plugs-summary-row {
