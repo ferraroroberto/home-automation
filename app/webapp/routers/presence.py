@@ -69,6 +69,19 @@ def _entity_payload(
     return payload
 
 
+_ICLOUD_STALE_AFTER_S_DEFAULT = 300
+
+
+def _icloud_entity_stale(entity: PresenceEntity, *, now: datetime) -> bool:
+    """An iCloud/Find My fix is stale once it's older than the threshold — a
+    missing ``last_seen`` (no fix at all) is stale by definition (#483)."""
+
+    if entity.last_seen is None:
+        return True
+    stale_after_s = max(0, _env_int("PRESENCE_ICLOUD_STALE_AFTER_S", _ICLOUD_STALE_AFTER_S_DEFAULT))
+    return (now - entity.last_seen).total_seconds() > stale_after_s
+
+
 def _person_payload(
     person_id: str, *, now: datetime, places: list[PresencePlace] | None = None
 ) -> Dict[str, Any]:
@@ -121,7 +134,7 @@ def _presence_payload(entities: list[PresenceEntity]) -> Dict[str, Any]:
         item["display_name"] = names.get(entity.entity_id) or None
         item["role"] = roles.get(entity.entity_id) or None
         item["hidden"] = entity.entity_id in hidden
-        item["stale"] = False
+        item["stale"] = _icloud_entity_stale(entity, now=now)
         diagnostic_entities.append(item)
 
     local_people = [_person_payload(pid, now=now, places=places) for pid in sorted(load_people())]
