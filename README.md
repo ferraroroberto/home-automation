@@ -270,6 +270,7 @@ Set a shared webhook secret in `.env`:
 | `PRESENCE_WEBHOOK_SECRET` | Secret required by the iOS Shortcuts webhook endpoints. |
 | `PRESENCE_ICLOUD_REFRESH_ENABLED` | Optional, default `true`; set `0` to disable the cached Find My diagnostic refresher. |
 | `PRESENCE_ICLOUD_REFRESH_INTERVAL_S` | Optional, default `900` (15 min); minimum 60 seconds between Find My diagnostic refreshes. |
+| `PRESENCE_ICLOUD_STALE_AFTER_S` | Optional, default `300` (5 min); how old an iCloud/Find My entity's `last_seen` fix can be before `GET /api/presence` reports `stale: true` for it (#483). A missing `last_seen` is always stale. |
 | `PRESENCE_AUTOMATION_ENGINE_ENABLED` | Optional, default `true`; the persisted automation config still defaults off. |
 | `PRESENCE_AUTOMATION_POLL_INTERVAL_S` | Optional, default `10`; how often the alarm consumer evaluates webhook-backed state. |
 | `GOOGLE_MAPS_API_KEY` | Optional; enables the voice "how long to get home?" ETA follow-up (#470) — a traffic-aware drive time from a person's live location to `config/location.json` via the Google **Routes API** (#472; the legacy Directions API is deprecated). Needs the **Routes API** enabled + billing on the Google Cloud project; env-only, never committed (the repo is public). Absent → the locator still answers "where's X" and the ETA speaks "Travel-time lookup isn't set up." |
