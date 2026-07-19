@@ -2,12 +2,13 @@
 #
 # Install at the HA VM path: /config/custom_sentences/en/locate.yaml
 #
-# INTENTIONALLY EMPTY (#470). The "where's X" match plus the new "how long to
-# get home?" follow-up now live together as the `presence_locator`
-# conversation-trigger automation in configuration.snippet.yaml — a
-# conversation trigger (unlike this intent_script-backed custom sentence) has a
-# handle on the satellite that asked, which assist_satellite.ask_question needs.
-# The intents are emptied rather than the file deleted because
+# INTENTIONALLY EMPTY (#470, #485). The "where's X" match plus the same-turn
+# ETA-home speech (#485: no longer a follow-up question) now live together as
+# the `presence_locator` conversation-trigger automation in
+# configuration.snippet.yaml — a conversation trigger (unlike this
+# intent_script-backed custom sentence) has a handle on the satellite that
+# asked, which assist_satellite.announce needs to target the right puck. The
+# intents are emptied rather than the file deleted because
 # scripts/ha_config_sync.py deploys by overwrite and does not prune removed
 # files, so blanking here is how the live "where's X" intent actually gets
 # retired without double-matching the automation.
