@@ -98,7 +98,7 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   bridges — the grocery one targets the sibling grocery-shopping-automation app on
   `:8502` and includes the first **multi-turn** flow (`assist_satellite.ask_question`);
   see its README section.
-- **Family locator (#438) + same-turn ETA (#470, #485):** a read-only "where's mom/dad"
+- **Family locator (#438) + same-turn ETA (#470, #485, #487):** a read-only "where's mom/dad"
   query — `{who}` (a spoken name or household role) resolves server-side against role
   aliases / display names (`src.presence_roles`), then answers with the person's current
   place from cached Find My data matched against user-configured named places
@@ -115,7 +115,11 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   Voice PE hardware). Because it still needs a satellite handle to target the announce
   (`trigger.device_id`), the whole locator is the `presence_locator` conversation-trigger
   automation, not an `intent_script` — the `custom_sentences/*/locate.yaml` intents are
-  emptied to hand it the match. See
+  emptied to hand it the match. Spanish turns used to come out in the English TTS voice
+  because plain `message:` announces let HA pick the engine, and that pick doesn't follow
+  the wake-word-triggered pipeline (#487) — fixed by pre-rendering the announcement as a
+  `media-source://tts/<engine>` URI naming the exact TTS entity for `lang` (see
+  "Pipelines" above) and passing it as `media_id` instead. See
   [`voice-pe-config/README.md`](voice-pe-config/README.md#family-locator-issue-438--wheres-momdad--same-turn-eta-470-485).
 - **Adding more commands:** [`voice-commands-howto.md`](voice-commands-howto.md) — the
   reusable recipe (hassil sentence syntax, the `stop`/`action_response` gotcha,

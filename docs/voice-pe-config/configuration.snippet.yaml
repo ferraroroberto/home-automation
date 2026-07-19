@@ -336,7 +336,7 @@ automation grocery_voice:
           message: >-
             {% if r is defined and r.status == 200 %}{{ r.content.speech }}{% else %}Lo siento, la lista no responde.{% endif %}
 
-# Family locator + ETA-home follow-up (issues #438, #446, #470, #485). A
+# Family locator + ETA-home follow-up (issues #438, #446, #470, #485, #487). A
 # conversation trigger (not an intent_script) because it needs
 # `trigger.device_id` to resolve the satellite for assist_satellite.announce.
 # One automation, two triggers keyed by `id` (en/es) so the app is called with
@@ -352,6 +352,15 @@ automation grocery_voice:
 # reliably answer on the Voice PE hardware. Now it's unconditional and
 # single-turn: whenever the person is found and not home, the ETA is fetched
 # and spoken in the same announce as the location, with no question asked.
+#
+# #487: plain `message:` on assist_satellite.announce lets HA pick the TTS
+# engine, which doesn't follow the wake-word-triggered pipeline (Spanish
+# "Hey Mycroft" turns were coming out in the English voice) — announce is a
+# standalone action, not scoped to the in-flight conversation's pipeline. Fixed
+# by pre-rendering the announcement via a `media-source://tts/<engine>` URI
+# naming the exact TTS entity for `lang` (`tts.piper` es / `tts.openai_tts_orpheus`
+# en — see docs/voice-control.md "Pipelines"), passed as `media_id` instead of
+# `message`, so the engine is explicit rather than inferred.
 automation presence_locator:
   - id: presence_locator_with_eta
     alias: "Presence: where is X + ETA-home follow-up (en/es)"
@@ -381,6 +390,7 @@ automation presence_locator:
           satellite: >-
             {% set from_device = device_entities(trigger.device_id) | select('search', '^assist_satellite\.') | list if trigger.device_id else [] %}
             {{ from_device | first if from_device else states.assist_satellite | map(attribute='entity_id') | list | first }}
+          tts_engine: "{{ 'tts.piper' if lang == 'es' else 'tts.openai_tts_orpheus' }}"
       - action: rest_command.presence_locate
         data:
           who: "{{ who }}"
@@ -400,12 +410,12 @@ automation presence_locator:
           - action: assist_satellite.announce
             data:
               entity_id: "{{ satellite }}"
-              message: >-
-                {{ loc.content.speech }} {% if eta is defined and eta.status == 200 %}{{ eta.content.speech }}{% elif lang == 'es' %}No puedo calcular el trayecto ahora mismo.{% else %}I can't work out the trip right now.{% endif %}
+              media_id: >-
+                media-source://tts/{{ tts_engine }}?message={{ (loc.content.speech ~ ' ' ~ (eta.content.speech if eta is defined and eta.status == 200 else ('No puedo calcular el trayecto ahora mismo.' if lang == 'es' else "I can't work out the trip right now."))) | urlencode }}
         else:
           - action: assist_satellite.announce
             data:
               entity_id: "{{ satellite }}"
-              message: >-
-                {% if loc is defined and loc.status == 200 %}{{ loc.content.speech }}{% elif lang == 'es' %}No puedo contactar con el localizador.{% else %}Sorry, I couldn't reach the locator.{% endif %}
+              media_id: >-
+                media-source://tts/{{ tts_engine }}?message={{ (loc.content.speech if loc is defined and loc.status == 200 else ('No puedo contactar con el localizador.' if lang == 'es' else "Sorry, I couldn't reach the locator.")) | urlencode }}
 # <<< home-automation:voice-pe-alarm <<<
