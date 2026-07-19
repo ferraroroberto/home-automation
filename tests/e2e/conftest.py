@@ -24,8 +24,10 @@ on Windows. A test marked ``desktop_only`` opts out of the WebKit run.
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import os
+import re
 import signal
 import socket
 import ssl
@@ -35,6 +37,7 @@ import tempfile
 import threading
 import time
 import urllib.request
+from datetime import datetime, timezone
 from urllib.parse import unquote
 from pathlib import Path
 from typing import Callable, Dict, IO, Iterator, List, Optional
@@ -141,11 +144,124 @@ def _wait_healthz(base: str, timeout: float) -> bool:
     return False
 
 
+_WMI_DATE_RE = re.compile(r"^/Date\((-?\d+)\)/$")
+
+
+def _reap_orphaned_webkit_zombies() -> None:
+    """Best-effort kill of orphaned ``WebKitNetworkProcess`` zombies before this
+    session boots its own browser (#480). #440's bounded teardown accepted a
+    leak as its tradeoff: a killed-mid-run WebKit driver can leave its
+    network-process child behind with no reap path, so the leak grows
+    unbounded across sessions/days.
+
+    #480 set out to confirm accumulated zombies as the cause of an observed
+    ~4min suite stretching to ~1hr, but that hypothesis did **not** hold up:
+    a full suite run measured with 40 real accumulated zombies present still
+    completed at the normal ~4min baseline. This sweep is kept anyway as
+    defense-in-depth hygiene, not as a fix for that slowdown (root cause
+    unconfirmed) — most of the 40 also turned out to be true Windows zombie
+    processes (`tasklist`/WMI still list them, but `Get-Process`/`taskkill`
+    can't see or touch them — already exited, kernel object pinned by a
+    stale handle), so this can only actually reap a *recently* orphaned,
+    still-live process, before it reaches that unkillable state.
+
+    A "does the recorded parent PID still exist" check alone is unsafe on
+    Windows: PIDs are reused, so a long-dead zombie's old parent PID can
+    coincidentally match an unrelated process started later (observed in
+    practice: a zombie parented by a WebKit driver process from days ago had
+    its PID recycled by the current tray-managed webapp). Comparing
+    creation timestamps closes that gap — a "parent" created *after* the
+    child can't be its real parent, so treat that as orphaned too. This
+    also keeps a live, in-progress e2e run's zombies untouched: their real
+    parent driver process is alive and genuinely older than the child.
+    """
+    if sys.platform != "win32":
+        return
+    ps_script = (
+        "Get-CimInstance Win32_Process | "
+        "Select-Object ProcessId,ParentProcessId,Name,CreationDate | ConvertTo-Json -Compress"
+    )
+    try:
+        result = subprocess.run(
+            [
+                "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+                "-NoProfile", "-NonInteractive", "-Command", ps_script,
+            ],
+            capture_output=True, text=True, timeout=20,
+        )
+        procs = json.loads(result.stdout) if result.stdout.strip() else []
+    except Exception:
+        logger.warning("⚠️ zombie WebKitNetworkProcess sweep: process listing failed, skipping")
+        return
+    if isinstance(procs, dict):
+        procs = [procs]
+
+    def _parse(ts: Optional[str]) -> Optional[datetime]:
+        # Get-CimInstance's ConvertTo-Json renders CreationDate as an ISO 8601
+        # string when queried through a server-side WQL -Filter, but as the
+        # legacy "/Date(<epoch-ms>)/" form when the full Win32_Process table
+        # is piped through Select-Object first (observed empirically) — both
+        # formats show up depending on how the process list is fetched.
+        if not ts:
+            return None
+        wmi_match = _WMI_DATE_RE.match(ts)
+        if wmi_match:
+            return datetime.fromtimestamp(int(wmi_match.group(1)) / 1000, tz=timezone.utc)
+        try:
+            return datetime.fromisoformat(ts)
+        except Exception:
+            return None
+
+    by_pid = {p["ProcessId"]: p for p in procs if p.get("ProcessId") is not None}
+    zombies = [p for p in procs if p.get("Name") == "WebKitNetworkProcess.exe"]
+    if not zombies:
+        return
+
+    killed = 0
+    unreapable = 0
+    for zombie in zombies:
+        pid = zombie["ProcessId"]
+        child_created = _parse(zombie.get("CreationDate"))
+        parent = by_pid.get(zombie.get("ParentProcessId"))
+        parent_created = _parse(parent.get("CreationDate")) if parent else None
+        orphaned = parent is None or (
+            child_created is not None
+            and parent_created is not None
+            and parent_created > child_created
+        )
+        if not orphaned:
+            continue
+        try:
+            result = subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True, timeout=10,
+            )
+            if result.returncode == 0:
+                killed += 1
+            else:
+                unreapable += 1
+        except Exception:
+            unreapable += 1
+    if killed:
+        logger.info(
+            "🧹 zombie sweep: reaped %d orphaned WebKitNetworkProcess process(es) (#480)",
+            killed,
+        )
+    if unreapable:
+        logger.info(
+            "ℹ️ zombie sweep: %d orphaned WebKitNetworkProcess process(es) could not be "
+            "reaped — already in an unkillable Windows zombie state (clears only when "
+            "the stale handle-holder releases it, or on reboot; see #480)",
+            unreapable,
+        )
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "desktop_only: skip on the WebKit/iPhone projection")
     selected: List[str] = config.option.browser
     if not selected:
         selected.extend(["chromium", "webkit"])
+    _reap_orphaned_webkit_zombies()
 
 
 @pytest.fixture(scope="session")
