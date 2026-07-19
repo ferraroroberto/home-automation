@@ -298,7 +298,7 @@ _LOCATOR = VoiceCommandGroup(
             id="locate-who",
             intent="Locate someone",
             reply="Speaks the place they're at — a named place, home, or away — in the language you asked in. "
-            "If they're away, it then offers to work out how long they'd take to get home.",
+            "If they're away, it also speaks a traffic-aware ETA home in the same reply.",
             phrasings=(
                 Phrasing(
                     lang="en",
@@ -319,8 +319,8 @@ _LOCATOR = VoiceCommandGroup(
         "Works by first name or household role. Nicknames, accents and kinship words all fold to the right person "
         "(mum/mamá → mom, daddy/papá → dad).",
         "Roles and named places are set on the Security tab's Presence card — no voice config to touch when someone new arrives.",
-        "The “how long to get home?” follow-up only comes up when the person is away, and uses live traffic. If they're "
-        "already home, it just says so.",
+        "The ETA-home part only speaks when the person is away, and uses live traffic. If they're already home, it "
+        "just says so — no follow-up question, it's all one reply.",
     ),
 )
 

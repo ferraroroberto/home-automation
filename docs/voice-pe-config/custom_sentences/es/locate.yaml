@@ -2,10 +2,10 @@
 #
 # Install at the HA VM path: /config/custom_sentences/es/locate.yaml
 #
-# INTENTIONALLY EMPTY (#470). Same reason as the English file: the Spanish
-# "¿dónde está…?" match and the "¿cuánto tardará en llegar a casa?" follow-up
-# now live in the bilingual `presence_locator` conversation-trigger automation
-# in configuration.snippet.yaml (the `es` trigger id sets lang=es). Emptied
+# INTENTIONALLY EMPTY (#470, #485). Same reason as the English file: the
+# Spanish "¿dónde está…?" match and the same-turn ETA-home speech now live in
+# the bilingual `presence_locator` conversation-trigger automation in
+# configuration.snippet.yaml (the `es` trigger id sets lang=es). Emptied
 # rather than deleted because ha_config_sync.py deploys by overwrite and does
 # not prune, so blanking retires the live intent without double-matching.
 language: "es"
