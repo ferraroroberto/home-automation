@@ -13,6 +13,7 @@ import { api, jsonApi } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
 import { els, readToken, state, toast } from './state.js';
+import { esc } from './format.js';
 
 const POLL_MS = 15_000;
 const CHUNK_MS = 1_000;
@@ -21,12 +22,6 @@ const MAX_QUEUED_CHUNKS = 8;
 let activeTab = state.tab;
 let activeDictation = null;
 let haViewState = 'idle';
-
-function esc(value) {
-  const span = document.createElement('span');
-  span.textContent = value == null ? '' : String(value);
-  return span.innerHTML;
-}
 
 function pickAudioMime() {
   const candidates = [
