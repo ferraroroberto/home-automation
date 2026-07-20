@@ -34,7 +34,6 @@ from src.presence_engine import (
     mark_decision_applied,
     set_kids_home_override,
 )
-from src.presence_hidden import load_hidden_presence_ids
 from src.push_notifications import send_push
 from src.risco_client import fetch_security_state
 
@@ -47,9 +46,14 @@ def _evaluate_current_decision(security_mode: str) -> Optional[PresenceDecision]
     config = load_automation_config()
     if not config.enabled:
         return None
-    hidden = load_hidden_presence_ids()
-    people = [p for pid, p in load_people().items() if pid not in hidden]
+    # Deliberately NOT filtered by src.presence_hidden: that flag is a UI-only
+    # "declutter the Presence list" toggle (mirrors security_hidden) and must
+    # never narrow who the arm/disarm decision considers (issue #490) - hiding
+    # one tracked person previously made the automation blind to them while
+    # still acting on the rest (e.g. arming while they're genuinely still in).
+    people = list(load_people().values())
     if not people:
+        logger.warning("⚠️ Presence automation skipped: no tracked people in presence_state.json")
         return None
     return evaluate_alarm_decision(
         people,

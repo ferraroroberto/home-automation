@@ -13,6 +13,7 @@ through the shared helper instead of calling ``control_system`` directly.
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 import app.webapp.presence_automation as PA
@@ -58,7 +59,6 @@ def _wire_common(monkeypatch) -> None:
     monkeypatch.setattr(PA, "consider_security_read", lambda security: None)
     monkeypatch.setattr(PA, "consider_security_override", lambda security: None)
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
-    monkeypatch.setattr(PA, "load_hidden_presence_ids", lambda: set())
     monkeypatch.setattr(PA, "load_people", lambda: {"p1": object()})
     monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: _DECISION)
     monkeypatch.setattr(PA, "load_kids_home_override", lambda: False)
@@ -126,3 +126,43 @@ def test_presence_tick_alerts_only_after_confirm_helper_exhausts_retries(monkeyp
             "dedupe_key": "presence:arm",
         }
     ]
+
+
+def test_evaluate_current_decision_considers_every_tracked_person(monkeypatch) -> None:
+    """Regression for #490: a person hidden from the Presence UI list (a
+    display-only declutter toggle in ``config/presence_hidden.json``) must
+    still be evaluated by the arm/disarm decision, not silently dropped -
+    hiding one of two tracked people previously made the automation blind to
+    them while still acting on the other.
+    """
+
+    captured: dict = {}
+
+    def fake_evaluate(people, **kwargs):
+        captured["people"] = list(people)
+        return None
+
+    monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
+    monkeypatch.setattr(PA, "evaluate_alarm_decision", fake_evaluate)
+    monkeypatch.setattr(PA, "load_kids_home_override", lambda: False)
+
+    PA._evaluate_current_decision("disarmed")
+
+    assert len(captured["people"]) == 2
+
+
+def test_evaluate_current_decision_warns_loudly_when_no_people_tracked(
+    monkeypatch, caplog
+) -> None:
+    """Regression for #490: an empty people list after loading must not be a
+    silent no-op - it needs a visible log line so it's diagnosable."""
+
+    monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
+    monkeypatch.setattr(PA, "load_people", lambda: {})
+
+    with caplog.at_level(logging.WARNING, logger=PA.logger.name):
+        result = PA._evaluate_current_decision("disarmed")
+
+    assert result is None
+    assert any("no tracked people" in record.message for record in caplog.records)
