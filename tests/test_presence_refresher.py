@@ -7,6 +7,7 @@ monkeypatched, so these exercise the merge + per-account degradation logic only.
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -154,3 +155,31 @@ def test_refresh_not_configured_when_primary_missing(
     assert cache.available is False
     assert cache.reason == "not_configured"
     assert cache.accounts == []
+
+
+def test_refresh_fetches_accounts_concurrently_not_sequentially(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for #491: two accounts must share the caller's timeout budget
+    instead of splitting it serially. Each fake fetch blocks for ``DELAY_S`` on
+    its own thread; if the refresher still looped sequentially, total wall time
+    would be roughly ``2 * DELAY_S`` instead of roughly ``DELAY_S``."""
+
+    configs = [_config("1"), _config("2")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+
+    DELAY_S = 0.3
+
+    def fake_fetch(*, config: PresenceConfig) -> list[PresenceEntity]:
+        time.sleep(DELAY_S)
+        return [_entity(config.label)]
+
+    monkeypatch.setattr(R, "fetch_presence", fake_fetch)
+
+    started = time.monotonic()
+    cache = asyncio.run(R.refresh_once())
+    elapsed = time.monotonic() - started
+
+    assert {e.entity_id for e in cache.entities} == {"1", "2"}
+    # Sequential fetches would take >= 2 * DELAY_S; concurrent ones stay near 1x.
+    assert elapsed < DELAY_S * 1.8, f"expected concurrent fetch, took {elapsed:.2f}s"
