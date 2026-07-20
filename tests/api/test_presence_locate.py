@@ -130,6 +130,10 @@ def test_presence_locate_resolves_role_to_named_place(
             entities=[entity], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.now_utc",
+        lambda: datetime(2026, 6, 22, 10, 3, tzinfo=timezone.utc),
+    )
 
     resp = client.get("/api/presence/locate", params={"who": "dad"})
     assert resp.status_code == 200
@@ -139,7 +143,8 @@ def test_presence_locate_resolves_role_to_named_place(
         "entity_id": "roberto-phone",
         "name": "Roberto's iPhone",
         "place": "the gym",
-        "speech": "Roberto's iPhone is at the gym.",
+        "last_seen": "2026-06-22T10:00:00+00:00",
+        "speech": "Roberto's iPhone is at the gym, last seen 3 minutes ago.",
     }
 
     # Given name resolves identically via the display-name/raw-name fallback.
@@ -170,6 +175,10 @@ def test_presence_locate_reports_home_and_unknown_person(
             entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.now_utc",
+        lambda: datetime(2026, 6, 22, 10, 1, tzinfo=timezone.utc),
+    )
 
     resp = client.get("/api/presence/locate", params={"who": "mom"})
     assert resp.json() == {
@@ -177,12 +186,14 @@ def test_presence_locate_reports_home_and_unknown_person(
         "entity_id": "ana",
         "name": "ana",
         "place": "Home",
-        "speech": "ana is home.",
+        "last_seen": "2026-06-22T10:00:00+00:00",
+        "speech": "ana is home, last seen 1 minute ago.",
     }
 
     resp = client.get("/api/presence/locate", params={"who": "grandma"})
     body = resp.json()
     assert body["found"] is False
+    assert body["last_seen"] is None
     assert body["speech"] == "I don't know who grandma is."
 
 
@@ -210,18 +221,22 @@ def test_presence_locate_accepts_variants_and_speaks_spanish(
             entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.now_utc",
+        lambda: datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc),
+    )
 
     # Whisper-heard variants of the configured role resolve on the default (en) path.
     for spoken in ("mum", "mummy", "mama"):
         body = client.get("/api/presence/locate", params={"who": spoken}).json()
         assert body["found"] is True, spoken
-        assert body["speech"] == "ana is home."
+        assert body["speech"] == "ana is home, last seen 2 hours ago."
 
     # The Spanish pipeline gets Spanish speech, accents optional.
     for spoken in ("mamá", "mama"):
         body = client.get("/api/presence/locate", params={"who": spoken, "lang": "es"}).json()
         assert body["found"] is True, spoken
-        assert body["speech"] == "ana está en casa."
+        assert body["speech"] == "ana está en casa, visto por última vez hace unas 2 horas."
 
     body = client.get("/api/presence/locate", params={"who": "grandma", "lang": "es"}).json()
     assert body["found"] is False
@@ -347,6 +362,7 @@ def test_presence_locate_reports_broken_source_for_icloud_only_alias(
         "entity_id": "roberto-phone",
         "name": "Roberto's iPhone",
         "place": "Away — location unknown",
+        "last_seen": None,
         "speech": "Roberto's iPhone's location tracking needs iCloud re-authentication.",
     }
 
@@ -407,7 +423,8 @@ def test_presence_locate_reverse_geocodes_unmatched_away_location(
         "entity_id": "ana-phone",
         "name": "Ana's iPhone",
         "place": "Gran Via, Barcelona",
-        "speech": "Ana's iPhone is at Gran Via, Barcelona.",
+        "last_seen": entity.last_seen.isoformat(),
+        "speech": "Ana's iPhone is at Gran Via, Barcelona, last seen just now.",
     }
     assert calls == [(41.48, 2.06)]
 
@@ -444,4 +461,57 @@ def test_presence_locate_falls_back_to_generic_away_when_geocode_unavailable(
     assert resp.status_code == 200
     body = resp.json()
     assert body["place"] == "Away"
-    assert body["speech"] == "Ana's iPhone is away — I don't know exactly where."
+    assert body["speech"] == "Ana's iPhone is away — I don't know exactly where, last seen just now."
+
+
+def test_presence_locate_states_recency_fresh_and_stale_both_languages(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A fresh (<1 min) and a stale (15 min) fix both state a "last seen"
+    recency, in English and Spanish (#492)."""
+    import src.presence_display_names as pdn
+    import src.presence_places as pp
+    import src.presence_roles as pr
+
+    monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
+    monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
+    monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
+    pr.set_presence_role("ana-phone", "mom")
+
+    from datetime import timedelta
+
+    entity = _icloud_entity("ana-phone", lat=41.48, lon=2.06)
+    # Pinned in the future relative to every mocked "now" below, so the
+    # diagnostics cache itself never reads as stale (a separate staleness
+    # check, unrelated to the entity's own last-seen recency under test).
+    frozen_refreshed_at = entity.last_seen + timedelta(minutes=20)
+    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.get_cache",
+        lambda: PresenceDiagnosticsCache(
+            entities=[entity], refreshed_at=frozen_refreshed_at, available=True, reason="ok"
+        ),
+    )
+    async def fake_reverse_geocode(lat: float, lon: float):
+        return {"available": True, "label": "Gran Via, Barcelona"}
+
+    monkeypatch.setattr("app.webapp.routers.presence._reverse_geocode", fake_reverse_geocode)
+
+    # Fresh: entity.last_seen is effectively "now" — reads as "just now".
+    monkeypatch.setattr("app.webapp.routers.presence.now_utc", lambda: entity.last_seen)
+    body = client.get("/api/presence/locate", params={"who": "mom"}).json()
+    assert body["last_seen"] == entity.last_seen.isoformat()
+    assert body["speech"].endswith("last seen just now.")
+
+    body_es = client.get("/api/presence/locate", params={"who": "mom", "lang": "es"}).json()
+    assert body_es["speech"].endswith("visto por última vez justo ahora.")
+
+    # Stale: 15 minutes after the fix — a distinct, non-"just now" recency.
+    monkeypatch.setattr(
+        "app.webapp.routers.presence.now_utc", lambda: entity.last_seen + timedelta(minutes=15)
+    )
+    body = client.get("/api/presence/locate", params={"who": "mom"}).json()
+    assert body["speech"].endswith("last seen 15 minutes ago.")
+
+    body_es = client.get("/api/presence/locate", params={"who": "mom", "lang": "es"}).json()
+    assert body_es["speech"].endswith("visto por última vez hace unos 15 minutos.")
