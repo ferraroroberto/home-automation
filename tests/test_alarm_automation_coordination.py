@@ -54,7 +54,6 @@ def _wire_presence_tick(
     monkeypatch.setattr(presence_automation, "consider_security_read", lambda _state: None)
     monkeypatch.setattr(presence_automation, "consider_security_override", lambda _state: None)
     monkeypatch.setattr(presence_automation, "load_automation_config", lambda: config)
-    monkeypatch.setattr(presence_automation, "load_hidden_presence_ids", lambda: set())
     monkeypatch.setattr(presence_automation, "load_kids_home_override", lambda: False)
     monkeypatch.setattr(presence_automation, "confirm_alarm_action", confirm)
     monkeypatch.setattr(presence_automation, "record_alarm_action", record)

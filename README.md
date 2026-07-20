@@ -282,7 +282,7 @@ POST https://<host>:8447/api/presence/webhooks/roberto/home
 Authorization: Bearer <PRESENCE_WEBHOOK_SECRET>
 ```
 
-Use `home` for the Arrive automation and `away` for the Leave automation. Create one stable person id per phone, for example `roberto` and `ana`. The Security tab's Presence card can rename those ids, hide non-household Find My entities behind Show hidden, edit `config/location.json`, set the alarm automation thresholds, and toggle the **Kids home** override (see below). The automation defaults off and only acts on fresh webhook-backed people that are not hidden.
+Use `home` for the Arrive automation and `away` for the Leave automation. Create one stable person id per phone, for example `roberto` and `ana`. The Security tab's Presence card can rename those ids, hide non-household Find My entities behind Show hidden, edit `config/location.json`, set the alarm automation thresholds, and toggle the **Kids home** override (see below). The automation defaults off and, once enabled, acts on every fresh webhook-backed person — the Presence card's **Show hidden** toggle only declutters that list's display and never excludes anyone from the arm/disarm decision (issue #490: hiding a person used to silently blind the automation to them).
 
 Set up each iPhone with two Personal Automations in Shortcuts:
 
