@@ -125,6 +125,11 @@ async def refresh_once() -> PresenceDiagnosticsCache:
 
     Each account authenticates independently and degrades independently: a
     healthy account still populates the cache when another needs 2FA (#478).
+    Accounts are fetched concurrently, not sequentially (#491) — a caller
+    bounding this coroutine with a single overall timeout (the on-demand
+    locate refresh in ``routers/presence.py``) would otherwise have that
+    budget split serially across accounts, making a 2-account setup roughly
+    twice as likely to lose the race as a 1-account one.
     """
 
     global _CACHE
@@ -141,10 +146,12 @@ async def refresh_once() -> PresenceDiagnosticsCache:
         )
         return _CACHE
 
+    results = await asyncio.gather(
+        *(asyncio.to_thread(_fetch_account, config) for config in configs)
+    )
     entities: list[PresenceEntity] = []
     statuses: list[PresenceAccountStatus] = []
-    for config in configs:
-        got, status = await asyncio.to_thread(_fetch_account, config)
+    for got, status in results:
         entities.extend(got)
         statuses.append(status)
 

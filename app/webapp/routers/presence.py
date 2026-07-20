@@ -300,7 +300,7 @@ async def update_presence_places(request: Request) -> Dict[str, Any]:
 
 
 _LOCATE_STALE_AFTER_S_DEFAULT = 120
-_LOCATE_REFRESH_TIMEOUT_S_DEFAULT = 5
+_LOCATE_REFRESH_TIMEOUT_S_DEFAULT = 12
 
 
 def _cache_is_stale(cache: PresenceDiagnosticsCache, *, now: datetime) -> bool:
@@ -316,6 +316,14 @@ async def _cache_for_locate(*, now: datetime) -> PresenceDiagnosticsCache:
     A locate query is user-initiated and rare, so one extra Apple round-trip per
     question is acceptable and doesn't change the background refresh cadence
     (``GET /api/presence`` still reads the cache as-is, no refresh triggered).
+
+    The timeout default was raised 5s -> 12s (#491): a real Find My locate,
+    especially one that has to wake a device over the network for a live fix,
+    routinely takes longer than 5 seconds, so the on-demand refresh was losing
+    its race almost every time and silently falling back to the stale
+    background-cadence cache. ``refresh_once()`` also fetches every configured
+    account concurrently rather than splitting this budget across them
+    serially.
     """
 
     cache = get_cache()
