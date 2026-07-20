@@ -345,18 +345,22 @@ def _locate_lang(lang: str) -> str:
     return "es" if lang.strip().lower().startswith("es") else "en"
 
 
-def _place_speech(display_name: str, place: str, *, lang: str = "en") -> str:
+def _place_speech(display_name: str, place: str, *, lang: str = "en", recency: Optional[str] = None) -> str:
     if lang == "es":
         if place == "Home":
-            return f"{display_name} está en casa."
-        if place in ("Away", UNKNOWN_PLACE):
-            return f"{display_name} está fuera — no sé exactamente dónde."
-        return f"{display_name} está en {place}."
+            base = f"{display_name} está en casa"
+        elif place in ("Away", UNKNOWN_PLACE):
+            base = f"{display_name} está fuera — no sé exactamente dónde"
+        else:
+            base = f"{display_name} está en {place}"
+        return f"{base}, visto por última vez {recency}." if recency else f"{base}."
     if place == "Home":
-        return f"{display_name} is home."
-    if place in ("Away", UNKNOWN_PLACE):
-        return f"{display_name} is away — I don't know exactly where."
-    return f"{display_name} is at {place}."
+        base = f"{display_name} is home"
+    elif place in ("Away", UNKNOWN_PLACE):
+        base = f"{display_name} is away — I don't know exactly where"
+    else:
+        base = f"{display_name} is at {place}"
+    return f"{base}, last seen {recency}." if recency else f"{base}."
 
 
 def _broken_source_speech(
@@ -452,11 +456,13 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
             "entity_id": None,
             "name": who.strip(),
             "place": None,
+            "last_seen": None,
             "speech": not_found_speech,
         }
         append_activity("presence_locate", {"who": who, "lang": lang, **result})
         return result
 
+    last_seen: Optional[datetime] = None
     if entity_id in icloud_entities:
         entity = icloud_entities[entity_id]
         place = resolve_place(
@@ -467,7 +473,9 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
             places=places,
         )
         place = await _resolved_away_place(entity, place)
-        speech = _place_speech(display_name, place, lang=lang)
+        last_seen = entity.last_seen
+        recency = _recency_phrase((now - last_seen).total_seconds(), lang=lang) if last_seen else None
+        speech = _place_speech(display_name, place, lang=lang, recency=recency)
     elif entity_id in people:
         person = people[entity_id]
         place = resolve_place(
@@ -477,7 +485,9 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
             has_location=False,
             places=places,
         )
-        speech = _place_speech(display_name, place, lang=lang)
+        last_seen = person.updated_at
+        recency = _recency_phrase((now - last_seen).total_seconds(), lang=lang)
+        speech = _place_speech(display_name, place, lang=lang, recency=recency)
     else:
         # Known via a role/display-name alias but absent from both live sources
         # right now — the Find My cache is empty because the diagnostics
@@ -485,7 +495,14 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
         place = UNKNOWN_PLACE
         speech = _broken_source_speech(display_name, cache, lang=lang)
 
-    result = {"found": True, "entity_id": entity_id, "name": display_name, "place": place, "speech": speech}
+    result = {
+        "found": True,
+        "entity_id": entity_id,
+        "name": display_name,
+        "place": place,
+        "last_seen": last_seen.isoformat() if last_seen else None,
+        "speech": speech,
+    }
     append_activity("presence_locate", {"who": who, "lang": lang, **result})
     return result
 
@@ -517,6 +534,19 @@ def _duration_phrase(minutes: int, *, lang: str) -> str:
         return head
     tail = "1 minute" if mins == 1 else f"{mins} minutes"
     return f"{head} {tail}"
+
+
+def _recency_phrase(age_s: float, *, lang: str) -> str:
+    """Relative "last seen" recency for the locator's speech + JSON payload
+    (#492) — reuses ``_duration_phrase``'s hour/minute conventions rather than
+    inventing a new scale. Under a minute reads as "just now" instead of
+    rounding up to a misleadingly precise "1 minute ago"."""
+
+    if age_s < 60:
+        return "justo ahora" if lang == "es" else "just now"
+    minutes = max(1, round(age_s / 60))
+    phrase = _duration_phrase(minutes, lang=lang)
+    return f"hace {phrase}" if lang == "es" else f"{phrase} ago"
 
 
 def _eta_speech(display_name: str, duration_s: int, *, lang: str = "en") -> str:
