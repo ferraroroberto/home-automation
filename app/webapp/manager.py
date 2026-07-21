@@ -99,13 +99,15 @@ def _renew_tailscale_cert() -> None:
     if not script.exists():
         return
     try:
-        subprocess.run(
-            [sys.executable, str(script), "--check"],
+        run_kwargs: Dict[str, Any] = dict(
             cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
         )
+        if sys.platform == "win32":
+            run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        subprocess.run([sys.executable, str(script), "--check"], **run_kwargs)
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning("⚠️  Tailscale cert renew check failed: %s", exc)
 
