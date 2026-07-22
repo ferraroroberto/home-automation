@@ -30,6 +30,7 @@ with the router set the way the old exhaustive table did (#453).
     activity           → /api/activity*                    (unified event log)
     nav_debug          → /api/nav-debug                    (client nav-pin diagnostics)
     wake_alarms        → /api/wake-alarms*, /api/wake-timers*
+    pc_fleet           → /api/pc-fleet*                     (UPS-triggered fleet-shutdown prefs + hub proxy)
 
 Run with::
 
@@ -56,7 +57,7 @@ from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import activity, auth, cameras, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, presence, push, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
+from app.webapp.routers import activity, auth, cameras, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, push, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
@@ -229,6 +230,7 @@ def create_app() -> FastAPI:
     app.include_router(nav_debug.router)
     app.include_router(wake_alarms.router)
     app.include_router(voice_commands.router)
+    app.include_router(pc_fleet.router)
 
     logger.info(
         "ℹ️  webapp build %s (fleet %s) built %s",

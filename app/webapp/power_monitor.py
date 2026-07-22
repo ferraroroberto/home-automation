@@ -8,8 +8,10 @@ fires :func:`app.webapp.power_notify.record_power_event` on each mains↔battery
 transition (baseline on first observation — no alert for the state at startup).
 
 It also drives the low-battery safety shutdown: whenever the UPS is on battery
-and its reported ``runtime_seconds`` drops to :data:`LOW_BATTERY_RUNTIME_THRESHOLD_S`
-(15 min) or below, :func:`app.webapp.power_notify.record_low_battery_shutdown`
+and its reported ``runtime_seconds`` drops to the configured threshold
+(:attr:`PcFleetPrefs.threshold_minutes`, default 15 min — read fresh each tick,
+falling back to :data:`LOW_BATTERY_RUNTIME_THRESHOLD_S` if prefs can't be
+loaded) or below, :func:`app.webapp.power_notify.record_low_battery_shutdown`
 fires once per outage (edge-triggered on a process-memory flag, not on the
 mains↔battery transition itself — the battery can keep draining for several
 polls after the outage starts before it crosses the threshold). Unlike the
@@ -30,7 +32,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from dotenv import load_dotenv
 
@@ -41,13 +43,25 @@ from app.webapp.power_notify import (
     record_low_battery_shutdown_cancelled,
     record_power_event,
 )
+from src.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
 from src.ups_client import UpsState, fetch_ups_state
 
 logger = logging.getLogger(__name__)
 
-# Hardcoded, not user-configurable — only whether the feature is on/off is
-# (via PowerNotifyPrefs.auto_shutdown_low_battery).
+# Fallback only — the live threshold is PcFleetPrefs.threshold_minutes, read
+# fresh each tick. This constant is used when the prefs can't be loaded.
 LOW_BATTERY_RUNTIME_THRESHOLD_S = 15 * 60
+
+
+def _threshold_seconds(prefs_loader: Callable[[], PcFleetPrefs]) -> int:
+    """The configured low-battery threshold in seconds, or the constant fallback."""
+    try:
+        minutes = prefs_loader().threshold_minutes
+        if minutes and minutes > 0:
+            return int(minutes) * 60
+    except Exception as exc:  # noqa: BLE001 — never let a config read break the monitor
+        logger.warning("⚠️ Could not load fleet threshold (%s); using default", exc)
+    return LOW_BATTERY_RUNTIME_THRESHOLD_S
 
 
 @dataclass
@@ -65,9 +79,16 @@ def _runtime_detail(ups: UpsState) -> Optional[str]:
     return (f"{hours}h {minutes}min" if hours else f"{minutes}min") + " runtime"
 
 
-async def tick(state: _MonitorState) -> None:
+async def tick(
+    state: _MonitorState,
+    *,
+    prefs_loader: Callable[[], PcFleetPrefs] = load_pc_fleet_prefs,
+) -> None:
     """Read the UPS once, alert on a mains↔battery transition, and enforce the
-    low-battery safety shutdown while on battery."""
+    low-battery safety shutdown while on battery.
+
+    ``prefs_loader`` is an injection seam (tests) for the fleet prefs; its
+    ``threshold_minutes`` sets the low-battery trigger point each tick."""
 
     ups = await asyncio.to_thread(fetch_ups_state)
     if ups is None or not ups.available or ups.mains_online is None:
@@ -91,7 +112,7 @@ async def tick(state: _MonitorState) -> None:
     if (
         not state.low_battery_shutdown_triggered
         and ups.runtime_seconds is not None
-        and ups.runtime_seconds <= LOW_BATTERY_RUNTIME_THRESHOLD_S
+        and ups.runtime_seconds <= _threshold_seconds(prefs_loader)
     ):
         state.low_battery_shutdown_triggered = True
         await record_low_battery_shutdown(detail=_runtime_detail(ups))

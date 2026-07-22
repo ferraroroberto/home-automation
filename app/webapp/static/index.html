@@ -977,14 +977,41 @@
               <span class="knob"></span><span class="toggle-label">OFF</span>
             </button>
           </div>
+        </div>
+        <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
+      </details>
+
+      <!-- PC fleet: UPS-triggered graceful shutdown of the fleet PCs (issue
+           #498). Collapsed by default, peer of the UPS Notifications card. The
+           machine roster is read live from the hub and rendered by pc-fleet.js;
+           the hub host always shuts down last over its local path and carries no
+           include toggle. Supersedes the old "auto-shutdown" notify toggle. -->
+      <details class="card card--collapsible security-card pc-fleet-card" aria-label="PC fleet">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-cpu"></use></svg>
+            <h3 class="collapse-title">PC fleet</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <p class="muted small security-note">
+          Gracefully shut down the fleet PCs when the UPS runtime runs critically low. The hub host is shut down last over its own local path.
+        </p>
+        <div class="notify-toggles">
           <div class="notify-toggle">
-            <span>Auto-shutdown PC when UPS runtime &lt; 15 min (safety)</span>
-            <button id="notifyAutoShutdown" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto-shutdown PC when UPS runtime under 15 minutes (safety)">
+            <span>Shut down fleet on low UPS runtime</span>
+            <button id="pcFleetEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Shut down fleet on low UPS runtime">
               <span class="knob"></span><span class="toggle-label">OFF</span>
             </button>
           </div>
+          <label class="notify-toggle pc-fleet-threshold-row">
+            <span>Runtime-remaining threshold (min)</span>
+            <input id="pcFleetThreshold" type="number" min="1" max="240" step="1" class="input-native" value="15" aria-label="Runtime-remaining threshold in minutes">
+          </label>
         </div>
-        <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
+        <p id="pcFleetCaption" class="muted small pc-fleet-caption">Trigger when UPS runtime-remaining ≤ 15 min.</p>
+        <div id="pcFleetMachines" class="pc-fleet-machines" aria-label="Fleet machines" aria-live="polite"></div>
+        <p id="pcFleetNote" class="muted small security-note" role="status" hidden></p>
       </details>
     </section>
 

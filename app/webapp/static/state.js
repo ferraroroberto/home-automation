@@ -334,8 +334,13 @@ export const els = {
   upsTile: document.getElementById('upsTile'),
   notifyPowerLost: document.getElementById('notifyPowerLost'),
   notifyPowerRestored: document.getElementById('notifyPowerRestored'),
-  notifyAutoShutdown: document.getElementById('notifyAutoShutdown'),
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
+  // PC fleet — UPS-triggered graceful fleet shutdown card (issue #498).
+  pcFleetEnabled: document.getElementById('pcFleetEnabled'),
+  pcFleetThreshold: document.getElementById('pcFleetThreshold'),
+  pcFleetCaption: document.getElementById('pcFleetCaption'),
+  pcFleetMachines: document.getElementById('pcFleetMachines'),
+  pcFleetNote: document.getElementById('pcFleetNote'),
   // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
   homeVmToggle: document.getElementById('homeVmToggle'),
   homeAssistantCard: document.getElementById('homeAssistantCard'),

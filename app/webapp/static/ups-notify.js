@@ -14,7 +14,6 @@ import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 const FIELDS = [
   ['notifyPowerLost', 'power_lost'],
   ['notifyPowerRestored', 'power_restored'],
-  ['notifyAutoShutdown', 'auto_shutdown_low_battery'],
 ];
 
 function renderConfiguredNote(configured) {
