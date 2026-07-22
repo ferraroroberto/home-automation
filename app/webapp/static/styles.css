@@ -2158,6 +2158,68 @@ button.presence-name:hover { text-decoration: underline; }
 .notify-toggle span {
   min-width: 0;
 }
+/* PC-fleet UPS-shutdown card (#498): the runtime threshold input reuses the
+   notify-toggle row; the machine roster follows the list-row contract — flat
+   full-bleed rows on a top hairline divider, never nested cards. */
+.pc-fleet-threshold-row > .input-native {
+  width: 5rem;
+  text-align: right;
+}
+.pc-fleet-caption { margin: 2px 14px 6px; }
+.pc-fleet-machines { padding: 0 14px 8px; }
+.pc-fleet-machine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--row-sm);
+}
+.pc-fleet-machine + .pc-fleet-machine { border-top: 1px solid var(--line-muted); }
+.pc-fleet-machine-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pc-fleet-machine-rail {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 12px;
+}
+.pc-fleet-host-note { white-space: nowrap; }
+.pc-fleet-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--card-off);
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pc-fleet-chip--self,
+.pc-fleet-chip--up {
+  color: var(--on);
+  border-color: color-mix(in srgb, var(--on) 30%, var(--line));
+  background: color-mix(in srgb, var(--on) 8%, transparent);
+}
+.pc-fleet-chip--down {
+  color: var(--deficit);
+  border-color: color-mix(in srgb, var(--deficit) 30%, var(--line));
+  background: color-mix(in srgb, var(--deficit) 8%, transparent);
+}
+.pc-fleet-chip--dormant {
+  color: var(--attention);
+  border-color: color-mix(in srgb, var(--attention) 30%, var(--line));
+  background: color-mix(in srgb, var(--attention) 8%, transparent);
+}
+/* Wake button: a compact utility button that must not stretch (range-tab's
+   flex:1) and needs a >=44px effective tap target on its 36px visual box. */
+.pc-fleet-wake { flex: 0 0 auto; }
+.pc-fleet-wake::before { content: ""; position: absolute; inset: -4px; }
 .presence-map-link {
   display: inline-flex;
   align-items: center;

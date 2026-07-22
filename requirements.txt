@@ -20,6 +20,11 @@ uvicorn[standard]>=0.29.0
 # Async HTTP for the keyless Open-Meteo weather read (GET /api/weather)
 aiohttp>=3.9.0
 
+# Loopback calls to the local-llm-hub machine API (UPS fleet shutdown + wake
+# proxy, issue #498). Was only a transitive dep (anthropic) — pinned explicitly
+# now that runtime code imports it.
+httpx>=0.27
+
 # RISCO Cloud alarm (issue #43): async client behind the Security tab. 0.7.x are
 # yanked on PyPI; RISCO periodically blocks third-party clients, so track
 # releases. Pinned exactly (credentialed/remote-I/O lib — supply-chain risk #249).
