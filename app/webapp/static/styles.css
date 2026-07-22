@@ -61,6 +61,14 @@
   /* shared height for inline controls (toggle / select / input) so they line
      up on one row — the canonical on-off toggle size across the app. */
   --control-h: 36px;
+  /* repeating-row heights — the design system's 3-step rows scale (rows.sm /
+     rows.md / rows.lg, consolidated in app-launcher#365). list-row and other
+     repeating-row selectors draw from these, never ad hoc literals (#500 —
+     .pc-fleet-machine and .presence-settings rows referenced --row-sm while
+     it was undefined, collapsing them to bare text height). */
+  --row-sm: 44px;
+  --row-md: 52px;
+  --row-lg: 60px;
   /* typography roles — system stack, weight (not case) for hierarchy.
      The five roles cover every text need; no ad-hoc sizes. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
