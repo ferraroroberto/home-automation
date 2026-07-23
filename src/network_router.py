@@ -128,6 +128,15 @@ class RouterClient:
     # as the WAN feed, gated behind the "localNetStatus" menu page. It carries the
     # router-side hostnames (HostName/IPAddress/MACAddress) the AP read lacks.
     _LAN_DEVS_FEED = "/?_type=menuData&_tag=accessdev_landevs_lua.lua"
+    # Clients associated to the ROUTER's own radios (issue #502). The AP read
+    # cannot see these — they are not on the AP — and the lease table above omits
+    # them, so without this feed they fall through the merge from both sides and
+    # never reach the inventory. Same "localNetStatus" page gate as the lease read.
+    _WLAN_CLIENTS_FEED = "/?_type=menuData&_tag=wlan_client_stat_lua.lua"
+    # The router homepage's access-device table: the same host/ip/mac triple as the
+    # lease read, but sourced from the association table rather than the DHCP lease
+    # DB — so it still lists hosts whose lease was wiped by a router reboot.
+    _ACCESSDEV_HOME_FEED = "/?_type=menuData&_tag=wlan_homepage_lua.lua"
 
     def _menu_view(self, tag: str, timeout: int = 10) -> str:
         """Load a menu page so its data feed is unlocked server-side.
@@ -185,6 +194,75 @@ class RouterClient:
                 "hostname": inst.get("HostName") or None,
             })
         return leases
+
+    def read_wlan_clients(self, timeout: int = 10) -> list[dict]:
+        """Return the clients associated to the router's **own** Wi-Fi radios.
+
+        Each entry is ``{mac, ip, hostname, ssid, conn_type, signal, link_rate}``,
+        already normalised onto the same units :class:`NetDevice` uses (signal as
+        a percentage, link rate in Mbps) so the merge needs no further conversion.
+        Requires an authenticated session; page-gated exactly like
+        :meth:`read_dhcp_leases`. Raises :class:`NetworkCommandError` if the read
+        itself is rejected.
+
+        The feed interleaves per-VAP SSID descriptor rows (no ``MACAddress``) with
+        the actual client rows; only the latter are returned.
+        """
+        self._menu_view("localNetStatus", timeout)
+        body = self._session.get(
+            self._base + self._WLAN_CLIENTS_FEED,
+            headers={"Referer": f"{self._base}/?_type=menuView&_tag=localNetStatus"},
+            timeout=timeout,
+        ).text
+        if "SessionTimeout" in body or "404 Not Found" in body:
+            raise NetworkCommandError("router WLAN-client read rejected (session/page)")
+        clients: list[dict] = []
+        for inst in _parse_instances(body):
+            mac = inst.get("MACAddress")
+            if not mac:
+                continue  # per-VAP SSID descriptor row, not a client
+            ip = inst.get("IPAddress") or None
+            clients.append({
+                "mac": mac,
+                # The firmware reports 0.0.0.0 for a client it has associated but
+                # not yet leased an address to — that is "unknown", not an address.
+                "ip": None if ip in (None, "", "0.0.0.0") else ip,
+                "hostname": inst.get("HostName") or None,
+                "ssid": inst.get("SSIDName") or None,
+                "conn_type": _vap_band(inst.get("AliasName")),
+                "signal": _rssi_to_pct(inst.get("RSSI")),
+                "link_rate": _kbps_to_mbps(inst.get("TxRate")),
+            })
+        return clients
+
+    def read_accessdev_table(self, timeout: int = 10) -> list[dict]:
+        """Return the homepage access-device table as ``{mac, ip, hostname}`` rows.
+
+        Same shape as :meth:`read_dhcp_leases` so the caller can merge both through
+        :func:`_merge_router_leases`. This one is built from the association table
+        rather than the DHCP lease DB, so it survives a reboot that clears the
+        leases — which is when the lease-only read goes conspicuously short.
+        """
+        body = self._session.get(
+            self._base + self._ACCESSDEV_HOME_FEED,
+            headers={
+                "Referer": f"{self._base}/?_type=menuView&_tag=wlan_homepage_lua.lua"
+            },
+            timeout=timeout,
+        ).text
+        if "SessionTimeout" in body or "404 Not Found" in body:
+            raise NetworkCommandError("router access-device read rejected (session/page)")
+        rows: list[dict] = []
+        for inst in _parse_instances(body):
+            mac = inst.get("MACAddress")
+            if not mac:
+                continue
+            rows.append({
+                "mac": mac,
+                "ip": inst.get("IPAddress") or None,
+                "hostname": inst.get("HostName") or None,
+            })
+        return rows
 
     # ---- DHCP binding write-back — phase 2 (issue #176) -------------------- #
     # The reservation *planner* (src.dhcp_plan) computes a MAC→IP assignment; this
@@ -385,6 +463,102 @@ def _parse_instances(xml: str) -> list[dict]:
     return out
 
 
+# The F6600P's fixed VAP→radio layout: AP1-AP4 hang off radio RD1 (2.4 GHz) and
+# AP5-AP8 off RD2 (5 GHz). Confirmed against the unit's own SSID-config feed,
+# where every APn carries the matching ``WLANViewName`` — the client feed reports
+# only the VAP alias, so the band has to come from this mapping.
+_VAP_BANDS = {1: "2.4GHz", 2: "2.4GHz", 3: "2.4GHz", 4: "2.4GHz",
+              5: "5GHz", 6: "5GHz", 7: "5GHz", 8: "5GHz"}
+
+
+def _vap_band(alias: Optional[str]) -> Optional[str]:
+    """Map a ``DEV.WIFI.APn`` VAP alias to its radio's band, or None if unknown."""
+    match = re.search(r"AP(\d+)\s*$", alias or "")
+    return _VAP_BANDS.get(int(match.group(1))) if match else None
+
+
+def _rssi_to_pct(rssi: Optional[str]) -> Optional[int]:
+    """dBm → the 0-100 percent scale ``NetDevice.signal`` uses.
+
+    The AP source reports a percentage while the router reports raw dBm, so one
+    of them has to be converted for the two to be comparable (and for the
+    weak-signal alert threshold to mean the same thing on both). Uses the common
+    linear approximation ``2 * (dBm + 100)``, clamped to 0-100.
+
+    A 0 or absent RSSI is the firmware saying "no reading yet" for a just-
+    associated client, so it maps to None — reporting it as 100% would invent a
+    perfect link out of missing data.
+    """
+    val = _to_int(rssi)
+    if val is None or val == 0:
+        return None
+    return max(0, min(100, 2 * (val + 100)))
+
+
+def _kbps_to_mbps(rate: Optional[str]) -> Optional[int]:
+    """Router link rates come in kbps; ``NetDevice.link_rate`` is Mbps."""
+    val = _to_int(rate)
+    return val // 1000 if val else None
+
+
+def _merge_router_wlan_clients(
+    devices: list[NetDevice], clients: list[dict]
+) -> list[NetDevice]:
+    """Fold the router's own wireless clients into the inventory, keyed by MAC.
+
+    These clients are invisible to the AP, so in practice most rows are new
+    devices (``source="router"``). A row that *does* match an AP-reported device
+    fills the gaps the AP left, without overwriting what the AP actually measured
+    — same non-clobbering rule as :func:`_merge_router_leases` — and marks it
+    ``source="both"``.
+
+    One exception, and it is the reason this needs care: the AP reports a client
+    of the *router's* radio as ``conn_type="wired"`` at 100%, because all it sees
+    is traffic arriving over its uplink port. That is an artefact of topology, not
+    a measurement — and merging the router's SSID onto it produced rows reading
+    "wired … ssid=<wireless network>", which is self-contradictory. When the
+    router names a device as a client of one of its own radios, the router is
+    authoritative for how that device is attached, so its band/signal/link-rate
+    replace the AP's placeholder wired reading.
+    """
+    merged = list(devices)
+    by_mac = {_normalise_mac(d.mac): i for i, d in enumerate(merged) if d.mac}
+    for client in clients:
+        key = _normalise_mac(client.get("mac"))
+        if not key:
+            continue
+        idx = by_mac.get(key)
+        if idx is not None:
+            d = merged[idx]
+            # The AP's "wired" for a router-radio client is an uplink artefact.
+            router_owns_link = d.conn_type == "wired" and bool(client.get("conn_type"))
+            merged[idx] = replace(
+                d,
+                name=d.name or client.get("hostname"),
+                conn_type=client["conn_type"] if router_owns_link else (
+                    d.conn_type or client.get("conn_type")),
+                signal=client.get("signal") if router_owns_link else (
+                    d.signal if d.signal is not None else client.get("signal")),
+                link_rate=client.get("link_rate") if router_owns_link else (
+                    d.link_rate if d.link_rate is not None else client.get("link_rate")),
+                ssid=d.ssid or client.get("ssid"),
+                source="both",
+            )
+        else:
+            by_mac[key] = len(merged)
+            merged.append(NetDevice(
+                mac=client.get("mac"),
+                ip=client.get("ip"),
+                name=client.get("hostname"),
+                conn_type=client.get("conn_type"),
+                signal=client.get("signal"),
+                link_rate=client.get("link_rate"),
+                ssid=client.get("ssid"),
+                source="router",
+            ))
+    return merged
+
+
 def _merge_router_leases(
     devices: list[NetDevice], leases: list[dict]
 ) -> list[NetDevice]:
@@ -395,6 +569,11 @@ def _merge_router_leases(
     it already reported). A lease with no AP match becomes a router-only
     ``NetDevice`` (``conn_type``/``signal`` unknown, ``source="router"``) — these
     are the wired clients the AP can't see.
+
+    Callers may pass more than one lease source (the DHCP table and the homepage
+    access-device table, which disagree after a reboot clears the leases), so an
+    appended row registers its MAC: a second source repeating the same device
+    updates that row instead of adding a duplicate.
     """
     merged = list(devices)
     by_mac = {_normalise_mac(d.mac): i for i, d in enumerate(merged) if d.mac}
@@ -407,9 +586,16 @@ def _merge_router_leases(
         if idx is not None:
             d = merged[idx]
             merged[idx] = replace(
-                d, name=d.name if d.name else host, source="both"
+                d,
+                name=d.name if d.name else host,
+                ip=d.ip or lease.get("ip"),
+                # Only an AP-reported device is corroborated *by* the router into
+                # "both"; a router-only row stays "router" however many router
+                # feeds repeat it.
+                source="both" if d.source == "ap" else d.source,
             )
         else:
+            by_mac[key] = len(merged)
             merged.append(NetDevice(
                 mac=lease.get("mac"),
                 ip=lease.get("ip"),
@@ -474,17 +660,17 @@ def _to_int(value: Optional[str]) -> Optional[int]:
         return None
 
 
-def _fetch_router_sync() -> tuple[RouterHealth, list[dict]]:
+def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
     host, user, pwd = _router_creds()
     client = RouterClient(host, user, pwd)
     try:
         authed = client.login()
     except NetworkCommandError as exc:
-        return RouterHealth(reachable=True, authenticated=False, error=str(exc)), []
+        return RouterHealth(reachable=True, authenticated=False, error=str(exc)), [], []
     except requests.RequestException as exc:
-        return RouterHealth(reachable=False, error=str(exc)), []
+        return RouterHealth(reachable=False, error=str(exc)), [], []
     if not authed:
-        return RouterHealth(reachable=True, authenticated=False), []
+        return RouterHealth(reachable=True, authenticated=False), [], []
     # Authenticated → layer on the WAN/internet status (best-effort: a read
     # failure leaves the WAN fields None rather than dropping the login signal).
     try:
@@ -510,18 +696,31 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict]]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ router DHCP-lease read failed: %s", exc)
         leases = []
-    return health, leases
+    # The homepage access-device table is a second, association-derived lease
+    # source; it still lists hosts whose DHCP lease a reboot wiped (issue #502).
+    try:
+        leases = leases + client.read_accessdev_table()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ router access-device read failed: %s", exc)
+    # Clients on the router's own radios — invisible to both the AP read and the
+    # lease table, so this is the only source that surfaces them at all.
+    try:
+        wlan_clients = client.read_wlan_clients()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ router WLAN-client read failed: %s", exc)
+        wlan_clients = []
+    return health, leases, wlan_clients
 
 
-async def fetch_router() -> tuple[RouterHealth, list[dict]]:
-    """Async wrapper: router health + its DHCP lease table for hostname merge."""
+async def fetch_router() -> tuple[RouterHealth, list[dict], list[dict]]:
+    """Async wrapper: router health, its lease rows, and its own wireless clients."""
     try:
         return await asyncio.to_thread(_fetch_router_sync)
     except NetworkConfigError:
         raise
     except Exception as exc:
         logger.warning("⚠️ router read failed: %s", exc)
-        return RouterHealth(reachable=False, error=str(exc)), []
+        return RouterHealth(reachable=False, error=str(exc)), [], []
 
 
 def reboot_router() -> None:

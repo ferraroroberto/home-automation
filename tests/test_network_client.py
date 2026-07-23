@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from src import network_client, network_host
+from src import network_client, network_host, network_router
 
 
 def test_ping_hides_windows_console(monkeypatch) -> None:
@@ -179,7 +180,7 @@ def test_fetch_network_state_returns_partial_data_when_source_times_out(monkeypa
         ]
 
     async def fake_router():
-        return network_client.RouterHealth(reachable=True, authenticated=True), []
+        return network_client.RouterHealth(reachable=True, authenticated=True), [], []
 
     async def fake_wifi():
         return network_client.WifiDiagnostics(
@@ -285,6 +286,221 @@ def test_merge_router_leases_fills_names_and_adds_router_only() -> None:
 def test_merge_router_leases_empty_passthrough() -> None:
     devices = [_ap_device("AA:BB:CC:00:00:01", "Phone")]
     assert network_client._merge_router_leases(devices, []) == devices
+
+
+def test_merge_router_leases_dedups_repeated_mac_across_sources() -> None:
+    """Two lease sources (DHCP table + homepage access-device table) disagree after
+    a reboot clears the leases, so the same MAC arrives twice — it must update the
+    one row, not append a second (issue #502)."""
+    leases = [
+        {"mac": "aa:bb:cc:00:00:09", "ip": "192.168.0.70", "hostname": None},
+        {"mac": "AA:BB:CC:00:00:09", "ip": "192.168.0.70", "hostname": "desktop"},
+    ]
+    merged = network_client._merge_router_leases([], leases)
+
+    assert len(merged) == 1
+    # The second source's hostname fills the gap the first one left.
+    assert merged[0].name == "desktop"
+    # Corroboration between two *router* feeds is not AP corroboration.
+    assert merged[0].source == "router"
+
+
+# --- router-attached wireless clients (issue #502) --------------------------- #
+
+def test_merge_router_wlan_clients_adds_devices_the_ap_cannot_see() -> None:
+    """A client on the router's own radio reaches the inventory with its band,
+    signal and link rate — before this it fell through both sources entirely."""
+    clients = [{
+        "mac": "AA:BB:CC:00:00:37", "ip": "192.168.0.37", "hostname": "light-1",
+        "ssid": "HomeNet", "conn_type": "5GHz", "signal": 74, "link_rate": 72,
+    }]
+    merged = network_client._merge_router_wlan_clients([], clients)
+
+    assert len(merged) == 1
+    dev = merged[0]
+    assert dev.name == "light-1"
+    assert dev.conn_type == "5GHz" and dev.is_wireless
+    assert dev.signal == 74 and dev.link_rate == 72
+    assert dev.ssid == "HomeNet"
+    assert dev.source == "router"
+
+
+def test_merge_router_wlan_clients_never_clobbers_ap_reported_values() -> None:
+    """When both sources see a device the AP's own reading wins; the router only
+    fills what the AP left blank, and the device becomes source="both"."""
+    devices = [_ap_device("AA:BB:CC:00:00:01", "Laptop", signal=70, link_rate=866)]
+    clients = [{
+        "mac": "aa:bb:cc:00:00:01", "ip": "192.168.0.10", "hostname": "other-name",
+        "ssid": "OtherNet", "conn_type": "2.4GHz", "signal": 20, "link_rate": 65,
+    }]
+    merged = network_client._merge_router_wlan_clients(devices, clients)
+
+    assert len(merged) == 1
+    dev = merged[0]
+    assert dev.name == "Laptop" and dev.signal == 70 and dev.link_rate == 866
+    assert dev.conn_type == "5GHz" and dev.ssid == "HomeNet"
+    assert dev.source == "both"
+
+
+def test_merge_router_wlan_clients_overrides_the_aps_wired_uplink_artefact() -> None:
+    """The AP sees a client of the *router's* radio as wired@100% because the
+    traffic reaches it over its uplink port. That is topology, not a measurement,
+    and merging an SSID onto it yields "wired ... ssid=<wireless net>". The router
+    owns that link, so its band/signal/link-rate win."""
+    devices = [_ap_device(
+        "AA:BB:CC:00:00:14", "Desktop",
+        conn_type="wired", signal=100, link_rate=None, ssid=None,
+    )]
+    clients = [{
+        "mac": "aa:bb:cc:00:00:14", "ip": "192.168.0.14", "hostname": "desktop",
+        "ssid": "HomeNet", "conn_type": "5GHz", "signal": 76, "link_rate": 960,
+    }]
+    merged = network_client._merge_router_wlan_clients(devices, clients)
+
+    assert len(merged) == 1
+    dev = merged[0]
+    assert dev.conn_type == "5GHz" and dev.is_wireless
+    assert dev.signal == 76 and dev.link_rate == 960
+    assert dev.ssid == "HomeNet"
+    # The AP-reported display name still wins — only the link facts are replaced.
+    assert dev.name == "Desktop"
+    assert dev.source == "both"
+
+
+def test_merge_router_wlan_clients_keeps_ap_wired_when_router_has_no_band() -> None:
+    """A genuinely wired device the router also lists (no band) stays wired."""
+    devices = [_ap_device(
+        "AA:BB:CC:00:00:13", "Tower", conn_type="wired", signal=100, ssid=None,
+    )]
+    clients = [{"mac": "aa:bb:cc:00:00:13", "ip": "192.168.0.13", "hostname": "tower",
+                "ssid": None, "conn_type": None, "signal": None, "link_rate": None}]
+    merged = network_client._merge_router_wlan_clients(devices, clients)
+
+    assert merged[0].conn_type == "wired" and merged[0].signal == 100
+
+
+def test_merge_router_wlan_clients_empty_passthrough() -> None:
+    devices = [_ap_device("AA:BB:CC:00:00:01", "Phone")]
+    assert network_client._merge_router_wlan_clients(devices, []) == devices
+
+
+@pytest.mark.parametrize(("alias", "expected"), [
+    ("DEV.WIFI.AP1", "2.4GHz"),
+    ("DEV.WIFI.AP4", "2.4GHz"),
+    ("DEV.WIFI.AP5", "5GHz"),
+    ("DEV.WIFI.AP8", "5GHz"),
+    ("DEV.WIFI.AP9", None),   # outside the unit's VAP layout
+    ("nonsense", None),
+    (None, None),
+])
+def test_vap_band_maps_vap_alias_to_radio_band(alias, expected) -> None:
+    assert network_router._vap_band(alias) == expected
+
+
+@pytest.mark.parametrize(("rssi", "expected"), [
+    ("-50", 100),   # strong link clamps at 100, not 200
+    ("-63", 74),
+    ("-79", 42),
+    ("-100", 0),
+    ("-120", 0),    # clamps at the bottom rather than going negative
+    ("0", None),    # firmware placeholder for "no reading yet"
+    ("", None),
+    (None, None),
+])
+def test_rssi_to_pct_converts_dbm_to_the_percent_scale(rssi, expected) -> None:
+    """The AP reports percent and the router reports dBm; they have to land on one
+    scale or the weak-signal alert threshold means two different things."""
+    assert network_router._rssi_to_pct(rssi) == expected
+
+
+@pytest.mark.parametrize(("rate", "expected"), [
+    ("960000", 960), ("72000", 72), ("0", None), ("", None), (None, None),
+])
+def test_kbps_to_mbps(rate, expected) -> None:
+    assert network_router._kbps_to_mbps(rate) == expected
+
+
+def _instances_xml(rows: list[dict]) -> str:
+    body = "".join(
+        "<Instance>"
+        + "".join(f"<ParaName>{k}</ParaName><ParaValue>{v}</ParaValue>"
+                  for k, v in row.items())
+        + "</Instance>"
+        for row in rows
+    )
+    return f"<ajax_response_xml_root>{body}</ajax_response_xml_root>"
+
+
+def test_read_wlan_clients_parses_clients_and_skips_ssid_rows(monkeypatch) -> None:
+    """The feed interleaves per-VAP SSID descriptor rows (no MACAddress) with real
+    client rows; only the clients come back, normalised onto NetDevice's units."""
+    xml = _instances_xml([
+        {"_InstID": "DEV.WIFI.AP5.AD1", "AliasName": "DEV.WIFI.AP5",
+         "MACAddress": "AA:BB:CC:00:00:37", "IPAddress": "192.168.0.37",
+         "HostName": "light-1", "SSIDName": "HomeNet", "RSSI": "-63",
+         "TxRate": "72000"},
+        # Associated but not yet leased an address -> ip is unknown, not 0.0.0.0.
+        {"_InstID": "DEV.WIFI.AP1.AD1", "AliasName": "DEV.WIFI.AP1",
+         "MACAddress": "AA:BB:CC:00:00:16", "IPAddress": "0.0.0.0",
+         "HostName": "", "SSIDName": "HomeNet", "RSSI": "-57", "TxRate": "65000"},
+        # Per-VAP descriptor row: no MACAddress, must not become a device.
+        {"_InstID": "DEV.WIFI.AP5", "Alias": "SSID5", "ESSID": "HomeNet"},
+    ])
+    client = network_client.RouterClient("h", "u", "p")
+    monkeypatch.setattr(client, "_menu_view", lambda tag, timeout=10: "")
+    monkeypatch.setattr(
+        client, "_session",
+        SimpleNamespace(get=lambda *a, **kw: SimpleNamespace(text=xml)),
+    )
+
+    rows = client.read_wlan_clients()
+
+    assert len(rows) == 2
+    first, second = rows
+    assert first["mac"] == "AA:BB:CC:00:00:37"
+    assert first["ip"] == "192.168.0.37"
+    assert first["hostname"] == "light-1"
+    assert first["conn_type"] == "5GHz"
+    assert first["signal"] == 74 and first["link_rate"] == 72
+    assert second["conn_type"] == "2.4GHz"
+    assert second["ip"] is None       # 0.0.0.0 is "unknown", not an address
+    assert second["hostname"] is None  # empty HostName normalises to None
+
+
+def test_read_wlan_clients_raises_on_session_rejection(monkeypatch) -> None:
+    """A page-gate miss returns SessionTimeout with HTTP 200 — it must raise, not
+    be parsed as an empty client list (which would read as "nothing attached")."""
+    client = network_client.RouterClient("h", "u", "p")
+    monkeypatch.setattr(client, "_menu_view", lambda tag, timeout=10: "")
+    monkeypatch.setattr(
+        client, "_session",
+        SimpleNamespace(get=lambda *a, **kw: SimpleNamespace(text="SessionTimeout")),
+    )
+    with pytest.raises(network_client.NetworkCommandError):
+        client.read_wlan_clients()
+
+
+def test_read_accessdev_table_returns_lease_shaped_rows(monkeypatch) -> None:
+    """The homepage table is merged through _merge_router_leases, so it has to come
+    back in exactly the {mac, ip, hostname} shape that function consumes."""
+    xml = _instances_xml([
+        {"HostName": "desktop", "IPAddress": "192.168.0.51",
+         "MACAddress": "AA:BB:CC:00:00:51", "LastConnection": "2026-01-01 07:16:29"},
+        {"HostName": "", "IPAddress": "192.168.0.52",
+         "MACAddress": "AA:BB:CC:00:00:52", "LastConnection": ""},
+    ])
+    client = network_client.RouterClient("h", "u", "p")
+    monkeypatch.setattr(
+        client, "_session",
+        SimpleNamespace(get=lambda *a, **kw: SimpleNamespace(text=xml)),
+    )
+
+    rows = client.read_accessdev_table()
+
+    assert rows == [
+        {"mac": "AA:BB:CC:00:00:51", "ip": "192.168.0.51", "hostname": "desktop"},
+        {"mac": "AA:BB:CC:00:00:52", "ip": "192.168.0.52", "hostname": None},
+    ]
 
 
 # --- DHCP-binding write-back: full-table cap handling (issue #176) ----------- #
@@ -534,7 +750,7 @@ def _make_fetch_network_state_fakes(
         return network_client.AccessPointHealth(reachable=False, error="Connection timed out"), []
 
     async def fake_router():
-        return network_client.RouterHealth(reachable=True, authenticated=True), router_leases
+        return network_client.RouterHealth(reachable=True, authenticated=True), router_leases, []
 
     async def fake_wifi():
         return network_client.WifiDiagnostics(available=False)

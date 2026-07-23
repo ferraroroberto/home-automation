@@ -33,7 +33,7 @@ The exhaustive module-by-module inventory of the repository. The [README](../REA
 - `network_client.py` — async home-network orchestrator (issue #197 split): imports the three sub-modules below and exposes the unchanged public surface (`fetch_network_state`, `resolve_ip_by_mac`, dataclasses) so callers don't move.
 - `network_types.py` — shared dataclasses, exceptions, and leaf helpers used across all network sub-modules.
 - `network_ap.py` — NETGEAR R9000 AP: device inventory (MAC/IP/name/signal/band/SSID), AP health, `reboot_access_point`, MAC rediscovery.
-- `network_router.py` — Vodafone ZXHN F6600P (ZTE): SHA256-challenge login, WAN/DHCP reads, binding write-back, `reboot_router`.
+- `network_router.py` — Vodafone ZXHN F6600P (ZTE): SHA256-challenge login, WAN/DHCP reads, its own radios' wireless-client read (the only source for clients attached to the router rather than the AP), binding write-back, `reboot_router`.
 - `network_host.py` — host-side internet probes: ping latency + packet loss, optional speedtest, `netsh wlan`.
 - `list_network.py` — CLI that prints the live network state and inventory.
 - `dhcp_plan.py` — UI-free, network-free DHCP reservation planner (#170): classifies each device into a category range from `config/dhcp_plan.json` and assigns the lowest free IP, anchoring stability on the router's existing bindings and tagging each row reserved/create/change; warns on overflow/overlap/unclassified/randomised-MAC.
