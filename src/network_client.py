@@ -81,6 +81,7 @@ from src.network_router import (  # noqa: F401 — re-exported public surface
     _add_bindings_on_client,
     _asy_encode,
     _merge_router_leases,
+    _merge_router_wlan_clients,
     _parse_instances,
     _pick_internet_wan,
     _router_creds,
@@ -291,7 +292,7 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
     opt-in (it takes ~10-15 s and saturates the link).
     """
     internet_timeout = _INTERNET_TIMEOUT_S if include_speedtest else _INTERNET_FAST_TIMEOUT_S
-    internet, (ap, devices), (router, leases), wifi = await asyncio.gather(
+    internet, (ap, devices), (router, leases, wlan_clients), wifi = await asyncio.gather(
         _with_timeout(
             "internet health",
             fetch_internet_health(include_speedtest=include_speedtest),
@@ -308,7 +309,7 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
             "router",
             fetch_router(),
             _ROUTER_TIMEOUT_S,
-            (RouterHealth(reachable=False, error="read timed out"), []),
+            (RouterHealth(reachable=False, error="read timed out"), [], []),
         ),
         _with_timeout(
             "Wi-Fi diagnostics",
@@ -341,8 +342,11 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
                 except (asyncio.TimeoutError, Exception) as exc:
                     logger.warning("⚠️ AP rediscovery probe at %s failed: %s", candidate, exc)
 
-    # Fold the router DHCP hostnames into the AP inventory (issue #169). A failed
-    # or empty router read leaves `leases` empty, so the AP list passes through.
+    # Fold the router's own wireless clients in first (issue #502) — they are
+    # invisible to the AP, so this is the only source for them; then the router
+    # hostnames (issue #169). A failed or empty router read leaves both lists
+    # empty, so the AP list passes through unchanged.
+    devices = _merge_router_wlan_clients(devices, wlan_clients)
     devices = _merge_router_leases(devices, leases)
     alerts = _derive_alerts(internet, ap, router, devices)
     return NetworkState(
