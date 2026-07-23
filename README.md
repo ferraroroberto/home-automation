@@ -24,7 +24,7 @@ The top-level directory map — what each directory *is*. The exhaustive module-
 - **`scripts/`** — ops helpers: `gen_tailscale_cert.py` (HTTPS cert), `gen_token.py` / `set_password.py` (auth), `gen_web_push_keys.py`, `gen_icons.py`, `ha_config_sync.py` (voice-PE HA config deploy over SSH; see [Home Assistant config deploy](#home-assistant-config-deploy-over-ssh)).
 - **`spike/`** — `streamlit_app.py`, the independent Streamlit POC spike.
 - **`config/`** — committed `*.sample.json` templates; the real per-feature JSON stores are gitignored.
-- **`webapp/`** — runtime state (`certificates/`, `auth.log`, the SQLite stores); gitignored.
+- **`webapp/`** — runtime state (`certificates/`, `auth.log`, `webapp.log` — the rotating process log that survives the tray's DEVNULL launch, the SQLite stores); gitignored.
 - **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
 
 ### Background polling (what fetches when)

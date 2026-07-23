@@ -43,6 +43,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import logging.handlers
 import mimetypes
 import os
 from contextlib import asynccontextmanager
@@ -58,7 +59,7 @@ from starlette.types import Scope
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
 from app.webapp.routers import activity, auth, cameras, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, push, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
-from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
+from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
 from app.webapp.presence_automation import start_presence_automation
@@ -130,6 +131,44 @@ class CachingStaticFiles(StaticFiles):
         return response
 
 
+# Persistent log sink for the webapp process (issue #506). The tray launches
+# uvicorn with stdout/stderr → DEVNULL, so without a file handler every INFO/
+# WARNING breadcrumb the app emits is discarded — exactly the lines needed to
+# diagnose e.g. a MAC→IP resolve failing only in the tray-launched process.
+# Attached to the ROOT logger so it captures every module regardless of how
+# the webapp was launched (tray, webapp.bat, bare uvicorn). Rotating so it can
+# never grow unbounded; webapp/*.log is gitignored.
+_WEBAPP_LOG_PATH = PROJECT_ROOT / "webapp" / "webapp.log"
+
+
+def ensure_webapp_log_handler() -> None:
+    """Attach the rotating ``webapp/webapp.log`` file handler to root, once."""
+    root = logging.getLogger()
+    if any(
+        isinstance(h, logging.handlers.RotatingFileHandler)
+        and Path(h.baseFilename).resolve() == _WEBAPP_LOG_PATH.resolve()
+        for h in root.handlers
+    ):
+        return
+    try:
+        _WEBAPP_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        fh = logging.handlers.RotatingFileHandler(
+            _WEBAPP_LOG_PATH, maxBytes=2_000_000, backupCount=3, encoding="utf-8"
+        )
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
+        root.addHandler(fh)
+        # Root defaults to WARNING; drop to INFO so the breadcrumb lines
+        # actually reach the file. Uvicorn's own loggers keep their handlers
+        # and don't propagate, so this does not duplicate access logs.
+        if root.level in (logging.NOTSET, logging.WARNING):
+            root.setLevel(logging.INFO)
+    except OSError as exc:
+        logger.warning("⚠️  Could not open %s: %s", _WEBAPP_LOG_PATH, exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Own background tasks for the process life."""
@@ -183,6 +222,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     """Build the FastAPI app, wired with config + auth + routers."""
     webapp_cfg = load_webapp_config()
+    ensure_webapp_log_handler()
     auth.ensure_auth_log_handler()
 
     app = FastAPI(title="Home Automation", version="0.1.0", lifespan=lifespan)
