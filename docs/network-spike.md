@@ -135,18 +135,20 @@ only worth merging later for **better hostnames** (many AP `name`s are `n/a`);
 that is an enhancement, not a blocker, and depends on the router data-read work
 above. The merge key is the MAC.
 
-**Done (#169).** `RouterClient.read_dhcp_leases()` reads the router's LAN
-allocated-address table — `menuData` feed `accessdev_landevs_lua.lua`, page-gated
-behind the `localNetStatus` `menuView` exactly like the WAN read — returning
-`{mac, ip, hostname}` per client. `_merge_router_leases()` folds it into the AP
-inventory keyed by normalized MAC: a missing AP `name` is filled from the router
-hostname (never overwriting an AP-reported name) and the device is marked
-`source="both"`; a lease with no AP match is added as a router-only `NetDevice`
-(`source="router"` — the wired clients the AP can't see). The read is
-best-effort, so a router failure leaves the AP inventory intact. The `source`
-attribution surfaces in the device detail modal (`Seen by`), not the list. This
-firmware exposes **no** DHCP port / lease-time feed (every candidate 404s), so
-only host/ip/mac are available.
+**Done (#169, feed repointed in #507).** `RouterClient.read_dhcp_leases()` reads
+the router's full DHCP lease table — `menuData` feed
+`Localnet_LanMgrIpv4_DHCPHostInfo_lua.lua`, page-gated behind the `lanMgrIpv4`
+`menuView` (the original `accessdev_landevs_lua.lua` feed missed wireless
+clients entirely; this one returns wired *and* SSID-attached rows, with
+`MACAddr`/`IPAddr` key names) — returning `{mac, ip, hostname}` per client.
+`_merge_router_leases()` folds it into the AP inventory keyed by normalized MAC:
+a missing AP `name` is filled from the router hostname (never overwriting an
+AP-reported name) and the device is marked `source="both"`; a lease with no AP
+match is added as a router-only `NetDevice` (`source="router"`). A lease row can
+outlive the device, so presence comes from the association/accessdev reads,
+never the lease table. The read is best-effort, so a router failure leaves the
+AP inventory intact. The `source` attribution surfaces in the device detail
+modal (`Seen by`), not the list.
 
 ## Naming devices by MAC (follow-up)
 
