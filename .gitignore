@@ -1,5 +1,6 @@
 # Secrets — never commit
 .env
+.env.bak*
 devices.json
 tinytuya.json
 

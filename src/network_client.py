@@ -128,6 +128,7 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
         devices = []
     for dev in devices:
         if _normalise_mac(dev.mac) == target and dev.ip:
+            logger.info("ℹ️ MAC→IP resolved %s → %s via AP", target, dev.ip)
             return dev.ip
     try:
         _router, leases, _wlan_clients = await fetch_router()
@@ -140,7 +141,12 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
     # but that is fine here — this resolves an address, not presence.
     for row in leases:
         if _normalise_mac(row.get("mac")) == target and row.get("ip"):
+            logger.info("ℹ️ MAC→IP resolved %s → %s via router leases", target, row["ip"])
             return row["ip"]
+    logger.info(
+        "ℹ️ MAC→IP resolve found no address for %s (AP devices=%d, router leases=%d)",
+        target, len(devices), len(leases),
+    )
     return None
 
 

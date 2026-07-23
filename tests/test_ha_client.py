@@ -71,6 +71,45 @@ def test_satellite_discovery_uses_ha_area_and_companion_volume(monkeypatch) -> N
     ]
 
 
+def test_open_ws_uses_mac_resolved_base_url() -> None:
+    """Regression for #506: the WS leg must target the resolved host, not raw HA_URL."""
+
+    captured: dict[str, str] = {}
+
+    class FakeWs:
+        def __init__(self) -> None:
+            self._replies = [{"type": "auth_required"}, {"type": "auth_ok"}]
+
+        async def receive_json(self):
+            return self._replies.pop(0)
+
+        async def send_json(self, _msg):
+            return None
+
+        async def close(self):
+            return None
+
+    class FakeSession:
+        async def ws_connect(self, url, **_kwargs):
+            captured["url"] = url
+            return FakeWs()
+
+    client = HomeAssistantClient(
+        FakeSession(),
+        HaConfig(
+            base_url="http://192.0.2.9:8123",
+            token="token",
+            host_mac="00:11:22:33:44:55",
+        ),
+    )
+    # As if the MAC resolve already found the live host elsewhere on the LAN.
+    client._resolved_base_url = "http://192.0.2.10:8123"
+
+    asyncio.run(client._open_ws())
+
+    assert captured["url"] == "ws://192.0.2.10:8123/api/websocket"
+
+
 def test_normalize_pipeline_run_keeps_complete_voice_interaction() -> None:
     row = normalize_pipeline_run(
         {

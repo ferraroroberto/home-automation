@@ -35,11 +35,12 @@ class HaConfig:
     # separator — so it comes from its own setting and replaces the URL's host.
     host_mac: str = ""
 
-    @property
-    def websocket_url(self) -> str:
-        scheme = "wss" if self.base_url.startswith("https://") else "ws"
-        rest = self.base_url.split("://", 1)[-1]
-        return f"{scheme}://{rest}/api/websocket"
+
+def _websocket_url(base_url: str) -> str:
+    """Derive the ``/api/websocket`` URL from an HTTP(S) base URL."""
+    scheme = "wss" if base_url.startswith("https://") else "ws"
+    rest = base_url.split("://", 1)[-1]
+    return f"{scheme}://{rest}/api/websocket"
 
 
 def load_config() -> HaConfig:
@@ -96,6 +97,10 @@ class HomeAssistantClient:
                     from src.device_address import resolve_url_host
 
                     url = await resolve_url_host(url, self.config.host_mac) or url
+                    logger.info(
+                        "ℹ️ HA host MAC %s resolved base URL → %s",
+                        self.config.host_mac, url,
+                    )
                 except Exception as exc:  # noqa: BLE001 — pinning is best-effort
                     logger.info("ℹ️ HA host MAC resolve failed, using HA_URL: %s", exc)
             self._resolved_base_url = url
@@ -155,9 +160,13 @@ class HomeAssistantClient:
         )
 
     async def _open_ws(self) -> aiohttp.ClientWebSocketResponse:
+        # Derive the WS URL from the *resolved* base URL, not the raw config —
+        # the WebSocket leg going to the stale ``HA_URL`` host while the REST
+        # leg used the MAC-resolved address was exactly issue #506.
+        ws_url = _websocket_url(await self._base_url())
         try:
             ws = await self.session.ws_connect(
-                self.config.websocket_url,
+                ws_url,
                 timeout=aiohttp.ClientWSTimeout(ws_receive=15),
                 heartbeat=30,
             )
