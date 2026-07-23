@@ -372,6 +372,24 @@ Run the smoke command:
 
 The CLI prints internet health (up/down, latency, packet loss, optional speed), AP and router health, host-PC Wi-Fi diagnostics, and the attached-device list (MAC, IP, band, signal %, name) with weak-signal/offline alerts. Do not commit device credentials, the WiFi SSID/password, visible SSID/BSSID scan dumps, LAN IPs, or MAC/device dumps; this repository is public.
 
+### Pin a device by MAC instead of IP (#504)
+
+Any config value that names a device host accepts **either** an IP/hostname **or** a MAC address. A literal IP or hostname is used exactly as before, with no lookup and no extra network call — nothing has to change. A MAC-shaped value is resolved at runtime to whatever address that device currently holds, using the live device inventory (both the access point and the router's own radios).
+
+Use it when a device matters but doesn't warrant one of the router's limited static-reservation slots. Pinning by MAC survives a DHCP reshuffle, which an IP does not: if the device's lease lapses and something else inherits the address, an IP-pinned setting connects to the *wrong device* silently, rather than failing.
+
+| Setting | Accepts a MAC directly |
+|---|---|
+| `SMA_INVERTER_HOST` | yes — it is a bare host |
+| `HA_SSH_HOST` | yes — it is a bare host |
+| `HA_URL` | no; set `HA_HOST_MAC` instead (see below) |
+
+`HA_URL` is a URL, and a MAC cannot sit in a URL's host position — its colons are indistinguishable from the port separator. So set `HA_HOST_MAC` to the HA machine's MAC and leave `HA_URL` as-is; the host part is substituted at request time and the scheme, port and path are preserved. `HA_HOST_MAC` covers `HA_SSH_HOST` too if you'd rather set one value.
+
+Resolutions are cached briefly, so a burst of device calls costs one lookup rather than one each. If the inventory is momentarily unavailable the last known good address is reused rather than failing the read — a resolver that gave up whenever the router was briefly unreachable would be worse than the hardcoded IP it replaces. A MAC that has never resolved raises a clear error instead of guessing.
+
+Cameras are already handled separately: `config/cameras.json` entries carry a `mac`, and a camera whose configured host stops answering is rediscovered by MAC and the new address persisted (#190).
+
 ### DHCP reservation plan (#170)
 
 The F6600P hands out pool addresses in arbitrary order, so a device drifts across IPs over time and the LAN is hard to read at a glance. The **reservation planner** computes a tidy, permanent MAC→IP assignment grouped by category — e.g. `2–10` infrastructure, `11–20` phones/tablets, `21–30` cameras, `31–40` plugs, `41–50` lights — so an IP tells you what a device is.

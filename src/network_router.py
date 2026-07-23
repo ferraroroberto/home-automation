@@ -242,6 +242,13 @@ class RouterClient:
         :func:`_merge_router_leases`. This one is built from the association table
         rather than the DHCP lease DB, so it survives a reboot that clears the
         leases — which is when the lease-only read goes conspicuously short.
+
+        **Call this before any other read.** Unlike every other feed here, this
+        one is not unlocked by a ``menuView`` — it is only readable while the
+        session is still on its post-login home frame. Once *any* menu page has
+        been loaded it returns ``SessionTimeout`` for the rest of the session, and
+        re-fetching ``/`` does not restore it (verified against the live unit
+        across every candidate gate). So the fetch path reads it first.
         """
         body = self._session.get(
             self._base + self._ACCESSDEV_HOME_FEED,
@@ -671,6 +678,14 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
         return RouterHealth(reachable=False, error=str(exc)), [], []
     if not authed:
         return RouterHealth(reachable=True, authenticated=False), [], []
+    # The homepage access-device table must be read FIRST — it is only available
+    # while the session is still on its post-login home frame, and any menuView
+    # below would lock it out for the rest of the session (issue #502 follow-up).
+    try:
+        accessdev = client.read_accessdev_table()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️ router access-device read failed: %s", exc)
+        accessdev = []
     # Authenticated → layer on the WAN/internet status (best-effort: a read
     # failure leaves the WAN fields None rather than dropping the login signal).
     try:
@@ -696,12 +711,9 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ router DHCP-lease read failed: %s", exc)
         leases = []
-    # The homepage access-device table is a second, association-derived lease
-    # source; it still lists hosts whose DHCP lease a reboot wiped (issue #502).
-    try:
-        leases = leases + client.read_accessdev_table()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️ router access-device read failed: %s", exc)
+    # Fold in the association-derived rows read up front: a second lease source
+    # that still lists hosts whose DHCP lease a reboot wiped (issue #502).
+    leases = leases + accessdev
     # Clients on the router's own radios — invisible to both the AP read and the
     # lease table, so this is the only source that surfaces them at all.
     try:

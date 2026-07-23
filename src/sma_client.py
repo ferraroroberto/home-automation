@@ -46,13 +46,15 @@ from __future__ import annotations
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Dict, Optional
 
 import aiohttp
 import pysmaplus
 from dotenv import load_dotenv
+
+from src.device_address import DeviceAddressError, resolve_device_host
 
 logger = logging.getLogger("sma")
 
@@ -476,12 +478,26 @@ async def fetch_energy_state() -> EnergyState:
     await _read_meter(state)
 
     if config.host:
-        logger.info(
-            "ℹ️ Reading PV inverter at %s (%s)",
-            config.host,
-            config.access_method,
-        )
-        await _read_inverter(state, config)
+        # SMA_INVERTER_HOST may be a MAC rather than an IP (issue #504); a
+        # literal IP/hostname passes straight through with no lookup. Pinning by
+        # MAC is what stops a DHCP reshuffle silently pointing this read at
+        # whatever device inherited the inverter's old address.
+        try:
+            host = await resolve_device_host(config.host)
+        except DeviceAddressError as exc:
+            logger.warning("⚠️ PV inverter address could not be resolved: %s", exc)
+            host = None
+        if host:
+            logger.info(
+                "ℹ️ Reading PV inverter at %s (%s)",
+                host,
+                config.access_method,
+            )
+            await _read_inverter(state, replace(config, host=host))
+        else:
+            # Same shape as an unreachable inverter: a snapshot without PV is
+            # still useful, so this must not fail the whole energy read.
+            logger.info("ℹ️ PV inverter address unavailable — skipping inverter read")
     else:
         logger.info("ℹ️ SMA_INVERTER_HOST not set — skipping PV inverter read")
 

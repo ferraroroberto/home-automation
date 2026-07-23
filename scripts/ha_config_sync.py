@@ -134,8 +134,18 @@ class HaConfig:
 
 def load_config() -> HaConfig:
     load_dotenv(PROJECT_ROOT / ".env")
+    # HA_SSH_HOST may be a MAC rather than an IP (issue #504); a literal
+    # IP/hostname passes through untouched. Resolving here means the whole
+    # script — preflight, deploy, probe — sees one already-resolved address.
+    ssh_host = os.getenv("HA_SSH_HOST", "").strip()
+    try:
+        from src.device_address import resolve_device_host_sync
+
+        ssh_host = resolve_device_host_sync(ssh_host) or ssh_host
+    except Exception as exc:  # noqa: BLE001 — pinning is best-effort
+        print(f"warning: could not resolve HA_SSH_HOST ({exc}); using it as configured")
     return HaConfig(
-        ssh_host=os.getenv("HA_SSH_HOST", "").strip(),
+        ssh_host=ssh_host,
         ssh_port=int(os.getenv("HA_SSH_PORT", "22") or "22"),
         ssh_user=os.getenv("HA_SSH_USER", "root").strip(),
         ssh_key=os.getenv("HA_SSH_KEY", "").strip(),
