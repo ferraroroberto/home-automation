@@ -8,6 +8,7 @@ second credential pair.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +19,8 @@ from urllib.parse import quote
 import aiohttp
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -27,6 +30,10 @@ class HaConfig:
 
     base_url: str
     token: str
+    # Optional MAC to pin the HA host by (issue #504). A MAC cannot live in
+    # ``base_url`` itself — its colons are indistinguishable from the port
+    # separator — so it comes from its own setting and replaces the URL's host.
+    host_mac: str = ""
 
     @property
     def websocket_url(self) -> str:
@@ -42,6 +49,7 @@ def load_config() -> HaConfig:
     return HaConfig(
         base_url=os.getenv("HA_URL", "").strip().rstrip("/"),
         token=os.getenv("HA_TOKEN", "").strip(),
+        host_mac=os.getenv("HA_HOST_MAC", "").strip(),
     )
 
 
@@ -63,6 +71,7 @@ class HomeAssistantClient:
     ) -> None:
         self.session = session
         self.config = config or load_config()
+        self._resolved_base_url: Optional[str] = None
         if not self.config.base_url:
             raise HaClientError("HA_URL is not configured", status=503)
         if not self.config.token:
@@ -72,6 +81,26 @@ class HomeAssistantClient:
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Bearer {self.config.token}"}
 
+    async def _base_url(self) -> str:
+        """The API base URL, with a MAC-pinned host resolved to its live address.
+
+        Resolved once per client and memoised: ``HA_HOST_MAC`` is opt-in, so with
+        it unset this is a no-op returning the configured URL untouched. A
+        resolution failure falls back to the configured URL rather than raising —
+        a stale address that might still work beats refusing to try at all.
+        """
+        if self._resolved_base_url is None:
+            url = self.config.base_url
+            if self.config.host_mac:
+                try:
+                    from src.device_address import resolve_url_host
+
+                    url = await resolve_url_host(url, self.config.host_mac) or url
+                except Exception as exc:  # noqa: BLE001 — pinning is best-effort
+                    logger.info("ℹ️ HA host MAC resolve failed, using HA_URL: %s", exc)
+            self._resolved_base_url = url
+        return self._resolved_base_url
+
     async def _json(
         self,
         method: str,
@@ -79,10 +108,11 @@ class HomeAssistantClient:
         *,
         body: Optional[Dict[str, Any]] = None,
     ) -> Any:
+        base_url = await self._base_url()
         try:
             async with self.session.request(
                 method,
-                f"{self.config.base_url}{path}",
+                f"{base_url}{path}",
                 headers=self._headers,
                 json=body,
                 timeout=aiohttp.ClientTimeout(total=15),

@@ -245,8 +245,71 @@ def test_resolve_ip_by_mac_returns_none_when_ap_unavailable(monkeypatch) -> None
     async def boom():
         raise network_client.NetworkConfigError("no AP creds")
 
+    async def no_router():
+        raise network_client.NetworkConfigError("no router creds")
+
     monkeypatch.setattr(network_client, "fetch_access_point", boom)
+    monkeypatch.setattr(network_client, "fetch_router", no_router)
     assert asyncio.run(network_client.resolve_ip_by_mac("aa:bb:cc:f8:37:7f")) is None
+
+
+def test_resolve_ip_by_mac_finds_devices_on_the_routers_own_radio(monkeypatch) -> None:
+    """Clients of the router's radios are invisible to the AP (issue #502), so an
+    AP miss must fall through to the router or MAC pinning silently fails for
+    exactly the devices the AP cannot see."""
+    async def empty_ap():
+        return object(), []
+
+    async def fake_router():
+        return (
+            object(),
+            [],
+            [{"mac": "aa:bb:cc:00:00:37", "ip": "192.168.9.37"}],
+        )
+
+    monkeypatch.setattr(network_client, "fetch_access_point", empty_ap)
+    monkeypatch.setattr(network_client, "fetch_router", fake_router)
+    assert asyncio.run(
+        network_client.resolve_ip_by_mac("AA:BB:CC:00:00:37")
+    ) == "192.168.9.37"
+
+
+def test_resolve_ip_by_mac_falls_back_to_router_leases(monkeypatch) -> None:
+    """A wired device appears in the lease table but on no radio at all."""
+    async def empty_ap():
+        return object(), []
+
+    async def fake_router():
+        return (
+            object(),
+            [{"mac": "aa:bb:cc:00:00:13", "ip": "192.168.9.13", "hostname": "tower"}],
+            [],
+        )
+
+    monkeypatch.setattr(network_client, "fetch_access_point", empty_ap)
+    monkeypatch.setattr(network_client, "fetch_router", fake_router)
+    assert asyncio.run(
+        network_client.resolve_ip_by_mac("AA:BB:CC:00:00:13")
+    ) == "192.168.9.13"
+
+
+def test_resolve_ip_by_mac_prefers_the_ap_and_skips_the_router_read(monkeypatch) -> None:
+    """The AP is the cheaper read, so a hit there must not also fetch the router."""
+    router_calls: list[int] = []
+
+    async def ap_with_hit():
+        return object(), [_ap_device("AA:BB:CC:00:00:01", "phone", ip="192.168.9.11")]
+
+    async def fake_router():
+        router_calls.append(1)
+        return object(), [], []
+
+    monkeypatch.setattr(network_client, "fetch_access_point", ap_with_hit)
+    monkeypatch.setattr(network_client, "fetch_router", fake_router)
+    assert asyncio.run(
+        network_client.resolve_ip_by_mac("aa:bb:cc:00:00:01")
+    ) == "192.168.9.11"
+    assert router_calls == []
 
 
 def test_merge_router_leases_fills_names_and_adds_router_only() -> None:

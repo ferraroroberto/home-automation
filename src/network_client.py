@@ -107,12 +107,16 @@ _WIFI_TIMEOUT_S = 6.0
 # Cross-domain helper                                                         #
 # --------------------------------------------------------------------------- #
 async def resolve_ip_by_mac(mac: str) -> Optional[str]:
-    """Best-effort current IP for a device MAC, from the AP's attached devices.
+    """Best-effort current IP for a device MAC, from the live device inventory.
 
-    Lets other domains (e.g. cameras, issue #190) self-heal a stale configured
-    IP the way the AP and Tuya plugs already do. Returns None when the AP read
-    fails, isn't configured, or the MAC isn't present — callers treat that as
-    "no recovery available" and leave the device flagged unreachable.
+    Lets other domains (e.g. cameras, issue #190; MAC-pinned config, issue #504)
+    self-heal a stale configured IP the way the AP and Tuya plugs already do.
+    Returns None when every source fails or the MAC isn't present — callers treat
+    that as "no recovery available" and leave the device flagged unreachable.
+
+    Both sources are consulted, because neither is complete on its own: clients
+    on the *router's* own radios are invisible to the AP (issue #502), so an AP
+    miss is not a miss overall. The AP is tried first as the cheaper read.
     """
     target = _normalise_mac(mac)
     if not target:
@@ -121,10 +125,20 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
         _health, devices = await fetch_access_point()
     except Exception as exc:  # noqa: BLE001 — recovery is best-effort, never fatal
         logger.info("ℹ️ MAC→IP resolve via AP failed: %s", exc)
-        return None
+        devices = []
     for dev in devices:
         if _normalise_mac(dev.mac) == target and dev.ip:
             return dev.ip
+    try:
+        _router, leases, wlan_clients = await fetch_router()
+    except Exception as exc:  # noqa: BLE001 — recovery is best-effort, never fatal
+        logger.info("ℹ️ MAC→IP resolve via router failed: %s", exc)
+        return None
+    # Wireless clients first: they carry the address the device is using now,
+    # whereas a lease row can outlive the device's presence.
+    for row in (*wlan_clients, *leases):
+        if _normalise_mac(row.get("mac")) == target and row.get("ip"):
+            return row["ip"]
     return None
 
 
