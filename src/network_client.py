@@ -130,13 +130,15 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
         if _normalise_mac(dev.mac) == target and dev.ip:
             return dev.ip
     try:
-        _router, leases, wlan_clients = await fetch_router()
+        _router, leases, _wlan_clients = await fetch_router()
     except Exception as exc:  # noqa: BLE001 — recovery is best-effort, never fatal
         logger.info("ℹ️ MAC→IP resolve via router failed: %s", exc)
         return None
-    # Wireless clients first: they carry the address the device is using now,
-    # whereas a lease row can outlive the device's presence.
-    for row in (*wlan_clients, *leases):
+    # The lease rows are the IP source: the wlan-client rows carry no IP at all
+    # (the ZTE feed has none — issue #507), and the DHCPHostInfo lease table
+    # covers wired *and* wireless clients. A lease row can outlive the device,
+    # but that is fine here — this resolves an address, not presence.
+    for row in leases:
         if _normalise_mac(row.get("mac")) == target and row.get("ip"):
             return row["ip"]
     return None

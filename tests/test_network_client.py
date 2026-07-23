@@ -256,15 +256,18 @@ def test_resolve_ip_by_mac_returns_none_when_ap_unavailable(monkeypatch) -> None
 def test_resolve_ip_by_mac_finds_devices_on_the_routers_own_radio(monkeypatch) -> None:
     """Clients of the router's radios are invisible to the AP (issue #502), so an
     AP miss must fall through to the router or MAC pinning silently fails for
-    exactly the devices the AP cannot see."""
+    exactly the devices the AP cannot see. The wlan-client rows carry no IP
+    (issue #507) — the DHCPHostInfo lease table, which covers wireless clients
+    too, is what resolves the address."""
     async def empty_ap():
         return object(), []
 
     async def fake_router():
         return (
             object(),
-            [],
-            [{"mac": "aa:bb:cc:00:00:37", "ip": "192.168.9.37"}],
+            [{"mac": "aa:bb:cc:00:00:37", "ip": "192.168.9.37", "hostname": "light-1"}],
+            [{"mac": "aa:bb:cc:00:00:37", "hostname": "light-1", "ssid": "HomeNet",
+              "conn_type": "5GHz", "signal": 74, "link_rate": 72}],
         )
 
     monkeypatch.setattr(network_client, "fetch_access_point", empty_ap)
@@ -374,7 +377,7 @@ def test_merge_router_wlan_clients_adds_devices_the_ap_cannot_see() -> None:
     """A client on the router's own radio reaches the inventory with its band,
     signal and link rate — before this it fell through both sources entirely."""
     clients = [{
-        "mac": "AA:BB:CC:00:00:37", "ip": "192.168.0.37", "hostname": "light-1",
+        "mac": "AA:BB:CC:00:00:37", "hostname": "light-1",
         "ssid": "HomeNet", "conn_type": "5GHz", "signal": 74, "link_rate": 72,
     }]
     merged = network_client._merge_router_wlan_clients([], clients)
@@ -386,6 +389,8 @@ def test_merge_router_wlan_clients_adds_devices_the_ap_cannot_see() -> None:
     assert dev.signal == 74 and dev.link_rate == 72
     assert dev.ssid == "HomeNet"
     assert dev.source == "router"
+    # The wlan feed carries no IP (issue #507) — the lease merge fills it later.
+    assert dev.ip is None
 
 
 def test_merge_router_wlan_clients_never_clobbers_ap_reported_values() -> None:
@@ -393,7 +398,7 @@ def test_merge_router_wlan_clients_never_clobbers_ap_reported_values() -> None:
     fills what the AP left blank, and the device becomes source="both"."""
     devices = [_ap_device("AA:BB:CC:00:00:01", "Laptop", signal=70, link_rate=866)]
     clients = [{
-        "mac": "aa:bb:cc:00:00:01", "ip": "192.168.0.10", "hostname": "other-name",
+        "mac": "aa:bb:cc:00:00:01", "hostname": "other-name",
         "ssid": "OtherNet", "conn_type": "2.4GHz", "signal": 20, "link_rate": 65,
     }]
     merged = network_client._merge_router_wlan_clients(devices, clients)
@@ -415,7 +420,7 @@ def test_merge_router_wlan_clients_overrides_the_aps_wired_uplink_artefact() -> 
         conn_type="wired", signal=100, link_rate=None, ssid=None,
     )]
     clients = [{
-        "mac": "aa:bb:cc:00:00:14", "ip": "192.168.0.14", "hostname": "desktop",
+        "mac": "aa:bb:cc:00:00:14", "hostname": "desktop",
         "ssid": "HomeNet", "conn_type": "5GHz", "signal": 76, "link_rate": 960,
     }]
     merged = network_client._merge_router_wlan_clients(devices, clients)
@@ -435,7 +440,7 @@ def test_merge_router_wlan_clients_keeps_ap_wired_when_router_has_no_band() -> N
     devices = [_ap_device(
         "AA:BB:CC:00:00:13", "Tower", conn_type="wired", signal=100, ssid=None,
     )]
-    clients = [{"mac": "aa:bb:cc:00:00:13", "ip": "192.168.0.13", "hostname": "tower",
+    clients = [{"mac": "aa:bb:cc:00:00:13", "hostname": "tower",
                 "ssid": None, "conn_type": None, "signal": None, "link_rate": None}]
     merged = network_client._merge_router_wlan_clients(devices, clients)
 
@@ -496,13 +501,15 @@ def _instances_xml(rows: list[dict]) -> str:
 
 def test_read_wlan_clients_parses_clients_and_skips_ssid_rows(monkeypatch) -> None:
     """The feed interleaves per-VAP SSID descriptor rows (no MACAddress) with real
-    client rows; only the clients come back, normalised onto NetDevice's units."""
+    client rows; only the clients come back, normalised onto NetDevice's units.
+    The feed's IPAddress is 0.0.0.0/empty for every client, so no ``ip`` field is
+    emitted at all (issue #507) — a phantom ``ip=None`` read as data and misled a
+    live debugging session."""
     xml = _instances_xml([
         {"_InstID": "DEV.WIFI.AP5.AD1", "AliasName": "DEV.WIFI.AP5",
-         "MACAddress": "AA:BB:CC:00:00:37", "IPAddress": "192.168.0.37",
+         "MACAddress": "AA:BB:CC:00:00:37", "IPAddress": "0.0.0.0",
          "HostName": "light-1", "SSIDName": "HomeNet", "RSSI": "-63",
          "TxRate": "72000"},
-        # Associated but not yet leased an address -> ip is unknown, not 0.0.0.0.
         {"_InstID": "DEV.WIFI.AP1.AD1", "AliasName": "DEV.WIFI.AP1",
          "MACAddress": "AA:BB:CC:00:00:16", "IPAddress": "0.0.0.0",
          "HostName": "", "SSIDName": "HomeNet", "RSSI": "-57", "TxRate": "65000"},
@@ -521,13 +528,13 @@ def test_read_wlan_clients_parses_clients_and_skips_ssid_rows(monkeypatch) -> No
     assert len(rows) == 2
     first, second = rows
     assert first["mac"] == "AA:BB:CC:00:00:37"
-    assert first["ip"] == "192.168.0.37"
     assert first["hostname"] == "light-1"
     assert first["conn_type"] == "5GHz"
     assert first["signal"] == 74 and first["link_rate"] == 72
     assert second["conn_type"] == "2.4GHz"
-    assert second["ip"] is None       # 0.0.0.0 is "unknown", not an address
     assert second["hostname"] is None  # empty HostName normalises to None
+    # No phantom ip field — the feed has no usable IP to report (issue #507).
+    assert all("ip" not in row for row in rows)
 
 
 def test_read_wlan_clients_raises_on_session_rejection(monkeypatch) -> None:
@@ -541,6 +548,59 @@ def test_read_wlan_clients_raises_on_session_rejection(monkeypatch) -> None:
     )
     with pytest.raises(network_client.NetworkCommandError):
         client.read_wlan_clients()
+
+
+def test_read_dhcp_leases_parses_dhcphostinfo_wired_and_wireless(monkeypatch) -> None:
+    """The DHCPHostInfo feed (issue #507) returns the FULL lease table — wired and
+    SSID-attached rows — with MACAddr/IPAddr key names (not MACAddress/IPAddress).
+    A wireless client must come back with its IP; the old accessdev_landevs feed
+    missed wireless clients entirely."""
+    xml = _instances_xml([
+        {"_InstID": "DEV.LD1.HOST1", "HostName": "desktop", "MACAddr": "AA:BB:CC:00:00:51",
+         "IPAddr": "192.168.0.51", "PhyPortName": "LAN4", "ExpiredTime": "85000"},
+        # Wireless (router-radio) client — present, with its IP.
+        {"_InstID": "DEV.LD1.HOST2", "HostName": "light-1", "MACAddr": "AA:BB:CC:00:00:37",
+         "IPAddr": "192.168.0.37", "PhyPortName": "SSID5", "ExpiredTime": "42000"},
+        # Empty HostName normalises to None; SSID1 row is 2.4 GHz wireless.
+        {"_InstID": "DEV.LD1.HOST3", "HostName": "", "MACAddr": "AA:BB:CC:00:00:16",
+         "IPAddr": "192.168.0.16", "PhyPortName": "SSID1", "ExpiredTime": "42000"},
+        # A row with no MACAddr is unusable for the MAC-keyed merge — skipped.
+        {"_InstID": "DEV.LD1.HOST4", "HostName": "ghost", "IPAddr": "192.168.0.99"},
+    ])
+    gates: list[str] = []
+    urls: list[str] = []
+
+    def fake_get(url, *a, **kw):
+        urls.append(url)
+        return SimpleNamespace(text=xml)
+
+    client = network_client.RouterClient("h", "u", "p")
+    monkeypatch.setattr(client, "_menu_view", lambda tag, timeout=10: gates.append(tag) or "")
+    monkeypatch.setattr(client, "_session", SimpleNamespace(get=fake_get))
+
+    rows = client.read_dhcp_leases()
+
+    # Page-gated behind the lanMgrIpv4 LAN page, reading the DHCPHostInfo feed.
+    assert gates == ["lanMgrIpv4"]
+    assert "Localnet_LanMgrIpv4_DHCPHostInfo_lua.lua" in urls[0]
+    assert rows == [
+        {"mac": "AA:BB:CC:00:00:51", "ip": "192.168.0.51", "hostname": "desktop"},
+        {"mac": "AA:BB:CC:00:00:37", "ip": "192.168.0.37", "hostname": "light-1"},
+        {"mac": "AA:BB:CC:00:00:16", "ip": "192.168.0.16", "hostname": None},
+    ]
+
+
+def test_read_dhcp_leases_raises_on_session_rejection(monkeypatch) -> None:
+    """A page-gate miss returns SessionTimeout with HTTP 200 — it must raise, not
+    parse as an empty lease table (which would read as "no devices leased")."""
+    client = network_client.RouterClient("h", "u", "p")
+    monkeypatch.setattr(client, "_menu_view", lambda tag, timeout=10: "")
+    monkeypatch.setattr(
+        client, "_session",
+        SimpleNamespace(get=lambda *a, **kw: SimpleNamespace(text="SessionTimeout")),
+    )
+    with pytest.raises(network_client.NetworkCommandError):
+        client.read_dhcp_leases()
 
 
 def test_read_accessdev_table_returns_lease_shaped_rows(monkeypatch) -> None:

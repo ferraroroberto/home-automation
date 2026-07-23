@@ -124,14 +124,20 @@ class RouterClient:
         "/?_type=menuData&_tag=wan_internetstatus_lua.lua&TypeUplink=2&pageType=1"
     )
     _REBOOT_FEED = "/?_type=menuData&_tag=devmgr_restartmgr_lua.lua"
-    # The LAN attached/allocated-address table — same page-gated menuData pattern
-    # as the WAN feed, gated behind the "localNetStatus" menu page. It carries the
-    # router-side hostnames (HostName/IPAddress/MACAddress) the AP read lacks.
-    _LAN_DEVS_FEED = "/?_type=menuData&_tag=accessdev_landevs_lua.lua"
+    # The DHCP lease table — the full one. The earlier accessdev_landevs_lua.lua
+    # feed missed VAP-attached (wireless) clients entirely (issue #507); this one
+    # returns wired *and* wireless rows, tagged with PhyPortName (LAN4/SSID1/...).
+    # Same page-gated menuData pattern as the WAN feed, but gated behind the
+    # "lanMgrIpv4" LAN page (the DHCP-binding page), and its key names differ from
+    # the other host feeds: MACAddr/IPAddr (not MACAddress/IPAddress).
+    _DHCP_HOSTS_PAGE = "lanMgrIpv4"
+    _DHCP_HOSTS_FEED = (
+        "/?_type=menuData&_tag=Localnet_LanMgrIpv4_DHCPHostInfo_lua.lua"
+    )
     # Clients associated to the ROUTER's own radios (issue #502). The AP read
-    # cannot see these — they are not on the AP — and the lease table above omits
-    # them, so without this feed they fall through the merge from both sides and
-    # never reach the inventory. Same "localNetStatus" page gate as the lease read.
+    # cannot see these — they are not on the AP — and only this feed knows their
+    # band/signal/link-rate, so without it they'd reach the inventory as bare
+    # lease rows at best. Page-gated behind the "localNetStatus" menu page.
     _WLAN_CLIENTS_FEED = "/?_type=menuData&_tag=wlan_client_stat_lua.lua"
     # The router homepage's access-device table: the same host/ip/mac triple as the
     # lease read, but sourced from the association table rather than the DHCP lease
@@ -167,30 +173,35 @@ class RouterClient:
         return _pick_internet_wan(_parse_instances(body))
 
     def read_dhcp_leases(self, timeout: int = 10) -> list[dict]:
-        """Return the router's LAN allocated-address table for hostname enrichment.
+        """Return the router's DHCP lease table — wired *and* wireless clients.
 
         Each entry is ``{mac, ip, hostname}`` (an empty ``HostName`` → ``None``).
         Requires an authenticated session (call :meth:`login` first); page-gated
-        exactly like :meth:`read_wan`. Raises :class:`NetworkCommandError` if the
-        read itself is rejected. The ZTE firmware exposes no DHCP port / lease-time
-        feed (every candidate 404s), so only host/ip/mac are available.
+        exactly like :meth:`read_wan`, but behind the ``lanMgrIpv4`` LAN page.
+        Raises :class:`NetworkCommandError` if the read itself is rejected.
+
+        Caveat: a lease row can **outlive the device** — the firmware keeps the
+        row until the lease expires, long after the client left. Presence must
+        come from the association/accessdev tables
+        (:meth:`read_accessdev_table` / :meth:`read_wlan_clients`), never from
+        this table; this read is for IP/hostname enrichment only (issue #507).
         """
-        self._menu_view("localNetStatus", timeout)
+        self._menu_view(self._DHCP_HOSTS_PAGE, timeout)
         body = self._session.get(
-            self._base + self._LAN_DEVS_FEED,
-            headers={"Referer": f"{self._base}/?_type=menuView&_tag=localNetStatus"},
+            self._base + self._DHCP_HOSTS_FEED,
+            headers={"Referer": f"{self._base}/?_type=menuView&_tag={self._DHCP_HOSTS_PAGE}"},
             timeout=timeout,
         ).text
         if "SessionTimeout" in body or "404 Not Found" in body:
             raise NetworkCommandError("router DHCP read rejected (session/page)")
         leases: list[dict] = []
         for inst in _parse_instances(body):
-            mac = inst.get("MACAddress")
+            mac = inst.get("MACAddr")
             if not mac:
                 continue
             leases.append({
                 "mac": mac,
-                "ip": inst.get("IPAddress") or None,
+                "ip": inst.get("IPAddr") or None,
                 "hostname": inst.get("HostName") or None,
             })
         return leases
@@ -198,12 +209,15 @@ class RouterClient:
     def read_wlan_clients(self, timeout: int = 10) -> list[dict]:
         """Return the clients associated to the router's **own** Wi-Fi radios.
 
-        Each entry is ``{mac, ip, hostname, ssid, conn_type, signal, link_rate}``,
+        Each entry is ``{mac, hostname, ssid, conn_type, signal, link_rate}``,
         already normalised onto the same units :class:`NetDevice` uses (signal as
         a percentage, link rate in Mbps) so the merge needs no further conversion.
-        Requires an authenticated session; page-gated exactly like
-        :meth:`read_dhcp_leases`. Raises :class:`NetworkCommandError` if the read
-        itself is rejected.
+        There is deliberately **no** ``ip`` field: the feed's ``IPAddress`` is
+        ``0.0.0.0``/empty for every client, and emitting that as ``ip=None`` read
+        as data and misled a live debugging session (issue #507). IPs come from
+        :meth:`read_dhcp_leases`, whose feed covers wireless clients too.
+        Requires an authenticated session; page-gated behind ``localNetStatus``.
+        Raises :class:`NetworkCommandError` if the read itself is rejected.
 
         The feed interleaves per-VAP SSID descriptor rows (no ``MACAddress``) with
         the actual client rows; only the latter are returned.
@@ -221,12 +235,8 @@ class RouterClient:
             mac = inst.get("MACAddress")
             if not mac:
                 continue  # per-VAP SSID descriptor row, not a client
-            ip = inst.get("IPAddress") or None
             clients.append({
                 "mac": mac,
-                # The firmware reports 0.0.0.0 for a client it has associated but
-                # not yet leased an address to — that is "unknown", not an address.
-                "ip": None if ip in (None, "", "0.0.0.0") else ip,
                 "hostname": inst.get("HostName") or None,
                 "ssid": inst.get("SSIDName") or None,
                 "conn_type": _vap_band(inst.get("AliasName")),
@@ -555,6 +565,8 @@ def _merge_router_wlan_clients(
             by_mac[key] = len(merged)
             merged.append(NetDevice(
                 mac=client.get("mac"),
+                # The wlan feed carries no usable IP (issue #507) — the lease
+                # merge that runs after this one fills it from the DHCP table.
                 ip=client.get("ip"),
                 name=client.get("hostname"),
                 conn_type=client.get("conn_type"),
@@ -704,8 +716,10 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
         uptime_s=_to_int(wan.get("UpTime")),
         addressing=wan.get("Addressingtype") or None,
     )
-    # DHCP lease table for hostname enrichment (best-effort, same authenticated
-    # session: a read failure leaves the inventory AP-only, never drops it).
+    # DHCP lease table (wired + wireless) for IP/hostname enrichment (best-effort,
+    # same authenticated session: a read failure leaves the inventory AP-only,
+    # never drops it). A lease row can outlive the device — presence still comes
+    # from the association/accessdev reads, never from here (issue #507).
     try:
         leases = client.read_dhcp_leases()
     except Exception as exc:  # noqa: BLE001
@@ -714,8 +728,9 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
     # Fold in the association-derived rows read up front: a second lease source
     # that still lists hosts whose DHCP lease a reboot wiped (issue #502).
     leases = leases + accessdev
-    # Clients on the router's own radios — invisible to both the AP read and the
-    # lease table, so this is the only source that surfaces them at all.
+    # Clients on the router's own radios — invisible to the AP read, and the only
+    # source of their band/signal/link-rate (the lease table has their IP but says
+    # nothing about how, or whether, they are currently attached).
     try:
         wlan_clients = client.read_wlan_clients()
     except Exception as exc:  # noqa: BLE001
