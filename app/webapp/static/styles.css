@@ -343,6 +343,19 @@ button, input, select, textarea {
   white-space: nowrap;
 }
 .ac-line-icon { width: 1.05em; height: 1.05em; margin-right: 2px; }
+/* Unreachable unit (#520) — mirrors the AC card's treatment: the row's readings
+   dim and its toggle is disabled, with a caption saying why. Same opacity as
+   the other unavailable rows (.device-row.is-unavailable), and applied to the
+   content rather than the row for the same reason as the card above — the
+   "Offline" caption must not fade along with what it explains. */
+.ac-line.is-unavailable .ac-line-name,
+.ac-line.is-unavailable .ac-temp { opacity: 0.6; }
+.ac-line-offline {
+  margin-right: 6px;
+  color: var(--attention);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
 /* Single-line temperature reading: room → target (#211). */
 .ac-line-center { text-align: right; }
 .ac-temp { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -581,6 +594,20 @@ button, input, select, textarea {
 .unit-card.is-off { background: var(--card-off); }
 .unit-card.is-off .unit-room .value,
 .unit-card.is-off .target-value { color: var(--muted); }
+/* Unreachable unit (#520): dimmed like an offline network device
+   (.net-device.is-offline) so it reads as non-interactive, but not blacked
+   out — the last-known readings must stay legible. Controls are separately
+   `disabled` in JS; this is only the visual half.
+
+   The fade lands on the card's *content*, never on `.unit-card` itself: opacity
+   is inherited multiplicatively, so a faded card would drag its own "Offline"
+   chip down with it (~2.2:1, below AA) and the one element that explains why
+   the controls are dead would be the hardest thing to read. Excluding the chip
+   from the fade is what keeps it at full strength. The power switch is left out
+   too — it carries the same 0.55 through its own `.toggle:disabled`. */
+.unit-card.is-unavailable .unit-header > *:not(.unit-offline-badge),
+.unit-card.is-unavailable .unit-fan-control,
+.unit-card.is-unavailable .unit-readings { opacity: 0.55; }
 
 /* Weather strip (Home tab): current weather + today's forecast on the left, a
    small transparent theme toggle on the right (issue #72). The clock was
@@ -723,6 +750,23 @@ button, input, select, textarea {
   line-height: 1.15;
   white-space: normal;
 }
+/* "Offline" chip beside the unit name — says *why* the card's controls are
+   inert. Same pill recipe as .snapshot-badge, in the attention color so it
+   stays readable through the card's reduced opacity in both themes. */
+.unit-offline-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  color: var(--attention);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
 .unit-schedule-icon {
   color: var(--muted);
   width: 16px;
@@ -840,7 +884,18 @@ button, input, select, textarea {
   color: var(--accent);
 }
 .stepper .step::before { content: ""; position: absolute; inset: -4px; }
-.stepper .step:active { transform: scale(0.92); }
+.stepper .step:active:not(:disabled) { transform: scale(0.92); }
+/* Used when the unit is unreachable (#520). The one disabled recipe from
+   design.md — flat --card-off/--line/--muted, never opacity on a solid fill
+   (issue #362) — so the accent-blue ± and the select's label grey out
+   identically in both themes instead of fading unevenly. */
+.stepper .step:disabled,
+.select-native:disabled {
+  background: var(--card-off);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}
 .target-value {
   font-size: var(--font-body);
   font-weight: 700;
@@ -2381,6 +2436,19 @@ body:has(dialog[open]) .app { overflow: hidden; }
   display: inline-flex; align-items: center; justify-content: center;
 }
 .detail-close .icon { width: 18px; height: 18px; }
+/* Banner explaining why the unit's mode/fan/vane selects are disabled (#520).
+   Attention-toned like the card's Offline chip, tinted rather than solid so it
+   reads the same in light and dark. */
+.detail-offline {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  color: var(--attention);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
 .detail-card .row {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 12px 0; border-top: 1px solid var(--line);

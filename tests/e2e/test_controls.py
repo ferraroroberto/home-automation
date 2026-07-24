@@ -6,6 +6,7 @@ and only that card re-renders from the response.
 
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List, Optional
 
 from playwright.sync_api import Locator, Page, expect
@@ -73,6 +74,57 @@ def test_fan_change_posts_fan_speed(
         card.locator("select.unit-fan").select_option("Three")
     assert info.value.post_data_json == {"fan_speed": "Three"}
     expect(card.locator("select.unit-fan")).to_have_value("Three")
+
+
+def test_offline_unit_card_is_dimmed_and_inert(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    """An unreachable unit dims, says why, and cannot be commanded (#520).
+
+    The bug this guards: controls that look live but silently no-op because the
+    unit lost its cloud connection.
+    """
+    sample_units[1]["reachable"] = False  # unit-2 (Studio)
+    mock_api(sample_units)
+    _boot(page, base_url)
+
+    offline = page.locator('[data-unit-id="unit-2"]')
+    expect(offline).to_have_class(re.compile(r"\bis-unavailable\b"))
+    expect(offline.locator(".unit-offline-badge")).to_have_text("Offline")
+    # Every command-sending control is inert; readings stay on screen.
+    expect(offline.locator(".toggle")).to_be_disabled()
+    expect(offline.locator("select.unit-fan")).to_be_disabled()
+    expect(offline.locator(".stepper .minus")).to_be_disabled()
+    expect(offline.locator(".stepper .plus")).to_be_disabled()
+    expect(offline.locator(".unit-room .value")).to_contain_text("19.0")
+
+    # A reachable sibling is untouched.
+    online = page.locator('[data-unit-id="unit-1"]')
+    expect(online).not_to_have_class(re.compile(r"\bis-unavailable\b"))
+    expect(online.locator(".unit-offline-badge")).to_have_count(0)
+    expect(online.locator(".toggle")).to_be_enabled()
+
+
+def test_offline_unit_row_marked_on_home_summary(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """The Home tile mirrors the AC tab's offline state (#520)."""
+    sample_units[1]["reachable"] = False  # unit-2 (Studio)
+    mock_api(sample_units)
+    mock_energy()
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#acSummary .ac-line", state="visible")
+
+    row = page.locator("#acSummary .ac-line", has_text="Studio")
+    expect(row).to_have_class(re.compile(r"\bis-unavailable\b"))
+    expect(row.locator(".ac-line-offline")).to_have_text("Offline")
+    expect(row.locator(".ac-line-toggle")).to_be_disabled()
+    # Only the offline unit is marked.
+    expect(page.locator("#acSummary .ac-line-offline")).to_have_count(1)
+    expect(page.locator("#acSummary .ac-line-toggle:enabled")).to_have_count(
+        len(sample_units) - 1
+    )
 
 
 def test_unit_header_has_44px_target_without_overlapping_controls(

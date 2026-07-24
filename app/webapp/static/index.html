@@ -1612,6 +1612,12 @@
         <button id="detailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
+      <!-- Shown when the unit's adapter has lost its cloud connection (#520):
+           mode/fan/vane changes would be silently swallowed, so those selects
+           are disabled. Name, rule and schedules are stored here, not on the
+           unit, so they stay editable. -->
+      <p id="detailOffline" class="detail-offline" hidden>Offline — this unit is unreachable, so mode, fan and vane changes can't be sent.</p>
+
       <label class="row">
         <span>Display name</span>
         <input id="detailDisplayName" type="text" class="input-native" placeholder="Custom label…">

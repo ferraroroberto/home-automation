@@ -33,6 +33,7 @@ from aiomelcloudhome import (
     ATAVaneHorizontal,
     ATAVaneVertical,
     MELCloudHome,
+    UserContext,
 )
 from dotenv import load_dotenv
 
@@ -74,6 +75,10 @@ class DeviceInfo:
     room_temperature: Optional[float]
     set_temperature: Optional[float]
     fan_speed: Optional[str]
+    # Cloud-side connectivity of the unit's WiFi adapter, from the raw
+    # ``isConnected`` flag (see ``_connectivity_map``).  Defaults to ``True``
+    # so an unknown/absent flag never locks the UI out of a working unit.
+    reachable: bool = True
     operation_modes: List[str] = field(default_factory=list)
     fan_speeds: List[str] = field(default_factory=list)
     temp_step: float = 0.5
@@ -171,7 +176,50 @@ def _temp_ranges(unit: ATAUnit) -> Dict[str, Tuple[float, float]]:
     return ranges
 
 
-def _snapshot(unit: ATAUnit, building: str) -> DeviceInfo:
+def _connectivity_map(raw: Dict[str, object]) -> Dict[str, bool]:
+    """Map ``unit id -> isConnected`` from a raw ``/context`` payload.
+
+    The MELCloud Home API reports each unit's adapter connectivity as an
+    explicit ``isConnected`` boolean, a sibling of ``rssi`` / ``isInError``.
+    ``aiomelcloudhome``'s ``ATAUnit`` model drops the field entirely (its
+    ``_from_api`` validator rebuilds the dict without it), so it has to be
+    read off the raw JSON.  A unit missing the key is omitted, and callers
+    fall back to "reachable" — never silently disable a working unit.
+    """
+    connectivity: Dict[str, bool] = {}
+    buildings = list(raw.get("buildings") or []) + list(raw.get("guestBuildings") or [])
+    for building in buildings:
+        if not isinstance(building, dict):
+            continue
+        for unit in building.get("airToAirUnits") or []:
+            if not isinstance(unit, dict) or "isConnected" not in unit:
+                continue
+            connectivity[str(unit.get("id"))] = bool(unit["isConnected"])
+    return connectivity
+
+
+async def _fetch_context(client: MELCloudHome) -> Tuple[UserContext, Dict[str, bool]]:
+    """Read ``/context`` once, returning the typed model **and** connectivity.
+
+    ``client.get_context()`` is exactly ``UserContext.model_validate(await
+    self._request("/context"))``, so doing the two steps here costs no extra
+    HTTP round-trip while keeping access to the raw ``isConnected`` flag the
+    model discards.  If the library ever renames that internal, fall back to
+    the public call and treat every unit as reachable rather than failing the
+    whole fetch over a presentational flag.
+    """
+    try:
+        raw = await client._request("/context")  # noqa: SLF001
+    except AttributeError:  # pragma: no cover — library internals moved
+        logger.warning(
+            "⚠️  aiomelcloudhome._request unavailable; "
+            "unit connectivity will be reported as reachable"
+        )
+        return await client.get_context(), {}
+    return UserContext.model_validate(raw), _connectivity_map(raw)
+
+
+def _snapshot(unit: ATAUnit, building: str, reachable: bool = True) -> DeviceInfo:
     """Copy the fields of interest out of a live ATA unit."""
     caps = unit.capabilities
     step = 0.5 if (caps and caps.has_half_degree_increments) else 1.0
@@ -186,6 +234,7 @@ def _snapshot(unit: ATAUnit, building: str) -> DeviceInfo:
         room_temperature=unit.room_temperature,
         set_temperature=unit.set_temperature,
         fan_speed=unit.set_fan_speed.value if unit.set_fan_speed else None,
+        reachable=reachable,
         operation_modes=_available_modes(unit),
         fan_speeds=_available_fan_speeds(unit),
         temp_step=step,
@@ -209,6 +258,33 @@ def _snapshot(unit: ATAUnit, building: str) -> DeviceInfo:
     )
 
 
+# Last-seen reachability per unit id, so the breadcrumb below fires on the
+# edge rather than on every poll.  The webapp polls /api/units every 30s, and a
+# unit can stay down for days — a per-poll warning would bury the log in
+# thousands of identical lines and make the one that matters unfindable.
+_last_reachable: Dict[str, bool] = {}
+
+
+def _log_reachability_changes(devices: List[DeviceInfo]) -> None:
+    """Warn once when a unit drops offline, and once when it comes back.
+
+    The first sighting of an already-offline unit warns too — otherwise a unit
+    that was down before this process started would never be mentioned at all.
+    """
+    for device in devices:
+        was = _last_reachable.get(device.unit_id)
+        first_sighting = was is None
+        if device.reachable == was:
+            continue
+        if not device.reachable:
+            logger.warning(
+                "⚠️  Unit '%s' is offline — its controls are disabled", device.name
+            )
+        elif not first_sighting:
+            logger.info("✅ Unit '%s' is reachable again", device.name)
+        _last_reachable[device.unit_id] = device.reachable
+
+
 async def fetch_devices() -> List[DeviceInfo]:
     """Authenticate and return a flattened snapshot of every ATA unit."""
     email, password = _load_credentials()
@@ -216,11 +292,14 @@ async def fetch_devices() -> List[DeviceInfo]:
     devices: List[DeviceInfo] = []
     logger.info("ℹ️ Authenticating with MELCloud Home as %s", email)
     async with MELCloudHome(username=email, password=password) as client:
-        context = await client.get_context()
+        context, connectivity = await _fetch_context(client)
         for building in context.buildings:
             for unit in building.air_to_air_units:
-                devices.append(_snapshot(unit, building.name))
+                devices.append(
+                    _snapshot(unit, building.name, connectivity.get(unit.id, True))
+                )
 
+    _log_reachability_changes(devices)
     logger.info("✅ Fetched %d unit(s)", len(devices))
     return devices
 
@@ -263,7 +342,7 @@ async def set_device_state(
 
     async with MELCloudHome(username=email, password=password) as client:
         # Pre-read: locate the unit and derive per-mode temp bounds for clamping.
-        pre_context = await client.get_context()
+        pre_context, _ = await _fetch_context(client)
         target_unit: Optional[ATAUnit] = None
         target_building: str = ""
         for building in pre_context.buildings:
@@ -314,11 +393,13 @@ async def set_device_state(
         )
 
         # Read back so the caller sees the applied state.
-        context = await client.get_context()
+        context, connectivity = await _fetch_context(client)
         for building in context.buildings:
             for unit in building.air_to_air_units:
                 if unit.id == unit_id:
                     logger.info("✅ Applied changes to '%s'", unit.name)
-                    return _snapshot(unit, building.name)
+                    return _snapshot(
+                        unit, building.name, connectivity.get(unit.id, True)
+                    )
 
     raise DeviceNotFoundError(f"No unit with id {unit_id}")
