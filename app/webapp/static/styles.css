@@ -596,11 +596,12 @@ button, input, select, textarea {
    out — the last-known readings must stay legible. Controls are separately
    `disabled` in JS; this is only the visual half. */
 .unit-card.is-unavailable { opacity: 0.55; }
-/* Don't stack the two fades: the card (or Home row) already carries the offline
-   dim, so its disabled controls keep full opacity inside it — 0.55 × 0.55 would
-   render them nearly invisible. */
-.unit-card.is-unavailable :disabled,
-.ac-line.is-unavailable :disabled { opacity: 1; }
+/* Don't stack two fades: the card (or Home row) already carries the offline
+   dim, so the switch's own opacity-based disabled state is neutralised inside
+   it — 0.55 × 0.55 would render the toggle nearly invisible. Its greyed track
+   still reads as inert against the enabled siblings. */
+.unit-card.is-unavailable .toggle:disabled,
+.ac-line.is-unavailable .toggle:disabled { opacity: 1; }
 
 /* Weather strip (Home tab): current weather + today's forecast on the left, a
    small transparent theme toggle on the right (issue #72). The clock was
@@ -878,10 +879,17 @@ button, input, select, textarea {
 }
 .stepper .step::before { content: ""; position: absolute; inset: -4px; }
 .stepper .step:active:not(:disabled) { transform: scale(0.92); }
-/* Same inert recipe as .toggle:disabled — used when the unit is unreachable
-   (#520), so the whole card's controls read as non-interactive together. */
+/* Used when the unit is unreachable (#520). The one disabled recipe from
+   design.md — flat --card-off/--line/--muted, never opacity on a solid fill
+   (issue #362) — so the accent-blue ± and the select's label grey out
+   identically in both themes instead of fading unevenly. */
 .stepper .step:disabled,
-.select-native:disabled { cursor: default; opacity: 0.55; }
+.select-native:disabled {
+  background: var(--card-off);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: default;
+}
 .target-value {
   font-size: var(--font-body);
   font-weight: 700;
