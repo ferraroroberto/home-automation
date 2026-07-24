@@ -2916,10 +2916,11 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 /* Attached-device inventory, grouped by band. */
 .net-devices { display: flex; flex-direction: column; }
 .net-group-head {
+  /* First-group top spacing matches between-group spacing (#519) — no
+     first-child override. */
   margin: 14px 0 4px; font-size: var(--font-caption); font-weight: 700;
   color: var(--muted); text-transform: none;
 }
-.net-group-head:first-child { margin-top: 2px; }
 /* "My groups" view (#513): the header carries an online/total count and — for a
    real (non-Unclassified) group — a pencil that opens the rename/delete dialog. */
 .net-group-head.net-group-head--custom {
@@ -2934,14 +2935,6 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 }
 .net-group-edit::before { content: ""; position: absolute; inset: -12px; }
 .net-group-edit .icon { width: 14px; height: 14px; }
-/* Grouped rows stack their detail over two lines — a single ellipsised line
-   can't hold MAC + band + SSID + IP on a phone, and the MAC is the whole point
-   of the grouped view (it's the key the group assignment is stored under). */
-.net-device.is-grouped .net-device-meta { white-space: normal; }
-.net-device-meta-line {
-  display: block;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 .net-device {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2991,13 +2984,14 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-signal-pct { min-width: 2.6em; text-align: right; }
 .net-devices-note { margin: 12px 4px; }
 
-/* Device-list tools row — small sort control plus optional Show offline toggle. */
+/* Device-list tools row — small sort control plus optional Show offline toggle.
+   Bottom margin matches the 10px .net-stats uses above the Order row (#519). */
 .net-devices-head {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   min-height: var(--control-h);
-  margin-bottom: var(--space-xs);
+  margin-bottom: 10px;
 }
 .net-devices-head .range-tab:not([hidden]) {
   flex: 0 0 auto;
@@ -3012,7 +3006,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   display: flex;
   align-items: center;
   min-height: var(--control-h);
-  margin-bottom: var(--space-xs);
+  margin-bottom: 10px;
 }
 .net-sort {
   display: inline-flex;
@@ -3033,7 +3027,12 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   appearance: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: var(--control-h);
+  /* Shared min-width (#519) so the Order row's A-Z/Signal pills line up with
+     the Group row's My groups/Band pills instead of sizing to their own text
+     — sized to fit "My groups", the longest label, so all four render equal. */
+  min-width: 96px;
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);

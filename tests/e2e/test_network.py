@@ -219,8 +219,20 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
     )
     assert len(set(widths)) == 1
 
+    # Order-row and Group-row pills render at matching widths (#519): A-Z/Signal
+    # line up with My groups/Band instead of each sizing to its own text.
+    sort_pills = page.locator(
+        "#netSortAlpha, #netSortSignal, #netGroupByGroup, #netGroupByBand"
+    )
+    pill_widths = sort_pills.evaluate_all(
+        "(nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().width))"
+    )
+    assert len(set(pill_widths)) == 1
+
     offline = page.locator("#netOfflineToggle")
-    expect(offline).to_have_text("Show offline")
+    # Label reflects current visibility, not the pending action (#519); default
+    # grouping is now "My groups" (#519), so this exercises the toggle there.
+    expect(offline).to_have_text("Offline hidden")
     head_box = page.locator(".net-devices-head").bounding_box()
     offline_box = offline.bounding_box()
     assert head_box is not None
@@ -231,7 +243,7 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
     ) <= 1
 
     offline.click()
-    expect(offline).to_have_text("Hide offline")
+    expect(offline).to_have_text("Offline shown")
 
 
 def test_network_rename_and_hide_wifi_and_attached_device(
@@ -299,12 +311,13 @@ def test_network_device_groups_create_move_rename_and_delete(
     mock_energy: Callable,
     mock_network: Callable,
 ) -> None:
-    """The "My groups" view: create, move, auto-drop empty, rename, delete (#513)."""
+    """The "My groups" view: create, move, auto-drop empty, rename, delete (#513);
+    the default view + offline toggle behaving the same as the band view (#519)."""
     mock_api(sample_units)
     mock_energy()
     snapshot = mock_network()
-    # An offline device must stay visible (shaded) in its group, with its
-    # last-known band and SSID still readable.
+    # An offline device stays visible (shaded) in its group once the offline
+    # toggle is on, with its last-known band and SSID still readable.
     snapshot["devices"].append({
         "mac": "AA:00:00:00:00:05",
         "ip": "192.0.2.15",
@@ -335,27 +348,34 @@ def test_network_device_groups_create_move_rename_and_delete(
     page.locator("#tabNetwork").click()
     page.locator("details.net-devices-card > summary").click()
 
-    rows = page.locator("#netDevices .net-device")
-    # 4 online devices in the band view (offline is toggled off there).
-    expect(rows).to_have_count(4)
-    page.locator("#netGroupByGroup").click()
+    # "My groups" is the default/first grouping now (#519) — no click needed.
+    expect(page.locator("#netGroupByGroup")).to_have_class("net-sort-btn active")
 
+    rows = page.locator("#netDevices .net-device")
     heads = page.locator("#netDevices .net-group-head")
-    # Nothing assigned yet: one synthetic Unclassified group holding every device
-    # — including the offline one, which the grouped view never hides.
+    # Nothing assigned yet: one synthetic Unclassified group holding every
+    # device. The offline device counts toward the group's online/total header
+    # regardless, but its row is hidden by default — the offline toggle now
+    # governs visibility in the grouped view too, same as the band view (#519).
     expect(heads).to_have_count(1)
     expect(heads.first).to_contain_text("Unclassified")
     expect(heads.first).to_contain_text("4/5 online")
-    expect(rows).to_have_count(5)
+    expect(rows).to_have_count(4)
     # Unclassified is synthetic — it can't be renamed or deleted.
     expect(page.locator("#netDevices .net-group-edit")).to_have_count(0)
 
-    # The offline row is present and shaded, with band + SSID + MAC readable.
+    # Toggling offline on reveals the shaded row, with its last-known band and
+    # SSID readable but no MAC (dropped from the grouped view — #519).
+    offline_toggle = page.locator("#netOfflineToggle")
+    expect(offline_toggle).to_have_text("Offline hidden")
+    offline_toggle.click()
+    expect(offline_toggle).to_have_text("Offline shown")
+    expect(rows).to_have_count(5)
     offline_row = page.locator("#netDevices .net-device").filter(has_text="Offline Tablet")
     expect(offline_row).to_have_class(re.compile(".*is-offline.*"))
     expect(offline_row).to_contain_text("2.4 GHz")
     expect(offline_row).to_contain_text("TestNet-IoT")
-    expect(offline_row).to_contain_text("AA:00:00:00:00:05")
+    expect(offline_row).not_to_contain_text("AA:00:00:00:00:05")
 
     # Create a group from the detail modal, then put a second device in it.
     _assign_group(page, "Alpha Laptop", new_name="Elgato lights")

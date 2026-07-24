@@ -1112,17 +1112,17 @@
               <button id="netSortAlpha" type="button" class="net-sort-btn active" data-sort="az">A-Z</button>
               <button id="netSortSignal" type="button" class="net-sort-btn" data-sort="signal">Signal</button>
             </div>
-            <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Show offline</button>
+            <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Offline hidden</button>
             <button id="netHiddenToggle" type="button" class="range-tab" data-testid="net-show-hidden" hidden>Show hidden</button>
           </div>
 
-          <!-- Group by: radio band (the original view) or the user's own device
-               groups (issue #513). Persisted in localStorage. -->
+          <!-- Group by: the user's own device groups (issue #513, the default —
+               #519) or the original radio-band view. Persisted in localStorage. -->
           <div class="net-devices-groupby">
             <div class="net-sort" role="group" aria-label="Group attached devices">
               <span class="net-sort-label">Group</span>
-              <button id="netGroupByBand" type="button" class="net-sort-btn active" data-grouping="band" data-testid="net-group-band">Band</button>
-              <button id="netGroupByGroup" type="button" class="net-sort-btn" data-grouping="group" data-testid="net-group-custom">My groups</button>
+              <button id="netGroupByGroup" type="button" class="net-sort-btn active" data-grouping="group" data-testid="net-group-custom">My groups</button>
+              <button id="netGroupByBand" type="button" class="net-sort-btn" data-grouping="band" data-testid="net-group-band">Band</button>
             </div>
           </div>
 
