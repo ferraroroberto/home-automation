@@ -91,6 +91,9 @@ export const state = {
   networkShowOffline: false,
   // Device row sort inside each Network group: A-Z by default, or weakest signal.
   networkDeviceSort: 'az',
+  // How the Network device list is grouped: by radio band (the original view)
+  // or by the user's own device groups (issue #513).
+  networkDeviceGrouping: 'band',
   // Wi-Fi diagnostics channel charts on the Network tab.
   wifiChart24: null,
   wifiChart5: null,
@@ -126,6 +129,7 @@ export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
 export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
 export const NETWORK_DEVICE_SORT_KEY = 'home-automation.networkDeviceSort';
+export const NETWORK_DEVICE_GROUPING_KEY = 'home-automation.networkDeviceGrouping';
 export const NETWORK_SHOW_HIDDEN_DEVICES_KEY = 'home-automation.networkShowHiddenDevices';
 export const NETWORK_SHOW_HIDDEN_WIFI_KEY = 'home-automation.networkShowHiddenWifi';
 export const THIS_DEVICE_PRESENCE_KEY = 'home-automation.thisDevicePresence';
@@ -407,6 +411,8 @@ export const els = {
   netStats: document.getElementById('netStats'),
   netSortAlpha: document.getElementById('netSortAlpha'),
   netSortSignal: document.getElementById('netSortSignal'),
+  netGroupByBand: document.getElementById('netGroupByBand'),
+  netGroupByGroup: document.getElementById('netGroupByGroup'),
   netOfflineToggle: document.getElementById('netOfflineToggle'),
   netHiddenCount: document.getElementById('netHiddenCount'),
   netHiddenToggle: document.getElementById('netHiddenToggle'),
@@ -452,6 +458,17 @@ export const els = {
   netDeviceHiddenToggle: document.getElementById('netDeviceHiddenToggle'),
   netDeviceSave: document.getElementById('netDeviceSave'),
   netDeviceMac: document.getElementById('netDeviceMac'),
+  netDeviceGroup: document.getElementById('netDeviceGroup'),
+  netDeviceGroupNew: document.getElementById('netDeviceGroupNew'),
+  netDeviceGroupNewRow: document.getElementById('netDeviceGroupNewRow'),
+  // Rename/delete dialog for one device group (issue #513).
+  netGroupDialog: document.getElementById('netGroupDialog'),
+  netGroupDialogTitle: document.getElementById('netGroupDialogTitle'),
+  netGroupDialogClose: document.getElementById('netGroupDialogClose'),
+  netGroupName: document.getElementById('netGroupName'),
+  netGroupMembers: document.getElementById('netGroupMembers'),
+  netGroupDelete: document.getElementById('netGroupDelete'),
+  netGroupSave: document.getElementById('netGroupSave'),
   // Per-Wi-Fi-radio detail + rename modal
   netWifiDialog: document.getElementById('netWifiDialog'),
   netWifiDetailName: document.getElementById('netWifiDetailName'),

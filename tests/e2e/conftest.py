@@ -1108,6 +1108,9 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "hidden": False,
                     "is_new": False,
                     "randomized": False,
+                    "group": None,
+                    "last_conn_type": None,
+                    "last_ssid": None,
                     "first_seen": 1_700_000_000,
                     "last_seen": 1_700_000_000,
                     "times_seen": 3,
@@ -1130,6 +1133,9 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "hidden": False,
                     "is_new": False,
                     "randomized": False,
+                    "group": None,
+                    "last_conn_type": None,
+                    "last_ssid": None,
                     "first_seen": 1_700_000_000,
                     "last_seen": 1_700_000_000,
                     "times_seen": 2,
@@ -1152,6 +1158,9 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "hidden": False,
                     "is_new": False,
                     "randomized": False,
+                    "group": None,
+                    "last_conn_type": None,
+                    "last_ssid": None,
                     "first_seen": 1_700_000_000,
                     "last_seen": 1_700_000_000,
                     "times_seen": 1,
@@ -1174,6 +1183,9 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     "hidden": False,
                     "is_new": False,
                     "randomized": False,
+                    "group": None,
+                    "last_conn_type": None,
+                    "last_ssid": None,
                     "first_seen": 1_700_000_000,
                     "last_seen": 1_700_000_000,
                     "times_seen": 1,
@@ -1217,6 +1229,45 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                         status=200,
                         content_type="application/json",
                         body=_json({"mac": mac, "hidden": hidden}),
+                    )
+                    return
+                if "/api/network/devices/" in url and url.endswith("/group"):
+                    mac = unquote(url.split("/api/network/devices/", 1)[1].split("/", 1)[0])
+                    group = (body_json.get("group") or "").strip()
+                    for device in body["devices"]:
+                        if device["mac"] == mac:
+                            device["group"] = group or None
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"mac": mac, "group": group or None}),
+                    )
+                    return
+                if url.endswith("/api/network/groups/rename"):
+                    name = (body_json.get("name") or "").strip()
+                    new_name = (body_json.get("new_name") or "").strip()
+                    moved = 0
+                    for device in body["devices"]:
+                        if (device.get("group") or "") == name:
+                            device["group"] = new_name
+                            moved += 1
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"name": name, "new_name": new_name, "moved": moved}),
+                    )
+                    return
+                if url.endswith("/api/network/groups/delete"):
+                    name = (body_json.get("name") or "").strip()
+                    moved = 0
+                    for device in body["devices"]:
+                        if (device.get("group") or "") == name:
+                            device["group"] = None
+                            moved += 1
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"name": name, "moved": moved}),
                     )
                     return
                 if url.endswith("/api/network/wifi/display_name"):
