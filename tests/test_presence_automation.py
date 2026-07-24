@@ -35,7 +35,8 @@ class _FakeConfirmState:
 
 
 class _Config:
-    enabled = True
+    auto_arm_enabled = True
+    auto_disarm_enabled = True
 
 
 _DECISION = PresenceDecision(

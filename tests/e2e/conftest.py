@@ -772,7 +772,7 @@ def mock_presence(page: Page) -> Callable[..., None]:
                 },
             ],
             "diagnostics": {"available": True, "reason": "ok", "detail": "", "refreshed_at": "2026-06-22T10:00:00+00:00"},
-            "automation": {"enabled": False, "arm_away_after_s": 900, "stale_after_s": 3600, "disarm_on_arrival": True},
+            "automation": {"auto_arm_enabled": False, "arm_away_after_s": 900, "stale_after_s": 3600, "auto_disarm_enabled": False},
         }
         page.route("**/api/presence", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(body)))
