@@ -12,6 +12,7 @@ webapp/certificates/
 webapp/icloud_session/
 webapp/icloud_session_2/
 webapp/*.log
+webapp/*.log.*
 logs/
 # Energy-history store (server-side SQLite; per-machine runtime data)
 webapp/*.sqlite3
