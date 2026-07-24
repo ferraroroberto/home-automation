@@ -8,10 +8,13 @@
  *
  * Issue #513 adds a second way to group the same list: the user's own device
  * groups instead of the radio band, with a trailing synthetic "Unclassified"
- * bucket and a rename/delete dialog on each real group header. In that view
- * offline devices are always shown (shaded) rather than gated behind the "Show
- * offline" toggle — a device known-but-absent is precisely what the view is for,
- * and a row that disappears looks identical to a device that was never there.
+ * bucket and a rename/delete dialog on each real group header. Issue #519
+ * makes "My groups" the default view and extends the offline show/hide toggle
+ * to it too — a group's online/total count still reflects every member, but
+ * the offline rows themselves are only rendered (shaded, in place) when the
+ * toggle is on, same as the band view. A group left with nothing visible after
+ * that filter (all members offline, toggle off) is simply skipped rather than
+ * rendering an empty header.
  */
 
 'use strict';
@@ -223,14 +226,14 @@ function buildDeviceRow(d, grouped) {
   const meta = document.createElement('span');
   meta.className = 'net-device-meta';
   if (grouped) {
-    // The grouped view answers "which of these is up, on what, and which box is
-    // it?" — so band and SSID are explicit (the band header no longer says it)
-    // and the MAC rides along, since that is the key the group is stored under.
-    const first = [d.ip || '—', bandLabel(d)];
+    // The grouped view answers "which of these is up, and on what?" — so band
+    // and SSID are explicit (the band header no longer says it). The MAC is
+    // dropped (#519) for consistency with the band view; it's still reachable
+    // from the detail modal.
+    const bits = [d.ip || '—', bandLabel(d)];
     const ssid = ssidOf(d);
-    if (ssid) first.push('Wi-Fi ' + ssid);
-    appendMetaLine(meta, first.join(' · '));
-    appendMetaLine(meta, d.mac || '—');
+    if (ssid) bits.push('Wi-Fi ' + ssid);
+    meta.textContent = bits.join(' · ');
   } else {
     // IP, SSID for wireless clients, plus the vendor when it isn't already the
     // shown label (avoids "Apple · Apple").
@@ -266,25 +269,21 @@ function buildDeviceRow(d, grouped) {
   return row;
 }
 
-function appendMetaLine(meta, text) {
-  const line = document.createElement('span');
-  line.className = 'net-device-meta-line';
-  line.textContent = text;
-  meta.appendChild(line);
-}
-
 // Most-recently-seen first — the sort for the trailing "Offline" group.
 function byLastSeenDesc(a, b) {
   return (b.last_seen || 0) - (a.last_seen || 0);
 }
 
-// The "Show offline" toggle is shown only when there are known-but-absent
-// devices; it carries the count and mirrors the security/plugs toggle styling.
+// The offline toggle is shown only when there are known-but-absent devices;
+// it carries the count and mirrors the security/plugs toggle styling. The
+// label always reflects current visibility (#519), never the pending action —
+// "Offline shown" while offline rows are visible, "Offline hidden" while
+// they're filtered out.
 function renderOfflineToggle(offlineCount) {
   const btn = els.netOfflineToggle;
   if (!btn) return;
   btn.hidden = offlineCount === 0;
-  btn.textContent = state.networkShowOffline ? 'Hide offline' : 'Show offline';
+  btn.textContent = state.networkShowOffline ? 'Offline shown' : 'Offline hidden';
   btn.classList.toggle('active', state.networkShowOffline);
 }
 
@@ -333,9 +332,8 @@ export function renderDevices(devices) {
   const byGroup = state.networkDeviceGrouping === 'group';
   const online = list.filter(function (d) { return d.online !== false; });
   const offline = list.filter(function (d) { return d.online === false; });
-  // The offline toggle is meaningless in the grouped view, which always shows
-  // offline devices shaded in place.
-  renderOfflineToggle(byGroup ? 0 : offline.length);
+  // The offline toggle behaves identically in both grouping modes (#519).
+  renderOfflineToggle(offline.length);
   renderDeviceHiddenToggle(hiddenCount);
 
   if (byGroup) {
@@ -404,17 +402,30 @@ function byOnlineThenSort(a, b) {
 }
 
 function renderCustomGroups(list, hiddenCount) {
-  if (renderDevicesNote(list.length > 0, hiddenCount)) return;
+  // The offline toggle now governs visibility here too (#519): a group's
+  // online/total count still counts every member, but an offline row only
+  // renders (shaded, in place) when the toggle is on.
+  const showOffline = state.networkShowOffline;
+  const visibleTotal = list.filter(function (d) {
+    return showOffline || d.online !== false;
+  }).length;
+  if (renderDevicesNote(visibleTotal > 0, hiddenCount)) return;
 
   groupsOf(list).forEach(function (name) {
-    appendCustomGroup(name, membersOf(list, name), true);
+    appendCustomGroup(name, membersOf(list, name), true, showOffline);
   });
   const rest = list.filter(function (d) { return !(d.group || '').trim(); });
-  if (rest.length) appendCustomGroup(UNCLASSIFIED, rest, false);
+  if (rest.length) appendCustomGroup(UNCLASSIFIED, rest, false, showOffline);
 }
 
-function appendCustomGroup(name, members, editable) {
+function appendCustomGroup(name, members, editable, showOffline) {
+  // The count reflects every member regardless of the offline toggle; only
+  // the rendered rows are filtered by it. A group left with nothing visible
+  // (all members offline, toggle off) is skipped rather than rendering an
+  // empty header (#519).
   const onlineCount = members.filter(function (d) { return d.online !== false; }).length;
+  const visible = showOffline ? members : members.filter(function (d) { return d.online !== false; });
+  if (!visible.length) return;
   const head = document.createElement('h4');
   head.className = 'net-group-head net-group-head--custom';
   const title = document.createElement('span');
@@ -437,7 +448,7 @@ function appendCustomGroup(name, members, editable) {
     head.appendChild(edit);
   }
   els.netDevices.appendChild(head);
-  members.slice().sort(byOnlineThenSort).forEach(function (d) {
+  visible.slice().sort(byOnlineThenSort).forEach(function (d) {
     els.netDevices.appendChild(buildDeviceRow(d, true));
   });
 }
@@ -842,12 +853,14 @@ export function setDeviceGrouping(grouping) {
   renderNetwork();
 }
 
+// "My groups" is the default for anyone with nothing persisted yet (#519); a
+// prior explicit 'band' choice is preserved.
 export function initDeviceGroupingPref() {
   try {
     state.networkDeviceGrouping =
-      localStorage.getItem(NETWORK_DEVICE_GROUPING_KEY) === 'group' ? 'group' : 'band';
+      localStorage.getItem(NETWORK_DEVICE_GROUPING_KEY) === 'band' ? 'band' : 'group';
   } catch (_e) {
-    state.networkDeviceGrouping = 'band';
+    state.networkDeviceGrouping = 'group';
   }
 }
 
