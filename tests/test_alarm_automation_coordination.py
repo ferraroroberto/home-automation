@@ -48,7 +48,7 @@ def _wire_presence_tick(
             read_perimeter.set()
         return panel
 
-    config = presence_engine.PresenceAutomationConfig(enabled=True, stale_after_s=3600)
+    config = presence_engine.PresenceAutomationConfig(auto_arm_enabled=True, auto_disarm_enabled=True, stale_after_s=3600)
     monkeypatch.setattr(presence_automation, "fetch_security_state", fake_fetch_security_state)
     monkeypatch.setattr(presence_automation, "check_security_transitions", _async_noop)
     monkeypatch.setattr(presence_automation, "consider_security_read", lambda _state: None)
@@ -208,7 +208,7 @@ def test_failed_schedule_does_not_mask_a_later_arrival(monkeypatch, tmp_path) ->
     decision = presence_engine.evaluate_alarm_decision(
         [person],
         security_mode="perimeter",
-        config=presence_engine.PresenceAutomationConfig(enabled=True, stale_after_s=3600),
+        config=presence_engine.PresenceAutomationConfig(auto_arm_enabled=True, auto_disarm_enabled=True, stale_after_s=3600),
         at=later + timedelta(seconds=1),
     )
 

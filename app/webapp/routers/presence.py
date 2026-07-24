@@ -675,19 +675,19 @@ async def get_presence_automation() -> Dict[str, Any]:
 
 
 class PresenceAutomationPayload(BaseModel):
-    enabled: bool = False
+    auto_arm_enabled: bool = False
     arm_away_after_s: int = 900
     stale_after_s: int = 3600
-    disarm_on_arrival: bool = True
+    auto_disarm_enabled: bool = False
 
 
 @router.put("/api/presence/automation")
 async def update_presence_automation(payload: PresenceAutomationPayload) -> Dict[str, Any]:
     config = PresenceAutomationConfig(
-        enabled=payload.enabled,
+        auto_arm_enabled=payload.auto_arm_enabled,
         arm_away_after_s=max(0, payload.arm_away_after_s),
         stale_after_s=max(60, payload.stale_after_s),
-        disarm_on_arrival=payload.disarm_on_arrival,
+        auto_disarm_enabled=payload.auto_disarm_enabled,
     )
     save_automation_config(config)
     return asdict(config)

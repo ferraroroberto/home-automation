@@ -1,8 +1,8 @@
 {
-  "enabled": false,
+  "auto_arm_enabled": false,
   "arm_away_after_s": 900,
   "stale_after_s": 3600,
-  "disarm_on_arrival": true,
+  "auto_disarm_enabled": false,
   "arm_action": "arm",
   "disarm_action": "disarm"
 }

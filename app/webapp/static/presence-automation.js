@@ -24,12 +24,13 @@ export function renderKidsHomeToggle(viewReady) {
 }
 
 export function renderPresenceAutomationNote() {
-  if (!els.presenceAutomationNote || !els.presenceAutoEnabled) return;
+  if (!els.presenceAutomationNote || !els.presenceAutoEnabled || !els.presenceDisarmOnArrival) return;
   const entities = (state.presence && state.presence.entities) || [];
   const hasWebhookPerson = entities.some(function (entity) {
     return entity.source === 'webhook' && !entity.hidden;
   });
-  if (isToggleOn(els.presenceAutoEnabled) && !hasWebhookPerson) {
+  const anyAutomationOn = isToggleOn(els.presenceAutoEnabled) || isToggleOn(els.presenceDisarmOnArrival);
+  if (anyAutomationOn && !hasWebhookPerson) {
     els.presenceAutomationNote.textContent = 'Configure iOS Shortcut arrive/leave webhooks before enabling alarm automation. Browser GPS and Find My diagnostics do not drive arm/disarm.';
     els.presenceAutomationNote.hidden = false;
   } else {
@@ -62,10 +63,10 @@ export async function loadPresenceAutomation() {
   try {
     state.presenceAutomation = await jsonApi('/api/presence/automation');
     const cfg = state.presenceAutomation || {};
-    setToggleState(els.presenceAutoEnabled, cfg.enabled === true);
+    setToggleState(els.presenceAutoEnabled, cfg.auto_arm_enabled === true);
     els.presenceArmMinutes.value = Math.round((Number(cfg.arm_away_after_s) || 0) / 60);
     els.presenceStaleMinutes.value = Math.round((Number(cfg.stale_after_s) || 3600) / 60);
-    setToggleState(els.presenceDisarmOnArrival, cfg.disarm_on_arrival !== false);
+    setToggleState(els.presenceDisarmOnArrival, cfg.auto_disarm_enabled === true);
     renderPresenceAutomationNote();
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
@@ -76,10 +77,10 @@ export async function loadPresenceAutomation() {
 
 async function savePresenceAutomation() {
   const payload = {
-    enabled: isToggleOn(els.presenceAutoEnabled),
+    auto_arm_enabled: isToggleOn(els.presenceAutoEnabled),
     arm_away_after_s: Math.max(0, Number(els.presenceArmMinutes.value || 0)) * 60,
     stale_after_s: Math.max(1, Number(els.presenceStaleMinutes.value || 1)) * 60,
-    disarm_on_arrival: isToggleOn(els.presenceDisarmOnArrival),
+    auto_disarm_enabled: isToggleOn(els.presenceDisarmOnArrival),
   };
   try {
     state.presenceAutomation = await jsonApi('/api/presence/automation', {

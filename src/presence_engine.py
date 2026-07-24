@@ -47,10 +47,10 @@ class PersonPresence:
 class PresenceAutomationConfig:
     """Alarm automation knobs persisted in ``config/presence_automation.json``."""
 
-    enabled: bool = False
+    auto_arm_enabled: bool = False
     arm_away_after_s: int = 900
     stale_after_s: int = 3600
-    disarm_on_arrival: bool = True
+    auto_disarm_enabled: bool = False
     arm_action: str = "arm"
     disarm_action: str = "disarm"
 
@@ -175,11 +175,23 @@ def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationCon
     raw = read_json(Path(path) if path is not None else AUTOMATION_PATH, {})
     if not isinstance(raw, dict):
         raw = {}
+    if "auto_arm_enabled" in raw or "auto_disarm_enabled" in raw:
+        auto_arm_enabled = bool(raw.get("auto_arm_enabled", False))
+        auto_disarm_enabled = bool(raw.get("auto_disarm_enabled", False))
+    else:
+        # Legacy shape: one master `enabled` flag gated both directions, with
+        # `disarm_on_arrival` as a sub-flag only meaningful while it was on.
+        # Migrate on read so an old persisted file keeps behaving the same
+        # way it always did; the file itself is rewritten to the new shape
+        # the next time the user saves a change.
+        legacy_enabled = bool(raw.get("enabled", False))
+        auto_arm_enabled = legacy_enabled
+        auto_disarm_enabled = legacy_enabled and bool(raw.get("disarm_on_arrival", True))
     return PresenceAutomationConfig(
-        enabled=bool(raw.get("enabled", False)),
+        auto_arm_enabled=auto_arm_enabled,
         arm_away_after_s=max(0, int(raw.get("arm_away_after_s", 900) or 0)),
         stale_after_s=max(60, int(raw.get("stale_after_s", 3600) or 3600)),
-        disarm_on_arrival=bool(raw.get("disarm_on_arrival", True)),
+        auto_disarm_enabled=auto_disarm_enabled,
         arm_action=str(raw.get("arm_action") or "arm"),
         disarm_action=str(raw.get("disarm_action") or "disarm"),
     )
@@ -285,7 +297,7 @@ def evaluate_alarm_decision(
     """
 
     stamp = at or now_utc()
-    if not config.enabled:
+    if not config.auto_arm_enabled and not config.auto_disarm_enabled:
         return None
 
     current = list(people)
@@ -298,7 +310,7 @@ def evaluate_alarm_decision(
     home = [p for p in fresh if p.state == "home"]
     away = [p for p in fresh if p.state == "away"]
 
-    if home and config.disarm_on_arrival and security_mode != "disarmed":
+    if home and config.auto_disarm_enabled and security_mode != "disarmed":
         # Transition time, not last-seen — so a deliberate (scheduled/manual) arm
         # while people are already home isn't undone, and the key stays stable
         # across pings. A genuine away→home arrival advances state_since and lets
@@ -315,7 +327,7 @@ def evaluate_alarm_decision(
             )
         return None
 
-    if len(away) == len(fresh) and security_mode == "disarmed":
+    if len(away) == len(fresh) and config.auto_arm_enabled and security_mode == "disarmed":
         # When everyone left (transition time), not last-seen — so the arm-away
         # grace counts from the actual departure and same-state pings can't keep
         # resetting it.

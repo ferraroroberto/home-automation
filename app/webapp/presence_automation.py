@@ -44,7 +44,7 @@ def _evaluate_current_decision(security_mode: str) -> Optional[PresenceDecision]
     """Load current presence inputs and evaluate one alarm decision."""
 
     config = load_automation_config()
-    if not config.enabled:
+    if not config.auto_arm_enabled and not config.auto_disarm_enabled:
         return None
     # Deliberately NOT filtered by src.presence_hidden: that flag is a UI-only
     # "declutter the Presence list" toggle (mirrors security_hidden) and must
