@@ -343,10 +343,13 @@ button, input, select, textarea {
   white-space: nowrap;
 }
 .ac-line-icon { width: 1.05em; height: 1.05em; margin-right: 2px; }
-/* Unreachable unit (#520) — mirrors the AC card's treatment: the row dims and
-   its toggle is disabled, with a caption saying why. Same opacity as the other
-   unavailable rows (.device-row.is-unavailable). */
-.ac-line.is-unavailable { opacity: 0.6; }
+/* Unreachable unit (#520) — mirrors the AC card's treatment: the row's readings
+   dim and its toggle is disabled, with a caption saying why. Same opacity as
+   the other unavailable rows (.device-row.is-unavailable), and applied to the
+   content rather than the row for the same reason as the card above — the
+   "Offline" caption must not fade along with what it explains. */
+.ac-line.is-unavailable .ac-line-name,
+.ac-line.is-unavailable .ac-temp { opacity: 0.6; }
 .ac-line-offline {
   margin-right: 6px;
   color: var(--attention);
@@ -594,14 +597,17 @@ button, input, select, textarea {
 /* Unreachable unit (#520): dimmed like an offline network device
    (.net-device.is-offline) so it reads as non-interactive, but not blacked
    out — the last-known readings must stay legible. Controls are separately
-   `disabled` in JS; this is only the visual half. */
-.unit-card.is-unavailable { opacity: 0.55; }
-/* Don't stack two fades: the card (or Home row) already carries the offline
-   dim, so the switch's own opacity-based disabled state is neutralised inside
-   it — 0.55 × 0.55 would render the toggle nearly invisible. Its greyed track
-   still reads as inert against the enabled siblings. */
-.unit-card.is-unavailable .toggle:disabled,
-.ac-line.is-unavailable .toggle:disabled { opacity: 1; }
+   `disabled` in JS; this is only the visual half.
+
+   The fade lands on the card's *content*, never on `.unit-card` itself: opacity
+   is inherited multiplicatively, so a faded card would drag its own "Offline"
+   chip down with it (~2.2:1, below AA) and the one element that explains why
+   the controls are dead would be the hardest thing to read. Excluding the chip
+   from the fade is what keeps it at full strength. The power switch is left out
+   too — it carries the same 0.55 through its own `.toggle:disabled`. */
+.unit-card.is-unavailable .unit-header > *:not(.unit-offline-badge),
+.unit-card.is-unavailable .unit-fan-control,
+.unit-card.is-unavailable .unit-readings { opacity: 0.55; }
 
 /* Weather strip (Home tab): current weather + today's forecast on the left, a
    small transparent theme toggle on the right (issue #72). The clock was

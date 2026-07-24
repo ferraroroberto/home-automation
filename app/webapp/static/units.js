@@ -103,6 +103,15 @@ async function commitDetail() {
   const id = state.selectedId;
   if (!id) return;
   if (els.detailSave) els.detailSave.disabled = true;
+  // Last line of defence for the offline case (#520): the selects are disabled
+  // and the poll re-disables them, but edits staged *before* the unit dropped
+  // stay dirty. Dropping the unit-bound patch here is what guarantees Save can
+  // never POST into the void; the local-only sections below still commit.
+  const target = unitById(id);
+  if (detailDirty.controls && target && isOffline(target)) {
+    detailDirty.controls = false;
+    toast('Unit is offline — mode, fan and vane changes were not sent', 'error');
+  }
   if (detailDirty.controls) {
     const patch = { operation_mode: els.detailMode.value };
     if (els.detailFanSpeedRow && !els.detailFanSpeedRow.hidden) patch.fan_speed = els.detailFanSpeed.value;
@@ -364,21 +373,30 @@ function fillSelect(sel, options, current) {
   });
 }
 
-function populateDetail(unit) {
+// The reachability half of the modal, split out of populateDetail so the 30s
+// poll can refresh an already-open modal (#520). Touches only the banner and
+// the disabled flags — never a value — so a unit dropping offline mid-edit
+// inerts its controls without discarding what the user has staged.
+//
+// Unreachable: the selects that write to the unit go inert too — silently
+// no-op-ing here would be the same bug as on the card. Display name, the
+// temperature rule and the schedules are stored server-side, not on the
+// unit, so they stay editable while it's offline.
+function applyDetailAvailability(unit) {
   const offline = isOffline(unit);
-  els.detailName.textContent = displayLabel(unit) || 'Unit';
-  els.detailDisplayName.value = unit.display_name || '';
-  els.detailDisplayName.placeholder = unit.name || 'Custom label…';
-
-  // Unreachable: the selects that write to the unit go inert too — silently
-  // no-op-ing here would be the same bug as on the card. Display name, the
-  // temperature rule and the schedules are stored server-side, not on the
-  // unit, so they stay editable while it's offline.
   if (els.detailOffline) els.detailOffline.hidden = !offline;
   els.detailMode.disabled = offline;
   els.detailFanSpeed.disabled = offline;
   els.detailVaneVertical.disabled = offline;
   els.detailVaneHorizontal.disabled = offline;
+}
+
+function populateDetail(unit) {
+  els.detailName.textContent = displayLabel(unit) || 'Unit';
+  els.detailDisplayName.value = unit.display_name || '';
+  els.detailDisplayName.placeholder = unit.name || 'Custom label…';
+
+  applyDetailAvailability(unit);
 
   fillSelect(els.detailMode, unit.operation_modes || [], unit.operation_mode);
 
@@ -644,6 +662,14 @@ export async function loadUnits() {
     });
     renderAll();
     renderAcSummary();
+    // An open modal is not re-rendered by renderAll(), so refresh its
+    // reachability state here — otherwise a unit that drops offline while its
+    // modal is open keeps live-looking selects and Save would POST into the
+    // void (#520).
+    if (state.selectedId) {
+      const selected = unitById(state.selectedId);
+      if (selected) applyDetailAvailability(selected);
+    }
   } catch (exc) {
     // A 401 already surfaced the login overlay (api.js → showLogin); stay quiet.
     if (String(exc.message) === 'auth required') return;

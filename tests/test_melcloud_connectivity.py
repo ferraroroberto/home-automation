@@ -9,7 +9,12 @@ flag has to leave the unit controllable rather than silently disable it.
 
 from __future__ import annotations
 
-from src.melcloud_client import _connectivity_map
+import logging
+
+import pytest
+
+from src import melcloud_client
+from src.melcloud_client import DeviceInfo, _connectivity_map, _log_reachability_changes
 
 
 def _payload(units, key: str = "buildings"):
@@ -40,6 +45,44 @@ def test_unit_without_the_flag_is_omitted() -> None:
 def test_ids_are_stringified() -> None:
     raw = _payload([{"id": 7, "isConnected": False}])
     assert _connectivity_map(raw) == {"7": False}
+
+
+def _device(reachable: bool) -> DeviceInfo:
+    return DeviceInfo(
+        unit_id="u1", name="Fixture", building="Test", power=True,
+        operation_mode="Cool", room_temperature=22.0, set_temperature=24.0,
+        fan_speed="Auto", reachable=reachable,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _clear_reachability_state():
+    melcloud_client._last_reachable.clear()
+    yield
+    melcloud_client._last_reachable.clear()
+
+
+def test_offline_logs_once_not_once_per_poll(caplog: pytest.LogCaptureFixture) -> None:
+    """The webapp polls every 30s; a unit down for days must not spam the log."""
+    caplog.set_level(logging.INFO, logger="melcloud")
+    for _ in range(5):
+        _log_reachability_changes([_device(False)])
+    assert sum("is offline" in r.message for r in caplog.records) == 1
+
+
+def test_recovery_logs_once(caplog: pytest.LogCaptureFixture) -> None:
+    _log_reachability_changes([_device(False)])
+    caplog.set_level(logging.INFO, logger="melcloud")
+    for _ in range(3):
+        _log_reachability_changes([_device(True)])
+    assert sum("reachable again" in r.message for r in caplog.records) == 1
+
+
+def test_healthy_unit_never_logs(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.INFO, logger="melcloud")
+    for _ in range(3):
+        _log_reachability_changes([_device(True)])
+    assert [r for r in caplog.records if "reachable" in r.message] == []
 
 
 def test_empty_and_malformed_payloads_do_not_raise() -> None:

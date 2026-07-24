@@ -258,6 +258,33 @@ def _snapshot(unit: ATAUnit, building: str, reachable: bool = True) -> DeviceInf
     )
 
 
+# Last-seen reachability per unit id, so the breadcrumb below fires on the
+# edge rather than on every poll.  The webapp polls /api/units every 30s, and a
+# unit can stay down for days — a per-poll warning would bury the log in
+# thousands of identical lines and make the one that matters unfindable.
+_last_reachable: Dict[str, bool] = {}
+
+
+def _log_reachability_changes(devices: List[DeviceInfo]) -> None:
+    """Warn once when a unit drops offline, and once when it comes back.
+
+    The first sighting of an already-offline unit warns too — otherwise a unit
+    that was down before this process started would never be mentioned at all.
+    """
+    for device in devices:
+        was = _last_reachable.get(device.unit_id)
+        first_sighting = was is None
+        if device.reachable == was:
+            continue
+        if not device.reachable:
+            logger.warning(
+                "⚠️  Unit '%s' is offline — its controls are disabled", device.name
+            )
+        elif not first_sighting:
+            logger.info("✅ Unit '%s' is reachable again", device.name)
+        _last_reachable[device.unit_id] = device.reachable
+
+
 async def fetch_devices() -> List[DeviceInfo]:
     """Authenticate and return a flattened snapshot of every ATA unit."""
     email, password = _load_credentials()
@@ -272,9 +299,7 @@ async def fetch_devices() -> List[DeviceInfo]:
                     _snapshot(unit, building.name, connectivity.get(unit.id, True))
                 )
 
-    offline = [d.name for d in devices if not d.reachable]
-    if offline:
-        logger.warning("⚠️  %d unit(s) offline: %s", len(offline), ", ".join(offline))
+    _log_reachability_changes(devices)
     logger.info("✅ Fetched %d unit(s)", len(devices))
     return devices
 
