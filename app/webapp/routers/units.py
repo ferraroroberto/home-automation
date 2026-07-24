@@ -99,6 +99,9 @@ def _unit_dict(
         "room_temperature": d.room_temperature,
         "set_temperature": d.set_temperature,
         "fan_speed": d.fan_speed,
+        # False when the unit's WiFi adapter has lost its cloud connection —
+        # the PWA dims the card and inerts its controls (issue #520).
+        "reachable": d.reachable,
         "operation_modes": d.operation_modes,
         "fan_speeds": d.fan_speeds,
         "temp_step": d.temp_step,

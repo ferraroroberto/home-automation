@@ -577,6 +577,7 @@ export const els = {
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),
+  detailOffline: document.getElementById('detailOffline'),
   detailDisplayName: document.getElementById('detailDisplayName'),
   detailMode: document.getElementById('detailMode'),
   detailFanSpeed: document.getElementById('detailFanSpeed'),

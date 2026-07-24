@@ -90,6 +90,36 @@ def test_units_route_runs_with_monkeypatched_cloud(
     assert units[0]["operation_mode"] == "Cool"
     # temp_ranges tuples are serialised to lists for JSON.
     assert units[0]["temp_ranges"]["Cool"] == [16.0, 31.0]
+    # A unit with no explicit connectivity flag defaults to reachable (#520).
+    assert units[0]["reachable"] is True
+
+
+def test_units_route_reports_unreachable_unit(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``reachable=False`` reaches the PWA so it can dim/disable the card (#520)."""
+    fake = DeviceInfo(
+        unit_id="unit-offline",
+        name="Fixture Offline",
+        building="Fixture",
+        power=True,
+        operation_mode="Cool",
+        room_temperature=22.0,
+        set_temperature=24.0,
+        fan_speed="Auto",
+        reachable=False,
+    )
+
+    async def fake_fetch_devices() -> List[DeviceInfo]:
+        return [fake]
+
+    monkeypatch.setattr(
+        "app.webapp.routers.units.fetch_devices", fake_fetch_devices
+    )
+
+    resp = client.get("/api/units")
+    assert resp.status_code == 200
+    assert resp.json()["units"][0]["reachable"] is False
 
 
 def test_energy_route_runs_with_monkeypatched_cloud(

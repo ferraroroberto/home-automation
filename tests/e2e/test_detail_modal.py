@@ -48,6 +48,33 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     assert (target.effective.width, target.effective.height) == (44, 44)
 
 
+def test_offline_unit_disables_command_selects_only(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    """Offline (#520): the selects that write to the unit go inert and the
+    banner explains why, but the settings stored server-side (display name,
+    temperature rule, schedules) stay editable."""
+    sample_units[0]["reachable"] = False  # unit-1, has both vanes
+    mock_api(sample_units)
+    _open_detail(page, base_url, "unit-1")
+
+    expect(page.locator("#detailOffline")).to_be_visible()
+    expect(page.locator("#detailMode")).to_be_disabled()
+    expect(page.locator("#detailFanSpeed")).to_be_disabled()
+    expect(page.locator("#detailVaneVertical")).to_be_disabled()
+    expect(page.locator("#detailVaneHorizontal")).to_be_disabled()
+    expect(page.locator("#detailDisplayName")).to_be_enabled()
+
+
+def test_reachable_unit_hides_offline_banner(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    mock_api(sample_units)
+    _open_detail(page, base_url, "unit-1")
+    expect(page.locator("#detailOffline")).to_be_hidden()
+    expect(page.locator("#detailMode")).to_be_enabled()
+
+
 def test_vane_rows_gated_on_capability(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:

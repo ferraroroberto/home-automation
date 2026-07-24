@@ -161,6 +161,15 @@ function hasSchedule(unit) {
   return scheduleCount(unit) > 0;
 }
 
+// A unit whose WiFi adapter has lost its cloud connection (`reachable: false`
+// from /api/units, issue #520). Commands sent to it are silently swallowed by
+// the cloud, so its controls are inerted rather than left looking live. Only an
+// explicit `false` counts — an absent field (older payload, restored snapshot)
+// means "unknown", and unknown must never lock a working unit out.
+function isOffline(unit) {
+  return unit.reachable === false;
+}
+
 // --------------------------------------------------- write + re-render
 async function applyControl(unitId, patch) {
   try {
@@ -195,7 +204,10 @@ function buildCard(unit) {
 
 function renderCardInto(card, unit) {
   const on = unit.power === true;
+  const offline = isOffline(unit);
   card.classList.toggle('is-off', !on);
+  // Dimmed + inert, but still legible: the last-known readings stay on screen.
+  card.classList.toggle('is-unavailable', offline);
   const [tmin, tmax] = tempRange(unit).map(Number);
   const step = Number(unit.temp_step) || 0.5;
 
@@ -216,6 +228,7 @@ function renderCardInto(card, unit) {
   header.innerHTML =
     '<span class="unit-mode-icon">' + icon(modeIcon(unit.operation_mode)) + '</span>' +
     '<span class="unit-name"></span>' +
+    (offline ? '<span class="unit-offline-badge" title="Not reachable — controls are disabled">Offline</span>' : '') +
     (schedCount ? '<span class="unit-schedule-badge" title="' + schedCount + ' schedule' + (schedCount === 1 ? '' : 's') + '">' +
       icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '') +
     (isSnapshotRestored('units') ? '<span class="snapshot-badge">' + snapshotLabel('units') + '</span>' : '');
@@ -230,6 +243,7 @@ function renderCardInto(card, unit) {
   power.setAttribute('role', 'switch');
   power.setAttribute('aria-checked', on ? 'true' : 'false');
   power.innerHTML = toggleMarkup(on);
+  power.disabled = offline;
   power.addEventListener('click', function () {
     applyControl(unit.unit_id, { power: !on });
   });
@@ -251,6 +265,7 @@ function renderCardInto(card, unit) {
       if (f === unit.fan_speed) opt.selected = true;
       sel.appendChild(opt);
     });
+    sel.disabled = offline;
     sel.addEventListener('change', function () {
       applyControl(unit.unit_id, { fan_speed: sel.value });
     });
@@ -300,10 +315,14 @@ function renderCardInto(card, unit) {
     if (clamped === cur) return;
     applyControl(unit.unit_id, { set_temperature: clamped });
   };
-  target.querySelector('.minus').addEventListener('click', function () {
+  const minus = target.querySelector('.minus');
+  const plus = target.querySelector('.plus');
+  minus.disabled = offline;
+  plus.disabled = offline;
+  minus.addEventListener('click', function () {
     setTo(Math.round((cur - step) * 10) / 10);
   });
-  target.querySelector('.plus').addEventListener('click', function () {
+  plus.addEventListener('click', function () {
     setTo(Math.round((cur + step) * 10) / 10);
   });
   readings.appendChild(target);
@@ -346,9 +365,20 @@ function fillSelect(sel, options, current) {
 }
 
 function populateDetail(unit) {
+  const offline = isOffline(unit);
   els.detailName.textContent = displayLabel(unit) || 'Unit';
   els.detailDisplayName.value = unit.display_name || '';
   els.detailDisplayName.placeholder = unit.name || 'Custom label…';
+
+  // Unreachable: the selects that write to the unit go inert too — silently
+  // no-op-ing here would be the same bug as on the card. Display name, the
+  // temperature rule and the schedules are stored server-side, not on the
+  // unit, so they stay editable while it's offline.
+  if (els.detailOffline) els.detailOffline.hidden = !offline;
+  els.detailMode.disabled = offline;
+  els.detailFanSpeed.disabled = offline;
+  els.detailVaneVertical.disabled = offline;
+  els.detailVaneHorizontal.disabled = offline;
 
   fillSelect(els.detailMode, unit.operation_modes || [], unit.operation_mode);
 
@@ -546,8 +576,9 @@ function renderAcSummary() {
   });
   sorted.forEach(function (u) {
     const on = u.power === true;
+    const offline = isOffline(u);
     const row = document.createElement('div');
-    row.className = 'ac-line' + (on ? '' : ' is-off');
+    row.className = 'ac-line' + (on ? '' : ' is-off') + (offline ? ' is-unavailable' : '');
 
     const name = document.createElement('span');
     name.className = 'ac-line-name';
@@ -561,7 +592,11 @@ function renderAcSummary() {
     center.className = 'ac-line-center';
     const room = fmtTemp(u.room_temperature);
     const target = fmtTemp(u.set_temperature);
-    center.innerHTML = '<span class="ac-temp">' + room + ' → ' + target + '</span>';
+    // The row is a 3-column grid (name · readings · toggle), so the offline
+    // marker rides in the readings column rather than adding a fourth cell.
+    center.innerHTML =
+      (offline ? '<span class="ac-line-offline">Offline</span>' : '') +
+      '<span class="ac-temp">' + room + ' → ' + target + '</span>';
 
     // Power toggle — the app's standard switch, actionable from Home (issue #72).
     const toggle = document.createElement('button');
@@ -571,7 +606,7 @@ function renderAcSummary() {
     toggle.setAttribute('aria-checked', on ? 'true' : 'false');
     toggle.setAttribute('aria-label', 'Power ' + (displayLabel(u) || 'unit'));
     toggle.innerHTML = toggleMarkup(on);
-    toggle.disabled = acView.state === 'stale';
+    toggle.disabled = acView.state === 'stale' || offline;
     toggle.addEventListener('click', function () {
       applyControl(u.unit_id, { power: !on });
     });
