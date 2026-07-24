@@ -291,6 +291,130 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     expect(hidden_device).to_have_class(re.compile(".*is-hidden.*"))
 
 
+def test_network_device_groups_create_move_rename_and_delete(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    """The "My groups" view: create, move, auto-drop empty, rename, delete (#513)."""
+    mock_api(sample_units)
+    mock_energy()
+    snapshot = mock_network()
+    # An offline device must stay visible (shaded) in its group, with its
+    # last-known band and SSID still readable.
+    snapshot["devices"].append({
+        "mac": "AA:00:00:00:00:05",
+        "ip": "192.0.2.15",
+        "name": "Offline Tablet",
+        "display_name": "Offline Tablet",
+        "vendor": "Fixture",
+        "category": "tablet",
+        "conn_type": None,
+        "is_wireless": False,
+        "signal": None,
+        "link_rate": None,
+        "ssid": None,
+        "source": "history",
+        "online": False,
+        "important": False,
+        "hidden": False,
+        "is_new": False,
+        "randomized": False,
+        "group": None,
+        "last_conn_type": "2.4GHz",
+        "last_ssid": "TestNet-IoT",
+        "first_seen": 1_700_000_000,
+        "last_seen": 1_700_000_100,
+        "times_seen": 4,
+    })
+    _boot(page, base_url)
+
+    page.locator("#tabNetwork").click()
+    page.locator("details.net-devices-card > summary").click()
+
+    rows = page.locator("#netDevices .net-device")
+    # 4 online devices in the band view (offline is toggled off there).
+    expect(rows).to_have_count(4)
+    page.locator("#netGroupByGroup").click()
+
+    heads = page.locator("#netDevices .net-group-head")
+    # Nothing assigned yet: one synthetic Unclassified group holding every device
+    # — including the offline one, which the grouped view never hides.
+    expect(heads).to_have_count(1)
+    expect(heads.first).to_contain_text("Unclassified")
+    expect(heads.first).to_contain_text("4/5 online")
+    expect(rows).to_have_count(5)
+    # Unclassified is synthetic — it can't be renamed or deleted.
+    expect(page.locator("#netDevices .net-group-edit")).to_have_count(0)
+
+    # The offline row is present and shaded, with band + SSID + MAC readable.
+    offline_row = page.locator("#netDevices .net-device").filter(has_text="Offline Tablet")
+    expect(offline_row).to_have_class(re.compile(".*is-offline.*"))
+    expect(offline_row).to_contain_text("2.4 GHz")
+    expect(offline_row).to_contain_text("TestNet-IoT")
+    expect(offline_row).to_contain_text("AA:00:00:00:00:05")
+
+    # Create a group from the detail modal, then put a second device in it.
+    _assign_group(page, "Alpha Laptop", new_name="Elgato lights")
+    _assign_group(page, "Kitchen Speaker", existing="Elgato lights")
+
+    group_head = page.locator("#netDevices .net-group-head").filter(has_text="Elgato lights")
+    expect(group_head).to_have_count(1)
+    expect(group_head).to_contain_text("2/2 online")
+    expect(page.locator("#netDevices .net-device")).to_have_count(5)
+
+    # Move the last device out of a one-device group → the group disappears.
+    _assign_group(page, "NAS", new_name="Temp")
+    expect(page.locator("#netDevices .net-group-head").filter(has_text="Temp")).to_have_count(1)
+    _assign_group(page, "NAS", existing="")
+    expect(page.locator("#netDevices .net-group-head").filter(has_text="Temp")).to_have_count(0)
+
+    # Rename the group; both members follow it.
+    group_head.locator(".net-group-edit").click()
+    expect(page.locator("#netGroupDialog")).to_be_visible()
+    expect(page.locator("#netGroupMembers")).to_have_text("2 devices")
+    page.locator("#netGroupName").fill("Luces")
+    page.locator("#netGroupName").press("Enter")
+    renamed = page.locator("#netDevices .net-group-head").filter(has_text="Luces")
+    expect(renamed).to_have_count(1)
+    expect(renamed).to_contain_text("2/2 online")
+
+    # Delete it: the members fall back to Unclassified, nothing is lost.
+    renamed.locator(".net-group-edit").click()
+    page.locator("#netGroupDelete").click()
+    page.locator("#confirmOk").click()
+    expect(page.locator("#netDevices .net-group-head")).to_have_count(1)
+    expect(page.locator("#netDevices .net-group-head").first).to_contain_text("Unclassified")
+    expect(page.locator("#netDevices .net-device")).to_have_count(5)
+
+    # The choice persists across a reload, and so do the assignments.
+    _assign_group(page, "Alpha Laptop", new_name="Elgato lights")
+    page.reload(wait_until="domcontentloaded")
+    page.locator("#tabNetwork").click()
+    page.locator("details.net-devices-card > summary").click()
+    expect(page.locator("#netGroupByGroup")).to_have_class("net-sort-btn active")
+    expect(
+        page.locator("#netDevices .net-group-head").filter(has_text="Elgato lights")
+    ).to_have_count(1)
+
+
+def _assign_group(page: Page, device: str, existing: str = None, new_name: str = None) -> None:
+    """Open one device's detail modal and stage + save a group assignment."""
+    page.locator("#netDevices .net-device-name").filter(has_text=device).first.click()
+    expect(page.locator("#netDeviceDialog")).to_be_visible()
+    if new_name is not None:
+        page.locator("#netDeviceGroup").select_option("__new__")
+        page.locator("#netDeviceGroupNew").fill(new_name)
+    else:
+        page.locator("#netDeviceGroup").select_option(existing)
+    page.locator("#netDeviceSave").click()
+    page.locator("#netDeviceDetailClose").click()
+    expect(page.locator("#netDeviceDialog")).to_be_hidden()
+
+
 def test_network_wifi_header_stays_quiet_when_scan_unavailable(
     page: Page,
     base_url: str,

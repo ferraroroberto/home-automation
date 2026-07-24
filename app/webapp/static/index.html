@@ -1116,8 +1116,19 @@
             <button id="netHiddenToggle" type="button" class="range-tab" data-testid="net-show-hidden" hidden>Show hidden</button>
           </div>
 
-          <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz, with
-               the selected sort applied inside each group. Built in network.js. -->
+          <!-- Group by: radio band (the original view) or the user's own device
+               groups (issue #513). Persisted in localStorage. -->
+          <div class="net-devices-groupby">
+            <div class="net-sort" role="group" aria-label="Group attached devices">
+              <span class="net-sort-label">Group</span>
+              <button id="netGroupByBand" type="button" class="net-sort-btn active" data-grouping="band" data-testid="net-group-band">Band</button>
+              <button id="netGroupByGroup" type="button" class="net-sort-btn" data-grouping="group" data-testid="net-group-custom">My groups</button>
+            </div>
+          </div>
+
+          <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz — or by
+               the user's own groups — with the selected sort applied inside each
+               group. Built in network-devices.js. -->
           <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
           <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
         </div>
@@ -1932,6 +1943,18 @@
         <input id="netDeviceDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
 
+      <!-- Display group (issue #513). Options are the groups already in use plus
+           Unclassified and "New group…", which reveals the free-text field below.
+           Staged like every other field here — written only on Save. -->
+      <label class="row">
+        <span>Group</span>
+        <select id="netDeviceGroup" class="input-native" data-testid="net-device-group"></select>
+      </label>
+      <label class="row" id="netDeviceGroupNewRow" hidden>
+        <span>New group</span>
+        <input id="netDeviceGroupNew" type="text" class="input-native" placeholder="Group name…" data-testid="net-device-group-new">
+      </label>
+
       <!-- Mark important: alerts when this device drops offline (Phase 4). Hidden
            for randomised MACs (a rotating address can't be tracked). -->
       <div class="row" id="netDeviceImportantRow">
@@ -1954,6 +1977,31 @@
 
       <div class="detail-actions">
         <button id="netDeviceSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Device-group rename / delete (issue #513). Reached from the pencil on a
+       group header in the "My groups" view; never shown for Unclassified, which
+       is synthetic. Deleting only drops the assignments — its devices fall back
+       to Unclassified, none are lost. -->
+  <dialog id="netGroupDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="netGroupDialogTitle">Group</h2>
+        <button id="netGroupDialogClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Devices</span><span id="netGroupMembers" class="muted">—</span></div>
+
+      <label class="row">
+        <span>Name</span>
+        <input id="netGroupName" type="text" class="input-native" placeholder="Group name…" data-testid="net-group-name">
+      </label>
+
+      <div class="detail-actions detail-actions--split">
+        <button id="netGroupDelete" type="button" class="detail-save-btn is-danger" data-testid="net-group-delete">Delete group</button>
+        <button id="netGroupSave" type="button" class="detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>

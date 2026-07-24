@@ -66,6 +66,18 @@ def _connect(path: Optional[Path] = None) -> ContextManager[sqlite3.Connection]:
     return _sqlite_connect(DEFAULT_DB_PATH, path)
 
 
+# Columns added after the table shipped. A live DB predates them, so init_db
+# tops them up rather than relying on CREATE TABLE (which is a no-op once the
+# table exists). Each is nullable with no default, so the ALTER is safe.
+_ADDED_COLUMNS = {
+    # Last observed band and SSID (issue #513): an offline row otherwise has no
+    # connection detail at all, and "known but offline, on 2.4 GHz / TestNet-IoT"
+    # is exactly what the grouped device view needs to stay legible.
+    "last_conn_type": "TEXT",
+    "last_ssid": "TEXT",
+}
+
+
 def init_db(path: Optional[Path] = None) -> None:
     """Create the ``devices`` table if it does not exist (idempotent)."""
     with _connect(path) as conn:
@@ -85,6 +97,11 @@ def init_db(path: Optional[Path] = None) -> None:
             )
             """
         )
+        have = {str(r["name"]) for r in conn.execute("PRAGMA table_info(devices)").fetchall()}
+        for column, decl in _ADDED_COLUMNS.items():
+            if column not in have:
+                conn.execute(f"ALTER TABLE devices ADD COLUMN {column} {decl}")
+                logger.info("🧱 network history: added column %s", column)
         conn.commit()
 
 
@@ -96,6 +113,8 @@ def _row_to_record(row: sqlite3.Row) -> Dict[str, Any]:
         "times_seen": int(row["times_seen"]),
         "last_ip": row["last_ip"],
         "last_name": row["last_name"],
+        "last_conn_type": row["last_conn_type"],
+        "last_ssid": row["last_ssid"],
         "important": bool(row["important"]),
         "seeded": bool(row["seeded"]),
     }
@@ -118,7 +137,9 @@ def record_and_snapshot(
     """Upsert the currently-seen devices, returning ``(new_macs, full_snapshot)``.
 
     ``seen`` is the live, **non-randomised** device list — each item a dict with
-    ``mac`` (will be normalised), ``ip``, ``name``. ``new_macs`` are the MACs
+    ``mac`` (will be normalised), ``ip``, ``name``, and optionally ``conn_type``
+    / ``ssid`` (kept as the last-known band/SSID for offline rows). ``new_macs``
+    are the MACs
     first observed *this cycle* (the new-device alert source); it is empty on the
     very first populated read so seeding the registry doesn't alert on everything.
     The returned snapshot is the whole registry (online + offline) after the
@@ -142,15 +163,29 @@ def record_and_snapshot(
                 new_macs.append(mac)
             conn.execute(
                 """
-                INSERT INTO devices (mac, first_seen, last_seen, times_seen, last_ip, last_name, seeded)
-                VALUES (?, ?, ?, 1, ?, ?, ?)
+                INSERT INTO devices (
+                    mac, first_seen, last_seen, times_seen,
+                    last_ip, last_name, last_conn_type, last_ssid, seeded
+                )
+                VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)
                 ON CONFLICT(mac) DO UPDATE SET
-                    last_seen  = excluded.last_seen,
-                    times_seen = devices.times_seen + 1,
-                    last_ip    = COALESCE(excluded.last_ip, devices.last_ip),
-                    last_name  = COALESCE(excluded.last_name, devices.last_name)
+                    last_seen      = excluded.last_seen,
+                    times_seen     = devices.times_seen + 1,
+                    last_ip        = COALESCE(excluded.last_ip, devices.last_ip),
+                    last_name      = COALESCE(excluded.last_name, devices.last_name),
+                    last_conn_type = COALESCE(excluded.last_conn_type, devices.last_conn_type),
+                    last_ssid      = COALESCE(excluded.last_ssid, devices.last_ssid)
                 """,
-                (mac, when, when, item.get("ip"), item.get("name"), seeded),
+                (
+                    mac,
+                    when,
+                    when,
+                    item.get("ip"),
+                    item.get("name"),
+                    item.get("conn_type"),
+                    item.get("ssid"),
+                    seeded,
+                ),
             )
 
         # Bound growth: drop long-absent, non-important devices.

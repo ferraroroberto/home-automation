@@ -39,12 +39,15 @@ import {
   renderStats,
   renderDevices,
   wireNetDeviceDetail,
+  wireNetGroupDialog,
   toggleShowOffline,
   toggleShowHiddenDevices,
   setDeviceSort,
+  setDeviceGrouping,
   initShowOfflinePref,
   initShowHiddenDevicesPref,
   initDeviceSortPref,
+  initDeviceGroupingPref,
 } from './network-devices.js';
 import {
   renderWifi,
@@ -391,8 +394,10 @@ export function wireNetworkControls() {
   initShowHiddenDevicesPref();
   initShowHiddenWifiPref();
   initDeviceSortPref();
+  initDeviceGroupingPref();
   wireConfirmDialog();
   wireNetDeviceDetail();
+  wireNetGroupDialog();
   wireNetWifiDetail();
   if (els.netSpeedBtn) els.netSpeedBtn.addEventListener('click', runSpeedTest);
   if (els.netApReboot) els.netApReboot.addEventListener('click', rebootAccessPoint);
@@ -404,6 +409,12 @@ export function wireNetworkControls() {
   }
   if (els.netSortAlpha) els.netSortAlpha.addEventListener('click', function () { setDeviceSort('az'); });
   if (els.netSortSignal) els.netSortSignal.addEventListener('click', function () { setDeviceSort('signal'); });
+  if (els.netGroupByBand) {
+    els.netGroupByBand.addEventListener('click', function () { setDeviceGrouping('band'); });
+  }
+  if (els.netGroupByGroup) {
+    els.netGroupByGroup.addEventListener('click', function () { setDeviceGrouping('group'); });
+  }
   wireDhcpPlan();
 }
 

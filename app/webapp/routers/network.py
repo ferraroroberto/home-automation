@@ -15,6 +15,13 @@ alerts fall out of that: a never-before-seen device joining, and an important
 device dropping offline. ``POST /api/network/devices/{mac}/important`` toggles
 the flag.
 
+User-defined **display groups** (issue #513) ride along on the same snapshot:
+each device carries its ``group`` (null = the synthetic Unclassified bucket the
+UI renders last), assigned via ``PUT /api/network/devices/{mac}/group`` and
+maintained with ``PUT /api/network/groups/rename`` /
+``POST /api/network/groups/delete``. Groups are display-only and deliberately
+independent of ``config/dhcp_plan.json``'s IP-range categories.
+
 Partial data is normal and returned with 200: an unreachable AP or router is
 reported as ``reachable=false`` on its card, not a 500 — only an unexpected
 failure of the whole read surfaces as a 502. The opt-in throughput test
@@ -60,6 +67,12 @@ from src.network_display_names import (
     normalize_mac,
     set_network_display_name,
 )
+from src.network_groups import (
+    delete_network_group,
+    load_network_groups,
+    rename_network_group,
+    set_network_group,
+)
 from src.network_hidden import (
     load_hidden_device_macs,
     load_hidden_wifi_ids,
@@ -96,6 +109,7 @@ def _device_dict(
     d: NetDevice,
     overrides: Mapping[str, str],
     hidden_macs: Set[str],
+    groups: Mapping[str, str],
     known: Mapping[str, Mapping[str, Any]],
     now: int,
 ) -> Dict[str, Any]:
@@ -108,6 +122,9 @@ def _device_dict(
     History (Phase 4) adds ``online`` (always true here), ``first_seen`` /
     ``last_seen`` / ``times_seen``, the ``important`` flag, and an ``is_new``
     badge. Randomised MACs are never recorded, so they carry no history.
+
+    ``group`` (issue #513) is the user's display group, or ``None`` for the
+    synthetic Unclassified bucket the UI renders last.
     """
     mac_key = normalize_mac(d.mac or "")
     vendor = vendor_for_mac(d.mac or "")
@@ -126,6 +143,11 @@ def _device_dict(
         "vendor": vendor,
         "category": category_for_device(d.name, vendor, d.conn_type),
         "randomized": is_randomized_mac(d.mac or ""),
+        "group": groups.get(mac_key) or None,
+        # Last-known band/SSID: null while online (the live fields carry it) and
+        # only meaningful on the synthesised offline rows below.
+        "last_conn_type": None,
+        "last_ssid": None,
         "online": True,
         "first_seen": rec["first_seen"] if rec else None,
         "last_seen": rec["last_seen"] if rec else None,
@@ -143,12 +165,16 @@ def _offline_device_dict(
     rec: Mapping[str, Any],
     overrides: Mapping[str, str],
     hidden_macs: Set[str],
+    groups: Mapping[str, str],
 ) -> Dict[str, Any]:
     """Synthesise a row for a known device absent from the current AP read.
 
     Carries the last-known IP/name + the history fields so the list can dim it
     and show "last seen Xh ago"; ``conn_type``/``signal`` are null (we no longer
-    observe it). Randomised MACs are never recorded, so an offline row never
+    observe it). The band/SSID it *was* on ride along as ``last_conn_type`` /
+    ``last_ssid`` instead — deliberately not folded into ``conn_type``/``ssid``,
+    which mean "observed right now" and drive the band grouping and the stat
+    chips. Randomised MACs are never recorded, so an offline row never
     represents a rotating address.
     """
     vendor = vendor_for_mac(mac)
@@ -166,6 +192,9 @@ def _offline_device_dict(
         "vendor": vendor,
         "category": category_for_device(rec.get("last_name"), vendor, None),
         "randomized": False,
+        "group": groups.get(mac) or None,
+        "last_conn_type": rec.get("last_conn_type"),
+        "last_ssid": rec.get("last_ssid"),
         "online": False,
         "first_seen": rec.get("first_seen"),
         "last_seen": rec.get("last_seen"),
@@ -274,6 +303,7 @@ def _network_dict(
     s: NetworkState,
     overrides: Mapping[str, str],
     hidden_macs: Set[str],
+    groups: Mapping[str, str],
     wifi_overrides: Mapping[str, str],
     hidden_wifi_ids: Set[str],
     known: Mapping[str, Mapping[str, Any]],
@@ -286,11 +316,15 @@ def _network_dict(
     r = s.router
 
     online_macs = {normalize_mac(d.mac or "") for d in s.devices if d.mac}
-    devices = [_device_dict(d, overrides, hidden_macs, known, now) for d in s.devices]
+    devices = [
+        _device_dict(d, overrides, hidden_macs, groups, known, now) for d in s.devices
+    ]
     # Append offline rows for known devices not in the current read (Phase 4).
     for mac in sorted(known):
         if mac not in online_macs:
-            devices.append(_offline_device_dict(mac, known[mac], overrides, hidden_macs))
+            devices.append(
+                _offline_device_dict(mac, known[mac], overrides, hidden_macs, groups)
+            )
 
     alerts = list(s.alerts) + _history_alerts(known, online_macs, new_macs, overrides)
 
@@ -348,6 +382,7 @@ async def get_network(
 
     overrides = load_network_display_names()
     hidden_macs = load_hidden_device_macs()
+    groups = load_network_groups()
     wifi_overrides = load_network_wifi_display_names()
     hidden_wifi_ids = load_hidden_wifi_ids()
     now = int(time.time())
@@ -355,7 +390,13 @@ async def get_network(
     # MACs + the full registry snapshot. Best-effort: a history failure must not
     # break the live read, so fall back to no history rather than 502.
     seen = [
-        {"mac": normalize_mac(d.mac), "ip": d.ip, "name": d.name}
+        {
+            "mac": normalize_mac(d.mac),
+            "ip": d.ip,
+            "name": d.name,
+            "conn_type": d.conn_type,
+            "ssid": d.ssid,
+        }
         for d in state.devices
         if d.mac and not is_randomized_mac(d.mac)
     ]
@@ -368,6 +409,7 @@ async def get_network(
         state,
         overrides,
         hidden_macs,
+        groups,
         wifi_overrides,
         hidden_wifi_ids,
         known,
@@ -415,6 +457,19 @@ class ImportantPayload(BaseModel):
 
 class HiddenPayload(BaseModel):
     hidden: bool
+
+
+class GroupPayload(BaseModel):
+    group: str
+
+
+class GroupRenamePayload(BaseModel):
+    name: str
+    new_name: str
+
+
+class GroupDeletePayload(BaseModel):
+    name: str
 
 
 class WifiDisplayNamePayload(BaseModel):
@@ -466,6 +521,57 @@ async def update_device_important(
         logger.warning("⚠️  Failed to set important for %s: %s", mac, exc)
         raise HTTPException(status_code=500, detail=f"failed to set important: {exc}")
     return {"mac": normalize_mac(mac), "important": payload.important}
+
+
+@router.put("/api/network/devices/{mac}/group")
+async def update_device_group(mac: str, payload: GroupPayload) -> Dict[str, Any]:
+    """Assign a device to a display group, or clear it (issue #513).
+
+    An empty ``group`` drops the assignment, which is how a device returns to the
+    synthetic Unclassified bucket. A group with no members left simply stops
+    existing on the next read — there is no separate group registry to clean up.
+    """
+    group = payload.group.strip()
+    try:
+        set_network_group(mac, group)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to set group for %s: %s", mac, exc)
+        raise HTTPException(status_code=500, detail=f"failed to set group: {exc}")
+    return {"mac": normalize_mac(mac), "group": group or None}
+
+
+@router.put("/api/network/groups/rename")
+async def rename_device_group(payload: GroupRenamePayload) -> Dict[str, Any]:
+    """Rename a display group, moving every member with it.
+
+    Names are carried in the body rather than the path: a group is free-form user
+    text and may contain slashes or a leading dot, neither of which survives a
+    path segment intact.
+    """
+    name = payload.name.strip()
+    new_name = payload.new_name.strip()
+    if not name or not new_name:
+        raise HTTPException(status_code=400, detail="both 'name' and 'new_name' are required")
+    try:
+        moved = rename_network_group(name, new_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to rename group %s: %s", name, exc)
+        raise HTTPException(status_code=500, detail=f"failed to rename group: {exc}")
+    return {"name": name, "new_name": new_name, "moved": moved}
+
+
+@router.post("/api/network/groups/delete")
+async def delete_device_group(payload: GroupDeletePayload) -> Dict[str, Any]:
+    """Delete a display group; its devices fall back to Unclassified, none are lost."""
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="'name' is required")
+    try:
+        moved = delete_network_group(name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to delete group %s: %s", name, exc)
+        raise HTTPException(status_code=500, detail=f"failed to delete group: {exc}")
+    return {"name": name, "moved": moved}
 
 
 @router.put("/api/network/wifi/display_name")

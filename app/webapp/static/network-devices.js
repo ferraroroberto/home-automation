@@ -5,6 +5,13 @@
  * localStorage-backed prefs, and the rename / mark-important / hide detail modal.
  * The boot module (network.js) owns renderNetwork and calls into renderStats /
  * renderDevices here; this module calls back into renderNetwork after a mutation.
+ *
+ * Issue #513 adds a second way to group the same list: the user's own device
+ * groups instead of the radio band, with a trailing synthetic "Unclassified"
+ * bucket and a rename/delete dialog on each real group header. In that view
+ * offline devices are always shown (shaded) rather than gated behind the "Show
+ * offline" toggle — a device known-but-absent is precisely what the view is for,
+ * and a row that disappears looks identical to a device that was never there.
  */
 
 'use strict';
@@ -15,11 +22,12 @@ import {
   toast,
   NETWORK_SHOW_OFFLINE_KEY,
   NETWORK_DEVICE_SORT_KEY,
+  NETWORK_DEVICE_GROUPING_KEY,
   NETWORK_SHOW_HIDDEN_DEVICES_KEY,
 } from './state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
-import { renderNetwork } from './network.js';
+import { renderNetwork, confirmAction } from './network.js';
 import { toggleMarkup } from './toggle.js';
 
 // Mirrors src.network_client._WEAK_SIGNAL_PCT — a wireless client below this is
@@ -45,6 +53,10 @@ const CATEGORY_ICONS = {
 };
 // Human band/connection label for the detail modal.
 const CONN_LABELS = { '5GHz': '5 GHz', '2.4GHz': '2.4 GHz', wired: 'Wired' };
+// The synthetic catch-all in the "My groups" view. Never persisted, never
+// renamable or deletable, and always rendered last — it is simply whatever has
+// no explicit assignment.
+const UNCLASSIFIED = 'Unclassified';
 // Which source reported a device (issue #169) — shown only in the detail modal.
 const SOURCE_LABELS = {
   ap: 'Access point',
@@ -149,10 +161,31 @@ function renderSortControls() {
   }
 }
 
-function buildDeviceRow(d) {
+// Band + SSID as reported now, falling back to the last-known values an offline
+// row carries (the live fields are null once a device stops being observed).
+function bandOf(d) { return d.conn_type || d.last_conn_type || null; }
+function ssidOf(d) { return d.ssid || d.last_ssid || null; }
+function bandLabel(d) {
+  const band = bandOf(d);
+  return band ? (CONN_LABELS[band] || band) : '—';
+}
+
+function renderGroupingControls() {
+  const byGroup = state.networkDeviceGrouping === 'group';
+  if (els.netGroupByBand) {
+    els.netGroupByBand.classList.toggle('active', !byGroup);
+    els.netGroupByBand.setAttribute('aria-pressed', byGroup ? 'false' : 'true');
+  }
+  if (els.netGroupByGroup) {
+    els.netGroupByGroup.classList.toggle('active', byGroup);
+    els.netGroupByGroup.setAttribute('aria-pressed', byGroup ? 'true' : 'false');
+  }
+}
+
+function buildDeviceRow(d, grouped) {
   const offline = d.online === false;
   const row = document.createElement('div');
-  row.className = 'net-device';
+  row.className = 'net-device' + (grouped ? ' is-grouped' : '');
   const weak = !offline && d.is_wireless && d.signal != null && d.signal < WEAK_SIGNAL_PCT;
   if (weak) row.classList.add('is-weak');
   if (offline) row.classList.add('is-offline');
@@ -189,12 +222,23 @@ function buildDeviceRow(d) {
 
   const meta = document.createElement('span');
   meta.className = 'net-device-meta';
-  // IP, SSID for wireless clients, plus the vendor when it isn't already the
-  // shown label (avoids "Apple · Apple").
-  const metaBits = [d.ip || '—'];
-  if (d.is_wireless && d.ssid) metaBits.push('Wi-Fi ' + d.ssid);
-  if (d.vendor && label !== d.vendor) metaBits.push(d.vendor);
-  meta.textContent = metaBits.join(' · ');
+  if (grouped) {
+    // The grouped view answers "which of these is up, on what, and which box is
+    // it?" — so band and SSID are explicit (the band header no longer says it)
+    // and the MAC rides along, since that is the key the group is stored under.
+    const first = [d.ip || '—', bandLabel(d)];
+    const ssid = ssidOf(d);
+    if (ssid) first.push('Wi-Fi ' + ssid);
+    appendMetaLine(meta, first.join(' · '));
+    appendMetaLine(meta, d.mac || '—');
+  } else {
+    // IP, SSID for wireless clients, plus the vendor when it isn't already the
+    // shown label (avoids "Apple · Apple").
+    const metaBits = [d.ip || '—'];
+    if (d.is_wireless && d.ssid) metaBits.push('Wi-Fi ' + d.ssid);
+    if (d.vendor && label !== d.vendor) metaBits.push(d.vendor);
+    meta.textContent = metaBits.join(' · ');
+  }
   row.appendChild(meta);
 
   const signal = document.createElement('span');
@@ -220,6 +264,13 @@ function buildDeviceRow(d) {
   }
   row.appendChild(signal);
   return row;
+}
+
+function appendMetaLine(meta, text) {
+  const line = document.createElement('span');
+  line.className = 'net-device-meta-line';
+  line.textContent = text;
+  meta.appendChild(line);
 }
 
 // Most-recently-seen first — the sort for the trailing "Offline" group.
@@ -250,6 +301,26 @@ function renderDeviceHiddenToggle(hiddenCount) {
   btn.setAttribute('aria-pressed', state.networkShowHiddenDevices ? 'true' : 'false');
 }
 
+// The note under the list: the snapshot label when the data is restored, or the
+// reason the list is empty. Returns true when there is nothing left to render,
+// so both grouping modes can bail on the same line.
+function renderDevicesNote(hasRows, hiddenCount) {
+  if (!hasRows) {
+    els.netDevicesNote.hidden = false;
+    els.netDevicesNote.textContent = isSnapshotRestored('network')
+      ? snapshotLabel('network')
+      : (hiddenCount ? 'All attached devices are hidden.' : (state.network ? 'No attached devices reported.' : '—'));
+    return true;
+  }
+  if (isSnapshotRestored('network')) {
+    els.netDevicesNote.hidden = false;
+    els.netDevicesNote.textContent = snapshotLabel('network');
+  } else {
+    els.netDevicesNote.hidden = true;
+  }
+  return false;
+}
+
 export function renderDevices(devices) {
   const all = devices || [];
   const hiddenCount = all.filter(function (d) { return !!d.hidden; }).length;
@@ -258,25 +329,22 @@ export function renderDevices(devices) {
   });
   els.netDevices.innerHTML = '';
   renderSortControls();
+  renderGroupingControls();
+  const byGroup = state.networkDeviceGrouping === 'group';
   const online = list.filter(function (d) { return d.online !== false; });
   const offline = list.filter(function (d) { return d.online === false; });
-  renderOfflineToggle(offline.length);
+  // The offline toggle is meaningless in the grouped view, which always shows
+  // offline devices shaded in place.
+  renderOfflineToggle(byGroup ? 0 : offline.length);
   renderDeviceHiddenToggle(hiddenCount);
 
-  const showingOffline = state.networkShowOffline && offline.length > 0;
-  if (!online.length && !showingOffline) {
-    els.netDevicesNote.hidden = false;
-    els.netDevicesNote.textContent = isSnapshotRestored('network')
-      ? snapshotLabel('network')
-      : (hiddenCount ? 'All attached devices are hidden.' : (state.network ? 'No attached devices reported.' : '—'));
+  if (byGroup) {
+    renderCustomGroups(list, hiddenCount);
     return;
   }
-  if (isSnapshotRestored('network')) {
-    els.netDevicesNote.hidden = false;
-    els.netDevicesNote.textContent = snapshotLabel('network');
-  } else {
-    els.netDevicesNote.hidden = true;
-  }
+
+  const showingOffline = state.networkShowOffline && offline.length > 0;
+  if (renderDevicesNote(online.length > 0 || showingOffline, hiddenCount)) return;
 
   const seen = new Set();
   GROUPS.forEach(function (group) {
@@ -298,7 +366,80 @@ function appendGroup(label, members) {
   head.className = 'net-group-head';
   head.textContent = label + ' · ' + members.length;
   els.netDevices.appendChild(head);
-  members.forEach(function (d) { els.netDevices.appendChild(buildDeviceRow(d)); });
+  members.forEach(function (d) { els.netDevices.appendChild(buildDeviceRow(d, false)); });
+}
+
+// ------------------------------------------------------------- group view
+// The set of groups is derived from the device list alone: no registry, so an
+// empty group cannot exist and the last device leaving one makes it disappear.
+// Unclassified is appended last and only when it has members.
+function groupsOf(list) {
+  const names = [];
+  const seen = new Set();
+  list.forEach(function (d) {
+    const name = (d.group || '').trim();
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    names.push(name);
+  });
+  names.sort(function (a, b) {
+    return a.localeCompare(b, undefined, { sensitivity: 'base' });
+  });
+  return names;
+}
+
+function membersOf(list, name) {
+  return list.filter(function (d) { return (d.group || '').trim() === name; });
+}
+
+// Online first, then the chosen sort — an offline row stays in its group but
+// sinks below the live ones rather than splitting the group in two.
+function byOnlineThenSort(a, b) {
+  const oa = a.online === false ? 1 : 0;
+  const ob = b.online === false ? 1 : 0;
+  if (oa !== ob) return oa - ob;
+  return state.networkDeviceSort === 'signal'
+    ? bySignalThenName(a, b)
+    : byNameThenSignal(a, b);
+}
+
+function renderCustomGroups(list, hiddenCount) {
+  if (renderDevicesNote(list.length > 0, hiddenCount)) return;
+
+  groupsOf(list).forEach(function (name) {
+    appendCustomGroup(name, membersOf(list, name), true);
+  });
+  const rest = list.filter(function (d) { return !(d.group || '').trim(); });
+  if (rest.length) appendCustomGroup(UNCLASSIFIED, rest, false);
+}
+
+function appendCustomGroup(name, members, editable) {
+  const onlineCount = members.filter(function (d) { return d.online !== false; }).length;
+  const head = document.createElement('h4');
+  head.className = 'net-group-head net-group-head--custom';
+  const title = document.createElement('span');
+  title.textContent = name;
+  head.appendChild(title);
+  const count = document.createElement('span');
+  count.className = 'net-group-head-count';
+  // "3/4 online" answers the group-level question without expanding anything.
+  count.textContent = '· ' + onlineCount + '/' + members.length + ' online';
+  head.appendChild(count);
+  if (editable) {
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'net-group-edit';
+    edit.title = 'Rename or delete this group';
+    edit.setAttribute('aria-label', 'Edit group ' + name);
+    edit.dataset.group = name;
+    edit.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-pencil"></use></svg>';
+    edit.addEventListener('click', function () { openGroupDialog(name); });
+    head.appendChild(edit);
+  }
+  els.netDevices.appendChild(head);
+  members.slice().sort(byOnlineThenSort).forEach(function (d) {
+    els.netDevices.appendChild(buildDeviceRow(d, true));
+  });
 }
 
 // ------------------------------------------------- device detail + rename
@@ -319,6 +460,51 @@ function signalText(d) {
 
 // Render the Important switch from a device dict (Phase 4). Hidden for
 // randomised MACs, which aren't tracked, so the flag would be meaningless.
+// Sentinel option value: picking it reveals the free-text field, which is how a
+// group is created — there is no "create empty group" step, since an empty group
+// cannot exist.
+const NEW_GROUP = '__new__';
+
+function allGroupNames() {
+  return groupsOf((state.network && state.network.devices) || []);
+}
+
+function renderGroupPicker(d) {
+  const select = els.netDeviceGroup;
+  if (!select) return;
+  // Every existing group is offered; the device's own group is necessarily
+  // among them, since the list is derived from the same device array.
+  const current = (d.group || '').trim();
+  const names = allGroupNames();
+  select.innerHTML = '';
+  const options = [['', UNCLASSIFIED]]
+    .concat(names.map(function (n) { return [n, n]; }))
+    .concat([[NEW_GROUP, 'New group…']]);
+  options.forEach(function (pair) {
+    const opt = document.createElement('option');
+    opt.value = pair[0];
+    opt.textContent = pair[1];
+    select.appendChild(opt);
+  });
+  select.value = current;
+  if (els.netDeviceGroupNew) els.netDeviceGroupNew.value = '';
+  syncGroupNewRow();
+}
+
+function syncGroupNewRow() {
+  const creating = els.netDeviceGroup && els.netDeviceGroup.value === NEW_GROUP;
+  if (els.netDeviceGroupNewRow) els.netDeviceGroupNewRow.hidden = !creating;
+  return creating;
+}
+
+// The group the modal would save right now — the picked one, or the typed name
+// when "New group…" is selected.
+function stagedGroup() {
+  if (!els.netDeviceGroup) return '';
+  if (els.netDeviceGroup.value !== NEW_GROUP) return els.netDeviceGroup.value;
+  return els.netDeviceGroupNew ? els.netDeviceGroupNew.value.trim() : '';
+}
+
 function renderImportantToggle(d) {
   const btn = els.netDeviceImportant;
   if (!btn) return;
@@ -368,6 +554,7 @@ function openNetDeviceDetail(mac) {
   }
   els.netDeviceDisplayName.value = d.display_name || '';
   els.netDeviceDisplayName.placeholder = d.vendor || d.name || 'Custom label…';
+  renderGroupPicker(d);
   renderImportantToggle(d);
   renderNetDeviceHiddenToggle(d);
   netStaged = { important: !!d.important, hidden: !!d.hidden };
@@ -458,6 +645,13 @@ async function saveNetDevice() {
       body: JSON.stringify({ hidden: netStaged.hidden }),
     }).then(function () { patchNetDevice(mac, { hidden: netStaged.hidden }); }));
   }
+  const newGroup = stagedGroup();
+  if ((d.group || '') !== newGroup) {
+    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/group', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group: newGroup }),
+    }).then(function () { patchNetDevice(mac, { group: newGroup || null }); }));
+  }
   try {
     await Promise.all(ops);
     const upd = deviceByMac(mac);
@@ -486,6 +680,121 @@ export function wireNetDeviceDetail() {
   if (els.netDeviceImportant) els.netDeviceImportant.addEventListener('click', toggleImportant);
   if (els.netDeviceHiddenToggle) els.netDeviceHiddenToggle.addEventListener('click', toggleDeviceHidden);
   if (els.netDeviceSave) els.netDeviceSave.addEventListener('click', saveNetDevice);
+  if (els.netDeviceGroup) {
+    els.netDeviceGroup.addEventListener('change', function () {
+      if (syncGroupNewRow() && els.netDeviceGroupNew) els.netDeviceGroupNew.focus();
+      markNetDirty();
+    });
+  }
+  if (els.netDeviceGroupNew) {
+    els.netDeviceGroupNew.addEventListener('input', markNetDirty);
+    els.netDeviceGroupNew.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); saveNetDevice(); }
+    });
+  }
+}
+
+// -------------------------------------------------- group rename / delete
+// The dialog only ever edits a real (persisted) group; Unclassified has no
+// pencil, so there is no path here for it.
+let selectedGroup = null;
+
+function openGroupDialog(name) {
+  if (!els.netGroupDialog) return;
+  selectedGroup = name;
+  const members = membersOf((state.network && state.network.devices) || [], name);
+  els.netGroupDialogTitle.textContent = name;
+  els.netGroupMembers.textContent = members.length +
+    (members.length === 1 ? ' device' : ' devices');
+  els.netGroupName.value = name;
+  if (els.netGroupSave) els.netGroupSave.disabled = true;
+  if (typeof els.netGroupDialog.showModal === 'function') els.netGroupDialog.showModal();
+  else els.netGroupDialog.setAttribute('open', '');
+  els.netGroupName.focus();
+}
+
+function closeGroupDialog() {
+  selectedGroup = null;
+  if (typeof els.netGroupDialog.close === 'function') els.netGroupDialog.close();
+  else els.netGroupDialog.removeAttribute('open');
+}
+
+// Rewrite the group on every local device row so the list re-renders without
+// waiting for the next poll — the same optimistic pattern as the device modal.
+function patchGroupLocally(from, to) {
+  if (!(state.network && Array.isArray(state.network.devices))) return;
+  state.network.devices = state.network.devices.map(function (d) {
+    return (d.group || '') === from ? Object.assign({}, d, { group: to || null }) : d;
+  });
+}
+
+async function saveGroupName() {
+  const name = selectedGroup;
+  if (!name) return;
+  const next = els.netGroupName.value.trim();
+  if (!next || next === name) { closeGroupDialog(); return; }
+  if (els.netGroupSave) els.netGroupSave.disabled = true;
+  try {
+    await jsonApi('/api/network/groups/rename', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, new_name: next }),
+    });
+    patchGroupLocally(name, next);
+    closeGroupDialog();
+    renderNetwork();
+    toast('Group renamed', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to rename group: ' + (exc.message || exc), 'error');
+    }
+    if (els.netGroupSave) els.netGroupSave.disabled = false;
+  }
+}
+
+async function deleteGroup() {
+  const name = selectedGroup;
+  if (!name) return;
+  const members = membersOf((state.network && state.network.devices) || [], name);
+  const ok = await confirmAction({
+    title: 'Delete group?',
+    message: '"' + name + '" is removed. Its ' + members.length +
+      (members.length === 1 ? ' device moves' : ' devices move') +
+      ' to Unclassified — nothing is deleted from the network.',
+    okLabel: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await jsonApi('/api/network/groups/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name }),
+    });
+    patchGroupLocally(name, '');
+    closeGroupDialog();
+    renderNetwork();
+    toast('Group deleted', 'success');
+  } catch (exc) {
+    if (String(exc.message) !== 'auth required') {
+      toast('Failed to delete group: ' + (exc.message || exc), 'error');
+    }
+  }
+}
+
+export function wireNetGroupDialog() {
+  if (!els.netGroupDialog) return;
+  els.netGroupDialogClose.addEventListener('click', closeGroupDialog);
+  els.netGroupDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.netGroupDialog) closeGroupDialog();  // backdrop
+  });
+  els.netGroupName.addEventListener('input', function () {
+    const next = els.netGroupName.value.trim();
+    if (els.netGroupSave) els.netGroupSave.disabled = !next || next === selectedGroup;
+  });
+  els.netGroupName.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); saveGroupName(); }
+  });
+  if (els.netGroupSave) els.netGroupSave.addEventListener('click', saveGroupName);
+  if (els.netGroupDelete) els.netGroupDelete.addEventListener('click', deleteGroup);
 }
 
 // ------------------------------------------------- prefs + toggles
@@ -523,6 +832,22 @@ export function initShowHiddenDevicesPref() {
       localStorage.getItem(NETWORK_SHOW_HIDDEN_DEVICES_KEY) === '1';
   } catch (_e) {
     state.networkShowHiddenDevices = false;
+  }
+}
+
+export function setDeviceGrouping(grouping) {
+  state.networkDeviceGrouping = grouping === 'group' ? 'group' : 'band';
+  try { localStorage.setItem(NETWORK_DEVICE_GROUPING_KEY, state.networkDeviceGrouping); }
+  catch (_e) { /* private mode — in-memory only */ }
+  renderNetwork();
+}
+
+export function initDeviceGroupingPref() {
+  try {
+    state.networkDeviceGrouping =
+      localStorage.getItem(NETWORK_DEVICE_GROUPING_KEY) === 'group' ? 'group' : 'band';
+  } catch (_e) {
+    state.networkDeviceGrouping = 'band';
   }
 }
 
