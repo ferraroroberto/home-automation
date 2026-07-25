@@ -46,7 +46,7 @@ def test_security_schedule_store_normalizes_and_persists(tmp_path) -> None:
     assert load_security_schedules(path=path) == entries
 
 
-def test_security_schedule_due_respects_weekday_and_grace() -> None:
+def test_security_schedule_due_respects_weekday_and_stays_due_all_day() -> None:
     entry = SecurityScheduleEntry(
         id="night",
         enabled=True,
@@ -56,7 +56,17 @@ def test_security_schedule_due_respects_weekday_and_grace() -> None:
     )
 
     assert schedule_due(entry, datetime(2026, 6, 22, 21, 0, 30), 120) is True
-    assert schedule_due(entry, datetime(2026, 6, 22, 21, 3, 0), 120) is False
+    # #527: still due hours later the same day — a schedule that first fails
+    # (e.g. a transient RISCO outage) keeps getting retried, not just given a
+    # narrow window and then abandoned until the same time tomorrow. tick()'s
+    # own last_fire_day bookkeeping (tested separately) is what actually stops
+    # a schedule firing twice once it succeeds.
+    assert schedule_due(entry, datetime(2026, 6, 22, 21, 3, 0), 120) is True
+    assert schedule_due(entry, datetime(2026, 6, 22, 23, 59, 0), 120) is True
+    # Not yet due before the fire time.
+    assert schedule_due(entry, datetime(2026, 6, 22, 20, 59, 59), 120) is False
+    # Wrong weekday (Wednesday); Tuesday's slot from the day before is also
+    # long past its short backward-look grace window by this point.
     assert schedule_due(entry, datetime(2026, 6, 24, 21, 0, 30), 120) is False
 
 
@@ -157,6 +167,53 @@ def test_security_schedule_tick_alerts_after_confirm_exhausts_retries(monkeypatc
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "arm", "error")]
     assert recorded[0]["dedupe_key"] == "schedule:arm-fails"
+
+
+def test_security_schedule_tick_retries_failed_entry_hours_later_same_day(monkeypatch) -> None:
+    """#527: a schedule that fails right after its fire time must not be
+    abandoned until tomorrow — it should still fire successfully hours later
+    the same day, once whatever was wrong (a transient RISCO outage) clears."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="flaky", time="05:00", days=["mon"], action="disarm"),
+    ]
+    outcomes = iter(["fail", "ok"])
+
+    async def fake_confirm(action: str) -> object:
+        if next(outcomes) == "fail":
+            raise engine.RiscoCommandError("panel read back 'perimeter' after disarm, not the expected state")
+        return _FakeState("disarmed")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    state = engine._EngineState(last_fire_day={})
+
+    # First attempt, right at the fire time, fails.
+    asyncio.run(engine.tick(config, state, datetime(2026, 6, 22, 5, 4, 0)))
+    assert state.last_fire_day == {}
+
+    # Hours later, well past the old ~120s grace window, it succeeds.
+    asyncio.run(engine.tick(config, state, datetime(2026, 6, 22, 11, 0, 0)))
+    assert state.last_fire_day == {"flaky": "2026-06-22"}
+
+    outcomes_seen = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes_seen == [
+        ("schedule", "disarm", "error"),
+        ("schedule", "disarm", "ok"),
+    ]
+
+    # A third tick the same day must not re-apply the now-succeeded schedule.
+    asyncio.run(engine.tick(config, state, datetime(2026, 6, 22, 15, 0, 0)))
+    assert len(recorded) == 2
 
 
 def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:

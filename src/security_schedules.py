@@ -92,15 +92,37 @@ def set_security_schedules(raw_entries: List[dict], path: Optional[Path] = None)
 
 
 def schedule_due(entry: SecurityScheduleEntry, now: datetime, grace_s: int) -> bool:
-    """True when ``now`` is inside this entry's local fire window."""
+    """True when ``now`` is inside this entry's fire window.
+
+    A schedule becomes due at its fire time and stays due for the rest of
+    that same calendar day, so a schedule that first fails (a transient RISCO
+    outage, say) keeps getting retried on later polls instead of only getting
+    one narrow window and then waiting until the same time tomorrow (#527).
+    ``tick()``'s own ``last_fire_day`` bookkeeping is what actually stops a
+    schedule firing twice in one day, so widening this window is safe on its
+    own — it only controls how long a *not-yet-successful* schedule keeps
+    being retried.
+
+    ``grace_s`` still bounds the one backward-looking case: a schedule whose
+    fire time was very late the previous night, caught in the few minutes
+    just after local midnight. That look-back is deliberately kept short —
+    letting a stale "yesterday" identity retry for hours into today would let
+    it consume today's own once-a-day fire slot.
+    """
 
     hour, minute = (int(part) for part in entry.time.split(":", 1))
     days = set(entry.days or [])
-    for schedule_day in (now, now - timedelta(days=1)):
-        if schedule_day.strftime("%a").lower()[:3] not in days:
-            continue
-        fire_at = schedule_day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    if now.strftime("%a").lower()[:3] in days:
+        fire_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if fire_at <= now:
+            return True
+
+    yesterday = now - timedelta(days=1)
+    if yesterday.strftime("%a").lower()[:3] in days:
+        fire_at = yesterday.replace(hour=hour, minute=minute, second=0, microsecond=0)
         delta = (now - fire_at).total_seconds()
         if 0 <= delta < grace_s:
             return True
+
     return False
