@@ -239,6 +239,77 @@ def test_error_dedupes_once_per_day_but_logs_every_attempt(tmp_path: Path, monke
     assert len(notifier.sent) == 2
 
 
+def test_failed_delivery_does_not_burn_the_days_dedupe(tmp_path: Path, monkeypatch) -> None:
+    """#527: the dedupe marker must only be written after a *confirmed*
+    successful send. Before the fix it was written unconditionally, so a
+    delivery failure (or an unconfigured notifier) silently ate the day's
+    only retry with no way to recover."""
+
+    _redirect_logs(monkeypatch, tmp_path)
+    day = datetime(2026, 7, 25, 5, 4, 0)
+    dedupe_path = tmp_path / "alarm_notify_dedupe.json"
+
+    # First attempt: delivery fails.
+    asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_SCHEDULE, action="disarm", outcome=AN.OUTCOME_ERROR,
+        error="panel read back 'perimeter' after disarm, not the expected state",
+        dedupe_key="schedule:schedule-mqrvx3dd", now=day,
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: BoomNotifier(),
+    ))
+    assert not dedupe_path.exists()  # nothing delivered yet — not marked as sent
+
+    # Later the same day: delivery succeeds — must still go through.
+    notifier = FakeNotifier()
+    asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_SCHEDULE, action="disarm", outcome=AN.OUTCOME_ERROR,
+        error="panel read back 'perimeter' after disarm, not the expected state",
+        dedupe_key="schedule:schedule-mqrvx3dd", now=day,
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: notifier,
+    ))
+    assert len(notifier.sent) == 1
+    dedupe = json.loads(dedupe_path.read_text())
+    assert dedupe == {"schedule:schedule-mqrvx3dd": "2026-07-25"}
+
+    # A third attempt the same day is now correctly suppressed.
+    asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_SCHEDULE, action="disarm", outcome=AN.OUTCOME_ERROR,
+        error="panel read back 'perimeter' after disarm, not the expected state",
+        dedupe_key="schedule:schedule-mqrvx3dd", now=day,
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: notifier,
+    ))
+    assert len(notifier.sent) == 1
+
+
+def test_unconfigured_notifier_does_not_burn_the_days_dedupe(tmp_path: Path, monkeypatch) -> None:
+    _redirect_logs(monkeypatch, tmp_path)
+    asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_SCHEDULE, action="arm", outcome=AN.OUTCOME_ERROR,
+        error="panel offline", dedupe_key="schedule:weekday",
+        now=datetime(2026, 7, 25, 5, 4, 0),
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: None,
+    ))
+    assert not (tmp_path / "alarm_notify_dedupe.json").exists()
+
+
+def test_successful_send_logs_info_breadcrumb(tmp_path: Path, monkeypatch, caplog) -> None:
+    """#527: a successful Telegram send must leave a log trace — before the
+    fix, only a failed send was ever logged, so a successful delivery was
+    indistinguishable from a silent no-op just by reading the logs."""
+
+    _redirect_logs(monkeypatch, tmp_path)
+    with caplog.at_level("INFO", logger="app.webapp.alarm_notify"):
+        asyncio.run(AN.record_alarm_action(
+            source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_OK,
+            prefs_loader=lambda: AlarmNotifyPrefs(presence_arm=True),
+            notifier_factory=lambda: FakeNotifier(),
+        ))
+    assert any("Telegram alarm notification sent" in r.message for r in caplog.records)
+
+
 # ------------------------------------------- panel events (intrusion / ac_lost)
 
 
@@ -317,6 +388,48 @@ def test_intrusion_log_carries_diagnostic_flags_but_telegram_stays_clean(
     assert rows[0]["diagnostic"] == "ongoing_alarm=False memory_alarm=True"
     assert len(notifier.sent) == 1
     assert "ongoing_alarm" not in notifier.sent[0]  # diagnostic stays log-only
+
+
+def test_security_tracker_persists_across_restart_and_logs_baseline(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    """#527: the intrusion/ac_lost tracker used to be in-memory only, so every
+    tray restart re-hit the "first observation" no-alert branch — silently
+    forgetting an already-active condition each time. It must now survive a
+    simulated restart (a fresh module-level dict reloaded from disk), and the
+    first-ever observation must still be visible in the log even though it
+    doesn't alert."""
+
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    state_path = tmp_path / "alarm_security_state.json"
+    monkeypatch.setattr(AN, "_SECURITY_STATE_PATH", state_path)
+    monkeypatch.setattr(AN, "_last_security", {"intrusion": None, "ac_lost": None})
+    notifier = FakeNotifier()
+    prefs = lambda: AlarmNotifyPrefs(intrusion=True, ac_lost=True)
+
+    # First-ever observation: already True (e.g. a still-latched alarm).
+    # Baseline only — no alert — but it must leave a log breadcrumb.
+    with caplog.at_level("INFO", logger="app.webapp.alarm_notify"):
+        asyncio.run(AN.check_security_transitions(
+            intrusion=True, ac_lost=False, prefs_loader=prefs, notifier_factory=lambda: notifier,
+        ))
+    assert notifier.sent == []
+    assert any("baseline set: intrusion=True" in r.message for r in caplog.records)
+    assert json.loads(state_path.read_text()) == {"intrusion": True, "ac_lost": False}
+
+    # Simulate a tray restart: fresh in-memory dict, reloaded from disk.
+    monkeypatch.setattr(AN, "_last_security", AN._load_security_state())
+    assert AN._last_security == {"intrusion": True, "ac_lost": False}
+
+    # A genuinely new intrusion (already True -> stays True) must not spam,
+    # but clearing then re-triggering after the restart still alerts once.
+    asyncio.run(AN.check_security_transitions(
+        intrusion=False, ac_lost=False, prefs_loader=prefs, notifier_factory=lambda: notifier,
+    ))
+    asyncio.run(AN.check_security_transitions(
+        intrusion=True, ac_lost=False, prefs_loader=prefs, notifier_factory=lambda: notifier,
+    ))
+    assert len(notifier.sent) == 1 and "TRIGGERED" in notifier.sent[0]
 
 
 def test_security_ac_lost_alerts_both_directions_and_respects_toggle(tmp_path: Path, monkeypatch) -> None:

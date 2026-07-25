@@ -250,12 +250,10 @@ async def record_alarm_action(
     if not _should_notify(prefs, source, action, outcome):
         return
 
+    today = (now or datetime.now()).strftime("%Y-%m-%d")
     if outcome == OUTCOME_ERROR and dedupe_key is not None:
-        today = (now or datetime.now()).strftime("%Y-%m-%d")
         if _last_error_notify.get(dedupe_key) == today:
             return
-        _last_error_notify[dedupe_key] = today
-        _save_dedupe(_last_error_notify)
 
     notifier = notifier_factory()
     if notifier is None:
@@ -269,6 +267,16 @@ async def record_alarm_action(
         )
     except NotifierError as exc:  # delivery must never break the automation loop
         logger.warning("⚠️ Telegram alarm notification failed: %s", exc)
+        return
+
+    logger.info("✅ Telegram alarm notification sent: %s/%s/%s", source, action, outcome)
+    # Only mark the day as "already notified" once a send actually went
+    # through - marking it beforehand (the old behaviour) meant an
+    # unconfigured/failing notifier silently burned the day's one alert for
+    # good, with no retry (#527).
+    if outcome == OUTCOME_ERROR and dedupe_key is not None:
+        _last_error_notify[dedupe_key] = today
+        _save_dedupe(_last_error_notify)
 
 
 # --------------------------------------------------------------------------
@@ -276,9 +284,40 @@ async def record_alarm_action(
 # edge-triggered off the live RISCO SecurityState, polled by the presence loop.
 # --------------------------------------------------------------------------
 
-# Last-seen panel flags. Process-lifetime; a condition already active at startup
-# sets the baseline (no alert) so we only notify on a genuine transition.
-_last_security: Dict[str, Optional[bool]] = {"intrusion": None, "ac_lost": None}
+# Last-seen panel flags: intrusion / ac_lost -> True/False, or absent/None
+# before ever observed. Persisted to disk (like the dedupe state above) so a
+# tray restart doesn't re-hit the "first observation" no-alert branch below
+# and silently forget an already-active condition (#527) — before this, the
+# tracker was in-memory only and reset to blank on every restart.
+_SECURITY_STATE_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "logs" / "alarm_security_state.json"
+)
+
+
+def _load_security_state() -> Dict[str, Optional[bool]]:
+    try:
+        raw = json.loads(_SECURITY_STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"intrusion": None, "ac_lost": None}
+    if not isinstance(raw, dict):
+        return {"intrusion": None, "ac_lost": None}
+    return {"intrusion": raw.get("intrusion"), "ac_lost": raw.get("ac_lost")}
+
+
+def _save_security_state(state: Dict[str, Optional[bool]]) -> None:
+    try:
+        _SECURITY_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _SECURITY_STATE_PATH.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_SECURITY_STATE_PATH)
+    except OSError as exc:
+        logger.warning("⚠️ Could not persist alarm security state: %s", exc)
+
+
+# A condition already active the first time it's ever observed still just
+# sets the baseline (no alert) — there's no prior value to compare against,
+# so we can't tell whether it's new. See check_security_transitions().
+_last_security: Dict[str, Optional[bool]] = _load_security_state()
 
 _SECURITY_MESSAGES = {
     ("intrusion", True): "🚨 ALARM TRIGGERED at home",
@@ -329,6 +368,8 @@ async def record_security_event(
         await asyncio.to_thread(notifier.send_text, message)
     except NotifierError as exc:
         logger.warning("⚠️ Telegram security notification failed: %s", exc)
+        return
+    logger.info("✅ Telegram security notification sent: %s active=%s", kind, active)
 
 
 async def check_security_transitions(
@@ -355,13 +396,24 @@ async def check_security_transitions(
     """
 
     tracker = _last_security if state is None else state
+    persist = state is None  # tests inject their own tracker — never touch disk for those
     log_details = {"intrusion": intrusion_detail}
     for kind, value in (("intrusion", intrusion), ("ac_lost", ac_lost)):
         if value is None:
             continue  # unreadable this poll — don't disturb the tracked state
         last = tracker.get(kind)
+        if last == value:
+            continue  # no change since the last known reading
         tracker[kind] = value
-        if last is None or last == value:
+        if persist:
+            _save_security_state(tracker)
+        if last is None:
+            # First-ever reading for this key — no prior value to compare
+            # against, so this only records the baseline (see the module
+            # comment above _last_security). Logged at INFO so a real
+            # already-active-at-first-sight condition is at least visible in
+            # webapp.log even though it doesn't alert (#527).
+            logger.info("ℹ️ Security tracker baseline set: %s=%s", kind, value)
             continue
         if kind == "intrusion" and value is False:
             continue  # intrusion cleared — not an alert
