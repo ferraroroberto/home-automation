@@ -735,24 +735,9 @@ button, input, select, textarea {
   font-weight: 700;
   flex: none;
 }
-.snapshot-badge {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  min-height: 22px;
-  padding: 2px 7px;
-  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--attention) 12%, transparent);
-  color: var(--attention);
-  font-size: var(--font-caption);
-  font-weight: 700;
-  line-height: 1.15;
-  white-space: normal;
-}
 /* "Offline" chip beside the unit name — says *why* the card's controls are
-   inert. Same pill recipe as .snapshot-badge, in the attention color so it
-   stays readable through the card's reduced opacity in both themes. */
+   inert. Pill shape in the attention color so it stays readable through the
+   card's reduced opacity in both themes. */
 .unit-offline-badge {
   display: inline-flex;
   align-items: center;

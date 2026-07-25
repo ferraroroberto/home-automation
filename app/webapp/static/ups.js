@@ -83,11 +83,8 @@ function renderUpsTile(tile, ups, compact) {
   tile.classList.toggle('is-unavailable', !available);
 
   const title = 'UPS';
-  const snapshot = isSnapshotRestored('ups') && upsView.state !== 'stale'
-    ? '<span class="snapshot-badge">' + esc(snapshotLabel('ups')) + '</span>'
-    : '';
   const identity =
-    '<div class="ups-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg><span>' + esc(title) + '</span>' + snapshot + '</div>';
+    '<div class="ups-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg><span>' + esc(title) + '</span></div>';
 
   // Home tile (#253): one line at weather-tile height — identity, then bare
   // charge % and runtime pulled onto the title row (no labels — a % and a
@@ -101,7 +98,12 @@ function renderUpsTile(tile, ups, compact) {
       '<span>' + esc(fmtRuntime(ups && ups.runtime_seconds)) + '</span></span>' +
       '<span class="ups-status">' + esc(statusText(ups)) + '</span>' +
       '</div>';
-    if (upsView.state === 'stale') {
+    // Shown whenever the tile is stale (a live fetch failed) OR a cached
+    // snapshot painted before the first live fetch has resolved — the union
+    // the old per-card pill and this note used to cover between them, now in
+    // this one thin-line style (issue #522), matching Energy/Plugs/Network/
+    // Security's single-note pattern.
+    if (upsView.state === 'stale' || isSnapshotRestored('ups')) {
       const note = document.createElement('p');
       note.className = 'muted small ups-stale-note';
       note.textContent = upsView.liveUnavailable

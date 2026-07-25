@@ -251,6 +251,67 @@ def test_ups_poll_failure_preserves_last_good_status(
     expect(page.locator("#homeUpsTile")).not_to_contain_text("192.0.2.70")
 
 
+def test_ups_snapshot_paints_before_live_refresh(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    # #522: the UPS tile used to pop a per-card orange pill for this cached-
+    # while-loading window; it must now use the same thin `.ups-stale-note`
+    # line the poll-failure case already renders (test above), not just when
+    # upsView.state === 'stale' but also while a snapshot is painted ahead of
+    # the first live fetch resolving.
+    mock_api(sample_units)
+    mock_energy()
+    mock_tuya([])
+    cached_ups = {
+        "available": True, "source": "nut", "status": "online",
+        "mains_online": True, "battery_charge_pct": 77,
+        "runtime_seconds": 1800, "alarms": [],
+    }
+    live_ups = {
+        "available": True, "source": "nut", "status": "online",
+        "mains_online": True, "battery_charge_pct": 90,
+        "runtime_seconds": 3600, "alarms": [],
+    }
+    snapshot_store = {
+        "version": 1,
+        "snapshots": {
+            "ups": {
+                "saved_at": "2026-06-24T20:15:00.000Z",
+                "body": {"ups": cached_ups},
+            },
+        },
+    }
+    page.add_init_script("""
+        const snapshotStore = %s;
+        const liveUps = %s;
+        localStorage.setItem('home-automation.apiSnapshots.v1', JSON.stringify(snapshotStore));
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url === '/api/ups' || url.endsWith('/api/ups')) {
+            return new Promise(function(resolve) {
+              setTimeout(function() {
+                resolve(new Response(JSON.stringify({ups: liveUps}), {
+                  status: 200,
+                  headers: {'Content-Type': 'application/json'},
+                }));
+              }, 1000);
+            });
+          }
+          return originalFetch(input, init);
+        };
+    """ % (json.dumps(snapshot_store), json.dumps(live_ups)))
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+
+    expect(page.locator("#homeUpsTile")).to_contain_text("77%")
+    expect(page.locator("#homeUpsTile .ups-stale-note")).to_contain_text("Last saved")
+
+    expect(page.locator("#homeUpsTile")).to_contain_text("90%", timeout=4000)
+    expect(page.locator("#homeUpsTile .ups-stale-note")).to_have_count(0)
+
+
 def test_metered_plug_shows_watts(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
