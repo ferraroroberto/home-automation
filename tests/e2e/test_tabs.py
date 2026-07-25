@@ -607,12 +607,14 @@ def test_units_snapshot_paints_before_live_refresh(
     mock_energy()
     _boot(page, base_url)
 
+    # #522: no per-card pill — the cached-vs-live swap is communicated once,
+    # via the existing pane-level thin stale-note line (renderAcFeedback()).
     expect(page.locator("#acSummary")).to_contain_text("Snapshot Office")
-    expect(page.locator(".snapshot-badge").first).to_contain_text("Last saved")
+    expect(page.locator("#acFeedback")).to_contain_text("Last saved")
 
     expect(page.locator("#acSummary")).to_contain_text("Live Office", timeout=4000)
     expect(page.locator("#acSummary")).not_to_contain_text("Snapshot Office")
-    expect(page.locator(".snapshot-badge")).to_have_count(0)
+    expect(page.locator("#acFeedback")).not_to_contain_text("Last saved")
 
 
 def test_energy_tab_renders_flow_and_charts(

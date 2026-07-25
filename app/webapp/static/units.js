@@ -22,7 +22,7 @@ import {
 import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
 import { jsonApi } from './api.js';
-import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 import { createViewState } from './view-state.js';
 
@@ -239,8 +239,7 @@ function renderCardInto(card, unit) {
     '<span class="unit-name"></span>' +
     (offline ? '<span class="unit-offline-badge" title="Not reachable — controls are disabled">Offline</span>' : '') +
     (schedCount ? '<span class="unit-schedule-badge" title="' + schedCount + ' schedule' + (schedCount === 1 ? '' : 's') + '">' +
-      icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '') +
-    (isSnapshotRestored('units') ? '<span class="snapshot-badge">' + snapshotLabel('units') + '</span>' : '');
+      icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '');
   header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
   top.appendChild(header);
