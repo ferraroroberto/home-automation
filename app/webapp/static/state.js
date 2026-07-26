@@ -499,6 +499,7 @@ export const els = {
   acSummary: document.getElementById('acSummary'),
   // Voice cheat sheet (Home tab, issue #437)
   voiceCommandsCard: document.getElementById('voiceCommandsCard'),
+  voiceLangToggle: document.getElementById('voiceLangToggle'),
   voiceCommandsList: document.getElementById('voiceCommandsList'),
   voiceCommandsNote: document.getElementById('voiceCommandsNote'),
   // Wake alarms + timers (Home tab, issue #304)

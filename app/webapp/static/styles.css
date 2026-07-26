@@ -1218,20 +1218,17 @@ button, input, select, textarea {
 
 /* Voice reference sections (#437, shared with the "What can I do?" guide in
    #461). The spoken example is the one thing the eye should land on, so it
-   gets the only filled surface. */
-.voice-group { padding: 12px 0; border-top: 1px solid var(--line); }
-.voice-group:first-child { border-top: 0; padding-top: var(--space-xs); }
-.voice-group-head {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  color: var(--ink);
-  font-size: var(--font-label);
-  font-weight: 700;
-  line-height: 1.25;
-}
-.voice-group-head .icon { width: 18px; height: 18px; color: var(--accent); }
+   gets the only filled surface. Each group is its own <details> so
+   alarm/wake-alarms/locator/etc. fold independently — reuses the shared
+   .collapse-summary/.collapse-chevron disclosure, just with a lighter title
+   size to read as a level below the "What can I say?" card it nests inside. */
+.voice-group { border-top: 1px solid var(--line); }
+.voice-group:first-child { border-top: 0; }
+.voice-group > .collapse-summary { padding: 12px 0; }
+.voice-group:first-child > .collapse-summary { padding-top: var(--space-xs); }
+.voice-group .collapse-title { font-size: var(--font-label); }
+.voice-group .collapse-icon { color: var(--accent); }
+.voice-group-body { padding: 0 0 12px; }
 .voice-group-summary { margin: var(--space-xs) 0 0 26px; line-height: 1.45; }
 .voice-command { margin: var(--space-sm) 0 0 26px; }
 .voice-command-intent {
@@ -1272,11 +1269,13 @@ button, input, select, textarea {
 .voice-group-notes li + li { margin-top: var(--space-xs); }
 /* Language filter for the cheat sheet (#466): the alarm, wake-alarm and locator
    commands answer on both pipelines, so an EN/ES/All segmented toggle narrows the
-   list to one language. A single-language build would just show "All" pressed. */
+   list to one language. A single-language build would just show "All" pressed.
+   Sits inline in the "What can I say?" summary row — .collapse-main's
+   own baseline alignment would sink a pill this short, so it's recentred here. */
 .voice-lang-toggle {
   display: inline-flex;
+  align-self: center;
   gap: 2px;
-  margin: 0 0 var(--space-sm);
   padding: 2px;
   border: 1px solid var(--line-muted);
   border-radius: var(--radius-pill);
