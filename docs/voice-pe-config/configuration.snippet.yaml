@@ -295,6 +295,17 @@ intent_script:
       text: >-
         Puedes decir: añade leche y dos huevos. Pon el objetivo de leche a cuatro. Anota que tenemos dos aceites. No quedan huevos. Qué hay que comprar. O di: quiero añadir cosas a la lista, y te preguntaré qué quieres.
 
+  # Web search (issue #321) is English-only for now — wired only into the
+  # "Okay Nabu" pipeline's extended_openai_conversation web_search function.
+  # The Spanish pipeline's built-in agent has no LLM fallback by design
+  # (docs/voice-control.md), so a search-shaped Spanish question would
+  # otherwise just get a generic "no entiendo". Static reply, no rest call,
+  # matched by custom_sentences/es/websearch.yaml — mirrors GroceryHelp.
+  WebSearchUnavailable:
+    speech:
+      text: >-
+        La búsqueda por internet todavía solo funciona en inglés. Di Okay Nabu para buscar.
+
 # Multi-turn grocery add (issue #315): the trigger phrase opens a follow-up
 # question on the same puck (assist_satellite.ask_question, HA 2025.7+), the
 # free Spanish answer is captured by a bare wildcard and relayed to the app,

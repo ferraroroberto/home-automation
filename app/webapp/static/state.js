@@ -25,6 +25,8 @@ export const state = {
   vm: null,
   // HA-owned Voice PE rooms + recent interactions from GET /api/ha (#239).
   ha: null,
+  // SearXNG container status from GET /api/searxng (issue #321).
+  searxng: null,
   // Elgato light cards from GET /api/lights.
   lights: [],
   // device_id whose rename modal is open (or null).
@@ -353,6 +355,11 @@ export const els = {
   haSatellitesNote: document.getElementById('haSatellitesNote'),
   haInteractionsList: document.getElementById('haInteractionsList'),
   haInteractionsNote: document.getElementById('haInteractionsNote'),
+  // Search-engine (SearXNG) status sub-card (issue #321).
+  searxngCard: document.getElementById('searxngCard'),
+  searxngSummaryState: document.getElementById('searxngSummaryState'),
+  searxngNote: document.getElementById('searxngNote'),
+  searxngStartBtn: document.getElementById('searxngStartBtn'),
   // Plug rename modal
   plugDialog: document.getElementById('plugDialog'),
   plugDetailName: document.getElementById('plugDetailName'),

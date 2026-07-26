@@ -1,0 +1,37 @@
+# Home Assistant custom sentences — Spanish "web search unavailable" reply
+# (issue #321).
+#
+# Install at the HA VM path: /config/custom_sentences/es/websearch.yaml
+#
+# The "Asistente (es)" pipeline (wake word "Hey Mycroft") runs the built-in
+# deterministic conversation agent — no LLM fallback, by design (see
+# docs/voice-control.md). Web search is wired only into the English "Okay
+# Nabu" pipeline's extended_openai_conversation web_search rest function.
+# Without this file, a Spanish search-shaped question just falls through to
+# a generic "no entiendo" — this file matches the common patterns instead
+# and gives a clear, deterministic answer (the WebSearchUnavailable
+# intent_script in configuration.snippet.yaml), so the user knows where
+# things stand rather than getting a silent-seeming failure.
+#
+# A bounded set of trigger phrasings, not a catch-all wildcard: a broad
+# wildcard risks silently shadowing intents this file knows nothing about,
+# now or in the future. Widen the phrase list here if a common phrasing is
+# missed in practice.
+language: "es"
+
+lists:
+  query:
+    wildcard: true
+
+intents:
+  WebSearchUnavailable:
+    data:
+      - sentences:
+          - "busca [en internet] {query}"
+          - "búscame {query}"
+          - "búscame información (de|sobre) {query}"
+          - "(qué|que) es {query}"
+          - "(quién|quien) es {query}"
+          - "(qué|que) noticias hay (de|sobre) {query}"
+          - "cuánto cuesta {query}"
+          - "cuánto vale {query}"

@@ -26,6 +26,7 @@ def test_groups_cover_every_wired_feature() -> None:
         "alarm",
         "wake-alarms",
         "locator",
+        "web-search",
         "grocery",
         "built-ins",
     ]

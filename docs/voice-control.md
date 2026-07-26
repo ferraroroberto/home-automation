@@ -168,6 +168,79 @@ whisper's prompt-based biasing may simply be too weak for this specific confusio
 the issue's own "last resort" (phonetic-confusion tolerance in
 `src.presence_roles.resolve_person`) would need reconsidering.
 
+## Web search (Tier 3) — issue #321
+
+The freeform brain (`qwen3.5-4b-nothink`, Tier 3) had **zero web/search access** — its
+prompt explicitly said "if you do not know, say so", so any question needing current
+info (news, sports scores, prices, facts outside training data) just got "I don't know".
+This is read-only information retrieval feeding the same terse one-sentence-spoken-reply
+prompt already in place — it never gains actuation capability, so it doesn't touch the
+Tier 1/2 safety doctrine at all.
+
+**Decision: self-hosted [SearXNG](https://docs.searxng.org/)**, not a hosted paid API —
+no key, no per-query cost, keeps the local-first posture of the rest of this pipeline.
+Runs as a Docker container on the hub PC (`192.168.0.13:8085`), in the sister
+`local-llm-hub` repo's `docker/searxng/` stack (`start_searxng.bat`/`stop_searxng.bat`,
+mirroring its existing `docker/langfuse/`) — not in this repo, since it's standalone host
+infra rather than application code. JSON output is off by default in SearXNG
+(abuse-prevention); `docker/searxng/config/settings.yml` enables `search.formats: [html,
+json]`. Reachable from the HA VM with no extra firewall rule — Docker Desktop's WSL2
+networking exposes published ports to the LAN without going through Windows Firewall the
+way a native process would.
+
+**Wiring:** a new `rest`-type function (`web_search`) on the existing "Hub Haiku"
+`extended_openai_conversation` subentry, alongside `execute_services` — same
+`.storage/core.config_entries` edit pattern as the #234 model swap and #280/#286 TTS
+changes, backed up under `/config/backups/voice-web-search/` before writing. The model
+calls it with a `query` argument; `resource_template` hits
+`http://192.168.0.13:8085/search?q={{ query | urlencode }}&format=json` (the executor
+passes the function's arguments as the template's own variable namespace — `{{ query
+}}`, not `{{ arguments.query }}`, a gotcha caught by testing the template against HA's
+`/api/template` endpoint before wiring it live); `value_template` trims the JSON response
+to the top 3 results' title + a 150-char snippet so the tool-result context stays small.
+The system prompt gained one rule telling the model to call `web_search` for current-info
+questions and to say so (never guess) if it finds nothing useful.
+
+**English only for now.** The Spanish pipeline ("Hey Mycroft") runs HA's built-in
+conversation agent — deterministic-only, no LLM fallback, by design (see "Command
+routing" above). Making Spanish search actually work would mean adding an LLM agent to
+that pipeline for the first time, a real architecture change beyond this spike. Instead,
+`docs/voice-pe-config/custom_sentences/es/websearch.yaml` matches a bounded set of
+search-shaped Spanish phrasings (`busca ...`, `qué es ...`, `quién es ...`, `cuánto
+cuesta ...`, etc.) against a static `WebSearchUnavailable` intent_script (mirrors
+`GroceryHelp`'s no-rest-call shape) that replies "La búsqueda por internet todavía solo
+funciona en inglés. Di Okay Nabu para buscar." — a clear deterministic answer instead of
+a generic "no entiendo" or silence.
+
+**Verified end-to-end** via `POST /api/conversation/process` (no browser, no live speaker
+test needed — matches the probe-based verification already used elsewhere in this repo):
+
+| Question (English) | Answer | Latency |
+|---|---|---|
+| "who won the last super bowl" | "The Seattle Seahawks won the last Super Bowl against the New England Patriots." | 1788 ms |
+| "what is the current price of one bitcoin in dollars" | "One Bitcoin is currently trading at approximately $64,000." | 1953 ms |
+| "what is the weather forecast for tokyo tomorrow" | "Tokyo is expected to be rainy tomorrow with a high of 77 degrees and a low of 75 degrees." | 2036 ms |
+| "what is 2 plus 2" (no search needed — regression check) | "2 plus 2 equals 4." | 323 ms |
+| "what is the capital of france" (no search needed) | "The capital of France is Paris." | 311 ms |
+
+Search-backed answers land around **1.8–2.0 s** (vs. the ~0.7–1.0 s baseline from #234) —
+the added cost is one LAN round trip to SearXNG plus a second model pass to summarize the
+result. Non-search questions are unaffected. Spanish: "busca en internet quien gano la
+super bowl" → the deterministic English-only reply; existing Spanish grocery/alarm
+intents regression-checked as unaffected.
+
+**Webapp status card:** the Home Assistant disclosure's **Search engine** sub-card
+(`GET /api/searxng`, `POST /api/searxng/start`) shows the container's live status and a
+Start button when it's down — `src/searxng_client.py` mirrors `src/hyperv_client.py`'s
+shape (shell out, flatten, "partial data stays 200"), probing `/healthz` to distinguish
+"container up" from "actually answering queries".
+
+**To revert:** remove the `web_search` entry from the `functions` YAML in the Hub Haiku
+subentry (restore from `/config/backups/voice-web-search/`) and drop the added prompt
+rule, then `ha core restart`. The Spanish custom_sentences/intent_script can stay — they
+degrade to a no-op "no entiendo" only if the English side is also reverted and someone
+still asks in Spanish, which is harmless either way.
+
 ## Setup reference
 
 ### Substrate
@@ -367,3 +440,7 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
   `qwen3.5-4b-nothink` alias (`local-llm-hub#159` + `#161`); ~0.7–1.0 s end-to-end. See
   [`voice-model-benchmark.md`](voice-model-benchmark.md).
 - Hardware: external powered speaker (3.5 mm) + stronger kitchen 2.4 GHz Wi-Fi.
+- Tier-3 web search: **done + wired live** (#321) — self-hosted SearXNG backs a new
+  `web_search` function, English only for now. See "Web search (Tier 3)" above. Spanish
+  LLM fallback (to make Spanish search actually work) is a real architecture change and
+  a candidate follow-up issue, not scoped here.

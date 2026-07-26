@@ -1136,6 +1136,14 @@ button, input, select, textarea {
 .ha-summary-transition { color: var(--attention); }
 .vm-toggle { flex: none; }
 .ha-note { margin: 9px 0 0; }
+/* Search-engine sub-card Start button (issue #321) — same ghost sizing as
+   .wake-timer-start-btn, .big-btn already supplies the base look. */
+.searxng-start-btn {
+  margin-top: 10px;
+  width: auto;
+  padding: 0 16px;
+  white-space: nowrap;
+}
 .ha-satellite-list,
 .ha-interaction-list { display: flex; flex-direction: column; }
 .ha-satellite-row,

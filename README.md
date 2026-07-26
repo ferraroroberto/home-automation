@@ -1160,6 +1160,14 @@ The VM is pinned to **`192.168.0.4`** via a **static MAC + router DHCP reservati
 3. **Reboot the VM** so it picks up the `.4` lease, then verify: the Home tile's sub-line should read `192.168.0.4 · 00:15:5D:01:2A:0B`.
 4. **Re-point the deploy config**: set `HA_SSH_HOST=192.168.0.4` and `HA_URL=http://192.168.0.4:8123` in `.env`, drop the stale SSH host key (`ssh-keygen -R "[192.168.0.102]:2222"`), and re-run `scripts/ha_config_sync.py preflight`.
 
+## Search engine (SearXNG) — voice web-search backend (#321)
+
+The voice assistant's Tier-3 freeform brain (see `docs/voice-control.md`) had no way to answer questions needing current info — it just said "I don't know". [SearXNG](https://docs.searxng.org/) (self-hosted, no API key, no cloud) now backs a new `web_search` function on the English ("Okay Nabu") `extended_openai_conversation` agent. Full decision record, verified transcripts, and latency numbers: `docs/voice-control.md` "Web search (Tier 3)".
+
+Runs as a Docker container on this same PC (the `local-llm-hub` repo's `docker/searxng/` stack, `start_searxng.bat`/`stop_searxng.bat`) — the Home Assistant disclosure's **Search engine** sub-card shows its live status (`GET /api/searxng`) and a Start button when it's down (`POST /api/searxng/start`). `SEARXNG_URL` / `SEARXNG_COMPOSE_PATH` in `.env` point the webapp at it (see `.env.example`).
+
+**English only for now.** The Spanish pipeline's conversation agent is deliberately deterministic-only (no LLM fallback), so a Spanish search-shaped question gets a clear "search is English-only for now" reply (`docs/voice-pe-config/custom_sentences/es/websearch.yaml` + the `WebSearchUnavailable` intent_script) instead of a silent-seeming "no entiendo".
+
 ## CLI
 
 Print every device's live state:

@@ -324,6 +324,34 @@ _LOCATOR = VoiceCommandGroup(
     ),
 )
 
+_WEB_SEARCH = VoiceCommandGroup(
+    id="web-search",
+    title="Web search",
+    icon="globe",
+    summary="Open questions needing current info (news, prices, facts outside training data) get a real answer instead of \"I don't know\" — English only for now.",
+    commands=(
+        VoiceCommand(
+            id="web-search-ask",
+            intent="Ask a current-info question",
+            reply="Searches the web (SearXNG, self-hosted, no cloud) and summarizes the answer in one short sentence.",
+            phrasings=(
+                Phrasing(
+                    lang="en",
+                    wake_word=WAKE_WORD_EN,
+                    phrases=("who won the last super bowl", "what's the price of bitcoin", "what's the news on <topic>"),
+                    example="Okay Nabu, who won the last super bowl",
+                ),
+            ),
+        ),
+    ),
+    notes=(
+        "English only for now (issue #321) — ask in Spanish (\"Hey Mycroft\") and it replies that "
+        "search is English-only, rather than \"no entiendo\" or staying silent.",
+        "A real internet search, not a cloud AI lookup — it can answer things past the local model's "
+        "training data, but isn't guaranteed accurate for every query.",
+    ),
+)
+
 _GROCERY = VoiceCommandGroup(
     id="grocery",
     title="Grocery list",
@@ -485,6 +513,7 @@ VOICE_COMMAND_GROUPS: Tuple[VoiceCommandGroup, ...] = (
     _ALARM,
     _WAKE_ALARMS,
     _LOCATOR,
+    _WEB_SEARCH,
     _GROCERY,
     _BUILT_INS,
 )
