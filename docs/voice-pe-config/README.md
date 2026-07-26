@@ -56,6 +56,20 @@ A **separate** feature from both alarms above — every phrase says "reminder"/"
 
 The sentence lists are in `custom_sentences/en/reminder.yaml`. All three intents reuse the existing `!secret app_api_authorization` — **no new secret**. **English only for now** — no Spanish sentences ship for reminders (unlike wake alarms), so this is the one bridge without a `custom_sentences/es/` twin.
 
+### Calendar (issue #313) — create-only
+
+A **separate** feature from Reminders above — every phrase says "calendar" so it never collides with `reminder.yaml`/`wake_alarm.yaml`/`alarm.yaml`. Writes a **real Google Calendar event** via this app's own Google OAuth token (`src/calendar_write.py`) — not Home Assistant's calendar integration, not a local JSON store. Google Calendar itself is the only source of truth: there's no `/api/calendar` list/edit surface, so there's nothing here to list, edit, or cancel yet (a natural follow-up, not built now).
+
+| You say (after "Okay Nabu, …") | Intent | App call |
+|---|---|---|
+| "add dentist appointment to my calendar tomorrow at 3pm" · "create a calendar event for team offsite on friday" · "put buy the cake on my calendar" | add | `POST /api/calendar/voice` → splits the event summary from an optional due-date/time cue, creates it in Google Calendar, speaks the confirmation |
+
+**Supported due-date/time cues** (parsed server-side in `src/calendar_events.py:parse_spoken_calendar_event`): `at 6pm` / `at 14:30`, `tomorrow`, `today`, `on friday`. A date with no time → an **all-day** event; a time with no date defaults to **today** (or **tomorrow** if that time has already passed); **no date at all fails gracefully** ("Sorry, I need at least a date...") — unlike reminders, a calendar event can't be undated. A timed event with no explicit duration defaults to **60 minutes** (`DEFAULT_EVENT_DURATION_MINUTES`).
+
+The sentence list is in `custom_sentences/en/calendar.yaml`. Reuses the existing `!secret app_api_authorization` — **no new HA secret** (this hits the app's own API, never Google directly from HA). **English only for now**.
+
+**One-time setup (outside `ha_config_sync.py` — this isn't HA config):** run `python -m scripts.auth_calendar_write` once after setting `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` (see `.env.example`) — opens a browser for a one-time Google consent, then persists the refresh token to `config/calendar_write_token.json` (gitignored). See the top-level README's "Calendar" section for the full Google Cloud Console setup.
+
 ### Family locator (issue #438) — "where's mom/dad" + same-turn ETA (#470, #485)
 
 Read-only query — no actuation, so no code-gating needed. `{who}` is a free-text wildcard capturing the spoken name or household role; the app resolves it via role aliases (set from the Security tab's Presence card), display-name overrides, or raw names, then answers with the resolved place — a configured named place (e.g. "the gym"), "home", or "away" (cached Find My data only; no new iCloud locate cost). Whenever they're **away** (not home, not unknown), the same answer also speaks a traffic-aware ETA home — one turn, no follow-up question.
@@ -117,6 +131,7 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 - `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml` (RISCO security alarm)
 - `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
 - `custom_sentences/en/reminder.yaml` → `/config/custom_sentences/en/reminder.yaml` (reminders, #314 — English only, no Spanish twin)
+- `custom_sentences/en/calendar.yaml` → `/config/custom_sentences/en/calendar.yaml` (calendar create-only, #313 — English only, no Spanish twin)
 - `custom_sentences/en/locate.yaml` → `/config/custom_sentences/en/locate.yaml` (family locator — now empty `intents: {}`, the match moved to the `presence_locator` automation, #470)
 - `custom_sentences/es/alarm.yaml` → `/config/custom_sentences/es/alarm.yaml` (RISCO security alarm in Spanish, #466)
 - `custom_sentences/es/wake_alarm.yaml` → `/config/custom_sentences/es/wake_alarm.yaml` (wake alarms in Spanish, #466)
@@ -188,6 +203,7 @@ Use this only when SSH/script deploy is unavailable (add-on down, key not yet pr
 - Then a full cycle: "perimeter on" → check the app's Security tab → "disarm \<code\>".
 - **Spanish (#466):** "Hey Mycroft, ¿cómo está la alarma?" → "La alarma está desarmada"; "pon una alarma para las siete y media entre semana" → it speaks the Spanish confirmation. Text-probe without a voice: `… -m scripts.ha_config_sync probe --text "cómo está la alarma" --language es --actuate` (a read; `action_done` = matched), and `--text "pon una alarma para las siete y media entre semana" --language es --actuate` then `--text "cancela mi alarma" --language es --actuate` to clean up.
 - **Wake alarms:** "set a wake alarm for 7 am on weekdays" → it speaks it back → confirm it appears on the Home-tab card (or `GET /api/wake-alarms`) → "cancel my wake alarm". Text-probe without speaking: `… -m scripts.ha_config_sync probe --text "set a wake alarm for 7 am" --actuate` (a reply of type `action_done` = matched locally).
+- **Calendar:** requires the one-time `scripts/auth_calendar_write.py` bootstrap first (see above). "add dentist appointment to my calendar tomorrow at 3pm" → it speaks a confirmation → check the event actually appears in the real Google Calendar app/web UI (external verification — there's no local list to check instead). Text-probe: `… -m scripts.ha_config_sync probe --text "add dentist appointment to my calendar tomorrow at 3pm" --actuate` — note this **really creates a Google Calendar event** (create-only, no dry-run), unlike the read-only alarm-status probe.
 - **Family locator:** set a role (Security tab → Presence → a person's detail modal → "Role") and at least one named place (Presence → "Places"), then "Okay Nabu, where's \<role\>" → it speaks the resolved place. Text-probe: `… -m scripts.ha_config_sync probe --text "where's dad"`. Spanish (#446): "Hey Mycroft, ¿dónde está papá?" → "Roberto está en casa"; text-probe with `--text "donde esta papa" --language es --actuate`. Whisper mishearing "dad" as "that" (#444) is a transcription-layer issue a text-probe cannot exercise — after the STT vocabulary bias above binds, verify by voice: say "Okay Nabu, where's dad" a few times and confirm `logs/presence_locate.jsonl` shows `who: dad` resolving correctly each time.
 - **ETA-home follow-up (#470):** with `GOOGLE_MAPS_API_KEY` set in the app's `.env` and a home in `config/location.json`, ask "where's \<role\>" while that person is **away** → after the place answer the puck asks "…how long to get home?" → say "yes" and it speaks a traffic-aware drive time (`logs/presence_eta.jsonl` records the resolve). The follow-up is an `assist_satellite.ask_question` turn, so — like the multi-turn grocery add — it can only be exercised **by voice on a real puck**, not by a text-probe (a probe drives a single conversation turn with no satellite to ask back). Endpoint alone: `GET /api/presence/eta?who=dad` (loopback, no auth) returns the `speech`. Missing key/home/route each speak a distinct fallback rather than erroring.
 - **Timers (native, no deploy):** "set a timer for 2 minutes" → wait for the TTS chime; "cancel the timer".

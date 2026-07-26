@@ -78,3 +78,12 @@ resvg-py>=0.3.0
 
 # Streamlit POC spike (independent throwaway data/debug view)
 streamlit>=1.30.0
+
+# Google Calendar write access for voice-created events (issue #313), scoped
+# to calendar.events only (insert/update/delete — no calendar-list/ACL read).
+# Adapted from the same installed-app OAuth pattern whatsapp-radar#217 built;
+# the token is independent per app (see scripts/auth_calendar_write.py).
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+requests>=2.31.0

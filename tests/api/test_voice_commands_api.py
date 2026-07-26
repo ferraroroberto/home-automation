@@ -20,6 +20,7 @@ def test_voice_commands_payload(client: TestClient) -> None:
         "alarm",
         "wake-alarms",
         "reminders",
+        "calendar",
         "locator",
         "web-search",
         "grocery",

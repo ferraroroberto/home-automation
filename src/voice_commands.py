@@ -345,6 +345,37 @@ _REMINDERS = VoiceCommandGroup(
     ),
 )
 
+_CALENDAR = VoiceCommandGroup(
+    id="calendar",
+    title="Calendar",
+    icon="calendar",
+    summary="Create-only: writes a real Google Calendar event, not an app-local list. Every phrase says “calendar”, so it can never collide with reminders or wake alarms.",
+    commands=(
+        VoiceCommand(
+            id="calendar-add",
+            intent="Add a calendar event",
+            reply="Speaks back the event summary and the date/time it created, once the event is really in Google Calendar.",
+            phrasings=(
+                Phrasing(
+                    lang="en",
+                    wake_word=WAKE_WORD_EN,
+                    phrases=(
+                        "add dentist appointment to my calendar tomorrow at 3pm",
+                        "create a calendar event for team offsite on friday",
+                        "put buy the cake on my calendar",
+                    ),
+                    example="Okay Nabu, add dentist appointment to my calendar tomorrow at 3pm",
+                ),
+            ),
+        ),
+    ),
+    notes=(
+        "English only for now — no Spanish sentences ship for calendar events.",
+        "Needs at least a date: a time with no date defaults to today (or tomorrow if that time already passed); neither a date nor a time gets a clarifying reply instead of a guess.",
+        "Create-only — no listing, editing, or cancelling an existing event yet.",
+    ),
+)
+
 _LOCATOR = VoiceCommandGroup(
     id="locator",
     title="Family locator",
@@ -570,6 +601,7 @@ VOICE_COMMAND_GROUPS: Tuple[VoiceCommandGroup, ...] = (
     _ALARM,
     _WAKE_ALARMS,
     _REMINDERS,
+    _CALENDAR,
     _LOCATOR,
     _WEB_SEARCH,
     _GROCERY,
