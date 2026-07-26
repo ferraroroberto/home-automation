@@ -1093,6 +1093,27 @@ API: `GET`/`PUT /api/reminders` (list/replace).
 
 > **Not** in scope here: LLM-based parsing (stays regex/best-effort, Tier-1 local matching, same convention as wake alarms), recurring reminders, and a native Home Assistant `todo.reminders` entity (the voice surface is custom-sentence + `rest_command` only, mirroring wake alarms — a native entity is a natural follow-up if it's ever wanted).
 
+## Calendar
+
+Voice-only, **create-only** Google Calendar integration (issue #313) — "Okay Nabu, add dentist appointment to my calendar tomorrow at 3pm" creates a real event in your Google Calendar. Deliberately **not** app-local storage and **not** Home Assistant's native calendar integration: this app owns a Google OAuth token directly (mirroring whatsapp-radar#217's pattern) and writes straight to the Google Calendar API, independent of any HA calendar entity — there's no local list, so there's nothing to expose as an HA `calendar.py` platform either.
+
+**Voice.** *"add dentist appointment to my calendar tomorrow at 3pm"* — a thin voice API parses the spoken event summary + optional due-date/time server-side and creates it: `POST /api/calendar/voice` (`{phrase}` → parse, shape, create, speak the confirmation). Parsing lives in `src/calendar_events.py:parse_spoken_calendar_event` (tested): a date + time → a timed 60-minute event; a date with no time → all-day; a time with no date defaults to today/tomorrow; no date at all fails gracefully ("I need at least a date..."). The HA sentences/wiring are in [`docs/voice-pe-config/`](docs/voice-pe-config/) (`calendar.yaml`).
+
+**One-time Google Cloud setup:**
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create (or reuse whatsapp-radar's existing) OAuth client of type **Desktop app** — OAuth *clients* aren't tied to one codebase, so reusing one is fine. Download its JSON.
+2. Set `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` to that downloaded file's path.
+3. Run `python -m scripts.auth_calendar_write` once — opens a browser for consent, writes the **independent** write token to `config/calendar_write_token.json` (gitignored). The token is per-app even when the OAuth client is shared, so this app's calendar access can be revoked/rotated without touching whatsapp-radar's.
+
+Optional `.env` knobs:
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `GOOGLE_CALENDAR_CREDENTIALS_PATH` | `config/calendar_credentials.json` | Path to the downloaded OAuth Desktop-app client JSON. |
+| `GOOGLE_CALENDAR_TOKEN_PATH` | `config/calendar_write_token.json` | Where the write token persists (gitignored). |
+| `GOOGLE_CALENDAR_TIMEZONE` | `Europe/Madrid` | IANA timezone stamped on created events. |
+
+> **Not** in scope here: listing/editing/cancelling an existing calendar event (create-only — a natural follow-up), a native Home Assistant `calendar.py` platform (nothing local to expose — Google Calendar is the only store), and any PWA UI surface (voice + Google Calendar's own apps only).
+
 ## Voice control (hands-free, fully local)
 
 A Home Assistant Voice PE puck driven by the local LLM hub gives hands-free, **no-cloud**
@@ -1103,7 +1124,8 @@ the command path and a hallucinated reply can never actuate. The first live brid
 status"* hit `POST /api/security/{arm,partial,perimeter,disarm}` and `GET /api/security`,
 with a spoken-code gate on disarm. **Wake alarms** (#306) are the second bridge — see
 [Wake alarms & timers](#wake-alarms--timers) above. **Reminders** (#314) are the third — see
-[Reminders](#reminders) above.
+[Reminders](#reminders) above. **Calendar** (#313) is the fourth — see [Calendar](#calendar)
+above.
 
 - **Operating & architecture manual:** [`docs/voice-control.md`](docs/voice-control.md)
   (setup, pipeline, troubleshooting, the live alarm action bridge).
