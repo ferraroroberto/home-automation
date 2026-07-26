@@ -1292,6 +1292,14 @@ button, input, select, textarea {
   border-radius: var(--radius-pill);
   background: var(--input-bg);
 }
+/* The toggle above is taller than the icon/title and re-centred on its own,
+   which stretches this row's cross-axis beyond every other .collapse-summary
+   — but .collapse-title still defaults to .collapse-main's baseline
+   alignment, so once the row is taller than icon+title alone, the title no
+   longer lands on the row's visual center (issue #541). Center it here too,
+   scoped to this one summary so every other .collapse-summary (which has no
+   such taller sibling) is untouched. */
+#voiceCommandsCard > .collapse-summary .collapse-title { align-self: center; }
 .voice-lang-toggle button {
   appearance: none;
   border: 1px solid transparent;
