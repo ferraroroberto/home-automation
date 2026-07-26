@@ -13,10 +13,13 @@ through the shared helper instead of calling ``control_system`` directly.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 
+import app.webapp.alarm_notify as AN
 import app.webapp.presence_automation as PA
+from src.activity_log import log_path_for
 from src.presence_engine import PresenceDecision
 from src.risco_client import RiscoCommandError
 
@@ -65,7 +68,11 @@ def _wire_common(monkeypatch) -> None:
     monkeypatch.setattr(PA, "load_kids_home_override", lambda: False)
     monkeypatch.setattr(PA, "send_push", lambda *a, **k: None)
     monkeypatch.setattr(PA, "append_trigger_log", lambda event: None)
-    monkeypatch.setattr(PA, "_sync_arm_block_diagnostic", lambda security_mode: None)
+
+    async def fake_sync_arm_block_diagnostic(security_mode: str) -> None:
+        pass
+
+    monkeypatch.setattr(PA, "_sync_arm_block_diagnostic", fake_sync_arm_block_diagnostic)
 
 
 def test_presence_tick_applies_arm_via_confirm_helper_and_records_ok(monkeypatch) -> None:
@@ -189,15 +196,120 @@ def test_sync_arm_block_diagnostic_logs_once_per_episode(monkeypatch, caplog) ->
         seen_keys.add(b.key)
         return is_new
 
+    async def fake_record_alarm_action(**kw) -> None:
+        pass
+
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
     monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
     monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: block)
     monkeypatch.setattr(PA, "set_arm_block", fake_set_arm_block)
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
 
     with caplog.at_level(logging.INFO, logger=PA.logger.name):
-        PA._sync_arm_block_diagnostic("disarmed")
-        PA._sync_arm_block_diagnostic("disarmed")
+        asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
+        asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
 
     block_logs = [r.message for r in caplog.records if "Auto-arm blocked" in r.message]
     assert len(block_logs) == 1
     assert "ana" in block_logs[0]
+
+
+def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypatch) -> None:
+    """Regression for #533: a UI note alone wasn't enough - the user wants a
+    proactive Telegram ping through the SAME alert path already used for a
+    presence-triggered arm that failed to confirm (``record_alarm_action``
+    with ``SOURCE_PRESENCE``/``OUTCOME_ERROR``), fired once per new blocking
+    episode - never on every ~10s poll while the same block persists.
+    """
+
+    from src.presence_engine import PresenceBlock
+
+    block = PresenceBlock(
+        key="block:ana:2026-07-25T20:21:21+00:00",
+        blocking_person_ids=("ana",),
+        since=datetime(2026, 7, 25, 20, 21, 21, tzinfo=timezone.utc),
+    )
+    recorded: list[dict] = []
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
+    monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: block)
+    # First call observes a new episode; second call (unchanged block) does not.
+    monkeypatch.setattr(PA, "set_arm_block", lambda b: len(recorded) == 0)
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
+
+    asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
+    asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
+
+    assert len(recorded) == 1
+    call = recorded[0]
+    assert call["source"] == PA.SOURCE_PRESENCE
+    assert call["action"] == "arm"
+    assert call["outcome"] == PA.OUTCOME_ERROR
+    assert "ana" in call["error"]
+    assert call["dedupe_key"] == f"presence:blocked:{block.key}"
+
+
+def test_sync_arm_block_diagnostic_does_not_alert_when_block_clears(monkeypatch) -> None:
+    """The clearing transition (block -> None) must not itself page Telegram -
+    only a newly-appearing block should."""
+
+    recorded: list[dict] = []
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
+    monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: None)
+    monkeypatch.setattr(PA, "set_arm_block", lambda b: True)  # clearing is itself "new"
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
+
+    asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
+
+    assert recorded == []
+
+
+def test_sync_arm_block_diagnostic_end_to_end_writes_activity_log(monkeypatch, tmp_path) -> None:
+    """Integration check for #533: runs the REAL ``record_alarm_action`` (not
+    mocked, unlike the tests above) so the full chain - diagnostic -> Telegram
+    call site -> activity log - is exercised together, not just each piece in
+    isolation. Safe to run for real: ``build_alarm_notifier()`` has its own
+    hard safety net that returns ``None`` whenever ``pytest`` is loaded (see
+    ``src/notify_config.py``), so no real Telegram send is attempted here -
+    only the ``logs/alarm.jsonl`` side effect is observed.
+    """
+
+    from src.presence_engine import PresenceBlock
+
+    monkeypatch.setattr(AN, "_DEDUPE_PATH", tmp_path / "alarm_notify_dedupe.json")
+    AN._last_error_notify.clear()
+
+    block = PresenceBlock(
+        key="block:ana:2026-07-25T20:21:21+00:00",
+        blocking_person_ids=("ana",),
+        since=datetime(2026, 7, 25, 20, 21, 21, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
+    monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: block)
+    monkeypatch.setattr(PA, "set_arm_block", lambda b: True)  # first observation
+
+    asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
+
+    lines = log_path_for("alarm").read_text(encoding="utf-8").strip().splitlines()
+    entries = [json.loads(line) for line in lines]
+    assert entries == [
+        {
+            "source": PA.SOURCE_PRESENCE,
+            "action": "arm",
+            "event": "set",
+            "outcome": PA.OUTCOME_ERROR,
+            "error": "ana still reported home since 2026-07-25T20:21:21+00:00",
+            "ts": entries[0]["ts"],
+            "consumer": "alarm",
+        }
+    ]
