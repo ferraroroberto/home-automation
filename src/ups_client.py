@@ -8,12 +8,50 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 logger = logging.getLogger("ups")
+
+# Backoff for a persistently-failing local NUT source (issue #537): a NUT
+# server that isn't running gets its upsc.exe/usbhid-ups.exe subprocess
+# re-spawned (and timed out after 5-8s) on every ~15s poll tick otherwise.
+# Not per-device — there's exactly one local UPS — just one tracker per NUT
+# path, since either can be available independently of the other.
+_BACKOFF_BASE_S = 15.0
+_BACKOFF_MAX_S = 300.0
+_BACKOFF_FACTOR = 2.0
+_BACKOFF_MAX_EXPONENT = 10  # 15 * 2**10 already far exceeds _BACKOFF_MAX_S
+
+
+@dataclass
+class _SourceBackoff:
+    consecutive_failures: int = 0
+    next_retry_at: float = 0.0  # monotonic seconds; 0 == no backoff active
+
+    def seconds_remaining(self) -> Optional[float]:
+        remaining = self.next_retry_at - time.monotonic()
+        return remaining if remaining > 0 else None
+
+    def record_failure(self) -> float:
+        self.consecutive_failures += 1
+        exponent = min(self.consecutive_failures - 1, _BACKOFF_MAX_EXPONENT)
+        delay = min(_BACKOFF_MAX_S, _BACKOFF_BASE_S * (_BACKOFF_FACTOR ** exponent))
+        self.next_retry_at = time.monotonic() + delay
+        return delay
+
+    def record_success(self) -> None:
+        self.consecutive_failures = 0
+        self.next_retry_at = 0.0
+
+
+_backoff_lock = threading.Lock()
+_nut_backoff = _SourceBackoff()
+_nut_direct_backoff = _SourceBackoff()
 
 # Hide the console window each subprocess would otherwise pop on Windows
 # (these run on every Plugs/Home UPS poll). No-op off Windows. Mirrors the
@@ -65,20 +103,40 @@ class UpsState:
         return asdict(self)
 
 
+def _try_nut_source(backoff: _SourceBackoff, label: str, read_fn) -> Optional[UpsState]:
+    """Attempt one NUT read path, gated by its own backoff (issue #537).
+
+    Returns the state on success, or ``None`` to fall through — either because
+    the attempt failed (backoff escalated) or because it's still within a
+    prior failure's backoff window (skipped without spawning a subprocess).
+    """
+    with _backoff_lock:
+        remaining = backoff.seconds_remaining()
+    if remaining is not None:
+        logger.debug("NUT %s still backed off (%.0fs remaining) — skipping", label, remaining)
+        return None
+    try:
+        nut = read_fn()
+    except Exception as exc:  # noqa: BLE001
+        with _backoff_lock:
+            delay = backoff.record_failure()
+        logger.info("ℹ️ NUT %s unreachable; backing off %.0fs before next attempt: %s", label, delay, exc)
+        return None
+    if not nut.available:
+        return None
+    with _backoff_lock:
+        backoff.record_success()
+    return nut
+
+
 def fetch_ups_state() -> UpsState:
     """Read the local USB UPS state, preferring NUT when configured/available."""
-    try:
-        nut = _read_nut()
-        if nut.available:
-            return nut
-    except Exception as exc:  # noqa: BLE001
-        logger.info("ℹ️ NUT UPS read unavailable: %s", exc)
-    try:
-        nut = _read_nut_direct()
-        if nut.available:
-            return nut
-    except Exception as exc:  # noqa: BLE001
-        logger.info("ℹ️ Direct NUT HID read unavailable: %s", exc)
+    nut = _try_nut_source(_nut_backoff, "upsc", _read_nut)
+    if nut is not None:
+        return nut
+    nut = _try_nut_source(_nut_direct_backoff, "usbhid-ups direct", _read_nut_direct)
+    if nut is not None:
+        return nut
 
     try:
         return _read_windows_battery()

@@ -24,6 +24,7 @@ from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, mak
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
 from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 from src.tuya_client import (
+    TuyaBackoffActive,
     TuyaCommandError,
     TuyaConfigError,
     TuyaDeviceInfo,
@@ -115,6 +116,13 @@ def _read_one(
         return card
     try:
         state = read_device_state(info.device_id)
+    except TuyaBackoffActive as exc:
+        # Distinct from a genuine live failure (issue #537): this device is
+        # being deliberately skipped this tick, not reconnected and refused —
+        # DEBUG only, the escalation itself already logged at INFO once.
+        card["error"] = "Offline — backing off after repeated failures (retrying automatically)."
+        logger.debug("Tuya device %s skipped (backoff): %s", info.device_id, exc)
+        return card
     except (TuyaCommandError, TuyaConfigError) as exc:
         card["error"] = "Offline — no response on the LAN (powered off?)."
         logger.info("ℹ️ Tuya device %s unreachable: %s", info.device_id, exc)
