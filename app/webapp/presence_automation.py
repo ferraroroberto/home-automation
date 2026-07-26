@@ -66,13 +66,15 @@ def _evaluate_current_decision(security_mode: str) -> Optional[PresenceDecision]
     )
 
 
-def _sync_arm_block_diagnostic(security_mode: str) -> None:
+async def _sync_arm_block_diagnostic(security_mode: str) -> None:
     """Update the persisted "why hasn't auto-arm fired" diagnostic (#531).
 
     Runs every tick regardless of whether a decision fired this round - it
     only reads local config/state, never RISCO, so it's cheap. Logs once per
     distinct blocking episode (new blocker(s), or the block clearing), not on
-    every poll.
+    every poll - the same episode-based ``changed`` gate also throttles the
+    Telegram alert below (#533), so a block that persists for hours pings
+    Telegram exactly once, not every ~10s tick.
     """
 
     config = load_automation_config()
@@ -86,6 +88,16 @@ def _sync_arm_block_diagnostic(security_mode: str) -> None:
             "ℹ️ Auto-arm blocked: %s still reported home since %s",
             ", ".join(block.blocking_person_ids),
             block.since.isoformat(),
+        )
+        # Same alert kind as a presence-triggered arm that failed to confirm
+        # (#533) - reuses the existing "error" Telegram toggle and per-day
+        # dedupe, not a new notification path.
+        await record_alarm_action(
+            source=SOURCE_PRESENCE,
+            action="arm",
+            outcome=OUTCOME_ERROR,
+            error=f"{', '.join(block.blocking_person_ids)} still reported home since {block.since.isoformat()}",
+            dedupe_key=f"presence:blocked:{block.key}",
         )
     else:
         logger.info("✅ Auto-arm block cleared")
@@ -122,7 +134,7 @@ async def tick() -> None:
     # also catches the arm event that restores a previously bypassed zone.
     consider_security_override(security)
 
-    _sync_arm_block_diagnostic(security.mode)
+    await _sync_arm_block_diagnostic(security.mode)
 
     decision = _evaluate_current_decision(security.mode)
     if decision is None:
