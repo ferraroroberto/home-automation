@@ -117,6 +117,10 @@ export const state = {
   // RISCO `security` alarm above — these ring/notify, they don't arm/disarm.
   wakeAlarms: [],
   wakeTimers: [],
+  // Free-text reminders from GET /api/reminders (issue #314) — bidirectional
+  // voice/app sync, distinct from wakeAlarms above (these are a checklist,
+  // not a fire-at-a-time alert).
+  reminders: [],
   voiceCommands: [],
   // Cheat-sheet language filter (#466): 'all' | 'en' | 'es'.
   voiceLang: 'all',
@@ -512,6 +516,21 @@ export const els = {
   wakeTimersNote: document.getElementById('wakeTimersNote'),
   wakeTimerCustomMinutes: document.getElementById('wakeTimerCustomMinutes'),
   wakeTimerCustomAdd: document.getElementById('wakeTimerCustomAdd'),
+  // Reminders (Home tab, issue #314)
+  remindersList: document.getElementById('remindersList'),
+  remindersNote: document.getElementById('remindersNote'),
+  remindersCount: document.getElementById('remindersCount'),
+  reminderAdd: document.getElementById('reminderAdd'),
+  reminderDialog: document.getElementById('reminderDialog'),
+  reminderEditorTitle: document.getElementById('reminderEditorTitle'),
+  reminderEditorClose: document.getElementById('reminderEditorClose'),
+  reminderText: document.getElementById('reminderText'),
+  reminderDueToggle: document.getElementById('reminderDueToggle'),
+  reminderDueFields: document.getElementById('reminderDueFields'),
+  reminderDate: document.getElementById('reminderDate'),
+  reminderTime: document.getElementById('reminderTime'),
+  reminderDelete: document.getElementById('reminderDelete'),
+  reminderSave: document.getElementById('reminderSave'),
   // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.
   homeEnergyFlow: document.getElementById('homeEnergyFlow'),
   homeFlowPv: document.getElementById('homeFlowPv'),

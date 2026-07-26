@@ -288,6 +288,63 @@ _WAKE_ALARMS = VoiceCommandGroup(
     ),
 )
 
+_REMINDERS = VoiceCommandGroup(
+    id="reminders",
+    title="Reminders",
+    icon="bell",
+    summary="A free-text checklist synced with the Home tab. Every phrase says “reminder”, so it can never collide with wake alarms or the security alarm.",
+    commands=(
+        VoiceCommand(
+            id="reminder-add",
+            intent="Add a reminder",
+            reply="Speaks back what it saved, including any due date/time it caught.",
+            phrasings=(
+                Phrasing(
+                    lang="en",
+                    wake_word=WAKE_WORD_EN,
+                    phrases=(
+                        "remind me to take out the trash",
+                        "remind me to call mom at 6pm tomorrow",
+                        "add a reminder to water the plants",
+                        "remember to buy milk",
+                    ),
+                    example="Okay Nabu, remind me to take out the trash at 6pm tomorrow",
+                ),
+            ),
+        ),
+        VoiceCommand(
+            id="reminder-complete",
+            intent="Mark a reminder done",
+            reply="Completes the soonest-due one — repeat for the next.",
+            phrasings=(
+                Phrasing(
+                    lang="en",
+                    wake_word=WAKE_WORD_EN,
+                    phrases=("mark my reminder done", "complete my reminder", "check off my reminder"),
+                    example="Okay Nabu, mark my reminder done",
+                ),
+            ),
+        ),
+        VoiceCommand(
+            id="reminder-list",
+            intent="List reminders (read-only)",
+            reply="Speaks a summary of what's still pending.",
+            phrasings=(
+                Phrasing(
+                    lang="en",
+                    wake_word=WAKE_WORD_EN,
+                    phrases=("what reminders do I have", "list my reminders", "do I have any reminders"),
+                    example="Okay Nabu, what reminders do I have",
+                ),
+            ),
+        ),
+    ),
+    notes=(
+        "English only for now — no Spanish sentences ship for reminders (unlike wake alarms).",
+        "A reminder with no due cue is just a checklist item; add “at 6pm”, “tomorrow”, “today”, or “on friday” to give it one.",
+    ),
+)
+
 _LOCATOR = VoiceCommandGroup(
     id="locator",
     title="Family locator",
@@ -512,6 +569,7 @@ _BUILT_INS = VoiceCommandGroup(
 VOICE_COMMAND_GROUPS: Tuple[VoiceCommandGroup, ...] = (
     _ALARM,
     _WAKE_ALARMS,
+    _REMINDERS,
     _LOCATOR,
     _WEB_SEARCH,
     _GROCERY,

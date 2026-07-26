@@ -97,6 +97,33 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
+  # Reminders (issue #314) — bidirectional voice/app free-text checklist,
+  # distinct from the wake alarms above (those ring at a set time). English
+  # only — no `lang` param, unlike wake alarms. {text} is the whole spoken
+  # reminder; the app splits content from an optional due-date/time cue.
+  reminder_add:
+    url: "https://192.168.0.13:8447/api/reminders/voice"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+      content-type: "application/json"
+    payload: '{"phrase": "{{ text }}"}'
+    verify_ssl: false
+    timeout: 30
+  reminder_complete:
+    url: "https://192.168.0.13:8447/api/reminders/voice/complete"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 30
+  reminder_list:
+    url: "https://192.168.0.13:8447/api/reminders/voice"
+    method: GET
+    headers:
+      authorization: !secret app_api_authorization
+    verify_ssl: false
+    timeout: 15
   # Grocery list (issue #315) — the grocery-shopping-automation app on :8502
   # (grocery#86). One parameterized command: the app decides everything from
   # {intent, text}; `tojson` keeps free spoken text JSON-safe.
@@ -218,6 +245,41 @@ intent_script:
     speech:
       text: >-
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% elif (lang | default('en')) == 'es' %}Lo siento, no puedo consultar tus alarmas.{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
+
+  # Reminders (issue #314). The app parses the spoken text and returns a
+  # ready-made `speech` string, so these templates just relay it. English
+  # only — no `lang` templating, unlike wake alarms above.
+  ReminderAdd:
+    action:
+      - service: rest_command.reminder_add
+        data:
+          text: "{{ text }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't set that reminder.{% endif %}
+
+  ReminderComplete:
+    action:
+      - service: rest_command.reminder_complete
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't complete that reminder.{% endif %}
+
+  ReminderList:
+    action:
+      - service: rest_command.reminder_list
+        response_variable: r
+      - stop: "done"
+        response_variable: r
+    speech:
+      text: >-
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't reach your reminders.{% endif %}
 
   # Grocery list (issue #315) — SPANISH-ONLY flows on the "Asistente (es)"
   # pipeline (wake word "Hey Mycroft"): es-hinted STT, es_ES Piper voice,

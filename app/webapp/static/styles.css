@@ -1228,6 +1228,17 @@ button, input, select, textarea {
 .voice-group:first-child > .collapse-summary { padding-top: var(--space-xs); }
 .voice-group .collapse-title { font-size: var(--font-label); }
 .voice-group .collapse-icon { color: var(--accent); }
+/* "What can I do?" static guide (index.html) reuses .voice-group-* naming but
+   is hand-authored markup, not the JS-rendered .collapse-summary structure
+   above — so its <h4> icon + text need their own gap (missing entirely), and
+   each group needs its own top/bottom breathing room around the border-top
+   divider (the .collapse-summary padding above only applies to the cheat
+   sheet's nested <details>). Scoped via the direct-child combinator: the
+   cheat sheet's own .voice-group elements render one level deeper, inside
+   #voiceCommandsList, so they are untouched by this rule. */
+.voice-group-head { display: flex; align-items: center; gap: var(--space-sm); }
+.ha-subsection-body > .voice-group { padding: 12px 0; }
+.ha-subsection-body > .voice-group:first-child { padding-top: var(--space-xs); }
 .voice-group-body { padding: 0 0 12px; }
 .voice-group-summary { margin: var(--space-xs) 0 0 26px; line-height: 1.45; }
 .voice-command { margin: var(--space-sm) 0 0 26px; }
@@ -1760,8 +1771,15 @@ button.security-zone-name:hover { text-decoration: underline; }
 .security-schedules-body,
 .scene-pairings-body,
 .security-override-body,
-.wake-alarms-body {
+.wake-alarms-body,
+.reminders-body {
   padding: 12px 14px 14px;
+}
+/* Completed reminder: struck-through title, same muted convention as
+   net-dhcp's staged-removal rows (styles.css .net-dhcp-existing-row.is-removing). */
+.reminder-row.is-done .automation-summary-title {
+  text-decoration: line-through;
+  opacity: 0.6;
 }
 .alarm-schedule-list {
   display: flex;
@@ -1880,6 +1898,7 @@ button.security-zone-name:hover { text-decoration: underline; }
    gap on the pane) — match the --gap the ac-summary/plugs-summary siblings use
    so the gap below this card equals the others. */
 .wake-alarms-card,
+.reminders-card,
 .locator-card { margin-bottom: var(--gap); }
 .locator-source-note {
   margin: 0 4px var(--space-sm);

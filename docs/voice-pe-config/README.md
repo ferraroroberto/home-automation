@@ -42,6 +42,20 @@ The sentence lists are in `custom_sentences/en/wake_alarm.yaml`. Both the set an
 
 **Also in Spanish on the "Hey Mycroft" pipeline (#466):** "pon una alarma para las siete y media entre semana" · "despiértame a mediodía mañana" · "¿qué alarmas tengo?" · "cancela mi alarma". The Spanish phrases live in `custom_sentences/es/wake_alarm.yaml`; the intent passes `lang=es` to the app, which parses the Spanish spoken time (`src/wake_alarms.py`, `parse_spoken_alarm(..., lang="es")`) and speaks a Spanish confirmation ("Alarma configurada para las 7 y media de la mañana entre semana"). Supported Spanish time/schedule words: `las siete` · `y media` · `y cuarto` · `menos cuarto` · `mediodía` · `medianoche` · `de la mañana/tarde/noche` · `entre semana` · `(los) fines de semana` · `todos los días` · a weekday name (`los lunes`) · `mañana`/`hoy` (one-shot).
 
+### Reminders (issue #314)
+
+A **separate** feature from both alarms above — every phrase says "reminder"/"remind" so it never collides with `alarm.yaml` or `wake_alarm.yaml`. Bidirectional: a reminder created here shows up on the Home-tab card, and one created in the app is speakable/listable/completable here. Unlike a wake alarm, most of the phrase *is* the reminder's content, not a time.
+
+| You say (after "Okay Nabu, …") | Intent | App call |
+|---|---|---|
+| "remind me to take out the trash" · "remind me to call mom at 6pm tomorrow" · "add a reminder to water the plants" · "remember to buy milk" | add | `POST /api/reminders/voice` → splits an optional due-date/time cue off the phrase, saves the rest as the reminder text, speaks it back |
+| "mark my reminder done" · "complete my reminder" · "check off my reminder" | complete | `POST /api/reminders/voice/complete` → completes the **earliest-due** pending reminder, falling back to the **oldest-created** among undated ones (repeat for the next) |
+| "what reminders do I have" · "list my reminders" · "do I have any reminders" | list (read) | `GET /api/reminders/voice` → speaks a summary of what's pending |
+
+**Supported due-date/time cues** (parsed server-side in `src/reminders.py:parse_spoken_reminder`, so the sentences stay thin): `at 6pm` / `at 14:30`, `tomorrow`, `today`, `on friday` (next matching weekday). No cue → an undated checklist item, which is most "remind me to X" phrases.
+
+The sentence lists are in `custom_sentences/en/reminder.yaml`. All three intents reuse the existing `!secret app_api_authorization` — **no new secret**. **English only for now** — no Spanish sentences ship for reminders (unlike wake alarms), so this is the one bridge without a `custom_sentences/es/` twin.
+
 ### Family locator (issue #438) — "where's mom/dad" + same-turn ETA (#470, #485)
 
 Read-only query — no actuation, so no code-gating needed. `{who}` is a free-text wildcard capturing the spoken name or household role; the app resolves it via role aliases (set from the Security tab's Presence card), display-name overrides, or raw names, then answers with the resolved place — a configured named place (e.g. "the gym"), "home", or "away" (cached Find My data only; no new iCloud locate cost). Whenever they're **away** (not home, not unknown), the same answer also speaks a traffic-aware ETA home — one turn, no follow-up question.
@@ -102,6 +116,7 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 
 - `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml` (RISCO security alarm)
 - `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
+- `custom_sentences/en/reminder.yaml` → `/config/custom_sentences/en/reminder.yaml` (reminders, #314 — English only, no Spanish twin)
 - `custom_sentences/en/locate.yaml` → `/config/custom_sentences/en/locate.yaml` (family locator — now empty `intents: {}`, the match moved to the `presence_locator` automation, #470)
 - `custom_sentences/es/alarm.yaml` → `/config/custom_sentences/es/alarm.yaml` (RISCO security alarm in Spanish, #466)
 - `custom_sentences/es/wake_alarm.yaml` → `/config/custom_sentences/es/wake_alarm.yaml` (wake alarms in Spanish, #466)
