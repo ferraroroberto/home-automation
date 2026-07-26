@@ -66,6 +66,22 @@ class PresenceDecision:
     transition_at: datetime
 
 
+@dataclass(frozen=True)
+class PresenceBlock:
+    """Diagnostic: identifies who is keeping an otherwise-eligible auto-arm
+    from firing (issue #531). A tracked person's presence can get stuck
+    ``home`` indefinitely (their device's "leave" webhook never fires, even
+    while its "arrive" heartbeat keeps pinging) - from the engine's own
+    perspective that is indistinguishable from them genuinely still being
+    home, so it correctly refuses to arm. This surfaces *that* stuck state so
+    a human can tell the difference, instead of the block being silent.
+    """
+
+    key: str
+    blocking_person_ids: tuple[str, ...]
+    since: datetime
+
+
 def now_utc() -> datetime:
     """Current timezone-aware UTC timestamp."""
 
@@ -348,6 +364,84 @@ def evaluate_alarm_decision(
                 transition_at=all_away_since,
             )
     return None
+
+
+def evaluate_arm_block(
+    people: Iterable[PersonPresence],
+    *,
+    security_mode: str,
+    config: PresenceAutomationConfig,
+    at: Optional[datetime] = None,
+) -> Optional[PresenceBlock]:
+    """Diagnose why an otherwise-armable house hasn't auto-armed (issue #531).
+
+    Fires only on the specific shape "someone left, but the panel is still
+    disarmed because at least one other fresh tracked person is still home" -
+    the everyone-away condition ``evaluate_alarm_decision`` requires can't be
+    satisfied yet, but it isn't obviously *wrong* either from a house that's
+    only partly empty for a normal reason. It does not fire when everyone is
+    home (nothing has left, nothing to block) or everyone is away (arm would
+    already fire) or presence data is stale (a distinct, already-visible
+    staleness case, not this one).
+    """
+
+    if not config.auto_arm_enabled or security_mode != "disarmed":
+        return None
+    stamp = at or now_utc()
+    current = list(people)
+    if not current:
+        return None
+    fresh = _fresh_people(current, config=config, at=stamp)
+    if len(fresh) != len(current):
+        return None
+    home = [p for p in fresh if p.state == "home"]
+    away = [p for p in fresh if p.state == "away"]
+    if not home or not away:
+        return None
+    since = min(p.state_since for p in home)
+    blocking_ids = tuple(sorted(p.person_id for p in home))
+    key = f"block:{','.join(blocking_ids)}:{since.isoformat()}"
+    return PresenceBlock(key=key, blocking_person_ids=blocking_ids, since=since)
+
+
+def load_arm_block() -> Dict[str, Any]:
+    """Return the persisted arm-block diagnostic, or the all-clear default."""
+
+    meta = _load_state().get("automation", {})
+    if not isinstance(meta, dict):
+        meta = {}
+    return {
+        "blocked": bool(meta.get("arm_blocked", False)),
+        "person_ids": list(meta.get("arm_blocked_person_ids") or []),
+        "since": meta.get("arm_blocked_since"),
+    }
+
+
+def set_arm_block(block: Optional[PresenceBlock]) -> bool:
+    """Persist the current arm-block diagnostic.
+
+    Returns True when this call observes a *new* episode (block newly
+    appeared, changed which people are blocking, or newly cleared) so the
+    caller can log once per episode instead of once per poll tick.
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    prior_key = str(meta.get("arm_blocked_key") or "")
+    if block is None:
+        changed = prior_key != ""
+        meta["arm_blocked"] = False
+        meta["arm_blocked_person_ids"] = []
+        meta["arm_blocked_since"] = None
+        meta["arm_blocked_key"] = ""
+    else:
+        changed = prior_key != block.key
+        meta["arm_blocked"] = True
+        meta["arm_blocked_person_ids"] = list(block.blocking_person_ids)
+        meta["arm_blocked_since"] = _iso(block.since)
+        meta["arm_blocked_key"] = block.key
+    _save_state(raw)
+    return changed
 
 
 def append_trigger_log(event: Dict[str, Any], path: Optional[Path] = None) -> None:

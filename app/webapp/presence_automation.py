@@ -28,10 +28,12 @@ from src.presence_engine import (
     PresenceDecision,
     append_trigger_log,
     evaluate_alarm_decision,
+    evaluate_arm_block,
     load_automation_config,
     load_kids_home_override,
     load_people,
     mark_decision_applied,
+    set_arm_block,
     set_kids_home_override,
 )
 from src.push_notifications import send_push
@@ -64,6 +66,31 @@ def _evaluate_current_decision(security_mode: str) -> Optional[PresenceDecision]
     )
 
 
+def _sync_arm_block_diagnostic(security_mode: str) -> None:
+    """Update the persisted "why hasn't auto-arm fired" diagnostic (#531).
+
+    Runs every tick regardless of whether a decision fired this round - it
+    only reads local config/state, never RISCO, so it's cheap. Logs once per
+    distinct blocking episode (new blocker(s), or the block clearing), not on
+    every poll.
+    """
+
+    config = load_automation_config()
+    people = list(load_people().values())
+    block = evaluate_arm_block(people, security_mode=security_mode, config=config)
+    changed = set_arm_block(block)
+    if not changed:
+        return
+    if block is not None:
+        logger.info(
+            "ℹ️ Auto-arm blocked: %s still reported home since %s",
+            ", ".join(block.blocking_person_ids),
+            block.since.isoformat(),
+        )
+    else:
+        logger.info("✅ Auto-arm block cleared")
+
+
 async def tick() -> None:
     """Alert on panel events, then evaluate one presence transition."""
 
@@ -94,6 +121,8 @@ async def tick() -> None:
     # (issue #341): runs every tick (not just while an alarm is active) so it
     # also catches the arm event that restores a previously bypassed zone.
     consider_security_override(security)
+
+    _sync_arm_block_diagnostic(security.mode)
 
     decision = _evaluate_current_decision(security.mode)
     if decision is None:

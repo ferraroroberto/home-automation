@@ -108,7 +108,7 @@ function presenceLabel(entity) {
   return 'Unknown';
 }
 
-function presenceEntityLabel(entity) {
+export function presenceEntityLabel(entity) {
   return entity.display_name || entity.name || entity.entity_id || 'Unknown';
 }
 
@@ -116,7 +116,7 @@ function isThisDevice(entity) {
   return entity && entity.entity_id === '__this_device__';
 }
 
-function presenceById(entityId) {
+export function presenceById(entityId) {
   const entities = (state.presence && state.presence.entities) || [];
   if (state.thisDevicePresence && state.thisDevicePresence.entity_id === entityId) {
     return state.thisDevicePresence;
