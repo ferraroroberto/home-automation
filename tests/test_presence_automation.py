@@ -65,6 +65,7 @@ def _wire_common(monkeypatch) -> None:
     monkeypatch.setattr(PA, "load_kids_home_override", lambda: False)
     monkeypatch.setattr(PA, "send_push", lambda *a, **k: None)
     monkeypatch.setattr(PA, "append_trigger_log", lambda event: None)
+    monkeypatch.setattr(PA, "_sync_arm_block_diagnostic", lambda security_mode: None)
 
 
 def test_presence_tick_applies_arm_via_confirm_helper_and_records_ok(monkeypatch) -> None:
@@ -167,3 +168,36 @@ def test_evaluate_current_decision_warns_loudly_when_no_people_tracked(
 
     assert result is None
     assert any("no tracked people" in record.message for record in caplog.records)
+
+
+def test_sync_arm_block_diagnostic_logs_once_per_episode(monkeypatch, caplog) -> None:
+    """Regression for #531: a real-world case where one tracked person's
+    presence stayed stuck 'home' overnight, silently blocking auto-arm with
+    no trace anywhere. The diagnostic must persist the block and log it once
+    when it appears - and not again on a repeat tick with unchanged state.
+    """
+
+    from src.presence_engine import PresenceBlock
+
+    block = PresenceBlock(key="block:ana:t0", blocking_person_ids=("ana",), since=datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc))
+    seen_keys: set[str] = set()
+
+    def fake_set_arm_block(b: PresenceBlock) -> bool:
+        # Mirrors the real function's contract: True only the first time a
+        # given block key is observed.
+        is_new = b.key not in seen_keys
+        seen_keys.add(b.key)
+        return is_new
+
+    monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
+    monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: block)
+    monkeypatch.setattr(PA, "set_arm_block", fake_set_arm_block)
+
+    with caplog.at_level(logging.INFO, logger=PA.logger.name):
+        PA._sync_arm_block_diagnostic("disarmed")
+        PA._sync_arm_block_diagnostic("disarmed")
+
+    block_logs = [r.message for r in caplog.records if "Auto-arm blocked" in r.message]
+    assert len(block_logs) == 1
+    assert "ana" in block_logs[0]

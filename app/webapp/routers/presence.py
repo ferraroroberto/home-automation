@@ -26,6 +26,7 @@ from src.presence_display_names import (
 )
 from src.presence_engine import (
     PresenceAutomationConfig,
+    load_arm_block,
     load_automation_config,
     load_kids_home_override,
     load_people,
@@ -671,7 +672,12 @@ async def get_presence_eta(who: str, lang: str = "en") -> Dict[str, Any]:
 
 @router.get("/api/presence/automation")
 async def get_presence_automation() -> Dict[str, Any]:
-    return asdict(load_automation_config())
+    payload = asdict(load_automation_config())
+    block = load_arm_block()
+    payload["arm_blocked"] = block["blocked"]
+    payload["arm_blocked_person_ids"] = block["person_ids"]
+    payload["arm_blocked_since"] = block["since"]
+    return payload
 
 
 class PresenceAutomationPayload(BaseModel):

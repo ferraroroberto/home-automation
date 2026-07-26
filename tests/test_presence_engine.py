@@ -224,3 +224,103 @@ def test_load_automation_config_new_shape_round_trips(monkeypatch, tmp_path):
     cfg = P.load_automation_config(path)
     assert cfg.auto_arm_enabled is False
     assert cfg.auto_disarm_enabled is True
+
+
+# --- evaluate_arm_block / set_arm_block / load_arm_block (issue #531) ---
+
+
+def test_arm_block_fires_when_one_person_still_home(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, arm_away_after_s=300, stale_after_s=216000)
+    block = P.evaluate_arm_block(
+        [_person("ana", "home", t0), _person("roberto", "away", t0 + timedelta(hours=14))],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(hours=14, minutes=6),
+    )
+    assert block is not None
+    assert block.blocking_person_ids == ("ana",)
+    assert block.since == t0
+
+
+def test_arm_block_does_not_fire_when_everyone_home(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, stale_after_s=3600)
+    assert P.evaluate_arm_block(
+        [_person("ana", "home", t0), _person("roberto", "home", t0)],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0,
+    ) is None
+
+
+def test_arm_block_does_not_fire_when_everyone_away(monkeypatch, tmp_path):
+    # Would arm outright once past grace - not a block, so no diagnostic.
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, stale_after_s=3600)
+    assert P.evaluate_arm_block(
+        [_person("ana", "away", t0), _person("roberto", "away", t0)],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0,
+    ) is None
+
+
+def test_arm_block_does_not_fire_when_auto_arm_disabled(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=False, stale_after_s=3600)
+    assert P.evaluate_arm_block(
+        [_person("ana", "home", t0), _person("roberto", "away", t0)],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0,
+    ) is None
+
+
+def test_arm_block_does_not_fire_when_not_disarmed(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, stale_after_s=3600)
+    assert P.evaluate_arm_block(
+        [_person("ana", "home", t0), _person("roberto", "away", t0)],
+        security_mode="armed",
+        config=cfg,
+        at=t0,
+    ) is None
+
+
+def test_arm_block_does_not_fire_when_blocker_is_stale(monkeypatch, tmp_path):
+    # Staleness is already its own (existing) silent case - don't double-report.
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, stale_after_s=60)
+    assert P.evaluate_arm_block(
+        [_person("ana", "home", t0), _person("roberto", "away", t0)],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=5),
+    ) is None
+
+
+def test_set_arm_block_persists_and_reports_new_episode(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    since = datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc)
+    block = P.PresenceBlock(key="block:ana:" + since.isoformat(), blocking_person_ids=("ana",), since=since)
+
+    assert P.set_arm_block(block) is True
+    assert P.load_arm_block() == {
+        "blocked": True,
+        "person_ids": ["ana"],
+        "since": since.isoformat(),
+    }
+    # Same episode again - not a new observation.
+    assert P.set_arm_block(block) is False
+    # Clearing is itself a new observation.
+    assert P.set_arm_block(None) is True
+    assert P.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
+    # Already clear - not new.
+    assert P.set_arm_block(None) is False

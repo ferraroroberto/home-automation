@@ -13,7 +13,7 @@
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
-import { loadPresence } from './presence.js';
+import { loadPresence, presenceById, presenceEntityLabel } from './presence.js';
 
 export function renderKidsHomeToggle(viewReady) {
   if (!els.presenceKidsHome) return;
@@ -30,8 +30,20 @@ export function renderPresenceAutomationNote() {
     return entity.source === 'webhook' && !entity.hidden;
   });
   const anyAutomationOn = isToggleOn(els.presenceAutoEnabled) || isToggleOn(els.presenceDisarmOnArrival);
+  const auto = state.presenceAutomation || {};
+  const blockedIds = Array.isArray(auto.arm_blocked_person_ids) ? auto.arm_blocked_person_ids : [];
   if (anyAutomationOn && !hasWebhookPerson) {
     els.presenceAutomationNote.textContent = 'Configure iOS Shortcut arrive/leave webhooks before enabling alarm automation. Browser GPS and Find My diagnostics do not drive arm/disarm.';
+    els.presenceAutomationNote.hidden = false;
+  } else if (auto.arm_blocked && blockedIds.length) {
+    // #531: someone else left, but auto-arm is waiting on these people's
+    // presence to flip to "away" - surfaces the block instead of it looking
+    // like the feature silently isn't working.
+    const names = blockedIds.map(function (id) {
+      const entity = presenceById(id);
+      return entity ? presenceEntityLabel(entity) : id;
+    }).join(', ');
+    els.presenceAutomationNote.textContent = 'Auto-arm not active: ' + names + ' still reported home.';
     els.presenceAutomationNote.hidden = false;
   } else {
     els.presenceAutomationNote.hidden = true;
