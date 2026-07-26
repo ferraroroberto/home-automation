@@ -547,6 +547,27 @@
           </div>
         </details>
 
+        <!-- Search-engine status for the voice assistant's Tier-3 web-search
+             function (issue #321): SearXNG runs as a Docker container on the
+             hub PC (GET /api/searxng). Read-only status + a Start button when
+             the container is down — mirrors the satellites subsection's
+             shape, minus the polling richness of the VM tile (this rarely
+             changes, so it is read on open and on a slow interval). -->
+        <details id="searxngCard" class="ha-subsection" aria-label="Search engine">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
+              <h3 class="collapse-title">Search engine</h3>
+              <span id="searxngSummaryState" class="muted small">Reading status…</span>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="ha-subsection-body">
+            <p id="searxngNote" class="muted small ha-note">Backs "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
+            <button id="searxngStartBtn" type="button" class="big-btn searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
+          </div>
+        </details>
+
         <!-- Home Assistant capabilities guide (#239, restructured in #461 from a
              modal into a subsection): static, user-facing help for the three
              shipped workflows. Shares the voice-group classes with the cheat
@@ -591,6 +612,7 @@
             <span class="collapse-main">
               <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
               <h3 class="collapse-title">What can I say?</h3>
+              <span id="voiceLangToggle" class="voice-lang-toggle" role="group" aria-label="Filter voice commands by language" hidden></span>
             </span>
             <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </summary>

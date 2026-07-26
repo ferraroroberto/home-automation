@@ -107,6 +107,7 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 - `custom_sentences/es/wake_alarm.yaml` → `/config/custom_sentences/es/wake_alarm.yaml` (wake alarms in Spanish, #466)
 - `custom_sentences/es/grocery.yaml` → `/config/custom_sentences/es/grocery.yaml` (grocery list in Spanish, #315)
 - `custom_sentences/es/locate.yaml` → `/config/custom_sentences/es/locate.yaml` (family locator in Spanish — now empty `intents: {}`, see en/locate.yaml above, #470)
+- `custom_sentences/es/websearch.yaml` → `/config/custom_sentences/es/websearch.yaml` (deterministic "search is English-only for now" reply, #321 — the Spanish pipeline has no LLM fallback)
 - `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **every** feature's `rest_command` / `intent_script` / `automation` entries)
 - `secrets.snippet.yaml` → add all keys to `/config/secrets.yaml` **with real values** (never committed)
 

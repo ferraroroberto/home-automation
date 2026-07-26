@@ -45,25 +45,31 @@ function filterGroupsByLang(groups, lang) {
   return out;
 }
 
+// Rendered inline into the "What can I say?" summary row (els.voiceLangToggle,
+// a fixed host in index.html) rather than as its own block in the body, so the
+// language filter reads as part of the card's header line. It lives inside a
+// <summary>, so its buttons must stop the click from bubbling to the disclosure
+// toggle — otherwise picking a language would also fold/unfold the card.
 function renderLangToggle() {
-  const toggle = document.createElement('div');
-  toggle.className = 'voice-lang-toggle';
-  toggle.setAttribute('role', 'group');
-  toggle.setAttribute('aria-label', 'Filter voice commands by language');
+  const toggle = els.voiceLangToggle;
+  if (!toggle) return;
+  toggle.innerHTML = '';
   LANG_FILTERS.forEach(function (filter) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = filter.label;
     btn.dataset.testid = 'voice-lang-' + filter.id;
     btn.setAttribute('aria-pressed', String((state.voiceLang || 'all') === filter.id));
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
       if (state.voiceLang === filter.id) return;
       state.voiceLang = filter.id;
       renderVoiceCommands();
     });
     toggle.appendChild(btn);
   });
-  return toggle;
+  toggle.hidden = false;
 }
 
 function renderPhrasing(phrasing, showLang) {
@@ -122,22 +128,39 @@ function renderCommand(command, showLang) {
   return row;
 }
 
+// Each group folds independently — one summary line (icon + title, vertically
+// centered) per command family (alarm, wake alarms, family locator, ...),
+// collapsed by default so the cheat sheet opens as a scannable list rather
+// than every phrasing dumped at once. Reuses the shared .collapse-summary/
+// .collapse-chevron disclosure so a third-level nested <details> still
+// animates and aligns like every other collapsible in the app.
 function renderGroup(group) {
-  const section = document.createElement('section');
-  section.className = 'voice-group';
-  section.dataset.groupId = group.id;
+  const details = document.createElement('details');
+  details.className = 'voice-group';
+  details.dataset.groupId = group.id;
 
-  const head = document.createElement('h4');
-  head.className = 'voice-group-head';
-  head.innerHTML = icon(group.icon) + ' ';
-  head.append(group.title);
-  section.appendChild(head);
+  const summary = document.createElement('summary');
+  summary.className = 'collapse-summary';
+
+  const main = document.createElement('span');
+  main.className = 'collapse-main';
+  main.innerHTML = icon(group.icon, 'collapse-icon');
+  const title = document.createElement('h4');
+  title.className = 'collapse-title';
+  title.textContent = group.title;
+  main.appendChild(title);
+  summary.appendChild(main);
+  summary.insertAdjacentHTML('beforeend', icon('chevron-right', 'collapse-chevron'));
+  details.appendChild(summary);
+
+  const body = document.createElement('div');
+  body.className = 'voice-group-body';
 
   if (group.summary) {
-    const summary = document.createElement('p');
-    summary.className = 'voice-group-summary muted small';
-    summary.textContent = group.summary;
-    section.appendChild(summary);
+    const summaryText = document.createElement('p');
+    summaryText.className = 'voice-group-summary muted small';
+    summaryText.textContent = group.summary;
+    body.appendChild(summaryText);
   }
 
   // A group whose commands answer on more than one wake word (the family
@@ -150,7 +173,7 @@ function renderGroup(group) {
   const showLang = langs.size > 1;
 
   (group.commands || []).forEach(function (command) {
-    section.appendChild(renderCommand(command, showLang));
+    body.appendChild(renderCommand(command, showLang));
   });
 
   if ((group.notes || []).length) {
@@ -161,9 +184,10 @@ function renderGroup(group) {
       li.textContent = note;
       notes.appendChild(li);
     });
-    section.appendChild(notes);
+    body.appendChild(notes);
   }
-  return section;
+  details.appendChild(body);
+  return details;
 }
 
 function renderVoiceCommands() {
@@ -181,7 +205,11 @@ function renderVoiceCommands() {
       (command.phrasings || []).forEach(function (p) { langs.add(p.lang); });
     });
   });
-  if (langs.size > 1) els.voiceCommandsList.appendChild(renderLangToggle());
+  if (langs.size > 1) {
+    renderLangToggle();
+  } else if (els.voiceLangToggle) {
+    els.voiceLangToggle.hidden = true;
+  }
 
   const visible = filterGroupsByLang(groups, state.voiceLang || 'all');
   visible.forEach(function (group) {
