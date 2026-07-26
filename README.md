@@ -1080,6 +1080,19 @@ Optional `.env` knobs:
 
 > **Not** in scope here: mirroring **voice-set** HA-native timers into the webapp — HA exposes no stable poll API for those, so the app-native timer above is a separate, unbridged pool. Triggering an HVAC unit from an alarm is covered by the per-unit [HVAC schedules](#hvac-automation), not duplicated here.
 
+## Reminders
+
+A free-text **reminders** checklist, bidirectional between the app and Home Assistant Voice — a reminder created by voice shows up in the app, and one created in the app is speakable/listable/completable by voice (issue #314). Managed from a collapsible **Reminders** card on the Home tab, right after Wake alarms — deliberately distinct from that feature: a wake alarm rings at a set time, a reminder is a checklist item you complete, optionally due on a date/time.
+
+- **Card:** dense-collection list — each reminder is a flat row (text, an optional due-date caption, and a Done toggle) with a staged **Add/Edit reminder** dialog (text + an optional "Due date" toggle revealing date/time fields). Same shared `denseListEditor` shell as the Security tab's Schedules card.
+- Persisted to gitignored `config/reminders.json` (committed `…sample.json` shows the shape). No recurring reminders and no active "due now" firing/notification — this is a passive list/complete surface, not a second alarm.
+
+API: `GET`/`PUT /api/reminders` (list/replace).
+
+**Voice.** *"Okay Nabu, remind me to take out the trash at 6 pm tomorrow"* / *"mark my reminder done"* / *"what reminders do I have"* — via a thin voice API that parses the spoken phrase server-side: `POST /api/reminders/voice` (`{phrase}` → split text from an optional due cue, append, speak it back), `POST /api/reminders/voice/complete` (marks the **earliest-due** pending reminder done, falling back to the **oldest-created** among undated ones), `GET /api/reminders/voice` (spoken summary of what's still pending). Parsing lives in `src/reminders.py:parse_spoken_reminder` (tested): due cues like `at 6pm` / `at 14:30`, `tomorrow`, `today`, `on friday` — a phrase with none of those is just an undated checklist item, which covers most "remind me to X" phrases. The HA sentences/wiring are in [`docs/voice-pe-config/`](docs/voice-pe-config/) (`reminder.yaml`), kept collision-free from `wake_alarm.yaml` and the RISCO `alarm.yaml` grammars. **English only for now** — no Spanish sentences ship for this feature (unlike wake alarms).
+
+> **Not** in scope here: LLM-based parsing (stays regex/best-effort, Tier-1 local matching, same convention as wake alarms), recurring reminders, and a native Home Assistant `todo.reminders` entity (the voice surface is custom-sentence + `rest_command` only, mirroring wake alarms — a native entity is a natural follow-up if it's ever wanted).
+
 ## Voice control (hands-free, fully local)
 
 A Home Assistant Voice PE puck driven by the local LLM hub gives hands-free, **no-cloud**
@@ -1089,7 +1102,8 @@ the command path and a hallucinated reply can never actuate. The first live brid
 **alarm control** (#88): *"Okay Nabu, perimeter on"* / *"disarm now"* / *"what's the alarm
 status"* hit `POST /api/security/{arm,partial,perimeter,disarm}` and `GET /api/security`,
 with a spoken-code gate on disarm. **Wake alarms** (#306) are the second bridge — see
-[Wake alarms & timers](#wake-alarms--timers) above.
+[Wake alarms & timers](#wake-alarms--timers) above. **Reminders** (#314) are the third — see
+[Reminders](#reminders) above.
 
 - **Operating & architecture manual:** [`docs/voice-control.md`](docs/voice-control.md)
   (setup, pipeline, troubleshooting, the live alarm action bridge).
@@ -1113,13 +1127,13 @@ Runtime API: `GET /api/ha`; `POST /api/ha/satellites/{entity_id}/announce`; and 
 
 ### Home card: "What can I say?" cheat sheet (#437)
 
-The reference companion to the push-to-talk mic above: a **"What can I say?"** subsection of the Home Assistant card (one of its folded-by-default sections, #461) lists every wired voice command, so remembering one doesn't mean opening GitHub on a phone. Five groups — **Alarm**, **Wake alarms**, **Family locator**, **Grocery list**, and the **built-ins** HA answers for free (timers, time/weather, exposed-entity on/off) — each command showing a worked example, its other phrasings, and what it speaks back. Phrasings are tagged with their wake word, since that is what picks the language: "Okay Nabu" is English, "Hey Mycroft" is Spanish (the family locator answers on both; grocery is Spanish-only) — swapped from "Hey Jarvis" in #468 because it's the only built-in wake word still on the older, less accurate v1 [microWakeWord](https://github.com/OHF-Voice/micro-wake-word/releases) model. Read-only — commands are wired in Home Assistant, not here. Don't confuse it with the sibling **"What can I do?"** subsection, which covers what *this webapp* does with Home Assistant rather than what you can *say*; the two are styled identically.
+The reference companion to the push-to-talk mic above: a **"What can I say?"** subsection of the Home Assistant card (one of its folded-by-default sections, #461) lists every wired voice command, so remembering one doesn't mean opening GitHub on a phone. Six groups — **Alarm**, **Wake alarms**, **Reminders**, **Family locator**, **Grocery list**, and the **built-ins** HA answers for free (timers, time/weather, exposed-entity on/off) — each command showing a worked example, its other phrasings, and what it speaks back. Phrasings are tagged with their wake word, since that is what picks the language: "Okay Nabu" is English, "Hey Mycroft" is Spanish (the family locator answers on both; grocery is Spanish-only) — swapped from "Hey Jarvis" in #468 because it's the only built-in wake word still on the older, less accurate v1 [microWakeWord](https://github.com/OHF-Voice/micro-wake-word/releases) model. Read-only — commands are wired in Home Assistant, not here. Don't confuse it with the sibling **"What can I do?"** subsection, which covers what *this webapp* does with Home Assistant rather than what you can *say*; the two are styled identically.
 
 The content is curated in [`src/voice_commands.py`](src/voice_commands.py) and served by `GET /api/voice-commands`; the card fetches it once on first open and never polls (it only changes when the app is redeployed). It is deliberately **not** derived from `docs/voice-pe-config/custom_sentences/*.yaml`: those are hassil templates rather than readable examples, and they don't cover the multi-turn grocery flow or HA's built-ins. The cost of curating — a second place to update — is paid down by step 6 of [`docs/voice-commands-howto.md`](docs/voice-commands-howto.md)'s recipe, which makes updating the cheat sheet part of wiring any new command. The card never publishes a code or secret: the disarm command shows the same `<your code>` placeholder [`docs/voice-pe-config/README.md`](docs/voice-pe-config/README.md) already does, and `tests/test_voice_commands.py` fails the build if a real one is ever pasted in.
 
 ### Home Assistant config deploy over SSH
 
-`scripts/ha_config_sync.py` (#243) deploys the repo-owned voice-PE config into the HA VM's `/config` over SSH, so HA config work is code-driven instead of done in the browser File editor: edit → deploy → `ha core check` → reload/restart → text-probe. It pushes the managed block in `configuration.yaml` and every `custom_sentences/en/*.yaml` file (`alarm.yaml` + `wake_alarm.yaml`), takes a timestamped backup under `/config/backups/home-automation/` before every write, applies a sentences-only change with the narrow `conversation.reload`, and guards the full restart a `configuration.yaml` change needs behind `--restart`. Real HA secrets stay live-only on the VM — the script verifies the required secret **key names** exist in `/config/secrets.yaml` but never reads, prints, copies, or commits their values.
+`scripts/ha_config_sync.py` (#243) deploys the repo-owned voice-PE config into the HA VM's `/config` over SSH, so HA config work is code-driven instead of done in the browser File editor: edit → deploy → `ha core check` → reload/restart → text-probe. It pushes the managed block in `configuration.yaml` and every `custom_sentences/en/*.yaml` file (`alarm.yaml` + `wake_alarm.yaml` + `reminder.yaml`), takes a timestamped backup under `/config/backups/home-automation/` before every write, applies a sentences-only change with the narrow `conversation.reload`, and guards the full restart a `configuration.yaml` change needs behind `--restart`. Real HA secrets stay live-only on the VM — the script verifies the required secret **key names** exist in `/config/secrets.yaml` but never reads, prints, copies, or commits their values.
 
 ```powershell
 & .\.venv\Scripts\python.exe -m scripts.ha_config_sync preflight        # readiness; distinct failure per mode

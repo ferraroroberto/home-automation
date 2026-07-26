@@ -25,6 +25,7 @@ def test_groups_cover_every_wired_feature() -> None:
     assert [g.id for g in VOICE_COMMAND_GROUPS] == [
         "alarm",
         "wake-alarms",
+        "reminders",
         "locator",
         "web-search",
         "grocery",

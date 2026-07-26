@@ -1,0 +1,47 @@
+# Home Assistant custom sentences — reminder voice commands (issue #314).
+#
+# Install at the HA VM path: /config/custom_sentences/en/reminder.yaml
+#
+# Distinct from wake_alarm.yaml (rings at a set time) and alarm.yaml (the
+# RISCO security alarm). Every sentence here says "reminder"/"remind" so it
+# can never collide with either grammar. The conversation engine matches
+# these locally (Tier 1, no LLM) and each intent is wired to a rest_command
+# in configuration.yaml (see configuration.snippet.yaml) that hits this
+# app's /api/reminders endpoints.
+language: "en"
+
+# {text} is a free-text wildcard: it captures the whole spoken reminder,
+# content plus an optional trailing due cue ("take out the trash at 6pm
+# tomorrow") for the app to split server-side
+# (src/reminders.py:parse_spoken_reminder) — the sentences stay thin.
+lists:
+  text:
+    wildcard: true
+
+intents:
+  # Create a reminder from the spoken text (+ optional due date/time).
+  ReminderAdd:
+    data:
+      - sentences:
+          - "remind me to {text}"
+          - "(add|create|new|set) [a] reminder [to] {text}"
+          - "remember to {text}"
+
+  # Mark the soonest-due (or oldest undated) pending reminder done.
+  ReminderComplete:
+    data:
+      - sentences:
+          - "mark [my] [next] reminder [as] done"
+          - "(complete|finish) [my] [next] reminder"
+          - "i (did|finished) my [next] reminder"
+          - "check off [my] [next] reminder"
+
+  # Read back the pending (not-done) reminders.
+  ReminderList:
+    data:
+      - sentences:
+          - "[(what|which)] reminders [do] [i] have"
+          - "list [my] reminders"
+          - "do i have [any] reminders"
+          - "read [me] [my] reminders"
+          - "what am i supposed to remember"

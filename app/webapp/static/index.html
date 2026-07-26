@@ -669,6 +669,34 @@
         </div>
       </details>
 
+      <!-- Reminders (issue #314) — bidirectional voice/app free-text
+           reminders: distinct from Wake alarms above (those ring at a set
+           time; these are a checklist you can complete from either surface).
+           Dense-collection card — flat list-row summary + staged edit dialog
+           (home-automation#409 pattern, shared denseListEditor shell also
+           used by the Security-tab Schedules card). -->
+      <details class="card card--collapsible reminders-card" aria-label="Reminders">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
+            <h3 class="collapse-title">Reminders</h3>
+            <span id="remindersCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="reminders-body">
+          <div id="remindersList" class="alarm-schedule-list"></div>
+          <p id="remindersNote" class="muted small security-note" hidden></p>
+          <button id="reminderAdd" type="button" class="schedule-add-btn">+ Add reminder</button>
+
+          <p class="wake-voice-hint muted small">
+            Hands-free via Home Assistant Voice — “Okay Nabu, remind me to take
+            out the trash at 6&nbsp;pm tomorrow”, “what are my reminders”, or
+            “mark my reminder done”.
+          </p>
+        </div>
+      </details>
+
       <!-- "Where's mom/dad" locator (issue #438) — resolved current place per
            tracked (non-hidden) person — role badge when one is set — from the
            same cached GET /api/presence data the Security-tab Presence card polls
@@ -1565,6 +1593,45 @@
 
       <div class="detail-actions">
         <button id="securityScheduleSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Reminder add/edit dialog (issue #314) — staged editor for the Home tab's
+       Reminders card, same denseListEditor shell as securityScheduleDialog. -->
+  <dialog id="reminderDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="reminderEditorTitle">Reminder</h2>
+        <button id="reminderEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Text</span>
+        <input id="reminderText" type="text" class="input-native" maxlength="200" placeholder="What to remember">
+      </label>
+
+      <div class="row">
+        <span>Due date</span>
+        <button id="reminderDueToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Set a due date">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <div id="reminderDueFields" hidden>
+        <label class="row">
+          <span>Date</span>
+          <input id="reminderDate" type="date" class="input-native">
+        </label>
+        <label class="row">
+          <span>Time</span>
+          <input id="reminderTime" type="time" class="input-native">
+        </label>
+      </div>
+
+      <button id="reminderDelete" type="button" class="schedule-editor-delete" hidden>Delete reminder</button>
+
+      <div class="detail-actions">
+        <button id="reminderSave" type="button" class="detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>

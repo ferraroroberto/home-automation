@@ -44,6 +44,7 @@ import { onHaTab, wireHa } from './ha.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security.js';
 import { onWakeAlarmsTab, wireWakeAlarms } from './wake-alarms.js';
+import { onRemindersTab, wireReminders } from './reminders.js';
 import { wireVoiceCommands } from './voice-commands.js';
 import { onCamerasTab, wireCameras } from './cameras.js';
 import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
@@ -181,6 +182,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wirePresencePlaces();
   wireSecurityNotify();
   wireWakeAlarms();
+  wireReminders();
   wireVm();
   wireSearxng();
   wireVoiceCommands();
@@ -202,7 +204,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // Energy, Plugs, Lights, Network, and Security each adjust their own
   // polling cadence on tab change.
   wireTabs(function (tab) {
-    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab);
+    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
   });
 
   // AC units only matter on Home (summary tile) and AC (cards), so poll them

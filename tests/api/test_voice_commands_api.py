@@ -19,6 +19,7 @@ def test_voice_commands_payload(client: TestClient) -> None:
     assert [g["id"] for g in groups] == [
         "alarm",
         "wake-alarms",
+        "reminders",
         "locator",
         "web-search",
         "grocery",
