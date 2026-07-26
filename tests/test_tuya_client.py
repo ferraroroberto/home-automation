@@ -163,3 +163,147 @@ def test_scan_lan_filters_invalid_ips(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert set(result) == {"good"}
     assert result["good"]["ip"] == "192.168.0.5"
+
+
+# --------------------------------------------------------------- per-device backoff (issue #537)
+@pytest.fixture(autouse=True)
+def _clear_backoff_state() -> None:
+    """Isolate the module-level backoff dict between tests."""
+    T._backoff_state.clear()
+    yield
+    T._backoff_state.clear()
+
+
+def test_seconds_until_retry_is_none_for_a_clean_device() -> None:
+    assert T._seconds_until_retry("dev-1") is None
+
+
+def test_record_failure_escalates_and_caps_at_max() -> None:
+    delays = []
+    for _ in range(8):
+        T._record_backoff_failure("dev-1")
+        delays.append(T._seconds_until_retry("dev-1"))
+
+    # Strictly increasing until it hits the cap.
+    assert delays[0] <= T._BACKOFF_BASE_S
+    assert all(delays[i] <= delays[i + 1] + 0.01 for i in range(len(delays) - 1))
+    assert delays[-1] <= T._BACKOFF_MAX_S + 0.01
+
+
+def test_record_success_clears_backoff() -> None:
+    T._record_backoff_failure("dev-1")
+    assert T._seconds_until_retry("dev-1") is not None
+
+    T._record_backoff_success("dev-1")
+
+    assert T._seconds_until_retry("dev-1") is None
+
+
+def _write_mapped_device(path: Path, device_id: str = "dev-1") -> None:
+    _write_devices(
+        path,
+        [
+            {
+                "id": device_id,
+                "name": "Test plug",
+                "ip": "192.168.0.50",
+                "key": "secret",
+                "version": "3.3",
+                "mapping": {"1": {"code": "switch_1"}},
+            }
+        ],
+    )
+
+
+def test_read_device_state_skips_network_while_backed_off(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A device within its backoff window never reaches ``_status`` at all."""
+    path = tmp_path / "devices.json"
+    _write_mapped_device(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    T._record_backoff_failure("dev-1")
+
+    def _status_should_not_be_called(*_a, **_kw):
+        raise AssertionError("_status must not be called while backed off")
+
+    monkeypatch.setattr(T, "_status", _status_should_not_be_called)
+
+    with pytest.raises(T.TuyaBackoffActive):
+        T.read_device_state("dev-1")
+
+
+def test_read_device_state_records_failure_and_reraises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "devices.json"
+    _write_mapped_device(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+
+    def _fail(*_a, **_kw):
+        raise T.TuyaCommandError("Device Unreachable (Err 905)")
+
+    monkeypatch.setattr(T, "_status", _fail)
+
+    with pytest.raises(T.TuyaCommandError):
+        T.read_device_state("dev-1")
+
+    assert T._seconds_until_retry("dev-1") is not None
+
+
+def test_read_device_state_success_clears_prior_backoff(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "devices.json"
+    _write_mapped_device(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    T._record_backoff_failure("dev-1")
+    T._backoff_state["dev-1"].next_retry_at = 0.0  # let this attempt through
+
+    monkeypatch.setattr(T, "_status", lambda *_a, **_kw: {"dps": {"1": True}})
+
+    result = T.read_device_state("dev-1")
+
+    assert result["reachable"] is True
+    assert T._seconds_until_retry("dev-1") is None
+
+
+def test_set_switch_bypasses_backoff_and_updates_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A manual command always goes out immediately, even while backed off,
+    and its outcome still updates the shared backoff bookkeeping."""
+    path = tmp_path / "devices.json"
+    _write_mapped_device(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    T._record_backoff_failure("dev-1")  # device is currently backed off
+
+    class _FakeDevice:
+        def set_value(self, dps, on):
+            return {"dps": {dps: on}}
+
+    monkeypatch.setattr(T, "_connect", lambda device_id, cls=None: _FakeDevice())
+
+    result = T.set_switch("dev-1", True)
+
+    assert result == {"dps": {"1": True}}
+    assert T._seconds_until_retry("dev-1") is None  # success cleared the backoff
+
+
+def test_set_switch_failure_also_escalates_backoff(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "devices.json"
+    _write_mapped_device(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+
+    class _FakeDevice:
+        def set_value(self, dps, on):
+            return {"Err": 905, "Error": "Device Unreachable"}
+
+    monkeypatch.setattr(T, "_connect", lambda device_id, cls=None: _FakeDevice())
+
+    with pytest.raises(T.TuyaCommandError):
+        T.set_switch("dev-1", True)
+
+    assert T._seconds_until_retry("dev-1") is not None

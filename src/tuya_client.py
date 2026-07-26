@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -35,6 +37,66 @@ _LOCAL_RETRY_LIMIT = 1
 # button press; gated to the explicit Refresh action (never a page-load read).
 _SCAN_TIME_SECONDS = 8.0
 
+# Per-device backoff for *passive* polling reads only (issue #537) — a device
+# stuck in a failed state was being reconnected on every poll tick (up to
+# several times/second across callers), each closed socket burning an
+# ephemeral port for ~120s in TIME_WAIT. Base matches the PWA's own poll
+# cadence (plugs.js POLL_MS); the exponent is capped so a device dead for
+# days can't grow consecutive_failures into an OverflowError. This never
+# gates set_switch/set_cover — a user-initiated command always goes out
+# immediately and its outcome updates the same backoff state.
+_BACKOFF_BASE_S = 15.0
+_BACKOFF_MAX_S = 300.0
+_BACKOFF_FACTOR = 2.0
+_BACKOFF_MAX_EXPONENT = 10  # 15 * 2**10 already far exceeds _BACKOFF_MAX_S
+
+
+@dataclass
+class _DeviceBackoff:
+    consecutive_failures: int = 0
+    next_retry_at: float = 0.0  # monotonic seconds; 0 == no backoff active
+
+
+_backoff_lock = threading.Lock()
+_backoff_state: dict[str, _DeviceBackoff] = {}
+
+
+def _seconds_until_retry(device_id: str) -> Optional[float]:
+    """Seconds remaining in this device's backoff window, or ``None`` if clear."""
+    with _backoff_lock:
+        state = _backoff_state.get(device_id)
+        if state is None:
+            return None
+        remaining = state.next_retry_at - time.monotonic()
+    return remaining if remaining > 0 else None
+
+
+def _record_backoff_failure(device_id: str) -> None:
+    """Escalate this device's backoff after a failed passive-poll attempt."""
+    with _backoff_lock:
+        state = _backoff_state.setdefault(device_id, _DeviceBackoff())
+        state.consecutive_failures += 1
+        exponent = min(state.consecutive_failures - 1, _BACKOFF_MAX_EXPONENT)
+        delay = min(_BACKOFF_MAX_S, _BACKOFF_BASE_S * (_BACKOFF_FACTOR ** exponent))
+        state.next_retry_at = time.monotonic() + delay
+        failures = state.consecutive_failures
+    logger.info(
+        "⚠️ Tuya device %s unreachable (failure #%d) — backing off %.0fs before next background poll",
+        device_id, failures, delay,
+    )
+
+
+def _record_backoff_success(device_id: str) -> None:
+    """Clear this device's backoff after a successful attempt (poll or manual)."""
+    with _backoff_lock:
+        state = _backoff_state.pop(device_id, None)
+    if state is not None and state.consecutive_failures:
+        logger.info(
+            "✅ Tuya device %s reachable again after %d failed attempt(s)",
+            device_id, state.consecutive_failures,
+        )
+
+
 _SWITCH_CODES = ("switch_1", "switch", "switch_led")
 _COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
 _CURRENT_CODES = ("cur_current", "cur_current_1", "current")
@@ -53,6 +115,13 @@ class TuyaDeviceNotFoundError(RuntimeError):
 
 class TuyaCommandError(RuntimeError):
     """Raised when TinyTuya returns an error response or malformed payload."""
+
+
+class TuyaBackoffActive(TuyaCommandError):
+    """Raised by :func:`read_device_state` when a device is skipped because
+    it's still within its post-failure backoff window (issue #537) — distinct
+    from a genuine live failure so callers can log/report the two differently
+    ("backing off" vs "offline right now")."""
 
 
 @dataclass(frozen=True)
@@ -300,7 +369,11 @@ def _local_metadata(device_id: str) -> _LocalDevice:
 def _connect(device_id: str, cls: type[tinytuya.Device] = tinytuya.Device) -> tinytuya.Device:
     """Create a short-timeout TinyTuya local device connection."""
     metadata = _local_metadata(device_id)
-    logger.info("ℹ️ Connecting locally to Tuya device '%s' (%s)", metadata.name, device_id)
+    # DEBUG, not INFO (issue #537): this fires on every poll tick for every
+    # device — at a 15s cadence across ~10 devices that's pure noise that
+    # buried the real warnings. A failure/recovery still logs at INFO via
+    # _record_backoff_failure/_record_backoff_success below.
+    logger.debug("Connecting locally to Tuya device '%s' (%s)", metadata.name, device_id)
     try:
         device = cls(metadata.device_id, metadata.address, metadata.key, version=metadata.version)
     except RuntimeError as exc:
@@ -461,12 +534,32 @@ def read_device_state(device_id: str) -> dict[str, Any]:
     the device exposes; an offline/timed-out device surfaces as a
     :class:`TuyaCommandError` so the caller can mark just that card unavailable
     without failing the whole listing.
+
+    This is the *passive polling* path (issue #537): a device with escalating
+    consecutive failures is skipped here — raising :class:`TuyaBackoffActive`
+    without opening a socket at all — rather than reconnected on every poll
+    tick. ``set_switch``/``set_cover`` never call this backoff check; a
+    user-initiated command always goes out immediately.
     """
+    remaining = _seconds_until_retry(device_id)
+    if remaining is not None:
+        logger.debug(
+            "Tuya device %s still backed off (%.0fs remaining) — skipping poll", device_id, remaining
+        )
+        raise TuyaBackoffActive(
+            f"Device {device_id} is backed off for {remaining:.0f}s more after repeated failures"
+        )
+
     metadata = _local_metadata(device_id)
     switch = _first_mapping(metadata.raw, _SWITCH_CODES)
     energy = _energy_mappings(metadata.raw)
 
-    status = _status(device_id, tinytuya.OutletDevice)
+    try:
+        status = _status(device_id, tinytuya.OutletDevice)
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
     dps = status["dps"]
 
     result: dict[str, Any] = {
@@ -482,12 +575,18 @@ def read_device_state(device_id: str) -> dict[str, Any]:
         result["switch_on"] = bool(dps.get(switch.dps))
     for name, mapping in energy.items():
         result[name] = _scaled(dps.get(mapping.dps), mapping)
-    logger.info("✅ Read Tuya state from %s", device_id)
+    logger.debug("Read Tuya state from %s", device_id)  # per-tick noise (issue #537); see _record_backoff_* for signal
     return result
 
 
 def set_switch(device_id: str, on: bool) -> dict[str, Any]:
-    """Turn a Tuya plug/light switch on or off via local LAN control."""
+    """Turn a Tuya plug/light switch on or off via local LAN control.
+
+    Deliberately never checks the passive-poll backoff (issue #537's
+    constraint): a user tapping a switch must go out immediately even if the
+    device is currently backed off. The outcome still updates the shared
+    backoff state either way, so the next background poll benefits from it.
+    """
     metadata = _local_metadata(device_id)
     switch = _first_mapping(metadata.raw, _SWITCH_CODES)
     if not switch:
@@ -501,14 +600,23 @@ def set_switch(device_id: str, on: bool) -> dict[str, Any]:
         switch.code,
         "ON" if on else "OFF",
     )
-    response = device.set_value(switch.dps, on)
-    _raise_for_tinytuya_error(response, f"Set Tuya switch {device_id}")
+    try:
+        response = device.set_value(switch.dps, on)
+        _raise_for_tinytuya_error(response, f"Set Tuya switch {device_id}")
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
     logger.info("✅ Set Tuya switch %s", device_id)
     return response if isinstance(response, dict) else {"response": response}
 
 
 def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[str, Any]:
-    """Open, close, or stop a Tuya blind via local LAN control."""
+    """Open, close, or stop a Tuya blind via local LAN control.
+
+    Same backoff-bypass contract as :func:`set_switch` — never gated by the
+    passive-poll backoff, but its outcome updates the shared state.
+    """
     metadata = _local_metadata(device_id)
     control = _first_mapping(metadata.raw, _COVER_CONTROL_CODES)
     if not control:
@@ -516,13 +624,18 @@ def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[
 
     device = _connect(device_id, tinytuya.CoverDevice)
     logger.info("ℹ️ Sending Tuya cover action %s to %s", action, device_id)
-    if action == "open":
-        response = device.open_cover()
-    elif action == "close":
-        response = device.close_cover()
-    else:
-        response = device.stop_cover()
-    _raise_for_tinytuya_error(response, f"Set Tuya cover {device_id} {action}")
+    try:
+        if action == "open":
+            response = device.open_cover()
+        elif action == "close":
+            response = device.close_cover()
+        else:
+            response = device.stop_cover()
+        _raise_for_tinytuya_error(response, f"Set Tuya cover {device_id} {action}")
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
     logger.info("✅ Sent Tuya cover action %s to %s", action, device_id)
     return response if isinstance(response, dict) else {"response": response}
 
