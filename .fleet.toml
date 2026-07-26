@@ -7,3 +7,6 @@ icon        = "🌡️"
 port        = 8447
 description = "Home automation suite: AC, solar, alarm, network health, and native Home Assistant entities."
 chips       = ["FastAPI", "PWA", "MELCloud", "SMA", "Tuya", "HA", "Telegram"]
+
+[vendored]
+e2e_live_guard = { src = "tests/e2e/_e2e_live_guard.py", sha = "469dc7513153177a5fd13ff829adad33c6f5b98e", dest = "tests/e2e/_e2e_live_guard.py" }

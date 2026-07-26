@@ -59,7 +59,7 @@ Windows / PowerShell:
 - Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8447` then `curl -k https://127.0.0.1:8447/healthz`, `…/api/units` and `…/api/energy` (loopback bypasses the token).
 - Streamlit spike boot check: `& .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py --server.headless true`
 - Backend suite (fast, no network/browser): `& .\.venv\Scripts\python.exe -m pytest tests -p no:cacheprovider --ignore=tests/e2e` — API smoke (FastAPI `TestClient` over the real app, loopback-bypass auth) under `tests/api/` + pure-logic unit tests for `src.tariff` / `src.energy_history` / `src.display_names`. Cloud fetchers are monkeypatched; nothing touches MELCloud/SMA/Tuya/Risco.
-- E2E suite: `& .\.venv\Scripts\python.exe -m pytest tests/e2e` — adopt-or-boot fixture; runs Chromium + WebKit projections. Faster dev loop: `--browser chromium`.
+- E2E suite: `& .\.venv\Scripts\python.exe -m pytest tests/e2e` — boots its own disposable instance by default (issue #538); runs Chromium + WebKit projections. Faster dev loop: `--browser chromium`. If the tray's port (:8447) is occupied and you want the suite to run against it instead of booting a second instance, set `E2E_LIVE=1` — read-only adoption only, guarded by the vendored `tests/e2e/_e2e_live_guard.py` (a bare run with the port occupied and no flag refuses rather than silently driving the tray).
 
 Two regression gates: the fast backend layer (`tests/`, excluding `tests/e2e`) and the browser e2e suite (`tests/e2e/`). Run both before declaring done; report failures with the output rather than claiming "tests pass." Install the test deps with `& .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`.
 

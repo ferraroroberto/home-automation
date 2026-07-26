@@ -6,14 +6,36 @@ suite **boots the real webapp** (to serve index.html + the static PWA)
 but **stubs the API with Playwright route interception** — the frontend
 renders and is driven against deterministic fixtures, never the cloud.
 
-Server lifecycle (adopt-or-autoboot):
+Server lifecycle, three modes (issue #538 — the polarity used to be
+inverted: a bare run silently adopted whatever answered ``/healthz`` on
+:8447, which is the tray this repo's real security alarm, HVAC, and Tuya
+plugs run through):
 
-* If something already answers ``/healthz`` on :8447, the suite adopts
-  it (your dev `webapp.bat`) unless ``E2E_FORCE_AUTOBOOT=1`` is set.
-* Otherwise it autoboots a disposable webapp on a free port (HTTPS when
-  ``webapp/certificates/cert.pem`` exists, else HTTP). **Boot failure is
-  a hard failure, never a skip** — a suite that skips when the app isn't
-  up reports green on a build it never tested.
+* **Default (bare ``pytest tests/e2e``).** Autoboots a disposable webapp
+  on a free port (HTTPS when ``webapp/certificates/cert.pem`` exists,
+  else HTTP). **Boot failure is a hard failure, never a skip** — a suite
+  that skips when the app isn't up reports green on a build it never
+  tested. If the tray's port (:8447) happens to be occupied, this mode
+  never touches it either way — it just boots its own instance alongside.
+* **Live (explicit opt-in).** ``E2E_LIVE=1`` means the caller has chosen
+  to *act* on whatever's already listening on :8447 (this repo's tray).
+  Guarded by the vendor-verbatim ``tests/e2e/_e2e_live_guard.py``
+  (project-scaffolding issue #191/#194 — same module every fleet adopter
+  copies byte-identical; see its own docstring for the fleet-wide policy).
+  Without the flag, an occupied :8447 makes the guard refuse via
+  ``pytest.exit`` naming ``E2E_LIVE`` — an accidental bare run must not
+  silently load-test (or actuate!) the tray. This repo's deliberate choice
+  on an opt-in hit is **read-only adoption, never a restart or kill**: the
+  tray's port isn't just a daily-driver dashboard (voice-transcriber's
+  reasoning for the same choice) — it fronts a real RISCO security alarm,
+  real HVAC units, and real Tuya plugs, so anything beyond what the
+  suite's own Playwright route-stubbing already isolates could actuate a
+  real device. A restart-to-reclaim is never appropriate here either: the
+  whole point of opting in is to reuse the *running* instance, not bounce
+  it mid-suite.
+* **Autoboot when the port is free.** Same disposable-instance path as
+  the default mode, reached whenever :8447 isn't occupied (with or
+  without ``E2E_LIVE`` set — there's nothing live to adopt).
 
 Dual projection: when ``--browser`` isn't passed the suite runs in two
 projections — **Chromium desktop** and **WebKit projected onto an iPhone
@@ -46,6 +68,7 @@ import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, Route, sync_playwright
 
 from app.webapp.event_loop import LOOP_FACTORY
+from tests.e2e._e2e_live_guard import require_disposable_instance
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +76,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CERT = _REPO_ROOT / "webapp" / "certificates" / "cert.pem"
 _KEY = _REPO_ROOT / "webapp" / "certificates" / "key.pem"
 _ADOPT_PORT = 8447
+# Explicit opt-in for adopting the LIVE tray on :8447 (issue #538) — the flag
+# name passed to the vendored _e2e_live_guard.require_disposable_instance.
+# Without it, an occupied :8447 makes a bare `pytest tests/e2e` refuse rather
+# than silently drive the tray fronting a real security alarm/HVAC/Tuya plugs.
+_LIVE_ENV = "E2E_LIVE"
 _IPHONE_DEVICE = "iPhone 14"
 _DEFAULT_TIMEOUT_MS = int(os.environ.get("E2E_DEFAULT_TIMEOUT_MS", "15000"))
 # Bound for the session-scoped browser/driver teardown (#440): a stale
@@ -266,20 +294,26 @@ def pytest_configure(config: pytest.Config) -> None:
 
 @pytest.fixture(scope="session")
 def base_url() -> Iterator[str]:
-    # Adopt a webapp already listening on :8447 (a dev webapp.bat).
-    if os.environ.get("E2E_FORCE_AUTOBOOT") != "1":
+    # Vendored guard (issue #538): refuses via pytest.exit if :8447 is
+    # occupied and E2E_LIVE isn't set. This repo's caller-side choice on an
+    # opt-in hit is read-only adoption of the live tray, never a restart or
+    # kill — see the module docstring above for why.
+    live_opt_in = require_disposable_instance(_ADOPT_PORT, _LIVE_ENV)
+    if live_opt_in:
         adopt = f"https://127.0.0.1:{_ADOPT_PORT}"
         if _healthz_ok(adopt):
-            logger.info("✅ adopting live webapp at %s", adopt)
+            logger.info("✅ %s=1 — adopting live webapp at %s", _LIVE_ENV, adopt)
             yield adopt
             return
         adopt_http = f"http://127.0.0.1:{_ADOPT_PORT}"
         if _healthz_ok(adopt_http):
-            logger.info("✅ adopting live webapp at %s", adopt_http)
+            logger.info("✅ %s=1 — adopting live webapp at %s", _LIVE_ENV, adopt_http)
             yield adopt_http
             return
 
-    # Otherwise autoboot a disposable instance on a free port.
+    # Autoboot a disposable instance on a free port — the default, and the
+    # fallback if the opt-in was set but the port turned out not to actually
+    # answer /healthz (a race between the guard's raw socket check and here).
     port = _free_tcp_port()
     https = _CERT.exists() and _KEY.exists()
     scheme = "https" if https else "http"
