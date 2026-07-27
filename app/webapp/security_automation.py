@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Optional
 
 from dotenv import load_dotenv
@@ -46,6 +48,30 @@ class SecurityScheduleConfig:
 @dataclass
 class _EngineState:
     last_fire_day: Dict[str, str]
+
+
+# Per-schedule once-per-day fire gate: schedule id -> "YYYY-MM-DD". Persisted
+# to disk so a tray/webapp restart after a schedule's fire time does not
+# refire it later the same day (#540) — mirrors alarm_notify.py's dedupe cache.
+_LAST_FIRE_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "security_schedule_last_fire.json"
+
+
+def _load_last_fire_day() -> Dict[str, str]:
+    try:
+        raw = json.loads(_LAST_FIRE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _save_last_fire_day(state: Dict[str, str]) -> None:
+    try:
+        _LAST_FIRE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _LAST_FIRE_PATH.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_LAST_FIRE_PATH)
+    except OSError as exc:
+        logger.warning("⚠️ Could not persist alarm schedule fire state: %s", exc)
 
 
 def load_security_schedule_config() -> SecurityScheduleConfig:
@@ -111,12 +137,13 @@ async def tick(config: SecurityScheduleConfig, state: _EngineState, now: Optiona
         try:
             await _apply_schedule(entry)
             state.last_fire_day[entry.id] = today
+            _save_last_fire_day(state.last_fire_day)
         except Exception as exc:  # noqa: BLE001 - never kill the loop
             logger.warning("⚠️ Alarm schedule apply failed for %s: %s", entry.id, exc)
 
 
 async def _run(config: SecurityScheduleConfig) -> None:
-    state = _EngineState(last_fire_day={})
+    state = _EngineState(last_fire_day=_load_last_fire_day())
     await run_loop(
         lambda: tick(config, state),
         config.poll_interval_s,

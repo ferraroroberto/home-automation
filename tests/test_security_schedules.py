@@ -216,6 +216,52 @@ def test_security_schedule_tick_retries_failed_entry_hours_later_same_day(monkey
     assert len(recorded) == 2
 
 
+def test_security_schedule_last_fire_day_survives_restart(monkeypatch) -> None:
+    """#540: a restart after a schedule's fire time must not refire it the
+    same day. ``schedule_due()`` deliberately stays true for the rest of the
+    day (#527, for same-process retry after a failed confirm), so the guard
+    against a *second* fire has to survive the process going away - a fresh
+    ``_EngineState`` reloaded from disk, simulating a tray/webapp restart,
+    must recall that today's fire already happened."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="perimeter-21", time="21:00", days=["mon"], action="perimeter"),
+    ]
+
+    async def fake_confirm(action: str) -> object:
+        return _FakeState("perimeter")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    now = datetime(2026, 6, 22, 21, 0, 10)
+
+    # First process: the schedule fires and its fire state is persisted.
+    state = engine._EngineState(last_fire_day=engine._load_last_fire_day())
+    asyncio.run(engine.tick(config, state, now))
+    assert state.last_fire_day == {"perimeter-21": "2026-06-22"}
+    assert len(recorded) == 1
+
+    # Restart: a brand-new process reloads state from disk instead of
+    # starting with an empty dict, then polls again later the same day.
+    restarted_state = engine._EngineState(last_fire_day=engine._load_last_fire_day())
+    assert restarted_state.last_fire_day == {"perimeter-21": "2026-06-22"}
+
+    later_same_day = datetime(2026, 6, 22, 21, 6, 40)
+    asyncio.run(engine.tick(config, restarted_state, later_same_day))
+
+    # Still due per schedule_due() (#527), but must not have fired again.
+    assert len(recorded) == 1
+
+
 def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
     import app.webapp.security_automation as engine
 

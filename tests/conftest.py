@@ -27,3 +27,9 @@ def _isolate_activity_stores(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(tel, "DEFAULT_DB_PATH", tmp_path / "telemetry.sqlite3")
     tel.init_db()
     monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path / "logs")
+
+    import app.webapp.security_automation as security_automation
+
+    monkeypatch.setattr(
+        security_automation, "_LAST_FIRE_PATH", tmp_path / "logs" / "security_schedule_last_fire.json"
+    )
