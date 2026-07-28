@@ -4,7 +4,7 @@ Turns Open-Meteo's hourly **global tilted irradiance** (GTI, W/m²) into a rough
 expected-generation curve for the home's PV array, for one of three days —
 yesterday, today, or tomorrow. This is the read/visualisation half of the
 eventual solar load-balancing goal: a forecast to compare against the measured
-generation the SMA side records, *not* a control input.
+generation the metered side records, *not* a control input.
 
 Source & model (deliberately self-contained, approximate):
 

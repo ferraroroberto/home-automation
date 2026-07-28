@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from src import energy_history as H
-from src.sma_client import EnergyState
+from src.huawei_client import EnergyState
 
 
 def _state(pv=None, house=None, imp=None, exp=None) -> EnergyState:

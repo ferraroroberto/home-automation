@@ -41,7 +41,7 @@ Coordinates are **reused from `config/location.json`** (the same file the weathe
 - **PVGIS** applies its `loss` percentage (cabling, inverter, soiling, mismatch) *on top of* a separate, physics-based **panel-temperature** correction — hot panels lose efficiency, and PVGIS models that hour by hour.
 - **This model has no temperature term.** It scales GTI straight to power, so `performance_ratio` has to absorb *both* the PVGIS-style system losses *and* the temperature loss PVGIS would have handled separately.
 
-So translating a PVGIS setup, don't copy `1 − loss/100` verbatim — subtract a further few points for thermal loss. Worked example (the home array, from the sister `pvgis` repo's `.env`):
+So translating a PVGIS setup, don't copy `1 − loss/100` verbatim — subtract a further few points for thermal loss. Worked example, using the values in the sister `pvgis` repo's `.env` (this home's own array has since been expanded to **8.8 kWp** — see `config/pv_system.json`; the translation method below is what matters here, not the peak-power figure):
 
 | PVGIS input | value | → this model |
 | --- | --- | --- |

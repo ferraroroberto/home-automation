@@ -1,12 +1,12 @@
 /* Energy data + Energy-tab controller.
  *
- * Owns everything energy: the compact Home tile, the Energy-tab SMA-style stack
+ * Owns everything energy: the compact Home tile, the Energy-tab stacked-area
  * (live flow diagram, deficit/surplus banner, efficiency tiles, today's split
  * cards, savings), the live flowing chart, and the hourly/daily/monthly bars.
  *
  * Cadence is tab-aware: the live snapshot polls fast (LIVE_MS) only while the
  * Energy tab is open, falling back to SLOW_MS elsewhere so the Home tile still
- * updates without hammering the SMA devices. Today's slow-moving kWh totals
+ * updates without hammering the FusionSolar cloud. Today's slow-moving kWh totals
  * refresh on their own TODAY_MS cadence while the Energy tab is open. Charts are
  * created lazily on the first Energy-tab visit (Chart.js is a heavy global). */
 
@@ -178,8 +178,13 @@ export function renderEnergy(e) {
   // The meter carries grid + house power; without it there is no live snapshot
   // to plot (an asleep inverter alone is normal at night). Say *why* on the meta
   // line instead of leaving the tiles at a bare "—" with no explanation.
+  // Two distinct causes, worth telling apart: solar still reading means the
+  // inverter is fine and only the power sensor is bad, which is a hardware
+  // fault to chase; nothing reading at all is just no data from the source.
   const liveNote = e.meter_reachable === false
-    ? '· Live unavailable — the energy meter is not responding on the LAN'
+    ? (e.inverter_reachable
+      ? '· Grid and home unavailable — the power sensor is reporting invalid readings'
+      : '· Live unavailable — no reading from the inverter')
     : null;
 
   // --- append to the live chart (Generation / Grid-supplied / Consumption) ---

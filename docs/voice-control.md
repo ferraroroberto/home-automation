@@ -74,7 +74,7 @@ The Home Assistant integration exposes compatible app devices as first-class HA 
 | Tuya plugs | `switch` | Built-in HA switch intents. |
 | RISCO alarm | `alarm_control_panel` | Built-in HA alarm services: away = full, home = perimeter, night = partial. |
 | RISCO zones | `binary_sensor` | Read/status and automations. |
-| SMA energy | `sensor` | Read/status and dashboards. |
+| FusionSolar energy | `sensor` | Read/status and dashboards. |
 
 This is the preferred path for new voice-capable devices because the command is entity-native and deterministic. Keep safety gates explicit: disarm still uses the existing code-gated custom sentence path until an equivalent HA-native code-gated flow is separately validated.
 

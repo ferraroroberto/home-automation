@@ -20,7 +20,7 @@ Two behaviours make this safe to put in front of a live device call:
 
 Usage::
 
-    host = await resolve_device_host(os.getenv("SMA_INVERTER_HOST"))
+    host = await resolve_device_host(os.getenv("NETWORK_AP_HOST"))
 
 Callers that need a URL's host swapped (a MAC cannot sit in a URL host position —
 its colons collide with the port separator) use :func:`resolve_url_host`.

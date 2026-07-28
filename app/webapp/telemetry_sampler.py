@@ -1,6 +1,6 @@
 """Background telemetry-reading sampler — owned by the webapp (uvicorn) lifecycle.
 
-A sibling of :mod:`app.webapp.sampler` (which owns the SMA energy series). This
+A sibling of :mod:`app.webapp.sampler` (which owns the solar energy series). This
 one snapshots the *other* device domains — HVAC temps, plug watts, UPS load,
 Elgato lights — into the unified :mod:`src.telemetry` ``readings`` table on a
 gentle cadence, so the Activity log's readings view has history to draw.

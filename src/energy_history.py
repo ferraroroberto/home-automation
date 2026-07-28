@@ -1,6 +1,6 @@
 """Server-side energy-history store (SQLite).
 
-The webapp samples the live SMA energy flow on a slow cadence and persists
+The webapp samples the live FusionSolar energy flow on a slow cadence and persists
 each reading here so the Energy dashboard can draw recent, hourly, daily, and
 monthly history — the read side of the eventual solar load-balancing work.
 
@@ -39,7 +39,7 @@ from typing import Any, ContextManager, Dict, List, Optional
 from dotenv import load_dotenv
 
 from src._sqlite import connect as _sqlite_connect
-from src.sma_client import EnergyState
+from src.huawei_client import EnergyState
 
 logger = logging.getLogger("energy_history")
 

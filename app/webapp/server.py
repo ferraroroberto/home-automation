@@ -10,7 +10,7 @@ with the router set the way the old exhaustive table did (#453).
     (static mount)     → /static/*                        (StaticFiles, mounted in create_app — not a router)
     auth               → /api/login
     units              → /api/units*                    (MELCloud Home units)
-    energy             → /api/energy*                   (SMA flow/history/cost/forecast)
+    energy             → /api/energy*                   (solar flow/history/cost/forecast)
     weather            → /api/weather
     tuya               → /api/tuya*                      (Smart Life / Tuya plugs, blinds)
     ups                → /api/ups*                        (USB UPS + notify prefs)

@@ -1,7 +1,7 @@
 /* Chart.js wrappers for the Energy tab.
  *
  * Both charts use the same three all-positive series — nothing dips below zero,
- * so every line "goes up" and the translucent fills stack visually (SMA style):
+ * so every line "goes up" and the translucent fills stack visually:
  *
  *   • live line chart  — Generation / Grid-supplied / Consumption (W), recent
  *     samples. spanGaps:false so an asleep inverter (null generation) draws a

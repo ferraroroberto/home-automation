@@ -2,7 +2,7 @@
 
 ``POST /api/calendar/voice`` never touches the real Google Calendar API in
 tests — ``insert_event`` is monkeypatched to a fake, matching this repo's
-"cloud fetchers are monkeypatched" convention for MELCloud/SMA/Tuya/Risco.
+"cloud fetchers are monkeypatched" convention for MELCloud/FusionSolar/Tuya/Risco.
 """
 
 from __future__ import annotations
