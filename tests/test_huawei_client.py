@@ -8,6 +8,7 @@ real defect — see :func:`test_latest_aligned_prefers_a_common_bucket`.
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timedelta
 
 import pytest
@@ -37,10 +38,12 @@ def _reset_backoff():
     huawei_client._failure_until = 0.0
     huawei_client._failure_streak = 0
     huawei_client._stats_cache = None
+    huawei_client._last_log_key = None
     yield
     huawei_client._failure_until = 0.0
     huawei_client._failure_streak = 0
     huawei_client._stats_cache = None
+    huawei_client._last_log_key = None
 
 
 def _stats(product, use, meter, *, times=None, **extra):
@@ -330,6 +333,32 @@ def test_latest_pv_on_an_empty_series():
 # --------------------------------------------------------------------------
 # Failure backoff
 # --------------------------------------------------------------------------
+
+def test_repeat_state_lines_drop_to_debug(caplog):
+    """The same bucket must be announced once, not once per poll.
+
+    The PWA polls every 5 s against a 5-minute grid, so an unconditional line
+    per read wrote the identical warning hundreds of times an hour and buried
+    everything else in the log.
+    """
+    huawei_client._last_log_key = None
+
+    with caplog.at_level(logging.WARNING, logger="huawei"):
+        for _ in range(5):
+            huawei_client._log_state(
+                logging.WARNING, ("degraded", "18:05"), "flow unusable %s", "18:05"
+            )
+
+    assert len(caplog.records) == 1
+
+    # A new bucket is news again.
+    with caplog.at_level(logging.WARNING, logger="huawei"):
+        huawei_client._log_state(
+            logging.WARNING, ("degraded", "18:10"), "flow unusable %s", "18:10"
+        )
+
+    assert len(caplog.records) == 2
+
 
 def test_backoff_doubles_then_caps():
     """A failed read must not be retried at poll rate.

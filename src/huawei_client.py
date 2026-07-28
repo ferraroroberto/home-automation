@@ -166,6 +166,28 @@ _failure_until: float = 0.0
 _failure_streak: int = 0
 
 
+# Key of the last state line emitted — see :func:`_log_state`.
+_last_log_key: Optional[tuple] = None
+
+
+def _log_state(level: int, key: tuple, msg: str, *args: Any) -> None:
+    """Log once per distinct ``key``, dropping repeats to debug.
+
+    Callers poll this module far faster than the source publishes — the PWA
+    asks every 5 s against a 5-minute grid — so an unconditional line per read
+    writes the same sentence hundreds of times an hour. Only the first sighting
+    of a given bucket carries information; the repeats are noise that would
+    bury the lines worth finding.
+    """
+    global _last_log_key
+
+    if key == _last_log_key:
+        logger.debug(msg, *args)
+        return
+    _last_log_key = key
+    logger.log(level, msg, *args)
+
+
 def _backoff_for(streak: int) -> int:
     """Seconds to stay quiet after ``streak`` consecutive failures."""
     if streak < 1:
@@ -593,7 +615,9 @@ async def fetch_energy_state() -> EnergyState:
         # inverter alone can still tell us rather than lying about liveness.
         pv_as_of, pv_kw = _latest_pv(stats)
         if pv_kw is not None and not _is_stale(pv_as_of, config.max_staleness_s):
-            logger.warning(
+            _log_state(
+                logging.WARNING,
+                ("degraded", as_of, pv_as_of),
                 "⚠️ FusionSolar flow unusable (newest consistent point %s) — "
                 "serving PV only from %s; the power sensor is reporting "
                 "impossible values",
@@ -605,14 +629,18 @@ async def fetch_energy_state() -> EnergyState:
             degraded.meter_reachable = False
             return degraded
 
-        logger.warning(
+        _log_state(
+            logging.WARNING,
+            ("stale", as_of),
             "⚠️ FusionSolar data stale (as-of %s, older than %ds) — reporting unavailable",
             as_of, config.max_staleness_s,
         )
         return EnergyState()
 
     _derive(state)
-    logger.info(
+    _log_state(
+        logging.INFO,
+        ("ok", as_of),
         "✅ FusionSolar %s (as-of %s): PV %s W, import %s W, export %s W, load %s W",
         config.plant_dn or _plant_dn, as_of, state.pv_power_w, state.grid_import_w,
         state.grid_export_w, state.house_consumption_w,
