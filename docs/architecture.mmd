@@ -28,7 +28,7 @@ flowchart TB
 
   subgraph core["src/ — UI-free device clients & domain logic"]
     CLIENTS["melcloud_client · sma_client · risco_client/risco_webui ·\ntuya_client · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine/\npresence_places/presence_roles · ups_client (+host_shutdown) ·\nhyperv_client · ha_client · voice_client"]
-    DOMAIN["tariff · pv_forecast · hvac_automation · dhcp_plan ·\ntelemetry / energy_history / network_history"]
+    DOMAIN["tariff · pv_forecast · hvac_automation · dhcp_plan ·\ntelemetry / energy_history / network_history / network_survey"]
     STORES["display_names & sibling rename/hidden/prefs stores\n(_atomic_json · _schedule_store · _toggle_prefs)"]
     NOTIFY["notify/ (TelegramNotifier) + push_notifications.py"]
     CLIS["list_*.py CLIs\n(devices, energy, security, network, cameras, presence, ...)"]

@@ -6,6 +6,7 @@
  * feature panels live in sibling modules and are wired in here (issue #197):
  *   ./network-devices.js — attached-device inventory + detail/rename modal
  *   ./network-wifi.js    — Wi-Fi diagnostics + channel charts + Wi-Fi modal
+ *   ./network-survey.js  — Wi-Fi walk test: per-room coverage samples (#547)
  *   ./network-dhcp.js    — DHCP reservation planner + apply flow
  * Read-mostly — it reads GET /api/network and writes only the AP/router reboots.
  *
@@ -55,6 +56,11 @@ import {
   toggleShowHiddenWifi,
   initShowHiddenWifiPref,
 } from './network-wifi.js';
+import {
+  renderSurvey,
+  wireSurvey,
+  initSurveyMacPref,
+} from './network-survey.js';
 import { wireDhcpPlan } from './network-dhcp.js';
 
 const POLL_MS = 15_000;
@@ -274,6 +280,7 @@ function renderNetwork() {
   renderAlerts(net ? net.alerts : []);
   renderHealth(net ? net.access_point : null, net ? net.router : null);
   renderWifi(net ? net.wifi : null);
+  renderSurvey();
   renderStats(net
     ? (net.devices || []).filter(function (d) { return state.networkShowHiddenDevices || !d.hidden; })
     : []);
@@ -393,12 +400,14 @@ export function wireNetworkControls() {
   initShowOfflinePref();
   initShowHiddenDevicesPref();
   initShowHiddenWifiPref();
+  initSurveyMacPref();
   initDeviceSortPref();
   initDeviceGroupingPref();
   wireConfirmDialog();
   wireNetDeviceDetail();
   wireNetGroupDialog();
   wireNetWifiDetail();
+  wireSurvey();
   if (els.netSpeedBtn) els.netSpeedBtn.addEventListener('click', runSpeedTest);
   if (els.netApReboot) els.netApReboot.addEventListener('click', rebootAccessPoint);
   if (els.netRouterReboot) els.netRouterReboot.addEventListener('click', rebootRouter);

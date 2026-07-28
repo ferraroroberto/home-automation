@@ -2975,6 +2975,175 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   .net-wifi-chart-wrap { height: 185px; }
 }
 
+/* Wi-Fi walk test (issue #547) — per-room coverage survey. Reuses the Wi-Fi
+   list's signal bar / is-weak / is-strong vocabulary so the two cards read as
+   one system; only the row layout and the picker are new here. */
+.net-survey-card { margin-bottom: var(--gap); }
+.net-survey-body { padding: 12px 14px 14px; }
+.net-survey-hint { margin: 0 0 10px; line-height: 1.35; }
+.net-survey-status.is-strong { color: var(--on); }
+.net-survey-status.is-weak { color: var(--attention); }
+
+.net-survey-device {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* No bottom padding: the gap down to the form row is owned entirely by that
+     row's margin, so it can equal the body's 14px side padding exactly. */
+  padding: 9px 0 0;
+  border-top: 1px solid var(--line);
+}
+.net-survey-device-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); }
+.net-survey-device-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.net-survey-device-name.is-unset { color: var(--muted); font-weight: 400; }
+
+.net-survey-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* Matches .net-survey-body's 14px side padding so the row gap and the card
+     margins read as one uniform spacing step. */
+  margin: 14px 0 0;
+}
+.net-survey-room { flex: 1 1 auto; min-width: 0; }
+/* The two trailing actions are the same component (range-tab at the shared
+   --control-h, so they line up with the room input) pinned to one width, so
+   Change and Record here read as a single right-hand column rather than two
+   differently-sized buttons. The width is set here rather than left to content
+   because the two labels differ in length. */
+.net-survey-action {
+  flex: 0 0 7.25rem;
+  width: 7.25rem;
+  white-space: nowrap;
+}
+/* Accent tint marks Record as the card's primary action — same geometry as the
+   Change button beside it, only the emphasis differs. */
+.net-survey-record {
+  background: var(--accent-soft);
+  border-color: var(--accent-border-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+/* The one flat disabled recipe rather than .range-tab's opacity fade, which
+   would wash the tint out below AA. */
+.net-survey-record:disabled {
+  opacity: 1;
+  background: var(--card-off);
+  border-color: var(--line);
+  color: var(--muted);
+}
+.net-survey-progress { margin: 8px 0 0; }
+
+.net-survey-rooms {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+.net-survey-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "main signal actions" "meta meta meta";
+  align-items: center;
+  column-gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.net-survey-row-main {
+  grid-area: main;
+  min-width: 0;
+}
+.net-survey-row-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.net-survey-row-signal { grid-area: signal; }
+.net-survey-row.is-weak .net-survey-row-signal { color: var(--attention); }
+.net-survey-row.is-weak .net-signal-fill { background: var(--attention); }
+/* "Not seen on either radio" is a recorded result, not a missing value — it
+   gets the danger colour because an unreachable spot is the strongest finding a
+   walk test can produce, never a blank that reads like a measurement. */
+.net-survey-row.is-missing .net-survey-row-signal {
+  color: var(--deficit);
+  font-weight: 700;
+}
+.net-survey-row-meta {
+  grid-area: meta;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.net-survey-row-delete {
+  grid-area: actions;
+  appearance: none;
+  /* position: relative comes from the .hit-target utility on the element. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card-off);
+  color: var(--muted);
+  cursor: pointer;
+}
+.net-survey-row-delete:hover { color: var(--deficit); }
+.net-survey-row-delete .icon { width: 16px; height: 16px; }
+
+/* Device picker (inside the walk-test dialog) — one flat row per wireless
+   client, strongest first. */
+.net-survey-picker-hint { margin: 0 0 4px; line-height: 1.35; }
+.net-survey-picker {
+  display: flex;
+  flex-direction: column;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.net-survey-picker-row {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  width: 100%;
+  min-height: var(--row-sm, 44px);
+  padding: 9px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.net-survey-picker-row.is-current .net-survey-picker-name { color: var(--accent); }
+.net-survey-picker-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.net-survey-picker-meta {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
 /* Settings-style collapsible card for counts, ordering, offline toggle and list. */
 .net-devices-card { margin-bottom: var(--gap); }
 .net-devices-body { padding: 12px 14px 14px; }

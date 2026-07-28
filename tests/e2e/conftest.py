@@ -1227,6 +1227,49 @@ def mock_network(page: Page) -> Callable[..., Dict]:
             ],
         }
         attempts = {"count": 0}
+        # Wi-Fi walk test (issue #547). The route glob below is broad enough to
+        # capture /api/network/survey*, so this fixture owns those responses too
+        # — otherwise the survey card would be served the LAN snapshot and read
+        # an empty survey out of a shape that does not have one.
+        survey: Dict = {"rooms": [], "samples": [], "known_rooms": []}
+        survey_seq = {"id": 0}
+
+        def _survey_recompute() -> None:
+            rooms: Dict[str, Dict] = {}
+            for sample in survey["samples"]:  # newest first
+                entry = rooms.setdefault(sample["room"], {
+                    "room": sample["room"],
+                    "count": 0,
+                    "last_recorded_at": sample["recorded_at"],
+                    "last_signal": sample["signal"],
+                    "last_band": sample["band"],
+                    "last_ssid": sample["ssid"],
+                    "last_source": sample["source"],
+                    "last_found": sample["found"],
+                    "last_link_rate": sample["link_rate"],
+                    "last_rtt_ms": sample["rtt_ms"],
+                    "last_throughput_mbps": sample["throughput_mbps"],
+                    "best_signal": None,
+                    "worst_signal": None,
+                })
+                entry["count"] += 1
+                if sample["signal"] is not None:
+                    best, worst = entry["best_signal"], entry["worst_signal"]
+                    entry["best_signal"] = (
+                        sample["signal"] if best is None else max(best, sample["signal"])
+                    )
+                    entry["worst_signal"] = (
+                        sample["signal"] if worst is None else min(worst, sample["signal"])
+                    )
+            survey["rooms"] = sorted(
+                rooms.values(),
+                key=lambda e: (
+                    0 if e["last_signal"] is None else 1,
+                    e["last_signal"] if e["last_signal"] is not None else 0,
+                    e["room"],
+                ),
+            )
+            survey["known_rooms"] = sorted(rooms)
 
         def handle(route: Route) -> None:
             attempts["count"] += 1
@@ -1239,6 +1282,65 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                 return
             method = route.request.method.upper()
             url = route.request.url
+            if "/api/network/survey" in url:
+                if "/survey/payload" in url:
+                    route.fulfill(
+                        status=200,
+                        content_type="application/octet-stream",
+                        body="x" * 4096,
+                    )
+                    return
+                if method == "GET":
+                    route.fulfill(
+                        status=200, content_type="application/json", body=_json(survey)
+                    )
+                    return
+                body_json = route.request.post_data_json or {}
+                if url.endswith("/survey/delete"):
+                    room = (body_json.get("room") or "").strip()
+                    sample_id = body_json.get("sample_id")
+                    before = len(survey["samples"])
+                    survey["samples"] = [
+                        s for s in survey["samples"]
+                        if not (room and s["room"] == room)
+                        and not (sample_id is not None and s["id"] == sample_id)
+                    ]
+                    _survey_recompute()
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=_json({"deleted": before - len(survey["samples"])}),
+                    )
+                    return
+                # POST /api/network/survey — the server resolves the telemetry,
+                # so the stub supplies it from the fixture device list by MAC.
+                mac = (body_json.get("mac") or "").strip().upper()
+                device = next(
+                    (d for d in body["devices"] if d["mac"].upper() == mac), None
+                )
+                survey_seq["id"] += 1
+                sample = {
+                    "id": survey_seq["id"],
+                    "recorded_at": 1_700_000_000 + survey_seq["id"],
+                    "room": (body_json.get("room") or "").strip(),
+                    "mac": mac,
+                    "signal": device["signal"] if device else None,
+                    "link_rate": device["link_rate"] if device else None,
+                    "band": device["conn_type"] if device else None,
+                    "ssid": device["ssid"] if device else None,
+                    "source": device["source"] if device else "not_found",
+                    "found": device is not None,
+                    "rtt_ms": body_json.get("rtt_ms"),
+                    "jitter_ms": body_json.get("jitter_ms"),
+                    "loss_pct": body_json.get("loss_pct"),
+                    "throughput_mbps": body_json.get("throughput_mbps"),
+                }
+                survey["samples"].insert(0, sample)
+                _survey_recompute()
+                route.fulfill(
+                    status=200, content_type="application/json", body=_json(sample)
+                )
+                return
             if method in {"PUT", "POST"}:
                 body_json = route.request.post_data_json or {}
                 if "/api/network/devices/" in url and url.endswith("/display_name"):

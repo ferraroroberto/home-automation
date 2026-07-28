@@ -150,6 +150,61 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
     return None
 
 
+async def resolve_wireless_client_by_mac(mac: str) -> Optional[NetDevice]:
+    """Live signal/band/link-rate for one client MAC, or None if on neither radio.
+
+    Backs the Wi-Fi walk test (issue #547): the phone is the probe, the AP/router
+    is the meter, so a sample is whatever the infrastructure currently measures
+    for that MAC. Returns the merged :class:`NetDevice` — ``signal`` (%),
+    ``link_rate``, ``conn_type`` (the band), ``ssid``, and ``source`` naming which
+    device saw it (``ap`` / ``router`` / ``both``).
+
+    **Both sources are read concurrently, then merged — never AP-only.** The AP
+    reports a client of the *router's* radio as ``conn_type="wired"`` at 100%,
+    because all it sees is traffic arriving over its uplink port
+    (:func:`src.network_router._merge_router_wlan_clients` documents the
+    artefact). Short-circuiting on an AP hit would therefore record a fabricated
+    perfect-wired reading for every sample taken while the phone is associated to
+    the router — silently poisoning exactly the measurement this exists to make.
+    Running the same merge the full snapshot uses keeps one definition of who is
+    authoritative for a link.
+
+    Unlike :func:`resolve_ip_by_mac`, the DHCP lease table is not consulted: a
+    lease can outlive the association, and "has an address" is not "is on the air
+    right now".
+    """
+    target = _normalise_mac(mac)
+    if not target:
+        return None
+
+    ap_result, router_result = await asyncio.gather(
+        _with_timeout("access-point", fetch_access_point(), _ACCESS_POINT_TIMEOUT_S,
+                      (AccessPointHealth(reachable=False, error="read timed out"), [])),
+        _with_timeout("router", fetch_router(), _ROUTER_TIMEOUT_S,
+                      (RouterHealth(reachable=False, error="read timed out"), [], [])),
+        return_exceptions=True,
+    )
+    devices = ap_result[1] if isinstance(ap_result, tuple) else []
+    wlan_clients = router_result[2] if isinstance(router_result, tuple) else []
+    if isinstance(ap_result, BaseException):
+        logger.info("ℹ️ survey AP read failed: %s", ap_result)
+    if isinstance(router_result, BaseException):
+        logger.info("ℹ️ survey router read failed: %s", router_result)
+
+    for dev in _merge_router_wlan_clients(devices, wlan_clients):
+        if _normalise_mac(dev.mac) == target:
+            logger.info(
+                "ℹ️ survey resolved %s → signal=%s conn=%s source=%s",
+                target, dev.signal, dev.conn_type, dev.source,
+            )
+            return dev
+    logger.info(
+        "ℹ️ survey found no live association for %s (AP devices=%d, router clients=%d)",
+        target, len(devices), len(wlan_clients),
+    )
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # DHCP reservation control (issue #176) — confirm-gated, never on a poll       #
 # --------------------------------------------------------------------------- #
