@@ -473,8 +473,11 @@ pins it down: **positive means importing**. `src/huawei_client.py` splits it int
 `grid_import_w` / `grid_export_w` so that logic lives in exactly one place.
 
 **When live data is unavailable, the app says why (issue #101).** If the portal
-read fails or returns only stale data, the live-flow tile shows an inline
-`Live unavailable` note instead of bare `—`; the cumulative/history cards keep
+read fails or returns only stale data, the live-flow tile shows an inline note
+instead of bare `—`, and it distinguishes the two causes: solar still reading
+means the inverter is fine and only the power sensor is bad (a hardware fault
+worth chasing), whereas nothing reading at all is simply no data from the
+source. The cumulative/history cards keep
 rendering from their own sources. More broadly, a hard data-fetch failure on
 the Energy, Plugs, or Security tab raises a single error **toast** naming the
 source and reason — surfaced once per outage (the tabs poll every few seconds, so

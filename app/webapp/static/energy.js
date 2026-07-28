@@ -178,8 +178,13 @@ export function renderEnergy(e) {
   // The meter carries grid + house power; without it there is no live snapshot
   // to plot (an asleep inverter alone is normal at night). Say *why* on the meta
   // line instead of leaving the tiles at a bare "—" with no explanation.
+  // Two distinct causes, worth telling apart: solar still reading means the
+  // inverter is fine and only the power sensor is bad, which is a hardware
+  // fault to chase; nothing reading at all is just no data from the source.
   const liveNote = e.meter_reachable === false
-    ? '· Live unavailable — the energy meter is not responding on the LAN'
+    ? (e.inverter_reachable
+      ? '· Grid and home unavailable — the power sensor is reporting invalid readings'
+      : '· Live unavailable — no reading from the inverter')
     : null;
 
   // --- append to the live chart (Generation / Grid-supplied / Consumption) ---
