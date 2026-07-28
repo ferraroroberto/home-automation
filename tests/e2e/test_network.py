@@ -246,6 +246,110 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
     expect(offline).to_have_text("Offline shown")
 
 
+def _lease_only_device() -> Dict:
+    """A device the router still leases but nothing can vouch for (#550).
+
+    The shape the DHCP lease table produces once its holder has left: in the
+    read (``online: True``) with no band, no SSID and no signal to show for it.
+    """
+    return {
+        "mac": "AA:00:00:00:00:06",
+        "ip": "192.0.2.16",
+        "name": "Ghost Phone",
+        "display_name": "Ghost Phone",
+        "vendor": "Fixture",
+        "category": "phone",
+        "conn_type": None,
+        "is_wireless": False,
+        "signal": None,
+        "link_rate": None,
+        "ssid": None,
+        "source": "router",
+        "online": True,
+        "important": False,
+        "hidden": False,
+        "is_new": False,
+        "randomized": False,
+        "group": None,
+        "last_conn_type": None,
+        "last_ssid": None,
+        "first_seen": 1_700_000_000,
+        "last_seen": 1_700_000_100,
+        "times_seen": 9,
+    }
+
+
+def test_network_offline_toggle_hides_devices_with_no_live_link(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    """With Offline hidden, only a live signal or a wired link earns a row (#550).
+
+    A lease-only device is in the current read, so the pre-#550 list rendered it
+    as online — with an empty signal cell — and counted it in the group header.
+    It now rides the Offline toggle instead, while the wired fixture device
+    (wired, no signal) stays visible throughout.
+    """
+    mock_api(sample_units)
+    mock_energy()
+    snapshot = mock_network()
+    snapshot["devices"].append(_lease_only_device())
+    _boot(page, base_url)
+
+    page.locator("#tabNetwork").click()
+    page.locator("details.net-devices-card > summary").click()
+
+    rows = page.locator("#netDevices .net-device")
+    ghost = rows.filter(has_text="Ghost Phone")
+    offline = page.locator("#netOfflineToggle")
+
+    # "My groups" is the default (#519): one Unclassified group holding all five,
+    # of which four have a live link. The ghost counts toward the total but not
+    # toward "online", and its row is not rendered.
+    head = page.locator("#netDevices .net-group-head")
+    expect(head).to_have_count(1)
+    expect(head.first).to_contain_text("4/5 online")
+    expect(rows).to_have_count(4)
+    expect(ghost).to_have_count(0)
+    # Wired with no signal reading is still a link — it must not be filtered out.
+    expect(rows.filter(has_text="NAS")).to_have_count(1)
+    expect(offline).to_be_visible()
+    expect(offline).to_have_text("Offline hidden")
+
+    # Revealing them dims the ghost and says why the row was held back.
+    offline.click()
+    expect(offline).to_have_text("Offline shown")
+    expect(rows).to_have_count(5)
+    expect(ghost).to_have_class(re.compile(".*is-nolink.*"))
+    expect(ghost).to_contain_text("no link")
+
+    # The detail modal calls it a missing link, never "Offline" — the read never
+    # established the device is gone, only that nothing vouches for it.
+    ghost.locator(".net-device-name").click()
+    expect(page.locator("#netDeviceDialog")).to_be_visible()
+    expect(page.locator("#netDeviceStatus")).to_contain_text("No live link")
+    expect(page.locator("#netDeviceSignal")).to_have_text("No link")
+    page.locator("#netDeviceDetailClose").click()
+
+    # Same rule in the band view: hidden by default, then its own "No link"
+    # group rather than being mixed into the genuinely-absent ones.
+    offline.click()
+    expect(offline).to_have_text("Offline hidden")
+    page.locator("#netGroupByBand").click()
+    expect(ghost).to_have_count(0)
+    expect(page.locator("#netDevices .net-group-head").filter(has_text="No link")).to_have_count(0)
+
+    offline.click()
+    expect(page.locator("#netDevices .net-group-head").filter(has_text="No link")).to_have_text(
+        "No link · 1"
+    )
+    expect(ghost).to_have_count(1)
+
+
 def test_network_rename_and_hide_wifi_and_attached_device(
     page: Page,
     base_url: str,

@@ -15,6 +15,13 @@
  * toggle is on, same as the band view. A group left with nothing visible after
  * that filter (all members offline, toggle off) is simply skipped rather than
  * rendering an empty header.
+ *
+ * Issue #550 splits "in this read" from "demonstrably on the network". The
+ * router's DHCP lease table outlives the client that held the lease, so a row
+ * can come back with online:true yet no band, no SSID and no signal — a phone
+ * that left hours ago still holds its lease. Visibility and the group counts
+ * therefore key off hasLiveLink() below, not the raw online flag, and those
+ * no-link rows ride the same Offline toggle as the genuinely absent ones.
  */
 
 'use strict';
@@ -173,6 +180,23 @@ function bandLabel(d) {
   return band ? (CONN_LABELS[band] || band) : '—';
 }
 
+// Is this device demonstrably on the network right now (issue #550)?
+//
+// Being in the current read is not enough: a device known only from the
+// router's DHCP lease table comes back with online:true but conn_type, ssid and
+// signal all null, and that lease survives the client leaving (the caveat
+// src.network_router.read_dhcp_leases documents for issue #507). Nor can the
+// backend classify those rows away — the lease's PhyPortName reads LAN4 for
+// every client behind the access point, wired or not, and some lease-only rows
+// do answer a ping, so they are neither reliably wired nor reliably gone.
+//
+// So the list asks for evidence of the link instead: a signal reading, or a
+// wired connection. Anything else is "no link" — not claimed offline, just not
+// shown while the Offline toggle is hiding what can't be vouched for.
+function hasLiveLink(d) {
+  return d.online !== false && (d.signal != null || d.conn_type === 'wired');
+}
+
 function renderGroupingControls() {
   const byGroup = state.networkDeviceGrouping === 'group';
   if (els.netGroupByBand) {
@@ -187,11 +211,15 @@ function renderGroupingControls() {
 
 function buildDeviceRow(d, grouped) {
   const offline = d.online === false;
+  // In the read, but with nothing to show for it (#550) — dimmed like an
+  // offline row, since the toggle groups the two together.
+  const noLink = !offline && !hasLiveLink(d);
   const row = document.createElement('div');
   row.className = 'net-device' + (grouped ? ' is-grouped' : '');
   const weak = !offline && d.is_wireless && d.signal != null && d.signal < WEAK_SIGNAL_PCT;
   if (weak) row.classList.add('is-weak');
   if (offline) row.classList.add('is-offline');
+  if (noLink) row.classList.add('is-nolink');
   if (d.hidden) row.classList.add('is-hidden');
 
   const label = deviceLabel(d);
@@ -262,8 +290,13 @@ function buildDeviceRow(d, grouped) {
     pct.className = 'net-signal-pct';
     pct.textContent = d.signal + '%';
     signal.appendChild(pct);
+  } else if (d.conn_type === 'wired') {
+    signal.textContent = 'wired';
   } else {
-    signal.textContent = d.conn_type === 'wired' ? 'wired' : '—';
+    // Says why the row is behind the Offline toggle, where a bare "—" read as
+    // a missing measurement on an otherwise-live device (#550).
+    signal.classList.add('net-device-nolink');
+    signal.textContent = 'no link';
   }
   row.appendChild(signal);
   return row;
@@ -274,15 +307,15 @@ function byLastSeenDesc(a, b) {
   return (b.last_seen || 0) - (a.last_seen || 0);
 }
 
-// The offline toggle is shown only when there are known-but-absent devices;
-// it carries the count and mirrors the security/plugs toggle styling. The
-// label always reflects current visibility (#519), never the pending action —
-// "Offline shown" while offline rows are visible, "Offline hidden" while
-// they're filtered out.
-function renderOfflineToggle(offlineCount) {
+// The offline toggle is shown only when it has something to reveal — the
+// known-but-absent devices plus the no-link ones (#550) — and mirrors the
+// security/plugs toggle styling. The label always reflects current visibility
+// (#519), never the pending action — "Offline shown" while those rows are
+// visible, "Offline hidden" while they're filtered out.
+function renderOfflineToggle(dormantCount) {
   const btn = els.netOfflineToggle;
   if (!btn) return;
-  btn.hidden = offlineCount === 0;
+  btn.hidden = dormantCount === 0;
   btn.textContent = state.networkShowOffline ? 'Offline shown' : 'Offline hidden';
   btn.classList.toggle('active', state.networkShowOffline);
 }
@@ -330,10 +363,12 @@ export function renderDevices(devices) {
   renderSortControls();
   renderGroupingControls();
   const byGroup = state.networkDeviceGrouping === 'group';
-  const online = list.filter(function (d) { return d.online !== false; });
-  const offline = list.filter(function (d) { return d.online === false; });
+  // Live = evidence of a link right now; dormant = everything the Offline
+  // toggle governs, i.e. the absent rows *and* the no-link ones (#550).
+  const live = list.filter(hasLiveLink);
+  const dormant = list.filter(function (d) { return !hasLiveLink(d); });
   // The offline toggle behaves identically in both grouping modes (#519).
-  renderOfflineToggle(offline.length);
+  renderOfflineToggle(dormant.length);
   renderDeviceHiddenToggle(hiddenCount);
 
   if (byGroup) {
@@ -341,22 +376,29 @@ export function renderDevices(devices) {
     return;
   }
 
-  const showingOffline = state.networkShowOffline && offline.length > 0;
-  if (renderDevicesNote(online.length > 0 || showingOffline, hiddenCount)) return;
+  const showingDormant = state.networkShowOffline && dormant.length > 0;
+  if (renderDevicesNote(live.length > 0 || showingDormant, hiddenCount)) return;
 
   const seen = new Set();
   GROUPS.forEach(function (group) {
-    const members = online.filter(function (d) { return d.conn_type === group.key; });
+    const members = live.filter(function (d) { return d.conn_type === group.key; });
     members.forEach(function (d) { seen.add(d); });
     if (!members.length) return;
     appendGroup(group.label, sortDevices(members));
   });
-  // Anything online with an unknown/missing conn_type lands in a trailing "Other".
-  const other = online.filter(function (d) { return !seen.has(d); });
+  // Anything live with an unknown/missing conn_type lands in a trailing "Other".
+  const other = live.filter(function (d) { return !seen.has(d); });
   if (other.length) appendGroup('Other', sortDevices(other));
 
-  // Offline (known-but-absent) devices, newest-last-seen first, only when toggled.
-  if (showingOffline) appendGroup('Offline', offline.slice().sort(byLastSeenDesc));
+  if (showingDormant) {
+    // Two distinct states, so two groups rather than one mixed bucket: "No
+    // link" is still in the read but unvouched-for, "Offline" is genuinely
+    // absent (newest-last-seen first).
+    const noLink = dormant.filter(function (d) { return d.online !== false; });
+    const offline = dormant.filter(function (d) { return d.online === false; });
+    if (noLink.length) appendGroup('No link', sortDevices(noLink));
+    if (offline.length) appendGroup('Offline', offline.slice().sort(byLastSeenDesc));
+  }
 }
 
 function appendGroup(label, members) {
@@ -390,11 +432,11 @@ function membersOf(list, name) {
   return list.filter(function (d) { return (d.group || '').trim() === name; });
 }
 
-// Online first, then the chosen sort — an offline row stays in its group but
-// sinks below the live ones rather than splitting the group in two.
+// Live first, then the chosen sort — an offline or no-link row stays in its
+// group but sinks below the live ones rather than splitting the group in two.
 function byOnlineThenSort(a, b) {
-  const oa = a.online === false ? 1 : 0;
-  const ob = b.online === false ? 1 : 0;
+  const oa = hasLiveLink(a) ? 0 : 1;
+  const ob = hasLiveLink(b) ? 0 : 1;
   if (oa !== ob) return oa - ob;
   return state.networkDeviceSort === 'signal'
     ? bySignalThenName(a, b)
@@ -403,11 +445,11 @@ function byOnlineThenSort(a, b) {
 
 function renderCustomGroups(list, hiddenCount) {
   // The offline toggle now governs visibility here too (#519): a group's
-  // online/total count still counts every member, but an offline row only
-  // renders (shaded, in place) when the toggle is on.
+  // online/total count still counts every member, but an offline or no-link
+  // row only renders (shaded, in place) when the toggle is on.
   const showOffline = state.networkShowOffline;
   const visibleTotal = list.filter(function (d) {
-    return showOffline || d.online !== false;
+    return showOffline || hasLiveLink(d);
   }).length;
   if (renderDevicesNote(visibleTotal > 0, hiddenCount)) return;
 
@@ -421,10 +463,11 @@ function renderCustomGroups(list, hiddenCount) {
 function appendCustomGroup(name, members, editable, showOffline) {
   // The count reflects every member regardless of the offline toggle; only
   // the rendered rows are filtered by it. A group left with nothing visible
-  // (all members offline, toggle off) is skipped rather than rendering an
-  // empty header (#519).
-  const onlineCount = members.filter(function (d) { return d.online !== false; }).length;
-  const visible = showOffline ? members : members.filter(function (d) { return d.online !== false; });
+  // (no member has a live link, toggle off) is skipped rather than rendering
+  // an empty header (#519). "Online" counts a live link, not merely presence
+  // in the read — four phones holding stale leases read 0/4, not 4/4 (#550).
+  const onlineCount = members.filter(hasLiveLink).length;
+  const visible = showOffline ? members : members.filter(hasLiveLink);
   if (!visible.length) return;
   const head = document.createElement('h4');
   head.className = 'net-group-head net-group-head--custom';
@@ -466,7 +509,8 @@ function connText(d) {
 
 function signalText(d) {
   if (d.signal != null) return d.signal + '%';
-  return d.conn_type === 'wired' ? 'Wired' : '—';
+  if (d.conn_type === 'wired') return 'Wired';
+  return d.online === false ? '—' : 'No link';
 }
 
 // Render the Important switch from a device dict (Phase 4). Hidden for
@@ -540,11 +584,19 @@ function openNetDeviceDetail(mac) {
   if (!d) return;
   state.selectedNetDeviceMac = mac;
   els.netDeviceDetailName.textContent = deviceLabel(d);
-  // Status: online, or offline with how long since it was last on the network.
-  els.netDeviceStatus.textContent = d.online === false
-    ? 'Offline · last seen ' + fmtAgo(d.last_seen)
-    : 'Online';
-  els.netDeviceStatus.classList.toggle('is-offline', d.online === false);
+  // Status: online, offline with how long since it was last on the network,
+  // or "no live link" for a row the router still leases but nothing can
+  // vouch for (#550) — deliberately not called Offline, which would claim a
+  // fact the read never established.
+  const live = hasLiveLink(d);
+  if (d.online === false) {
+    els.netDeviceStatus.textContent = 'Offline · last seen ' + fmtAgo(d.last_seen);
+  } else if (!live) {
+    els.netDeviceStatus.textContent = 'No live link · leased, but not seen on any radio';
+  } else {
+    els.netDeviceStatus.textContent = 'Online';
+  }
+  els.netDeviceStatus.classList.toggle('is-offline', !live);
   els.netDeviceVendor.textContent = d.vendor || '—';
   els.netDeviceIp.textContent = d.ip || '—';
   els.netDeviceConn.textContent = connText(d);
