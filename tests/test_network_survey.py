@@ -15,6 +15,7 @@ import pytest
 
 from src.network_survey import (
     SOURCE_NOT_FOUND,
+    SOURCE_UNKNOWN,
     delete_room,
     delete_sample,
     known_rooms,
@@ -120,6 +121,42 @@ def test_summary_sorts_weakest_first_with_dead_spots_ahead(db: Path) -> None:
     _record(db, "Attic", None, now=100)  # on neither radio
 
     assert [r["room"] for r in room_summary(path=db)] == ["Attic", "Bedroom", "Office"]
+
+
+def test_unreadable_sources_are_unknown_not_a_dead_zone(db: Path) -> None:
+    """An unreachable AP is an outage, not a coverage result.
+
+    Both states have a null signal and `found=False`, but only `not_found` is a
+    claim about the radio environment — folding an unusable probe into it would
+    report a dead zone the walk test never actually observed.
+    """
+    stored = record_sample(
+        room="Loft", mac="AA:BB:CC:00:00:01", source=SOURCE_UNKNOWN, path=db
+    )
+    assert stored["signal"] is None
+    assert stored["found"] is False
+    assert stored["source"] == SOURCE_UNKNOWN
+    assert stored["source"] != SOURCE_NOT_FOUND
+
+
+def test_unknown_rooms_sort_last_not_alongside_dead_zones(db: Path) -> None:
+    """A room that measured nothing must not head a coverage report."""
+    _record(db, "Office", 88, now=100)
+    _record(db, "Bedroom", 45, now=100)
+    _record(db, "Attic", None, now=100)  # genuinely on neither radio
+    record_sample(
+        room="Loft", mac="AA:BB:CC:00:00:01", source=SOURCE_UNKNOWN, now=100, path=db
+    )
+
+    assert [r["room"] for r in room_summary(path=db)] == [
+        "Attic", "Bedroom", "Office", "Loft"
+    ]
+
+
+def test_source_defaults_to_unknown_not_not_found(db: Path) -> None:
+    """A caller that supplies no source has not proved the client is off the air."""
+    stored = record_sample(room="Hall", mac="AA:BB:CC:00:00:01", path=db)
+    assert stored["source"] == SOURCE_UNKNOWN
 
 
 def test_known_rooms_is_deduped_and_sorted(db: Path) -> None:

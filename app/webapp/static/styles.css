@@ -3077,6 +3077,13 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   color: var(--deficit);
   font-weight: 700;
 }
+/* A sample the AP/router could not answer says nothing about coverage, so it
+   stays muted — colouring it like a dead zone would present an outage as a
+   finding. */
+.net-survey-row.is-unknown .net-survey-row-signal {
+  color: var(--muted);
+  font-style: italic;
+}
 .net-survey-row-meta {
   grid-area: meta;
   color: var(--muted);

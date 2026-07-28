@@ -14,10 +14,14 @@ is the *probe* and the AP/router is the *meter*: the server asks
 :func:`src.network_client.resolve_wireless_client_by_mac` how well it currently
 hears that MAC. The full reasoning lives in the README's Walk-test section.
 
-**"Not found" is a recorded state, not a gap.** A MAC on neither radio stores
-with ``signal=NULL`` and ``source='not_found'`` so the UI can say *not seen on
-either radio*. A blank cell that reads like a measurement would be worse than no
-row at all.
+**Three ways a sample can lack a signal, and they are not interchangeable.** A
+MAC both boxes agree is off the air stores as ``source='not_found'`` — the UI
+says *not seen on either radio*, which is the strongest result a walk test can
+produce. A MAC nobody could be asked about, because the AP read timed out or the
+router login failed, stores as ``source='unknown'`` instead: that is an outage,
+not a dead zone, and rendering it as one would invent a coverage claim out of a
+failed probe (the repo's "a check that can't establish a fact reports its own
+state" rule). Only a genuine reading gets ``found=True`` and a bar.
 
 Kept separate from :mod:`src.network_history` — that is a per-MAC registry
 updated on every ``GET /api/network`` poll, this is an append-only log of
@@ -49,8 +53,14 @@ DEFAULT_DB_PATH = (
 # historical. Generous enough to compare across a year of seasons/furniture.
 _PRUNE_AFTER_S = 365 * 24 * 3600
 
-# Recorded when the MAC was on neither radio — see the module docstring.
+# Both boxes answered and neither had the MAC associated — a real dead zone.
 SOURCE_NOT_FOUND = "not_found"
+# At least one box could not be read, so its radios can't be ruled out — the
+# sample establishes nothing about coverage. See the module docstring.
+SOURCE_UNKNOWN = "unknown"
+# The two ways a sample carries no measurement. Neither counts as `found`, but
+# only the first is a statement about coverage.
+_UNMEASURED_SOURCES = (SOURCE_NOT_FOUND, SOURCE_UNKNOWN)
 
 
 def _norm_mac(mac: str) -> str:
@@ -110,7 +120,7 @@ def _row_to_sample(row: sqlite3.Row) -> Dict[str, Any]:
         "band": row["band"],
         "ssid": row["ssid"],
         "source": row["source"],
-        "found": row["source"] != SOURCE_NOT_FOUND,
+        "found": row["source"] not in _UNMEASURED_SOURCES,
         "rtt_ms": row["rtt_ms"],
         "jitter_ms": row["jitter_ms"],
         "loss_pct": row["loss_pct"],
@@ -135,9 +145,14 @@ def room_summary(path: Optional[Path] = None) -> List[Dict[str, Any]]:
     Sorted weakest-first on the latest signal, because the whole point of a walk
     test is to surface the rooms that need attention. Rooms whose latest sample
     found the device on neither radio sort first of all — an unreachable spot is
-    the most extreme coverage result, not a missing one. Aggregated in Python
-    rather than SQL: the sample count is small and the "latest row per group plus
-    two extremes" shape reads far more clearly here than as a window query.
+    the most extreme coverage result, not a missing one. Rooms whose latest
+    sample established nothing (``source='unknown'``) sort **last**: they are not
+    a bad result, they are the absence of one, and ranking them alongside real
+    dead zones would put an AP outage at the top of a coverage report.
+
+    Aggregated in Python rather than SQL: the sample count is small and the
+    "latest row per group plus two extremes" shape reads far more clearly here
+    than as a window query.
     """
     samples = load_samples(limit=10_000, path=path)
     rooms: Dict[str, Dict[str, Any]] = {}
@@ -168,9 +183,16 @@ def room_summary(path: Optional[Path] = None) -> List[Dict[str, Any]]:
             entry["worst_signal"] = s["signal"] if worst is None else min(worst, s["signal"])
 
     def _rank(entry: Dict[str, Any]) -> tuple:
-        # (not-found first, then ascending signal, then room name for stability)
+        # Dead zones first, then ascending signal, then the rooms that measured
+        # nothing at all; room name breaks ties so the order is stable.
+        if entry["last_source"] == SOURCE_UNKNOWN:
+            band = 2
+        elif entry["last_source"] == SOURCE_NOT_FOUND:
+            band = 0
+        else:
+            band = 1
         signal = entry["last_signal"]
-        return (0 if signal is None else 1, signal if signal is not None else 0, entry["room"])
+        return (band, signal if signal is not None else 0, entry["room"])
 
     return sorted(rooms.values(), key=_rank)
 
@@ -191,7 +213,9 @@ def record_sample(
     link_rate: Optional[int] = None,
     band: Optional[str] = None,
     ssid: Optional[str] = None,
-    source: str = SOURCE_NOT_FOUND,
+    # Defaults to "we established nothing", not "no coverage": a caller that
+    # supplies no source has not proved the client is off the air.
+    source: str = SOURCE_UNKNOWN,
     rtt_ms: Optional[float] = None,
     jitter_ms: Optional[float] = None,
     loss_pct: Optional[float] = None,

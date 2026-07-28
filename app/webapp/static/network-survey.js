@@ -47,6 +47,11 @@ const BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz', wir
 // Which box actually measured the sample — the load-bearing column for an
 // "where should the next access point go" decision.
 const SOURCE_LABELS = { ap: 'via AP', router: 'via router', both: 'via AP + router' };
+// A sample with no reading is one of two very different things, and the card
+// must not blur them: 'not_found' means both boxes answered and neither had the
+// client — a real dead zone. 'unknown' means a box could not be read at all, so
+// the sample says nothing about coverage.
+const SOURCE_UNKNOWN = 'unknown';
 
 let surveyLoaded = false;
 let recording = false;
@@ -218,14 +223,18 @@ async function recordHere() {
     });
     await loadSurvey();
     renderSurvey();
-    toast(
-      sample.found
-        ? 'Recorded ' + room + ' at ' + (sample.signal == null ? 'unknown signal' : sample.signal + '%')
-        : 'Recorded ' + room + ' — not seen on either radio',
-      // Not an error: standing somewhere with no coverage is a real, useful
-      // result, so it gets the neutral toast rather than the red one.
-      sample.found ? 'success' : ''
-    );
+    let message;
+    if (sample.source === SOURCE_UNKNOWN) {
+      message = 'Recorded ' + room + ' — but the AP/router could not be read, so there is no signal reading';
+    } else if (!sample.found) {
+      message = 'Recorded ' + room + ' — not seen on either radio';
+    } else {
+      message = 'Recorded ' + room + ' at ' +
+        (sample.signal == null ? 'unknown signal' : sample.signal + '%');
+    }
+    // A dead zone is a real, useful result, so it gets the neutral toast rather
+    // than the red one; only a failed read is an error the user should re-try.
+    toast(message, sample.found ? 'success' : (sample.source === SOURCE_UNKNOWN ? 'error' : ''));
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast('Failed to record: ' + (exc.message || exc), 'error');
@@ -256,9 +265,11 @@ async function deleteRoom(room) {
 
 // --------------------------------------------------------------- rendering
 function roomRow(entry) {
+  const unknown = entry.last_source === SOURCE_UNKNOWN;
   const row = document.createElement('div');
   row.className = 'net-survey-row' + signalClass(entry.last_signal) +
-    (entry.last_found ? '' : ' is-missing');
+    (entry.last_found || unknown ? '' : ' is-missing') +
+    (unknown ? ' is-unknown' : '');
 
   const main = document.createElement('div');
   main.className = 'net-survey-row-main';
@@ -270,7 +281,9 @@ function roomRow(entry) {
 
   const sig = document.createElement('span');
   sig.className = 'net-device-signal net-survey-row-signal';
-  if (!entry.last_found) {
+  if (unknown) {
+    sig.textContent = 'unknown';
+  } else if (!entry.last_found) {
     sig.textContent = 'not seen';
   } else if (entry.last_signal != null) {
     const bar = document.createElement('span');
@@ -303,7 +316,9 @@ function roomRow(entry) {
   const bits = [];
   if (entry.last_found) {
     bits.push(bandLabel(entry.last_band));
-    bits.push(SOURCE_LABELS[entry.last_source] || entry.last_source || 'source unknown');
+    bits.push(SOURCE_LABELS[entry.last_source] || entry.last_source);
+  } else if (unknown) {
+    bits.push('couldn’t read the AP or router — re-test');
   } else {
     bits.push('on neither radio');
   }
@@ -353,12 +368,15 @@ function renderSummary() {
   }
   // room_summary sorts weakest-first, so the head of the list is the headline.
   const weakest = rooms[0];
-  const label = weakest.last_found
-    ? (weakest.last_signal == null ? 'signal unknown' : weakest.last_signal + '%')
-    : 'no signal';
+  let label;
+  if (weakest.last_source === SOURCE_UNKNOWN) label = 'not measured';
+  else if (!weakest.last_found) label = 'no signal';
+  else label = weakest.last_signal == null ? 'signal unknown' : weakest.last_signal + '%';
   els.netSurveyStatus.textContent = rooms.length + ' rooms · ' + weakest.room + ' ' + label;
+  // An unmeasured room is not a weak one — don't colour it as a finding.
   els.netSurveyStatus.className = 'muted small net-survey-status' +
-    (weakest.last_found ? signalClass(weakest.last_signal) : ' is-weak');
+    (weakest.last_source === SOURCE_UNKNOWN ? ''
+      : weakest.last_found ? signalClass(weakest.last_signal) : ' is-weak');
 }
 
 export function renderSurvey() {

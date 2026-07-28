@@ -96,6 +96,7 @@ from src.network_history import (
 from src.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
 from src.network_survey import (
     SOURCE_NOT_FOUND,
+    SOURCE_UNKNOWN,
     delete_room,
     delete_sample,
     known_rooms,
@@ -681,6 +682,12 @@ async def post_survey_sample(payload: SurveySamplePayload) -> Dict[str, Any]:
     (``source='not_found'``, null signal, ``found: false``) so the UI can say
     *not seen on either radio* instead of rendering a blank that reads like a
     measurement.
+
+    That verdict requires **both** boxes to have answered, though. If either read
+    failed, the client could have been associated to exactly the one that stayed
+    silent, so the sample records ``source='unknown'`` — an unreadable AP is an
+    outage, not a dead zone, and reporting it as coverage would be a fact the
+    probe never established.
     """
     room = payload.room.strip()
     mac = payload.mac.strip()
@@ -690,12 +697,23 @@ async def post_survey_sample(payload: SurveySamplePayload) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="'mac' is required")
 
     try:
-        device = await resolve_wireless_client_by_mac(mac)
+        device, sources_read = await resolve_wireless_client_by_mac(mac)
     except NetworkConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Survey telemetry lookup failed for %s: %s", mac, exc)
         raise HTTPException(status_code=502, detail=f"failed to read telemetry: {exc}")
+
+    if device is not None:
+        source = device.source
+    elif sources_read == 2:
+        source = SOURCE_NOT_FOUND
+    else:
+        source = SOURCE_UNKNOWN
+        logger.warning(
+            "⚠️  Survey sample for %s recorded as unknown: only %d/2 sources read",
+            room, sources_read,
+        )
 
     try:
         return await asyncio.to_thread(
@@ -706,7 +724,7 @@ async def post_survey_sample(payload: SurveySamplePayload) -> Dict[str, Any]:
             link_rate=device.link_rate if device else None,
             band=device.conn_type if device else None,
             ssid=device.ssid if device else None,
-            source=device.source if device else SOURCE_NOT_FOUND,
+            source=source,
             rtt_ms=payload.rtt_ms,
             jitter_ms=payload.jitter_ms,
             loss_pct=payload.loss_pct,

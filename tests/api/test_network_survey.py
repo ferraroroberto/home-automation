@@ -26,15 +26,23 @@ def _isolate_survey_db(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(ns, "DEFAULT_DB_PATH", tmp_path / "network_survey.sqlite3")
 
 
-def _patch_lookup(monkeypatch: pytest.MonkeyPatch, device: Optional[NetDevice]) -> list:
-    """Stub the AP/router lookup; returns the list of MACs it was asked about."""
+def _patch_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    device: Optional[NetDevice],
+    sources_read: int = 2,
+) -> list:
+    """Stub the AP/router lookup; returns the list of MACs it was asked about.
+
+    ``sources_read`` mirrors the real signature: how many of the two boxes
+    actually answered. It is what separates a dead zone from an unusable probe.
+    """
     import app.webapp.routers.network as router_mod
 
     seen: list = []
 
-    async def _fake(mac: str) -> Optional[NetDevice]:
+    async def _fake(mac: str):
         seen.append(mac)
-        return device
+        return device, sources_read
 
     monkeypatch.setattr(router_mod, "resolve_wireless_client_by_mac", _fake)
     return seen
@@ -117,6 +125,43 @@ def test_device_on_neither_radio_is_recorded_as_not_found(
     summary = client.get("/api/network/survey").json()["rooms"][0]
     assert summary["room"] == "Cellar"
     assert summary["last_found"] is False
+
+
+@pytest.mark.parametrize("sources_read", [0, 1])
+def test_unreadable_sources_record_unknown_not_a_dead_zone(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, sources_read: int
+) -> None:
+    """An AP that timed out must not be reported as "no coverage here".
+
+    The client could have been associated to exactly the box that stayed silent,
+    so the sample establishes nothing — recording it as `not_found` would invent
+    a coverage claim out of an outage.
+    """
+    _patch_lookup(monkeypatch, None, sources_read=sources_read)
+
+    body = client.post(
+        "/api/network/survey", json={"room": "Loft", "mac": "AA:BB:CC:00:00:01"}
+    ).json()
+    assert body["source"] == "unknown"
+    assert body["source"] != "not_found"
+    assert body["signal"] is None
+    assert body["found"] is False
+
+
+def test_unknown_room_does_not_head_the_coverage_report(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_lookup(monkeypatch, _device(signal=55))
+    client.post("/api/network/survey", json={"room": "Office", "mac": "AA:BB:CC:00:00:01"})
+    _patch_lookup(monkeypatch, None, sources_read=2)
+    client.post("/api/network/survey", json={"room": "Attic", "mac": "AA:BB:CC:00:00:01"})
+    _patch_lookup(monkeypatch, None, sources_read=0)
+    client.post("/api/network/survey", json={"room": "Loft", "mac": "AA:BB:CC:00:00:01"})
+
+    rooms = client.get("/api/network/survey").json()["rooms"]
+    # Real dead zone first, then the measured room, then the one that measured
+    # nothing at all.
+    assert [r["room"] for r in rooms] == ["Attic", "Office", "Loft"]
 
 
 @pytest.mark.parametrize("payload", [{"room": "  ", "mac": "AA:BB"}, {"room": "Hall", "mac": ""}])
