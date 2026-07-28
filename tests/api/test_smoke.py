@@ -3,7 +3,7 @@
 Asserts the app imports + wires up and that the credential-free / static
 endpoints answer. Cloud-backed routes (``/api/units``, ``/api/energy``) are
 exercised with their core fetcher monkeypatched — never the live
-MELCloud Home / SMA backends.
+MELCloud Home / FusionSolar backends.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from src.network_client import (
 )
 from src.presence_client import PresenceAuthError, PresenceConfig, PresenceEntity
 from src.risco_client import SecurityState, SecurityZone
-from src.sma_client import EnergyState
+from src.huawei_client import EnergyState
 from src.ups_client import UpsState
 
 

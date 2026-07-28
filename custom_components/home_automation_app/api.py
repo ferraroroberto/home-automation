@@ -2,7 +2,7 @@
 
 The Home Assistant integration is intentionally a thin adapter: every read and
 write goes through the existing `/api/*` endpoints used by the PWA. No MELCloud,
-Tuya, RISCO, or SMA business logic is duplicated here.
+Tuya, RISCO, or solar business logic is duplicated here.
 """
 
 from __future__ import annotations

@@ -693,7 +693,7 @@ def test_energy_tab_shows_contextual_unavailable_state(
         lambda route: route.fulfill(
             status=503,
             content_type="application/json",
-            body='{"detail":"SMA meter 192.0.2.90 timed out after 10 seconds"}',
+            body='{"detail":"FusionSolar portal timed out after 10 seconds"}',
         ),
     )
     _boot(page, base_url)
@@ -721,7 +721,7 @@ def test_energy_poll_failure_preserves_and_labels_last_good_flow(
         lambda route: route.fulfill(
             status=503,
             content_type="application/json",
-            body='{"detail":"SMA meter 192.0.2.90 timed out after 10 seconds"}',
+            body='{"detail":"FusionSolar portal timed out after 10 seconds"}',
         ),
     )
     page.locator("#tabAc").click()

@@ -7,7 +7,7 @@ arm/disarm the system, bypass detectors, and pull the event log. Wraps
 its **Cloud** path - username + password + panel PIN, no browser, no local
 panel connection.
 
-Mirrors the shape of the other clients here (``melcloud_client``, ``sma_client``,
+Mirrors the shape of the other clients here (``melcloud_client``, ``huawei_client``,
 ``tuya_client``): typed errors, frozen dataclasses for the sanitized state, and
 plain functions the router/CLI call. Credentials come from ``.env``.
 
@@ -537,7 +537,7 @@ async def fetch_security_state() -> SecurityState:
     (RISCO returns a non-retryable result code such as 26), fall back to the
     cloud-cached snapshot rather than failing the whole tab - the cache still
     carries the zones and the system battery/trouble flags, and the WebUI flags
-    below still supply the authoritative arm state. Mirrors the SMA stale-cloud
+    below still supply the authoritative arm state. Mirrors the solar stale-cloud
     fallback (#94/#95). Only a failure of *both* reads surfaces as an error.
     """
     async with _connect() as risco:

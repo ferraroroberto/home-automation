@@ -337,7 +337,7 @@ def base_url() -> Iterator[str]:
             **os.environ,
             "PYTHONIOENCODING": "utf-8",
             "PYTHONUTF8": "1",
-            # Never let the autobooted webapp hammer the real SMA devices — the
+            # Never let the autobooted webapp hammer the real FusionSolar cloud — the
             # frontend is driven against stubbed energy fixtures, not the cloud.
             "ENERGY_SAMPLER_ENABLED": "0",
             # Likewise the telemetry reading sampler — it would otherwise fetch

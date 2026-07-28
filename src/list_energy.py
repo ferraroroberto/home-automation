@@ -1,19 +1,18 @@
 r"""
-Show live SMA energy flow (CLI)
-===============================
-Proof-of-concept: confirm the SMA integration returns live energy data —
-prefer Sunny Portal cloud energy balance when configured, otherwise fall back
-to local Speedwire/ennexOS reads — before building solar load-balancing on top.
+Show live FusionSolar energy flow (CLI)
+=======================================
+Smoke test: confirm the Huawei FusionSolar integration returns live energy data
+before building solar load-balancing on top of it.
 
 Run from the project root with the venv interpreter::
 
     & .\.venv\Scripts\python.exe -m src.list_energy       # Windows
     ./.venv/bin/python -m src.list_energy                 # POSIX
 
-The local energy meter fallback is read over Speedwire (no credentials). The
-inverter, if ``SMA_INVERTER_HOST`` is set in ``.env``, is read over its local
-ennexOS API or Speedwire depending on config; it is asleep at night, which the
-output flags rather than treating as an error.
+The whole flow — PV production, house consumption and the grid exchange — comes
+from the FusionSolar cloud in one call, using the ``FUSIONSOLAR_*`` credentials
+in ``.env``. At night the inverter stops reporting PV, which the output flags
+rather than treating as an error.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.sma_client import EnergyState, fetch_energy_state
+from src.huawei_client import EnergyState, fetch_energy_state
 
 
 def _fmt_w(value: float | None) -> str:
@@ -33,7 +32,7 @@ def _fmt_kwh(value: float | None) -> str:
 
 
 def _print_state(s: EnergyState) -> None:
-    print(f"  Energy meter:       {'reachable' if s.meter_reachable else 'NOT reachable'}"
+    print(f"  Power sensor:       {'reachable' if s.meter_reachable else 'NOT reachable'}"
           + (f" (serial {s.meter_serial})" if s.meter_serial else ""))
     print(f"  Grid import:        {_fmt_w(s.grid_import_w)}")
     print(f"  Grid export:        {_fmt_w(s.grid_export_w)}")
@@ -43,16 +42,16 @@ def _print_state(s: EnergyState) -> None:
         print("  PV production:      n/a (inverter asleep or unreachable)")
     print(f"  House consumption:  {_fmt_w(s.house_consumption_w)}")
     print(f"  PV surplus:         {_fmt_w(s.pv_surplus_w)}  (+ = exporting, − = importing)")
-    print(f"  Total grid import:  {_fmt_kwh(s.grid_import_kwh)}")
-    print(f"  Total grid export:  {_fmt_kwh(s.grid_export_kwh)}")
+    print(f"  Grid import today:  {_fmt_kwh(s.grid_import_kwh)}")
+    print(f"  Grid export today:  {_fmt_kwh(s.grid_export_kwh)}")
 
 
 async def main() -> None:
-    """Fetch the live SMA energy snapshot and print it."""
+    """Fetch the live FusionSolar energy snapshot and print it."""
     state = await fetch_energy_state()
 
     if not state.meter_reachable and not state.inverter_reachable:
-        print("No SMA devices reachable on this network.")
+        print("No FusionSolar data available (check FUSIONSOLAR_* in .env).")
         return
 
     print("\nLive energy flow:\n")

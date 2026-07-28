@@ -1,12 +1,12 @@
-"""Live energy-flow API over the local SMA devices.
+"""Live energy-flow API over the Huawei FusionSolar cloud.
 
 ``GET /api/energy`` returns the home's instantaneous energy flow — grid
-import/export from the Sunny Home Manager / energy meter, PV production from
-the inverter (when awake), and the derived house consumption + PV surplus.
-This is the read side of the eventual solar load-balancing automation.
+import/export measured by the inverter's power sensor, PV production, and the
+house consumption + derived PV surplus. This is the read side of the eventual
+solar load-balancing automation.
 
-Partial data is normal and returned with 200: the inverter sleeps at night,
-so ``pv_power_w`` is ``null`` and ``inverter_reachable`` is ``false`` then.
+Partial data is normal and returned with 200: the inverter sleeps at night, so
+``pv_power_w`` is ``null`` and ``inverter_reachable`` is ``false`` then.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from src.energy_history import (
     recent_samples,
 )
 from src.pv_forecast import fetch_pv_forecast
-from src.sma_client import EnergyState, fetch_energy_state
+from src.huawei_client import EnergyState, fetch_energy_state
 from src.tariff import cost_breakdown, load_tariff
 
 logger = logging.getLogger(__name__)

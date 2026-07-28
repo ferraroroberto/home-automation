@@ -2,7 +2,7 @@ r"""
 Home-network read + control orchestrator (async, UI-free)
 =========================================================
 Spike core for issue #125 — the Network view. Mirrors the other domain cores
-(``melcloud_client`` / ``sma_client`` / ``risco_client``): no Streamlit, no
+(``melcloud_client`` / ``huawei_client`` / ``risco_client``): no Streamlit, no
 FastAPI, just credentials in → a flattened :class:`NetworkState` out, plus the
 reboot + DHCP-reservation controls.
 

@@ -1,12 +1,12 @@
 /* Energy data + Energy-tab controller.
  *
- * Owns everything energy: the compact Home tile, the Energy-tab SMA-style stack
+ * Owns everything energy: the compact Home tile, the Energy-tab stacked-area
  * (live flow diagram, deficit/surplus banner, efficiency tiles, today's split
  * cards, savings), the live flowing chart, and the hourly/daily/monthly bars.
  *
  * Cadence is tab-aware: the live snapshot polls fast (LIVE_MS) only while the
  * Energy tab is open, falling back to SLOW_MS elsewhere so the Home tile still
- * updates without hammering the SMA devices. Today's slow-moving kWh totals
+ * updates without hammering the FusionSolar cloud. Today's slow-moving kWh totals
  * refresh on their own TODAY_MS cadence while the Energy tab is open. Charts are
  * created lazily on the first Energy-tab visit (Chart.js is a heavy global). */
 

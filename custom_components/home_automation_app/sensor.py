@@ -22,8 +22,8 @@ _POWER_SENSORS = {
     "pv_surplus_w": "PV surplus",
 }
 _ENERGY_SENSORS = {
-    "grid_import_kwh": "Grid import energy",
-    "grid_export_kwh": "Grid export energy",
+    "grid_import_kwh": "Grid import energy today",
+    "grid_export_kwh": "Grid export energy today",
 }
 
 

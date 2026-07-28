@@ -17,7 +17,7 @@ The product is a **FastAPI + static PWA**: a card grid showing every unit at onc
 
 The top-level directory map — what each directory *is*. The exhaustive module-by-module reference (every file in `src/` and `app/webapp/`, one line each) lives in [`docs/architecture.md`](docs/architecture.md).
 
-- **`src/`** — non-UI Python: the device clients (MELCloud HVAC, SMA solar, RISCO alarm, Tuya, cameras, network, UPS, Elgato, presence), their `list_*` CLIs, the automation/tariff/forecast logic, and the atomic display-name / hidden / preference stores. No Streamlit/FastAPI imports.
+- **`src/`** — non-UI Python: the device clients (MELCloud HVAC, Huawei solar, RISCO alarm, Tuya, cameras, network, UPS, Elgato, presence), their `list_*` CLIs, the automation/tariff/forecast logic, and the atomic display-name / hidden / preference stores. No Streamlit/FastAPI imports.
 - **`app/webapp/`** — **the product**: FastAPI (`server.py` + `middleware.py` + `routers/`) over the same core, serving the static PWA under `static/`, plus the lifecycle `manager.py` and the background tasks (energy sampler, HVAC/security/presence/wake-alarm automation, power monitor) owned by the app lifespan.
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat` → `python -m app.tray`); `single_instance.py` + `tray_lifecycle.ps1` vendored verbatim from the scaffold.
 - **`custom_components/home_automation_app/`** — Home Assistant custom integration (#235): a thin adapter over the `/api/*` endpoints exposing native `climate` / `switch` / `alarm_control_panel` / `binary_sensor` / `sensor` entities. See [`docs/home-assistant-integration/`](docs/home-assistant-integration/README.md).
@@ -25,7 +25,7 @@ The top-level directory map — what each directory *is*. The exhaustive module-
 - **`spike/`** — `streamlit_app.py`, the independent Streamlit POC spike.
 - **`config/`** — committed `*.sample.json` templates; the real per-feature JSON stores are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `webapp.log` — the rotating process log that survives the tray's DEVNULL launch, the SQLite stores); gitignored.
-- **`.env`** — MELCloud + SMA credentials (gitignored; copy from `.env.example`).
+- **`.env`** — MELCloud + FusionSolar credentials (gitignored; copy from `.env.example`).
 
 ### Background polling (what fetches when)
 
@@ -34,7 +34,7 @@ The PWA does **not** poll everything continuously. Each tab's data is fetched on
 | Data | Cadence | Polls while on | Notes |
 | --- | --- | --- | --- |
 | AC units | 30 s | Home, AC | One boot fetch on load; otherwise gated to these tabs (#209). |
-| Energy | 5 s active / 30 s slow | Energy (fast), Home (slow) | SMA reads are lightweight. |
+| Energy | 5 s active / 30 s slow | Energy (fast), Home (slow) | Served from one cached cloud read. |
 | Plugs | 15 s | IoT | Tuya LAN reads. |
 | UPS | 15 s | IoT, Home | Local NUT/USB-HID read. |
 | PC fleet | 15 s | IoT | Machine roster via the local hub proxy (#498). |
@@ -125,7 +125,7 @@ trouble flags keep rendering and the action pills stay actionable.
 The response is flagged `assumed_control_panel_state=true` to mark it as cached
 rather than a fresh live read, an info-level breadcrumb logs each fallback, and
 only a failure of *both* the live and cached reads surfaces as an error. This
-mirrors the SMA stale-cloud energy fallback (issues #94 / #95). The write paths
+mirrors the stale-cloud energy guard (issues #94 / #95). The write paths
 (arm/disarm, bypass) are unchanged — a live read after a command is correct
 there.
 
@@ -380,7 +380,6 @@ Use it when a device matters but doesn't warrant one of the router's limited sta
 
 | Setting | Accepts a MAC directly |
 |---|---|
-| `SMA_INVERTER_HOST` | yes — it is a bare host |
 | `HA_SSH_HOST` | yes — it is a bare host |
 | `HA_URL` | no; set `HA_HOST_MAC` instead (see below) |
 
@@ -420,30 +419,62 @@ Each device gets the **lowest free IP in its category range** — skipping any I
 > - **Add a reservation manually** stages a `{mac, ip, name?}` row (shown as a chip) for a device the rules can't place or one not in the inventory at all.
 > - **Apply changes (remove R · add A)** runs the whole batch in one router session — **removals first** (freeing slots), then adds (cap-aware) — with a live *After: U/10 used* budget so you can see before applying whether it fits. One endpoint does it: `POST /api/network/dhcp-reservations/apply` `{remove:[inst_id…], add_macs:[mac…], add_manual:[{mac,ip,name?}…]}`; plan IPs are recomputed server-side, never trusted from the client. Per-MAC group choices persist in gitignored `config/dhcp_overrides.json` (folded over `config/dhcp_plan.json` so a UI choice wins without editing the committed config). The binding read retries once, so the manager no longer degrades to a misleading "all applied" when the router briefly loses the login race with the 15 s poll.
 
-## SMA solar / energy
+## Huawei solar / energy
 
 The dashboard shows the home's live energy flow (☀️ Solar · 🏠 House · ⚡ Grid ·
 ♻️ Net) as the read-side foundation of the eventual solar load-balancing
-automation (shift HVAC load to match PV). When `SMA_CLOUD_PLANT_ID` is set, it
-uses the same Sunny Portal energy-balance values shown in the SMA Energy app.
-If cloud is not configured, unavailable, or **stale** (the widget keeps echoing
-its last point after the Sunny Home Manager stops uploading — see
-`SMA_CLOUD_MAX_STALENESS_S`), it falls back to local LAN reads:
+automation (shift HVAC load to match PV).
 
-- **Sunny Home Manager 2.0 / energy meter** — read over **Speedwire** (UDP
-  multicast) with **no credentials**. Gives grid import/export + cumulative
-  counters. Discovered automatically on the LAN.
-- **PV inverter** (Tripower X / ennexOS) — read over its **local ennexOS web
-  API**, logging in with the SMA account. Gives PV production. SMA inverters
-  **power down at night**, so the inverter only appears on the network while
-  producing; an asleep inverter is reported as such (PV unknown), not an error.
+**Hardware:** a **Huawei SUN2000-8K-LC0** hybrid inverter (8 kW, single-phase)
+with an 8.8 kWp array and an RS485 power sensor on the grid connection. No
+battery is fitted.
 
-**When live data is unavailable, the app says why (issue #101).** If the energy
-meter stops answering on the LAN (cloud stale *and* no Speedwire response), the
-live-flow tile shows an inline `Live unavailable — the energy meter is not
-responding on the LAN` note instead of bare `—`; the cumulative/history cards
-keep rendering from their own sources. More broadly, a hard data-fetch failure on
-the Energy, Plugs, or Security tab now raises a single error **toast** naming the
+**Source: the FusionSolar cloud.** One call to the portal returns the whole flow
+— PV production, house consumption, and the grid exchange — so there is no local
+host to configure and no meter/inverter split. A point older than
+`FUSIONSOLAR_MAX_STALENESS_S` is treated as **stale** and reported as
+unavailable rather than served as live, so a frozen upload cannot flat-line the
+chart (issue #94).
+
+> **Why not local Modbus?** This inverter exposes none. TCP 502 is *refused* on
+> both the LAN address and the inverter's own access point, and the proprietary
+> port 6607 accepts a connection but answers no Modbus request (it is TLS-wrapped
+> on the LC0 generation) — verified to the wire protocol, including against the
+> `huawei-solar` library. There is no setting in the app or the web portal to
+> enable it. A **Smart Dongle `SDongleA-05` on Ethernet** would add a local path
+> (~1 s resolution instead of ~5 min, and no cloud dependency); that is tracked
+> separately as a follow-up.
+
+**Reading around the source's gaps.** The portal serves the day as parallel
+5-minute series, and the newest data is not always trustworthy. Two hazards,
+both measured live and both handled in `src/huawei_client.py`:
+
+- The `fusion_solar_py` helper returns the newest non-null sample of *each
+  series independently*, which mixes buckets whenever one lags. We read one
+  aligned bucket instead.
+- A bucket can be half-written without being marked `--`: consumption is a
+  *derived* series here (`existUsePower: false`) and sits at a placeholder
+  `0.000`. Taken at face value that rendered the house at 0 W and the grid
+  exporting more than the array generated.
+
+The completeness test is the flow identity itself — `productPower +
+meterActivePower == usePower`, which held to **exactly zero** in 32 of 39
+buckets across a live day, every exception being a placeholder. A bucket that
+does not balance is not yet real, so the read steps back to the last one that
+does. Those holes are often *permanent* (two runs were still unusable an hour
+later), which is why the staleness window is 30 minutes rather than 15.
+
+**Sign convention worth knowing.** FusionSolar reports a single signed
+`meterActivePower` whose sign is the *opposite* of the one the portal's own
+device page shows. The identity `productPower + meterActivePower = usePower`
+pins it down: **positive means importing**. `src/huawei_client.py` splits it into
+`grid_import_w` / `grid_export_w` so that logic lives in exactly one place.
+
+**When live data is unavailable, the app says why (issue #101).** If the portal
+read fails or returns only stale data, the live-flow tile shows an inline
+`Live unavailable` note instead of bare `—`; the cumulative/history cards keep
+rendering from their own sources. More broadly, a hard data-fetch failure on
+the Energy, Plugs, or Security tab raises a single error **toast** naming the
 source and reason — surfaced once per outage (the tabs poll every few seconds, so
 it does not repeat while a source stays down) and re-armed on recovery.
 
@@ -451,16 +482,13 @@ Config in `.env`:
 
 | Key | Meaning |
 |-----|---------|
-| `SMA_CLOUD_PLANT_ID` | Sunny Portal plant/component ID. When set, the app reads the same cloud energy-balance values shown in the SMA Energy app. |
-| `SMA_CLOUD_MAX_STALENESS_S` | Max age (seconds, default `900`) of a cloud energy-balance point before it is treated as stale and the read falls through to the live local sources — stops a frozen cloud value from flat-lining the live chart. |
-| `SMA_INVERTER_HOST` | Inverter LAN IP/host. Blank → read the meter only. |
-| `SMA_INVERTER_ACCESS_METHOD` | `ennexos` (default) or `speedwireinvV2` for Speedwire-only inverters. |
-| `SMA_INVERTER_GROUP` | Speedwire login group: `user` (default) or `installer`. |
-| `SMA_INVERTER_PASSWORD` | Local Speedwire inverter password (max 12 chars). Use this instead of the SMA cloud password for Speedwire devices. |
-| `SMA_USER` / `SMA_PASSWORD` | SMA account, for Sunny Portal cloud login and ennexOS local login. |
+| `FUSIONSOLAR_USER` / `FUSIONSOLAR_PASSWORD` | FusionSolar portal account. Prefer a **plant-owner** account over the installer's. |
+| `FUSIONSOLAR_SUBDOMAIN` | Regional host prefix of your portal URL, e.g. `uni005eu5` for `uni005eu5.fusionsolar.huawei.com`. Defaults to `uni005eu5`. |
+| `FUSIONSOLAR_PLANT_DN` | Plant DN, e.g. `NE=123456789`. Blank → auto-discover the account's first plant. |
+| `FUSIONSOLAR_MAX_STALENESS_S` | Max age (seconds, default `1800`) of the newest *usable* point before the read is reported unavailable — stops a stopped feed from masquerading as live. Generous on purpose; see "Reading around the source's gaps" below. |
+| `FUSIONSOLAR_CACHE_TTL_S` | Seconds one cloud response is reused (default `60`). The portal publishes on a 5-minute grid, so polling harder buys no resolution and risks throttling. The PWA polls energy every 5 s, which without this was a cloud round-trip each. |
 
-Find the inverter IP by running the CLI **in daylight** (it is off-network at
-night):
+Smoke-test the credentials with the CLI:
 
 ```powershell
 & .\.venv\Scripts\python.exe -m src.list_energy      # Windows
@@ -470,7 +498,6 @@ night):
 ./.venv/bin/python -m src.list_energy                # POSIX
 ```
 
-then set `SMA_INVERTER_HOST` to the address it logs and restart the tray.
 `GET /api/energy` serves the same snapshot to the PWA.
 
 ## Energy monitoring & history
@@ -480,7 +507,7 @@ the actionable alarm tile, a one-line-per-unit AC summary with inline power
 toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
 card as the Energy tab; alarm + AC act, the rest inform),
 **AC** (the full unit controls + detail modal),
-**Energy** (an SMA-style solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
+**Energy** (a stacked-area solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
 flow row with a colour-coded grid arrow (blue ◀ importing, green ▶ exporting),
 self-sufficiency / self-consumption tiles, today's generation & consumption split
 cards, a savings estimate (€ saved on self-consumed PV at the configured tiered
@@ -520,8 +547,8 @@ a misleading 0, so the charts show a gap and aggregates flag `pv_missing`.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `ENERGY_SAMPLER_ENABLED` | `true` | Master switch. `false`/`0` serves live + existing history but persists nothing (used by the e2e suite and dev runs so they don't poll SMA). |
-| `ENERGY_PERSIST_INTERVAL_S` | `60` | Seconds between persisted samples. For a 5-minute cloud source (Sunny Portal) the data simply won't change faster than the source. |
+| `ENERGY_SAMPLER_ENABLED` | `true` | Master switch. `false`/`0` serves live + existing history but persists nothing (used by the e2e suite and dev runs so they don't poll FusionSolar). |
+| `ENERGY_PERSIST_INTERVAL_S` | `60` | Seconds between persisted samples. For a 5-minute cloud source (FusionSolar) the data simply won't change faster than the source. |
 | `ENERGY_COMPACT_INTERVAL_S` | `3600` | How often completed hours are folded into rollups and old raw data pruned. |
 | `ENERGY_RAW_RETENTION_DAYS` | `7` | How long raw per-sample rows are kept (feeds the live chart). |
 | `ENERGY_HOURLY_RETENTION_DAYS` | `400` | How long hourly rollups are kept (daily/monthly views group from these). |
@@ -1252,7 +1279,7 @@ backend in-process:
   exactly as it is for local probes). It asserts `/healthz`, `/api/version`, and
   `/` answer, and that `/api/units` + `/api/energy` flatten their fetched data —
   with the cloud fetchers **monkeypatched**, so it never calls
-  MELCloud Home / SMA / Tuya / Risco.
+  MELCloud Home / FusionSolar / Tuya / Risco.
 - **Unit tests** cover the pure logic: `src.tariff` (tiered-rate cost/savings +
   the 2.0TD calendar), `src.energy_history` (record → aggregate round-trip and
   bucketing against a `tmp_path` SQLite DB with a fixed `now=`), and
