@@ -101,6 +101,16 @@ _FLOW_KEYS = ("productPower", "usePower", "meterActivePower")
 # as PV approaches export in the evening, so a generous window is exactly wrong.
 _FLOW_IDENTITY_TOLERANCE_KW = 0.005
 
+# How long to stay quiet after a failed cloud read. A failure leaves nothing to
+# put in the response cache below, so without this guard *every* request
+# re-attempts the login — and the PWA polls energy every 5 s. Observed live: an
+# expired session turned into a login storm, the tray re-attempting every ~17 s
+# for minutes, after which the portal refused it outright while a fresh login
+# from a one-shot CLI still worked. Doubling backoff to a ceiling keeps a
+# transient outage from escalating into a locked account.
+_FAILURE_BACKOFF_BASE_S = 60
+_FAILURE_BACKOFF_MAX_S = 900
+
 
 @dataclass
 class EnergyState:
@@ -149,6 +159,43 @@ _plant_dn: Optional[str] = None
 
 # (monotonic timestamp, day-series payload) — see :func:`_fetch_stats`.
 _stats_cache: Optional[tuple[float, Dict[str, Any]]] = None
+
+# Monotonic deadline before which no cloud call is attempted, and the number of
+# consecutive failures that set it — see :func:`_note_failure`.
+_failure_until: float = 0.0
+_failure_streak: int = 0
+
+
+def _backoff_for(streak: int) -> int:
+    """Seconds to stay quiet after ``streak`` consecutive failures."""
+    if streak < 1:
+        return 0
+    return min(_FAILURE_BACKOFF_MAX_S, _FAILURE_BACKOFF_BASE_S * 2 ** (streak - 1))
+
+
+def _note_failure(now: float) -> None:
+    """Open (or lengthen) the backoff window after a failed read."""
+    global _failure_until, _failure_streak
+
+    _failure_streak += 1
+    wait = _backoff_for(_failure_streak)
+    _failure_until = now + wait
+    logger.warning(
+        "⚠️ FusionSolar unavailable (%d consecutive failure(s)); "
+        "not retrying for %ds",
+        _failure_streak,
+        wait,
+    )
+
+
+def _note_success() -> None:
+    """Clear the backoff after a good read."""
+    global _failure_until, _failure_streak
+
+    if _failure_streak:
+        logger.info("✅ FusionSolar recovered after %d failure(s)", _failure_streak)
+    _failure_streak = 0
+    _failure_until = 0.0
 
 
 def _get_lock() -> asyncio.Lock:
@@ -439,24 +486,40 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
     if cached is not None and now - cached[0] < config.cache_ttl_s:
         return cached[1]
 
+    if not config.user or not config.password:
+        # Not configured is not a failure: nothing to back off from, and the
+        # login path already says so once per call at info level.
+        return None
+
+    if now < _failure_until:
+        # Backing off. Serve the last good payload rather than nothing — its own
+        # as-of timestamp still gates freshness downstream, so a genuinely dead
+        # feed is reported unavailable by the staleness guard, not by silence.
+        return cached[1] if cached is not None else None
+
     client = await _get_client(config)
     if client is None:
+        _note_failure(now)
         return None
 
     plant_dn = await _resolve_plant_dn(client, config)
     if plant_dn is None:
+        _note_failure(now)
         return None
 
     try:
         stats = await asyncio.to_thread(_read_plant, client, plant_dn)
     except Exception as exc:  # noqa: BLE001 - portal error, schema change, timeout
         logger.warning("⚠️ FusionSolar read failed: %s", exc)
+        _note_failure(now)
         return None
 
     if not isinstance(stats, dict):
         logger.warning("⚠️ FusionSolar returned an unexpected payload: %r", type(stats))
+        _note_failure(now)
         return None
 
+    _note_success()
     _stats_cache = (now, stats)
     return stats
 

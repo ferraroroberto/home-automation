@@ -464,6 +464,8 @@ does not balance is not yet real, so the read steps back to the last one that
 does. Those holes are often *permanent* (two runs were still unusable an hour
 later), which is why the staleness window is 30 minutes rather than 15.
 
+**Failures back off; they are not retried at poll rate.** A failed read leaves nothing to put in the response cache, so without a guard every request re-attempts the portal login — and the PWA polls energy every 5 s. Seen live: an expired session became a login storm, the tray re-attempting every ~17 s for minutes, after which the portal refused it outright while a one-shot CLI login still worked. After a failure the client stays quiet for 60 s, doubling to a 15-minute ceiling, and keeps serving the last good payload meanwhile — the staleness guard above still decides when that stops counting as live, so backing off never passes stale data off as fresh.
+
 **Sign convention worth knowing.** FusionSolar reports a single signed
 `meterActivePower` whose sign is the *opposite* of the one the portal's own
 device page shows. The identity `productPower + meterActivePower = usePower`

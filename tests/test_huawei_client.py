@@ -7,20 +7,40 @@ real defect — see :func:`test_latest_aligned_prefers_a_common_bucket`.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 
 import pytest
 
+from src import huawei_client
 from src.huawei_client import (
     EnergyState,
     _apply,
+    _backoff_for,
     _is_settled,
     _is_stale,
     _latest_aligned,
     _latest_pv,
+    _note_failure,
+    _note_success,
     _settled_buckets,
     _state_from_point,
 )
+
+
+_real_get_client = huawei_client._get_client
+
+
+@pytest.fixture(autouse=True)
+def _reset_backoff():
+    """The backoff lives in module state — don't leak it between tests."""
+    huawei_client._failure_until = 0.0
+    huawei_client._failure_streak = 0
+    huawei_client._stats_cache = None
+    yield
+    huawei_client._failure_until = 0.0
+    huawei_client._failure_streak = 0
+    huawei_client._stats_cache = None
 
 
 def _stats(product, use, meter, *, times=None, **extra):
@@ -305,6 +325,76 @@ def test_latest_pv_skips_unfilled_slots():
 
 def test_latest_pv_on_an_empty_series():
     assert _latest_pv({}) == (None, None)
+
+
+# --------------------------------------------------------------------------
+# Failure backoff
+# --------------------------------------------------------------------------
+
+def test_backoff_doubles_then_caps():
+    """A failed read must not be retried at poll rate.
+
+    Nothing goes in the response cache when a read fails, so without a backoff
+    every request re-attempts the login — and the PWA polls energy every 5 s.
+    Observed live: an expired session became a login storm and the portal then
+    refused the long-lived process outright.
+    """
+    assert _backoff_for(1) == 60
+    assert _backoff_for(2) == 120
+    assert _backoff_for(3) == 240
+    # ...and it stops doubling rather than growing without bound.
+    assert _backoff_for(9) == 900
+    assert _backoff_for(50) == 900
+
+
+def test_no_backoff_before_any_failure():
+    assert _backoff_for(0) == 0
+
+
+def test_a_failing_read_stops_calling_the_cloud_and_serves_the_last_payload():
+    """The whole point of the backoff: one failure, then silence.
+
+    Also proves the stale payload is still served while backing off — its own
+    as-of timestamp gates freshness downstream, so a genuinely dead feed is
+    reported unavailable by the staleness guard rather than by an empty read.
+    """
+    config = huawei_client.EnergyConfig(
+        user="u", password="p", subdomain="x", plant_dn="NE=1", cache_ttl_s=0
+    )
+    last_good = {"xAxis": ["2026-07-28 18:00"], "productPower": [1.0]}
+    huawei_client._stats_cache = (0.0, last_good)
+
+    attempts = []
+
+    async def _login_fails(_config):
+        attempts.append("login")
+        return None
+
+    huawei_client._get_client = _login_fails
+    try:
+        assert asyncio.run(huawei_client._fetch_stats(config)) is None
+        assert attempts == ["login"]
+
+        # Second call, well inside the 60 s window: no cloud call at all...
+        assert asyncio.run(huawei_client._fetch_stats(config)) == last_good
+        assert attempts == ["login"]
+    finally:
+        huawei_client._get_client = _real_get_client
+        huawei_client._stats_cache = None
+
+
+def test_failures_accumulate_and_success_clears_them():
+    _note_failure(1000.0)
+    assert huawei_client._failure_streak == 1
+    assert huawei_client._failure_until == 1060.0
+
+    _note_failure(1060.0)
+    assert huawei_client._failure_streak == 2
+    assert huawei_client._failure_until == 1180.0
+
+    _note_success()
+    assert huawei_client._failure_streak == 0
+    assert huawei_client._failure_until == 0.0
 
 
 # --------------------------------------------------------------------------
