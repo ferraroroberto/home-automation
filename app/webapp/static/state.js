@@ -91,6 +91,10 @@ export const state = {
   // When false (default), offline (known-but-absent) devices are hidden; when
   // true they render dimmed in a trailing "Offline" group (issue #129 Phase 4).
   networkShowOffline: false,
+  // Wi-Fi walk test (issue #547): GET /api/network/survey payload, and the MAC
+  // of the device being surveyed (the phone you are walking around with).
+  networkSurvey: null,
+  networkSurveyMac: null,
   // Device row sort inside each Network group: A-Z by default, or weakest signal.
   networkDeviceSort: 'az',
   // How the Network device list is grouped: by radio band (the original view)
@@ -138,6 +142,11 @@ export const NETWORK_DEVICE_SORT_KEY = 'home-automation.networkDeviceSort';
 export const NETWORK_DEVICE_GROUPING_KEY = 'home-automation.networkDeviceGrouping';
 export const NETWORK_SHOW_HIDDEN_DEVICES_KEY = 'home-automation.networkShowHiddenDevices';
 export const NETWORK_SHOW_HIDDEN_WIFI_KEY = 'home-automation.networkShowHiddenWifi';
+// Which attached device the walk test profiles (issue #547). Per-browser rather
+// than server-side on purpose: over Tailscale every client arrives from a 100.x
+// address, so the server cannot map a browser to a LAN MAC — each device that
+// runs a walk test picks itself once, and that pick belongs to that device.
+export const NETWORK_SURVEY_MAC_KEY = 'home-automation.networkSurveyMac';
 export const THIS_DEVICE_PRESENCE_KEY = 'home-automation.thisDevicePresence';
 export const THIS_DEVICE_LOCATION_KEY = 'home-automation.thisDeviceLocation';
 
@@ -419,6 +428,23 @@ export const els = {
   netWifiNote: document.getElementById('netWifiNote'),
   netWifiHiddenCount: document.getElementById('netWifiHiddenCount'),
   netWifiHiddenToggle: document.getElementById('netWifiHiddenToggle'),
+  // Wi-Fi walk test (issue #547) — per-room coverage survey card + device picker.
+  netSurveyCard: document.getElementById('netSurveyCard'),
+  netSurveyStatus: document.getElementById('netSurveyStatus'),
+  netSurveyBody: document.getElementById('netSurveyBody'),
+  netSurveyDeviceRow: document.getElementById('netSurveyDeviceRow'),
+  netSurveyDeviceName: document.getElementById('netSurveyDeviceName'),
+  netSurveyDevicePick: document.getElementById('netSurveyDevicePick'),
+  netSurveyForm: document.getElementById('netSurveyForm'),
+  netSurveyRoom: document.getElementById('netSurveyRoom'),
+  netSurveyRoomList: document.getElementById('netSurveyRoomList'),
+  netSurveyRecord: document.getElementById('netSurveyRecord'),
+  netSurveyProgress: document.getElementById('netSurveyProgress'),
+  netSurveyRooms: document.getElementById('netSurveyRooms'),
+  netSurveyNote: document.getElementById('netSurveyNote'),
+  netSurveyDialog: document.getElementById('netSurveyDialog'),
+  netSurveyDialogClose: document.getElementById('netSurveyDialogClose'),
+  netSurveyDialogList: document.getElementById('netSurveyDialogList'),
   netStats: document.getElementById('netStats'),
   netSortAlpha: document.getElementById('netSortAlpha'),
   netSortSignal: document.getElementById('netSortSignal'),

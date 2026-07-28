@@ -498,3 +498,51 @@ def test_network_tab_retries_after_first_load_failure(
     expect(page.locator("#netInternetStatus")).to_have_text("Online", timeout=20_000)
     expect(page.locator("#netFeedback")).to_be_hidden()
     expect(page.locator("#netDevices .net-device-name-text").first).to_have_text("Alpha Laptop")
+
+
+def test_network_walk_test_picks_a_device_and_records_a_room(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    """The walk test's whole flow: pick this device once, then record a room.
+
+    The recorded signal must be the one the *access point* reports for the
+    chosen client (30% for the fixture phone), not anything the browser could
+    have measured — that inversion is the reason the feature exists (#547).
+    """
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    _boot(page, base_url)
+
+    page.locator("#tabNetwork").click()
+    page.locator("details.net-survey-card > summary").click()
+    expect(page.locator("details.net-survey-card")).to_have_attribute("open", "")
+
+    # Nothing recorded and no device chosen: the empty state names the next step
+    # and Record stays disabled until there is a subject to measure.
+    expect(page.locator("#netSurveyRooms .empty-state")).to_contain_text("pick this device")
+    record = page.get_by_test_id("net-survey-record")
+    expect(record).to_be_disabled()
+
+    page.get_by_test_id("net-survey-pick").click()
+    picker = page.locator("#netSurveyDialogList .net-survey-picker-row")
+    expect(picker.first).to_be_visible()
+    picker.filter(has_text="Zebra Phone").click()
+    expect(page.locator("#netSurveyDeviceName")).to_have_text("Zebra Phone")
+    expect(record).to_be_enabled()
+
+    page.get_by_test_id("net-survey-room").fill("Kitchen")
+    record.click()
+
+    row = page.locator("#netSurveyRooms .net-survey-row")
+    expect(row).to_have_count(1, timeout=30_000)
+    expect(row).to_contain_text("Kitchen")
+    expect(row).to_contain_text("30%")
+    # Which radio heard it is the column an AP-placement decision turns on.
+    expect(row).to_contain_text("via AP")
+    expect(row).to_have_class(re.compile("is-weak"))

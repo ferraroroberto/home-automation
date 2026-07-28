@@ -1149,6 +1149,50 @@
         </div>
       </details>
 
+      <!-- Wi-Fi walk test (issue #547). The card above scans from the server PC,
+           so it only describes coverage where that PC sits. This one measures
+           coverage where *you* are: no browser on any platform exposes Wi-Fi
+           telemetry, so the phone is the probe and the AP/router is the meter —
+           you pick this device once, then record a sample per room. -->
+      <details class="card card--collapsible net-survey-card" id="netSurveyCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+            <h3 class="collapse-title">Walk test</h3>
+          </span>
+          <span class="net-wifi-summary">
+            <span id="netSurveyStatus" class="muted small">—</span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </span>
+        </summary>
+        <div id="netSurveyBody" class="net-survey-body">
+          <p class="muted small net-survey-hint">
+            Your phone can’t scan Wi-Fi — no browser exposes it, on any platform. So the phone is the
+            probe and the access point is the meter: pick this device once, then walk the house and
+            record a sample per room.
+          </p>
+
+          <div id="netSurveyDeviceRow" class="net-survey-device">
+            <svg class="icon net-survey-device-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
+            <span id="netSurveyDeviceName" class="net-survey-device-name">No device picked</span>
+            <button id="netSurveyDevicePick" type="button" class="range-tab net-survey-action" data-testid="net-survey-pick">Pick device</button>
+          </div>
+
+          <div id="netSurveyForm" class="net-survey-form">
+            <input id="netSurveyRoom" type="text" class="input-native net-survey-room" list="netSurveyRoomList"
+                   placeholder="Room (e.g. Kitchen)" aria-label="Room" autocomplete="off"
+                   data-testid="net-survey-room">
+            <datalist id="netSurveyRoomList"></datalist>
+            <button id="netSurveyRecord" type="button" class="range-tab net-survey-action net-survey-record"
+                    data-testid="net-survey-record">Record here</button>
+          </div>
+          <p id="netSurveyProgress" class="muted small net-survey-progress" role="status" aria-live="polite" hidden></p>
+
+          <section id="netSurveyRooms" class="net-survey-rooms" aria-label="Walk test results"></section>
+          <p id="netSurveyNote" class="muted small net-survey-note" hidden></p>
+        </div>
+      </details>
+
       <details class="card card--collapsible net-devices-card">
         <summary class="collapse-summary">
           <span class="collapse-main">
@@ -2134,6 +2178,25 @@
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
       </div>
+    </div>
+  </dialog>
+
+  <!-- Walk-test device picker (issue #547). The server cannot identify the
+       browsing device on its own: over Tailscale every client arrives from a
+       100.x address, so there is nothing to map back to a LAN MAC. You pick
+       yourself once and the choice is remembered in this browser. -->
+  <dialog id="netSurveyDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Which device is this?</h2>
+        <button id="netSurveyDialogClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small net-survey-picker-hint">
+        Pick the phone or tablet you’re holding. On iPhone: Settings → Wi-Fi → ⓘ next to your
+        network → Wi-Fi Address. iOS rotates its private Wi-Fi address, so you may have to pick
+        again later.
+      </p>
+      <div id="netSurveyDialogList" class="net-survey-picker"></div>
     </div>
   </dialog>
 

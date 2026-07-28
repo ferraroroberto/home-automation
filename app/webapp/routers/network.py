@@ -22,6 +22,12 @@ maintained with ``PUT /api/network/groups/rename`` /
 ``POST /api/network/groups/delete``. Groups are display-only and deliberately
 independent of ``config/dhcp_plan.json``'s IP-range categories.
 
+The **Wi-Fi walk test** (issue #547) rides on the same device telemetry:
+``POST /api/network/survey`` records one room-labelled coverage sample by asking
+the AP/router how well it currently hears a chosen client MAC, ``GET`` returns
+the per-room summary, and ``GET /api/network/survey/payload`` serves the bytes
+the browser times for its own throughput leg. Store: :mod:`src.network_survey`.
+
 Partial data is normal and returned with 200: an unreachable AP or router is
 reported as ``reachable=false`` on its card, not a 500 — only an unexpected
 failure of the whole read surfaces as a 502. The opt-in throughput test
@@ -42,10 +48,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
-from typing import Any, Dict, List, Mapping, Set
+from typing import Any, Dict, List, Mapping, Optional, Set
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
 from app.webapp.routers._helpers import make_display_name_endpoint
@@ -61,6 +68,7 @@ from src.network_client import (
     fetch_network_state,
     reboot_access_point,
     reboot_router,
+    resolve_wireless_client_by_mac,
 )
 from src.network_display_names import (
     load_network_display_names,
@@ -86,6 +94,16 @@ from src.network_history import (
     set_important,
 )
 from src.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
+from src.network_survey import (
+    SOURCE_NOT_FOUND,
+    SOURCE_UNKNOWN,
+    delete_room,
+    delete_sample,
+    known_rooms,
+    load_samples,
+    record_sample,
+    room_summary,
+)
 from src.network_wifi_display_names import (
     load_network_wifi_display_names,
     set_network_wifi_display_name,
@@ -597,3 +615,168 @@ async def update_wifi_hidden(payload: WifiHiddenPayload) -> Dict[str, Any]:
         logger.warning("⚠️  Failed to set Wi-Fi hidden for %s: %s", wifi_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to set hidden: {exc}")
     return {"wifi_id": wifi_id, "hidden": payload.hidden}
+
+
+# --------------------------------------------------------------------------- #
+# Wi-Fi walk test / site survey (issue #547)                                   #
+# --------------------------------------------------------------------------- #
+# No browser exposes Wi-Fi telemetry (there is no ``navigator.wifi``, and
+# ``navigator.connection`` is unimplemented in WebKit), so a phone cannot scan
+# for itself. The phone is the probe and the AP/router is the meter: the client
+# posts *where* it is plus its own round-trip measurements, and the server asks
+# the infrastructure how well it currently hears that MAC. See
+# :mod:`src.network_survey` and the README's Walk-test section.
+
+# Ceiling for the throughput-probe payload. Big enough to time a fast link
+# meaningfully, small enough that a mistyped query can't turn the endpoint into a
+# memory amplifier — the body is generated in RAM per request.
+_SURVEY_PAYLOAD_MAX_BYTES = 8 * 1024 * 1024
+_SURVEY_PAYLOAD_DEFAULT_BYTES = 2 * 1024 * 1024
+
+
+class SurveySamplePayload(BaseModel):
+    room: str
+    mac: str
+    # Browser-measured, same instant as the AP/router read below. All optional:
+    # a probe that failed reports nothing rather than a fabricated zero.
+    rtt_ms: Optional[float] = None
+    jitter_ms: Optional[float] = None
+    loss_pct: Optional[float] = None
+    throughput_mbps: Optional[float] = None
+
+
+class SurveyDeletePayload(BaseModel):
+    sample_id: Optional[int] = None
+    room: Optional[str] = None
+
+
+def _survey_dict() -> Dict[str, Any]:
+    """The whole survey view: per-room summary, raw samples, and known labels."""
+    return {
+        "rooms": room_summary(),
+        "samples": load_samples(),
+        "known_rooms": known_rooms(),
+    }
+
+
+@router.get("/api/network/survey")
+async def get_survey() -> Dict[str, Any]:
+    """Every recorded walk-test sample plus the per-room summary."""
+    try:
+        return await asyncio.to_thread(_survey_dict)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to read the Wi-Fi survey: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to read survey: {exc}")
+
+
+@router.post("/api/network/survey")
+async def post_survey_sample(payload: SurveySamplePayload) -> Dict[str, Any]:
+    """Record one walk-test sample, resolving the live telemetry server-side.
+
+    The server does the AP/router lookup itself rather than trusting a
+    client-supplied figure, so the reading is authoritative and taken at the same
+    moment as the browser probes accompanying it.
+
+    A MAC on neither radio is **not** an error: it is the genuine result of
+    standing somewhere with no coverage, and it is recorded as such
+    (``source='not_found'``, null signal, ``found: false``) so the UI can say
+    *not seen on either radio* instead of rendering a blank that reads like a
+    measurement.
+
+    That verdict requires **both** boxes to have answered, though. If either read
+    failed, the client could have been associated to exactly the one that stayed
+    silent, so the sample records ``source='unknown'`` — an unreadable AP is an
+    outage, not a dead zone, and reporting it as coverage would be a fact the
+    probe never established.
+    """
+    room = payload.room.strip()
+    mac = payload.mac.strip()
+    if not room:
+        raise HTTPException(status_code=400, detail="'room' is required")
+    if not mac:
+        raise HTTPException(status_code=400, detail="'mac' is required")
+
+    try:
+        device, sources_read = await resolve_wireless_client_by_mac(mac)
+    except NetworkConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Survey telemetry lookup failed for %s: %s", mac, exc)
+        raise HTTPException(status_code=502, detail=f"failed to read telemetry: {exc}")
+
+    if device is not None:
+        source = device.source
+    elif sources_read == 2:
+        source = SOURCE_NOT_FOUND
+    else:
+        source = SOURCE_UNKNOWN
+        logger.warning(
+            "⚠️  Survey sample for %s recorded as unknown: only %d/2 sources read",
+            room, sources_read,
+        )
+
+    try:
+        return await asyncio.to_thread(
+            record_sample,
+            room=room,
+            mac=mac,
+            signal=device.signal if device else None,
+            link_rate=device.link_rate if device else None,
+            band=device.conn_type if device else None,
+            ssid=device.ssid if device else None,
+            source=source,
+            rtt_ms=payload.rtt_ms,
+            jitter_ms=payload.jitter_ms,
+            loss_pct=payload.loss_pct,
+            throughput_mbps=payload.throughput_mbps,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to record survey sample: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to record sample: {exc}")
+
+
+@router.post("/api/network/survey/delete")
+async def post_survey_delete(payload: SurveyDeletePayload) -> Dict[str, Any]:
+    """Delete one sample (``sample_id``) or a whole room's samples (``room``).
+
+    Body-carried rather than path-carried for the same reason
+    :func:`rename_device_group` is: a room label is free-form user text and may
+    contain slashes or a leading dot, neither of which survives a path segment.
+    """
+    room = (payload.room or "").strip()
+    if payload.sample_id is None and not room:
+        raise HTTPException(status_code=400, detail="either 'sample_id' or 'room' is required")
+    try:
+        if payload.sample_id is not None:
+            deleted = 1 if await asyncio.to_thread(delete_sample, payload.sample_id) else 0
+        else:
+            deleted = await asyncio.to_thread(delete_room, room)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to delete survey sample(s): %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to delete: {exc}")
+    return {"deleted": deleted}
+
+
+@router.get("/api/network/survey/payload")
+async def get_survey_payload(
+    bytes_: int = Query(
+        _SURVEY_PAYLOAD_DEFAULT_BYTES,
+        alias="bytes",
+        ge=1024,
+        le=_SURVEY_PAYLOAD_MAX_BYTES,
+        description="payload size for the walk test's throughput probe",
+    ),
+) -> Response:
+    """Return *bytes* of incompressible data for the client-side throughput probe.
+
+    ``os.urandom`` rather than a repeated pattern so no hop can compress the body
+    and inflate the measured rate, and ``no-store`` so a second probe in the same
+    room measures the network instead of the cache.
+    """
+    return Response(
+        content=os.urandom(bytes_),
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )

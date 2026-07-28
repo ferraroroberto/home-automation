@@ -130,7 +130,7 @@ export function renderStats(devices) {
 // Identity precedence: custom label → OUI vendor → reported hostname → MAC
 // (issue #129 Phase 2). Most clients report an 'n/a' hostname, so the vendor
 // and the rename are what make the list legible.
-function deviceLabel(d) {
+export function deviceLabel(d) {
   return d.display_name || d.vendor || d.name || d.mac || '(unknown)';
 }
 

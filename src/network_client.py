@@ -150,6 +150,78 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
     return None
 
 
+async def resolve_wireless_client_by_mac(mac: str) -> tuple[Optional[NetDevice], int]:
+    """Live telemetry for one client MAC, plus how many sources actually answered.
+
+    Backs the Wi-Fi walk test (issue #547): the phone is the probe, the AP/router
+    is the meter, so a sample is whatever the infrastructure currently measures
+    for that MAC. Returns ``(device, sources_read)`` — the merged
+    :class:`NetDevice` (``signal`` %, ``link_rate``, ``conn_type`` for the band,
+    ``ssid``, and ``source`` naming which box saw it) or ``None``, and how many of
+    the two sources produced a usable read.
+
+    **The count is not decoration — it is what separates "no coverage here" from
+    "we could not tell".** A bare ``None`` conflates a MAC both boxes agree is off
+    the air with a MAC nobody could be asked about because the AP read timed out
+    and the router login failed. The first is the strongest result a walk test can
+    produce; the second is no result at all, and recording it as a dead zone would
+    invent a coverage claim out of an outage. Only ``sources_read == 2`` with no
+    device is genuinely "on neither radio": if either source stayed silent, the
+    client could have been associated to exactly the one that did not answer.
+
+    **Both sources are read concurrently, then merged — never AP-only.** The AP
+    reports a client of the *router's* radio as ``conn_type="wired"`` at 100%,
+    because all it sees is traffic arriving over its uplink port
+    (:func:`src.network_router._merge_router_wlan_clients` documents the
+    artefact). Short-circuiting on an AP hit would therefore record a fabricated
+    perfect-wired reading for every sample taken while the phone is associated to
+    the router — silently poisoning exactly the measurement this exists to make.
+    Running the same merge the full snapshot uses keeps one definition of who is
+    authoritative for a link.
+
+    Unlike :func:`resolve_ip_by_mac`, the DHCP lease table is not consulted: a
+    lease can outlive the association, and "has an address" is not "is on the air
+    right now".
+    """
+    target = _normalise_mac(mac)
+    if not target:
+        return None, 0
+
+    ap_result, router_result = await asyncio.gather(
+        _with_timeout("access-point", fetch_access_point(), _ACCESS_POINT_TIMEOUT_S,
+                      (AccessPointHealth(reachable=False, error="read timed out"), [])),
+        _with_timeout("router", fetch_router(), _ROUTER_TIMEOUT_S,
+                      (RouterHealth(reachable=False, error="read timed out"), [], [])),
+        return_exceptions=True,
+    )
+    # A source counts as read only when it came back reachable: the timeout
+    # fallbacks above are shaped like a successful read (an empty device list),
+    # so an unreachable box would otherwise masquerade as "saw nothing".
+    ap_ok = isinstance(ap_result, tuple) and ap_result[0].reachable
+    router_ok = isinstance(router_result, tuple) and router_result[0].reachable
+    devices = ap_result[1] if isinstance(ap_result, tuple) else []
+    wlan_clients = router_result[2] if isinstance(router_result, tuple) else []
+    if not ap_ok:
+        logger.info("ℹ️ survey AP read unusable: %s", ap_result)
+    if not router_ok:
+        logger.info("ℹ️ survey router read unusable: %s", router_result)
+    sources_read = int(ap_ok) + int(router_ok)
+
+    for dev in _merge_router_wlan_clients(devices, wlan_clients):
+        if _normalise_mac(dev.mac) == target:
+            logger.info(
+                "ℹ️ survey resolved %s → signal=%s conn=%s source=%s",
+                target, dev.signal, dev.conn_type, dev.source,
+            )
+            return dev, sources_read
+    logger.info(
+        "ℹ️ survey saw no association for %s (sources read %d/2, AP devices=%d, "
+        "router clients=%d)",
+        target, sources_read, len(devices), len(wlan_clients),
+    )
+    return None, sources_read
+
+
 # --------------------------------------------------------------------------- #
 # DHCP reservation control (issue #176) — confirm-gated, never on a poll       #
 # --------------------------------------------------------------------------- #
