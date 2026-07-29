@@ -116,6 +116,11 @@ export const state = {
   liveChart: null,
   aggChart: null,
   forecastChart: null,
+  // PV array the forecast is computed from, from GET/PUT /api/energy/pv-system
+  // (issue #561). Rows carry a positional client-side id for the dense-editor;
+  // the file itself stores a plain list.
+  pvArrays: [],
+  pvPerformanceRatio: 0.8,
   // Wake alarms (recurring/one-shot) from GET /api/wake-alarms, and app-native
   // countdown timers from GET /api/wake-timers (issue #304). Distinct from the
   // RISCO `security` alarm above — these ring/notify, they don't arm/disarm.
@@ -627,6 +632,25 @@ export const els = {
   forecastChart: document.getElementById('forecastChart'),
   forecastEmpty: document.getElementById('forecastEmpty'),
   forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .range-tab')),
+  // Energy tab: PV-system editor card + its row dialog (issue #561)
+  pvSystemTotal: document.getElementById('pvSystemTotal'),
+  pvArrayList: document.getElementById('pvArrayList'),
+  pvArrayAdd: document.getElementById('pvArrayAdd'),
+  pvPerformanceRatio: document.getElementById('pvPerformanceRatio'),
+  pvLat: document.getElementById('pvLat'),
+  pvLon: document.getElementById('pvLon'),
+  pvArrayDialog: document.getElementById('pvArrayDialog'),
+  pvArrayEditorTitle: document.getElementById('pvArrayEditorTitle'),
+  pvArrayEditorClose: document.getElementById('pvArrayEditorClose'),
+  pvArrayKwp: document.getElementById('pvArrayKwp'),
+  pvArrayKwpError: document.getElementById('pvArrayKwpError'),
+  pvArrayTilt: document.getElementById('pvArrayTilt'),
+  pvArrayTiltError: document.getElementById('pvArrayTiltError'),
+  pvArrayAzimuth: document.getElementById('pvArrayAzimuth'),
+  pvArrayAzimuthError: document.getElementById('pvArrayAzimuthError'),
+  pvArrayAzimuthEcho: document.getElementById('pvArrayAzimuthEcho'),
+  pvArrayDelete: document.getElementById('pvArrayDelete'),
+  pvArraySave: document.getElementById('pvArraySave'),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

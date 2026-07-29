@@ -24,6 +24,9 @@ import {
 } from './charts.js';
 import { createPoller } from './poll.js';
 import { createViewState } from './view-state.js';
+import {
+  arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
+} from './pv-system.js';
 
 const LIVE_MS = 5_000;
 const SLOW_MS = 30_000;
@@ -412,26 +415,12 @@ function setCostRange(range) {
 
 // --------------------------------------------------- solar forecast card
 // A clearer note per reason; the default HTML note covers the common case.
+// Both now point at the PV-system card below rather than at a file on disk —
+// the config is editable in the app since issue #561.
 const FORECAST_NOTES = {
-  not_configured: 'Solar forecast needs config/pv_system.json — copy the committed sample and fill in your array.',
-  no_location: 'Solar forecast needs config/location.json (the home coordinates).',
+  not_configured: 'Add your panel rows in the PV system card below to enable the forecast.',
+  no_location: 'Set the home coordinates in the PV system card below to enable the forecast.',
 };
-
-// Azimuth (Open-Meteo convention: 0=S, -90=E, 90=W, ±180=N) → 8-point compass.
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'N'];
-function azimuthCompass(deg) {
-  return COMPASS[Math.round(Number(deg) / 45) + 4];
-}
-
-// Trim a trailing ".0" so 1.5 → "1.5" but 8 → "8".
-function trimNum(n) {
-  return String(Number(n)).replace(/\.0$/, '');
-}
-
-// One sub-array's "1.5 kWp · 35° · S".
-function arraySummary(a) {
-  return trimNum(a.kwp) + ' kWp · ' + trimNum(a.tilt_deg) + '° · ' + azimuthCompass(a.azimuth_deg);
-}
 
 // "1.5 kWp · 35° · S · PR 0.80" (single array) or
 // "7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80" (multi-orientation, issue #555)
@@ -522,6 +511,10 @@ export function wireEnergyControls() {
   els.forecastDayBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setForecastDay(btn.dataset.day); });
   });
+  // Editing the array/coordinates changes what the forecast is computed from,
+  // so every successful save re-reads the curve for the day on screen.
+  setPvSystemSavedHook(function () { loadForecast(state.forecastDay); });
+  wirePvSystem();
 }
 
 // --------------------------------------------------------- cadence + tabs
@@ -540,6 +533,7 @@ export function onEnergyTab(tab) {
     loadAggregate(state.range);
     loadCost(state.costRange);  // cost & savings breakdown table
     loadForecast(state.forecastDay);  // solar expected-generation forecast
+    loadPvSystem();        // the array config that forecast is computed from
     loadEnergy();          // immediate refresh on entry
     loadToday();           // today's split cards + savings
     schedule(LIVE_MS);

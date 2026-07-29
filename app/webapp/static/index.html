@@ -905,8 +905,43 @@
         <p class="forecast-headline" id="forecastHeadline">—</p>
         <p class="forecast-params muted small" id="forecastParams"></p>
         <div class="chart-wrap chart-wrap-forecast"><canvas id="forecastChart"></canvas></div>
-        <p id="forecastEmpty" class="muted small chart-empty" hidden>Solar forecast needs config/pv_system.json — copy the committed sample and fill in your array.</p>
+        <p id="forecastEmpty" class="muted small chart-empty" hidden>Add your panel rows in the PV system card below to enable the forecast.</p>
       </section>
+
+      <!-- PV system — the array the forecast above is computed from (issue
+           #561). Dense-collection editor: one summary row per physically-
+           uniform panel row, edited in a staged dialog; the system-level
+           fields (shared derate + the home coordinates) are inline and save on
+           blur. Writes config/pv_system.json, which stays hand-editable. -->
+      <details class="card card--collapsible pv-system-card" id="pvSystemCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+            <h3 class="collapse-title">PV system</h3>
+            <span id="pvSystemTotal" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="pv-system-body">
+          <p class="muted small">Panel rows the forecast is computed from — one row per orientation.</p>
+          <div id="pvArrayList" class="alarm-schedule-list"></div>
+          <button id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
+
+          <label class="row">
+            <span>Performance ratio</span>
+            <input id="pvPerformanceRatio" type="number" min="0.05" max="1" step="0.01" inputmode="decimal" class="input-native" placeholder="0.80">
+          </label>
+          <label class="row">
+            <span>Latitude</span>
+            <input id="pvLat" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+          </label>
+          <label class="row">
+            <span>Longitude</span>
+            <input id="pvLon" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+          </label>
+          <p class="muted small pv-system-note">A rough estimate — the derate folds inverter, wiring, thermal and soiling losses into one factor (typically 0.75–0.85).</p>
+        </div>
+      </details>
     </section>
 
     <!-- =============================== IOT =============================== -->
@@ -1740,6 +1775,47 @@
       <p id="presenceMapPickerCoords" class="muted small">—</p>
       <div class="detail-actions">
         <button id="presenceMapPickerConfirm" type="button" class="detail-save-btn">Use this location</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- One panel row of the PV system (issue #561). Staged editor: Save is the
+       only persistence boundary; Escape / backdrop / × discard. Tilt stays
+       non-negative — an opposite-facing row is expressed via azimuth, which is
+       why that field carries the convention hint and a live compass echo. -->
+  <dialog id="pvArrayDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="pvArrayEditorTitle">Panel row</h2>
+        <button id="pvArrayEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Peak power (kWp)</span>
+        <input id="pvArrayKwp" type="number" min="0" step="0.1" inputmode="decimal" class="input-native" placeholder="—">
+      </label>
+      <p id="pvArrayKwpError" class="pv-field-error" role="alert" hidden></p>
+
+      <label class="row">
+        <span>Tilt (°)</span>
+        <input id="pvArrayTilt" type="number" min="0" max="90" step="1" inputmode="decimal" class="input-native" placeholder="30">
+      </label>
+      <p id="pvArrayTiltError" class="pv-field-error" role="alert" hidden></p>
+
+      <label class="row">
+        <span>Azimuth (°)</span>
+        <input id="pvArrayAzimuth" type="number" min="-180" max="180" step="1" inputmode="decimal" class="input-native" placeholder="0">
+      </label>
+      <p class="muted small pv-field-hint">
+        <span>0 = south · −90 = east · 90 = west · ±180 = north</span>
+        <span id="pvArrayAzimuthEcho" class="pv-azimuth-echo"></span>
+      </p>
+      <p id="pvArrayAzimuthError" class="pv-field-error" role="alert" hidden></p>
+
+      <button id="pvArrayDelete" type="button" class="schedule-editor-delete" hidden>Delete panel row</button>
+
+      <div class="detail-actions">
+        <button id="pvArraySave" type="button" class="detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
