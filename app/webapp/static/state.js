@@ -645,6 +645,8 @@ export const els = {
   ruleEnabled: document.getElementById('ruleEnabled'),
   ruleCoolTarget: document.getElementById('ruleCoolTarget'),
   ruleHeatTarget: document.getElementById('ruleHeatTarget'),
+  ruleBoostEnabled: document.getElementById('ruleBoostEnabled'),
+  ruleBoostOffset: document.getElementById('ruleBoostOffset'),
   // Detail modal — schedule-entry list
   schedList: document.getElementById('schedList'),
   schedAdd: document.getElementById('schedAdd'),

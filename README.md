@@ -1109,6 +1109,11 @@ upgrade. Optional `.env` knobs:
 | `HVAC_POLL_INTERVAL_S` | `60` | How often the evaluator checks configured rules/schedules. With no config it does not hit MELCloud. |
 | `HVAC_ADJUST_INTERVAL_S` | `900` | Minimum time between dynamic setpoint nudges per unit. |
 | `HVAC_BUFFER_C` | `0.5` | Room-temperature hold band around the rule target. |
+| `HVAC_BOOST_SURPLUS_ON_W` | `1500` | PV surplus (watts) that starts a solar boost on eligible units (#554). |
+| `HVAC_BOOST_SURPLUS_OFF_W` | `500` | PV surplus (watts) below which a boost is eligible to end — the lower half of the hysteresis band. |
+| `HVAC_BOOST_MIN_DURATION_S` | `1800` | Minimum time a boost holds once started, regardless of surplus, to avoid thrashing. |
+
+Solar-surplus boost (#554): a per-unit opt-in (`boost_enabled` + `boost_offset_c`, in the detail modal's Temperature rule section) that shifts the rule's own steered target further toward comfort while PV surplus is high, then lets it relax back via the same gradual steering law once surplus drops — pre-cooling/heating to bank thermal inertia ahead of a PV drop. Inert unless the unit's temperature rule is also enabled (boost shifts that rule's target). Boost is never a priority scheme — every eligible unit reacts to the same fleet-wide surplus reading. Start/stop transitions are logged to the Activity log (`domain=hvac`, `boost_start`/`boost_stop`); a unit currently boosted shows a "Boost" pill in its card.
 
 ## Wake alarms & timers
 

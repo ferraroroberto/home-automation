@@ -307,6 +307,15 @@ function renderCardInto(card, unit) {
     readings.appendChild(rule);
   }
 
+  // Live "currently boosted" indicator (#554) — background automation state,
+  // not user-initiated, so it renders inline rather than as a toast.
+  if ((unit.temperature_rule || {}).boost_active) {
+    const boost = document.createElement('div');
+    boost.className = 'unit-boost-badge';
+    boost.innerHTML = icon('sun', 'unit-boost-icon') + '<span>Boost</span>';
+    readings.appendChild(boost);
+  }
+
   // Target temperature (AJUSTAR A) with steppers.
   const target = document.createElement('div');
   target.className = 'unit-target';
@@ -543,6 +552,8 @@ async function loadAutomation(unitId) {
     setToggleState(els.ruleEnabled, rule.enabled === true);
     els.ruleCoolTarget.value = rule.cool_target == null ? '' : rule.cool_target;
     els.ruleHeatTarget.value = rule.heat_target == null ? '' : rule.heat_target;
+    setToggleState(els.ruleBoostEnabled, rule.boost_enabled === true);
+    els.ruleBoostOffset.value = rule.boost_offset_c == null ? '' : rule.boost_offset_c;
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
   }
@@ -740,6 +751,10 @@ async function saveRule() {
     enabled: isToggleOn(els.ruleEnabled),
     cool_target: numOrNull(els.ruleCoolTarget),
     heat_target: numOrNull(els.ruleHeatTarget),
+    boost_enabled: isToggleOn(els.ruleBoostEnabled),
+    // Not Optional server-side (always steers by a real offset) — fall back
+    // to the same 2.0 default rather than sending null.
+    boost_offset_c: numOrNull(els.ruleBoostOffset) == null ? 2.0 : numOrNull(els.ruleBoostOffset),
   };
   try {
     await jsonApi('/api/units/' + encodeURIComponent(state.selectedId) + '/rule', {
@@ -753,6 +768,10 @@ async function saveRule() {
         temperature_rule: {
           enabled: payload.enabled,
           active_target: ruleTargetForMode(payload, u.operation_mode),
+          boost_enabled: payload.boost_enabled,
+          boost_offset_c: payload.boost_offset_c,
+          // Live engine flag — saving the rule doesn't change it immediately.
+          boost_active: (u.temperature_rule || {}).boost_active === true,
         },
       });
     });
@@ -830,6 +849,8 @@ export function wireUnitsControls() {
   wireToggle(els.ruleEnabled, function () { markDetailDirty('rule'); });
   els.ruleCoolTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
   els.ruleHeatTarget.addEventListener('blur', function () { markDetailDirty('rule'); });
+  wireToggle(els.ruleBoostEnabled, function () { markDetailDirty('rule'); });
+  els.ruleBoostOffset.addEventListener('blur', function () { markDetailDirty('rule'); });
 
   // Schedules — dynamic list; each row wires its own controls when rendered.
   els.schedAdd.addEventListener('click', function () {
