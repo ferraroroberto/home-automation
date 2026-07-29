@@ -428,11 +428,18 @@ function trimNum(n) {
   return String(Number(n)).replace(/\.0$/, '');
 }
 
-// "1.5 kWp · 35° tilt · S · PR 0.80" from the array params the curve used.
+// One sub-array's "1.5 kWp · 35° · S".
+function arraySummary(a) {
+  return trimNum(a.kwp) + ' kWp · ' + trimNum(a.tilt_deg) + '° · ' + azimuthCompass(a.azimuth_deg);
+}
+
+// "1.5 kWp · 35° · S · PR 0.80" (single array) or
+// "7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80" (multi-orientation, issue #555)
+// from the array params the curve used.
 function forecastParamsLine(sys) {
-  if (!sys) return '';
-  return trimNum(sys.kwp) + ' kWp · ' + trimNum(sys.tilt_deg) + '° tilt · '
-    + azimuthCompass(sys.azimuth_deg) + ' · PR ' + Number(sys.performance_ratio).toFixed(2);
+  if (!sys || !sys.arrays || !sys.arrays.length) return '';
+  const parts = sys.arrays.map(arraySummary).join('  +  ');
+  return parts + ' · PR ' + Number(sys.performance_ratio).toFixed(2);
 }
 
 function renderForecast(body) {
