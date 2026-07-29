@@ -165,16 +165,47 @@ async def get_energy_cost(
 _FORECAST_DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
 
 
+_HOUR_S = 3600
+
+# Below this much of the hour elapsed, projecting it to a full-hour rate is
+# noise rather than signal: dividing a couple of minutes of samples by a tiny
+# window swings the result wildly, and the cloud source itself runs several
+# minutes behind wall clock, so the first samples of an hour may not have landed
+# at all. Draw a gap for that opening stretch instead of a wild number.
+_MIN_PROJECTION_ELAPSED_S = 600
+
+
 def _actual_curve(offset_days: int) -> List[Dict[str, Any]]:
     """That day's measured generation as 24 hourly points (``wh`` ``None`` = no PV).
 
     ``pv_missing`` hours (asleep inverter, or no sample yet) stay ``None`` so the
     client draws a gap, never a misleading 0 — the same rule the live chart uses.
+
+    The hour containing *now* is only partly done, so its accumulated Wh is not
+    comparable to a full hour of expected generation: plotted raw it reads as a
+    production collapse (issue #557). That one hour is projected to the rate it
+    is running at and flagged ``partial`` so the client can draw it as an
+    explicit projection. ``measured_wh`` always carries the untouched
+    measurement. Past hours are never scaled — one that is short because the
+    cloud feed was down is genuinely that low.
     """
-    return [
-        {"hour": i, "wh": None if b["pv_missing"] else b["pv_wh"]}
-        for i, b in enumerate(hourly_day(offset_days))
-    ]
+    now = int(time.time())
+    out: List[Dict[str, Any]] = []
+    for i, b in enumerate(hourly_day(offset_days)):
+        measured = None if b["pv_missing"] else b["pv_wh"]
+        partial = bool(b.get("partial"))
+        wh = measured
+        if partial:
+            elapsed = now - int(b["key"])
+            wh = (
+                None
+                if measured is None or elapsed < _MIN_PROJECTION_ELAPSED_S
+                else round(measured * _HOUR_S / elapsed, 3)
+            )
+        out.append(
+            {"hour": i, "wh": wh, "partial": partial, "measured_wh": measured}
+        )
+    return out
 
 
 @router.get("/api/energy/forecast")
