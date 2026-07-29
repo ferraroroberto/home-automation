@@ -501,7 +501,7 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
     rather than to traffic, and stops concurrent callers queueing behind the
     session lock.
     """
-    global _stats_cache
+    global _stats_cache, _client, _plant_dn
 
     now = time.monotonic()
     cached = _stats_cache
@@ -526,6 +526,13 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
 
     plant_dn = await _resolve_plant_dn(client, config)
     if plant_dn is None:
+        # A cached client that fails past login is worse than none: _get_client
+        # reuses it as long as its own is_session_active() check keeps saying
+        # yes, even after the portal has poisoned it. Drop it so the next
+        # attempt after backoff builds a genuinely fresh client, not a repeat
+        # of the same broken one (#556).
+        _client = None
+        _plant_dn = None
         _note_failure(now)
         return None
 
@@ -533,6 +540,11 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
         stats = await asyncio.to_thread(_read_plant, client, plant_dn)
     except Exception as exc:  # noqa: BLE001 - portal error, schema change, timeout
         logger.warning("⚠️ FusionSolar read failed: %s", exc)
+        # Same reasoning as above: a read failure this deep (past the client's
+        # own is_session_active() check) means the cached client is bad, not
+        # just the request. Force a fresh client/session on the next try (#556).
+        _client = None
+        _plant_dn = None
         _note_failure(now)
         return None
 

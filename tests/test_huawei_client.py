@@ -412,6 +412,66 @@ def test_a_failing_read_stops_calling_the_cloud_and_serves_the_last_payload():
         huawei_client._stats_cache = None
 
 
+def test_a_read_failure_drops_the_cached_client_so_the_next_try_is_fresh():
+    """Reproduces #556: a client that fails past its own session check is worse
+    than none, since ``_get_client`` happily reuses it forever otherwise.
+    """
+    config = huawei_client.EnergyConfig(
+        user="u", password="p", subdomain="x", plant_dn="NE=1", cache_ttl_s=0
+    )
+    sentinel_client = object()
+    huawei_client._client = sentinel_client
+    huawei_client._plant_dn = "NE=1"
+
+    async def _reuse_cached_client(_config):
+        return sentinel_client
+
+    def _read_plant_fails(_client, _plant_dn):
+        raise RuntimeError("Failed to reset session and login again.")
+
+    huawei_client._get_client = _reuse_cached_client
+    real_read_plant = huawei_client._read_plant
+    huawei_client._read_plant = _read_plant_fails
+    try:
+        assert asyncio.run(huawei_client._fetch_stats(config)) is None
+        assert huawei_client._client is None
+        assert huawei_client._plant_dn is None
+    finally:
+        huawei_client._get_client = _real_get_client
+        huawei_client._read_plant = real_read_plant
+        huawei_client._client = None
+        huawei_client._plant_dn = None
+
+
+def test_a_plant_dn_resolution_failure_also_drops_the_cached_client():
+    """Same #556 reasoning on the other failure branch of ``_fetch_stats``."""
+    config = huawei_client.EnergyConfig(
+        user="u", password="p", subdomain="x", plant_dn=None, cache_ttl_s=0
+    )
+    sentinel_client = object()
+    huawei_client._client = sentinel_client
+    huawei_client._plant_dn = None
+
+    async def _reuse_cached_client(_config):
+        return sentinel_client
+
+    async def _resolve_fails(_client, _config):
+        return None
+
+    huawei_client._get_client = _reuse_cached_client
+    real_resolve = huawei_client._resolve_plant_dn
+    huawei_client._resolve_plant_dn = _resolve_fails
+    try:
+        assert asyncio.run(huawei_client._fetch_stats(config)) is None
+        assert huawei_client._client is None
+        assert huawei_client._plant_dn is None
+    finally:
+        huawei_client._get_client = _real_get_client
+        huawei_client._resolve_plant_dn = real_resolve
+        huawei_client._client = None
+        huawei_client._plant_dn = None
+
+
 def test_failures_accumulate_and_success_clears_them():
     _note_failure(1000.0)
     assert huawei_client._failure_streak == 1
