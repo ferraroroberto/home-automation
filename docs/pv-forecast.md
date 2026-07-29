@@ -4,35 +4,60 @@ The Energy tab's **Solar forecast** card (issue #39) overlays an *expected gener
 
 ## Source
 
-A single keyless [Open-Meteo](https://open-meteo.com/) request — the same host the weather tile already uses — for the hourly **global tilted irradiance** (GTI) variable, at the array's tilt and azimuth, across `past_days=1` … `forecast_days=2` so all three selectable days come back in one call. GTI is returned in **W/m²** as a *preceding-hour mean*, so one hour of it integrates straight to Wh with no sub-hour modelling.
+A keyless [Open-Meteo](https://open-meteo.com/) request — the same host the weather tile already uses — for the hourly **global tilted irradiance** (GTI) variable, at a sub-array's tilt and azimuth, across `past_days=1` … `forecast_days=2` so all three selectable days come back in one call. GTI is returned in **W/m²** as a *preceding-hour mean*, so one hour of it integrates straight to Wh with no sub-hour modelling.
 
-No API key, no account, no cross-repo dependency. The dedicated `pvgis` sister repo is the more faithful PV-estimate path; this card deliberately stays self-contained and approximate (the source chosen for issue #39).
+**One request per sub-array (issue #555).** A real roof is rarely one uniform orientation — this home's is ~90% south-facing and ~10% mounted the opposite way. Open-Meteo's `tilt`/`azimuth` params don't support batching multiple orientations into one call (unlike `latitude`/`longitude`, which do), so a multi-orientation array fires one GTI request per sub-array, concurrently over a shared session, and sums the weighted result per hour.
+
+No API key, no account, no cross-repo dependency. See "PVGIS as a source" below for why the dedicated `pvgis` sister repo isn't used as a live source here.
 
 ## The estimate
 
-For each hour:
+For each hour, per sub-array:
 
 ```
 expected_W  = kwp · (GTI / 1000) · performance_ratio
 expected_Wh = expected_W · 1h            # GTI is an hourly mean
 ```
 
-`kwp` is the array's peak power, defined at the **1000 W/m² STC reference**, so `GTI / 1000` is the fraction of peak the current irradiance represents. `performance_ratio` (the derate) folds together every loss the irradiance model does not — inverter efficiency, wiring and thermal losses, soiling, mismatch — into one factor (typically ~0.75–0.85). The day total is the sum of the hourly Wh, shown as kWh.
+`kwp` is that sub-array's peak power, defined at the **1000 W/m² STC reference**, so `GTI / 1000` is the fraction of peak the current irradiance represents. `performance_ratio` (the derate) is shared across all sub-arrays — it folds together every loss the irradiance model does not (inverter efficiency, wiring and thermal losses, soiling, mismatch) into one factor (typically ~0.75–0.85), and isn't orientation-dependent. The day total is the sum of every sub-array's hourly Wh, shown as kWh.
 
 This is a **rough, clearly-labelled estimate**, not a guarantee: it ignores panel temperature, horizon shading, inverter clipping, and snow/soiling events. Treat it as "what a clear-sky-ish day of this weather should roughly yield."
 
 ## Config — `config/pv_system.json`
 
-Per-machine, **gitignored** (the repo is public). Copy `config/pv_system.sample.json` and fill in your array:
+Per-machine, **gitignored** (the repo is public). Copy `config/pv_system.sample.json` and fill in your array — one entry in `arrays` per physically-uniform sub-array (panels sharing a tilt + azimuth):
+
+```jsonc
+{
+  "arrays": [
+    { "kwp": 7.9, "tilt_deg": 15, "azimuth_deg": 0 },    // south-facing majority
+    { "kwp": 0.9, "tilt_deg": 15, "azimuth_deg": 180 }   // mounted the opposite way
+  ],
+  "performance_ratio": 0.8
+}
+```
 
 | field | meaning | notes |
 | --- | --- | --- |
-| `kwp` | installed peak power (kW) | the only required field; must be > 0 |
-| `tilt_deg` | panel tilt from horizontal | 0–90, clamped; default 30 |
-| `azimuth_deg` | panel compass orientation | Open-Meteo convention — **0 = South, −90 = East, 90 = West, 180 = North**; default 0 (due south) |
-| `performance_ratio` | derate factor | 0–1, clamped; default 0.8 |
+| `arrays` | list of sub-arrays | at least one entry required; a single-orientation roof needs just one |
+| `arrays[].kwp` | that sub-array's peak power (kW) | the only required field per entry; must be > 0 |
+| `arrays[].tilt_deg` | panel tilt from horizontal | 0–90, clamped; default 30; **always non-negative** |
+| `arrays[].azimuth_deg` | panel compass orientation | Open-Meteo convention — **0 = South, −90 = East, 90 = West, 180 = North**; default 0 (due south) |
+| `performance_ratio` | shared derate factor | 0–1, clamped; default 0.8; one value for the whole system, not per sub-array |
+
+**Expressing an opposite-mounted panel:** don't use a negative tilt. A panel "tilted −15° facing north" and a panel "tilted +15° facing the 180°/north azimuth" are the physically same orientation under Open-Meteo's tilt≥0 convention — always encode it as `tilt_deg: 15, azimuth_deg: 180` (or whatever `180 − south_azimuth` works out to for a non-south main array).
+
+**Backward compatibility:** the legacy single-orientation flat shape — `kwp`/`tilt_deg`/`azimuth_deg`/`performance_ratio` at the top level, no `arrays` key — still loads, as one implicit sub-array. Existing configs keep working unmigrated; split into `arrays` whenever you're ready to model a second orientation.
+
+A malformed individual sub-array entry is skipped (logged), not a hard failure; if every entry is invalid the config is treated as absent.
 
 Coordinates are **reused from `config/location.json`** (the same file the weather tile reads) — there is no separate lat/lon here. If either `pv_system.json` or `location.json` is absent the forecast simply reports "not configured"; the card shows a one-line note pointing at the sample and nothing else breaks.
+
+### PVGIS as a source (evaluated, deferred — issue #555)
+
+Issue #555 asked whether pulling live from [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_en) (the EU JRC's solar radiation/PV performance API) would make this card's estimate more realistic than Open-Meteo. Checked against PVGIS's own API docs: **`seriescalc`/`PVcalc` return historical or typical-meteorological-year irradiance, not a live day-ahead forecast for a specific real date.** They're built for long-term yield assessment, not "what will tomorrow look like" — the exact use case this card needs for its `tomorrow` selector.
+
+**Decision: defer.** Open-Meteo stays the live source for this card. PVGIS remains what it already was before #555 — a one-time calibration input for hand-tuning `performance_ratio` (see below) — not a live dependency, and not built out further as a calibration *feature* in this issue. Revisit only if a concrete need for a periodic "does our tuning still match PVGIS's typical-year model" cross-check shows up.
 
 ### Choosing `performance_ratio` (and reading it off a PVGIS system)
 
@@ -65,12 +90,19 @@ Empirically this matters: 0.86 (the raw `1 − loss`) forecast ≈ 51 kWh for a 
   "expected": [{ "hour": 0, "wh": 0.0 }, /* … 24 hourly points … */],
   "expected_total_kwh": 18.4,
   "actual": [{ "hour": 0, "wh": null }, /* … or null for tomorrow … */],
-  "system": { "kwp": 1.5, "tilt_deg": 35, "azimuth_deg": 0, "performance_ratio": 0.8 }
+  "system": {
+    "arrays": [
+      { "kwp": 7.9, "tilt_deg": 15, "azimuth_deg": 0 },
+      { "kwp": 0.9, "tilt_deg": 15, "azimuth_deg": 180 }
+    ],
+    "total_kwp": 8.8,
+    "performance_ratio": 0.8
+  }
 }
 ```
 
 `actual` is the measured generation for that day from the local energy-history DB (`hourly_day`), 24 hourly points where a `null` hour is an asleep inverter or an hour with no sample (drawn as a gap, never a 0) — the same "asleep is not zero" rule the live chart uses. `tomorrow` has no actuals, so `actual` is `null`.
 
-`system` echoes back the array parameters the curve was computed from, so the card can show them in a caption (e.g. `1.5 kWp · 35° tilt · S · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast.
+`system` echoes back the sub-array params the curve was computed from, so the card can show them in a caption (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast.
 
 Always HTTP 200: when the array/location is unconfigured or Open-Meteo is unreachable it returns `{ "available": false, "reason": … }` and the card keeps its note — the forecast is decorative, never a 500.

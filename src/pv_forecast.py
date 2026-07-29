@@ -8,24 +8,32 @@ generation the metered side records, *not* a control input.
 
 Source & model (deliberately self-contained, approximate):
 
-* One keyless Open-Meteo call (the same host the weather tile already uses),
-  asking for ``global_tilted_irradiance`` at the array's tilt + azimuth across
-  ``past_days=1`` … ``forecast_days=2`` so all three days come back in a single
-  request.
-* Per hour, ``expected_W = kwp · GTI/1000 · performance_ratio`` (kWp is defined
-  at the 1000 W/m² STC reference, so GTI/1000 is the fraction of peak); GTI is a
-  preceding-hour mean, so one hour of it integrates straight to ``expected_Wh``.
+* One keyless Open-Meteo call **per sub-array** (the same host the weather tile
+  already uses), asking for ``global_tilted_irradiance`` at that sub-array's
+  tilt + azimuth across ``past_days=1`` … ``forecast_days=2`` so all three days
+  come back in a single request per sub-array. Open-Meteo's tilt/azimuth params
+  don't support batching multiple orientations in one call (issue #555), so a
+  multi-orientation array fires one request per sub-array, concurrently, over a
+  shared session.
+* Per hour, per sub-array, ``expected_W = kwp · GTI/1000 · performance_ratio``
+  (kWp is defined at the 1000 W/m² STC reference, so GTI/1000 is the fraction of
+  peak); GTI is a preceding-hour mean, so one hour of it integrates straight to
+  ``expected_Wh``. The sub-array totals are summed per hour into the combined
+  curve.
 
 Array parameters come from ``config/pv_system.json`` (:mod:`src.pv_system_config`)
 and the coordinates from ``config/location.json`` (:mod:`src.location_config`,
 shared with the weather tile). Either missing → ``available=False`` with a
-``reason``; an Open-Meteo failure is quiet too (HTTP-200-friendly), never a 500.
+``reason``; an Open-Meteo failure on any sub-array is quiet too (HTTP-200-
+friendly), never a 500 — the whole forecast is unavailable rather than silently
+under-counting a missing orientation.
 
 UI-free: imported by the energy API, never imports the UI.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -34,7 +42,7 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 
 from src.location_config import LocationConfig, load_location_config
-from src.pv_system_config import PvSystemConfig, load_pv_system_config
+from src.pv_system_config import PvArray, PvSystemConfig, load_pv_system_config
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +71,25 @@ def _unavailable(day: str, reason: str) -> PvForecast:
     return PvForecast(available=False, day=day, reason=reason)
 
 
+async def _fetch_array_gti(
+    session: aiohttp.ClientSession, location: LocationConfig, array: PvArray
+) -> Dict[str, Any]:
+    """One Open-Meteo hourly-GTI request for a single sub-array's orientation."""
+    params = {
+        "latitude": location.lat,
+        "longitude": location.lon,
+        "hourly": "global_tilted_irradiance",
+        "tilt": array.tilt_deg,
+        "azimuth": array.azimuth_deg,
+        "past_days": 1,
+        "forecast_days": 2,
+        "timezone": "auto",
+    }
+    async with session.get(_OPEN_METEO_URL, params=params) as resp:
+        resp.raise_for_status()
+        return await resp.json()
+
+
 async def fetch_pv_forecast(
     day: str = "today",
     *,
@@ -75,7 +102,7 @@ async def fetch_pv_forecast(
     ``system`` / ``location`` / ``today`` are injectable for tests; in normal use
     they are read from config and the local clock. Returns an ``available=False``
     forecast (never raises) when the array/location is unconfigured or Open-Meteo
-    cannot be reached.
+    cannot be reached for any sub-array.
     """
     if day not in _DAY_OFFSETS:
         raise ValueError(f"unknown day: {day!r}")
@@ -90,64 +117,60 @@ async def fetch_pv_forecast(
 
     target_day = (today or datetime.now().date()) + timedelta(days=_DAY_OFFSETS[day])
 
-    params = {
-        "latitude": location.lat,
-        "longitude": location.lon,
-        "hourly": "global_tilted_irradiance",
-        "tilt": system.tilt_deg,
-        "azimuth": system.azimuth_deg,
-        "past_days": 1,
-        "forecast_days": 2,
-        "timezone": "auto",
-    }
     try:
         timeout = aiohttp.ClientTimeout(total=_TIMEOUT_S)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(_OPEN_METEO_URL, params=params) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
+            responses = await asyncio.gather(
+                *(_fetch_array_gti(session, location, array) for array in system.arrays)
+            )
     except Exception as exc:  # noqa: BLE001 — forecast is decorative, fail quiet
         logger.warning("⚠️ Failed to read PV forecast: %s", exc)
         return _unavailable(day, "unreachable")
 
-    hourly = data.get("hourly") or {}
-    times = hourly.get("time") or []
-    gti = hourly.get("global_tilted_irradiance") or []
-    if not times or len(times) != len(gti):
-        return _unavailable(day, "no_data")
-
-    # kWp is defined at 1000 W/m² STC: expected_W = kwp · GTI/1000 · PR. GTI is a
-    # preceding-hour mean, so one hour of it is expected_Wh directly.
-    scale = system.kwp * system.performance_ratio  # × (GTI/1000) × 1000h→Wh ⇒ × GTI
     iso_prefix = target_day.isoformat()
+    totals_by_hour: Dict[int, float] = {}
 
-    expected: List[Dict[str, Any]] = []
-    total_wh = 0.0
-    for stamp, irradiance in zip(times, gti):
-        if not str(stamp).startswith(iso_prefix):
-            continue
-        watts = float(irradiance) if irradiance is not None else 0.0
-        wh = max(0.0, scale * watts)
-        try:
-            hour = datetime.fromisoformat(str(stamp)).hour
-        except ValueError:
-            continue
-        expected.append({"hour": hour, "wh": round(wh, 1)})
-        total_wh += wh
+    for array, data in zip(system.arrays, responses):
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
+        gti = hourly.get("global_tilted_irradiance") or []
+        if not times or len(times) != len(gti):
+            return _unavailable(day, "no_data")
 
-    if not expected:
+        # kWp is defined at 1000 W/m² STC: expected_W = kwp · GTI/1000 · PR. GTI
+        # is a preceding-hour mean, so one hour of it is expected_Wh directly.
+        scale = array.kwp * system.performance_ratio  # × (GTI/1000) × 1000h→Wh ⇒ × GTI
+
+        for stamp, irradiance in zip(times, gti):
+            if not str(stamp).startswith(iso_prefix):
+                continue
+            watts = float(irradiance) if irradiance is not None else 0.0
+            wh = max(0.0, scale * watts)
+            try:
+                hour = datetime.fromisoformat(str(stamp)).hour
+            except ValueError:
+                continue
+            totals_by_hour[hour] = totals_by_hour.get(hour, 0.0) + wh
+
+    if not totals_by_hour:
         return _unavailable(day, "no_data")
 
-    expected.sort(key=lambda p: p["hour"])
+    expected = [
+        {"hour": hour, "wh": round(wh, 1)} for hour, wh in sorted(totals_by_hour.items())
+    ]
+    total_wh = sum(totals_by_hour.values())
+
     return PvForecast(
         available=True,
         day=day,
         expected=expected,
         expected_total_wh=round(total_wh, 1),
         system={
-            "kwp": system.kwp,
-            "tilt_deg": system.tilt_deg,
-            "azimuth_deg": system.azimuth_deg,
+            "arrays": [
+                {"kwp": a.kwp, "tilt_deg": a.tilt_deg, "azimuth_deg": a.azimuth_deg}
+                for a in system.arrays
+            ],
+            "total_kwp": round(system.total_kwp, 3),
             "performance_ratio": system.performance_ratio,
         },
     )

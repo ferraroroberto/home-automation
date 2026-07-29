@@ -1,7 +1,8 @@
 {
-  "_doc": "PV array parameters for the Energy-tab solar-forecast section (issue #39). Copy this file to config/pv_system.json (gitignored) and fill in YOUR array. The forecast scales Open-Meteo's hourly global tilted irradiance (GTI, W/m2) by the array size and a derate factor: expected_power_W = GTI / 1000 * kwp * performance_ratio, integrated to Wh per hour. It is a rough, clearly-labelled estimate, not a guarantee. Reuses config/location.json for lat/lon (the same file the weather tile uses); if that is absent the forecast simply reports 'not configured'. Azimuth follows Open-Meteo's convention: 0 = South, -90 = East, 90 = West, 180 = North. See docs/pv-forecast.md.",
-  "kwp": 5.0,
-  "tilt_deg": 30,
-  "azimuth_deg": 0,
+  "_doc": "PV array parameters for the Energy-tab solar-forecast section (issues #39, #555). Copy this file to config/pv_system.json (gitignored) and fill in YOUR array. List one entry per physically-uniform sub-array (panels sharing a tilt + azimuth) under 'arrays' -- a real roof with two orientations needs two entries; a single-orientation roof just needs one. The forecast fetches Open-Meteo hourly global tilted irradiance (GTI, W/m2) once per sub-array and scales each by that sub-array's kwp and the one shared performance_ratio derate: expected_power_W = GTI / 1000 * kwp * performance_ratio, integrated to Wh per hour and summed across sub-arrays. It is a rough, clearly-labelled estimate, not a guarantee. Reuses config/location.json for lat/lon (the same file the weather tile uses); if that is absent the forecast simply reports 'not configured'. Azimuth follows Open-Meteo's convention: 0 = South, -90 = East, 90 = West, 180 = North -- tilt_deg is always 0-90 (non-negative); a panel mounted the opposite way from a south array is expressed via azimuth_deg (e.g. 180), never a negative tilt. The legacy single-orientation flat shape (kwp/tilt_deg/azimuth_deg/performance_ratio at the top level, no 'arrays' key) still loads, as one implicit sub-array. See docs/pv-forecast.md.",
+  "arrays": [
+    { "kwp": 4.0, "tilt_deg": 30, "azimuth_deg": 0 },
+    { "kwp": 1.0, "tilt_deg": 30, "azimuth_deg": 180 }
+  ],
   "performance_ratio": 0.8
 }
