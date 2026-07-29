@@ -800,6 +800,24 @@ button, input, select, textarea {
   height: 18px;
   color: var(--accent);
 }
+/* Live "currently boosted" pill (#554) — background automation state, same
+   pill shape as .unit-offline-badge but in the accent color (not a warning). */
+.unit-boost-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-end;
+  padding: 2px 7px;
+  border: 1px solid var(--accent-border-soft);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.unit-boost-icon { width: 14px; height: 14px; }
 
 /* power toggle */
 /* shadcn-style switch: a compact track + sliding thumb, no text label.

@@ -59,6 +59,11 @@ class TempRule:
     enabled: bool = False
     cool_target: Optional[float] = None
     heat_target: Optional[float] = None
+    # Solar-surplus boost (#554) — opt-in modifier on top of an active rule.
+    # Inert unless `enabled` is also true: boost shifts the rule's own target,
+    # so there must be a target to shift.
+    boost_enabled: bool = False
+    boost_offset_c: float = 2.0
 
 
 @dataclass
@@ -160,6 +165,58 @@ def next_setpoint(
     return new
 
 
+# ----------------------------------------------------------------- solar boost
+def next_boost_state(
+    *,
+    currently_boosting: bool,
+    boosting_since: Optional[float],
+    pv_surplus_w: Optional[float],
+    now_monotonic: float,
+    surplus_on_w: float,
+    surplus_off_w: float,
+    min_duration_s: float,
+) -> bool:
+    """Hysteresis + min-duration decision: should this unit be boosting now?
+
+    ``surplus_on_w`` (higher) starts a boost from idle; ``surplus_off_w``
+    (lower) is the only level that can end one, and only after
+    ``min_duration_s`` has elapsed since ``boosting_since`` — this is the
+    debounce against thrashing as surplus fluctuates near the threshold.
+    ``pv_surplus_w is None`` (stale/unreachable FusionSolar read) is "no
+    signal": it never starts or stops a boost, only holds the current state.
+    """
+    if pv_surplus_w is None:
+        return currently_boosting
+    if not currently_boosting:
+        return pv_surplus_w >= surplus_on_w
+    elapsed = now_monotonic - (boosting_since if boosting_since is not None else now_monotonic)
+    if elapsed < min_duration_s:
+        return True
+    return pv_surplus_w > surplus_off_w
+
+
+def boosted_target(
+    *,
+    operation_mode: Optional[str],
+    target: Optional[float],
+    boost_offset_c: float,
+    is_boosting: bool,
+) -> Optional[float]:
+    """Shift ``target`` toward comfort by ``boost_offset_c`` while boosting.
+
+    Cool: lower the target (pre-cool harder). Heat: raise it (pre-heat
+    harder). The result still passes through :func:`next_setpoint`'s own
+    ``tmin``/``tmax`` clamp — no separate bound is applied here.
+    """
+    if target is None or not is_boosting:
+        return target
+    if operation_mode in COOL_MODES:
+        return target - boost_offset_c
+    if operation_mode in HEAT_MODES:
+        return target + boost_offset_c
+    return target
+
+
 # --------------------------------------------------------------- persistence
 def _load(path: Path) -> Dict[str, dict]:
     raw = read_json(path, {})
@@ -206,7 +263,12 @@ def save_rules(rules: Dict[str, TempRule], path: Optional[Path] = None) -> None:
 def set_rule(unit_id: str, rule: TempRule, path: Optional[Path] = None) -> None:
     """Set (or, when fully default+disabled, drop) one unit's rule."""
     rules = load_rules(path)
-    if rule.enabled or rule.cool_target is not None or rule.heat_target is not None:
+    if (
+        rule.enabled
+        or rule.cool_target is not None
+        or rule.heat_target is not None
+        or rule.boost_enabled
+    ):
         rules[unit_id] = rule
     else:
         rules.pop(unit_id, None)

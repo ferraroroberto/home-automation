@@ -35,12 +35,16 @@ from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
+from src import telemetry
 from src.hvac_automation import (
+    boosted_target,
     load_rules,
     load_schedules,
+    next_boost_state,
     next_setpoint,
     target_for_mode,
 )
+from src.huawei_client import fetch_energy_state
 from src.melcloud_client import DeviceInfo, fetch_devices, set_device_state
 
 logger = logging.getLogger(__name__)
@@ -56,6 +60,11 @@ class AutomationConfig:
     poll_interval_s: int = 60
     adjust_interval_s: int = 900  # 15 min between setpoint nudges per unit
     buffer_c: float = 0.5
+    # Solar-surplus boost (#554) — hysteresis band + debounce, see
+    # src.hvac_automation.next_boost_state.
+    boost_surplus_on_w: float = 1500.0
+    boost_surplus_off_w: float = 500.0
+    boost_min_duration_s: int = 1800  # 30 min
 
     @property
     def fire_grace_s(self) -> int:
@@ -87,6 +96,9 @@ def load_automation_config() -> AutomationConfig:
         poll_interval_s=max(10, _env_int("HVAC_POLL_INTERVAL_S", 60)),
         adjust_interval_s=max(60, _env_int("HVAC_ADJUST_INTERVAL_S", 900)),
         buffer_c=max(0.0, _env_float("HVAC_BUFFER_C", 0.5)),
+        boost_surplus_on_w=max(0.0, _env_float("HVAC_BOOST_SURPLUS_ON_W", 1500.0)),
+        boost_surplus_off_w=max(0.0, _env_float("HVAC_BOOST_SURPLUS_OFF_W", 500.0)),
+        boost_min_duration_s=max(0, _env_int("HVAC_BOOST_MIN_DURATION_S", 1800)),
     )
 
 
@@ -127,6 +139,38 @@ def _schedule_due(sched, now: datetime, grace_s: int) -> bool:
     return 0 <= delta < grace_s
 
 
+def _set_boost(
+    state: "_EngineState",
+    uid: str,
+    unit_name: str,
+    active: bool,
+    now_monotonic: float,
+    surplus_w: Optional[float] = None,
+    reason: Optional[str] = None,
+) -> None:
+    """Update one unit's boost flag; logs to the activity feed on transitions only."""
+    was_active = state.boost_active.get(uid, False)
+    state.boost_active[uid] = active
+    if active == was_active:
+        return
+    if active:
+        state.boost_since[uid] = now_monotonic
+        telemetry.record_event(
+            "hvac", "boost_start", entity_id=uid, source="hvac_automation",
+            payload={"pv_surplus_w": surplus_w},
+        )
+        logger.info("☀️ Solar boost started for '%s' (surplus %sW)", unit_name, surplus_w)
+    else:
+        state.boost_since.pop(uid, None)
+        telemetry.record_event(
+            "hvac", "boost_stop", entity_id=uid, source="hvac_automation",
+            payload={"pv_surplus_w": surplus_w, "reason": reason},
+        )
+        logger.info(
+            "☀️ Solar boost stopped for '%s'%s", unit_name, f" ({reason})" if reason else ""
+        )
+
+
 async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     """One evaluation pass over every unit (schedules, then rule nudges)."""
     rules = load_rules()
@@ -143,6 +187,12 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
     monotonic = time.monotonic()
+
+    # One shared FusionSolar read per tick (already 60s-cached upstream), only
+    # when at least one unit has opted in — #554.
+    energy = None
+    if any(rule.boost_enabled for rule in rules.values()):
+        energy = await fetch_energy_state()
 
     for unit in devices:
         uid = unit.unit_id
@@ -166,20 +216,51 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
         # --- Rule: dynamic setpoint nudge while the unit is on. ---
         rule = rules.get(uid)
         if rule is None or not rule.enabled or unit.power is not True:
+            if state.boost_active.get(uid):
+                _set_boost(state, uid, unit.name, False, monotonic, reason="rule_inactive")
             continue
         target = target_for_mode(rule, unit.operation_mode)
         if target is None:
+            if state.boost_active.get(uid):
+                _set_boost(state, uid, unit.name, False, monotonic, reason="no_target")
             continue
+
+        # --- Solar boost (#554): re-evaluated every tick (not gated by the
+        # adjust throttle below) so hysteresis/min-duration timing tracks real
+        # elapsed time. Inert unless boost_enabled — see src.hvac_automation.
+        is_boosting = False
+        if rule.boost_enabled:
+            surplus = energy.pv_surplus_w if energy is not None else None
+            is_boosting = next_boost_state(
+                currently_boosting=state.boost_active.get(uid, False),
+                boosting_since=state.boost_since.get(uid),
+                pv_surplus_w=surplus,
+                now_monotonic=monotonic,
+                surplus_on_w=config.boost_surplus_on_w,
+                surplus_off_w=config.boost_surplus_off_w,
+                min_duration_s=config.boost_min_duration_s,
+            )
+            _set_boost(state, uid, unit.name, is_boosting, monotonic, surplus_w=surplus)
+        elif state.boost_active.get(uid):
+            _set_boost(state, uid, unit.name, False, monotonic, reason="boost_disabled")
+
         last = state.last_adjust.get(uid, 0.0)
         if monotonic - last < config.adjust_interval_s:
             continue
+
+        effective_target = boosted_target(
+            operation_mode=unit.operation_mode,
+            target=target,
+            boost_offset_c=rule.boost_offset_c,
+            is_boosting=is_boosting,
+        )
 
         tmin, tmax = _mode_range(unit)
         new = next_setpoint(
             operation_mode=unit.operation_mode,
             room_temperature=unit.room_temperature,
             set_temperature=unit.set_temperature,
-            target=target,
+            target=effective_target,
             buffer=config.buffer_c,
             step=float(unit.temp_step) or 0.5,
             tmin=tmin,
@@ -192,8 +273,9 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
             continue
         try:
             logger.info(
-                "🌡️ '%s' room %.1f vs target %.1f → setpoint %.1f→%.1f",
-                unit.name, unit.room_temperature, target, unit.set_temperature, new,
+                "🌡️ '%s' room %.1f vs target %.1f%s → setpoint %.1f→%.1f",
+                unit.name, unit.room_temperature, effective_target,
+                " (boosted)" if is_boosting else "", unit.set_temperature, new,
             )
             await set_device_state(uid, set_temperature=new)
         except Exception as exc:  # noqa: BLE001 — never kill the loop
@@ -206,11 +288,26 @@ class _EngineState:
 
     last_adjust: Dict[str, float]  # monotonic ts of last setpoint write
     last_fire_day: Dict[str, str]  # local date a schedule entry last fired
+    boost_active: Dict[str, bool]  # #554 — is this unit currently solar-boosted
+    boost_since: Dict[str, float]  # monotonic ts the current boost started
+
+
+# The running engine's state, for the API layer to read live "is this unit
+# currently boosted" without a second event loop/store (#554). None when the
+# engine is disabled or hasn't started yet — read via get_boost_active().
+_ENGINE_STATE: Optional[_EngineState] = None
+
+
+def get_boost_active(unit_id: str) -> bool:
+    """True if the running engine currently has this unit solar-boosted."""
+    return bool(_ENGINE_STATE and _ENGINE_STATE.boost_active.get(unit_id, False))
 
 
 async def _run(config: AutomationConfig) -> None:
     """Poll → apply schedules → nudge setpoints, until cancelled."""
-    state = _EngineState(last_adjust={}, last_fire_day={})
+    global _ENGINE_STATE
+    state = _EngineState(last_adjust={}, last_fire_day={}, boost_active={}, boost_since={})
+    _ENGINE_STATE = state
     await run_loop(
         lambda: _tick(config, state),
         config.poll_interval_s,

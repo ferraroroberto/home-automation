@@ -16,6 +16,7 @@ from aiomelcloudhome import ATAFanSpeed, ATAOperationMode, ATAVaneHorizontal, AT
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ValidationError, field_validator
 
+from app.webapp import automation
 from app.webapp.routers._helpers import make_display_name_endpoint
 from src.display_names import load_display_names, set_display_name
 from src.hvac_automation import (
@@ -116,6 +117,11 @@ def _unit_dict(
         "temperature_rule": {
             "enabled": bool(rule and rule.enabled),
             "active_target": rule_target,
+            "boost_enabled": bool(rule and rule.boost_enabled),
+            "boost_offset_c": rule.boost_offset_c if rule else None,
+            # Live — whether the running automation engine currently has this
+            # unit solar-boosted (#554), not a persisted field.
+            "boost_active": automation.get_boost_active(d.unit_id),
         },
         "schedule": _schedule_summary(schedule_entries),
     }
@@ -226,6 +232,8 @@ class RulePayload(BaseModel):
     enabled: bool = False
     cool_target: Optional[float] = None
     heat_target: Optional[float] = None
+    boost_enabled: bool = False
+    boost_offset_c: float = 2.0
 
 
 class ScheduleEntryPayload(BaseModel):
@@ -295,6 +303,8 @@ async def get_rule(unit_id: str) -> Dict[str, Any]:
         "enabled": rule.enabled,
         "cool_target": rule.cool_target,
         "heat_target": rule.heat_target,
+        "boost_enabled": rule.boost_enabled,
+        "boost_offset_c": rule.boost_offset_c,
     }
 
 
@@ -304,13 +314,21 @@ async def update_rule(unit_id: str, payload: RulePayload) -> Dict[str, Any]:
         enabled=payload.enabled,
         cool_target=payload.cool_target,
         heat_target=payload.heat_target,
+        boost_enabled=payload.boost_enabled,
+        boost_offset_c=payload.boost_offset_c,
     )
     try:
         set_rule(unit_id, rule)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to save rule for %s: %s", unit_id, exc)
         raise HTTPException(status_code=500, detail=f"failed to save rule: {exc}")
-    return {"enabled": rule.enabled, "cool_target": rule.cool_target, "heat_target": rule.heat_target}
+    return {
+        "enabled": rule.enabled,
+        "cool_target": rule.cool_target,
+        "heat_target": rule.heat_target,
+        "boost_enabled": rule.boost_enabled,
+        "boost_offset_c": rule.boost_offset_c,
+    }
 
 
 @router.get("/api/units/{unit_id}/schedule")

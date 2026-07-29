@@ -1809,6 +1809,21 @@
             <input id="ruleHeatTarget" type="number" step="0.5" min="10" max="31" class="input-native" placeholder="—">
           </label>
           <p class="muted small detail-hint">Keeps the unit on and steers its setpoint so the room reaches your target — the active target follows the unit's current mode.</p>
+
+          <!-- Solar-surplus boost (#554): pushes the steered target further
+               toward comfort while PV surplus is high, to pre-cool/heat and
+               bank thermal inertia. Only takes effect while Enabled above is on. -->
+          <div class="row">
+            <span>Solar boost</span>
+            <button id="ruleBoostEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable solar-surplus boost">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <label class="row">
+            <span>Boost offset (°C)</span>
+            <input id="ruleBoostOffset" type="number" step="0.5" min="0.5" max="5" class="input-native" placeholder="2.0">
+          </label>
+          <p class="muted small detail-hint">When PV surplus is high, pushes the steered target this many degrees further toward comfort. Only takes effect while the temperature rule above is enabled.</p>
         </div>
       </details>
 
