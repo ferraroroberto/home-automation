@@ -108,6 +108,56 @@ def test_framed_buckets_day_is_24_padded_slots(tmp_path: Path) -> None:
     assert all(b["house_wh"] == 0.0 and b["pv_wh"] == 0.0 for b in out)
 
 
+def test_only_the_hour_containing_now_is_flagged_partial(tmp_path: Path) -> None:
+    """#557: the still-filling slot is flagged so the UI can mark it in progress."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    assert base % H._HOUR == 0
+    # One sample in the previous hour, one in the hour that contains `now`.
+    H.record_sample(_state(pv=2400.0, house=1200.0), ts=base - H._HOUR, path=db)
+    H.record_sample(_state(pv=2400.0, house=1200.0), ts=base + 60, path=db)
+    now = base + 600
+
+    buckets = H.aggregate("hourly", count=2, now=now, path=db)
+    assert [b["partial"] for b in buckets] == [False, True]
+
+
+def test_a_settled_hour_is_never_flagged_partial(tmp_path: Path) -> None:
+    """A short *past* hour is genuinely that low — it must not be marked."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    H.record_sample(_state(pv=2400.0, house=1200.0), ts=base + 60, path=db)
+    # `now` is well into a later hour, so the sampled hour is fully settled. The
+    # window has to reach back far enough to include it — hourly aggregation
+    # returns only hours that actually hold data.
+    buckets = H.aggregate("hourly", count=4, now=base + 3 * H._HOUR, path=db)
+    assert [int(b["key"]) for b in buckets] == [base]
+    assert buckets[0]["partial"] is False
+
+
+def test_framed_buckets_day_flags_the_current_hour(tmp_path: Path) -> None:
+    """Exactly one of the 24 day slots is in progress, and it is the right one."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    now = 1_700_000_000
+    out = H.framed_buckets("day", now=now, path=db)
+    flagged = [i for i, b in enumerate(out) if b["partial"]]
+    assert len(flagged) == 1
+    hour_start = int(out[flagged[0]]["key"])
+    assert hour_start <= now < hour_start + H._HOUR
+
+
+def test_hourly_day_flags_no_partial_for_a_past_day(tmp_path: Path) -> None:
+    """Yesterday is entirely settled — nothing on it is still filling."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    out = H.hourly_day(-1, now=1_700_000_000, path=db)
+    assert len(out) == 24
+    assert not any(b["partial"] for b in out)
+
+
 def test_hourly_range_unknown_period_raises(tmp_path: Path) -> None:
     db = tmp_path / "h.sqlite3"
     H.init_db(db)

@@ -362,7 +362,43 @@ def _empty_bucket(key: str, label: str) -> Dict[str, Any]:
         "export_wh": 0.0,
         "pv_n": 0,
         "pv_missing": True,
+        "partial": False,
     }
+
+
+# The bucket containing *now* has only partly happened, so its totals are still
+# climbing towards whatever the slot will finally hold. Left unflagged it reads
+# on a chart as a settled value that collapsed — see issue #557. Flagging it
+# lets the UI draw it as in-progress, and lets the forecast view project it to a
+# full-slot rate. Deliberately *only* the current slot: a past bucket that is
+# short because the cloud feed was down is genuinely that low, and scaling it up
+# would invent generation that never happened.
+def _mark_hourly_partial(
+    buckets: List[Dict[str, Any]], current: int
+) -> List[Dict[str, Any]]:
+    """Flag the hourly bucket whose hour contains ``current`` (``key`` = hour start).
+
+    Compares against each bucket's own start rather than rounding ``current`` to
+    a 3600-second boundary, because local midnight — where the day frames start
+    — need not fall on one in every timezone.
+    """
+    for b in buckets:
+        try:
+            start = int(b["key"])
+        except (TypeError, ValueError):
+            continue
+        b["partial"] = start <= current < start + _HOUR
+    return buckets
+
+
+def _mark_calendar_partial(
+    buckets: List[Dict[str, Any]], current: int, fmt: str
+) -> List[Dict[str, Any]]:
+    """Flag the daily/monthly bucket ``current`` falls in (``key`` = ``strftime(fmt)``)."""
+    key_now = datetime.fromtimestamp(current).strftime(fmt)
+    for b in buckets:
+        b["partial"] = b["key"] == key_now
+    return buckets
 
 
 def _accumulate(bucket: Dict[str, Any], hour: Dict[str, Any]) -> None:
@@ -404,19 +440,21 @@ def aggregate(
             bucket = _empty_bucket(str(h["hour_start"]), label)
             _accumulate(bucket, h)
             out.append(_round_bucket(bucket))
-        return out
+        return _mark_hourly_partial(out, current)
 
     if period == "daily":
         n = count or 30
         since = current - (n + 1) * 24 * _HOUR
         hours = _hourly_since(since, current, path)
-        return _group(hours, n, fmt_key="%Y-%m-%d", fmt_label="%a %d")
+        grouped = _group(hours, n, fmt_key="%Y-%m-%d", fmt_label="%a %d")
+        return _mark_calendar_partial(grouped, current, "%Y-%m-%d")
 
     if period == "monthly":
         n = count or 12
         since = current - (n + 1) * 31 * 24 * _HOUR
         hours = _hourly_since(since, current, path)
-        return _group(hours, n, fmt_key="%Y-%m", fmt_label="%b %Y")
+        grouped = _group(hours, n, fmt_key="%Y-%m", fmt_label="%b %Y")
+        return _mark_calendar_partial(grouped, current, "%Y-%m")
 
     raise ValueError(f"unknown period: {period!r}")
 
@@ -503,7 +541,7 @@ def framed_buckets(
             hs = since + i * _HOUR
             hours = [by_hour[hs]] if hs in by_hour else []
             out.append(_frame_bucket(str(hs), "%02d" % i, hours))
-        return out
+        return _mark_hourly_partial(out, current)
 
     if period == "week":
         return aggregate("daily", 7, now, path)
@@ -526,7 +564,8 @@ def framed_buckets(
                 labels[key] = d.strftime("%b %y")
                 ordered.append(key)
             groups[key].append(h)
-        return [_frame_bucket(k, labels[k], groups[k]) for k in ordered]
+        months = [_frame_bucket(k, labels[k], groups[k]) for k in ordered]
+        return _mark_calendar_partial(months, current, "%Y-%m")
 
     raise ValueError(f"unknown period: {period!r}")
 
@@ -558,4 +597,4 @@ def hourly_day(
         hs = since + i * _HOUR
         hours = [by_hour[hs]] if hs in by_hour else []
         out.append(_frame_bucket(str(hs), "%02d" % i, hours))
-    return out
+    return _mark_hourly_partial(out, current)

@@ -204,6 +204,38 @@ export function createAggChart(canvas) {
 
 function kwh(wh) { return (Number(wh) || 0) / 1000; }
 
+// The slot containing *now* is still filling, so it is drawn as an explicit
+// in-progress marker instead of a settled value: a hollow point, with the
+// segment leading into it dashed (#557). Without this the half-finished slot
+// reads as a collapse — the array is still producing, the hour just isn't over.
+// pointBorderColor is scriptable so it tracks the dataset's colour through a
+// light/dark theme switch, which restyle() applies to borderColor only.
+// Drop any in-progress styling a previous render left behind, so switching
+// range (Day → Σ Total) can't leave a stale hollow marker on a settled value.
+function clearInProgress(ds) {
+  ds.pointBackgroundColor = undefined;
+  ds.pointBorderColor = undefined;
+  ds.pointBorderWidth = undefined;
+  ds.segment = {};
+}
+
+function markInProgress(ds, idx) {
+  clearInProgress(ds);
+  if (idx < 0) {
+    ds.pointRadius = 0;
+    return;
+  }
+  ds.pointRadius = ds.data.map(function (_, i) { return i === idx ? 4 : 0; });
+  ds.pointBackgroundColor = 'transparent';   // hollow — reads as "not settled"
+  ds.pointBorderColor = function (ctx) { return ctx.dataset.borderColor; };
+  ds.pointBorderWidth = 2;
+  ds.segment = {
+    borderDash: function (ctx) {
+      return ctx.p1DataIndex === idx ? [4, 3] : undefined;
+    },
+  };
+}
+
 export function setAggData(chart, buckets) {
   chart.data.labels = buckets.map(function (b) { return b.label; });
   chart.data.datasets[0].data = buckets.map(function (b) { return kwh(b.pv_wh); });
@@ -213,7 +245,16 @@ export function setAggData(chart, buckets) {
   // else), so the Σ Total — and any range that resolves to one bucket — would
   // read as empty. Show the markers only in that case so the value is visible.
   const single = buckets.length <= 1;
-  chart.data.datasets.forEach(function (d) { d.pointRadius = single ? 4 : 0; });
+  if (single) {
+    chart.data.datasets.forEach(function (d) { clearInProgress(d); d.pointRadius = 4; });
+  } else {
+    // Values stay exactly as measured here: unlike the forecast card there is
+    // no expected curve to be comparable to, and extrapolating a part-finished
+    // day or month would be far more speculative than a part-finished hour.
+    // Buckets map 1:1 onto plotted points, so the array index is the chart index.
+    const idx = buckets.findIndex(function (b) { return b && b.partial; });
+    chart.data.datasets.forEach(function (d) { markInProgress(d, idx); });
+  }
   chart.update('none');
 }
 
@@ -266,6 +307,19 @@ export function setForecastData(chart, expected, actual) {
         return v == null ? null : kwh(v);   // null hour → gap (asleep / no sample)
       })
     : [];
+  // The in-progress hour arrives projected to its full-hour rate so it is
+  // comparable to the expected curve — drawn hollow + dashed so it reads as the
+  // projection it is, never as a measurement (#557). The series is plotted on a
+  // fixed 24-hour axis, so the point's own `hour` is its chart index; a partial
+  // hour with nothing to plot yet (too early to project) is left unmarked.
+  let partialIdx = -1;
+  if (hasActual) {
+    for (let i = 0; i < actual.length; i++) {
+      const p = actual[i];
+      if (p && p.partial && p.wh != null) { partialIdx = Number(p.hour); break; }
+    }
+  }
+  markInProgress(chart.data.datasets[1], partialIdx);
   chart.update('none');
 }
 
