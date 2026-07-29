@@ -193,8 +193,14 @@ function bandLabel(d) {
 // So the list asks for evidence of the link instead: a signal reading, or a
 // wired connection. Anything else is "no link" — not claimed offline, just not
 // shown while the Offline toggle is hiding what can't be vouched for.
+//
+// A no-link device can still be positively confirmed host-side: the backend
+// pings it (issue #552, bounded to this subset, cached briefly) and reports
+// `ping_reachable`. A confirmed device promotes into the live view too, with
+// its own marker (buildDeviceRow below) so it reads as probe-confirmed rather
+// than AP/router-confirmed.
 function hasLiveLink(d) {
-  return d.online !== false && (d.signal != null || d.conn_type === 'wired');
+  return d.online !== false && (d.signal != null || d.conn_type === 'wired' || d.ping_reachable === true);
 }
 
 function renderGroupingControls() {
@@ -209,10 +215,18 @@ function renderGroupingControls() {
   }
 }
 
+// True only when a row is live *because of* the ping probe — i.e. it has no
+// AP/router evidence of its own (#552). Distinguishes the probe-confirmed
+// badge from an ordinary live device that merely happens to carry the flag.
+function pingConfirmed(d) {
+  return d.online !== false && d.ping_reachable === true && d.signal == null && d.conn_type !== 'wired';
+}
+
 function buildDeviceRow(d, grouped) {
   const offline = d.online === false;
   // In the read, but with nothing to show for it (#550) — dimmed like an
-  // offline row, since the toggle groups the two together.
+  // offline row, since the toggle groups the two together. A ping-confirmed
+  // device (#552) has live evidence of its own now, so it is never no-link.
   const noLink = !offline && !hasLiveLink(d);
   const row = document.createElement('div');
   row.className = 'net-device' + (grouped ? ' is-grouped' : '');
@@ -246,6 +260,14 @@ function buildDeviceRow(d, grouped) {
     const pill = document.createElement('span');
     pill.className = 'net-device-new';
     pill.textContent = 'new';
+    name.appendChild(pill);
+  }
+  // Marks a row promoted purely by the ping probe (#552) — distinct from
+  // AP/router evidence, so it doesn't read as an ordinary live client.
+  if (pingConfirmed(d)) {
+    const pill = document.createElement('span');
+    pill.className = 'net-device-reachable';
+    pill.textContent = 'reachable';
     name.appendChild(pill);
   }
   name.addEventListener('click', function () { openNetDeviceDetail(d.mac); });
@@ -292,6 +314,11 @@ function buildDeviceRow(d, grouped) {
     signal.appendChild(pct);
   } else if (d.conn_type === 'wired') {
     signal.textContent = 'wired';
+  } else if (d.ping_reachable === true) {
+    // Promoted by the host-side probe (#552), not AP/router evidence — its own
+    // distinct, non-dimmed treatment so it doesn't read as an ordinary signal.
+    signal.classList.add('net-device-pingreachable');
+    signal.textContent = 'reachable via ping';
   } else {
     // Says why the row is behind the Offline toggle, where a bare "—" read as
     // a missing measurement on an otherwise-live device (#550).
@@ -510,6 +537,7 @@ function connText(d) {
 function signalText(d) {
   if (d.signal != null) return d.signal + '%';
   if (d.conn_type === 'wired') return 'Wired';
+  if (d.online !== false && d.ping_reachable === true) return 'Reachable via ping';
   return d.online === false ? '—' : 'No link';
 }
 

@@ -79,6 +79,17 @@ def _ping(host: str, count: int = 4, timeout_s: int = 2) -> tuple[Optional[float
             float(loss.group(1)) if loss else None)
 
 
+def _ping_reachable(host: str, timeout_s: float = 1.0) -> bool:
+    """One-shot reachability check: did *host* answer a single ping?
+
+    Thin wrapper over :func:`_ping` for the no-link device probe (issue #552) —
+    a single fast ping is enough evidence of presence; the latency/loss detail
+    :func:`_ping` returns for the internet-health tile isn't needed here.
+    """
+    avg_ms, _loss = _ping(host, count=1, timeout_s=timeout_s)
+    return avg_ms is not None
+
+
 def _run_speedtest() -> tuple[Optional[float], Optional[float], Optional[str]]:
     """Return (download_mbps, upload_mbps, server) via speedtest-cli, or Nones."""
     try:

@@ -167,6 +167,10 @@ def _device_dict(
         "last_conn_type": None,
         "last_ssid": None,
         "online": True,
+        # Host-side ping-probe result for a no-link device (issue #552): True
+        # promotes it into the live view with a distinct marker, False/None
+        # leaves it exactly as before (unprobed, or probed and unreachable).
+        "ping_reachable": d.ping_reachable,
         "first_seen": rec["first_seen"] if rec else None,
         "last_seen": rec["last_seen"] if rec else None,
         "times_seen": rec["times_seen"] if rec else None,
@@ -214,6 +218,9 @@ def _offline_device_dict(
         "last_conn_type": rec.get("last_conn_type"),
         "last_ssid": rec.get("last_ssid"),
         "online": False,
+        # Genuinely absent devices are never probed (issue #552 only targets
+        # the current-read "no link" subset), so this is always null here.
+        "ping_reachable": None,
         "first_seen": rec.get("first_seen"),
         "last_seen": rec.get("last_seen"),
         "times_seen": rec.get("times_seen"),

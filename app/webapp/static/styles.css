@@ -3322,6 +3322,10 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-device.is-hidden { opacity: 0.55; }
 .net-device-signal.net-device-lastseen,
 .net-device-signal.net-device-nolink { font-style: italic; }
+/* A ping-confirmed no-link device (#552) is live, not dimmed — its own
+   success-colored treatment distinguishes it from both a dimmed no-link row
+   and an ordinary AP/router-confirmed signal reading. */
+.net-device-signal.net-device-pingreachable { color: var(--on); font-weight: 600; }
 
 /* "Important" star marker + the "new" pill on a device row (Phase 4). */
 .net-device-star { width: 16px; height: 16px; flex: 0 0 auto; color: var(--accent); }
@@ -3332,6 +3336,16 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   font-size: var(--font-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
 }
 button.net-device-name:hover .net-device-new { text-decoration: none; }
+/* "Reachable" pill (#552) — success-colored, not the accent "new" pill's blue,
+   so a probe-confirmed device reads as a distinct positive state rather than
+   "recently joined". */
+.net-device-reachable {
+  flex: 0 0 auto; margin-left: 2px;
+  color: var(--on); background: color-mix(in srgb, var(--on) 14%, transparent);
+  border-radius: var(--radius-pill); padding: 1px 7px;
+  font-size: var(--font-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+}
+button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 /* Offline status line in the detail modal. */
 #netDeviceStatus.is-offline { color: var(--muted); }
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -36,6 +37,32 @@ def test_ping_hides_windows_console(monkeypatch) -> None:
     assert calls[0]["cmd"] == ["ping", "-n", "2", "-w", "1000", "192.0.2.1"]
     assert calls[0]["stdin"] is subprocess.DEVNULL
     assert calls[0]["creationflags"] == subprocess.CREATE_NO_WINDOW
+
+
+def test_ping_reachable_true_when_ping_gets_a_reply(monkeypatch) -> None:
+    monkeypatch.setattr(network_host, "_ping", lambda host, count=4, timeout_s=2: (3.5, 0.0))
+
+    assert network_host._ping_reachable("192.0.2.1") is True
+
+
+def test_ping_reachable_false_when_ping_gets_no_reply(monkeypatch) -> None:
+    monkeypatch.setattr(network_host, "_ping", lambda host, count=4, timeout_s=2: (None, None))
+
+    assert network_host._ping_reachable("192.0.2.1") is False
+
+
+def test_ping_reachable_uses_a_single_fast_probe(monkeypatch) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake_ping(host, count=4, timeout_s=2):
+        calls.append({"host": host, "count": count, "timeout_s": timeout_s})
+        return None, None
+
+    monkeypatch.setattr(network_host, "_ping", fake_ping)
+
+    network_host._ping_reachable("192.0.2.1", timeout_s=1.0)
+
+    assert calls == [{"host": "192.0.2.1", "count": 1, "timeout_s": 1.0}]
 
 
 def test_parse_wifi_netsh_outputs() -> None:
@@ -940,3 +967,147 @@ def test_ap_rediscovery_failure_mac_not_in_leases(monkeypatch) -> None:
 
     assert state.access_point.reachable is False
     assert any("Access point unreachable" in a for a in state.alerts)
+
+
+# --------------------------------------------------------------------------- #
+# No-link device ping probe (issue #552)                                      #
+# --------------------------------------------------------------------------- #
+# _ping_reachable runs inside a real asyncio.to_thread() worker thread below —
+# it's a plain, fast, monkeypatched function (never a real subprocess/ping in
+# these tests), so letting the real thread pool run it is simpler and safer
+# than faking asyncio internals, and it exercises the real bounded-timeout path.
+def _nolink_device(mac: str, ip: str | None = "192.168.0.50", **kw) -> "network_client.NetDevice":
+    base = dict(ip=ip, name="Lease only", conn_type=None, signal=None,
+                link_rate=None, ssid=None, source="router")
+    base.update(kw)
+    return network_client.NetDevice(mac=mac, **base)
+
+
+@pytest.fixture(autouse=True)
+def _clear_ping_probe_cache():
+    network_client._ping_probe_cache.clear()
+    yield
+    network_client._ping_probe_cache.clear()
+
+
+def test_probe_nolink_devices_only_probes_signalless_non_wired_devices_with_ip(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_reachable(ip):
+        calls.append(ip)
+        return True
+
+    monkeypatch.setattr(network_client, "_ping_reachable", fake_reachable)
+
+    nolink = _nolink_device("AA:AA:AA:AA:AA:01")
+    wired = _ap_device("AA:AA:AA:AA:AA:02", "Printer", conn_type="wired", signal=None)
+    has_signal = _ap_device("AA:AA:AA:AA:AA:03", "Laptop", signal=70)
+    no_ip = _nolink_device("AA:AA:AA:AA:AA:04", ip=None)
+
+    devices = [nolink, wired, has_signal, no_ip]
+    updated = asyncio.run(network_client._probe_nolink_devices(devices))
+
+    assert calls == ["192.168.0.50"]
+    by_mac = {d.mac: d for d in updated}
+    assert by_mac["AA:AA:AA:AA:AA:01"].ping_reachable is True
+    assert by_mac["AA:AA:AA:AA:AA:02"].ping_reachable is None
+    assert by_mac["AA:AA:AA:AA:AA:03"].ping_reachable is None
+    assert by_mac["AA:AA:AA:AA:AA:04"].ping_reachable is None
+
+
+def test_probe_nolink_devices_records_unreachable_result(monkeypatch) -> None:
+    monkeypatch.setattr(network_client, "_ping_reachable", lambda ip: False)
+
+    nolink = _nolink_device("AA:AA:AA:AA:AA:05")
+    updated = asyncio.run(network_client._probe_nolink_devices([nolink]))
+
+    assert updated[0].ping_reachable is False
+
+
+def test_probe_nolink_devices_returns_unchanged_list_when_nothing_needs_probing(monkeypatch) -> None:
+    called = False
+
+    def fake_reachable(ip):
+        nonlocal called
+        called = True
+        return True
+
+    monkeypatch.setattr(network_client, "_ping_reachable", fake_reachable)
+
+    wired = _ap_device("AA:AA:AA:AA:AA:06", "Printer", conn_type="wired", signal=None)
+    devices = [wired]
+    updated = asyncio.run(network_client._probe_nolink_devices(devices))
+
+    assert called is False
+    assert updated == devices
+
+
+def test_probe_nolink_devices_reuses_cached_result_within_ttl_then_reprobes_after(monkeypatch) -> None:
+    call_count = 0
+
+    def fake_reachable(ip):
+        nonlocal call_count
+        call_count += 1
+        return True
+
+    monkeypatch.setattr(network_client, "_ping_reachable", fake_reachable)
+
+    device = _nolink_device("AA:AA:AA:AA:AA:07")
+    asyncio.run(network_client._probe_nolink_devices([device]))
+    assert call_count == 1
+
+    # Still fresh — served from cache, no second probe.
+    asyncio.run(network_client._probe_nolink_devices([device]))
+    assert call_count == 1
+
+    # Backdate the cached entry's timestamp directly (not the real clock, which
+    # asyncio's own scheduling/timeout machinery also reads) past the TTL —
+    # re-probed.
+    key = (device.mac, device.ip)
+    checked_at, reachable = network_client._ping_probe_cache[key]
+    network_client._ping_probe_cache[key] = (
+        checked_at - network_client._PING_PROBE_CACHE_TTL_S - 1, reachable,
+    )
+    asyncio.run(network_client._probe_nolink_devices([device]))
+    assert call_count == 2
+
+
+def test_probe_nolink_devices_bounded_by_timeout_leaves_device_unprobed(monkeypatch) -> None:
+    def slow_reachable(ip):
+        time.sleep(0.2)
+        return True
+
+    monkeypatch.setattr(network_client, "_PING_PROBE_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(network_client, "_ping_reachable", slow_reachable)
+
+    device = _nolink_device("AA:AA:AA:AA:AA:08")
+    updated = asyncio.run(network_client._probe_nolink_devices([device]))
+
+    assert updated[0].ping_reachable is None
+
+
+def test_fetch_network_state_promotes_a_ping_reachable_nolink_device(monkeypatch) -> None:
+    async def fake_internet_health(include_speedtest: bool = False):
+        return network_client.InternetHealth(online=True, external_ms=12)
+
+    async def fake_access_point():
+        return network_client.AccessPointHealth(reachable=True), [
+            _nolink_device("AA:AA:AA:AA:AA:09", ip="192.168.0.60")
+        ]
+
+    async def fake_router():
+        return network_client.RouterHealth(reachable=True, authenticated=True), [], []
+
+    async def fake_wifi():
+        return network_client.WifiDiagnostics(available=False)
+
+    monkeypatch.setattr(network_client, "fetch_internet_health", fake_internet_health)
+    monkeypatch.setattr(network_client, "fetch_access_point", fake_access_point)
+    monkeypatch.setattr(network_client, "fetch_router", fake_router)
+    monkeypatch.setattr(network_client, "fetch_wifi_diagnostics", fake_wifi)
+    monkeypatch.setattr(network_client, "_ping_reachable", lambda ip: True)
+
+    state = asyncio.run(network_client.fetch_network_state())
+
+    assert len(state.devices) == 1
+    assert state.devices[0].ping_reachable is True
