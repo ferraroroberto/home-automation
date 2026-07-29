@@ -31,9 +31,10 @@ session). Credentials still come from ``.env`` (loopback LAN, never committed)::
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import time
-from typing import Mapping, Optional
+from typing import Dict, Mapping, Optional, Tuple
 
 import requests
 
@@ -62,6 +63,7 @@ from src.network_host import (  # noqa: F401 — re-exported public surface
     fetch_wifi_diagnostics,
     _parse_wifi_interfaces,
     _parse_wifi_networks,
+    _ping_reachable,
     _wifi_channel_insights,
     _wifi_recommendations,
 )
@@ -101,6 +103,12 @@ _ACCESS_POINT_TIMEOUT_S = 12.0
 _ACCESS_POINT_REDISCOVER_TIMEOUT_S = 5.0
 _ROUTER_TIMEOUT_S = 18.0
 _WIFI_TIMEOUT_S = 6.0
+
+# Host-side ping probe for no-link devices (issue #552) — bounded so a batch of
+# unresponsive IPs can't stall GET /api/network, and cached briefly so a
+# flapping device doesn't visibly flicker between polls.
+_PING_PROBE_TIMEOUT_S = 3.0
+_PING_PROBE_CACHE_TTL_S = 30.0
 
 
 # --------------------------------------------------------------------------- #
@@ -341,6 +349,73 @@ async def delete_dhcp_binding(inst_id: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# No-link device ping probe (issue #552)                                      #
+# --------------------------------------------------------------------------- #
+# (mac, ip) -> (checked_at monotonic, reachable). Keyed by the pair rather than
+# just the IP so a DHCP reshuffle that hands a probed device's old IP to a
+# different device can't serve that device a stale neighbour's result.
+_ping_probe_cache: Dict[Tuple[str, str], Tuple[float, bool]] = {}
+
+
+def _needs_ping_probe(d: NetDevice) -> bool:
+    """Mirrors the UI's ``hasLiveLink()`` no-link test, restricted to devices
+    with an IP to target — nothing else is worth spending a probe on."""
+    return d.signal is None and d.conn_type != "wired" and bool(d.ip)
+
+
+async def _probe_nolink_devices(devices: list[NetDevice]) -> list[NetDevice]:
+    """Ping every currently no-link device (bounded, cached) and stamp the result.
+
+    Only devices :func:`_needs_ping_probe` selects are touched — everything else
+    (already has a signal reading, or reports ``wired``) passes through
+    unchanged. A cached result younger than :data:`_PING_PROBE_CACHE_TTL_S` is
+    reused instead of re-probing, so a flapping device doesn't visibly flicker
+    between the ~15 s Network tab polls. The whole batch is bounded by
+    :func:`_with_timeout` so a set of unresponsive IPs can't stall the read;
+    on timeout the affected devices simply keep ``ping_reachable=None``
+    (not probed this round) rather than a false negative.
+    """
+    now = time.monotonic()
+    targets = [d for d in devices if _needs_ping_probe(d)]
+    if not targets:
+        return devices
+
+    to_probe: list[NetDevice] = []
+    results: Dict[Tuple[str, str], bool] = {}
+    for d in targets:
+        key = (d.mac, d.ip or "")
+        cached = _ping_probe_cache.get(key)
+        if cached is not None and now - cached[0] < _PING_PROBE_CACHE_TTL_S:
+            results[key] = cached[1]
+        else:
+            to_probe.append(d)
+
+    if to_probe:
+        probed = await _with_timeout(
+            "ping probe",
+            asyncio.gather(*(asyncio.to_thread(_ping_reachable, d.ip) for d in to_probe)),
+            _PING_PROBE_TIMEOUT_S,
+            None,
+        )
+        if probed is not None:
+            for d, reachable in zip(to_probe, probed):
+                key = (d.mac, d.ip or "")
+                results[key] = reachable
+                _ping_probe_cache[key] = (now, reachable)
+
+    if not results:
+        return devices
+
+    updated = []
+    for d in devices:
+        key = (d.mac, d.ip or "")
+        if key in results:
+            d = dataclasses.replace(d, ping_reachable=results[key])
+        updated.append(d)
+    return updated
+
+
+# --------------------------------------------------------------------------- #
 # Aggregate                                                                   #
 # --------------------------------------------------------------------------- #
 def _derive_alerts(
@@ -442,6 +517,9 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
     # empty, so the AP list passes through unchanged.
     devices = _merge_router_wlan_clients(devices, wlan_clients)
     devices = _merge_router_leases(devices, leases)
+    # Positively confirm no-link devices host-side where possible (issue #552) —
+    # bounded to that subset, cached briefly, never blocks alert derivation.
+    devices = await _probe_nolink_devices(devices)
     alerts = _derive_alerts(internet, ap, router, devices)
     return NetworkState(
         internet=internet,
