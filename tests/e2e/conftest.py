@@ -592,13 +592,22 @@ def mock_api(page: Page) -> Callable[[List[Dict]], List[Dict]]:
 
 @pytest.fixture
 def mock_energy(page: Page) -> Callable[..., None]:
-    """Stub the four energy endpoints with deterministic fixtures.
+    """Stub the energy endpoints with deterministic fixtures.
 
     Covers the live snapshot (``/api/energy``), today's totals
     (``/api/energy/today``), the live-chart history (``/api/energy/history``),
-    the history buckets (``/api/energy/aggregate``), and the tiered cost & savings
-    breakdown (``/api/energy/cost``). Call before navigating. Defaults describe a
-    sunny exporting moment so the flow row, charts, and cost table have content.
+    the history buckets (``/api/energy/aggregate``), the tiered cost & savings
+    breakdown (``/api/energy/cost``), the solar forecast
+    (``/api/energy/forecast``) and the PV-system config it is computed from
+    (``/api/energy/pv-system``, issue #561). Call before navigating. Defaults
+    describe a sunny exporting moment so the flow row, charts, and cost table
+    have content.
+
+    The PV-system route is **stateful**: a PUT updates the in-memory rows, and
+    the forecast's ``system`` block is derived from them, so a test can assert
+    that saving the editor is reflected back in the forecast card. Stubbing
+    both also keeps any Energy-tab test off the network — an unstubbed forecast
+    would have the disposable instance call Open-Meteo for real.
     """
     def _install(
         snapshot: Optional[Dict] = None,
@@ -606,6 +615,7 @@ def mock_energy(page: Page) -> Callable[..., None]:
         buckets: Optional[List[Dict]] = None,
         today: Optional[Dict] = None,
         cost: Optional[Dict] = None,
+        pv_arrays: Optional[List[Dict]] = None,
     ) -> None:
         snap = snapshot or {
             "grid_import_w": 0.0, "grid_export_w": 1200.0,
@@ -669,6 +679,48 @@ def mock_energy(page: Page) -> Callable[..., None]:
         }
         page.route("**/api/energy/cost*", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(cost_body)))
+
+        pv = {
+            "arrays": list(pv_arrays) if pv_arrays is not None else [
+                {"kwp": 7.9, "tilt_deg": 15.0, "azimuth_deg": 0.0},
+            ],
+            "performance_ratio": 0.8,
+        }
+
+        def _pv_body() -> Dict:
+            return {
+                "configured": bool(pv["arrays"]),
+                "arrays": pv["arrays"],
+                "performance_ratio": pv["performance_ratio"],
+                "total_kwp": round(sum(a["kwp"] for a in pv["arrays"]), 3),
+            }
+
+        def handle_pv_system(route: Route) -> None:
+            if route.request.method.upper() == "PUT":
+                sent = route.request.post_data_json or {}
+                pv["arrays"] = sent.get("arrays") or []
+                if sent.get("performance_ratio") is not None:
+                    pv["performance_ratio"] = sent["performance_ratio"]
+            route.fulfill(
+                status=200, content_type="application/json", body=_json(_pv_body()))
+
+        page.route("**/api/energy/pv-system", handle_pv_system)
+
+        def handle_forecast(route: Route) -> None:
+            route.fulfill(status=200, content_type="application/json", body=_json({
+                "available": True,
+                "day": "today",
+                "expected": [{"hour": h, "wh": 0.0 if h < 8 else 900.0} for h in range(24)],
+                "expected_total_kwh": 12.3,
+                "actual": None,
+                "system": {
+                    "arrays": pv["arrays"],
+                    "total_kwp": round(sum(a["kwp"] for a in pv["arrays"]), 3),
+                    "performance_ratio": pv["performance_ratio"],
+                },
+            }))
+
+        page.route("**/api/energy/forecast*", handle_forecast)
 
     return _install
 

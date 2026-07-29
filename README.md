@@ -664,14 +664,21 @@ input.
   request per orientation), scaled and summed into an expected-generation
   curve. Self-contained and approximate — see
   [`docs/pv-forecast.md`](docs/pv-forecast.md) for the model.
-- **Config:** `config/pv_system.json` (gitignored) — copy
-  `config/pv_system.sample.json` and list one entry under `arrays` per
-  physically-uniform sub-array (`kwp`, `tilt_deg`, `azimuth_deg` — Open-Meteo
-  convention: 0 = South, −90 = East, 90 = West, always non-negative tilt), plus
-  one shared `performance_ratio`. A single-orientation roof needs just one
-  entry; the legacy flat single-orientation shape (pre-#555) still loads
-  unmigrated. Coordinates are reused from `config/location.json` (the weather
-  tile's file) — there is no separate lat/lon.
+- **Config:** `config/pv_system.json` (gitignored) — one entry under `arrays`
+  per physically-uniform sub-array (`kwp`, `tilt_deg`, `azimuth_deg` —
+  Open-Meteo convention: 0 = South, −90 = East, 90 = West, always non-negative
+  tilt), plus one shared `performance_ratio`. A single-orientation roof needs
+  just one entry; the legacy flat single-orientation shape (pre-#555) still
+  loads unmigrated. Coordinates are reused from `config/location.json` (the
+  weather tile's file) — there is no separate lat/lon.
+- **Editing it:** the Energy tab's **PV system** card (directly under the
+  forecast card) adds/edits/removes panel rows and the shared performance ratio
+  and coordinates — no file editing needed, and no restart: the forecast reads
+  the config per request. The file stays the source of truth and remains
+  hand-editable (`config/pv_system.sample.json` is the committed template); a
+  hand-written `_doc` note survives an edit made in the app. `GET`/`PUT
+  /api/energy/pv-system`; the `PUT` validates strictly and returns 400 naming
+  the offending field rather than clamping it.
 - **Endpoint:** `GET /api/energy/forecast?day=yesterday|today|tomorrow` returns
   the hourly expected curve, the day's `expected_total_kwh`, the `system` params
   used (`arrays` / `total_kwp` / `performance_ratio`), and (for today/yesterday)

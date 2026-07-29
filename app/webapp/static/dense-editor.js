@@ -20,7 +20,9 @@
  * payload and the response); optional: `stage(source)` (custom staged clone —
  * default shallow spread), `afterOpen(staged)` (post-open async work),
  * `payloadEntries(entries)` (filter what is PUT without touching the staged
- * list).
+ * list), `afterSave(entries)` (fired only after the PUT succeeded — for work
+ * that depends on the *persisted* list, e.g. re-reading a derived view; not
+ * `render()`, which also runs on the optimistic swap and on rollback).
  *
  * Returns `{open, close, wire, save, staged}` — `staged` is a live getter so
  * a module's own field listeners can mutate the staged entry in place.
@@ -91,6 +93,7 @@ export function denseListEditor(config) {
       config.setEntries((body && body[config.bodyKey]) || []);
       config.render();
       toast(config.toasts.saved, 'success');
+      if (config.afterSave) config.afterSave(config.getEntries());
       return true;
     } catch (exc) {
       config.setEntries(previous);

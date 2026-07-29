@@ -51,7 +51,19 @@ Per-machine, **gitignored** (the repo is public). Copy `config/pv_system.sample.
 
 A malformed individual sub-array entry is skipped (logged), not a hard failure; if every entry is invalid the config is treated as absent.
 
-Coordinates are **reused from `config/location.json`** (the same file the weather tile reads) — there is no separate lat/lon here. If either `pv_system.json` or `location.json` is absent the forecast simply reports "not configured"; the card shows a one-line note pointing at the sample and nothing else breaks.
+Coordinates are **reused from `config/location.json`** (the same file the weather tile reads) — there is no separate lat/lon here. If either `pv_system.json` or `location.json` is absent the forecast simply reports "not configured"; the card shows a one-line note pointing at the editor below and nothing else breaks.
+
+## Editing from the app (issue #561)
+
+The Energy tab's **PV system** card, directly under the forecast card, edits the same file — one summary row per panel row (`kwp` · tilt · compass direction), opened into a staged dialog for peak power / tilt / azimuth, plus the shared performance ratio and the home coordinates inline. Saving is live on the next forecast read: `src/pv_forecast.py` loads the config per request, so there is no cache to clear and no restart.
+
+`config/pv_system.json` remains the source of truth, not a cache of the UI:
+
+- **Hand edits keep working.** The card reads whatever is on disk, including the legacy flat shape (rendered as one row).
+- **Keys the app doesn't own survive a save.** A hand-written `_doc` note explaining why a home chose a given kWp or derate is preserved across an edit; only `arrays` / `performance_ratio` (and, when migrating a legacy file, the flat `kwp` / `tilt_deg` / `azimuth_deg` it replaces) are rewritten.
+- **Coordinates are not copied here.** The card surfaces lat/lon for convenience but persists them through `PUT /api/location` into `config/location.json` — one house, one place its coordinates live.
+
+Read and write are deliberately **different contracts**. `GET /api/energy/pv-system` inherits the loader's leniency (absent or malformed → "not configured", HTTP 200). `PUT` is strict and returns **400** naming the offending field — `kwp` ≤ 0, tilt outside 0–90, azimuth outside ±180, performance ratio outside 0–1. Silently clamping or dropping a row the user just typed would be a bug, not resilience, so the write path validates on its own rather than reusing the reader's skip-and-clamp parsing.
 
 ### PVGIS as a source (evaluated, deferred — issue #555)
 

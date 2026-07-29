@@ -162,15 +162,26 @@ function locationPayload() {
   return { lat: lat, lon: lon, label: (els.locationLabel.value || '').trim() };
 }
 
+/* PUT the home location and refresh `state.location` from the response.
+ *
+ * Exported because the Energy tab's PV-system card (issue #561) edits the same
+ * coordinates — one house, one config/location.json — and must not re-inline a
+ * second writer for this endpoint. Callers own their own feedback: this raises
+ * on failure rather than toasting, since each surface words it differently. */
+export async function putLocation(payload) {
+  state.location = await jsonApi('/api/location', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return state.location;
+}
+
 async function saveLocation() {
   const payload = locationPayload();
   if (!payload) return;
   try {
-    state.location = await jsonApi('/api/location', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    await putLocation(payload);
     toast('Location saved', 'success');
     await refreshPresenceDiagnostics();
   } catch (exc) {

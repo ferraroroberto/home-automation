@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from src.energy_history import (
     aggregate,
@@ -25,6 +26,12 @@ from src.energy_history import (
     recent_samples,
 )
 from src.pv_forecast import fetch_pv_forecast
+from src.pv_system_config import (
+    PvArray,
+    PvSystemConfig,
+    load_pv_system_config,
+    save_pv_system_config,
+)
 from src.huawei_client import EnergyState, fetch_energy_state
 from src.tariff import cost_breakdown, load_tariff
 
@@ -243,3 +250,83 @@ async def get_energy_forecast(
         "actual": actual,
         "system": forecast.system,  # array params the curve was computed from
     }
+
+
+# --------------------------------------------------------- PV system config
+# The write side of the forecast's inputs (issue #561): the Energy tab's "PV
+# system" card edits the same gitignored ``config/pv_system.json`` a user may
+# still hand-edit. ``src.pv_forecast`` re-reads the file per request, so a save
+# is live on the next forecast call — no cache to invalidate, no restart.
+
+
+class PvArrayPayload(BaseModel):
+    """One sub-array as the editor sends it."""
+
+    kwp: float
+    tilt_deg: float = 30.0
+    azimuth_deg: float = 0.0
+
+
+class PvSystemPayload(BaseModel):
+    """A whole-system replace. ``performance_ratio`` is optional so the shared
+    dense-collection editor — which PUTs only its entry list — doesn't have to
+    restate a field it isn't editing; omitted, the stored value is kept."""
+
+    arrays: List[PvArrayPayload] = Field(default_factory=list)
+    performance_ratio: Optional[float] = None
+
+
+def _pv_system_payload(config: Optional[PvSystemConfig]) -> Dict[str, Any]:
+    """Flatten a config (or "not configured") into the endpoint's JSON shape."""
+    if config is None:
+        return {
+            "configured": False,
+            "arrays": [],
+            "performance_ratio": PvSystemConfig().performance_ratio,
+        }
+    return {
+        "configured": True,
+        "arrays": [
+            {"kwp": a.kwp, "tilt_deg": a.tilt_deg, "azimuth_deg": a.azimuth_deg}
+            for a in config.arrays
+        ],
+        "performance_ratio": config.performance_ratio,
+        "total_kwp": round(config.total_kwp, 3),
+    }
+
+
+@router.get("/api/energy/pv-system")
+async def get_pv_system() -> Dict[str, Any]:
+    """The configured PV array, for the Energy tab's editor (issue #561).
+
+    Always 200: an absent or malformed file is "not configured" — an empty row
+    list the editor renders as its empty state — never a 500.
+    """
+    return _pv_system_payload(load_pv_system_config())
+
+
+@router.put("/api/energy/pv-system")
+async def update_pv_system(payload: PvSystemPayload) -> Dict[str, Any]:
+    """Replace the PV-array config, writing ``config/pv_system.json`` atomically.
+
+    Unlike the read path this one is strict: an invalid row is a 400 naming the
+    field, never a silently dropped or clamped value (see
+    :func:`src.pv_system_config.validate_pv_system`).
+    """
+    stored = load_pv_system_config()
+    ratio = payload.performance_ratio
+    if ratio is None:
+        ratio = stored.performance_ratio if stored else PvSystemConfig().performance_ratio
+
+    config = PvSystemConfig(
+        arrays=[
+            PvArray(kwp=a.kwp, tilt_deg=a.tilt_deg, azimuth_deg=a.azimuth_deg)
+            for a in payload.arrays
+        ],
+        performance_ratio=ratio,
+    )
+    try:
+        save_pv_system_config(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _pv_system_payload(config)

@@ -520,6 +520,37 @@ button, input, select, textarea {
   font-variant-numeric: tabular-nums;
 }
 
+/* --------------------------------------------------- PV-system editor (#561)
+   The card body and its row/dialog internals reuse the existing disclosure,
+   settings-row and dense-collection recipes (see .wake-alarms-body,
+   .presence-settings > .row, .schedule-editor-delete) — only the hairline
+   between the system-level rows and the field-validation lines are new. */
+.pv-system-card { margin-bottom: var(--gap); }
+/* The presence settings card separates its rows with grid gap; this body is a
+   plain block, so the rows carry the modal's hairline + 12px 0 row padding. */
+.pv-system-body > .row {
+  padding: 12px 0;
+  border-top: 1px solid var(--line-muted);
+}
+.pv-system-body > .row > span { font-weight: 600; }
+.pv-system-note { margin: 10px 0 0; }
+/* Azimuth convention reminder + the live compass reading of what was typed —
+   a hint only: the stored value stays degrees in the one Open-Meteo convention. */
+.pv-field-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin: 6px 0 0;
+}
+.pv-azimuth-echo { color: var(--accent); font-weight: 700; white-space: nowrap; }
+/* Rejected value, shown against its own field rather than as a generic toast. */
+.pv-field-error {
+  margin: 6px 0 0;
+  color: var(--deficit);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
 /* ----------------------------------------------------- energy charts */
 .chart-card { padding: 12px; margin-bottom: var(--gap); }
 .chart-title { margin: 0 0 var(--space-sm); font-size: var(--font-label); }
@@ -1798,7 +1829,8 @@ button.security-zone-name:hover { text-decoration: underline; }
 .scene-pairings-body,
 .security-override-body,
 .wake-alarms-body,
-.reminders-body {
+.reminders-body,
+.pv-system-body {
   padding: 12px 14px 14px;
 }
 /* Completed reminder: struck-through title, same muted convention as
@@ -2214,22 +2246,28 @@ button.presence-name:hover { text-decoration: underline; }
 }
 .ac-feedback { margin: 0 0 var(--gap); }
 .ac-stale-note { margin: 0 4px; color: var(--attention); }
-.presence-settings > .row {
+.presence-settings > .row,
+.pv-system-body > .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-sm);
   min-height: var(--row-sm);
 }
-.presence-settings > .row > span { min-width: 0; }
+.presence-settings > .row > span,
+.pv-system-body > .row > span { min-width: 0; }
 .presence-settings > .row > .input-native,
-.presence-settings > .row > .toggle {
+.presence-settings > .row > .toggle,
+.pv-system-body > .row > .input-native {
   justify-self: end;
   box-sizing: border-box;
 }
 #locationLabel,
 #locationLat,
-#locationLon {
+#locationLon,
+#pvLat,
+#pvLon,
+#pvPerformanceRatio {
   width: 8.5rem;
 }
 #locationLat,
