@@ -653,23 +653,29 @@ rendered (it's obviously home), so the strip stays on a single line. Settings
 The Energy tab's **Solar forecast** card shows an *expected generation* curve
 (dashed) with the day's measured generation overlaid (filled), a headline
 "Expected generation +X kWh", a caption with the array parameters the curve was
-computed from (e.g. `1.5 kWp · 35° tilt · S · PR 0.80`), and a **Yesterday /
-Today / Tomorrow** toggle. It is read/visualisation only — a forecast to compare
-against reality, not a control input.
+computed from (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80` for a
+two-orientation roof), and a **Yesterday / Today / Tomorrow** toggle. It is
+read/visualisation only — a forecast to compare against reality, not a control
+input.
 
-- **Source:** one keyless **Open-Meteo** call for hourly *global tilted
-  irradiance* (the same host the weather tile uses), scaled by the array to an
-  expected-generation curve. Self-contained and approximate — see
+- **Source:** one keyless **Open-Meteo** call *per sub-array* for hourly
+  *global tilted irradiance* (the same host the weather tile uses; Open-Meteo
+  doesn't batch tilt/azimuth, so a multi-orientation roof fires one concurrent
+  request per orientation), scaled and summed into an expected-generation
+  curve. Self-contained and approximate — see
   [`docs/pv-forecast.md`](docs/pv-forecast.md) for the model.
 - **Config:** `config/pv_system.json` (gitignored) — copy
-  `config/pv_system.sample.json` and set `kwp`, `tilt_deg`, `azimuth_deg`
-  (Open-Meteo convention: 0 = South, −90 = East, 90 = West), and
-  `performance_ratio`. Coordinates are reused from `config/location.json` (the
-  weather tile's file) — there is no separate lat/lon.
+  `config/pv_system.sample.json` and list one entry under `arrays` per
+  physically-uniform sub-array (`kwp`, `tilt_deg`, `azimuth_deg` — Open-Meteo
+  convention: 0 = South, −90 = East, 90 = West, always non-negative tilt), plus
+  one shared `performance_ratio`. A single-orientation roof needs just one
+  entry; the legacy flat single-orientation shape (pre-#555) still loads
+  unmigrated. Coordinates are reused from `config/location.json` (the weather
+  tile's file) — there is no separate lat/lon.
 - **Endpoint:** `GET /api/energy/forecast?day=yesterday|today|tomorrow` returns
   the hourly expected curve, the day's `expected_total_kwh`, the `system` params
-  used (kWp / tilt / azimuth / performance_ratio), and (for today/yesterday) the
-  measured `actual` overlay (`null` for tomorrow). When
+  used (`arrays` / `total_kwp` / `performance_ratio`), and (for today/yesterday)
+  the measured `actual` overlay (`null` for tomorrow). When
   `pv_system.json`/`location.json` is absent or Open-Meteo is unreachable it
   returns `{available: false, reason}` with HTTP 200 — the card keeps a one-line
   note and nothing else breaks.
