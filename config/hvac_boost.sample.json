@@ -1,0 +1,11 @@
+{
+  "_doc": "Fleet-level solar-boost sequencing (issue #562) — edited from the Energy tab's 'Solar boost' card, or by hand here. Copy to hvac_boost.json (gitignored); a missing file means these defaults. Per-unit opt-in (boost_enabled / boost_offset_c) lives in hvac_rules.json, not here. Keys this file does not own (like this note) survive a save from the app.",
+  "settle_interval_s": 300,
+  "admission_margin_w": 0.0,
+  "hard_deficit_w": 1000.0,
+  "ordering_policy": "stable",
+  "_doc_settle_interval_s": "Minimum seconds between two changes to the boosted set. Floor 300, ceiling 3600: the solar meter publishes on a 5-minute grid, so a shorter interval re-reads the same value and admits again before the last admission has shown up in it.",
+  "_doc_admission_margin_w": "Extra watts of measured surplus, on top of HVAC_BOOST_SURPLUS_ON_W, required to admit the *next* unit. 0 means 'still the full entry threshold spare' — already a real test, because the reading is measured and contains what the boosted units actually draw.",
+  "_doc_hard_deficit_w": "Sustained import (positive watts) at which every boosted unit is shed at once, overriding HVAC_BOOST_MIN_DURATION_S.",
+  "_doc_ordering_policy": "Admission order, which is also shed order reversed. 'stable' = deterministic by unit id."
+}

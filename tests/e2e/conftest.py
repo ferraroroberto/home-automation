@@ -75,11 +75,33 @@ logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CERT = _REPO_ROOT / "webapp" / "certificates" / "cert.pem"
 _KEY = _REPO_ROOT / "webapp" / "certificates" / "key.pem"
-_ADOPT_PORT = 8447
-# Explicit opt-in for adopting the LIVE tray on :8447 (issue #538) — the flag
-# name passed to the vendored _e2e_live_guard.require_disposable_instance.
-# Without it, an occupied :8447 makes a bare `pytest tests/e2e` refuse rather
-# than silently drive the tray fronting a real security alarm/HVAC/Tuya plugs.
+
+
+def _adopt_port() -> int:
+    """The port *this checkout's* own webapp would serve on (usually 8447).
+
+    Read from ``config/webapp_config.json`` rather than hardcoded, because
+    "the live instance" is per checkout: a concurrent `git worktree` session
+    (fleet-config's worktree_claim workflow) configures its own port so it never
+    claims the primary checkout's tray. With a hardcoded 8447 the guard below
+    refused every worktree run — even though the run would have autobooted a
+    disposable instance on a free port and never gone near the tray. On the
+    primary checkout this resolves to 8447 exactly as before.
+    """
+    try:
+        from src.webapp_config import load_webapp_config
+
+        return int(load_webapp_config().port)
+    except Exception:  # noqa: BLE001 — a missing/broken config must not break the guard
+        return 8447
+
+
+_ADOPT_PORT = _adopt_port()
+# Explicit opt-in for adopting the LIVE tray on this checkout's port (issue
+# #538) — the flag name passed to the vendored
+# _e2e_live_guard.require_disposable_instance. Without it, an occupied port
+# makes a bare `pytest tests/e2e` refuse rather than silently drive the tray
+# fronting a real security alarm/HVAC/Tuya plugs.
 _LIVE_ENV = "E2E_LIVE"
 _IPHONE_DEVICE = "iPhone 14"
 _DEFAULT_TIMEOUT_MS = int(os.environ.get("E2E_DEFAULT_TIMEOUT_MS", "15000"))
@@ -598,8 +620,10 @@ def mock_energy(page: Page) -> Callable[..., None]:
     (``/api/energy/today``), the live-chart history (``/api/energy/history``),
     the history buckets (``/api/energy/aggregate``), the tiered cost & savings
     breakdown (``/api/energy/cost``), the solar forecast
-    (``/api/energy/forecast``) and the PV-system config it is computed from
-    (``/api/energy/pv-system``, issue #561). Call before navigating. Defaults
+    (``/api/energy/forecast``), the PV-system config it is computed from
+    (``/api/energy/pv-system``, issue #561) and the fleet solar-boost
+    sequencing knobs (``/api/hvac/boost-coordinator``, issue #562 — an HVAC path
+    whose card lives on this tab). Call before navigating. Defaults
     describe a sunny exporting moment so the flow row, charts, and cost table
     have content.
 
@@ -616,6 +640,7 @@ def mock_energy(page: Page) -> Callable[..., None]:
         today: Optional[Dict] = None,
         cost: Optional[Dict] = None,
         pv_arrays: Optional[List[Dict]] = None,
+        boost_coord: Optional[Dict] = None,
     ) -> None:
         snap = snapshot or {
             "grid_import_w": 0.0, "grid_export_w": 1200.0,
@@ -705,6 +730,41 @@ def mock_energy(page: Page) -> Callable[..., None]:
                 status=200, content_type="application/json", body=_json(_pv_body()))
 
         page.route("**/api/energy/pv-system", handle_pv_system)
+
+        # The fleet solar-boost sequencing knobs (issue #562). Path is
+        # /api/hvac/... because it is HVAC config, but it is stubbed here because
+        # its card lives on the Energy tab — so every Energy-tab test that
+        # already calls this fixture keeps its network stubbed.
+        boost = {
+            "settle_interval_s": 300, "admission_margin_w": 0.0,
+            "hard_deficit_w": 1000.0, "ordering_policy": "stable",
+        }
+        if boost_coord:
+            boost.update(boost_coord)
+
+        def _boost_body() -> Dict:
+            return dict(
+                boost, min_settle_interval_s=300, ordering_policies=["stable"]
+            )
+
+        def handle_boost_coord(route: Route) -> None:
+            if route.request.method.upper() == "PUT":
+                sent = route.request.post_data_json or {}
+                # Mirrors the server: an out-of-range value is a 400 naming the
+                # field, never a silent clamp.
+                settle = sent.get("settle_interval_s")
+                if settle is not None and int(settle) < 300:
+                    route.fulfill(
+                        status=400, content_type="application/json",
+                        body=_json({"detail": "settle_interval_s must be at least 300 seconds"}))
+                    return
+                for key, value in sent.items():
+                    if value is not None:
+                        boost[key] = value
+            route.fulfill(
+                status=200, content_type="application/json", body=_json(_boost_body()))
+
+        page.route("**/api/hvac/boost-coordinator", handle_boost_coord)
 
         def handle_forecast(route: Route) -> None:
             route.fulfill(status=200, content_type="application/json", body=_json({

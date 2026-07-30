@@ -942,6 +942,47 @@
           <p class="muted small pv-system-note">A rough estimate — the derate folds inverter, wiring, thermal and soiling losses into one factor (typically 0.75–0.85).</p>
         </div>
       </details>
+
+      <!-- Solar boost sequencing (issue #562) — the fleet-level knobs deciding
+           how A/C units enter and leave solar boost: one at a time, measuring
+           real surplus between steps, instead of every eligible unit reacting to
+           the same reading in the same tick. Global by design; the per-unit
+           opt-in stays in each unit's detail modal. Inline rows that save on
+           blur, the same shape as the PV-system card's system-level fields. -->
+      <details class="card card--collapsible boost-coord-card" id="boostCoordCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+            <h3 class="collapse-title">Solar boost</h3>
+            <span id="boostCoordSummary" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="boost-coord-body">
+          <p class="muted small">Units enter and leave boost one at a time, so their combined draw never outruns the surplus they are all reacting to.</p>
+
+          <label class="row">
+            <span>Settle interval (min)</span>
+            <input id="boostSettleMin" type="number" min="5" max="60" step="1" inputmode="numeric" class="input-native" placeholder="5">
+          </label>
+          <label class="row">
+            <span>Admission margin (W)</span>
+            <input id="boostAdmissionMargin" type="number" min="0" step="50" inputmode="numeric" class="input-native" placeholder="0">
+          </label>
+          <label class="row">
+            <span>Fast-shed import (W)</span>
+            <input id="boostHardDeficit" type="number" min="0" step="100" inputmode="numeric" class="input-native" placeholder="1000">
+          </label>
+          <label class="row">
+            <span>Admission order</span>
+            <select id="boostOrderingPolicy" class="input-native">
+              <option value="stable">Stable</option>
+            </select>
+          </label>
+
+          <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. One deterministic order ships today — a fairness rotation may follow.</p>
+        </div>
+      </details>
     </section>
 
     <!-- =============================== IOT =============================== -->

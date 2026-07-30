@@ -136,6 +136,14 @@ class EnergyState:
     meter_reachable: bool = False
     inverter_reachable: bool = False
     meter_serial: Optional[str] = None
+    #: The 5-minute bucket this snapshot was read from, as the portal's own
+    #: naive-local ``"YYYY-MM-DD HH:MM"`` stamp — ``None`` when nothing usable
+    #: was read. Not part of the ``/api/energy`` response; it exists so the HVAC
+    #: boost coordinator can tell a *fresh* reading from the same bucket it
+    #: already acted on (issue #562). Wall-clock cannot: this source runs several
+    #: minutes behind and emits permanent multi-bucket holes, so "300 s have
+    #: passed" is not "the meter has published again".
+    as_of: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -577,6 +585,7 @@ def _apply(state: EnergyState, stats: Dict[str, Any]) -> Optional[str]:
     state.inverter_reachable = (
         bool(stats.get("existInverter")) and latest.inverter_reachable
     )
+    state.as_of = as_of
 
     return as_of
 

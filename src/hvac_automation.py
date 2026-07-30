@@ -24,6 +24,11 @@ to a gitignored ``config/*.json``, missing file → empty, committed
   *whether/how* the unit runs; the rule thereafter only steers the setpoint
   while the unit is on.
 
+* **Boost coordinator** — the fleet-level knobs (issue #562) deciding how the
+  per-unit solar boost below is *sequenced* across units: at most one admission
+  or shed per settle interval, so five units never enter boost in the same tick
+  and swamp the surplus they are all reacting to.
+
 The pure control decision (:func:`next_setpoint`) lives here so it is unit
 -testable without an event loop or the MELCloud client; the asyncio engine
 that calls ``fetch_devices`` / ``set_device_state`` is
@@ -33,10 +38,12 @@ that calls ``fetch_devices`` / ``set_device_state`` is
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from src._atomic_json import write_json_atomic
 from src._schedule_store import read_json, save_json
 
 logger = logging.getLogger(__name__)
@@ -44,6 +51,7 @@ logger = logging.getLogger(__name__)
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 RULES_PATH = _CONFIG_DIR / "hvac_rules.json"
 SCHEDULES_PATH = _CONFIG_DIR / "hvac_schedules.json"
+BOOST_CONFIG_PATH = _CONFIG_DIR / "hvac_boost.json"
 
 # Modes the controller can steer, and the direction lowering the setpoint
 # pushes the room. Cool/Dry: lower setpoint → more cooling → room falls.
@@ -165,6 +173,64 @@ def next_setpoint(
     return new
 
 
+def transition_setpoint(
+    *,
+    operation_mode: Optional[str],
+    room_temperature: Optional[float],
+    set_temperature: Optional[float],
+    target: Optional[float],
+    buffer: float,
+    tmin: float,
+    tmax: float,
+) -> Optional[float]:
+    """The setpoint to command *immediately* on a boost admission/shed (#562).
+
+    :func:`next_setpoint`'s law with one branch changed: the drive-harder side
+    jumps straight to ``target`` instead of moving one ``step``. Everything else
+    — the satisfied-side idle jump, the deadband hold, the ``tmin``/``tmax``
+    clamp, and returning ``None`` when the result is already the current
+    setpoint — is identical, deliberately.
+
+    **Why a second function rather than a flag on the gradual law.** The one
+    -step-per-``adjust_interval_s`` drive is right for steady state (the room
+    responds slowly), but it expresses a 2 °C boost as ~0.5 °C per 15 minutes —
+    up to an hour to materialise, with the first increment landing as much as a
+    full interval after admission. A sequencer that admits a unit and then
+    measures the surplus five minutes later would see essentially no added draw,
+    conclude there is still room, and admit the whole fleet before any of it
+    arrived. The immediate write is what makes staggered admission measurable.
+
+    Scoped to the **transition only**: while a unit sits boosted it goes back to
+    :func:`next_setpoint`'s gradual drive. The satisfied side keeps the idle
+    jump because writing ``setpoint = target`` for a room that has *already*
+    reached the target would be more drive than the steering law ever applies.
+    """
+    if room_temperature is None or set_temperature is None or target is None:
+        return None
+
+    if operation_mode in COOL_MODES:
+        if room_temperature > target + buffer:
+            new = target  # drive to the (boosted) target now, not one step
+        elif room_temperature <= target:
+            new = target + IDLE_OFFSET  # reached target → idle immediately
+        else:
+            return None  # (target, target+buffer] deadband → already there
+    elif operation_mode in HEAT_MODES:
+        if room_temperature < target - buffer:
+            new = target
+        elif room_temperature >= target:
+            new = target - IDLE_OFFSET
+        else:
+            return None
+    else:
+        return None
+
+    new = max(tmin, min(tmax, new))
+    if new == set_temperature:
+        return None
+    return new
+
+
 # ----------------------------------------------------------------- solar boost
 def next_boost_state(
     *,
@@ -176,7 +242,12 @@ def next_boost_state(
     surplus_off_w: float,
     min_duration_s: float,
 ) -> bool:
-    """Hysteresis + min-duration decision: should this unit be boosting now?
+    """Hysteresis + min-duration decision: does this unit *want* to boost now?
+
+    Since #562 this is a **candidacy** signal, not the final answer: it says
+    whether this unit, on its own, wants boost given the fleet-wide surplus.
+    :func:`next_boost_admission` then decides whether it gets it *this tick* —
+    at most one unit enters or leaves boost per settle interval.
 
     ``surplus_on_w`` (higher) starts a boost from idle; ``surplus_off_w``
     (lower) is the only level that can end one, and only after
@@ -215,6 +286,310 @@ def boosted_target(
     if operation_mode in HEAT_MODES:
         return target + boost_offset_c
     return target
+
+
+# ----------------------------------------------------------- boost coordinator
+#: Hard floor on the settle interval (seconds). FusionSolar publishes on a
+#: 5-minute grid and one cloud response is reused for a further cache TTL, so a
+#: shorter settle makes the sequencer re-read the *same bucket* — the
+#: pre-admission surplus — conclude there is still room, and admit again. That
+#: reconstructs the very herd this coordinator exists to prevent. The interval
+#: must also cover the inverter compressor's own ramp-up, not just the meter's
+#: publish cadence. Not configurable below this; the loader clamps up and the
+#: writer refuses.
+MIN_SETTLE_INTERVAL_S = 300
+#: Sanity ceiling — a typo'd interval must not park the coordinator for a day.
+MAX_SETTLE_INTERVAL_S = 3600
+
+#: Admission/shed ordering policies. v1 ships one deterministic order, keyed on
+#: unit id: with LIFO shedding, admission order *is* shed order, so it must not
+#: depend on MELCloud's device-fetch order, which is not guaranteed stable. A
+#: fairness rotation (so the same room is not always admitted first) is a later
+#: value of this same knob, not a second knob.
+ORDERING_POLICIES = ("stable",)
+DEFAULT_ORDERING_POLICY = "stable"
+
+
+@dataclass
+class BoostCoordinatorConfig:
+    """Fleet-level knobs for the solar-boost sequencer (issue #562).
+
+    Global on purpose — these describe the *fleet*, not a room. The per-unit
+    opt-in (``boost_enabled`` / ``boost_offset_c`` on :class:`TempRule`) stays
+    per unit: rooms are deliberately excluded from boost one by one, and that
+    must never become a global policy.
+    """
+
+    #: Minimum seconds between two changes to the boosted set.
+    settle_interval_s: int = MIN_SETTLE_INTERVAL_S
+    #: Extra headroom over the entry threshold required to admit the *next*
+    #: unit. Defaults to 0: the surplus reading is measured, not modelled, so it
+    #: already contains what the units admitted so far actually draw — "still at
+    #: least the entry threshold spare" is a real test on its own.
+    admission_margin_w: float = 0.0
+    #: Sustained **import** (a positive magnitude of watts) at which every
+    #: boosted unit is shed at once. Stored positive so the JSON, the API and
+    #: the UI all speak the same number and the sign convention lives in exactly
+    #: one comparison.
+    hard_deficit_w: float = 1000.0
+    ordering_policy: str = DEFAULT_ORDERING_POLICY
+
+
+@dataclass(frozen=True)
+class BoostDecision:
+    """One tick's coordinator decision — at most one admission *or* one shed."""
+
+    admit: Optional[str] = None
+    shed: Tuple[str, ...] = ()
+    #: ``admitted`` · ``held_margin`` · ``held_settle`` · ``shed_sequential`` ·
+    #: ``shed_deficit`` · ``no_signal`` · ``idle``.
+    reason: str = "idle"
+    #: Candidates blocked this tick — still candidates, retried next interval.
+    held: Tuple[str, ...] = ()
+
+
+def _order_candidates(candidates: Sequence[str], policy: str) -> List[str]:
+    """Candidates in admission order for ``policy`` (v1: deterministic by id)."""
+    return sorted(candidates)
+
+
+def next_boost_admission(
+    *,
+    wants_boost: Dict[str, bool],
+    admitted_order: Sequence[str],
+    pv_surplus_w: Optional[float],
+    now_monotonic: float,
+    last_change_monotonic: Optional[float],
+    last_change_as_of: Optional[str],
+    energy_as_of: Optional[str],
+    surplus_on_w: float,
+    config: BoostCoordinatorConfig,
+) -> BoostDecision:
+    """Sequence boost across the fleet: admit one, shed one, or hold.
+
+    ``wants_boost`` is the per-unit candidacy from :func:`next_boost_state`;
+    ``admitted_order`` is the currently-boosted set **in admission order**.
+    Pure: no clock, no network, no I/O — the whole state machine is the
+    arguments.
+
+    Priority, highest first:
+
+    1. **No signal.** ``pv_surplus_w is None`` (stale/unreachable FusionSolar
+       read) is never zero — it neither admits nor sheds, it freezes.
+    2. **Hard deficit.** Sustained import past ``config.hard_deficit_w`` sheds
+       **every** boosted unit at once, ignoring both the settle interval and the
+       per-unit ``min_duration_s`` (without that override a herd-induced deficit
+       would persist for the full 30-minute debounce — exactly the amplitude
+       problem this function exists to fix). It sheds *all* rather than one per
+       tick because there is deliberately no per-unit power model to size a
+       partial shed with, and the meter runs several minutes behind: shedding
+       one per tick would re-decide repeatedly against the *same stale bucket*
+       while the house keeps importing — fake precision. Recovery is
+       self-correcting, since the units become candidates again immediately and
+       re-admit one at a time under the guards below.
+    3. **Sequential shed**, one per settle interval, last-admitted-first over
+       the units *eligible to stop*. A unit still inside its min-duration is
+       **skipped, never jumped ahead of** — min-duration wins over strict LIFO.
+       (With a 300 s settle and a 1800 s min-duration the two coincide in
+       practice: staggered admissions clear min-duration in the same order.)
+    4. **Admission**, one per settle interval, blocked while the newest measured
+       bucket is the same one the last change was made against (``held_settle``
+       — wall-clock alone cannot tell a fresh reading from a frozen feed, and
+       this source emits permanent multi-bucket holes) or while the remaining
+       measured surplus is under ``surplus_on_w + admission_margin_w``
+       (``held_margin``). A block is a **hold, not a failure**: the unit stays a
+       candidate and is retried next interval.
+    """
+    if pv_surplus_w is None:
+        return BoostDecision(reason="no_signal")
+
+    boosted = list(admitted_order)
+    if boosted and pv_surplus_w <= -config.hard_deficit_w:
+        # Reverse admission order so the payload reads last-admitted-first, the
+        # same ordering the sequential shed uses.
+        return BoostDecision(shed=tuple(reversed(boosted)), reason="shed_deficit")
+
+    elapsed = (
+        float("inf")
+        if last_change_monotonic is None
+        else now_monotonic - last_change_monotonic
+    )
+    settled = elapsed >= config.settle_interval_s
+
+    # Boosted units whose own hysteresis now says stop, last-admitted first.
+    # Default True for anything not evaluated this tick: an unknown unit holds
+    # its boost rather than being shed on missing information.
+    stoppers = [uid for uid in reversed(boosted) if not wants_boost.get(uid, True)]
+    if stoppers:
+        if not settled:
+            return BoostDecision(reason="held_settle", held=(stoppers[0],))
+        return BoostDecision(shed=(stoppers[0],), reason="shed_sequential")
+
+    boosted_set = set(boosted)
+    candidates = [
+        uid for uid, wants in wants_boost.items() if wants and uid not in boosted_set
+    ]
+    if not candidates:
+        return BoostDecision(reason="idle")
+
+    ordered = tuple(_order_candidates(candidates, config.ordering_policy))
+    if not settled:
+        return BoostDecision(reason="held_settle", held=ordered)
+    if last_change_as_of is not None and energy_as_of == last_change_as_of:
+        # Same 5-minute bucket the last change was made against: this reading
+        # cannot yet contain that change's draw.
+        return BoostDecision(reason="held_settle", held=ordered)
+    if pv_surplus_w < surplus_on_w + config.admission_margin_w:
+        return BoostDecision(reason="held_margin", held=ordered)
+    return BoostDecision(admit=ordered[0], reason="admitted")
+
+
+# ------------------------------------------- boost-coordinator persistence
+# Read and write are deliberately different contracts, the same split
+# :mod:`src.pv_system_config` documents: the loader is *lenient* so a
+# hand-edited file degrades (clamp + log) instead of stopping the engine
+# mid-flight, while the writer is *strict* and raises naming the field, because
+# silently clamping a value the user just typed into the Energy tab is a bug,
+# not resilience. Don't route the writer through the reader's parsing.
+_OWNED_BOOST_KEYS = frozenset(
+    {"settle_interval_s", "admission_margin_w", "hard_deficit_w", "ordering_policy"}
+)
+
+
+def _coerce_float(value: Any, default: float, field_name: str) -> float:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        logger.warning("⚠️ Invalid %s=%r; using %s", field_name, value, default)
+        return default
+    if out < 0:
+        logger.warning("⚠️ %s must be >= 0 (got %s); using %s", field_name, out, default)
+        return default
+    return out
+
+
+def load_boost_config(path: Optional[Path] = None) -> BoostCoordinatorConfig:
+    """Read the coordinator knobs from disk; missing/malformed → defaults.
+
+    Re-read every tick (not frozen into ``AutomationConfig`` at start-up) so an
+    edit from the Energy tab is live without a tray restart — the same contract
+    :func:`load_rules` / :func:`load_schedules` already have.
+
+    The :data:`MIN_SETTLE_INTERVAL_S` floor is enforced here too, not only in
+    the writer: the file stays hand-editable, and a hand-written 60 would
+    otherwise silently reconstruct the herd.
+    """
+    target = Path(path) if path is not None else BOOST_CONFIG_PATH
+    raw = read_json(target, {})
+    if not isinstance(raw, dict):
+        logger.warning("⚠️ %s is not a JSON object; using boost defaults", target)
+        raw = {}
+
+    defaults = BoostCoordinatorConfig()
+
+    settle: Any = raw.get("settle_interval_s", defaults.settle_interval_s)
+    try:
+        settle = int(float(settle))
+    except (TypeError, ValueError):
+        logger.warning("⚠️ Invalid settle_interval_s=%r; using %s", settle, defaults.settle_interval_s)
+        settle = defaults.settle_interval_s
+    clamped = max(MIN_SETTLE_INTERVAL_S, min(MAX_SETTLE_INTERVAL_S, settle))
+    if clamped != settle:
+        logger.warning(
+            "⚠️ settle_interval_s=%s out of range; clamped to %ds (FusionSolar "
+            "publishes on a 5-minute grid)", settle, clamped,
+        )
+
+    policy = str(raw.get("ordering_policy", defaults.ordering_policy))
+    if policy not in ORDERING_POLICIES:
+        logger.warning("⚠️ Unknown ordering_policy=%r; using %s", policy, defaults.ordering_policy)
+        policy = defaults.ordering_policy
+
+    return BoostCoordinatorConfig(
+        settle_interval_s=clamped,
+        admission_margin_w=_coerce_float(
+            raw.get("admission_margin_w", defaults.admission_margin_w),
+            defaults.admission_margin_w,
+            "admission_margin_w",
+        ),
+        hard_deficit_w=_coerce_float(
+            raw.get("hard_deficit_w", defaults.hard_deficit_w),
+            defaults.hard_deficit_w,
+            "hard_deficit_w",
+        ),
+        ordering_policy=policy,
+    )
+
+
+def validate_boost_config(config: BoostCoordinatorConfig) -> None:
+    """Strictly validate a config bound for disk — raises on the first problem.
+
+    Every message names the offending field so the API can hand it back as a
+    400 the editor can show against the right input.
+    """
+    try:
+        settle = int(config.settle_interval_s)
+    except (TypeError, ValueError):
+        raise ValueError("settle_interval_s must be a whole number of seconds")
+    if settle < MIN_SETTLE_INTERVAL_S:
+        raise ValueError(
+            f"settle_interval_s must be at least {MIN_SETTLE_INTERVAL_S} seconds — "
+            "the solar meter publishes on a 5-minute grid, so a shorter settle "
+            "re-reads the same reading and admits again before the last "
+            "admission has shown up"
+        )
+    if settle > MAX_SETTLE_INTERVAL_S:
+        raise ValueError(
+            f"settle_interval_s must be at most {MAX_SETTLE_INTERVAL_S} seconds"
+        )
+
+    for field_name, value in (
+        ("admission_margin_w", config.admission_margin_w),
+        ("hard_deficit_w", config.hard_deficit_w),
+    ):
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{field_name} must be a number")
+        if not math.isfinite(number):
+            raise ValueError(f"{field_name} must be a number")
+        if number < 0:
+            raise ValueError(f"{field_name} must be zero or greater")
+
+    if config.ordering_policy not in ORDERING_POLICIES:
+        raise ValueError(
+            "ordering_policy must be one of: " + ", ".join(ORDERING_POLICIES)
+        )
+
+
+def save_boost_config(
+    config: BoostCoordinatorConfig, path: Optional[Path] = None
+) -> None:
+    """Validate and atomically persist the coordinator knobs.
+
+    Preserves any top-level key this module doesn't own, so a hand-written
+    ``_doc`` note explaining why a home picked its settle interval survives an
+    edit from the app (same rule as :mod:`src.pv_system_config`).
+    """
+    validate_boost_config(config)
+    target = Path(path) if path is not None else BOOST_CONFIG_PATH
+
+    payload: Dict[str, Any] = {}
+    existing = read_json(target, None)
+    if isinstance(existing, dict):
+        payload = {k: v for k, v in existing.items() if k not in _OWNED_BOOST_KEYS}
+
+    payload["settle_interval_s"] = int(config.settle_interval_s)
+    payload["admission_margin_w"] = float(config.admission_margin_w)
+    payload["hard_deficit_w"] = float(config.hard_deficit_w)
+    payload["ordering_policy"] = config.ordering_policy
+
+    write_json_atomic(target, payload)
+    logger.info(
+        "💾 Saved boost coordinator (settle %ds, margin %.0fW, fast-shed %.0fW) to %s",
+        payload["settle_interval_s"], payload["admission_margin_w"],
+        payload["hard_deficit_w"], target,
+    )
 
 
 # --------------------------------------------------------------- persistence
