@@ -12,17 +12,21 @@
  * Config contract — elements (from state.js's `els`): `dialog`, `addButton`,
  * `closeButton`, `saveButton`, `deleteButton`, `titleEl`, `listEl`, `focusEl`;
  * copy: `titles {add, edit}`, `deleteConfirm {title, message}`,
- * `toasts {saved, failed}`; behavior: `rowIdAttr` (the summary-row data
- * attribute carrying the entry id), `defaults()`, `getEntries()`,
- * `setEntries(list)`, `normalize(entries)`, `render()`, `populate(staged)`,
- * `collect(staged)` (return `false` to abort the save, e.g. failed
- * validation); persistence: `endpoint`, `bodyKey` (JSON key in both the PUT
- * payload and the response); optional: `stage(source)` (custom staged clone —
- * default shallow spread), `afterOpen(staged)` (post-open async work),
- * `payloadEntries(entries)` (filter what is PUT without touching the staged
- * list), `afterSave(entries)` (fired only after the PUT succeeded — for work
- * that depends on the *persisted* list, e.g. re-reading a derived view; not
- * `render()`, which also runs on the optimistic swap and on rollback).
+ * `toasts {saved, failed}` (`saved` is a string, or a function
+ * `(afterSaveResult) => string | Promise<string>` resolved after `afterSave`
+ * — for a confirmation that needs a value only known post-persist, e.g. a
+ * recomputed derived total, issue #564); behavior: `rowIdAttr` (the
+ * summary-row data attribute carrying the entry id), `defaults()`,
+ * `getEntries()`, `setEntries(list)`, `normalize(entries)`, `render()`,
+ * `populate(staged)`, `collect(staged)` (return `false` to abort the save,
+ * e.g. failed validation); persistence: `endpoint`, `bodyKey` (JSON key in
+ * both the PUT payload and the response); optional: `stage(source)` (custom
+ * staged clone — default shallow spread), `afterOpen(staged)` (post-open
+ * async work), `payloadEntries(entries)` (filter what is PUT without
+ * touching the staged list), `afterSave(entries)` (awaited after the PUT
+ * succeeds and before the saved toast, so a function-form `toasts.saved` can
+ * consume its resolved value; `render()` already ran on the optimistic swap,
+ * so `afterSave` is for derived-view work, not the row list itself).
  *
  * Returns `{open, close, wire, save, staged}` — `staged` is a live getter so
  * a module's own field listeners can mutate the staged entry in place.
@@ -92,8 +96,11 @@ export function denseListEditor(config) {
       });
       config.setEntries((body && body[config.bodyKey]) || []);
       config.render();
-      toast(config.toasts.saved, 'success');
-      if (config.afterSave) config.afterSave(config.getEntries());
+      const afterResult = config.afterSave ? await config.afterSave(config.getEntries()) : undefined;
+      const savedText = typeof config.toasts.saved === 'function'
+        ? await config.toasts.saved(afterResult)
+        : config.toasts.saved;
+      toast(savedText, 'success');
       return true;
     } catch (exc) {
       config.setEntries(previous);
