@@ -25,6 +25,7 @@ from src.hvac_automation import (
     BoostCoordinatorConfig,
     ScheduleEntry,
     TempRule,
+    boosted_target,
     load_boost_config,
     load_rules,
     load_schedules,
@@ -95,6 +96,19 @@ def _unit_dict(
     rule = (rules or {}).get(d.unit_id)
     schedule_entries = (schedules or {}).get(d.unit_id, [])
     rule_target = target_for_mode(rule, d.operation_mode) if rule is not None else None
+    boost_active = automation.get_boost_active(d.unit_id)
+    # Signed delta the running engine is actually applying (#575) — reuses
+    # boosted_target() so the UI never re-derives the cool/heat sign itself.
+    boost_delta_c: Optional[float] = None
+    if boost_active and rule is not None and rule_target is not None:
+        effective_target = boosted_target(
+            operation_mode=d.operation_mode,
+            target=rule_target,
+            boost_offset_c=rule.boost_offset_c,
+            is_boosting=True,
+        )
+        if effective_target is not None:
+            boost_delta_c = effective_target - rule_target
     return {
         "unit_id": d.unit_id,
         "name": d.name,
@@ -126,7 +140,10 @@ def _unit_dict(
             "boost_offset_c": rule.boost_offset_c if rule else None,
             # Live — whether the running automation engine currently has this
             # unit solar-boosted (#554), not a persisted field.
-            "boost_active": automation.get_boost_active(d.unit_id),
+            "boost_active": boost_active,
+            # Signed delta actually applied while boosting (#575) — negative
+            # when cooling, positive when heating; None when not boosting.
+            "boost_delta_c": boost_delta_c,
         },
         "schedule": _schedule_summary(schedule_entries),
     }

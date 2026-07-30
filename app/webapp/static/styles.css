@@ -836,12 +836,17 @@ button, input, select, textarea {
   color: var(--accent);
 }
 /* Live "currently boosted" pill (#554) — background automation state, same
-   pill shape as .unit-offline-badge but in the accent color (not a warning). */
+   pill shape as .unit-offline-badge but in the accent color (not a warning).
+   min-height matches .unit-room/.unit-rule-target .value (issue #575) so the
+   pill's own bottom edge — which .unit-readings' flex-end aligns against —
+   lands at the same y as those value boxes, keeping the pill text centered
+   on the same line as the Room/Rule temperature text instead of floating low. */
 .unit-boost-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   align-self: flex-end;
+  min-height: 28px;
   padding: 2px 7px;
   border: 1px solid var(--accent-border-soft);
   border-radius: var(--radius-pill);
