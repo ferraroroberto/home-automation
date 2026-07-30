@@ -34,11 +34,33 @@ const DEFAULT_PERFORMANCE_RATIO = 0.8;
 const DEFAULT_TILT_DEG = 30;
 
 // Called after any successful save so the forecast curve/headline/params line
-// re-read the config they were computed from. Registered by ./energy.js.
+// re-read the config they were computed from. Registered by ./energy.js and
+// resolves with the recomputed day estimate (or null) for the save toast.
 let onSaved = function () {};
 
 export function setPvSystemSavedHook(fn) {
   onSaved = typeof fn === 'function' ? fn : function () {};
+}
+
+// A save must always end in a toast — if the forecast refetch hangs or
+// rejects, race it against a timeout so the confirmation still fires with the
+// plain fallback text (issue #564) rather than never appearing.
+const SAVED_ESTIMATE_TIMEOUT_MS = 4000;
+
+function safeOnSaved() {
+  return Promise.race([
+    Promise.resolve().then(onSaved).catch(function () { return null; }),
+    new Promise(function (resolve) {
+      setTimeout(function () { resolve(null); }, SAVED_ESTIMATE_TIMEOUT_MS);
+    }),
+  ]);
+}
+
+// Appends the recomputed day estimate to a save confirmation, e.g.
+// "PV system saved · today's estimate 55.2 kWh" — shared by all three save
+// paths (row editor, performance ratio, coordinates) so they can't drift.
+function withEstimateSuffix(base, total) {
+  return total != null ? base + " · today's estimate " + total + ' kWh' : base;
 }
 
 // ------------------------------------------------------ shared formatting
@@ -221,7 +243,10 @@ const arrayEditor = denseListEditor({
     title: 'Delete this panel row?',
     message: 'The forecast will stop counting these panels.',
   },
-  toasts: { saved: 'PV system saved', failed: "Couldn't save the PV system" },
+  toasts: {
+    saved: function (total) { return withEstimateSuffix('PV system saved', total); },
+    failed: "Couldn't save the PV system",
+  },
   defaults: arrayDefaults,
   getEntries: function () { return state.pvArrays; },
   setEntries: function (entries) { state.pvArrays = entries; },
@@ -267,7 +292,7 @@ const arrayEditor = denseListEditor({
   },
   endpoint: '/api/energy/pv-system',
   bodyKey: 'arrays',
-  afterSave: function () { onSaved(); },
+  afterSave: function () { return safeOnSaved(); },
 });
 
 function renderAzimuthEcho() {
@@ -300,8 +325,8 @@ async function savePerformanceRatio() {
       }),
     });
     state.pvPerformanceRatio = (body && body.performance_ratio) || ratio;
-    toast('PV system saved', 'success');
-    onSaved();
+    const total = await safeOnSaved();
+    toast(withEstimateSuffix('PV system saved', total), 'success');
   } catch (exc) {
     els.pvPerformanceRatio.value = state.pvPerformanceRatio;
     if (String(exc.message) !== 'auth required') {
@@ -326,8 +351,8 @@ async function savePvLocation() {
   if (Number(home.lat) === lat && Number(home.lon) === lon) return;
   try {
     await putLocation({ lat: lat, lon: lon, label: (home.label || '').trim() });
-    toast('Location saved', 'success');
-    onSaved();
+    const total = await safeOnSaved();
+    toast(withEstimateSuffix('Location saved', total), 'success');
   } catch (exc) {
     if (String(exc.message) !== 'auth required') {
       toast("Couldn't save the location", 'error');

@@ -432,6 +432,8 @@ function forecastParamsLine(sys) {
   return parts + ' · PR ' + Number(sys.performance_ratio).toFixed(2);
 }
 
+// Returns the rendered day estimate ("12.3") so a save confirmation can carry
+// it, or null when there is nothing to show (unavailable / missing total).
 function renderForecast(body) {
   const available = !!(body && body.available);
   els.forecastEmpty.hidden = available;
@@ -442,21 +444,23 @@ function renderForecast(body) {
     els.forecastMeta.textContent = '';
     els.forecastParams.textContent = '';
     if (state.forecastChart) setForecastData(state.forecastChart, [], null);
-    return;
+    return null;
   }
   if (state.forecastChart) setForecastData(state.forecastChart, body.expected, body.actual);
-  const total = body.expected_total_kwh != null ? Number(body.expected_total_kwh).toFixed(1) : '—';
-  els.forecastHeadline.textContent = 'Expected generation +' + total + ' kWh';
+  const total = body.expected_total_kwh != null ? Number(body.expected_total_kwh).toFixed(1) : null;
+  els.forecastHeadline.textContent = 'Expected generation +' + (total != null ? total : '—') + ' kWh';
   els.forecastMeta.textContent = body.actual ? '· estimate vs actual' : '· estimate';
   els.forecastParams.textContent = forecastParamsLine(body.system);
+  return total;
 }
 
 async function loadForecast(day) {
   try {
     const body = await jsonApi('/api/energy/forecast?day=' + encodeURIComponent(day));
-    renderForecast(body);
+    return renderForecast(body);
   } catch (_) {
     els.forecastEmpty.hidden = false;
+    return null;
   }
 }
 
@@ -513,8 +517,9 @@ export function wireEnergyControls() {
     btn.addEventListener('click', function () { setForecastDay(btn.dataset.day); });
   });
   // Editing the array/coordinates changes what the forecast is computed from,
-  // so every successful save re-reads the curve for the day on screen.
-  setPvSystemSavedHook(function () { loadForecast(state.forecastDay); });
+  // so every successful save re-reads the curve for the day on screen — and
+  // the resolved estimate feeds the save toast (issue #564).
+  setPvSystemSavedHook(function () { return loadForecast(state.forecastDay); });
   wirePvSystem();
   wireBoostCoordinator();
 }
