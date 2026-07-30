@@ -38,10 +38,11 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     close_buttons = page.locator(".detail-close")
     # 15 + the two presence dialogs (#438) + the network device-group rename
     # dialog (#513) + the reminder editor dialog (#314) + the Wi-Fi walk-test
-    # device picker (#547); the HA capabilities help left the census when #461
-    # made it a folded subsection instead of a modal.
-    expect(close_buttons).to_have_count(20)
-    expect(page.locator(".detail-close.hit-target")).to_have_count(20)
+    # device picker (#547) + the PV-array editor dialog (#pvArrayDialog, #561);
+    # the HA capabilities help left the census when #461 made it a folded
+    # subsection instead of a modal.
+    expect(close_buttons).to_have_count(21)
+    expect(page.locator(".detail-close.hit-target")).to_have_count(21)
 
     target = effective_rect(page.locator("#detailClose"))
     # Exact compact-control contract: 34px visual box, 44px effective hit area.
