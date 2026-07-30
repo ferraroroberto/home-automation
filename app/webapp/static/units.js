@@ -143,6 +143,17 @@ function fmtTemp(v) {
   return v == null ? '—' : Number(v).toFixed(1) + '°';
 }
 
+// Signed boost offset for the pill (#575) — e.g. "-2" while cooling, "+1.5"
+// while heating. Trims a whole-number offset to "-2" rather than "-2.0" to
+// stay compact; the sign itself always comes from the server's boost_delta_c,
+// never re-derived from operation_mode here.
+function fmtBoostDelta(v) {
+  const rounded = Math.round(v * 10) / 10;
+  const abs = Math.abs(rounded);
+  const magnitude = Number.isInteger(abs) ? String(abs) : abs.toFixed(1);
+  return (rounded < 0 ? '-' : '+') + magnitude;
+}
+
 function fanLabel(v) {
   const labels = { One: '1', Two: '2', Three: '3', Four: '4', Five: '5' };
   return labels[v] || v || '—';
@@ -308,11 +319,16 @@ function renderCardInto(card, unit) {
   }
 
   // Live "currently boosted" indicator (#554) — background automation state,
-  // not user-initiated, so it renders inline rather than as a toast.
-  if ((unit.temperature_rule || {}).boost_active) {
+  // not user-initiated, so it renders inline rather than as a toast. The
+  // signed delta (#575) makes the Rule → Set-to math legible at a glance.
+  const boostRule = unit.temperature_rule || {};
+  if (boostRule.boost_active) {
     const boost = document.createElement('div');
     boost.className = 'unit-boost-badge';
-    boost.innerHTML = icon('sun', 'unit-boost-icon') + '<span>Boost</span>';
+    const label = boostRule.boost_delta_c == null
+      ? 'Boost'
+      : 'Boost ' + fmtBoostDelta(boostRule.boost_delta_c);
+    boost.innerHTML = icon('sun', 'unit-boost-icon') + '<span>' + label + '</span>';
     readings.appendChild(boost);
   }
 

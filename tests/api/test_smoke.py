@@ -122,6 +122,64 @@ def test_units_route_reports_unreachable_unit(
     assert resp.json()["units"][0]["reachable"] is False
 
 
+@pytest.mark.parametrize(
+    "operation_mode,cool_target,heat_target,expected_delta",
+    [
+        ("Cool", 27.0, None, -2.0),
+        ("Heat", None, 21.0, 2.0),
+    ],
+)
+def test_units_route_reports_signed_boost_delta(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    operation_mode: str,
+    cool_target,
+    heat_target,
+    expected_delta: float,
+) -> None:
+    """``boost_delta_c`` is negative while cooling, positive while heating (#575).
+
+    Reuses the same ``boosted_target()`` the automation engine applies, so the
+    sign can never drift from what is actually being written to the unit.
+    """
+    from src.hvac_automation import TempRule
+
+    fake = DeviceInfo(
+        unit_id="unit-boost",
+        name="Fixture Boost",
+        building="Fixture",
+        power=True,
+        operation_mode=operation_mode,
+        room_temperature=22.0,
+        set_temperature=24.0,
+        fan_speed="Auto",
+    )
+
+    async def fake_fetch_devices() -> List[DeviceInfo]:
+        return [fake]
+
+    monkeypatch.setattr("app.webapp.routers.units.fetch_devices", fake_fetch_devices)
+    monkeypatch.setattr(
+        "app.webapp.routers.units.load_rules",
+        lambda: {
+            "unit-boost": TempRule(
+                enabled=True,
+                cool_target=cool_target,
+                heat_target=heat_target,
+                boost_enabled=True,
+                boost_offset_c=2.0,
+            )
+        },
+    )
+    monkeypatch.setattr("app.webapp.routers.units.automation.get_boost_active", lambda _uid: True)
+
+    resp = client.get("/api/units")
+    assert resp.status_code == 200
+    rule = resp.json()["units"][0]["temperature_rule"]
+    assert rule["boost_active"] is True
+    assert rule["boost_delta_c"] == expected_delta
+
+
 def test_energy_route_runs_with_monkeypatched_cloud(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
