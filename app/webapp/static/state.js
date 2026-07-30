@@ -121,6 +121,10 @@ export const state = {
   // the file itself stores a plain list.
   pvArrays: [],
   pvPerformanceRatio: 0.8,
+  // Fleet solar-boost sequencing knobs, from GET/PUT
+  // /api/hvac/boost-coordinator (issue #562). Seconds/watts on the wire exactly
+  // as stored; only the settle interval is *rendered* in minutes.
+  boostCoord: null,
   // Wake alarms (recurring/one-shot) from GET /api/wake-alarms, and app-native
   // countdown timers from GET /api/wake-timers (issue #304). Distinct from the
   // RISCO `security` alarm above — these ring/notify, they don't arm/disarm.
@@ -651,6 +655,12 @@ export const els = {
   pvArrayAzimuthEcho: document.getElementById('pvArrayAzimuthEcho'),
   pvArrayDelete: document.getElementById('pvArrayDelete'),
   pvArraySave: document.getElementById('pvArraySave'),
+  // Energy tab: fleet solar-boost sequencing knobs (issue #562)
+  boostCoordSummary: document.getElementById('boostCoordSummary'),
+  boostSettleMin: document.getElementById('boostSettleMin'),
+  boostAdmissionMargin: document.getElementById('boostAdmissionMargin'),
+  boostHardDeficit: document.getElementById('boostHardDeficit'),
+  boostOrderingPolicy: document.getElementById('boostOrderingPolicy'),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

@@ -27,6 +27,7 @@ import { createViewState } from './view-state.js';
 import {
   arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
 } from './pv-system.js';
+import { loadBoostCoordinator, wireBoostCoordinator } from './boost-coordinator.js';
 
 const LIVE_MS = 5_000;
 const SLOW_MS = 30_000;
@@ -515,6 +516,7 @@ export function wireEnergyControls() {
   // so every successful save re-reads the curve for the day on screen.
   setPvSystemSavedHook(function () { loadForecast(state.forecastDay); });
   wirePvSystem();
+  wireBoostCoordinator();
 }
 
 // --------------------------------------------------------- cadence + tabs
@@ -534,6 +536,7 @@ export function onEnergyTab(tab) {
     loadCost(state.costRange);  // cost & savings breakdown table
     loadForecast(state.forecastDay);  // solar expected-generation forecast
     loadPvSystem();        // the array config that forecast is computed from
+    loadBoostCoordinator();  // fleet solar-boost sequencing knobs (#562)
     loadEnergy();          // immediate refresh on entry
     loadToday();           // today's split cards + savings
     schedule(LIVE_MS);

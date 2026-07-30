@@ -20,10 +20,15 @@ from app.webapp import automation
 from app.webapp.routers._helpers import make_display_name_endpoint
 from src.display_names import load_display_names, set_display_name
 from src.hvac_automation import (
+    MIN_SETTLE_INTERVAL_S,
+    ORDERING_POLICIES,
+    BoostCoordinatorConfig,
     ScheduleEntry,
     TempRule,
+    load_boost_config,
     load_rules,
     load_schedules,
+    save_boost_config,
     set_rule,
     set_schedules,
     target_for_mode,
@@ -329,6 +334,98 @@ async def update_rule(unit_id: str, payload: RulePayload) -> Dict[str, Any]:
         "boost_enabled": rule.boost_enabled,
         "boost_offset_c": rule.boost_offset_c,
     }
+
+
+# ------------------------------------------------- solar-boost coordinator
+# The fleet-level knobs sequencing solar boost across units (issue #562). Fleet
+# -wide rather than per-unit, so the path is ``/api/hvac/...`` and not under
+# ``/api/units/{id}`` — but it stays in this router because this is where HVAC
+# rule/schedule config already lives. Its editor is a card on the **Energy tab**
+# (next to the PV-system card from #561): boost is a solar-load-balancing
+# concern, and that is the tab a user tunes solar behaviour on.
+#
+# Deliberately a JSON store re-read per tick, not `.env`: the `HVAC_BOOST_*`
+# hysteresis knobs are frozen into `AutomationConfig` at start-up and cannot
+# change without a tray restart. These can.
+
+
+class BoostCoordinatorPayload(BaseModel):
+    """Coordinator knobs as the editor sends them.
+
+    Every field is optional so a card that saves one row on blur doesn't have to
+    restate the others; an omitted field keeps its stored value.
+    """
+
+    settle_interval_s: Optional[int] = None
+    admission_margin_w: Optional[float] = None
+    hard_deficit_w: Optional[float] = None
+    ordering_policy: Optional[str] = None
+
+
+def _boost_coordinator_payload(config: BoostCoordinatorConfig) -> Dict[str, Any]:
+    """Flatten the config plus the bounds the editor renders its inputs from."""
+    return {
+        "settle_interval_s": config.settle_interval_s,
+        "admission_margin_w": config.admission_margin_w,
+        "hard_deficit_w": config.hard_deficit_w,
+        "ordering_policy": config.ordering_policy,
+        # Served rather than duplicated in the frontend: the floor exists for a
+        # physical reason (the solar meter's publish cadence), so the input's
+        # `min` must track the backend's, not a hand-copied constant.
+        "min_settle_interval_s": MIN_SETTLE_INTERVAL_S,
+        "ordering_policies": list(ORDERING_POLICIES),
+    }
+
+
+@router.get("/api/hvac/boost-coordinator")
+async def get_boost_coordinator() -> Dict[str, Any]:
+    """The fleet solar-boost sequencing knobs (issue #562).
+
+    Always 200: an absent or malformed file means "defaults", never a 500 — the
+    engine has to keep running off a hand-broken config.
+    """
+    return _boost_coordinator_payload(load_boost_config())
+
+
+@router.put("/api/hvac/boost-coordinator")
+async def update_boost_coordinator(payload: BoostCoordinatorPayload) -> Dict[str, Any]:
+    """Replace the coordinator knobs, writing ``config/hvac_boost.json`` atomically.
+
+    Strict, unlike the read path: an out-of-range value is a 400 naming the field
+    (notably a settle interval under the 5-minute floor), never a silent clamp.
+    The engine re-reads the file on its next tick — no restart.
+    """
+    stored = load_boost_config()
+    config = BoostCoordinatorConfig(
+        settle_interval_s=(
+            stored.settle_interval_s
+            if payload.settle_interval_s is None
+            else payload.settle_interval_s
+        ),
+        admission_margin_w=(
+            stored.admission_margin_w
+            if payload.admission_margin_w is None
+            else payload.admission_margin_w
+        ),
+        hard_deficit_w=(
+            stored.hard_deficit_w
+            if payload.hard_deficit_w is None
+            else payload.hard_deficit_w
+        ),
+        ordering_policy=(
+            stored.ordering_policy
+            if payload.ordering_policy is None
+            else payload.ordering_policy
+        ),
+    )
+    try:
+        save_boost_config(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save boost coordinator: %s", exc)
+        raise HTTPException(status_code=500, detail=f"failed to save: {exc}")
+    return _boost_coordinator_payload(config)
 
 
 @router.get("/api/units/{unit_id}/schedule")
