@@ -41,6 +41,13 @@ Dual projection: when ``--browser`` isn't passed the suite runs in two
 projections — **Chromium desktop** and **WebKit projected onto an iPhone
 14** (the iOS Mobile Safari engine family), so phone regressions surface
 on Windows. A test marked ``desktop_only`` opts out of the WebKit run.
+
+``pytest_sessionfinish`` runs the vendor-verbatim leaked-browser-helper
+sweep (``tests/e2e/_browser_sweep.py``, project-scaffolding #203/#204)
+once the whole session — fixtures included — has torn down, so a run that
+orphaned a WebKit helper reclaims it *while it is still killable*, instead
+of leaving one pinning this checkout's directory (which is what makes a
+later ``git worktree remove`` fail as "busy").
 """
 
 from __future__ import annotations
@@ -68,6 +75,7 @@ import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, Route, sync_playwright
 
 from app.webapp.event_loop import LOOP_FACTORY
+from tests.e2e._browser_sweep import sweep_browser_helpers
 from tests.e2e._e2e_live_guard import require_disposable_instance
 
 logger = logging.getLogger(__name__)
@@ -312,6 +320,28 @@ def pytest_configure(config: pytest.Config) -> None:
     if not selected:
         selected.extend(["chromium", "webkit"])
     _reap_orphaned_webkit_zombies()
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Sweep browser helpers this run orphaned inside *this* checkout (#583).
+
+    A session hook, not a fixture finalizer: it must run after *every*
+    fixture — including the session-scoped ``playwright``/``browser``
+    fixtures above — has already torn down, or the sweep would be looking at
+    a browser that is still legitimately running. The scope path is the only
+    call-site argument, so ``_browser_sweep.py`` stays byte-identical to
+    project-scaffolding's copy.
+
+    Advisory by design: it reports and never touches ``exitstatus``, because
+    an already-exited handle-held zombie is unkillable and is not a test
+    failure (see ``_browser_sweep``'s module docstring for why those exist,
+    and why nothing is ever killed by image name alone — Chromium is
+    deliberately out of the sweep set).
+    """
+    result = sweep_browser_helpers(_REPO_ROOT)
+    print(f"\n{result.summary()}")
+    for entry in result.killed:
+        print(f"  reclaimed leaked helper: {entry}")
 
 
 @pytest.fixture(scope="session")
