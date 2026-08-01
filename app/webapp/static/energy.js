@@ -20,6 +20,7 @@ import {
   createLiveChart, setLiveData, pushLivePoint,
   createAggChart, setAggData, restyle,
   createForecastChart, setForecastData, restyleForecast,
+  createSunOverlayChart, setSunOverlayData, restyleSunOverlay,
 } from './charts.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
@@ -483,6 +484,107 @@ function setForecastDay(day) {
   loadForecast(day);
 }
 
+// ------------------------------------------- sun-position diagnostic (#590)
+// Read-only companion to the forecast card: the day's measured performance
+// ratio against where the sun actually was. Folded away by default, and only
+// loaded once opened — it costs an extra irradiance read, and it answers an
+// occasional question rather than a glanceable one.
+const SUN_OVERLAY_NOTES = {
+  not_configured: 'Add your panel rows in the PV system card below.',
+  no_location: 'Set the home coordinates in the PV system card below.',
+  too_old: 'Irradiance history only reaches back about three months.',
+};
+
+// Today in the browser's own local date, which is the day the hourly rollups
+// are framed by. toISOString() would be UTC and could name yesterday.
+function localIsoDate(d) {
+  const dt = d || new Date();
+  return [
+    dt.getFullYear(),
+    ('0' + (dt.getMonth() + 1)).slice(-2),
+    ('0' + dt.getDate()).slice(-2),
+  ].join('-');
+}
+
+function plural(n, noun) {
+  return n + ' ' + noun + (n === 1 ? '' : 's');
+}
+
+// Named, never merely absent: an hour silently dropped would leave the day
+// looking better-measured than it was — the same class of quiet error the
+// overlay exists to avoid making about shading.
+function sunOverlayNote(body) {
+  const parts = [plural((body.points || []).length, 'hour') + ' plotted'];
+  const short = Number(body.excluded_coverage) || 0;
+  const absent = Number(body.excluded_no_data) || 0;
+  if (short) parts.push(plural(short, 'hour') + ' excluded — feed coverage too short');
+  if (absent) parts.push(plural(absent, 'daylight hour') + ' never measured');
+  return parts.join(' · ');
+}
+
+function renderSunOverlay(body) {
+  const available = !!(body && body.available);
+  const points = available ? (body.points || []) : [];
+  if (state.sunOverlayChart) {
+    setSunOverlayData(state.sunOverlayChart, points, body && body.modelled_pr);
+  }
+  if (!available) {
+    els.sunOverlayEmpty.hidden = false;
+    els.sunOverlayEmpty.textContent =
+      SUN_OVERLAY_NOTES[body && body.reason] || 'Sun-position diagnostic is unavailable right now.';
+    els.sunOverlayNote.textContent = '';
+    els.sunOverlayCount.textContent = '—';
+    return;
+  }
+  els.sunOverlayEmpty.hidden = points.length > 0;
+  els.sunOverlayEmpty.textContent = 'No measured hours for this day.';
+  els.sunOverlayNote.textContent = sunOverlayNote(body);
+  els.sunOverlayCount.textContent = points.length
+    ? points.length + ' h'
+    : '—';
+}
+
+async function loadSunOverlay(day) {
+  if (!els.sunOverlayCard) return;
+  try {
+    const body = await jsonApi('/api/energy/sun-overlay?date=' + encodeURIComponent(day));
+    renderSunOverlay(body);
+  } catch (_) {
+    renderSunOverlay(null);
+  }
+}
+
+function ensureSunOverlay() {
+  if (!els.sunOverlayChart) return;
+  // Created on first open, not on tab entry: a canvas inside a closed
+  // <details> has no layout box, so Chart.js would size it to zero.
+  if (!state.sunOverlayChart) {
+    state.sunOverlayChart = createSunOverlayChart(els.sunOverlayChart);
+  }
+  if (!state.sunOverlayDate) {
+    state.sunOverlayDate = localIsoDate();
+    els.sunOverlayDate.value = state.sunOverlayDate;
+  }
+  // Re-stamped here, not only at wiring time: an installed PWA can sit open
+  // across midnight, after which yesterday's ceiling would reject today.
+  els.sunOverlayDate.max = localIsoDate();
+  loadSunOverlay(state.sunOverlayDate);
+}
+
+function wireSunOverlay() {
+  if (!els.sunOverlayCard) return;
+  els.sunOverlayDate.max = localIsoDate();
+  els.sunOverlayCard.addEventListener('toggle', function () {
+    if (els.sunOverlayCard.open) ensureSunOverlay();
+  });
+  els.sunOverlayDate.addEventListener('change', function () {
+    const day = els.sunOverlayDate.value;
+    if (!day) return;
+    state.sunOverlayDate = day;
+    loadSunOverlay(day);
+  });
+}
+
 // --------------------------------------------------------------- charts
 function ensureCharts() {
   if (!state.liveChart) state.liveChart = createLiveChart(els.liveChart);
@@ -532,6 +634,7 @@ export function wireEnergyControls() {
   // the resolved estimate feeds the save toast (issue #564).
   setPvSystemSavedHook(function () { return loadForecast(state.forecastDay); });
   wirePvSystem();
+  wireSunOverlay();
   wireBoostCoordinator();
 }
 
@@ -552,6 +655,9 @@ export function onEnergyTab(tab) {
     loadCost(state.costRange);  // cost & savings breakdown table
     loadForecast(state.forecastDay);  // solar expected-generation forecast
     loadPvSystem();        // the array config that forecast is computed from
+    // The sun-position diagnostic refreshes only while it is open (#590) —
+    // closed, it costs nothing.
+    if (els.sunOverlayCard && els.sunOverlayCard.open) ensureSunOverlay();
     loadBoostCoordinator();  // fleet solar-boost sequencing knobs (#562)
     loadEnergy();          // immediate refresh on entry
     loadToday();           // today's split cards + savings
@@ -568,4 +674,5 @@ export function restyleEnergyCharts() {
   restyle(state.liveChart, 'W');
   restyle(state.aggChart, 'kWh');
   restyleForecast(state.forecastChart);
+  restyleSunOverlay(state.sunOverlayChart);
 }

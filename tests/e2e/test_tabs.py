@@ -859,6 +859,96 @@ def test_a_feed_outage_is_visible_as_an_outage_not_a_collapse(
     assert marks["dashedAtGood"] == "undefined"
 
 
+def test_sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """#590: the divergence is readable as geometry, and gaps are never plotted.
+
+    Asserted where a user would see it: the card is folded away and costs
+    nothing until opened, the measured points land at their sun azimuths beside
+    the flat modelled reference, and the hours the feed only partly reached are
+    named in the note rather than quietly drawn as a low performance ratio.
+    """
+    points = [
+        {"hour": 11, "azimuth_deg": 165.0, "elevation_deg": 62.0,
+         "effective_pr": 0.785, "actual_wh": 3140.0, "expected_wh": 3200.0,
+         "gti_w_m2": 800.0, "coverage": 0.98},
+        {"hour": 15, "azimuth_deg": 245.0, "elevation_deg": 41.0,
+         "effective_pr": 0.551, "actual_wh": 1500.0, "expected_wh": 2180.0,
+         "gti_w_m2": 545.0, "coverage": 0.98},
+        {"hour": 17, "azimuth_deg": 285.0, "elevation_deg": 22.0,
+         "effective_pr": 0.178, "actual_wh": 260.0, "expected_wh": 1170.0,
+         "gti_w_m2": 292.0, "coverage": 0.98},
+    ]
+    mock_api(sample_units)
+    mock_energy(sun_overlay={
+        "points": points,
+        "excluded": [{"hour": 9, "reason": "coverage"},
+                     {"hour": 10, "reason": "coverage"},
+                     {"hour": 19, "reason": "no_data"}],
+        "excluded_coverage": 2,
+        "excluded_no_data": 1,
+        "modelled_pr": 0.8,
+    })
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+
+    card = page.locator("#sunOverlayCard")
+    # Folded away by default — nothing is fetched or drawn until asked for.
+    expect(card).not_to_have_attribute("open", "")
+    assert page.evaluate(
+        "() => !Chart.getChart(document.querySelector('#sunOverlayChart'))"
+    )
+
+    card.locator("summary").click()
+    page.wait_for_function(
+        "() => Chart.getChart(document.querySelector('#sunOverlayChart'))"
+        "?.data.datasets[0].data.length === 3"
+    )
+
+    plotted = page.evaluate(
+        "() => {"
+        "  const c = Chart.getChart(document.querySelector('#sunOverlayChart'));"
+        "  return {"
+        "    measured: c.data.datasets[0].data.map(p => [p.x, p.y]),"
+        "    modelled: c.data.datasets[1].data.map(p => [p.x, p.y]),"
+        "  };"
+        "}"
+    )
+    # The measured points sit at their own sun azimuths, falling away as the sun
+    # moves west — the signature the card exists to make self-service.
+    assert plotted["measured"] == [[165, 0.785], [245, 0.551], [285, 0.178]]
+    # …against one flat modelled reference spanning the plotted azimuths.
+    assert plotted["modelled"] == [[165, 0.8], [285, 0.8]]
+
+    # The dropped hours are named, not silently absent — and the two kinds are
+    # told apart, because a partly-covered hour and a never-measured one mean
+    # different things to whoever is reading the day.
+    note = page.locator("#sunOverlayNote")
+    expect(note).to_contain_text("3 hours plotted")
+    expect(note).to_contain_text("2 hours excluded — feed coverage too short")
+    expect(note).to_contain_text("1 daylight hour never measured")
+    expect(page.locator("#sunOverlayEmpty")).to_be_hidden()
+
+
+def test_sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """A day the app was not running for has no rollups — that is not an error."""
+    mock_api(sample_units)
+    mock_energy(sun_overlay={"points": [], "excluded": [], "excluded_coverage": 0})
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+    page.locator("#sunOverlayCard summary").click()
+
+    empty = page.locator("#sunOverlayEmpty")
+    expect(empty).to_be_visible()
+    expect(empty).to_contain_text("No measured hours")
+    expect(page.locator("#sunOverlayNote")).to_contain_text("0 hours plotted")
+
+
 def test_security_tab_shows_loading_before_first_result(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,

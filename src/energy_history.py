@@ -73,7 +73,12 @@ _HOUR = 3600
 # hour reconstructed from the cloud's 5-minute series at 3300/3600 = 0.917.
 # 0.75 clears both with room for a couple of dropped cloud buckets, while still
 # catching the reported outage hours (0.25 and 0.50 coverage).
-_MIN_TRUSTED_COVERAGE = 0.75
+#
+# Public, because the sun-position diagnostic (#590) has to draw the same line
+# between a measurement and an under-measurement — an under-covered hour there
+# reads as *shading*, which is exactly the conclusion it exists to support. One
+# threshold, one home; never re-derived at a call site.
+MIN_TRUSTED_COVERAGE = 0.75
 
 # …and how much of an hour must have *elapsed* before its coverage is judged at
 # all. At the top of the hour the elapsed window is zero, so every ratio is 0/0:
@@ -480,7 +485,7 @@ def _mark_hourly_coverage(
     like an outage for 59 minutes.
 
     ``pv_gap`` is the actionable flag: the hour has some PV data but not enough
-    of it (:data:`_MIN_TRUSTED_COVERAGE`) for its Wh to be a measurement. Three
+    of it (:data:`MIN_TRUSTED_COVERAGE`) for its Wh to be a measurement. Three
     kinds of hour are deliberately excluded from it, each verified against the
     2026-07-30 history the issue was filed from:
 
@@ -510,7 +515,7 @@ def _mark_hourly_coverage(
             bool(b["pv_n"])
             and (b.get("pv_wh") or 0.0) > 0
             and window >= _MIN_COVERAGE_WINDOW_S
-            and coverage < _MIN_TRUSTED_COVERAGE
+            and coverage < MIN_TRUSTED_COVERAGE
         )
     return buckets
 

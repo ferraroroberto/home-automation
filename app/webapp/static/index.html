@@ -912,6 +912,33 @@
         <p id="forecastEmpty" class="muted small chart-empty" hidden>Add your panel rows in the PV system card below to enable the forecast.</p>
       </section>
 
+      <!-- Sun-position diagnostic — the day's measured performance ratio
+           plotted against where the sun actually was, beside the modelled
+           ratio (issue #590). Read-only and folded away by default: it
+           answers "is the afternoon drop-off shading or weather?", which is
+           an occasional question, not a glanceable one. Collapsed also means
+           its extra irradiance read only happens when someone opens it. -->
+      <details class="card card--collapsible sun-overlay-card" id="sunOverlayCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+            <h3 class="collapse-title">Sun-position diagnostic</h3>
+            <span id="sunOverlayCount" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="sun-overlay-body">
+          <p class="muted small">Measured performance ratio per hour against the sun's azimuth. A dip that lands at the same azimuth every day is fixed shading; one that moves with the clock is weather. Hours the feed only partly reached are left out — a gap would read as shade.</p>
+          <label class="row">
+            <span>Day</span>
+            <input id="sunOverlayDate" type="date" class="input-native">
+          </label>
+          <div class="chart-wrap chart-wrap-forecast"><canvas id="sunOverlayChart"></canvas></div>
+          <p class="muted small" id="sunOverlayNote"></p>
+          <p id="sunOverlayEmpty" class="muted small chart-empty" hidden>No measured hours for this day.</p>
+        </div>
+      </details>
+
       <!-- PV system — the array the forecast above is computed from (issue
            #561). Dense-collection editor: one summary row per physically-
            uniform panel row, edited in a staged dialog; the system-level

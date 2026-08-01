@@ -11,7 +11,9 @@ Source & model (deliberately self-contained, approximate):
 * One keyless Open-Meteo call **per sub-array** (the same host the weather tile
   already uses), asking for ``global_tilted_irradiance`` at that sub-array's
   tilt + azimuth across ``past_days=1`` … ``forecast_days=2`` so all three days
-  come back in a single request per sub-array. Open-Meteo's tilt/azimuth params
+  come back in a single request per sub-array. (:func:`fetch_pv_forecast_for_date`
+  widens ``past_days`` for the read-only sun-position diagnostic, issue #590 —
+  the three named days always resolve to ``past_days=1``.) Open-Meteo's tilt/azimuth params
   don't support batching multiple orientations in one call (issue #555), so a
   multi-orientation array fires one request per sub-array, concurrently, over a
   shared session.
@@ -52,6 +54,11 @@ _TIMEOUT_S = 8.0
 # Day selector → offset from today's local date.
 _DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
 
+# How far back Open-Meteo's forecast endpoint will serve ``past_days``. Beyond
+# this the request is refused upstream, so a deeper day is reported unavailable
+# here rather than turned into a network error the caller has to interpret.
+MAX_PAST_DAYS = 92
+
 
 @dataclass
 class PvForecast:
@@ -72,16 +79,26 @@ def _unavailable(day: str, reason: str) -> PvForecast:
 
 
 async def _fetch_array_gti(
-    session: aiohttp.ClientSession, location: LocationConfig, array: PvArray
+    session: aiohttp.ClientSession,
+    location: LocationConfig,
+    array: PvArray,
+    past_days: int = 1,
 ) -> Dict[str, Any]:
-    """One Open-Meteo hourly-GTI request for a single sub-array's orientation."""
+    """One Open-Meteo hourly-GTI request for a single sub-array's orientation.
+
+    ``past_days`` is widened only when a caller asks for a day older than
+    yesterday (the read-only sun-position diagnostic, issue #590). The three
+    named days all resolve to ``past_days=1``, so the forecast card's request —
+    and therefore its answer — is byte-for-byte what it was before that
+    diagnostic existed.
+    """
     params = {
         "latitude": location.lat,
         "longitude": location.lon,
         "hourly": "global_tilted_irradiance",
         "tilt": array.tilt_deg,
         "azimuth": array.azimuth_deg,
-        "past_days": 1,
+        "past_days": past_days,
         "forecast_days": 2,
         "timezone": "auto",
     }
@@ -107,6 +124,36 @@ async def fetch_pv_forecast(
     if day not in _DAY_OFFSETS:
         raise ValueError(f"unknown day: {day!r}")
 
+    base = today or datetime.now().date()
+    return await fetch_pv_forecast_for_date(
+        base + timedelta(days=_DAY_OFFSETS[day]),
+        label=day,
+        system=system,
+        location=location,
+        today=base,
+    )
+
+
+async def fetch_pv_forecast_for_date(
+    target_day: date,
+    *,
+    label: Optional[str] = None,
+    system: Optional[PvSystemConfig] = None,
+    location: Optional[LocationConfig] = None,
+    today: Optional[date] = None,
+) -> PvForecast:
+    """The same curve as :func:`fetch_pv_forecast`, for an arbitrary date.
+
+    The named-day API above is the forecast card's entry point and stays the
+    canonical one; this is what the read-only sun-position diagnostic (issue
+    #590) calls to reach a day further back than "yesterday". The model is
+    identical — only how far back the irradiance request reaches differs.
+
+    ``label`` is what the result reports as its ``day`` (the ISO date by
+    default), so the named-day caller keeps reporting "yesterday".
+    """
+    day = label or target_day.isoformat()
+
     system = system or load_pv_system_config()
     if system is None:
         return _unavailable(day, "not_configured")
@@ -115,13 +162,21 @@ async def fetch_pv_forecast(
     if location is None:
         return _unavailable(day, "no_location")
 
-    target_day = (today or datetime.now().date()) + timedelta(days=_DAY_OFFSETS[day])
+    # One past day is always requested (the forecast card's yesterday tab); a
+    # deeper target widens the window and nothing else.
+    delta_days = (target_day - (today or datetime.now().date())).days
+    past_days = max(1, -delta_days)
+    if past_days > MAX_PAST_DAYS:
+        return _unavailable(day, "too_old")
 
     try:
         timeout = aiohttp.ClientTimeout(total=_TIMEOUT_S)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             responses = await asyncio.gather(
-                *(_fetch_array_gti(session, location, array) for array in system.arrays)
+                *(
+                    _fetch_array_gti(session, location, array, past_days)
+                    for array in system.arrays
+                )
             )
     except Exception as exc:  # noqa: BLE001 — forecast is decorative, fail quiet
         logger.warning("⚠️ Failed to read PV forecast: %s", exc)

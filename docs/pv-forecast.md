@@ -118,3 +118,46 @@ Empirically this matters: 0.86 (the raw `1 − loss`) forecast ≈ 51 kWh for a 
 `system` echoes back the sub-array params the curve was computed from, so the card can show them in a caption (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast.
 
 Always HTTP 200: when the array/location is unconfigured or Open-Meteo is unreachable it returns `{ "available": false, "reason": … }` and the card keeps its note — the forecast is decorative, never a 500.
+
+## Reading the model back: the sun-position diagnostic (issue #590)
+
+The model above is a *forecast*. The Energy tab's folded-away **Sun-position
+diagnostic** is its mirror: it takes what was already measured and what this
+same model already predicts, and plots the ratio against where the sun actually
+was. Nothing in the model changes — that is the point of keeping it a separate
+endpoint (`GET /api/energy/sun-overlay?date=YYYY-MM-DD`) rather than another
+field on the forecast payload.
+
+**Effective performance ratio.** The quantity plotted is `actual_Wh / (kWp ·
+GTI)` — what the array really delivered per unit of plane-of-array irradiance.
+Since `expected_Wh = kWp · GTI · PR`, that denominator is already in hand:
+
+```
+effective_PR = PR · actual_Wh / expected_Wh
+```
+
+No second irradiance source, no second model. For a multi-orientation roof the
+denominator is the kWp-weighted mean GTI across sub-arrays — the same sum the
+forecast takes.
+
+**Why azimuth is the x-axis.** `performance_ratio` folds inverter, wiring,
+thermal and soiling losses into one constant, and a constant cannot describe
+shading: an obstruction bites at a *sun position*, not at a time. Plotted
+against azimuth, a fixed obstruction is a knee that lands in the same place
+every day, while weather is scatter that does not. Sun position comes from
+`src/sun_position.py` (NOAA's low-precision algorithm, stdlib-only), evaluated
+at the mid-point of each hour.
+
+**Short-coverage hours are excluded, and named.** An hour whose PV integral
+rests on only part of the hour is under-measured, not low — plotted raw it is a
+depressed performance ratio at whatever azimuth the sun happened to be at, i.e.
+a fabricated shading signature. The overlay drops any hour below
+`MIN_TRUSTED_COVERAGE` (0.75) and reports the count under the chart, so an
+absent hour reads as an absent hour. Hours with no meaningful modelled
+irradiance (night, deep twilight) are simply not plotted: nothing is wrong with
+them, and dividing by a near-zero denominator would swamp the curve.
+
+**Reach.** Hourly rollups are retained 400 days, but Open-Meteo's `past_days`
+tops out around 92; a date beyond that returns `{ "available": false, "reason":
+"too_old" }`. A date within reach that predates the app's own history is an
+*empty* overlay, not an error.

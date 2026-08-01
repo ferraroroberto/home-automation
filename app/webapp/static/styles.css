@@ -525,15 +525,18 @@ button, input, select, textarea {
    .presence-settings > .row, .schedule-editor-delete) — only the hairline
    between the system-level rows and the field-validation lines are new. */
 .pv-system-card,
+.sun-overlay-card,
 .boost-coord-card { margin-bottom: var(--gap); }
 /* The presence settings card separates its rows with grid gap; this body is a
    plain block, so the rows carry the modal's hairline + 12px 0 row padding. */
 .pv-system-body > .row,
+.sun-overlay-body > .row,
 .boost-coord-body > .row {
   padding: 12px 0;
   border-top: 1px solid var(--line-muted);
 }
 .pv-system-body > .row > span,
+.sun-overlay-body > .row > span,
 .boost-coord-body > .row > span { font-weight: 600; }
 .pv-system-note,
 .boost-coord-note { margin: 10px 0 0; }
@@ -1839,6 +1842,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .wake-alarms-body,
 .reminders-body,
 .pv-system-body,
+.sun-overlay-body,
 .boost-coord-body {
   padding: 12px 14px 14px;
 }
@@ -2256,6 +2260,7 @@ button.presence-name:hover { text-decoration: underline; }
 .ac-feedback { margin: 0 0 var(--gap); }
 .presence-settings > .row,
 .pv-system-body > .row,
+.sun-overlay-body > .row,
 .boost-coord-body > .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2265,10 +2270,12 @@ button.presence-name:hover { text-decoration: underline; }
 }
 .presence-settings > .row > span,
 .pv-system-body > .row > span,
+.sun-overlay-body > .row > span,
 .boost-coord-body > .row > span { min-width: 0; }
 .presence-settings > .row > .input-native,
 .presence-settings > .row > .toggle,
 .pv-system-body > .row > .input-native,
+.sun-overlay-body > .row > .input-native,
 .boost-coord-body > .row > .input-native {
   justify-self: end;
   box-sizing: border-box;
@@ -2288,6 +2295,11 @@ button.presence-name:hover { text-decoration: underline; }
 #locationLat,
 #locationLon {
   text-align: right;
+}
+/* A native date field renders its own dd/mm/yyyy mask, which is wider than
+   the 8.5rem numeric fields above — sized to fit rather than to match. */
+#sunOverlayDate {
+  width: 10rem;
 }
 #presenceArmMinutes,
 #presenceStaleMinutes {

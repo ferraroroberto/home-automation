@@ -706,6 +706,39 @@ input.
   returns `{available: false, reason}` with HTTP 200 — the card keeps a one-line
   note and nothing else breaks.
 
+### Sun-position diagnostic (measured vs modelled)
+
+Under the PV system card, the folded-away **Sun-position diagnostic** re-plots a
+day's *measured* performance ratio against where the sun actually was, next to
+the flat modelled ratio. It exists to answer one question — is the afternoon
+drop-off shading or weather? — from data the app already has, without deriving
+it by hand against sqlite. A dip that lands at the same **azimuth** every day is
+fixed obstruction geometry; one that moves with the clock is not.
+
+- **Read-only, and deliberately a sibling.** It changes nothing the forecast
+  predicts, and `GET /api/energy/forecast` returns exactly what it did before —
+  the diagnostic lives at its own endpoint precisely so that stays true.
+- **What it plots:** effective performance ratio per hour, `actual_Wh / (kWp ·
+  GTI)`, which falls straight out of the modelled curve as `PR · actual_Wh /
+  expected_Wh`. No second irradiance source, no second model.
+- **Gaps are excluded, and said so.** An hour whose sample coverage is below
+  75% (`MIN_TRUSTED_COVERAGE`, the signal added for partial-coverage hours
+  above) is dropped and counted in the note under the chart. Plotted raw, a
+  morning the feed spent offline is a low performance ratio at a morning
+  azimuth — indistinguishable from shade, and exactly the wrong conclusion.
+- **Endpoint:** `GET /api/energy/sun-overlay?date=YYYY-MM-DD` (defaults to
+  today) returns `points` — each with `azimuth_deg` / `elevation_deg` (NOAA
+  convention: 0° = N, 90° = E, 180° = S), `effective_pr`, `actual_wh`,
+  `expected_wh`, `gti_w_m2`, `coverage` — plus `excluded` (hour + reason:
+  `coverage` / `no_data` / `in_progress`) and `modelled_pr`. A future or
+  malformed date is a 400; a day with no rollup history is an *empty* overlay,
+  not an error. Irradiance history reaches back ~92 days (Open-Meteo's
+  `past_days` ceiling), hourly rollups 400 — beyond the former, `{available:
+  false, reason: "too_old"}`.
+- **Sun position** is computed in-process by `src/sun_position.py` (NOAA's
+  low-precision algorithm, stdlib-only — no new dependency), from the same
+  `config/location.json` coordinates the forecast and weather tile use.
+
 ## Tuya / Smart Life
 
 Smart Life devices are Tuya devices. This project uses `tinytuya` as a local LAN control foundation. Runtime reads and commands use the local keys stored in gitignored `devices.json`; they do not require an active Tuya Cloud project once that file exists.
