@@ -27,6 +27,7 @@ from typing import Mapping, Optional
 
 from dotenv import load_dotenv
 
+from src._no_window import NO_WINDOW
 from src.network_types import (
     InternetHealth,
     WifiBssid,
@@ -56,16 +57,13 @@ def _ping(host: str, count: int = 4, timeout_s: int = 2) -> tuple[Optional[float
     else:
         cmd = ["ping", "-c", str(count), "-W", str(timeout_s), host]
     try:
-        run_kwargs: dict[str, object] = {
-            "capture_output": True,
-            "text": True,
-            "timeout": count * timeout_s + 5,
-            "stdin": subprocess.DEVNULL,
-        }
-        if sys.platform.startswith("win"):
-            run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         out = subprocess.run(
-            cmd, **run_kwargs
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=count * timeout_s + 5,
+            stdin=subprocess.DEVNULL,
+            creationflags=NO_WINDOW,
         ).stdout
     except (subprocess.SubprocessError, OSError) as exc:
         logger.warning("⚠️ ping %s failed: %s", host, exc)
@@ -111,17 +109,16 @@ def _run_speedtest() -> tuple[Optional[float], Optional[float], Optional[str]]:
 
 def _run_quiet(cmd: list[str], timeout: int = 12) -> str:
     """Run a short OS probe without flashing a console window on Windows."""
-    kwargs: dict[str, object] = {
-        "capture_output": True,
-        "text": True,
-        "encoding": "utf-8",
-        "errors": "replace",
-        "timeout": timeout,
-        "stdin": subprocess.DEVNULL,
-    }
-    if sys.platform.startswith("win"):
-        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-    return subprocess.run(cmd, **kwargs).stdout
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        stdin=subprocess.DEVNULL,
+        creationflags=NO_WINDOW,
+    ).stdout
 
 
 async def fetch_internet_health(

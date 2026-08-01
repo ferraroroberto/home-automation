@@ -40,6 +40,7 @@ from typing import Any, Dict, List, Optional
 # Local imports
 from app.tray.single_instance import cross_process_lock
 from app.webapp.event_loop import LOOP_FACTORY
+from src._no_window import NO_WINDOW
 from src.webapp_config import load_webapp_config
 
 logger = logging.getLogger(__name__)
@@ -99,15 +100,14 @@ def _renew_tailscale_cert() -> None:
     if not script.exists():
         return
     try:
-        run_kwargs: Dict[str, Any] = dict(
+        subprocess.run(
+            [sys.executable, str(script), "--check"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
             timeout=60,
+            creationflags=NO_WINDOW,
         )
-        if sys.platform == "win32":
-            run_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-        subprocess.run([sys.executable, str(script), "--check"], **run_kwargs)
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning("⚠️  Tailscale cert renew check failed: %s", exc)
 
@@ -218,8 +218,12 @@ class WebappManager:
                     env=env,
                 )
                 if sys.platform == "win32":
+                    # CREATE_NEW_PROCESS_GROUP is Windows-only *and* specific to
+                    # signalling this long-lived child (CTRL_BREAK_EVENT on stop),
+                    # so it stays here; the no-window half comes from the shared
+                    # constant like every other spawn in the repo.
                     popen_kwargs["creationflags"] = (
-                        subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+                        subprocess.CREATE_NEW_PROCESS_GROUP | NO_WINDOW
                     )
                 self._proc = subprocess.Popen(cmd, **popen_kwargs)
             except FileNotFoundError as exc:

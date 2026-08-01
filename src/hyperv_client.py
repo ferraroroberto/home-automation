@@ -4,8 +4,8 @@ UI-free core. Shells out to the Hyper-V PowerShell cmdlets (``Get-VM`` /
 ``Start-VM`` / ``Stop-VM``) for **exactly one** VM named by ``HA_VM_NAME`` and
 flattens the result into a frozen :class:`HyperVState`. Mirrors
 ``src/ups_client.py``'s "shell out to a local Windows tool, parse
-``ConvertTo-Json``, flatten" shape, including the ``CREATE_NO_WINDOW`` guard so
-no console window pops on each Home-view poll.
+``ConvertTo-Json``, flatten" shape, including the shared ``NO_WINDOW`` guard
+(``src/_no_window.py``) so no console window pops on each Home-view poll.
 
 The VM is always addressed **by name** — this never enumerates or acts on any
 other VM (the host also runs WSL2's hidden utility VM, deliberately out of scope
@@ -27,20 +27,17 @@ import logging
 import os
 import shutil
 import subprocess
-import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
+from src._no_window import NO_WINDOW
+
 logger = logging.getLogger("hyperv")
 
 load_dotenv()
-
-# Hide the console window each subprocess would otherwise pop on Windows (these
-# run on every Home-view poll). No-op off Windows. Mirrors ``ups_client``.
-_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
 
 # The env var naming the single VM this module manages.
 _VM_NAME_ENV = "HA_VM_NAME"
@@ -310,6 +307,6 @@ def _run(script: str, name: str, timeout: int = 15) -> "subprocess.CompletedProc
         capture_output=True,
         text=True,
         timeout=timeout,
-        creationflags=_NO_WINDOW,
+        creationflags=NO_WINDOW,
         env=env,
     )
