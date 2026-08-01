@@ -75,9 +75,13 @@ The invoice carries a 42.5 % bono-social discount on the energy term of the boni
 
 prorated by the window's day count and grossed up by VAT. It feeds the summary's "Fixed" and "Estimated bill" figures only — it is not part of the per-kWh savings (you pay the standing charge whether or not solar covers your load).
 
+## Export income (surplus compensation)
+
+`export_credit = export_kwh × export_eur_kwh`, surfaced as the summary's "Export income" stat and subtracted from "Estimated bill". Set `export_eur_kwh` to whatever €/kWh your surplus-compensation product pays: the regulated-market *compensación simplificada de excedentes* on PVPC (~€0.04/kWh, netted monthly, surplus beyond the month's bill is lost), or a free-market *monedero virtual* / batería virtual tariff (~€0.06–0.07/kWh, banked across months). With no compensation contracted, leave it at `0.0` — the stat then reads €0.00 rather than disappearing, so the field stays discoverable.
+
 ## Limitations
 
 - Flat-average commodity price (see above) — replace per-invoice for accuracy.
 - Holidays must be listed manually in `config/tariff.json` (`holidays: ["YYYY-MM-DD", …]`); unlisted national/local holidays are billed as their weekday period instead of valle.
 - Long windows (Year, Σ Total) only fill as the local history DB accrues data — see the data-retention note in the README.
-- Export is a single flat `export_eur_kwh` credit; real surplus-compensation schemes (e.g. *compensación de excedentes*) net against the same bill and are not modelled.
+- Export is a single flat `export_eur_kwh` credit applied per window; the real schemes' banking/expiry rules (monthly netting cap on PVPC, multi-year rollover on a monedero virtual) are not modelled, and no running monedero balance is persisted.

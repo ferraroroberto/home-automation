@@ -371,6 +371,9 @@ function renderCost(body) {
   els.costSummary.innerHTML = (summary && totals) ? [
     costStat('Generated', num2(totals.generation_kwh) + ' kWh'),
     costStat('Saved', sym + num2(totals.savings), 'cost-pos'),
+    // Surplus-compensation credit already netted into Est. bill; shown so the
+    // figure is visible (renders €0.00 when export_eur_kwh is unconfigured).
+    costStat('Export income', sym + num2(summary.export_credit), 'cost-pos'),
     costStat('Grid cost', sym + num2(totals.grid_cost)),
     costStat('Fixed', sym + num2(summary.fixed_cost)),
     costStat('Est. bill', sym + num2(summary.estimated_bill)),
