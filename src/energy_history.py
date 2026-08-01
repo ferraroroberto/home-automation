@@ -18,6 +18,15 @@ Two layers, both in one SQLite file under the gitignored runtime area
 0). Rollups track how many samples actually had PV, so a bucket with no PV data
 is reported ``pv_missing = true`` rather than a misleading 0 Wh.
 
+**Missing is not low** (issue #579). ``pv_missing`` is all-or-nothing, and an
+hour that only *partly* had data is neither: its Wh is an integral over the
+minutes that arrived, so the minutes that did not contribute nothing rather
+than their true energy. Rollups therefore also record ``pv_seconds`` — how much
+of the hour the integral actually rests on — and the hour-resolution readers
+turn that into ``pv_coverage`` (0–1) plus a ``pv_gap`` flag, so a dead upstream
+feed can be told apart from a genuinely dim hour instead of both rendering as a
+production collapse.
+
 Energy is integrated from the raw samples (rectangular rule, per-interval gaps
 capped at :data:`_MAX_GAP_SECONDS` so a long night-time gap can't inflate a
 bucket). It is a household-monitoring estimate, not a billing-grade meter read.
@@ -54,6 +63,26 @@ DEFAULT_DB_PATH = (
 _MAX_GAP_SECONDS = 300
 
 _HOUR = 3600
+
+# Fraction of an hour that must actually carry PV data before the hour's
+# integral counts as a measurement rather than an under-measurement (#579).
+#
+# Not 1.0, because a fully-healthy hour never reaches it: the rectangular rule
+# accrues time on the interval *after* each sample, so the hour's last sample
+# contributes none — a 60 s live cadence lands at 3540/3600 = 0.983, and an
+# hour reconstructed from the cloud's 5-minute series at 3300/3600 = 0.917.
+# 0.75 clears both with room for a couple of dropped cloud buckets, while still
+# catching the reported outage hours (0.25 and 0.50 coverage).
+_MIN_TRUSTED_COVERAGE = 0.75
+
+# …and how much of an hour must have *elapsed* before its coverage is judged at
+# all. At the top of the hour the elapsed window is zero, so every ratio is 0/0:
+# without this floor the in-progress hour would be declared an outage on the
+# stroke of every hour and clear itself minutes later. The cloud source also
+# runs several minutes behind wall clock, so the opening samples of an hour may
+# genuinely not have landed yet — the same reason the forecast router refuses to
+# project that stretch.
+_MIN_COVERAGE_WINDOW_S = 600
 
 
 @dataclass(frozen=True)
@@ -140,6 +169,13 @@ def init_db(path: Optional[Path] = None) -> None:
             );
             """
         )
+        # Added by #579 to an already-deployed table, so it arrives as a
+        # migration rather than in the CREATE above. Rows written before it
+        # stay NULL and fall back to the coarser sample-count ratio — see
+        # :func:`_pv_seconds`.
+        columns = {r["name"] for r in conn.execute("PRAGMA table_info(rollup_hourly)")}
+        if "pv_seconds" not in columns:
+            conn.execute("ALTER TABLE rollup_hourly ADD COLUMN pv_seconds REAL")
         conn.commit()
 
 
@@ -203,6 +239,14 @@ def _integrate_hour(rows: List[sqlite3.Row], hour_start: int) -> Optional[Dict[s
     in-hour samples, each gap clamped to :data:`_MAX_GAP_SECONDS`. A series
     interval is skipped when its left sample is ``None`` (e.g. asleep PV), so a
     bucket without any PV reading reports ``pv_n = 0`` → ``pv_missing`` upstream.
+
+    ``pv_seconds`` is the width of the intervals the PV integral actually rests
+    on — the same ``dt`` values, summed only where the left sample had a PV
+    reading (#579). It is what separates "the hour was dim" from "two thirds of
+    the hour never arrived": both give a low ``pv_wh``, only the second gives a
+    low ``pv_seconds``. Deliberately measured in *seconds of coverage* rather
+    than a sample count, so a stretch where the sampler itself was down counts
+    as missing just like a stretch where the cloud feed was.
     """
     if not rows:
         return None
@@ -216,6 +260,7 @@ def _integrate_hour(rows: List[sqlite3.Row], hour_start: int) -> Optional[Dict[s
     }
     pv_sum = 0.0
     pv_n = 0
+    pv_seconds = 0.0
     house_sum = 0.0
     house_n = 0
 
@@ -235,11 +280,14 @@ def _integrate_hour(rows: List[sqlite3.Row], hour_start: int) -> Optional[Dict[s
             val = row[col]
             if val is not None:
                 energy[key] += float(val) * dt / _HOUR
+        if row["pv_power_w"] is not None:
+            pv_seconds += dt
 
     return {
         "hour_start": hour_start,
         "n": len(rows),
         "pv_n": pv_n,
+        "pv_seconds": round(pv_seconds, 1),
         "pv_wh": round(energy["pv"], 3),
         "house_wh": round(energy["house"], 3),
         "import_wh": round(energy["import"], 3),
@@ -292,13 +340,13 @@ def compact_and_prune(
                     """
                     INSERT OR REPLACE INTO rollup_hourly (
                         hour_start, n, pv_n, pv_wh, house_wh, import_wh,
-                        export_wh, pv_avg_w, house_avg_w
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        export_wh, pv_avg_w, house_avg_w, pv_seconds
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         roll["hour_start"], roll["n"], roll["pv_n"], roll["pv_wh"],
                         roll["house_wh"], roll["import_wh"], roll["export_wh"],
-                        roll["pv_avg_w"], roll["house_avg_w"],
+                        roll["pv_avg_w"], roll["house_avg_w"], roll["pv_seconds"],
                     ),
                 )
                 rolled += 1
@@ -360,19 +408,45 @@ def _empty_bucket(key: str, label: str) -> Dict[str, Any]:
         "house_wh": 0.0,
         "import_wh": 0.0,
         "export_wh": 0.0,
+        "n": 0,
         "pv_n": 0,
+        "pv_seconds": 0.0,
         "pv_missing": True,
         "partial": False,
     }
+
+
+def _pv_seconds(hour: Dict[str, Any]) -> float:
+    """Seconds of an hourly rollup that its PV integral actually rests on.
+
+    Rollups written before #579 have no ``pv_seconds`` value, and the raw
+    samples they were folded from are long pruned, so fall back to the coarser
+    sample-count ratio the issue itself proposed (``pv_n / n`` over the hour).
+    That is enough to stop already-stored history from reading as a collapse,
+    which is the whole point of the flag; it is not enough to distinguish a
+    sampler outage from a feed outage, and no stored field can recover that.
+    """
+    raw = hour.get("pv_seconds")
+    if raw is not None:
+        return float(raw)
+    n = int(hour.get("n") or 0)
+    if n <= 0:
+        return 0.0
+    return _HOUR * min(1.0, int(hour.get("pv_n") or 0) / n)
 
 
 # The bucket containing *now* has only partly happened, so its totals are still
 # climbing towards whatever the slot will finally hold. Left unflagged it reads
 # on a chart as a settled value that collapsed — see issue #557. Flagging it
 # lets the UI draw it as in-progress, and lets the forecast view project it to a
-# full-slot rate. Deliberately *only* the current slot: a past bucket that is
-# short because the cloud feed was down is genuinely that low, and scaling it up
-# would invent generation that never happened.
+# full-slot rate.
+#
+# Deliberately *only* the current slot. This once carried a second claim — that
+# a past bucket short because the cloud feed was down "is genuinely that low" —
+# which #579 disproved: such a bucket is under-measured, and its shortfall is a
+# property of its *coverage*, not of when it happened. That case is now
+# `_mark_hourly_coverage`'s, and the two must not be conflated: `partial` means
+# "not finished yet", `pv_gap` means "not fully measured".
 def _mark_hourly_partial(
     buckets: List[Dict[str, Any]], current: int
 ) -> List[Dict[str, Any]]:
@@ -391,6 +465,56 @@ def _mark_hourly_partial(
     return buckets
 
 
+# Coverage is an *hourly* property: only an hour-wide bucket has a denominator
+# that is known without guessing. A day bucket's would have to be "the hours the
+# sun was up", which this module cannot know — so daily/monthly buckets carry
+# the raw `pv_seconds` sum and leave the judgement to whoever has the context.
+def _mark_hourly_coverage(
+    buckets: List[Dict[str, Any]], current: int
+) -> List[Dict[str, Any]]:
+    """Add ``pv_coverage`` (0–1) and ``pv_gap`` to one-hour-wide buckets (#579).
+
+    ``pv_coverage`` is the share of the hour whose PV integral rests on real
+    data. The in-progress hour is measured against the part of it that has
+    *elapsed*, not the full 3600 s — otherwise every current hour would look
+    like an outage for 59 minutes.
+
+    ``pv_gap`` is the actionable flag: the hour has some PV data but not enough
+    of it (:data:`_MIN_TRUSTED_COVERAGE`) for its Wh to be a measurement. Three
+    kinds of hour are deliberately excluded from it, each verified against the
+    2026-07-30 history the issue was filed from:
+
+    * **No PV data at all** — a sleeping inverter and a whole-hour outage are
+      indistinguishable here, and ``pv_missing`` already says "nothing to plot".
+    * **No measured generation** (``pv_wh`` 0) — the covered samples all read
+      0 W, so there is no evidence of production to be short of and nothing a
+      projection could recover (0 scales to 0). Without this the overnight hours
+      flag every night: the inverter flaps between 0 W and asleep in the small
+      hours, which on 2026-07-30 read as 45% and 10% coverage at 00:00 and
+      01:00 — 1.4 h of "outage" in the dark.
+    * **Too early to tell** (:data:`_MIN_COVERAGE_WINDOW_S`) — see there.
+    """
+    for b in buckets:
+        try:
+            start = int(b["key"])
+        except (TypeError, ValueError):
+            b["pv_coverage"], b["pv_gap"] = 0.0, False
+            continue
+        window = _HOUR
+        if start <= current < start + _HOUR:
+            window = max(0, current - start)
+        covered = float(b.get("pv_seconds") or 0.0)
+        coverage = min(1.0, covered / window) if window > 0 else 0.0
+        b["pv_coverage"] = round(coverage, 3)
+        b["pv_gap"] = (
+            bool(b["pv_n"])
+            and (b.get("pv_wh") or 0.0) > 0
+            and window >= _MIN_COVERAGE_WINDOW_S
+            and coverage < _MIN_TRUSTED_COVERAGE
+        )
+    return buckets
+
+
 def _mark_calendar_partial(
     buckets: List[Dict[str, Any]], current: int, fmt: str
 ) -> List[Dict[str, Any]]:
@@ -406,13 +530,21 @@ def _accumulate(bucket: Dict[str, Any], hour: Dict[str, Any]) -> None:
     bucket["house_wh"] += hour.get("house_wh") or 0.0
     bucket["import_wh"] += hour.get("import_wh") or 0.0
     bucket["export_wh"] += hour.get("export_wh") or 0.0
+    bucket["n"] += int(hour.get("n") or 0)
     bucket["pv_n"] += int(hour.get("pv_n") or 0)
+    bucket["pv_seconds"] += _pv_seconds(hour)
+    # Unchanged meaning (#579): *no* PV data at all. Partial coverage is a
+    # separate, weaker signal — see :func:`_mark_hourly_coverage` — because
+    # `pv_missing` is what `src.tariff` uses to drop a bucket's generation
+    # entirely, and an hour that produced 3 measured kWh out of 4 must still
+    # contribute its 3.
     bucket["pv_missing"] = bucket["pv_n"] == 0
 
 
 def _round_bucket(bucket: Dict[str, Any]) -> Dict[str, Any]:
     for k in ("pv_wh", "house_wh", "import_wh", "export_wh"):
         bucket[k] = round(bucket[k], 3)
+    bucket["pv_seconds"] = round(bucket["pv_seconds"], 1)
     return bucket
 
 
@@ -426,6 +558,7 @@ def aggregate(
 
     Each bucket carries energy (Wh) for PV / house / grid import / export, plus
     ``pv_missing`` (no PV sample landed in the bucket — asleep, not a real 0).
+    ``hourly`` buckets additionally carry ``pv_coverage`` / ``pv_gap`` (#579).
     Buckets are local-time, oldest first.
     """
     current = int(now if now is not None else time.time())
@@ -440,7 +573,7 @@ def aggregate(
             bucket = _empty_bucket(str(h["hour_start"]), label)
             _accumulate(bucket, h)
             out.append(_round_bucket(bucket))
-        return _mark_hourly_partial(out, current)
+        return _mark_hourly_coverage(_mark_hourly_partial(out, current), current)
 
     if period == "daily":
         n = count or 30
@@ -541,7 +674,7 @@ def framed_buckets(
             hs = since + i * _HOUR
             hours = [by_hour[hs]] if hs in by_hour else []
             out.append(_frame_bucket(str(hs), "%02d" % i, hours))
-        return _mark_hourly_partial(out, current)
+        return _mark_hourly_coverage(_mark_hourly_partial(out, current), current)
 
     if period == "week":
         return aggregate("daily", 7, now, path)
@@ -597,4 +730,4 @@ def hourly_day(
         hs = since + i * _HOUR
         hours = [by_hour[hs]] if hs in by_hour else []
         out.append(_frame_bucket(str(hs), "%02d" % i, hours))
-    return _mark_hourly_partial(out, current)
+    return _mark_hourly_coverage(_mark_hourly_partial(out, current), current)

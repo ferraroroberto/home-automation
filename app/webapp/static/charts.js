@@ -219,19 +219,25 @@ function clearInProgress(ds) {
   ds.segment = {};
 }
 
-function markInProgress(ds, idx) {
+// Takes a *list* of indices: the history chart marks at most one slot (the one
+// containing now), but the forecast overlay can have several — every hour the
+// feed only partly covered is an inference too, not just the in-progress one
+// (#579).
+function markInProgress(ds, indices) {
   clearInProgress(ds);
-  if (idx < 0) {
+  const marked = {};
+  (indices || []).forEach(function (i) { if (i >= 0) marked[i] = true; });
+  if (!Object.keys(marked).length) {
     ds.pointRadius = 0;
     return;
   }
-  ds.pointRadius = ds.data.map(function (_, i) { return i === idx ? 4 : 0; });
+  ds.pointRadius = ds.data.map(function (_, i) { return marked[i] ? 4 : 0; });
   ds.pointBackgroundColor = 'transparent';   // hollow — reads as "not settled"
   ds.pointBorderColor = function (ctx) { return ctx.dataset.borderColor; };
   ds.pointBorderWidth = 2;
   ds.segment = {
     borderDash: function (ctx) {
-      return ctx.p1DataIndex === idx ? [4, 3] : undefined;
+      return marked[ctx.p1DataIndex] ? [4, 3] : undefined;
     },
   };
 }
@@ -253,7 +259,7 @@ export function setAggData(chart, buckets) {
     // day or month would be far more speculative than a part-finished hour.
     // Buckets map 1:1 onto plotted points, so the array index is the chart index.
     const idx = buckets.findIndex(function (b) { return b && b.partial; });
-    chart.data.datasets.forEach(function (d) { markInProgress(d, idx); });
+    chart.data.datasets.forEach(function (d) { markInProgress(d, [idx]); });
   }
   chart.update('none');
 }
@@ -307,19 +313,22 @@ export function setForecastData(chart, expected, actual) {
         return v == null ? null : kwh(v);   // null hour → gap (asleep / no sample)
       })
     : [];
-  // The in-progress hour arrives projected to its full-hour rate so it is
-  // comparable to the expected curve — drawn hollow + dashed so it reads as the
-  // projection it is, never as a measurement (#557). The series is plotted on a
-  // fixed 24-hour axis, so the point's own `hour` is its chart index; a partial
-  // hour with nothing to plot yet (too early to project) is left unmarked.
-  let partialIdx = -1;
+  // Two kinds of hour arrive projected to a full-hour rate so they stay
+  // comparable to the expected curve: the one still in progress (#557), and any
+  // the feed only partly covered (#579). Both are `estimated`, and both are
+  // drawn hollow + dashed so they read as the inference they are, never as a
+  // measurement — which is the whole point: an under-measured hour plotted
+  // solid is indistinguishable from a real production collapse. The series is
+  // plotted on a fixed 24-hour axis, so a point's own `hour` is its chart
+  // index; an hour with nothing to plot yet (too little data to project) is
+  // left unmarked.
+  const estimatedIdx = [];
   if (hasActual) {
-    for (let i = 0; i < actual.length; i++) {
-      const p = actual[i];
-      if (p && p.partial && p.wh != null) { partialIdx = Number(p.hour); break; }
-    }
+    actual.forEach(function (p) {
+      if (p && p.estimated && p.wh != null) estimatedIdx.push(Number(p.hour));
+    });
   }
-  markInProgress(chart.data.datasets[1], partialIdx);
+  markInProgress(chart.data.datasets[1], estimatedIdx);
   chart.update('none');
 }
 

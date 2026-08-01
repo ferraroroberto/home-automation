@@ -90,13 +90,19 @@ async def get_energy_today() -> Dict[str, Any]:
     Returns ``{"bucket": <daily bucket>}`` with ``pv_wh`` / ``house_wh`` /
     ``import_wh`` / ``export_wh`` / ``pv_missing`` for the current local day, or
     ``{"bucket": null}`` before any sample has landed today.
+
+    ``gap_hours`` rides alongside (#579): the totals are exactly as measured, so
+    a morning the feed spent offline drags them down by real kWh that were in
+    fact generated. Reporting the gap is what stops that from being *silent* —
+    without it a user reads a dead upstream feed as a dead inverter.
     """
     try:
         buckets = aggregate("daily", 1)
+        gap_hours = _feed_gap_hours(hourly_day(0))
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  Failed to read today's energy: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to read today: {exc}")
-    return {"bucket": buckets[-1] if buckets else None}
+    return {"bucket": buckets[-1] if buckets else None, "gap_hours": gap_hours}
 
 
 @router.get("/api/energy/aggregate")
@@ -174,45 +180,105 @@ _FORECAST_DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
 
 _HOUR_S = 3600
 
-# Below this much of the hour elapsed, projecting it to a full-hour rate is
+# Below this much of an hour to go on, projecting it to a full-hour rate is
 # noise rather than signal: dividing a couple of minutes of samples by a tiny
 # window swings the result wildly, and the cloud source itself runs several
 # minutes behind wall clock, so the first samples of an hour may not have landed
-# at all. Draw a gap for that opening stretch instead of a wild number.
+# at all. Draw a gap for that stretch instead of a wild number.
+#
+# Applies to both projection bases (#579): the elapsed part of the in-progress
+# hour, and the covered part of an hour the feed only partly reached. The
+# arithmetic is the same and so is the failure — 5 minutes of data times 12 is
+# a guess either way.
 _MIN_PROJECTION_ELAPSED_S = 600
 
 
-def _actual_curve(offset_days: int) -> List[Dict[str, Any]]:
-    """That day's measured generation as 24 hourly points (``wh`` ``None`` = no PV).
+def _actual_curve(buckets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """A day's measured generation as 24 hourly points (``wh`` ``None`` = no PV).
 
     ``pv_missing`` hours (asleep inverter, or no sample yet) stay ``None`` so the
     client draws a gap, never a misleading 0 — the same rule the live chart uses.
 
-    The hour containing *now* is only partly done, so its accumulated Wh is not
-    comparable to a full hour of expected generation: plotted raw it reads as a
-    production collapse (issue #557). That one hour is projected to the rate it
-    is running at and flagged ``partial`` so the client can draw it as an
-    explicit projection. ``measured_wh`` always carries the untouched
-    measurement. Past hours are never scaled — one that is short because the
-    cloud feed was down is genuinely that low.
+    Two kinds of hour are *not* comparable to a full hour of expected generation
+    and would read as a production collapse if plotted raw:
+
+    * The hour containing *now* is only partly done (issue #557).
+    * A settled hour the feed only partly covered (issue #579): its Wh is an
+      integral over the minutes that arrived, so a two-thirds outage on a
+      cloudless morning plots as near-zero output. Nothing collapsed — the hour
+      is **under-measured, not low**, and ``pv_gap`` is how the store says so.
+
+    Both are projected to the rate the hour was actually running at over the
+    stretch that *was* measured, and flagged ``estimated`` so the client draws
+    them as the inference they are rather than as a measurement. The two bases
+    differ deliberately: an in-progress hour scales by how much of it has
+    elapsed, a gapped hour by how much of it carried data.
+
+    A fully-covered settled hour is never touched, however low it is — that is
+    the normal path and the only one where the raw integral is the truth.
+    ``measured_wh`` always carries the untouched measurement either way.
+
+    Takes the day's 24 hourly buckets rather than fetching them, so the caller
+    reads the day once and derives both the curve and :func:`_feed_gap_hours`
+    from the same snapshot.
     """
     now = int(time.time())
     out: List[Dict[str, Any]] = []
-    for i, b in enumerate(hourly_day(offset_days)):
+    for i, b in enumerate(buckets):
         measured = None if b["pv_missing"] else b["pv_wh"]
         partial = bool(b.get("partial"))
+        gap = bool(b.get("pv_gap"))
+        estimated = measured is not None and (partial or gap)
         wh = measured
-        if partial:
-            elapsed = now - int(b["key"])
+        if estimated:
+            # A gap is the tighter constraint, so it wins when an hour is both:
+            # the in-progress hour's elapsed span means nothing if the feed was
+            # only up for part of it.
+            # Clamped at one hour: an in-progress hour's elapsed span is at most
+            # that by definition, and an unclamped subtraction turns any clock
+            # disagreement between the store's framing and this one into a
+            # silent *division* of a good measurement.
+            basis = (
+                float(b.get("pv_seconds") or 0.0)
+                if gap
+                else float(min(_HOUR_S, now - int(b["key"])))
+            )
             wh = (
                 None
-                if measured is None or elapsed < _MIN_PROJECTION_ELAPSED_S
-                else round(measured * _HOUR_S / elapsed, 3)
+                if basis < _MIN_PROJECTION_ELAPSED_S
+                else round(measured * _HOUR_S / basis, 3)
             )
         out.append(
-            {"hour": i, "wh": wh, "partial": partial, "measured_wh": measured}
+            {
+                "hour": i,
+                "wh": wh,
+                "partial": partial,
+                "estimated": estimated,
+                "coverage": b.get("pv_coverage"),
+                "measured_wh": measured,
+            }
         )
     return out
+
+
+def _feed_gap_hours(buckets: List[Dict[str, Any]]) -> float:
+    """How much of a day the PV feed dropped out mid-hour, in hours (#579).
+
+    Sums the uncovered part of every hour that had *some* PV data but not
+    enough — the unambiguous outage signature, since data that starts or stops
+    mid-hour cannot be a sleeping inverter. Hours with no PV data at all are
+    excluded on purpose: overnight they are the normal state, and counting them
+    would report a 16-hour "outage" every single day.
+
+    Deliberately conservative and one-directional. This number exists to
+    *explain* a depressed day total, never to inflate it — the totals it
+    annotates stay exactly as measured.
+    """
+    total = 0.0
+    for b in buckets:
+        if b.get("pv_gap"):
+            total += max(0.0, _HOUR_S - float(b.get("pv_seconds") or 0.0))
+    return round(total / _HOUR_S, 2)
 
 
 @router.get("/api/energy/forecast")
@@ -240,7 +306,8 @@ async def get_energy_forecast(
         return {"available": False, "day": day, "reason": forecast.reason}
 
     # Actuals only exist for days that have already (partly) happened.
-    actual = None if day == "tomorrow" else _actual_curve(_FORECAST_DAY_OFFSETS[day])
+    hours = None if day == "tomorrow" else hourly_day(_FORECAST_DAY_OFFSETS[day])
+    actual = None if hours is None else _actual_curve(hours)
 
     return {
         "available": True,
@@ -248,6 +315,9 @@ async def get_energy_forecast(
         "expected": forecast.expected,
         "expected_total_kwh": round(forecast.expected_total_wh / 1000.0, 2),
         "actual": actual,
+        # Hours the feed missed, so the card can say the overlay is short
+        # because nothing was measured — not because nothing was generated.
+        "actual_gap_hours": None if hours is None else _feed_gap_hours(hours),
         "system": forecast.system,  # array params the curve was computed from
     }
 

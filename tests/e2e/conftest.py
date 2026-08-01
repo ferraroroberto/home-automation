@@ -691,6 +691,8 @@ def mock_energy(page: Page) -> Callable[..., None]:
         cost: Optional[Dict] = None,
         pv_arrays: Optional[List[Dict]] = None,
         boost_coord: Optional[Dict] = None,
+        forecast: Optional[Dict] = None,
+        today_gap_hours: float = 0.0,
     ) -> None:
         snap = snapshot or {
             "grid_import_w": 0.0, "grid_export_w": 1200.0,
@@ -721,9 +723,12 @@ def mock_energy(page: Page) -> Callable[..., None]:
         }
         page.route("**/api/energy", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(snap)))
+        # `gap_hours` rides beside the bucket, not inside it (#579), and drives
+        # a different card than the forecast overlay does — so it is its own
+        # knob rather than a field of `today`.
         page.route("**/api/energy/today", lambda r: r.fulfill(
             status=200, content_type="application/json",
-            body=_json({"bucket": today_bucket})))
+            body=_json({"bucket": today_bucket, "gap_hours": today_gap_hours})))
         page.route("**/api/energy/history*", lambda r: r.fulfill(
             status=200, content_type="application/json",
             body=_json({"minutes": 60, "samples": hist})))
@@ -817,18 +822,25 @@ def mock_energy(page: Page) -> Callable[..., None]:
         page.route("**/api/hvac/boost-coordinator", handle_boost_coord)
 
         def handle_forecast(route: Route) -> None:
-            route.fulfill(status=200, content_type="application/json", body=_json({
+            body = {
                 "available": True,
                 "day": "today",
                 "expected": [{"hour": h, "wh": 0.0 if h < 8 else 900.0} for h in range(24)],
                 "expected_total_kwh": 12.3,
                 "actual": None,
+                "actual_gap_hours": None,
                 "system": {
                     "arrays": pv["arrays"],
                     "total_kwp": round(sum(a["kwp"] for a in pv["arrays"]), 3),
                     "performance_ratio": pv["performance_ratio"],
                 },
-            }))
+            }
+            # `system` stays derived from the (stateful) PV rows even when a
+            # test overrides the curve, so the save-reflects-in-the-card tests
+            # keep working alongside an overridden actual overlay.
+            if forecast:
+                body.update(forecast)
+            route.fulfill(status=200, content_type="application/json", body=_json(body))
 
         page.route("**/api/energy/forecast*", handle_forecast)
 

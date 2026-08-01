@@ -158,6 +158,149 @@ def test_hourly_day_flags_no_partial_for_a_past_day(tmp_path: Path) -> None:
     assert not any(b["partial"] for b in out)
 
 
+# ----------------------------------------------- partial PV coverage (#579)
+def _fill_hour(db: Path, base: int, pv_from: int, pv_to: int, step: int = 60) -> None:
+    """Sample a whole hour at ``step``, with PV present only in ``[pv_from, pv_to)``."""
+    for off in range(0, H._HOUR, step):
+        pv = 2400.0 if pv_from <= off < pv_to else None
+        H.record_sample(_state(pv=pv, house=1200.0), ts=base + off, path=db)
+
+
+def test_a_fully_covered_hour_is_not_flagged_as_a_gap(tmp_path: Path) -> None:
+    """The normal path: an hour of samples is a measurement, however low."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    _fill_hour(db, base, 0, H._HOUR)
+
+    b = H.aggregate("hourly", count=3, now=base + 2 * H._HOUR, path=db)[0]
+    # The hour's last sample opens no further interval, so coverage tops out
+    # just under 1.0 — which is exactly why the trust threshold is not 1.0.
+    assert b["pv_coverage"] > H._MIN_TRUSTED_COVERAGE
+    assert b["pv_gap"] is False
+    assert b["pv_missing"] is False
+
+
+def test_a_half_covered_hour_is_flagged_as_a_gap(tmp_path: Path) -> None:
+    """#579: 30 of 60 minutes of PV data is under-measured, not a low hour."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    _fill_hour(db, base, 0, 30 * 60)
+
+    b = H.aggregate("hourly", count=3, now=base + 2 * H._HOUR, path=db)[0]
+    assert b["pv_missing"] is False          # there *was* PV data — not asleep
+    assert b["pv_gap"] is True               # …but not enough of it to trust
+    assert 0.45 < b["pv_coverage"] < 0.55
+    assert b["pv_seconds"] == 30 * 60.0
+
+
+def test_an_hour_with_no_pv_at_all_is_missing_not_a_gap(tmp_path: Path) -> None:
+    """Asleep and gapped are different claims; a night hour must not be an outage."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    _fill_hour(db, base, 0, 0)
+
+    b = H.aggregate("hourly", count=3, now=base + 2 * H._HOUR, path=db)[0]
+    assert b["pv_missing"] is True
+    assert b["pv_gap"] is False
+    assert b["pv_coverage"] == 0.0
+
+
+def test_the_in_progress_hour_is_measured_against_elapsed_time(tmp_path: Path) -> None:
+    """Otherwise every current hour would look like an outage for 59 minutes."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    for off in range(0, 600, 60):
+        H.record_sample(_state(pv=2400.0, house=1200.0), ts=base + off, path=db)
+
+    b = H.aggregate("hourly", count=1, now=base + 600, path=db)[0]
+    assert b["partial"] is True
+    assert b["pv_gap"] is False              # 9 of 10 elapsed minutes covered
+    assert b["pv_coverage"] > H._MIN_TRUSTED_COVERAGE
+
+
+def test_the_top_of_an_hour_is_not_an_outage(tmp_path: Path) -> None:
+    """Found replaying real history: 0 s elapsed made every ratio 0/0.
+
+    Unguarded, the in-progress hour was declared a feed outage on the stroke of
+    every hour and cleared itself minutes later.
+    """
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    H.record_sample(_state(pv=2400.0, house=1200.0), ts=base, path=db)
+
+    b = H.aggregate("hourly", count=1, now=base + 5, path=db)[0]
+    assert b["partial"] is True
+    assert b["pv_gap"] is False
+
+
+def test_an_hour_that_generated_nothing_is_never_a_gap(tmp_path: Path) -> None:
+    """Found replaying real history: the inverter flaps 0 W ↔ asleep overnight.
+
+    2026-07-30 read 45% and 10% PV coverage at 00:00 and 01:00 — which would
+    have reported 1.4 h of "solar feed offline" in the middle of the night. With
+    no measured generation there is nothing to be short of, and no projection
+    could recover any: scaling 0 up still gives 0.
+    """
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    for off in range(0, H._HOUR, 60):
+        pv = 0.0 if (off // 60) % 4 == 0 else None   # a quarter of the samples
+        H.record_sample(_state(pv=pv, house=300.0), ts=base + off, path=db)
+
+    b = H.aggregate("hourly", count=3, now=base + 2 * H._HOUR, path=db)[0]
+    assert b["pv_wh"] == 0.0
+    assert b["pv_coverage"] < H._MIN_TRUSTED_COVERAGE   # genuinely sparse…
+    assert b["pv_gap"] is False                         # …but not an outage
+
+
+def test_legacy_rollups_fall_back_to_the_sample_count_ratio(tmp_path: Path) -> None:
+    """Rows stored before #579 have no pv_seconds; pv_n / n stands in for it."""
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    base = 1_699_999_200
+    with H._connect(db) as conn:
+        conn.execute(
+            "INSERT INTO rollup_hourly (hour_start, n, pv_n, pv_wh, house_wh,"
+            " import_wh, export_wh, pv_avg_w, house_avg_w, pv_seconds)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+            (base, 59, 15, 400.0, 1200.0, 0.0, 0.0, 427.0, 1200.0),
+        )
+        conn.commit()
+
+    b = H.aggregate("hourly", count=3, now=base + 2 * H._HOUR, path=db)[0]
+    assert b["pv_gap"] is True               # 15/59 ≈ 0.25 — the reported hour
+    assert 0.2 < b["pv_coverage"] < 0.3
+
+
+def test_init_db_migrates_a_pre_579_rollup_table(tmp_path: Path) -> None:
+    """An existing DB gains the column in place, keeping its rows."""
+    db = tmp_path / "h.sqlite3"
+    with H._connect(db) as conn:
+        conn.executescript(
+            "CREATE TABLE rollup_hourly (hour_start INTEGER PRIMARY KEY,"
+            " n INTEGER NOT NULL, pv_n INTEGER NOT NULL, pv_wh REAL,"
+            " house_wh REAL, import_wh REAL, export_wh REAL, pv_avg_w REAL,"
+            " house_avg_w REAL);"
+            "INSERT INTO rollup_hourly VALUES (1699999200, 60, 60, 500.0,"
+            " 100.0, 0.0, 0.0, 500.0, 100.0);"
+        )
+        conn.commit()
+
+    H.init_db(db)
+
+    with H._connect(db) as conn:
+        columns = {r["name"] for r in conn.execute("PRAGMA table_info(rollup_hourly)")}
+        rows = conn.execute("SELECT * FROM rollup_hourly").fetchall()
+    assert "pv_seconds" in columns
+    assert len(rows) == 1 and rows[0]["pv_wh"] == 500.0
+
+
 def test_hourly_range_unknown_period_raises(tmp_path: Path) -> None:
     db = tmp_path / "h.sqlite3"
     H.init_db(db)
