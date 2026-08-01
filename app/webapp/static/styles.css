@@ -856,7 +856,8 @@ button, input, select, textarea {
   line-height: 1.15;
   white-space: nowrap;
 }
-.unit-boost-icon { width: 14px; height: 14px; }
+/* icons.size.inline (16px) — the smallest step on the design.md icon scale (#570). */
+.unit-boost-icon { width: 16px; height: 16px; }
 
 /* power toggle */
 /* shadcn-style switch: a compact track + sliding thumb, no text label.
@@ -1416,7 +1417,9 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 46px;
+  /* rows.sm — the design.md 44/52/60 row scale, same token + padding pair as
+     the sibling .net-survey-picker-row (#570; was an ad-hoc 46px). */
+  min-height: var(--row-sm);
   padding: 9px 0;
   border-top: 1px solid var(--line);
   transition: opacity 0.15s ease;
@@ -2667,16 +2670,10 @@ body:has(dialog[open]) .app { overflow: hidden; }
   color: var(--muted);
   cursor: default;
 }
-/* Destructive sibling of the save button (device-group delete, #513). Same tint
-   recipe as .confirm-ok.is-danger so the two destructive affordances read alike. */
-.detail-save-btn.is-danger {
-  background: color-mix(in srgb, var(--deficit) 18%, transparent);
-  border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
-  color: var(--deficit);
-}
-/* Two actions side by side instead of the default single full-width button. */
-.detail-actions--split { display: flex; gap: 8px; }
-.detail-actions--split .detail-save-btn { flex: 1; }
+/* No danger/split variant of the footer: the design.md modal contract wants
+   exactly one full-width solid-accent primary, so a destructive action goes in
+   the dialog body as .schedule-editor-delete (#570 moved the device-group
+   delete there; every other editor modal here was already that shape). */
 
 /* ----------------------------------------------------------- toast */
 /* Neutral frosted toast — the same glass treatment as the floating bottom nav
@@ -3178,6 +3175,13 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+/* Documented exception to the design.md 44/52/60 row scale (#570): this is a
+   compact action-rail *button* inside .net-survey-row, not a row — a 44px box
+   here would out-weigh the room name it sits beside and inflate every survey
+   row. The 44px floor that actually matters (design.md Touch targets, hit-
+   target.min) is met by the .hit-target utility JS puts on the element
+   (network-survey.js), which expands the effective target with a ::before
+   without growing the visual box. Do not "fix" the 34px away. */
 .net-survey-row-delete {
   grid-area: actions;
   appearance: none;
@@ -3283,8 +3287,11 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   display: inline-flex; align-items: center;
   color: var(--muted); cursor: pointer;
 }
-.net-group-edit::before { content: ""; position: absolute; inset: -12px; }
-.net-group-edit .icon { width: 14px; height: 14px; }
+/* -14px around the 16px glyph box = a 44px effective target, the design.md
+   hit-target.min floor, without growing the visible pencil (#570). */
+.net-group-edit::before { content: ""; position: absolute; inset: -14px; }
+/* icons.size.inline (16px), matching every other row affordance glyph (#570). */
+.net-group-edit .icon { width: 16px; height: 16px; }
 .net-device {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
