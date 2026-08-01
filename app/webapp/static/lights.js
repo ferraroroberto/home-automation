@@ -5,13 +5,14 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
-import { createViewState } from './view-state.js';
+import { state, els, toast, reportFetchOk } from './state.js';
+import { createViewState, markTabFailure } from './view-state.js';
 import { jsonApi } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { emptyStateEl } from './empty-state.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 const POLL_MS = 15_000;
 const LIGHTS_UNAVAILABLE_COPY =
@@ -63,15 +64,12 @@ function updateBulkControls() {
 }
 
 function markLightsFailure() {
-  lightsView.set(state.lights.length ? 'stale' : 'error', {
-    liveUnavailable: true,
+  markTabFailure(lightsView, {
+    hasData: state.lights.length > 0,
+    scope: 'lights',
+    label: 'lights',
+    render: renderLights,
   });
-  reportFetchFailure(
-    'lights',
-    { message: 'live data unavailable' },
-    'lights'
-  );
-  renderLights();
 }
 
 function wait(ms) {
@@ -279,15 +277,13 @@ function openLightDetail(lightId) {
   els.lightIdentifier.textContent = light.light_id || '—';
   els.lightTemperatureMeta.textContent = fmtTemperatureDetail(light);
   if (els.lightSave) els.lightSave.disabled = true;
-  if (typeof els.lightDialog.showModal === 'function') els.lightDialog.showModal();
-  else els.lightDialog.setAttribute('open', '');
+  openDialog(els.lightDialog);
   els.lightDisplayName.focus();
 }
 
 function closeLightDetail() {
   state.selectedLightId = null;
-  if (typeof els.lightDialog.close === 'function') els.lightDialog.close();
-  else els.lightDialog.removeAttribute('open');
+  closeDialog(els.lightDialog);
 }
 
 async function saveLightName() {

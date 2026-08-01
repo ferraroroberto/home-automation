@@ -32,6 +32,7 @@ import { createViewState } from './view-state.js';
 import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocationControls } from './presence-location.js';
 import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
 import { wirePresencePushControls } from './presence-push.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 // Re-export so callers (security.js, main.js) keep a single import surface —
 // same convention security.js itself uses for its own sub-modules.
@@ -445,8 +446,7 @@ function openPresenceDetail(entityId) {
   }
   renderPresenceHiddenToggle(entity);
   if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
-  if (typeof els.presenceDialog.showModal === 'function') els.presenceDialog.showModal();
-  else els.presenceDialog.setAttribute('open', '');
+  openDialog(els.presenceDialog);
   els.presenceDisplayName.focus();
 }
 
@@ -499,8 +499,7 @@ function renderPresenceHiddenToggle(entity) {
 
 function closePresenceDetail() {
   state.selectedPresenceId = null;
-  if (typeof els.presenceDialog.close === 'function') els.presenceDialog.close();
-  else els.presenceDialog.removeAttribute('open');
+  closeDialog(els.presenceDialog);
 }
 
 async function savePresenceDetail() {

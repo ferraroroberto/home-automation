@@ -34,11 +34,15 @@ import {
   NETWORK_DEVICE_SORT_KEY,
   NETWORK_DEVICE_GROUPING_KEY,
   NETWORK_SHOW_HIDDEN_DEVICES_KEY,
+  persistedFlag,
+  persistedPref,
 } from './state.js';
 import { jsonApi } from './api.js';
+import { renderSignalBar } from './format.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
 import { renderNetwork, confirmAction } from './network.js';
 import { toggleMarkup } from './toggle.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 // Mirrors src.network_client._WEAK_SIGNAL_PCT — a wireless client below this is
 // counted in the "Weak" chip and dimmed in the list.
@@ -301,17 +305,7 @@ function buildDeviceRow(d, grouped) {
     signal.classList.add('net-device-lastseen');
     signal.textContent = fmtAgo(d.last_seen);
   } else if (d.signal != null) {
-    const bar = document.createElement('span');
-    bar.className = 'net-signal-bar';
-    const fill = document.createElement('span');
-    fill.className = 'net-signal-fill';
-    fill.style.width = Math.max(0, Math.min(100, d.signal)) + '%';
-    bar.appendChild(fill);
-    signal.appendChild(bar);
-    const pct = document.createElement('span');
-    pct.className = 'net-signal-pct';
-    pct.textContent = d.signal + '%';
-    signal.appendChild(pct);
+    signal.appendChild(renderSignalBar(d.signal));
   } else if (d.conn_type === 'wired') {
     signal.textContent = 'wired';
   } else if (d.ping_reachable === true) {
@@ -654,8 +648,7 @@ function openNetDeviceDetail(mac) {
   // missing vendor / churning row is explained rather than mysterious.
   els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
     (d.randomized ? ' · randomised address' : '');
-  if (typeof els.netDeviceDialog.showModal === 'function') els.netDeviceDialog.showModal();
-  else els.netDeviceDialog.setAttribute('open', '');
+  openDialog(els.netDeviceDialog);
   els.netDeviceDisplayName.focus();
 }
 
@@ -663,8 +656,7 @@ function closeNetDeviceDetail() {
   state.selectedNetDeviceMac = null;
   netStaged = null;
   clearNetDirty();
-  if (typeof els.netDeviceDialog.close === 'function') els.netDeviceDialog.close();
-  else els.netDeviceDialog.removeAttribute('open');
+  closeDialog(els.netDeviceDialog);
 }
 
 // Detail-modal staging (#203): the display name, Important and Hidden edits are
@@ -799,15 +791,13 @@ function openGroupDialog(name) {
     (members.length === 1 ? ' device' : ' devices');
   els.netGroupName.value = name;
   if (els.netGroupSave) els.netGroupSave.disabled = true;
-  if (typeof els.netGroupDialog.showModal === 'function') els.netGroupDialog.showModal();
-  else els.netGroupDialog.setAttribute('open', '');
+  openDialog(els.netGroupDialog);
   els.netGroupName.focus();
 }
 
 function closeGroupDialog() {
   selectedGroup = null;
-  if (typeof els.netGroupDialog.close === 'function') els.netGroupDialog.close();
-  else els.netGroupDialog.removeAttribute('open');
+  closeDialog(els.netGroupDialog);
 }
 
 // Rewrite the group on every local device row so the list re-renders without
@@ -889,11 +879,17 @@ export function wireNetGroupDialog() {
 }
 
 // ------------------------------------------------- prefs + toggles
-// Persisted "show offline" preference (localStorage), like plugs/security toggles.
+// Persisted list preferences (localStorage), like plugs/security toggles. The
+// storage/try-catch concern lives once in state.js (issue #571); what an absent
+// or unrecognised stored value means stays here.
+const showOfflinePref = persistedFlag(NETWORK_SHOW_OFFLINE_KEY);
+const showHiddenDevicesPref = persistedFlag(NETWORK_SHOW_HIDDEN_DEVICES_KEY);
+const deviceGroupingPref = persistedPref(NETWORK_DEVICE_GROUPING_KEY);
+const deviceSortPref = persistedPref(NETWORK_DEVICE_SORT_KEY);
+
 export function toggleShowOffline() {
   state.networkShowOffline = !state.networkShowOffline;
-  try { localStorage.setItem(NETWORK_SHOW_OFFLINE_KEY, state.networkShowOffline ? '1' : '0'); }
-  catch (_e) { /* private mode — in-memory only */ }
+  showOfflinePref.write(state.networkShowOffline);
   renderNetwork();
 }
 
@@ -903,59 +899,36 @@ export function toggleShowHiddenDevices(ev) {
     ev.stopPropagation();
   }
   state.networkShowHiddenDevices = !state.networkShowHiddenDevices;
-  try {
-    localStorage.setItem(
-      NETWORK_SHOW_HIDDEN_DEVICES_KEY,
-      state.networkShowHiddenDevices ? '1' : '0'
-    );
-  } catch (_e) { /* private mode — in-memory only */ }
+  showHiddenDevicesPref.write(state.networkShowHiddenDevices);
   renderNetwork();
 }
 
 export function initShowOfflinePref() {
-  try { state.networkShowOffline = localStorage.getItem(NETWORK_SHOW_OFFLINE_KEY) === '1'; }
-  catch (_e) { state.networkShowOffline = false; }
+  state.networkShowOffline = showOfflinePref.read();
 }
 
 export function initShowHiddenDevicesPref() {
-  try {
-    state.networkShowHiddenDevices =
-      localStorage.getItem(NETWORK_SHOW_HIDDEN_DEVICES_KEY) === '1';
-  } catch (_e) {
-    state.networkShowHiddenDevices = false;
-  }
+  state.networkShowHiddenDevices = showHiddenDevicesPref.read();
 }
 
 export function setDeviceGrouping(grouping) {
   state.networkDeviceGrouping = grouping === 'group' ? 'group' : 'band';
-  try { localStorage.setItem(NETWORK_DEVICE_GROUPING_KEY, state.networkDeviceGrouping); }
-  catch (_e) { /* private mode — in-memory only */ }
+  deviceGroupingPref.write(state.networkDeviceGrouping);
   renderNetwork();
 }
 
 // "My groups" is the default for anyone with nothing persisted yet (#519); a
 // prior explicit 'band' choice is preserved.
 export function initDeviceGroupingPref() {
-  try {
-    state.networkDeviceGrouping =
-      localStorage.getItem(NETWORK_DEVICE_GROUPING_KEY) === 'band' ? 'band' : 'group';
-  } catch (_e) {
-    state.networkDeviceGrouping = 'group';
-  }
+  state.networkDeviceGrouping = deviceGroupingPref.read() === 'band' ? 'band' : 'group';
 }
 
 export function setDeviceSort(sort) {
   state.networkDeviceSort = sort === 'signal' ? 'signal' : 'az';
-  try { localStorage.setItem(NETWORK_DEVICE_SORT_KEY, state.networkDeviceSort); }
-  catch (_e) { /* private mode — in-memory only */ }
+  deviceSortPref.write(state.networkDeviceSort);
   renderNetwork();
 }
 
 export function initDeviceSortPref() {
-  try {
-    state.networkDeviceSort =
-      localStorage.getItem(NETWORK_DEVICE_SORT_KEY) === 'signal' ? 'signal' : 'az';
-  } catch (_e) {
-    state.networkDeviceSort = 'az';
-  }
+  state.networkDeviceSort = deviceSortPref.read() === 'signal' ? 'signal' : 'az';
 }

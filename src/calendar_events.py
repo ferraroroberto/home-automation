@@ -6,84 +6,27 @@ there's no dataclass/atomic-store pair here the way ``wake_alarms.py`` and
 imports, no I/O); ``src/calendar_write.py`` is the only place that talks to
 the Google Calendar API.
 
-Adapted from (not copied from) ``src/reminders.py``'s ``_extract_time``/
-``_extract_date`` — same due-cue vocabulary (``at 6pm``, ``tomorrow``,
-``on friday``) — but a calendar event, unlike a reminder, needs *some* date
-to be meaningful: unlike ``parse_spoken_reminder``, a phrase with neither an
-explicit nor an inferable date returns ``None`` rather than falling back to
-an undated entry.
+The due-cue grammar (``at 6pm``, ``tomorrow``, ``on friday``) is shared with
+``src/reminders.py`` and lives in :mod:`src._spoken_time`. What differs is the
+shaping: a calendar event, unlike a reminder, needs *some* date to be
+meaningful, so a phrase with neither an explicit nor an inferable date returns
+``None`` rather than falling back to an undated entry.
 """
 
 from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
+
+from src._spoken_time import extract_date, extract_time
 
 DEFAULT_EVENT_DURATION_MINUTES = 60
-
-_WEEKDAY_WORDS = {
-    "monday": "mon", "tuesday": "tue", "wednesday": "wed", "thursday": "thu",
-    "friday": "fri", "saturday": "sat", "sunday": "sun",
-}
 
 # Strips filler embedded mid-phrase ("dentist appointment TO MY CALENDAR
 # tomorrow at 3pm") — a single trailing wildcard can't carve this out as a
 # separate hassil slot when a date/time cue trails it, so Python does it.
 _CALENDAR_FILLER_RE = re.compile(r"\b(?:to|on|into|in)\s+(?:my|the)\s+calendar\b")
-
-
-def _fmt_time(hour: int, minute: int) -> Optional[str]:
-    if 0 <= hour <= 23 and 0 <= minute <= 59:
-        return f"{hour:02d}:{minute:02d}"
-    return None
-
-
-def _extract_time(text: str) -> Tuple[str, Optional[str]]:
-    """Strip a trailing ``at <time>`` fragment, returning ``(rest, time)``."""
-
-    m = re.search(r"\bat\s+(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\b", text)
-    if m:
-        hour = int(m.group(1))
-        minute = int(m.group(2) or 0)
-        if m.group(3) == "p" and hour < 12:
-            hour += 12
-        elif m.group(3) == "a" and hour == 12:
-            hour = 0
-        rest = (text[: m.start()] + " " + text[m.end():]).strip()
-        return rest, _fmt_time(hour, minute)
-
-    m = re.search(r"\bat\s+(\d{1,2}):(\d{2})\b", text)
-    if m:
-        rest = (text[: m.start()] + " " + text[m.end():]).strip()
-        return rest, _fmt_time(int(m.group(1)), int(m.group(2)))
-
-    return text, None
-
-
-def _extract_date(text: str, now: datetime) -> Tuple[str, Optional[str]]:
-    """Strip a trailing day/date cue, returning ``(rest, date)``."""
-
-    m = re.search(r"\btomorrow\b", text)
-    if m:
-        rest = (text[: m.start()] + " " + text[m.end():]).strip()
-        return rest, (now + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    m = re.search(r"\btoday\b", text)
-    if m:
-        rest = (text[: m.start()] + " " + text[m.end():]).strip()
-        return rest, now.strftime("%Y-%m-%d")
-
-    m = re.search(r"\bon\s+(" + "|".join(_WEEKDAY_WORDS) + r")\b", text)
-    if m:
-        target = _WEEKDAY_WORDS[m.group(1)]
-        rest = (text[: m.start()] + " " + text[m.end():]).strip()
-        for offset in range(1, 8):
-            cand = now + timedelta(days=offset)
-            if cand.strftime("%a").lower()[:3] == target:
-                return rest, cand.strftime("%Y-%m-%d")
-
-    return text, None
 
 
 def parse_spoken_calendar_event(phrase: str, now: datetime) -> Optional[Dict[str, Any]]:
@@ -104,8 +47,8 @@ def parse_spoken_calendar_event(phrase: str, now: datetime) -> Optional[Dict[str
     if not text:
         return None
 
-    rest, time_str = _extract_time(text)
-    rest, date_str = _extract_date(rest, now)
+    rest, time_str = extract_time(text)
+    rest, date_str = extract_date(rest, now)
     rest = _CALENDAR_FILLER_RE.sub(" ", rest)
     summary = " ".join(rest.split())
 

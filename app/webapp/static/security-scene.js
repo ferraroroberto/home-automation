@@ -15,10 +15,9 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { icon } from './_vendored/icons/icons.js';
-import { detectorOptions } from './security-shared.js';
-import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { denseListEditor } from './dense-editor.js';
+import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
+import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 
 // cameraId -> [{token, name}], fetched lazily so we don't hit every camera up front.
 const presetCache = {};
@@ -76,22 +75,6 @@ function presetOptions(cameraId, selectedToken, selectedName) {
     opts.push({ value: selectedToken, label: selectedName || selectedToken });
   }
   return opts;
-}
-
-function setSelectOptions(select, options, value) {
-  select.innerHTML = '';
-  options.forEach(function (entry) {
-    const option = document.createElement('option');
-    option.value = String(entry.value);
-    option.textContent = entry.label;
-    select.appendChild(option);
-  });
-  select.value = value == null ? '' : String(value);
-}
-
-function detectorName(zoneId) {
-  const detector = detectorOptions().find(function (entry) { return Number(entry.id) === Number(zoneId); });
-  return detector ? detector.name : 'Unknown detector';
 }
 
 function cameraName(cameraId) {
@@ -199,38 +182,23 @@ export function renderScenePairings() {
   els.scenePairingsNote.hidden = true;
 
   state.scenePairings.forEach(function (entry, idx) {
-    const row = document.createElement('div');
-    row.className = 'list-row automation-summary-row';
-    row.dataset.pairingId = entry.id;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'automation-summary-main';
-    main.setAttribute('aria-label', 'Edit scene pairing for ' + detectorName(entry.zone_id));
-    const copy = document.createElement('span');
-    copy.className = 'automation-summary-copy';
-    const title = document.createElement('span');
-    title.className = 'automation-summary-title';
-    title.textContent = detectorName(entry.zone_id);
-    const meta = document.createElement('span');
-    meta.className = 'automation-summary-meta';
-    meta.textContent = cameraName(entry.camera_id) + ' · ' + (entry.preset_name || 'Current position');
-    copy.appendChild(title);
-    copy.appendChild(meta);
-    main.appendChild(copy);
-    main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
-    main.addEventListener('click', function () { pairingEditor.open(idx, main); });
-    row.appendChild(main);
-
-    const enabled = buildToggle('scene-pairing-enabled', entry.enabled, function (on) {
-      const proposed = state.scenePairings.map(function (pairing, pairingIndex) {
-        return pairingIndex === idx ? { ...pairing, enabled: on } : pairing;
-      });
-      pairingEditor.save(proposed);
-    });
-    enabled.setAttribute('aria-label', 'Enable scene pairing for ' + detectorName(entry.zone_id));
-    row.appendChild(enabled);
-    els.scenePairings.appendChild(row);
+    els.scenePairings.appendChild(renderSummaryRow({
+      id: entry.id,
+      idAttr: 'pairingId',
+      title: detectorName(entry.zone_id),
+      meta: cameraName(entry.camera_id) + ' · ' + (entry.preset_name || 'Current position'),
+      openLabel: 'Edit scene pairing for ' + detectorName(entry.zone_id),
+      onOpen: function (main) { pairingEditor.open(idx, main); },
+      toggleName: 'scene-pairing-enabled',
+      toggleOn: entry.enabled,
+      toggleLabel: 'Enable scene pairing for ' + detectorName(entry.zone_id),
+      onToggle: function (on) {
+        const proposed = state.scenePairings.map(function (pairing, pairingIndex) {
+          return pairingIndex === idx ? { ...pairing, enabled: on } : pairing;
+        });
+        pairingEditor.save(proposed);
+      },
+    }));
   });
 }
 

@@ -16,10 +16,9 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { icon } from './_vendored/icons/icons.js';
-import { detectorOptions } from './security-shared.js';
-import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { denseListEditor } from './dense-editor.js';
+import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
+import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 
 const RETRY_OPTIONS = [1, 2, 3];
 
@@ -43,22 +42,6 @@ function normalizedOverrides(entries) {
       max_retries: RETRY_OPTIONS.includes(retries) ? retries : 1,
     };
   });
-}
-
-function setSelectOptions(select, options, value) {
-  select.innerHTML = '';
-  options.forEach(function (entry) {
-    const option = document.createElement('option');
-    option.value = String(entry.value);
-    option.textContent = entry.label;
-    select.appendChild(option);
-  });
-  select.value = value == null ? '' : String(value);
-}
-
-function detectorName(zoneId) {
-  const detector = detectorOptions().find(function (entry) { return Number(entry.id) === Number(zoneId); });
-  return detector ? detector.name : 'Unknown detector';
 }
 
 const overrideEditor = denseListEditor({
@@ -134,39 +117,24 @@ export function renderSecurityOverrides() {
   els.securityOverridesNote.hidden = true;
 
   state.securityOverrides.forEach(function (entry, idx) {
-    const row = document.createElement('div');
-    row.className = 'list-row automation-summary-row';
-    row.dataset.overrideId = entry.id;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'automation-summary-main';
-    main.setAttribute('aria-label', 'Edit override for ' + detectorName(entry.zone_id));
-    const copy = document.createElement('span');
-    copy.className = 'automation-summary-copy';
-    const title = document.createElement('span');
-    title.className = 'automation-summary-title';
-    title.textContent = detectorName(entry.zone_id);
-    const meta = document.createElement('span');
-    meta.className = 'automation-summary-meta';
-    meta.textContent = 'Bypass after ' + entry.max_retries +
-      (entry.max_retries === 1 ? ' trigger' : ' triggers');
-    copy.appendChild(title);
-    copy.appendChild(meta);
-    main.appendChild(copy);
-    main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
-    main.addEventListener('click', function () { overrideEditor.open(idx, main); });
-    row.appendChild(main);
-
-    const enabled = buildToggle('security-override-enabled', entry.enabled, function (on) {
-      const proposed = state.securityOverrides.map(function (override, overrideIndex) {
-        return overrideIndex === idx ? { ...override, enabled: on } : override;
-      });
-      overrideEditor.save(proposed);
-    });
-    enabled.setAttribute('aria-label', 'Enable override for ' + detectorName(entry.zone_id));
-    row.appendChild(enabled);
-    els.securityOverrides.appendChild(row);
+    els.securityOverrides.appendChild(renderSummaryRow({
+      id: entry.id,
+      idAttr: 'overrideId',
+      title: detectorName(entry.zone_id),
+      meta: 'Bypass after ' + entry.max_retries +
+        (entry.max_retries === 1 ? ' trigger' : ' triggers'),
+      openLabel: 'Edit override for ' + detectorName(entry.zone_id),
+      onOpen: function (main) { overrideEditor.open(idx, main); },
+      toggleName: 'security-override-enabled',
+      toggleOn: entry.enabled,
+      toggleLabel: 'Enable override for ' + detectorName(entry.zone_id),
+      onToggle: function (on) {
+        const proposed = state.securityOverrides.map(function (override, overrideIndex) {
+          return overrideIndex === idx ? { ...override, enabled: on } : override;
+        });
+        overrideEditor.save(proposed);
+      },
+    }));
   });
 }
 

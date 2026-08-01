@@ -6,14 +6,14 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
+import { state, els, toast, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { esc, fmtW, fmtPct } from './format.js';
-import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { isSnapshotRestored, restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from './poll.js';
-import { createViewState } from './view-state.js';
+import { createViewState, markTabFailure, staleNoteEl, staleText } from './view-state.js';
 
 const POLL_MS = 15_000;
 
@@ -104,12 +104,7 @@ function renderUpsTile(tile, ups, compact) {
     // this one thin-line style (issue #522), matching Energy/Plugs/Network/
     // Security's single-note pattern.
     if (upsView.state === 'stale' || isSnapshotRestored('ups')) {
-      const note = document.createElement('p');
-      note.className = 'muted small ups-stale-note';
-      note.textContent = upsView.liveUnavailable
-        ? upsView.lastUpdatedLabel() + ' · live data unavailable'
-        : snapshotLabel('ups');
-      tile.appendChild(note);
+      tile.appendChild(staleNoteEl(staleText(upsView, 'ups'), 'ups-stale-note'));
     }
     return;
   }
@@ -175,11 +170,12 @@ export async function loadUps() {
     renderUps();
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
-    upsView.set(state.ups && state.ups.available === true ? 'stale' : 'error', {
-      liveUnavailable: true,
+    markTabFailure(upsView, {
+      hasData: !!(state.ups && state.ups.available === true),
+      scope: 'ups',
+      label: 'UPS',
+      render: renderUps,
     });
-    reportFetchFailure('ups', { message: 'live data unavailable' }, 'UPS');
-    renderUps();
   }
 }
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import re
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -64,6 +66,73 @@ def make_display_name_endpoint(
     endpoint.__name__ = f"set_{id_field}_display_name"
     router.put(path)(endpoint)
     return endpoint
+
+
+def _enabled_list_payload(entries: List[Any]) -> Dict[str, Any]:
+    """The ``{enabled, count, entries}`` body every self-contained list store returns."""
+    active = [entry for entry in entries if getattr(entry, "enabled", False)]
+    return {
+        "enabled": bool(active),
+        "count": len(active),
+        "entries": [asdict(entry) for entry in entries],
+    }
+
+
+def make_list_crud_router(
+    load_fn: Callable[[], List[Any]],
+    set_fn: Callable[[List[Any]], List[Any]],
+    *,
+    path: str,
+    noun: str,
+    log_noun: Optional[str] = None,
+    slug: Optional[str] = None,
+    doc: Optional[str] = None,
+) -> APIRouter:
+    """Build a GET/PUT router for one self-contained, enabled-flagged list store.
+
+    Collapses the identical shape shared by the alarm schedules / scene-pairings
+    / detector-override routers: a GET that loads the list and wraps it in
+    ``{enabled, count, entries}`` (500 + warning on failure), and a PUT that
+    parses a JSON body, requires ``entries`` to be a list (400 otherwise), and
+    persists it through ``set_fn`` (500 + warning on failure).
+
+    ``noun`` is the phrase in the HTTP ``detail`` text ("failed to load
+    {noun}"); ``log_noun`` overrides it for the warning line when the log wants
+    a longer name. ``slug`` names the generated handlers (defaults to a
+    slugified ``noun``); ``doc`` is the GET handler's docstring, which FastAPI
+    surfaces as the endpoint description.
+    """
+    log_phrase = log_noun or noun
+    handler_slug = slug or re.sub(r"[^a-z0-9]+", "_", noun.lower()).strip("_")
+
+    router = APIRouter()
+
+    async def get_entries() -> Dict[str, Any]:
+        try:
+            return _enabled_list_payload(load_fn())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️  Failed to load %s: %s", log_phrase, exc)
+            raise HTTPException(status_code=500, detail=f"failed to load {noun}: {exc}")
+
+    async def update_entries(request: Request) -> Dict[str, Any]:
+        body = await _json_body(request)
+        entries = body.get("entries")
+        if not isinstance(entries, list):
+            raise HTTPException(status_code=400, detail="'entries' must be a list")
+        try:
+            return _enabled_list_payload(set_fn(entries))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️  Failed to save %s: %s", log_phrase, exc)
+            raise HTTPException(status_code=500, detail=f"failed to save {noun}: {exc}")
+
+    get_entries.__name__ = f"get_{handler_slug}"
+    update_entries.__name__ = f"update_{handler_slug}"
+    if doc:
+        get_entries.__doc__ = doc
+
+    router.get(path)(get_entries)
+    router.put(path)(update_entries)
+    return router
 
 
 ExcTypes = Union[Type[Exception], Tuple[Type[Exception], ...]]

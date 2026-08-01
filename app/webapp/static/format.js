@@ -46,3 +46,23 @@ export function fmtW(v) {
 export function fmtPct(v) {
   return v == null ? '—' : Math.round(Number(v)) + '%';
 }
+
+/** The bar + fill + "NN%" trio every Wi-Fi signal cell renders (issue #571 —
+ *  built verbatim in network-devices.js, network-wifi.js and
+ *  network-survey.js). Returns a DocumentFragment for the caller to append
+ *  into its own cell span, whose class differs per list. */
+export function renderSignalBar(signal) {
+  const frag = document.createDocumentFragment();
+  const bar = document.createElement('span');
+  bar.className = 'net-signal-bar';
+  const fill = document.createElement('span');
+  fill.className = 'net-signal-fill';
+  fill.style.width = Math.max(0, Math.min(100, signal)) + '%';
+  bar.appendChild(fill);
+  frag.appendChild(bar);
+  const pct = document.createElement('span');
+  pct.className = 'net-signal-pct';
+  pct.textContent = signal + '%';
+  frag.appendChild(pct);
+  return frag;
+}

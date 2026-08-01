@@ -117,41 +117,54 @@ function renderDhcpExisting(plan) {
 }
 
 // ---- Suggested adds + unassigned (assignable) + randomised (un-reservable) ----
+// All three rows are the same four cells — lead control, name, MAC, trailing
+// status — and used to be built out longhand three times (issue #571). Only the
+// lead cell and the trailing cell genuinely differ, so they are the parameters.
+function dhcpRowBase(a, opts) {
+  const row = document.createElement('div');
+  row.className = 'net-dhcp-row' + (opts.rowClass ? ' ' + opts.rowClass : '');
+  row.appendChild(opts.lead);
+
+  const name = document.createElement('span');
+  name.className = 'net-dhcp-name';
+  name.textContent = a.label || '(unnamed)';
+  row.appendChild(name);
+
+  const mac = document.createElement('span');
+  mac.className = 'net-dhcp-mac mono';
+  mac.textContent = a.mac || '??';
+  row.appendChild(mac);
+
+  const trailing = document.createElement('span');
+  trailing.className = 'net-dhcp-move' + (opts.trailingClass ? ' ' + opts.trailingClass : '');
+  trailing.textContent = opts.trailingText;
+  row.appendChild(trailing);
+  return row;
+}
+
+// The inert placeholder that keeps a non-selectable row's cells aligned with
+// the checkbox column of the selectable ones.
+function dhcpCheckSpacer() {
+  const spacer = document.createElement('span');
+  spacer.className = 'net-dhcp-check net-dhcp-check-spacer';
+  return spacer;
+}
+
 function suggestedRow(a) {
   const key = normMac(a.mac);
-  const row = document.createElement('div');
-  row.className = 'net-dhcp-row';
-
   const cb = buildToggle('net-dhcp-check', stagedAdd.has(key), function (on) {
     if (on) stagedAdd.add(key); else stagedAdd.delete(key);
     renderDhcpPlan(lastDhcpPlan);
   });
   cb.title = 'Add this reservation';
   cb.setAttribute('aria-label', 'Add this reservation');
-  row.appendChild(cb);
 
-  const name = document.createElement('span');
-  name.className = 'net-dhcp-name';
-  name.textContent = a.label || '(unnamed)';
-
-  const mac = document.createElement('span');
-  mac.className = 'net-dhcp-mac mono';
-  mac.textContent = a.mac || '??';
-
-  const move = document.createElement('span');
-  move.className = 'net-dhcp-move';
-  const current = a.current_ip || '—';
-  if (a.planned_ip === a.current_ip) {
-    move.textContent = a.planned_ip;
-    move.classList.add('net-dhcp-stable');
-  } else {
-    move.textContent = current + ' → ' + a.planned_ip;
-    move.classList.add('net-dhcp-change');
-  }
-
-  row.appendChild(name);
-  row.appendChild(mac);
-  row.appendChild(move);
+  const stable = a.planned_ip === a.current_ip;
+  const row = dhcpRowBase(a, {
+    lead: cb,
+    trailingClass: stable ? 'net-dhcp-stable' : 'net-dhcp-change',
+    trailingText: stable ? a.planned_ip : (a.current_ip || '—') + ' → ' + a.planned_ip,
+  });
 
   const tag = a.status === 'change'
     ? ['Change', 'net-dhcp-pill-change']
@@ -164,56 +177,22 @@ function suggestedRow(a) {
 }
 
 function unassignedRow(a) {
-  const row = document.createElement('div');
-  row.className = 'net-dhcp-row';
-
-  const spacer = document.createElement('span');
-  spacer.className = 'net-dhcp-check net-dhcp-check-spacer';
-  row.appendChild(spacer);
-
-  const name = document.createElement('span');
-  name.className = 'net-dhcp-name';
-  name.textContent = a.label || '(unnamed)';
-
-  const mac = document.createElement('span');
-  mac.className = 'net-dhcp-mac mono';
-  mac.textContent = a.mac || '??';
-
-  const move = document.createElement('span');
-  move.className = 'net-dhcp-move net-dhcp-unplaced';
-  move.textContent = (a.current_ip || '—') + ' → —';
-
-  row.appendChild(name);
-  row.appendChild(mac);
-  row.appendChild(move);
+  const row = dhcpRowBase(a, {
+    lead: dhcpCheckSpacer(),
+    trailingClass: 'net-dhcp-unplaced',
+    trailingText: (a.current_ip || '—') + ' → —',
+  });
   row.appendChild(dhcpGroupSelect(a));
   return row;
 }
 
 function randomisedRow(a) {
-  const row = document.createElement('div');
-  row.className = 'net-dhcp-row net-dhcp-row-random';
-
-  const spacer = document.createElement('span');
-  spacer.className = 'net-dhcp-check net-dhcp-check-spacer';
-  row.appendChild(spacer);
-
-  const name = document.createElement('span');
-  name.className = 'net-dhcp-name';
-  name.textContent = a.label || '(unnamed)';
-
-  const mac = document.createElement('span');
-  mac.className = 'net-dhcp-mac mono';
-  mac.textContent = a.mac || '??';
-
-  const note = document.createElement('span');
-  note.className = 'net-dhcp-move net-dhcp-random-note';
-  note.textContent = "can't reserve";
-
-  row.appendChild(name);
-  row.appendChild(mac);
-  row.appendChild(note);
-  return row;
+  return dhcpRowBase(a, {
+    rowClass: 'net-dhcp-row-random',
+    lead: dhcpCheckSpacer(),
+    trailingClass: 'net-dhcp-random-note',
+    trailingText: "can't reserve",
+  });
 }
 
 function dhcpGroupSelect(a) {

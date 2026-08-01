@@ -15,68 +15,46 @@ import {
   state,
   els,
   toast,
-  reportFetchFailure,
   reportFetchOk,
   modeIcon,
 } from './state.js';
-import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
 import { jsonApi } from './api.js';
-import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
-import { createViewState } from './view-state.js';
+import { createViewState, markTabFailure, renderFeedback, staleText } from './view-state.js';
+import { createPoller } from './poll.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 const DEFAULT_RANGE = [16, 31];
 let currentScheduleEntries = [];
 const acView = createViewState('units');
 
 function renderAcFeedback() {
-  if (!els.paneAc || !els.acFeedback) return;
-  els.paneAc.dataset.state = acView.state;
-  els.paneAc.setAttribute('aria-busy', acView.state === 'loading' ? 'true' : 'false');
-  els.acFeedback.innerHTML = '';
-  els.acFeedback.hidden = false;
-  if (acView.state === 'loading') {
-    els.acFeedback.appendChild(emptyStateEl('refresh-cw', 'Reading AC units…'));
-    return;
-  }
-  if (acView.state === 'empty') {
-    els.acFeedback.appendChild(emptyStateEl('snowflake', 'No AC units configured', {
-      actionLabel: 'Retry',
-      onAction: function () { loadUnits(); },
-    }));
-    return;
-  }
-  if (acView.state === 'error') {
-    els.acFeedback.appendChild(emptyStateEl('snowflake', 'AC units unavailable', {
-      actionLabel: 'Retry',
-      onAction: function () { loadUnits(); },
-    }));
-    return;
-  }
-  if (acView.state === 'stale') {
-    const note = document.createElement('p');
-    note.className = 'muted small ac-stale-note';
-    note.textContent = acView.liveUnavailable
-      ? acView.lastUpdatedLabel() + ' · live data unavailable'
-      : snapshotLabel('units');
-    els.acFeedback.appendChild(note);
-    return;
-  }
-  els.acFeedback.hidden = true;
+  if (!els.paneAc) return;
+  renderFeedback(acView, els.acFeedback, {
+    paneEl: els.paneAc,
+    ariaBusy: true,
+    icon: 'snowflake',
+    loadingIcon: 'refresh-cw',
+    loadingLabel: 'Reading AC units…',
+    emptyLabel: 'No AC units configured',
+    errorLabel: 'AC units unavailable',
+    snapshotKey: 'units',
+    onRetry: function () { loadUnits(); },
+  });
 }
 
 function markAcFailure() {
-  acView.set(state.units.length ? 'stale' : 'error', {
-    liveUnavailable: true,
+  markTabFailure(acView, {
+    hasData: state.units.length > 0,
+    scope: 'units',
+    label: 'AC units',
+    render: function () {
+      renderAll();
+      renderAcSummary();
+    },
   });
-  reportFetchFailure(
-    'units',
-    { message: 'live data unavailable' },
-    'AC units'
-  );
-  renderAll();
-  renderAcSummary();
 }
 
 // Detail-modal staging (#202): edits to mode/fan/vanes, display name, the
@@ -592,15 +570,13 @@ function openDetail(unitId) {
   clearDetailDirty();
   populateDetail(unit);
   loadAutomation(unitId);
-  if (typeof els.detail.showModal === 'function') els.detail.showModal();
-  else els.detail.setAttribute('open', '');
+  openDialog(els.detail);
 }
 
 function closeDetail() {
   state.selectedId = null;
   clearDetailDirty();
-  if (typeof els.detail.close === 'function') els.detail.close();
-  else els.detail.removeAttribute('open');
+  closeDialog(els.detail);
 }
 
 // ------------------------------------------------ read-only AC summary (Home)
@@ -663,9 +639,7 @@ function renderAcSummary() {
   if (acView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small snapshot-note ac-snapshot-note';
-    note.textContent = acView.liveUnavailable
-      ? acView.lastUpdatedLabel() + ' · live data unavailable'
-      : snapshotLabel('units');
+    note.textContent = staleText(acView, 'units');
     els.acSummary.appendChild(note);
   }
 }
@@ -718,12 +692,12 @@ export function restoreUnitsSnapshot() {
 // AC units only matter on Home (summary tile) and AC (cards), so poll them
 // only while one of those tabs is active rather than every 30s everywhere
 // (#209). The initial boot fetch is the caller's `loadUnits()` call.
-let unitsTimer = null;
+const scheduleUnits = createPoller(loadUnits);
 export function onUnitsTab(tab) {
-  if (unitsTimer) { clearInterval(unitsTimer); unitsTimer = null; }
+  scheduleUnits(0);
   if (tab === 'home' || tab === 'ac') {
     loadUnits();
-    unitsTimer = setInterval(loadUnits, 30_000);
+    scheduleUnits(30_000);
   }
 }
 

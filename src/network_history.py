@@ -35,6 +35,7 @@ import time
 from pathlib import Path
 from typing import Any, ContextManager, Dict, Iterable, List, Optional, Tuple
 
+from src._mac import normalize_mac
 from src._sqlite import connect as _sqlite_connect
 
 logger = logging.getLogger("network_history")
@@ -53,11 +54,6 @@ _NEW_DEVICE_WINDOW_S = 24 * 3600
 # can't grow without bound (guest devices, replaced hardware). Important devices
 # are never pruned — losing a user-set flag to a long absence would be wrong.
 _PRUNE_AFTER_S = 180 * 24 * 3600
-
-
-def _norm(mac: str) -> str:
-    """Canonical key form: upper-case, whitespace-trimmed (matches the rename store)."""
-    return (mac or "").strip().upper()
 
 
 # --------------------------------------------------------------- connection
@@ -156,7 +152,7 @@ def record_and_snapshot(
         seeded = 1 if was_empty else 0
         new_macs: List[str] = []
         for item in seen:
-            mac = _norm(item.get("mac", ""))
+            mac = normalize_mac(item.get("mac", ""))
             if not mac:
                 continue
             if mac not in existing and not was_empty:
@@ -211,7 +207,7 @@ def set_important(
     Upserts so it works even before the device's first recorded read (defensive —
     in practice the detail modal only opens for an already-recorded device).
     """
-    key = _norm(mac)
+    key = normalize_mac(mac)
     when = int(now if now is not None else time.time())
     init_db(path)
     with _connect(path) as conn:
