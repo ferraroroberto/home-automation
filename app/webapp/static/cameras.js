@@ -17,7 +17,7 @@
 
 import { els, state, toast, readToken, reportFetchOk } from './state.js';
 import { api, jsonApi } from './api.js';
-import { confirmAction } from './network.js';
+import { confirmAction } from './confirm.js';
 import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createViewState, markTabFailure } from './view-state.js';

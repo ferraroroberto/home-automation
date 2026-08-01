@@ -5,15 +5,15 @@
  * at 10 rows, so this is a small *staged* reservation manager, not a one-shot
  * apply: mark router rows to remove, tick suggested/manual rows to add, then one
  * "Apply changes" runs the removes then the adds in a single router session (POST
- * /api/network/dhcp-reservations/apply). Every write is confirm-gated (via the boot
- * module's confirmAction) and never runs on a poll.
+ * /api/network/dhcp-reservations/apply). Every write is confirm-gated (via the
+ * shared confirm.js dialog) and never runs on a poll.
  */
 
 'use strict';
 
 import { els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { confirmAction } from './network.js';
+import { confirmAction } from './confirm.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 

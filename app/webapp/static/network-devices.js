@@ -40,7 +40,8 @@ import {
 import { jsonApi } from './api.js';
 import { renderSignalBar } from './format.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
-import { renderNetwork, confirmAction } from './network.js';
+import { renderNetwork } from './network.js';
+import { confirmAction } from './confirm.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
 

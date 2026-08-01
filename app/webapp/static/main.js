@@ -51,6 +51,7 @@ import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetwork
 import { startWeatherPolling } from './weather.js';
 import { wireActivity } from './activity.js';
 import { installDialogScrollLock } from './scroll-lock.js';
+import { wireConfirmDialog } from './confirm.js';
 
 // --------------------------------------------------- build identity
 function fmtBuildTime(iso) {
@@ -165,6 +166,10 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // dialog can open.
   installDialogScrollLock();
 
+  // The shared confirm dialog is used from every tab and from dense-editor.js,
+  // so it is wired at boot rather than by whichever feature tab happens to own
+  // it — the layering the #574 move to confirm.js was about.
+  wireConfirmDialog();
   wireUnitsControls();
   wireEnergyControls();
   wirePlugsToggle();

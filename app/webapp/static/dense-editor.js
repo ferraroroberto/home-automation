@@ -36,7 +36,7 @@
 
 import { toast } from './state.js';
 import { jsonApi } from './api.js';
-import { confirmAction } from './network.js';
+import { confirmAction } from './confirm.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { closeDialog, openDialog } from './dialog.js';

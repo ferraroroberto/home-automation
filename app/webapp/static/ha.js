@@ -202,6 +202,100 @@ async function announceFinal(satellite, transcript, transcriptEl) {
   }
 }
 
+/* Ordered upload queue for one streaming dictation session.
+ *
+ * MediaRecorder fires `dataavailable` every CHUNK_MS no matter how fast the
+ * proxy accepts uploads, so chunks are parked here and pushed by a single
+ * in-flight async loop: `drain()` returns the running promise instead of
+ * starting a second one, which is what keeps the POSTs strictly ordered.
+ * Rejects on the first non-OK response; the caller decides whether that ends
+ * the recording.
+ */
+function createChunkQueue(sessionId) {
+  const url = '/api/ha/transcribe/sessions/' + encodeURIComponent(sessionId) + '/chunk';
+  const pending = [];
+  let draining = null;
+
+  function drain() {
+    if (draining) return draining;
+    draining = (async function () {
+      try {
+        while (pending.length) {
+          const blob = pending.shift();
+          const response = await api(url, { method: 'POST', body: blob, timeoutMs: 30_000 });
+          if (!response.ok) throw new Error('Audio stream failed (HTTP ' + response.status + ')');
+        }
+      } finally {
+        draining = null;
+      }
+    })();
+    return draining;
+  }
+
+  return {
+    sessionId: sessionId,
+    size: function () { return pending.length; },
+    push: function (blob) { pending.push(blob); },
+    clear: function () { pending.length = 0; },
+    drain: drain,
+  };
+}
+
+/* The two mutually exclusive finish paths, picked by whether a streaming
+ * session was created: flush the queue and ask the session for its canonical
+ * transcript, or upload the whole buffered recording in one multipart POST.
+ * Returns the transcription result object (or null on an unparseable body).
+ */
+async function transcribeFinal(chunks, buffered, mimeType) {
+  if (chunks) {
+    await chunks.drain();
+    return jsonApi(
+      '/api/ha/transcribe/sessions/' + encodeURIComponent(chunks.sessionId) + '/finish',
+      { method: 'POST', timeoutMs: 90_000 }
+    );
+  }
+  const blob = new Blob(buffered, { type: mimeType || 'audio/webm' });
+  const form = new FormData();
+  form.append('file', blob, 'recording.' + (blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm'));
+  const response = await api('/api/ha/transcribe', { method: 'POST', body: form, timeoutMs: 90_000 });
+  const result = await response.json().catch(function () { return null; });
+  if (!response.ok) throw new Error((result && result.detail) || 'Transcription failed');
+  return result;
+}
+
+function showMicRecording(button, satellite) {
+  button.classList.add('recording');
+  button.setAttribute('aria-pressed', 'true');
+  button.setAttribute('aria-label', 'Stop microphone in ' + satellite.room);
+  button.innerHTML = icon('square');
+}
+
+// Recording has ended but the transcript is still in flight — the button goes
+// back to its mic face and stays disabled so a second take cannot start.
+function showMicTranscribing(button) {
+  button.classList.remove('recording');
+  button.setAttribute('aria-pressed', 'false');
+  button.innerHTML = icon('mic');
+  button.disabled = true;
+}
+
+// Release everything one dictation owned, whether it ended cleanly or threw.
+function teardownDictation(button, satellite, eventSource, chunks, buffered) {
+  if (eventSource) eventSource.close();
+  if (chunks) chunks.clear();
+  buffered.length = 0;
+  activeDictation = null;
+  button.disabled = !satellite.online;
+}
+
+/* Push-to-talk state machine for one satellite row.
+ *
+ * Second click on the recording button stops it; a click elsewhere while one is
+ * live is refused (only one mic may record at a time). The transport is chosen
+ * once, up front: a live session gives streaming chunk uploads plus SSE
+ * partials, and failing to create one falls back to buffering the whole clip
+ * and posting it at the end. The per-step work lives in the helpers above.
+ */
 async function toggleDictation(satellite, row, button) {
   if (activeDictation && activeDictation.button === button) {
     activeDictation.stop();
@@ -235,41 +329,18 @@ async function toggleDictation(satellite, row, button) {
   }
 
   let sessionId = null;
-  let eventSource = null;
-  let streaming = false;
-  let queue = [];
-  let drainPromise = null;
-  let buffered = [];
-  let overload = false;
-
-  async function drain() {
-    if (drainPromise) return drainPromise;
-    drainPromise = (async function () {
-      try {
-        while (queue.length && sessionId) {
-          const blob = queue.shift();
-          const response = await api(
-            '/api/ha/transcribe/sessions/' + encodeURIComponent(sessionId) + '/chunk',
-            { method: 'POST', body: blob, timeoutMs: 30_000 }
-          );
-          if (!response.ok) throw new Error('Audio stream failed (HTTP ' + response.status + ')');
-        }
-      } finally {
-        drainPromise = null;
-      }
-    })();
-    return drainPromise;
-  }
-
   try {
     const created = await jsonApi('/api/ha/transcribe/sessions', { method: 'POST' });
     sessionId = created && created.session_id;
-    streaming = !!sessionId;
-  } catch (_) {
-    streaming = false;
-  }
+  } catch (_) { /* no session — fall back to the buffered one-shot upload */ }
 
-  if (streaming) {
+  // `chunks` non-null is the streaming transport; null is the buffered fallback.
+  const chunks = sessionId ? createChunkQueue(sessionId) : null;
+  const buffered = [];
+  let eventSource = null;
+  let overload = false;
+
+  if (chunks) {
     eventSource = new EventSource(voiceEventUrl(sessionId));
     eventSource.addEventListener('partial', function (event) {
       try {
@@ -281,18 +352,18 @@ async function toggleDictation(satellite, row, button) {
 
   recorder.addEventListener('dataavailable', function (event) {
     if (!event.data || !event.data.size) return;
-    if (!streaming) {
+    if (!chunks) {
       buffered.push(event.data);
       return;
     }
-    if (queue.length >= MAX_QUEUED_CHUNKS) {
+    if (chunks.size() >= MAX_QUEUED_CHUNKS) {
       overload = true;
       transcriptEl.textContent = 'Transcription could not keep up — stopping safely…';
       try { recorder.stop(); } catch (_) { /* stop handler still owns cleanup */ }
       return;
     }
-    queue.push(event.data);
-    drain().catch(function (exc) {
+    chunks.push(event.data);
+    chunks.drain().catch(function (exc) {
       overload = true;
       transcriptEl.textContent = exc.message || 'Audio stream failed';
       try { recorder.stop(); } catch (_) { /* cleanup below */ }
@@ -301,29 +372,9 @@ async function toggleDictation(satellite, row, button) {
 
   recorder.addEventListener('stop', async function () {
     stream.getTracks().forEach(function (track) { track.stop(); });
-    button.classList.remove('recording');
-    button.setAttribute('aria-pressed', 'false');
-    button.innerHTML = icon('mic');
-    button.disabled = true;
+    showMicTranscribing(button);
     try {
-      let result;
-      if (streaming) {
-        await drain();
-        result = await jsonApi(
-          '/api/ha/transcribe/sessions/' + encodeURIComponent(sessionId) + '/finish',
-          { method: 'POST', timeoutMs: 90_000 }
-        );
-      } else {
-        const blob = new Blob(buffered, { type: recorder.mimeType || mime || 'audio/webm' });
-        const form = new FormData();
-        const extension = blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-        form.append('file', blob, 'recording.' + extension);
-        const response = await api('/api/ha/transcribe', {
-          method: 'POST', body: form, timeoutMs: 90_000,
-        });
-        result = await response.json().catch(function () { return null; });
-        if (!response.ok) throw new Error((result && result.detail) || 'Transcription failed');
-      }
+      const result = await transcribeFinal(chunks, buffered, recorder.mimeType || mime);
       if (result && result.silent) {
         await announceFinal(satellite, '', transcriptEl);
       } else if (!overload) {
@@ -333,19 +384,12 @@ async function toggleDictation(satellite, row, button) {
       transcriptEl.textContent = exc.message || 'Transcription failed';
       toast(exc.message || 'Transcription failed', 'error');
     } finally {
-      if (eventSource) eventSource.close();
-      buffered = [];
-      queue = [];
-      activeDictation = null;
-      button.disabled = !satellite.online;
+      teardownDictation(button, satellite, eventSource, chunks, buffered);
     }
   });
 
-  recorder.start(streaming ? CHUNK_MS : undefined);
-  button.classList.add('recording');
-  button.setAttribute('aria-pressed', 'true');
-  button.setAttribute('aria-label', 'Stop microphone in ' + satellite.room);
-  button.innerHTML = icon('square');
+  recorder.start(chunks ? CHUNK_MS : undefined);
+  showMicRecording(button, satellite);
   transcriptEl.textContent = 'Listening…';
   activeDictation = {
     button: button,
