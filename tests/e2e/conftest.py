@@ -485,10 +485,30 @@ def _bounded_teardown(fn: Callable[[], None], label: str, driver_pid: Optional[i
 
 
 @pytest.fixture(scope="session")
-def playwright() -> Iterator[Playwright]:
+def playwright(browser_name: str) -> Iterator[Playwright]:
+    """One Playwright driver **per browser projection**, not one per session (#584).
+
+    The `browser_name` dependency is the entire fix, and it is load-bearing
+    rather than decorative. pytest-playwright parametrizes `browser_name` at
+    session scope, so taking it as an argument makes pytest build (and finalize)
+    one instance of this fixture per projection instead of a single shared one.
+
+    Why that matters: `_bounded_teardown` unwedges a hung teardown by
+    force-killing the driver's OS process — the only thing a watchdog thread may
+    safely do, since Playwright's sync API is greenlet-bound to the calling
+    thread. With one driver shared across projections, a wedged Chromium
+    `browser.close()` killed the driver WebKit was about to use, and every
+    later launch failed with "Connection closed while reading from the driver":
+    one error per remaining test, no summary line, pytest spinning at ~90% CPU
+    until killed. The kill was correct; its blast radius was not.
+
+    Per-projection drivers keep #440's guarantee (a wedged teardown is still
+    bounded and still force-killed) while confining the damage to the projection
+    that actually wedged. `tests/e2e/test_driver_isolation.py` pins this.
+    """
     pw = sync_playwright().start()
     yield pw
-    _bounded_teardown(pw.stop, "playwright.stop()", _driver_pid(pw))
+    _bounded_teardown(pw.stop, f"playwright.stop() [{browser_name}]", _driver_pid(pw))
 
 
 @pytest.fixture(scope="session")
