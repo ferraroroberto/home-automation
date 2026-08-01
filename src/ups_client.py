@@ -7,13 +7,14 @@ import logging
 import os
 import shutil
 import subprocess
-import sys
 import threading
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
+
+from src._no_window import NO_WINDOW
 
 logger = logging.getLogger("ups")
 
@@ -52,11 +53,6 @@ class _SourceBackoff:
 _backoff_lock = threading.Lock()
 _nut_backoff = _SourceBackoff()
 _nut_direct_backoff = _SourceBackoff()
-
-# Hide the console window each subprocess would otherwise pop on Windows
-# (these run on every Plugs/Home UPS poll). No-op off Windows. Mirrors the
-# guarded pattern in network_host.py.
-_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
 
 _UNKNOWN_RUNTIME_MINUTES = {71582788, 4294967295}
 # Portable NUT-for-Windows lives inside the repo under the gitignored
@@ -197,7 +193,7 @@ def _read_nut() -> UpsState:
             capture_output=True,
             text=True,
             timeout=5,
-            creationflags=_NO_WINDOW,
+            creationflags=NO_WINDOW,
         )
         if listed.returncode != 0:
             raise RuntimeError((listed.stderr or listed.stdout or "upsc -l failed").strip())
@@ -212,7 +208,7 @@ def _read_nut() -> UpsState:
         capture_output=True,
         text=True,
         timeout=5,
-        creationflags=_NO_WINDOW,
+        creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "upsc failed").strip())
@@ -270,7 +266,7 @@ def _read_nut_direct() -> UpsState:
         text=True,
         timeout=8,
         env=env,
-        creationflags=_NO_WINDOW,
+        creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "usbhid-ups failed").strip())
@@ -432,7 +428,7 @@ def _read_windows_battery() -> UpsState:
         capture_output=True,
         text=True,
         timeout=8,
-        creationflags=_NO_WINDOW,
+        creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "Win32_Battery failed").strip())

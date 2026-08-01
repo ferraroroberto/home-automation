@@ -32,6 +32,7 @@ from typing import List, Optional
 # Local imports
 from app.webapp.manager import WebappManager, cert_paths, load_config
 from app.tray.single_instance import SingleInstance
+from src._no_window import NO_WINDOW
 from src.webapp_config import append_auth_token, load_webapp_config
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def _clipboard_copy(text: str) -> bool:
                 text=True,
                 check=False,
                 encoding="utf-8",
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=NO_WINDOW,
             )
             return p.returncode == 0
         except OSError as exc:
@@ -113,11 +114,10 @@ def _ts_debug(msg: str) -> None:
 def _run_tailscale(binary: str, args: List[str]) -> subprocess.CompletedProcess:
     """Run the tailscale CLI windowless, with stdin detached.
 
-    ``CREATE_NO_WINDOW`` stops a console flashing out of the windowless
-    tray; ``stdin=DEVNULL`` avoids the invalid-handle trap a ``pythonw``
-    parent can hit when a child inherits a missing stdin.
+    The shared ``NO_WINDOW`` flag stops a console flashing out of the
+    windowless tray; ``stdin=DEVNULL`` avoids the invalid-handle trap a
+    ``pythonw`` parent can hit when a child inherits a missing stdin.
     """
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     return subprocess.run(
         [binary, *args],
         stdin=subprocess.DEVNULL,
@@ -126,7 +126,7 @@ def _run_tailscale(binary: str, args: List[str]) -> subprocess.CompletedProcess:
         text=True,
         timeout=12,
         check=False,
-        creationflags=creationflags,
+        creationflags=NO_WINDOW,
     )
 
 

@@ -7,7 +7,8 @@ UI-free core. Shells out to ``docker`` for the single ``searxng`` container
 against ``SEARXNG_URL`` to distinguish "container up" from "actually
 answering queries" — mirrors the ``src/hyperv_client.py`` / ``ups_client``
 "shell out, flatten, partial data stays 200" shape, including the
-``CREATE_NO_WINDOW`` guard so no console window pops on each Home-view poll.
+shared ``NO_WINDOW`` guard (``src/_no_window.py``) so no console window pops on
+each Home-view poll.
 
 Status reads never raise — a missing container, a stopped one, or an
 unreachable ``/healthz`` all come back as an ``available=False``
@@ -21,7 +22,6 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-import sys
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -30,13 +30,11 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
+from src._no_window import NO_WINDOW
+
 logger = logging.getLogger("searxng")
 
 load_dotenv()
-
-# Hide the console window each subprocess would otherwise pop on Windows (these
-# run on every Home-view poll). No-op off Windows. Mirrors ``hyperv_client``.
-_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
 
 _CONTAINER_NAME = "searxng"
 _COMPOSE_PATH_ENV = "SEARXNG_COMPOSE_PATH"
@@ -116,7 +114,7 @@ def start_searxng() -> SearxngState:
         capture_output=True,
         text=True,
         timeout=60,
-        creationflags=_NO_WINDOW,
+        creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
         err = (result.stderr or result.stdout or "docker compose up failed").strip()
@@ -132,7 +130,7 @@ def _container_status() -> str:
         capture_output=True,
         text=True,
         timeout=10,
-        creationflags=_NO_WINDOW,
+        creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
         return "not_found"

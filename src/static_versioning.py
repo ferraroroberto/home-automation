@@ -33,7 +33,10 @@ import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable
+from typing import Dict, Iterable
+
+# Local imports
+from src._no_window import NO_WINDOW
 
 logger = logging.getLogger(__name__)
 
@@ -187,23 +190,22 @@ def _git_short_sha(repo_root: Path) -> str:
 
     Returns ``"unknown"`` when git isn't available — e.g. the project was
     deployed from a tarball rather than a clone. The pythonw tray has no
-    console, so ``CREATE_NO_WINDOW`` + ``stdin=DEVNULL`` keep a stray cmd
-    from flashing and dodge the invalid-handle trap a console-less parent
-    can hit before git even runs.
+    console, so the shared ``NO_WINDOW`` flag + ``stdin=DEVNULL`` keep a
+    stray cmd from flashing and dodge the invalid-handle trap a console-less
+    parent can hit before git even runs.
     """
     cmd = ["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"]
-    kwargs: Dict[str, Any] = dict(
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL,
-        text=True,
-        timeout=5,
-        check=False,
-    )
-    if hasattr(subprocess, "CREATE_NO_WINDOW"):
-        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     try:
-        result = subprocess.run(cmd, **kwargs)
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            timeout=5,
+            check=False,
+            creationflags=NO_WINDOW,
+        )
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning(f"⚠️  git SHA unavailable ({type(exc).__name__}: {exc})")
         return "unknown"

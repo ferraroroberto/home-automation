@@ -13,9 +13,9 @@ import logging
 import subprocess
 import sys
 
-logger = logging.getLogger("host_shutdown")
+from src._no_window import NO_WINDOW
 
-_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
+logger = logging.getLogger("host_shutdown")
 
 
 def initiate_shutdown(*, grace_seconds: int = 180, message: str = "") -> bool:
@@ -45,7 +45,7 @@ def initiate_shutdown(*, grace_seconds: int = 180, message: str = "") -> bool:
             capture_output=True,
             text=True,
             timeout=10,
-            creationflags=_NO_WINDOW,
+            creationflags=NO_WINDOW,
         )
     except OSError as exc:
         logger.warning("⚠️ Failed to invoke shutdown /s: %s", exc)
@@ -77,7 +77,7 @@ def cancel_shutdown() -> bool:
             capture_output=True,
             text=True,
             timeout=10,
-            creationflags=_NO_WINDOW,
+            creationflags=NO_WINDOW,
         )
     except OSError as exc:
         logger.warning("⚠️ Failed to invoke shutdown /a: %s", exc)
