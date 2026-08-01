@@ -799,6 +799,10 @@
         </div>
         <div class="split-bar"><span class="split-bar-fill split-bar-gen" id="genBar"></span></div>
         <span class="split-pct muted small" id="genPct">—</span>
+        <!-- Only shown when today's feed dropped out mid-hour: the total above
+             is exactly as measured, so a gap makes it read low for a reason
+             that has nothing to do with the array (#579). -->
+        <span class="split-pct muted small" id="genGap" hidden></span>
       </section>
 
       <!-- Today's consumption: covered by solar vs drawn from the grid. -->

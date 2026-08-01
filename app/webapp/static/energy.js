@@ -84,6 +84,15 @@ function fmtFracPct(frac) {
   return fmtPct(frac == null ? null : frac * 100);
 }
 
+// A feed-outage duration: "1.3 h" / "45 min", empty when there was none. Sub-
+// hour outages are the common case and "0.8 h" reads worse than "45 min" at
+// this size. Shared by the generation card and the forecast card (#579).
+function fmtGap(hours) {
+  const h = Number(hours) || 0;
+  if (h <= 0) return '';
+  return h < 1 ? Math.round(h * 60) + ' min' : h.toFixed(1) + ' h';
+}
+
 function clamp01(x) {
   return Math.max(0, Math.min(1, x));
 }
@@ -225,7 +234,15 @@ export async function loadEnergy() {
 }
 
 // ------------------------------------------------------- today's split cards
-function renderToday(b) {
+// The totals above stay exactly as measured; this line says why they may read
+// low without blaming the array (#579).
+function renderFeedGap(el, hours) {
+  const text = fmtGap(hours);
+  el.textContent = text ? 'Solar feed offline for ' + text + ' — measured total is short' : '';
+  el.hidden = !text;
+}
+
+function renderToday(b, gapHours) {
   const pvWh = b && !b.pv_missing ? b.pv_wh : null;
   const houseWh = b ? b.house_wh : null;
   const exportWh = b ? (b.export_wh || 0) : 0;
@@ -269,13 +286,15 @@ function renderToday(b) {
   const co2 = pvWh != null ? (pvWh / 1000) * CO2_KG_PER_KWH : null;
   els.savCo2.textContent = co2 != null ? co2.toFixed(1) + ' kg' : '—';
   els.savTrees.textContent = co2 != null ? (co2 / CO2_KG_PER_TREE_YEAR).toFixed(2) : '—';
+
+  renderFeedGap(els.genGap, gapHours);
 }
 
 async function loadToday() {
   try {
     const body = await jsonApi('/api/energy/today');
     saveSnapshot('energyToday', body);
-    renderToday(body && body.bucket);
+    renderToday(body && body.bucket, body && body.gap_hours);
   } catch (_) {
     // Secondary — keep whatever the last successful read rendered.
   }
@@ -293,7 +312,7 @@ export function restoreEnergySnapshots() {
     renderEnergy(live);
   }
   const today = restoreSnapshot('energyToday');
-  if (today) renderToday(today && today.bucket);
+  if (today) renderToday(today && today.bucket, today && today.gap_hours);
 }
 
 // --------------------------------------------------- cost & savings table
@@ -432,7 +451,13 @@ function renderForecast(body) {
   if (state.forecastChart) setForecastData(state.forecastChart, body.expected, body.actual);
   const total = body.expected_total_kwh != null ? Number(body.expected_total_kwh).toFixed(1) : null;
   els.forecastHeadline.textContent = 'Expected generation +' + (total != null ? total : '—') + ' kWh';
-  els.forecastMeta.textContent = body.actual ? '· estimate vs actual' : '· estimate';
+  // The actual overlay draws under-covered hours as projections, so say when
+  // any of it is inferred rather than measured — otherwise the two curves
+  // agreeing looks like a measurement it isn't (#579).
+  const gap = fmtGap(body.actual_gap_hours);
+  els.forecastMeta.textContent = body.actual
+    ? '· estimate vs actual' + (gap ? ' · feed offline ' + gap : '')
+    : '· estimate';
   els.forecastParams.textContent = forecastParamsLine(body.system);
   return total;
 }

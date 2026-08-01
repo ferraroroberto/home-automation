@@ -802,6 +802,63 @@ def test_energy_series_have_non_colour_visual_cues(
     ]
 
 
+def test_a_feed_outage_is_visible_as_an_outage_not_a_collapse(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """#579: the day the PV feed died must not read as the day the array died.
+
+    The whole point of the issue is that this distinction is *visible*, so it
+    is asserted where a user would see it — the note under today's generation,
+    the forecast card's meta line, and the forecast overlay drawing the
+    under-covered hours as hollow, dashed projections rather than solid points.
+    """
+    actual = [
+        {"hour": h, "wh": 900.0, "measured_wh": 900.0,
+         "estimated": False, "partial": False, "coverage": 0.98}
+        for h in range(24)
+    ]
+    # 09:00 measured only a quarter of its hour; 10:00 half of it.
+    actual[9] = {"hour": 9, "wh": 3400.0, "measured_wh": 850.0,
+                 "estimated": True, "partial": False, "coverage": 0.25}
+    actual[10] = {"hour": 10, "wh": 4600.0, "measured_wh": 2300.0,
+                  "estimated": True, "partial": False, "coverage": 0.5}
+
+    mock_api(sample_units)
+    mock_energy(
+        forecast={"actual": actual, "actual_gap_hours": 1.25},
+        today_gap_hours=1.25,
+    )
+    _boot(page, base_url)
+    page.locator("#tabEnergy").click()
+
+    gap = page.locator("#genGap")
+    expect(gap).to_be_visible()
+    expect(gap).to_contain_text("1.3 h")
+    expect(page.locator("#forecastMeta")).to_contain_text("feed offline")
+
+    page.wait_for_function(
+        "() => Chart.getChart(document.querySelector('#forecastChart'))"
+        "?.data.datasets[1].data.filter(v => v != null).length === 24"
+    )
+    marks = page.evaluate(
+        "() => {"
+        "  const ds = Chart.getChart(document.querySelector('#forecastChart'))"
+        "    .data.datasets[1];"
+        "  return {"
+        "    marked: ds.pointRadius.map((r, i) => r > 0 ? i : -1).filter(i => i >= 0),"
+        "    hollow: ds.pointBackgroundColor,"
+        "    dashedAtGap: String(ds.segment.borderDash({ p1DataIndex: 9 })),"
+        "    dashedAtGood: String(ds.segment.borderDash({ p1DataIndex: 13 })),"
+        "  };"
+        "}"
+    )
+    assert marks["marked"] == [9, 10]        # only the under-covered hours
+    assert marks["hollow"] == "transparent"  # …drawn as projections
+    assert marks["dashedAtGap"] == "4,3"
+    assert marks["dashedAtGood"] == "undefined"
+
+
 def test_security_tab_shows_loading_before_first_result(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,

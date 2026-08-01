@@ -605,6 +605,7 @@ export const els = {
   genFeed: document.getElementById('genFeed'),
   genBar: document.getElementById('genBar'),
   genPct: document.getElementById('genPct'),
+  genGap: document.getElementById('genGap'),
   consTotal: document.getElementById('consTotal'),
   consSelf: document.getElementById('consSelf'),
   consGrid: document.getElementById('consGrid'),

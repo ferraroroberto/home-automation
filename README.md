@@ -538,10 +538,22 @@ live chart; completed hours are folded into compact rollups that daily and
 monthly views group from. An **asleep inverter is stored as no PV reading**, not
 a misleading 0, so the charts show a gap and aggregates flag `pv_missing`.
 
+**Missing is not low.** An hour the cloud feed only partly covered is
+*under-measured*, not dim: its Wh is an integral over the minutes that arrived,
+so a feed outage on a cloudless morning would otherwise plot as a production
+collapse. Rollups therefore also record how much of each hour actually carried
+data, and hourly buckets expose `pv_coverage` (0–1) plus a `pv_gap` flag when
+that falls below 75%. The Solar forecast card draws those hours as hollow,
+dashed **projections** rather than measurements, and both it and Today's
+generation say how long the feed was offline — so a dead upstream feed reads as
+exactly that, never as a dead inverter. Stored totals are never inflated: only
+the forecast overlay is projected, and the day's kWh figures stay as measured.
+
 - **Storage:** `webapp/energy_history.sqlite3` (gitignored, per-machine runtime
   data — never committed).
 - **Endpoints:** `GET /api/energy` (live snapshot), `GET /api/energy/today`
-  (today's totals for the split + savings cards), `GET /api/energy/history?minutes=N`
+  (today's totals for the split + savings cards, plus `gap_hours` — how long the
+  PV feed was offline mid-hour today), `GET /api/energy/history?minutes=N`
   (raw samples for the live chart), `GET /api/energy/aggregate?range=day|week|month|year|total`
   (energy-per-bucket, Wh — `day` is a 24h fill-up frame; `week`/`month`/`year` are
   rolling data-only windows; `total` is all retained history), and
@@ -682,7 +694,11 @@ input.
 - **Endpoint:** `GET /api/energy/forecast?day=yesterday|today|tomorrow` returns
   the hourly expected curve, the day's `expected_total_kwh`, the `system` params
   used (`arrays` / `total_kwp` / `performance_ratio`), and (for today/yesterday)
-  the measured `actual` overlay (`null` for tomorrow). When
+  the measured `actual` overlay (`null` for tomorrow). Each overlay point
+  carries the untouched `measured_wh` alongside the plotted `wh`, its hour's
+  `coverage`, and `estimated` — set when `wh` is a projection rather than a
+  measurement, either because the hour is still in progress or because the feed
+  only partly covered it; `actual_gap_hours` totals the latter for the day. When
   `pv_system.json`/`location.json` is absent or Open-Meteo is unreachable it
   returns `{available: false, reason}` with HTTP 200 — the card keeps a one-line
   note and nothing else breaks.

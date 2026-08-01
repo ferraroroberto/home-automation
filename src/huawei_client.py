@@ -284,6 +284,17 @@ def _is_stale(payload_time: object, max_staleness_s: int) -> bool:
     unchanged, so a frozen value looks live and would flat-line the chart. A
     missing or unparseable timestamp is treated as fresh — staleness cannot be
     proven, so an otherwise-good read is not discarded.
+
+    **Ruled out, #579:** a run of identical samples ahead of a feed outage
+    (2026-07-30 read ``427`` W at 08:50, 09:00 and 09:10, then ``NULL`` from
+    09:20) is not a hole in this check — it is the check working. The sampler
+    persists once a minute, the portal keeps returning its last bucket, so the
+    same value is legitimately recorded for the whole
+    :data:`_DEFAULT_MAX_STALENESS_S` grace window; 08:50 + 1800 s lands exactly
+    on the 09:20 that first went ``NULL``. Shortening the window is not the
+    answer either — see the reasoning above it, where 15 minutes flapped to
+    "unavailable" during normal operation. Repetition inside the window is the
+    designed cost of not blanking the tile on every ordinary 25-minute lag.
     """
     if not payload_time:
         return False
@@ -335,6 +346,23 @@ def _is_settled(point: Dict[str, float]) -> bool:
 
     Unverifiable (no meter, or no consumption series) counts as settled — the
     check cannot prove the bucket bad, so a usable read is not thrown away.
+
+    **Known residual hole, NOT fixed here (#579).** The identity cannot catch a
+    placeholder in ``productPower`` specifically: ``0 + meter == use`` holds
+    whenever the house is running entirely off the grid, which is precisely
+    what a not-yet-written PV field looks like. So a daylight ``0`` can reach
+    the store — observed 2026-07-30 as ``10:30=0``, ``10:40=2080``, ``10:50=0``
+    while the feed was recovering. :func:`_latest_pv` widens the same hole on
+    the degraded path, where it ignores the identity entirely by design.
+
+    Deliberately left alone rather than patched: the only way to reject that
+    ``0`` is to decide it is implausible for the time of day, and a genuinely
+    zero bucket (heavy cloud, an inverter that just woke) is a real state this
+    client must still report. That is its own change with its own risk to the
+    live tile, so it does not ride along with #579. Note the coverage machinery
+    added there does **not** paper over it: a stray ``0`` is a *present*
+    sample, so it depresses the hour's Wh at full ``pv_seconds`` coverage and
+    is not flagged ``pv_gap``.
     """
     pv = point.get("productPower")
     use = point.get("usePower")
