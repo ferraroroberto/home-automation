@@ -13,25 +13,29 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.energy_history import (
+    MIN_TRUSTED_COVERAGE,
     aggregate,
     framed_buckets,
     hourly_day,
     hourly_range,
     recent_samples,
 )
-from src.pv_forecast import fetch_pv_forecast
+from src.location_config import load_location_config
+from src.pv_forecast import MAX_PAST_DAYS, fetch_pv_forecast, fetch_pv_forecast_for_date
 from src.pv_system_config import (
     PvArray,
     PvSystemConfig,
     load_pv_system_config,
     save_pv_system_config,
 )
+from src.sun_position import sun_position
 from src.huawei_client import EnergyState, fetch_energy_state
 from src.tariff import cost_breakdown, load_tariff
 
@@ -319,6 +323,200 @@ async def get_energy_forecast(
         # because nothing was measured — not because nothing was generated.
         "actual_gap_hours": None if hours is None else _feed_gap_hours(hours),
         "system": forecast.system,  # array params the curve was computed from
+    }
+
+
+# ------------------------------------------- sun-position diagnostic (#590)
+# Read-only. Nothing here feeds the forecast: it re-reads what was already
+# measured and what the *current* model already predicts, and re-plots the pair
+# against where the sun actually was. The point is to tell a fixed obstruction
+# (a drop that repeats at the same azimuth every day) from weather (a drop that
+# does not), without re-deriving the answer by hand against sqlite each time.
+
+# Irradiance below which an hour carries no usable signal. Expressed as plane-
+# of-array W/m² rather than as Wh so it means the same thing on a 1 kWp balcony
+# and a 10 kWp roof: at twilight the denominator of the performance ratio goes
+# to zero and the ratio explodes, which would swamp the very curve being read.
+_MIN_DIAGNOSTIC_GTI_W = 20.0
+
+# Why an hour was left out. Named rather than merely counted, because the three
+# mean different things to whoever reads the day: only "coverage" is the feed
+# dropping out mid-hour.
+_EXCLUDED_COVERAGE = "coverage"      # the feed only reached part of the hour
+_EXCLUDED_NO_DATA = "no_data"        # daylight hour with no PV sample at all
+_EXCLUDED_IN_PROGRESS = "in_progress"  # the hour containing now isn't over
+
+
+def _sun_overlay_points(
+    buckets: List[Dict[str, Any]],
+    expected: List[Dict[str, Any]],
+    total_kwp: float,
+    performance_ratio: float,
+    lat: float,
+    lon: float,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """``(points, excluded)`` — effective PR per hour against the sun's position.
+
+    The **effective performance ratio** is what the array actually delivered per
+    unit of plane-of-array irradiance: ``actual_Wh / (kWp · GTI)``. The modelled
+    curve already carries that denominator — ``expected_Wh = kWp · GTI · PR`` —
+    so the ratio falls out of the two numbers this app already has, with no
+    second irradiance source and no change to the model:
+
+        effective_PR = PR · actual_Wh / expected_Wh
+
+    (For a multi-orientation array the denominator is the kWp-weighted mean GTI
+    across sub-arrays, which is the same quantity the forecast sums.)
+
+    Three kinds of hour are dropped, and the *why* matters more than the count:
+
+    * **Short coverage** (:data:`~src.energy_history.MIN_TRUSTED_COVERAGE`) —
+      the hour's Wh is an integral over the minutes that arrived, so an hour the
+      feed spent half offline plots as half the performance. That is precisely
+      the artefact this overlay would otherwise launder into "shading" (#579),
+      which is why the coverage signal is consumed here rather than re-derived.
+    * **No PV data at all** in a daylight hour — same failure, total rather than
+      partial.
+    * **The hour containing now** — not finished, so not comparable.
+
+    Hours with no meaningful irradiance (night, deep twilight) are simply not
+    plotted: there is nothing to be short of, and they are not a data problem,
+    so they are not reported as exclusions either.
+
+    Pure: buckets, the modelled curve and the coordinates all come in as
+    arguments, so the whole derivation is unit-testable without a clock, a DB or
+    the network.
+    """
+    expected_by_hour = {
+        int(p["hour"]): float(p.get("wh") or 0.0) for p in (expected or [])
+    }
+    reference = total_kwp * performance_ratio  # Wh per W/m² of GTI
+
+    points: List[Dict[str, Any]] = []
+    excluded: List[Dict[str, Any]] = []
+
+    for i, bucket in enumerate(buckets):
+        expected_wh = expected_by_hour.get(i, 0.0)
+        gti = expected_wh / reference if reference > 0 else 0.0
+        if gti < _MIN_DIAGNOSTIC_GTI_W:
+            continue  # dark — no signal to read, and nothing went wrong
+
+        if bool(bucket.get("partial")):
+            excluded.append({"hour": i, "reason": _EXCLUDED_IN_PROGRESS})
+            continue
+        if bucket.get("pv_missing"):
+            excluded.append({"hour": i, "reason": _EXCLUDED_NO_DATA})
+            continue
+        coverage = bucket.get("pv_coverage")
+        if coverage is None or float(coverage) < MIN_TRUSTED_COVERAGE:
+            excluded.append({"hour": i, "reason": _EXCLUDED_COVERAGE})
+            continue
+
+        # Mid-hour is the representative instant: the sun moves ~15°/h, so the
+        # hour's own centre is the least-wrong single azimuth for an hour-long
+        # energy integral. The bucket key is the hour's start in epoch seconds,
+        # which keeps this DST-safe — no local-clock arithmetic anywhere.
+        sun = sun_position(int(bucket["key"]) + _HOUR_S // 2, lat, lon)
+        actual_wh = float(bucket.get("pv_wh") or 0.0)
+        points.append(
+            {
+                "hour": i,
+                "azimuth_deg": sun.azimuth_deg,
+                "elevation_deg": sun.elevation_deg,
+                "effective_pr": round(performance_ratio * actual_wh / expected_wh, 4),
+                "actual_wh": round(actual_wh, 1),
+                "expected_wh": round(expected_wh, 1),
+                "gti_w_m2": round(gti, 1),
+                "coverage": coverage,
+            }
+        )
+
+    return points, excluded
+
+
+def _parse_overlay_date(raw: Optional[str], today: date) -> date:
+    """The requested day, or today. Raises 400 on anything unusable."""
+    if not raw:
+        return today
+    try:
+        parsed = date.fromisoformat(raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"invalid date: {raw!r}")
+    if parsed > today:
+        raise HTTPException(status_code=400, detail="date is in the future")
+    return parsed
+
+
+@router.get("/api/energy/sun-overlay")
+async def get_sun_overlay(date_: Optional[str] = Query(None, alias="date")) -> Dict[str, Any]:
+    """Measured-vs-modelled performance ratio by sun position, for one day (#590).
+
+    A sibling of ``/api/energy/forecast``, deliberately **not** an extension of
+    it: the forecast payload stays byte-identical to what it was, so nothing
+    about what the card predicts can drift on the back of a diagnostic.
+
+    Always 200 for a valid, non-future date within Open-Meteo's irradiance
+    lookback. A day with no rollup history is an *empty* overlay
+    (``points: []``), not an error — the store keeps 400 days of hourly rollups
+    but the app has not been running for all of them.
+    """
+    today = datetime.now().date()
+    target = _parse_overlay_date(date_, today)
+    if (today - target).days > MAX_PAST_DAYS:
+        return {"available": False, "date": target.isoformat(), "reason": "too_old"}
+
+    try:
+        forecast = await fetch_pv_forecast_for_date(target, today=today)
+    except Exception as exc:  # noqa: BLE001 — diagnostic, never a 500
+        logger.warning("⚠️  Failed to build sun-position overlay: %s", exc)
+        return {"available": False, "date": target.isoformat(), "reason": "error"}
+
+    # The forecast checks the array before the coordinates, so asking it first
+    # keeps the two cards reporting the same reason for the same missing config.
+    if not forecast.available:
+        return {
+            "available": False,
+            "date": target.isoformat(),
+            "reason": forecast.reason,
+        }
+
+    location = load_location_config()
+    if location is None:  # unreachable while the forecast is available
+        return {"available": False, "date": target.isoformat(), "reason": "no_location"}
+
+    system = forecast.system or {}
+    try:
+        buckets = hourly_day((target - today).days)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to read hourly history for the overlay: %s", exc)
+        return {"available": False, "date": target.isoformat(), "reason": "error"}
+
+    points, excluded = _sun_overlay_points(
+        buckets,
+        forecast.expected,
+        float(system.get("total_kwp") or 0.0),
+        float(system.get("performance_ratio") or 0.0),
+        location.lat,
+        location.lon,
+    )
+    return {
+        "available": True,
+        "date": target.isoformat(),
+        # The modelled PR is a single configured number, so it plots as a flat
+        # reference the measured points are read against.
+        "modelled_pr": system.get("performance_ratio"),
+        "points": points,
+        "excluded": excluded,
+        # Counted apart because they read differently to a human: a partly-
+        # covered hour is the feed dropping out mid-hour, a wholly missing one
+        # is usually a day the app simply wasn't running for.
+        "excluded_coverage": sum(
+            1 for e in excluded if e["reason"] == _EXCLUDED_COVERAGE
+        ),
+        "excluded_no_data": sum(
+            1 for e in excluded if e["reason"] == _EXCLUDED_NO_DATA
+        ),
+        "system": forecast.system,
     }
 
 

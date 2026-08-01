@@ -146,3 +146,78 @@ def test_no_system_is_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     result = asyncio.run(pf.fetch_pv_forecast("today", location=_LOCATION))
     assert result.available is False
     assert result.reason == "not_configured"
+
+
+# ------------------------------- arbitrary-date reach for the diagnostic (#590)
+class _RecordingSession(_FakeSession):
+    """Like ``_FakeSession`` but keeps the full params of every request."""
+
+    def __init__(self, payloads_by_orientation) -> None:
+        super().__init__(payloads_by_orientation)
+        self.params: List[dict] = []
+
+    def get(self, url: str, *, params: dict):
+        self.params.append(dict(params))
+        return super().get(url, params=params)
+
+
+def _recording(monkeypatch: pytest.MonkeyPatch, day: date) -> _RecordingSession:
+    payloads = {(30, 0): _hourly_payload({s: 500.0 for s in _stamps(day, [10])})}
+    session = _RecordingSession(payloads)
+    _patch_session(monkeypatch, session)
+    return session
+
+
+_ONE_ARRAY = PvSystemConfig(
+    arrays=[PvArray(kwp=5.0, tilt_deg=30, azimuth_deg=0)], performance_ratio=0.8
+)
+
+
+@pytest.mark.parametrize("day", ["yesterday", "today", "tomorrow"])
+def test_the_named_days_still_request_exactly_one_past_day(
+    monkeypatch: pytest.MonkeyPatch, day: str
+) -> None:
+    """The forecast card's request must not drift because a diagnostic exists.
+
+    ``past_days`` became a parameter so the sun-position overlay (#590) can
+    reach further back. All three named days have to keep resolving to the
+    original window, or the card's answer could change on the back of a
+    read-only feature.
+    """
+    session = _recording(monkeypatch, _TODAY)
+    asyncio.run(
+        pf.fetch_pv_forecast(day, system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+    assert len(session.params) == 1
+    assert session.params[0]["past_days"] == 1
+    assert session.params[0]["forecast_days"] == 2
+
+
+def test_an_older_date_widens_the_lookback_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = date(2026, 7, 10)   # ten days before _TODAY
+    session = _recording(monkeypatch, target)
+    result = asyncio.run(
+        pf.fetch_pv_forecast_for_date(
+            target, system=_ONE_ARRAY, location=_LOCATION, today=_TODAY
+        )
+    )
+    assert session.params[0]["past_days"] == 10
+    assert result.available is True
+    assert result.day == "2026-07-10"
+    assert result.expected == [{"hour": 10, "wh": 2000.0}]
+
+
+def test_a_date_past_the_lookback_ceiling_is_refused_without_a_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _recording(monkeypatch, _TODAY)
+    result = asyncio.run(
+        pf.fetch_pv_forecast_for_date(
+            date(2026, 1, 1), system=_ONE_ARRAY, location=_LOCATION, today=_TODAY
+        )
+    )
+    assert result.available is False
+    assert result.reason == "too_old"
+    assert session.params == []

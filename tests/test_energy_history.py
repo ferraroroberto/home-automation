@@ -176,7 +176,7 @@ def test_a_fully_covered_hour_is_not_flagged_as_a_gap(tmp_path: Path) -> None:
     b = H.aggregate("hourly", count=3, now=base + 2 * H._HOUR, path=db)[0]
     # The hour's last sample opens no further interval, so coverage tops out
     # just under 1.0 — which is exactly why the trust threshold is not 1.0.
-    assert b["pv_coverage"] > H._MIN_TRUSTED_COVERAGE
+    assert b["pv_coverage"] > H.MIN_TRUSTED_COVERAGE
     assert b["pv_gap"] is False
     assert b["pv_missing"] is False
 
@@ -219,7 +219,7 @@ def test_the_in_progress_hour_is_measured_against_elapsed_time(tmp_path: Path) -
     b = H.aggregate("hourly", count=1, now=base + 600, path=db)[0]
     assert b["partial"] is True
     assert b["pv_gap"] is False              # 9 of 10 elapsed minutes covered
-    assert b["pv_coverage"] > H._MIN_TRUSTED_COVERAGE
+    assert b["pv_coverage"] > H.MIN_TRUSTED_COVERAGE
 
 
 def test_the_top_of_an_hour_is_not_an_outage(tmp_path: Path) -> None:
@@ -255,7 +255,7 @@ def test_an_hour_that_generated_nothing_is_never_a_gap(tmp_path: Path) -> None:
 
     b = H.aggregate("hourly", count=3, now=base + 2 * H._HOUR, path=db)[0]
     assert b["pv_wh"] == 0.0
-    assert b["pv_coverage"] < H._MIN_TRUSTED_COVERAGE   # genuinely sparse…
+    assert b["pv_coverage"] < H.MIN_TRUSTED_COVERAGE   # genuinely sparse…
     assert b["pv_gap"] is False                         # …but not an outage
 
 

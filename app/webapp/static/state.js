@@ -116,6 +116,11 @@ export const state = {
   liveChart: null,
   aggChart: null,
   forecastChart: null,
+  // Sun-position diagnostic (#590): the day on screen (ISO, local) and its
+  // chart. The card is folded away by default and loads on first open, so both
+  // stay null/empty until someone actually asks the question.
+  sunOverlayDate: '',
+  sunOverlayChart: null,
   // PV array the forecast is computed from, from GET/PUT /api/energy/pv-system
   // (issue #561). Rows carry a positional client-side id for the dense-editor;
   // the file itself stores a plain list.
@@ -637,6 +642,13 @@ export const els = {
   forecastChart: document.getElementById('forecastChart'),
   forecastEmpty: document.getElementById('forecastEmpty'),
   forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .range-tab')),
+  // Energy tab: sun-position diagnostic card (issue #590)
+  sunOverlayCard: document.getElementById('sunOverlayCard'),
+  sunOverlayDate: document.getElementById('sunOverlayDate'),
+  sunOverlayChart: document.getElementById('sunOverlayChart'),
+  sunOverlayCount: document.getElementById('sunOverlayCount'),
+  sunOverlayNote: document.getElementById('sunOverlayNote'),
+  sunOverlayEmpty: document.getElementById('sunOverlayEmpty'),
   // Energy tab: PV-system editor card + its row dialog (issue #561)
   pvSystemTotal: document.getElementById('pvSystemTotal'),
   pvArrayList: document.getElementById('pvArrayList'),

@@ -671,9 +671,10 @@ def mock_energy(page: Page) -> Callable[..., None]:
     the history buckets (``/api/energy/aggregate``), the tiered cost & savings
     breakdown (``/api/energy/cost``), the solar forecast
     (``/api/energy/forecast``), the PV-system config it is computed from
-    (``/api/energy/pv-system``, issue #561) and the fleet solar-boost
-    sequencing knobs (``/api/hvac/boost-coordinator``, issue #562 — an HVAC path
-    whose card lives on this tab). Call before navigating. Defaults
+    (``/api/energy/pv-system``, issue #561), the read-only sun-position
+    diagnostic (``/api/energy/sun-overlay``, issue #590) and the fleet
+    solar-boost sequencing knobs (``/api/hvac/boost-coordinator``, issue #562 —
+    an HVAC path whose card lives on this tab). Call before navigating. Defaults
     describe a sunny exporting moment so the flow row, charts, and cost table
     have content.
 
@@ -692,6 +693,7 @@ def mock_energy(page: Page) -> Callable[..., None]:
         pv_arrays: Optional[List[Dict]] = None,
         boost_coord: Optional[Dict] = None,
         forecast: Optional[Dict] = None,
+        sun_overlay: Optional[Dict] = None,
         today_gap_hours: float = 0.0,
     ) -> None:
         snap = snapshot or {
@@ -843,6 +845,32 @@ def mock_energy(page: Page) -> Callable[..., None]:
             route.fulfill(status=200, content_type="application/json", body=_json(body))
 
         page.route("**/api/energy/forecast*", handle_forecast)
+
+        # Read-only sun-position diagnostic (#590). Stubbed here for the same
+        # reason the forecast is: its card lives on this tab and an unstubbed
+        # call would have the disposable instance reach Open-Meteo for real.
+        # Default is an empty-but-available overlay, so a test that never opens
+        # the (collapsed) card is unaffected.
+        def handle_sun_overlay(route: Route) -> None:
+            body = {
+                "available": True,
+                "date": "2026-07-30",
+                "modelled_pr": pv["performance_ratio"],
+                "points": [],
+                "excluded": [],
+                "excluded_coverage": 0,
+                "excluded_no_data": 0,
+                "system": {
+                    "arrays": pv["arrays"],
+                    "total_kwp": round(sum(a["kwp"] for a in pv["arrays"]), 3),
+                    "performance_ratio": pv["performance_ratio"],
+                },
+            }
+            if sun_overlay:
+                body.update(sun_overlay)
+            route.fulfill(status=200, content_type="application/json", body=_json(body))
+
+        page.route("**/api/energy/sun-overlay*", handle_sun_overlay)
 
     return _install
 

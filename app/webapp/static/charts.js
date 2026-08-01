@@ -332,6 +332,134 @@ export function setForecastData(chart, expected, actual) {
   chart.update('none');
 }
 
+// ------------------------------------------------- sun-position diagnostic
+// Effective performance ratio (what the array actually delivered per unit of
+// plane-of-array irradiance) plotted against where the sun *was*, not against
+// the clock — issue #590. Read on this axis, a drop that repeats at the same
+// azimuth day after day is fixed obstruction geometry; one that wanders with
+// the time of day is weather.
+//
+// Deliberately a scatter, not a line: the points are independent hourly
+// observations, and joining them would imply a continuity between 09:00 and
+// 15:00 that an excluded 12:00 does not have. The modelled PR is the flat
+// dashed --muted reference the measured points are read against, matching how
+// the forecast card already draws its estimate.
+function sunOverlayOptions(pal) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    interaction: { mode: 'nearest', intersect: false },
+    plugins: {
+      legend: legend(pal),
+      tooltip: {
+        callbacks: {
+          title: function (items) {
+            const p = items.length ? items[0].raw : null;
+            return p && p.hour != null
+              ? (p.hour < 10 ? '0' + p.hour : '' + p.hour) + ':00'
+              : '';
+          },
+          label: function (item) {
+            const p = item.raw || {};
+            if (p.hour == null) return 'Modelled PR ' + Number(item.parsed.y).toFixed(2);
+            return [
+              'Effective PR ' + Number(p.y).toFixed(2),
+              'Azimuth ' + Math.round(p.x) + '° · elevation ' + Math.round(p.elevation) + '°',
+              (p.actualWh / 1000).toFixed(2) + ' of ' + (p.expectedWh / 1000).toFixed(2) + ' kWh modelled',
+            ];
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        type: 'linear',
+        title: { display: true, text: 'Sun azimuth (° from north)', color: pal.muted },
+        ticks: { color: pal.muted, maxRotation: 0 },
+        grid: { display: false },
+      },
+      y: {
+        beginAtZero: true,
+        suggestedMax: 1,
+        title: { display: true, text: 'Effective PR', color: pal.muted },
+        ticks: { color: pal.muted },
+        grid: { color: pal.line },
+      },
+    },
+  };
+}
+
+export function createSunOverlayChart(canvas) {
+  const pal = palette();
+  return new Chart(canvas.getContext('2d'), {
+    type: 'scatter',
+    data: {
+      datasets: [
+        {
+          label: 'Measured',
+          data: [],
+          borderColor: pal.gen,
+          backgroundColor: alphaFill(pal.gen, 0.55),
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          showLine: false,
+        },
+        {
+          label: 'Modelled',
+          data: [],
+          borderColor: pal.muted,
+          backgroundColor: pal.muted,
+          borderDash: [6, 4],
+          borderWidth: 2,
+          pointRadius: 0,
+          showLine: true,
+          fill: false,
+        },
+      ],
+    },
+    options: sunOverlayOptions(pal),
+  });
+}
+
+export function setSunOverlayData(chart, points, modelledPr) {
+  const pts = (points || []).map(function (p) {
+    return {
+      x: p.azimuth_deg,
+      y: p.effective_pr,
+      hour: p.hour,
+      elevation: p.elevation_deg,
+      actualWh: p.actual_wh,
+      expectedWh: p.expected_wh,
+    };
+  });
+  chart.data.datasets[0].data = pts;
+  // The reference is one configured number, so it spans whatever azimuth range
+  // the day actually produced — two points, no invented resolution. With
+  // nothing measured there is no span to draw it across, so it stays empty
+  // rather than floating over a blank axis.
+  const pr = Number(modelledPr);
+  chart.data.datasets[1].data = (pts.length && Number.isFinite(pr))
+    ? [
+        { x: Math.min.apply(null, pts.map(function (p) { return p.x; })), y: pr },
+        { x: Math.max.apply(null, pts.map(function (p) { return p.x; })), y: pr },
+      ]
+    : [];
+  chart.update('none');
+}
+
+export function restyleSunOverlay(chart) {
+  if (!chart) return;
+  const pal = palette();
+  chart.options.plugins.legend.labels.color = pal.ink;
+  chart.data.datasets[0].borderColor = pal.gen;
+  chart.data.datasets[0].backgroundColor = alphaFill(pal.gen, 0.55);
+  chart.data.datasets[1].borderColor = pal.muted;
+  chart.data.datasets[1].backgroundColor = pal.muted;
+  Object.assign(chart.options.scales, sunOverlayOptions(pal).scales);
+  chart.update('none');
+}
+
 // ---------------------------------------------------------- Wi-Fi channels
 function wifiColor(pal, i) {
   return [pal.accent, pal.gen, pal.attention, pal.grid, pal.muted][i % 5];
