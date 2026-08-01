@@ -596,7 +596,10 @@ a per-machine tariff file:
 - **What it computes:** per-period consumption / grid-import / solar-covered kWh,
   grid cost €, and savings € (avoided cost of self-consumed PV), plus a summary
   with the prorated fixed standing charge, an estimated bill, and the "without
-  solar" cost. Export is credited at `export_eur_kwh` (0 = no feed-in payment).
+  solar" cost. Export is credited at `export_eur_kwh` and surfaced as its own
+  **Export income** stat, already netted into the estimated bill (0 = no feed-in
+  payment, rendered as €0.00 rather than hidden, so the field stays
+  discoverable).
 
 How the period prices and the model are derived from a real PVPC 2.0TD invoice —
 including the PVPC hourly-market approximation and the bono-social handling — is
