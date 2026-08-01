@@ -1,8 +1,10 @@
 /* Network (LAN) tab controller — boot/core.
  *
  * Owns the home-network view's top-level shell: internet health (+ opt-in speed
- * test), AP/router health with the confirm-gated reboots, the reusable confirm
- * dialog, the tab poll lifecycle, and the renderNetwork orchestrator. The three
+ * test), AP/router health with the confirm-gated reboots, the tab poll
+ * lifecycle, and the renderNetwork orchestrator. The confirm dialog itself is
+ * the neutral `./confirm.js` primitive (issue #574) — it used to live here,
+ * which made unrelated modules import this feature tab to get it. The three
  * feature panels live in sibling modules and are wired in here (issue #197):
  *   ./network-devices.js — attached-device inventory + detail/rename modal
  *   ./network-wifi.js    — Wi-Fi diagnostics + channel charts + Wi-Fi modal
@@ -58,7 +60,7 @@ import {
   initSurveyMacPref,
 } from './network-survey.js';
 import { wireDhcpPlan } from './network-dhcp.js';
-import { closeDialog, openDialog } from './dialog.js';
+import { confirmAction } from './confirm.js';
 
 const POLL_MS = 15_000;
 
@@ -110,43 +112,6 @@ function markNetworkFailure() {
       if (state.network) disableStaleNetworkActions();
     },
   });
-}
-
-// --------------------------------------------------- reusable confirm dialog
-// A styled <dialog> confirm (issue #129) returning a Promise<boolean>. Exported
-// so later writes (e.g. the Phase-3 router reboot, the DHCP apply) reuse it rather
-// than a native confirm() — the one design-system-breaking element this app would
-// otherwise have.
-let confirmResolver = null;
-
-function closeConfirm(result) {
-  closeDialog(els.confirmDialog);
-  const resolve = confirmResolver;
-  confirmResolver = null;
-  if (resolve) resolve(result);
-}
-
-export function confirmAction(opts) {
-  els.confirmTitle.textContent = (opts && opts.title) || 'Confirm';
-  els.confirmMessage.textContent = (opts && opts.message) || '';
-  els.confirmOk.textContent = (opts && opts.okLabel) || 'Confirm';
-  els.confirmOk.classList.toggle('is-danger', !!(opts && opts.danger));
-  return new Promise(function (resolve) {
-    confirmResolver = resolve;
-    openDialog(els.confirmDialog);
-  });
-}
-
-export function wireConfirmDialog() {
-  if (!els.confirmDialog) return;
-  els.confirmClose.addEventListener('click', function () { closeConfirm(false); });
-  els.confirmCancel.addEventListener('click', function () { closeConfirm(false); });
-  els.confirmOk.addEventListener('click', function () { closeConfirm(true); });
-  els.confirmDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.confirmDialog) closeConfirm(false);  // backdrop click
-  });
-  // Esc fires the native 'cancel' event — resolve false and let it close.
-  els.confirmDialog.addEventListener('cancel', function () { closeConfirm(false); });
 }
 
 // ----------------------------------------------------------------- render
@@ -380,7 +345,6 @@ export function wireNetworkControls() {
   initSurveyMacPref();
   initDeviceSortPref();
   initDeviceGroupingPref();
-  wireConfirmDialog();
   wireNetDeviceDetail();
   wireNetGroupDialog();
   wireNetWifiDetail();

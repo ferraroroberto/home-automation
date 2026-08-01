@@ -19,7 +19,7 @@
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
-import { confirmAction } from './network.js';
+import { confirmAction } from './confirm.js';
 import { createPoller } from './poll.js';
 import { createViewState } from './view-state.js';
 import { setToggleState } from './toggle.js';
