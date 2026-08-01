@@ -2276,8 +2276,13 @@
         <input id="netGroupName" type="text" class="input-native" placeholder="Group name…" data-testid="net-group-name">
       </label>
 
-      <div class="detail-actions detail-actions--split">
-        <button id="netGroupDelete" type="button" class="detail-save-btn is-danger" data-testid="net-group-delete">Delete group</button>
+      <!-- Destructive action sits in the body above the footer, as the same
+           .schedule-editor-delete secondary every other editor modal here uses
+           (#570) — the design.md modal footer carries exactly one full-width
+           solid-accent primary, never a second always-visible action. -->
+      <button id="netGroupDelete" type="button" class="schedule-editor-delete" data-testid="net-group-delete">Delete group</button>
+
+      <div class="detail-actions">
         <button id="netGroupSave" type="button" class="detail-save-btn" disabled>Save</button>
       </div>
     </div>
