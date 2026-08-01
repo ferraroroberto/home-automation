@@ -13,6 +13,7 @@ import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
+import { createPoller } from './poll.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -402,16 +403,16 @@ export function wireWakeAlarms() {
 // Poll only while the Home tab is active (main.js:828's idiom): the alarm
 // list rarely changes server-side (only via a fire/dismiss), and timers only
 // matter while the user might be looking at the countdown.
-let wakeAlarmsTimer = null;
-let wakeTimersTickTimer = null;
+const scheduleWakeAlarms = createPoller(function () { loadWakeAlarms(); loadWakeTimers(); });
+// Re-renders the countdown display from already-fetched state, no network call
+// — smooth ticking between the 10s server polls.
+const scheduleWakeTimersTick = createPoller(renderWakeTimers);
 export function onWakeAlarmsTab(tab) {
-  if (wakeAlarmsTimer) { clearInterval(wakeAlarmsTimer); wakeAlarmsTimer = null; }
-  if (wakeTimersTickTimer) { clearInterval(wakeTimersTickTimer); wakeTimersTickTimer = null; }
+  scheduleWakeAlarms(0);
+  scheduleWakeTimersTick(0);
   if (tab !== 'home') return;
   loadWakeAlarms();
   loadWakeTimers();
-  wakeAlarmsTimer = setInterval(function () { loadWakeAlarms(); loadWakeTimers(); }, 10_000);
-  // Re-render the countdown display every second from already-fetched state,
-  // no network call — smooth ticking between the 10s server polls.
-  wakeTimersTickTimer = setInterval(renderWakeTimers, 1000);
+  scheduleWakeAlarms(10_000);
+  scheduleWakeTimersTick(1000);
 }

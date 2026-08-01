@@ -11,9 +11,9 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { icon } from './_vendored/icons/icons.js';
-import { denseListEditor } from './dense-editor.js';
+import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { createPoller } from './poll.js';
 
 function reminderDefaults() {
   return { id: 'reminder-' + Date.now().toString(36), text: '', done: false, date: null, time: null, created_at: '' };
@@ -121,42 +121,24 @@ export function renderReminders() {
   els.remindersNote.hidden = true;
 
   state.reminders.forEach(function (entry, idx) {
-    const row = document.createElement('div');
-    row.className = 'list-row automation-summary-row reminder-row' + (entry.done ? ' is-done' : '');
-    row.dataset.reminderId = entry.id;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'automation-summary-main';
-    main.setAttribute('aria-label', 'Edit reminder: ' + entry.text);
-
-    const copy = document.createElement('span');
-    copy.className = 'automation-summary-copy';
-    const title = document.createElement('span');
-    title.className = 'automation-summary-title';
-    title.textContent = entry.text;
-    copy.appendChild(title);
-    const due = dueSummary(entry);
-    if (due) {
-      const meta = document.createElement('span');
-      meta.className = 'automation-summary-meta';
-      meta.textContent = due;
-      copy.appendChild(meta);
-    }
-    main.appendChild(copy);
-    main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
-    main.addEventListener('click', function () { reminderEditor.open(idx, main); });
-    row.appendChild(main);
-
-    const done = buildToggle('reminder-done', entry.done, function (on) {
-      const proposed = state.reminders.map(function (reminder, i) {
-        return i === idx ? { ...reminder, done: on } : reminder;
-      });
-      reminderEditor.save(proposed);
-    });
-    done.setAttribute('aria-label', entry.done ? 'Mark not done' : 'Mark done');
-    row.appendChild(done);
-    els.remindersList.appendChild(row);
+    els.remindersList.appendChild(renderSummaryRow({
+      id: entry.id,
+      idAttr: 'reminderId',
+      rowClass: 'reminder-row' + (entry.done ? ' is-done' : ''),
+      title: entry.text,
+      meta: dueSummary(entry),
+      openLabel: 'Edit reminder: ' + entry.text,
+      onOpen: function (main) { reminderEditor.open(idx, main); },
+      toggleName: 'reminder-done',
+      toggleOn: entry.done,
+      toggleLabel: entry.done ? 'Mark not done' : 'Mark done',
+      onToggle: function (on) {
+        const proposed = state.reminders.map(function (reminder, i) {
+          return i === idx ? { ...reminder, done: on } : reminder;
+        });
+        reminderEditor.save(proposed);
+      },
+    }));
   });
 }
 
@@ -187,10 +169,10 @@ export function wireReminders() {
 // Poll only while the Home tab is active — mirrors wake-alarms.js's
 // onWakeAlarmsTab: the reminder list rarely changes server-side except via
 // a voice add/complete, which is rare enough not to warrant faster polling.
-let remindersTimer = null;
+const scheduleReminders = createPoller(loadReminders);
 export function onRemindersTab(tab) {
-  if (remindersTimer) { clearInterval(remindersTimer); remindersTimer = null; }
+  scheduleReminders(0);
   if (tab !== 'home') return;
   loadReminders();
-  remindersTimer = setInterval(loadReminders, 10_000);
+  scheduleReminders(10_000);
 }

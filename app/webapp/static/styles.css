@@ -362,7 +362,6 @@ button, input, select, textarea {
 
 /* ------------------------------------------------- energy flow diagram */
 .energy-feedback { margin: 0 0 var(--gap); }
-.energy-stale-note { margin: 0 4px; color: var(--attention); }
 /* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
    self-evident, and the time duplicated the phone clock — #74). */
 .flow-card { padding: 12px; margin-bottom: var(--gap); }
@@ -1017,7 +1016,6 @@ button, input, select, textarea {
 
 .plugs-note { margin: 10px 4px; }
 .plugs-feedback { margin: 0 0 var(--gap); }
-.plugs-stale-note { margin: 0 4px; color: var(--attention); }
 
 /* Home-tab plug summary as a single line at the weather-tile height (#253):
    identity (icon + "Plugs" + total) left, On/Off counts inline, the total live
@@ -1062,7 +1060,6 @@ button, input, select, textarea {
   opacity: 0.75;
 }
 .ups-tile > .empty-state { padding: var(--space-sm) 0; }
-.ups-stale-note { margin: var(--space-sm) 0 0; color: var(--attention); }
 /* One unified layout for both the Home and Plugs tiles (#207 follow-up): the
    identity sits top-left, the status pill is pinned to the top-right corner,
    and the stat row runs full-width beneath. No separate desktop/mobile shape. */
@@ -1618,7 +1615,6 @@ button.device-row-name:hover { text-decoration: underline; }
 
 /* -------------------------------------------------------- security tab */
 .security-feedback { margin: 0 0 var(--gap); }
-.security-stale-note,
 .security-live-feedback { margin: var(--space-sm) 4px 0; color: var(--attention); }
 #paneSecurity[data-state="loading"] > :not(.security-feedback),
 #paneSecurity[data-state="error"] > :not(.security-feedback) { display: none; }
@@ -2255,7 +2251,6 @@ button.presence-name:hover { text-decoration: underline; }
   cursor: pointer;
 }
 .ac-feedback { margin: 0 0 var(--gap); }
-.ac-stale-note { margin: 0 4px; color: var(--attention); }
 .presence-settings > .row,
 .pv-system-body > .row,
 .boost-coord-body > .row {
@@ -2742,6 +2737,26 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .muted { color: var(--muted); }
 .small { font-size: var(--font-caption); }
 
+/* One thin "showing older data" line for every tab (issue #571) — this used to
+   be six per-tab classes, four of them byte-identical. Only the two genuinely
+   different margins survive, as the modifiers below. Built by view-state.js's
+   staleNoteEl().
+
+   Position matters: the element also carries `muted small`, and `.muted` above
+   is the same specificity, so this rule has to sit AFTER it or the attention
+   colour loses. All six old rules declared that colour and five of them lost it
+   exactly this way — only .network-stale-note happened to be written below
+   .muted in the file, so only the Network tab rendered the amber the other five
+   also asked for. Collapsing them settles it on the declared intent rather than
+   on line number, which does make those five amber where they used to render
+   muted. */
+.stale-note { margin: 0 4px; color: var(--attention); }
+/* The two tabs whose note sits inside a card body rather than above one, so it
+   needs top spacing instead of side spacing. Kept here rather than in their own
+   tab sections because a modifier has to follow the base rule to win. */
+.security-stale-note { margin: var(--space-sm) 4px 0; }
+.ups-stale-note { margin: var(--space-sm) 0 0; }
+
 /* Canonical empty-state block (issue #362): icon + one-line reason + optional
    action, used by any list/grid that can legitimately render with zero items
    (e.g. the Lights grid with no reachable fixtures). Spans every grid column
@@ -2826,7 +2841,6 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 /* Initial/unavailable feedback replaces the placeholder-filled Network shell;
    stale feedback stays compact above the preserved last-good content. */
 .network-feedback { margin: 0 0 var(--gap); }
-.network-stale-note { margin: 0 4px; color: var(--attention); }
 #paneNetwork[data-state="loading"] > :not(.network-feedback),
 #paneNetwork[data-state="error"] > :not(.network-feedback) { display: none; }
 

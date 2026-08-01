@@ -14,10 +14,9 @@
 
 'use strict';
 
-import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
+import { state, els, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
-import { emptyStateEl } from './empty-state.js';
-import { createViewState } from './view-state.js';
+import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
 import { renderScenePairings, loadScenePairings } from './security-scene.js';
@@ -42,28 +41,15 @@ const POLL_MS = 10_000;
 const securityView = createViewState();
 
 function renderSecurityFeedback() {
-  if (!els.paneSecurity || !els.securityFeedback) return;
-  els.paneSecurity.dataset.state = securityView.state;
-  els.securityFeedback.innerHTML = '';
-  els.securityFeedback.hidden = false;
-
-  if (securityView.state === 'loading') {
-    els.securityFeedback.appendChild(
-      emptyStateEl('shield-check', 'Reading security status…')
-    );
-  } else if (securityView.state === 'error') {
-    els.securityFeedback.appendChild(emptyStateEl('shield-check', 'Security unavailable', {
-      actionLabel: 'Retry',
-      onAction: function () { loadSecurity(); },
-    }));
-  } else if (securityView.state === 'stale') {
-    const note = document.createElement('p');
-    note.className = 'muted small security-stale-note';
-    note.textContent = securityView.lastUpdatedLabel() + ' · live data unavailable';
-    els.securityFeedback.appendChild(note);
-  } else {
-    els.securityFeedback.hidden = true;
-  }
+  if (!els.paneSecurity) return;
+  renderFeedback(securityView, els.securityFeedback, {
+    paneEl: els.paneSecurity,
+    icon: 'shield-check',
+    loadingLabel: 'Reading security status…',
+    errorLabel: 'Security unavailable',
+    staleClass: 'security-stale-note',
+    onRetry: function () { loadSecurity(); },
+  });
 
   if (!els.homeSecurityFeedback) return;
   if (securityView.state === 'loading') {
@@ -91,14 +77,15 @@ function disableSecurityActions() {
 }
 
 function markSecurityFailure() {
-  securityView.set(state.security ? 'stale' : 'error');
-  reportFetchFailure(
-    'security',
-    { message: 'live data unavailable' },
-    'security'
-  );
-  renderSecurityFeedback();
-  disableSecurityActions();
+  markTabFailure(securityView, {
+    hasData: !!state.security,
+    scope: 'security',
+    label: 'security',
+    render: function () {
+      renderSecurityFeedback();
+      disableSecurityActions();
+    },
+  });
 }
 
 export function renderSecurity() {

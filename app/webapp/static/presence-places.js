@@ -13,6 +13,7 @@
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { denseListEditor } from './dense-editor.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 const DEFAULT_RADIUS_M = 150;
 
@@ -211,8 +212,7 @@ function openMapPicker() {
   }
   const center = mapPickerCenter();
   const zoom = center[0] === 0 && center[1] === 0 ? 2 : 15;
-  if (typeof els.presenceMapPickerDialog.showModal === 'function') els.presenceMapPickerDialog.showModal();
-  else els.presenceMapPickerDialog.setAttribute('open', '');
+  openDialog(els.presenceMapPickerDialog);
   requestAnimationFrame(function () {
     picker.map.invalidateSize();
     picker.map.setView(center, zoom);
@@ -222,8 +222,7 @@ function openMapPicker() {
 }
 
 function closeMapPicker() {
-  if (typeof els.presenceMapPickerDialog.close === 'function') els.presenceMapPickerDialog.close();
-  else els.presenceMapPickerDialog.removeAttribute('open');
+  closeDialog(els.presenceMapPickerDialog);
 }
 
 async function confirmMapPicker() {

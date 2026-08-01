@@ -10,6 +10,7 @@
 
 import { jsonApi } from './api.js';
 import { toast } from './state.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 const PAGE_LIMIT = 100;
 let mode = 'events'; // 'events' | 'readings'
@@ -196,8 +197,7 @@ function applyMode(next) {
 function openActivity() {
   const dlg = el('activityDialog');
   if (!dlg) return;
-  if (typeof dlg.showModal === 'function') dlg.showModal();
-  else dlg.setAttribute('open', '');
+  openDialog(dlg);
   refreshDomains();
   reload();
 }
@@ -205,8 +205,7 @@ function openActivity() {
 function closeActivity() {
   const dlg = el('activityDialog');
   if (!dlg) return;
-  if (typeof dlg.close === 'function') dlg.close();
-  else dlg.removeAttribute('open');
+  closeDialog(dlg);
 }
 
 // Debounce a free-text input so each keystroke doesn't fire a request.

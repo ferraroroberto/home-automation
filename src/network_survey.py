@@ -38,6 +38,7 @@ import time
 from pathlib import Path
 from typing import Any, ContextManager, Dict, List, Optional
 
+from src._mac import normalize_mac
 from src._sqlite import connect as _sqlite_connect
 
 logger = logging.getLogger("network_survey")
@@ -61,11 +62,6 @@ SOURCE_UNKNOWN = "unknown"
 # The two ways a sample carries no measurement. Neither counts as `found`, but
 # only the first is a statement about coverage.
 _UNMEASURED_SOURCES = (SOURCE_NOT_FOUND, SOURCE_UNKNOWN)
-
-
-def _norm_mac(mac: str) -> str:
-    """Canonical key form: upper-case, whitespace-trimmed (matches the rename store)."""
-    return (mac or "").strip().upper()
 
 
 def _norm_room(room: str) -> str:
@@ -230,7 +226,7 @@ def record_sample(
     rather than something to store and render as a mystery row.
     """
     room_key = _norm_room(room)
-    mac_key = _norm_mac(mac)
+    mac_key = normalize_mac(mac)
     if not room_key:
         raise ValueError("room is required")
     if not mac_key:

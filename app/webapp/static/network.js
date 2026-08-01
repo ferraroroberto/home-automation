@@ -21,21 +21,17 @@ import {
   state,
   els,
   toast,
-  reportFetchFailure,
   reportFetchOk,
 } from './state.js';
 import { jsonApi } from './api.js';
 import { fmtPct } from './format.js';
 import {
-  isSnapshotRestored,
   restoreSnapshot,
   saveSnapshot,
-  snapshotLabel,
 } from './snapshots.js';
-import { emptyStateEl } from './empty-state.js';
 import { restyleWifiChannelChart } from './charts.js';
 import { createPoller } from './poll.js';
-import { createViewState } from './view-state.js';
+import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import {
   renderStats,
   renderDevices,
@@ -62,6 +58,7 @@ import {
   initSurveyMacPref,
 } from './network-survey.js';
 import { wireDhcpPlan } from './network-dhcp.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 const POLL_MS = 15_000;
 
@@ -86,32 +83,15 @@ function fmtUptime(seconds) {
 }
 
 function renderNetworkFeedback() {
-  if (!els.paneNetwork || !els.netFeedback) return;
-  els.paneNetwork.dataset.state = networkView.state;
-  els.netFeedback.innerHTML = '';
-  els.netFeedback.hidden = false;
-
-  if (networkView.state === 'loading') {
-    els.netFeedback.appendChild(emptyStateEl('wifi', 'Reading network status…'));
-    return;
-  }
-  if (networkView.state === 'error') {
-    els.netFeedback.appendChild(emptyStateEl('wifi', 'Network unavailable', {
-      actionLabel: 'Retry',
-      onAction: function () { loadNetwork(); },
-    }));
-    return;
-  }
-  if (networkView.state === 'stale') {
-    const note = document.createElement('p');
-    note.className = 'muted small network-stale-note';
-    note.textContent = networkView.liveUnavailable
-      ? networkView.lastUpdatedLabel() + ' · live data unavailable'
-      : snapshotLabel('network');
-    els.netFeedback.appendChild(note);
-    return;
-  }
-  els.netFeedback.hidden = true;
+  if (!els.paneNetwork) return;
+  renderFeedback(networkView, els.netFeedback, {
+    paneEl: els.paneNetwork,
+    icon: 'wifi',
+    loadingLabel: 'Reading network status…',
+    errorLabel: 'Network unavailable',
+    snapshotKey: 'network',
+    onRetry: function () { loadNetwork(); },
+  });
 }
 
 function disableStaleNetworkActions() {
@@ -121,16 +101,15 @@ function disableStaleNetworkActions() {
 }
 
 function markNetworkFailure() {
-  networkView.set(state.network ? 'stale' : 'error', {
-    liveUnavailable: true,
+  markTabFailure(networkView, {
+    hasData: !!state.network,
+    scope: 'network',
+    label: 'network',
+    render: function () {
+      renderNetworkFeedback();
+      if (state.network) disableStaleNetworkActions();
+    },
   });
-  reportFetchFailure(
-    'network',
-    { message: 'live data unavailable' },
-    'network'
-  );
-  renderNetworkFeedback();
-  if (state.network) disableStaleNetworkActions();
 }
 
 // --------------------------------------------------- reusable confirm dialog
@@ -141,8 +120,7 @@ function markNetworkFailure() {
 let confirmResolver = null;
 
 function closeConfirm(result) {
-  if (typeof els.confirmDialog.close === 'function') els.confirmDialog.close();
-  else els.confirmDialog.removeAttribute('open');
+  closeDialog(els.confirmDialog);
   const resolve = confirmResolver;
   confirmResolver = null;
   if (resolve) resolve(result);
@@ -155,8 +133,7 @@ export function confirmAction(opts) {
   els.confirmOk.classList.toggle('is-danger', !!(opts && opts.danger));
   return new Promise(function (resolve) {
     confirmResolver = resolve;
-    if (typeof els.confirmDialog.showModal === 'function') els.confirmDialog.showModal();
-    else els.confirmDialog.setAttribute('open', '');
+    openDialog(els.confirmDialog);
   });
 }
 

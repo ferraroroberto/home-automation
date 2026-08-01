@@ -37,6 +37,9 @@
 import { toast } from './state.js';
 import { jsonApi } from './api.js';
 import { confirmAction } from './network.js';
+import { buildToggle } from './toggle.js';
+import { icon } from './_vendored/icons/icons.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 export function denseListEditor(config) {
   let editorIndex = null;
@@ -53,15 +56,13 @@ export function denseListEditor(config) {
     config.titleEl.textContent = index == null ? config.titles.add : config.titles.edit;
     config.populate(staged);
     config.deleteButton.hidden = index == null;
-    if (typeof config.dialog.showModal === 'function') config.dialog.showModal();
-    else config.dialog.setAttribute('open', '');
+    openDialog(config.dialog);
     config.focusEl.focus();
     if (config.afterOpen) config.afterOpen(staged);
   }
 
   function close() {
-    if (typeof config.dialog.close === 'function') config.dialog.close();
-    else config.dialog.removeAttribute('open');
+    closeDialog(config.dialog);
   }
 
   function restoreFocus() {
@@ -160,4 +161,57 @@ export function denseListEditor(config) {
     save: save,
     get staged() { return staged; },
   };
+}
+
+/* One summary row in a dense-collection list (issue #571).
+ *
+ * `security-schedules` / `security-scene` / `security-override` / `reminders`
+ * each hand-rolled the same ~30 lines: a `.list-row.automation-summary-row`
+ * holding a full-width summary button (title + optional meta + chevron) that
+ * opens the editor, plus a trailing enable/done toggle. This owns that
+ * scaffolding; each caller supplies only its own copy and handlers.
+ *
+ * `opts`:
+ *   id / idAttr  entry id and the camelCase `dataset` key it lands on
+ *   rowClass     extra class on the row (e.g. reminders' `reminder-row is-done`)
+ *   title        the row's headline text
+ *   meta         optional second line; omitted when falsy
+ *   openLabel    aria-label on the summary button
+ *   onOpen(btn)  click handler, passed the button so it can be refocused
+ *   toggleName   `buildToggle`'s class name
+ *   toggleOn     the toggle's current state
+ *   toggleLabel  aria-label on the toggle
+ *   onToggle(on) toggle handler
+ */
+export function renderSummaryRow(opts) {
+  const row = document.createElement('div');
+  row.className = 'list-row automation-summary-row' + (opts.rowClass ? ' ' + opts.rowClass : '');
+  if (opts.idAttr) row.dataset[opts.idAttr] = opts.id;
+
+  const main = document.createElement('button');
+  main.type = 'button';
+  main.className = 'automation-summary-main';
+  main.setAttribute('aria-label', opts.openLabel);
+
+  const copy = document.createElement('span');
+  copy.className = 'automation-summary-copy';
+  const title = document.createElement('span');
+  title.className = 'automation-summary-title';
+  title.textContent = opts.title;
+  copy.appendChild(title);
+  if (opts.meta) {
+    const meta = document.createElement('span');
+    meta.className = 'automation-summary-meta';
+    meta.textContent = opts.meta;
+    copy.appendChild(meta);
+  }
+  main.appendChild(copy);
+  main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
+  main.addEventListener('click', function () { opts.onOpen(main); });
+  row.appendChild(main);
+
+  const toggle = buildToggle(opts.toggleName, opts.toggleOn, opts.onToggle);
+  toggle.setAttribute('aria-label', opts.toggleLabel);
+  row.appendChild(toggle);
+  return row;
 }

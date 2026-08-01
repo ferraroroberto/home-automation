@@ -10,66 +10,37 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchFailure, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
+import { state, els, toast, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi } from './api.js';
 import { fmtW } from './format.js';
-import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { createPoller } from './poll.js';
-import { createViewState } from './view-state.js';
+import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { toggleMarkup } from './toggle.js';
-import { emptyStateEl } from './empty-state.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 const POLL_MS = 15_000;
 
 const plugsView = createViewState('plugs');
 
 function renderPlugsFeedback() {
-  if (!els.plugsFeedback) return;
-  els.plugsFeedback.dataset.state = plugsView.state;
-  els.plugsFeedback.innerHTML = '';
-  els.plugsFeedback.hidden = false;
-  if (plugsView.state === 'loading') {
-    els.plugsFeedback.appendChild(
-      emptyStateEl('plug-zap', 'Reading plugs and blinds…')
-    );
-    return;
-  }
-  if (plugsView.state === 'empty') {
-    els.plugsFeedback.appendChild(emptyStateEl('plug-zap', 'No Smart Life devices configured', {
-      actionLabel: 'Retry',
-      onAction: function () { loadPlugs(); },
-    }));
-    return;
-  }
-  if (plugsView.state === 'error') {
-    els.plugsFeedback.appendChild(emptyStateEl('plug-zap', 'Plugs and blinds unavailable', {
-      actionLabel: 'Retry',
-      onAction: function () { loadPlugs(); },
-    }));
-    return;
-  }
-  if (plugsView.state === 'stale') {
-    const note = document.createElement('p');
-    note.className = 'muted small plugs-stale-note';
-    note.textContent = plugsView.liveUnavailable
-      ? plugsView.lastUpdatedLabel() + ' · live data unavailable'
-      : snapshotLabel('plugs');
-    els.plugsFeedback.appendChild(note);
-    return;
-  }
-  els.plugsFeedback.hidden = true;
+  renderFeedback(plugsView, els.plugsFeedback, {
+    icon: 'plug-zap',
+    loadingLabel: 'Reading plugs and blinds…',
+    emptyLabel: 'No Smart Life devices configured',
+    errorLabel: 'Plugs and blinds unavailable',
+    snapshotKey: 'plugs',
+    onRetry: function () { loadPlugs(); },
+  });
 }
 
 function markPlugsFailure() {
-  plugsView.set(state.plugs.length ? 'stale' : 'error', {
-    liveUnavailable: true,
+  markTabFailure(plugsView, {
+    hasData: state.plugs.length > 0,
+    scope: 'plugs',
+    label: 'plugs',
+    render: renderPlugs,
   });
-  reportFetchFailure(
-    'plugs',
-    { message: 'live data unavailable' },
-    'plugs'
-  );
-  renderPlugs();
 }
 
 // --------------------------------------------------------------- formatting
@@ -286,8 +257,7 @@ function openPlugDetail(deviceId) {
   plugStaged = { hidden: !!device.hidden };
   renderPlugHiddenToggle(plugStaged.hidden);
   clearPlugDirty();
-  if (typeof els.plugDialog.showModal === 'function') els.plugDialog.showModal();
-  else els.plugDialog.setAttribute('open', '');
+  openDialog(els.plugDialog);
   els.plugDisplayName.focus();
 }
 
@@ -295,8 +265,7 @@ function closePlugDetail() {
   state.selectedPlugId = null;
   plugStaged = null;
   clearPlugDirty();
-  if (typeof els.plugDialog.close === 'function') els.plugDialog.close();
-  else els.plugDialog.removeAttribute('open');
+  closeDialog(els.plugDialog);
 }
 
 function togglePlugHidden() {

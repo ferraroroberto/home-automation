@@ -19,12 +19,11 @@ same load/save shape as ``security_schedules`` / ``display_names``.
 
 from __future__ import annotations
 
-import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
-from src._schedule_store import read_json, save_json
+from src._schedule_store import read_json, safe_id, save_json
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 PAIRINGS_PATH = _CONFIG_DIR / "alarm_scene_pairings.json"
@@ -40,12 +39,6 @@ class ScenePairing:
     preset_token: Optional[str] = None
     preset_name: Optional[str] = None
     enabled: bool = True
-
-
-def _safe_id(value: Any, fallback: str) -> str:
-    raw = str(value or fallback).strip()
-    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-")
-    return safe or fallback
 
 
 def _opt_str(value: Any) -> Optional[str]:
@@ -68,7 +61,7 @@ def clean_pairing(raw: dict, fallback_id: str) -> Optional[ScenePairing]:
     if not camera_id:
         return None
     return ScenePairing(
-        id=_safe_id(raw.get("id"), fallback_id),
+        id=safe_id(raw.get("id"), fallback_id),
         zone_id=zone_id,
         camera_id=camera_id,
         preset_token=_opt_str(raw.get("preset_token")),

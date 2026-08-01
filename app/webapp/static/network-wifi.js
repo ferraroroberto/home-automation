@@ -14,14 +14,17 @@ import {
   els,
   toast,
   NETWORK_SHOW_HIDDEN_WIFI_KEY,
+  persistedFlag,
 } from './state.js';
 import { jsonApi } from './api.js';
 import {
   createWifiChannelChart,
   setWifiChannelData,
 } from './charts.js';
+import { renderSignalBar } from './format.js';
 import { renderNetwork } from './network.js';
 import { toggleMarkup } from './toggle.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 const WIFI_BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
 
@@ -111,17 +114,7 @@ function wifiRow(b) {
   const sig = document.createElement('span');
   sig.className = 'net-device-signal net-wifi-row-signal';
   if (b.signal != null) {
-    const bar = document.createElement('span');
-    bar.className = 'net-signal-bar';
-    const fill = document.createElement('span');
-    fill.className = 'net-signal-fill';
-    fill.style.width = Math.max(0, Math.min(100, b.signal)) + '%';
-    bar.appendChild(fill);
-    sig.appendChild(bar);
-    const pct = document.createElement('span');
-    pct.className = 'net-signal-pct';
-    pct.textContent = b.signal + '%';
-    sig.appendChild(pct);
+    sig.appendChild(renderSignalBar(b.signal));
   } else {
     sig.textContent = '—';
   }
@@ -254,15 +247,13 @@ function openNetWifiDetail(wifiId) {
   els.netWifiOriginalName.textContent = 'Original SSID: ' + (b.original_name || b.ssid || '—') +
     ' · BSSID: ' + (b.bssid || '—') + (b.bssid ? '' : ' · key ' + (b.wifi_id || '—'));
   renderNetWifiHiddenToggle(b);
-  if (typeof els.netWifiDialog.showModal === 'function') els.netWifiDialog.showModal();
-  else els.netWifiDialog.setAttribute('open', '');
+  openDialog(els.netWifiDialog);
   els.netWifiDisplayName.focus();
 }
 
 function closeNetWifiDetail() {
   state.selectedNetWifiId = null;
-  if (typeof els.netWifiDialog.close === 'function') els.netWifiDialog.close();
-  else els.netWifiDialog.removeAttribute('open');
+  closeDialog(els.netWifiDialog);
 }
 
 async function saveNetWifiName() {
@@ -334,22 +325,18 @@ export function wireNetWifiDetail() {
 }
 
 // ------------------------------------------------- prefs + toggles
+const showHiddenWifiPref = persistedFlag(NETWORK_SHOW_HIDDEN_WIFI_KEY);
+
 export function toggleShowHiddenWifi(ev) {
   if (ev) {
     ev.preventDefault();
     ev.stopPropagation();
   }
   state.networkShowHiddenWifi = !state.networkShowHiddenWifi;
-  try {
-    localStorage.setItem(NETWORK_SHOW_HIDDEN_WIFI_KEY, state.networkShowHiddenWifi ? '1' : '0');
-  } catch (_e) { /* private mode — in-memory only */ }
+  showHiddenWifiPref.write(state.networkShowHiddenWifi);
   renderNetwork();
 }
 
 export function initShowHiddenWifiPref() {
-  try {
-    state.networkShowHiddenWifi = localStorage.getItem(NETWORK_SHOW_HIDDEN_WIFI_KEY) === '1';
-  } catch (_e) {
-    state.networkShowHiddenWifi = false;
-  }
+  state.networkShowHiddenWifi = showHiddenWifiPref.read();
 }

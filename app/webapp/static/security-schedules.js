@@ -10,10 +10,9 @@
 
 import { state, els } from './state.js';
 import { jsonApi } from './api.js';
-import { icon } from './_vendored/icons/icons.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
-import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { denseListEditor } from './dense-editor.js';
+import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -155,39 +154,23 @@ export function renderSchedules() {
   els.securitySchedulesNote.hidden = true;
 
   state.securitySchedules.forEach(function (entry, idx) {
-    const row = document.createElement('div');
-    row.className = 'list-row automation-summary-row';
-    row.dataset.scheduleId = entry.id;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'automation-summary-main';
-    main.setAttribute('aria-label', 'Edit schedule at ' + entry.time);
-
-    const copy = document.createElement('span');
-    copy.className = 'automation-summary-copy';
-    const title = document.createElement('span');
-    title.className = 'automation-summary-title';
-    title.textContent = entry.time;
-    const meta = document.createElement('span');
-    meta.className = 'automation-summary-meta';
-    meta.textContent = ACTION_LABELS[entry.action] + ' · ' + daysSummary(entry.days);
-    copy.appendChild(title);
-    copy.appendChild(meta);
-    main.appendChild(copy);
-    main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
-    main.addEventListener('click', function () { scheduleEditor.open(idx, main); });
-    row.appendChild(main);
-
-    const enabled = buildToggle('alarm-schedule-enabled', entry.enabled, function (on) {
-      const proposed = state.securitySchedules.map(function (schedule, scheduleIndex) {
-        return scheduleIndex === idx ? { ...schedule, enabled: on } : schedule;
-      });
-      scheduleEditor.save(proposed);
-    });
-    enabled.setAttribute('aria-label', 'Enable schedule at ' + entry.time);
-    row.appendChild(enabled);
-    els.securitySchedules.appendChild(row);
+    els.securitySchedules.appendChild(renderSummaryRow({
+      id: entry.id,
+      idAttr: 'scheduleId',
+      title: entry.time,
+      meta: ACTION_LABELS[entry.action] + ' · ' + daysSummary(entry.days),
+      openLabel: 'Edit schedule at ' + entry.time,
+      onOpen: function (main) { scheduleEditor.open(idx, main); },
+      toggleName: 'alarm-schedule-enabled',
+      toggleOn: entry.enabled,
+      toggleLabel: 'Enable schedule at ' + entry.time,
+      onToggle: function (on) {
+        const proposed = state.securitySchedules.map(function (schedule, scheduleIndex) {
+          return scheduleIndex === idx ? { ...schedule, enabled: on } : schedule;
+        });
+        scheduleEditor.save(proposed);
+      },
+    }));
   });
 }
 

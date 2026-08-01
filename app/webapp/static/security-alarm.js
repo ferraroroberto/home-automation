@@ -19,6 +19,7 @@ import { fmtTime } from './presence.js';
 import { renderSecurity } from './security.js';
 import { toggleMarkup } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 // The full alarm-control row, in display order. Always rendered; the live state
 // machine decides which are tappable and which is the current (selected) one.
@@ -415,8 +416,7 @@ function openZoneDetail(zoneId) {
   renderZoneTroubleIgnoreToggle(zone);
   zoneStaged = { hidden: !!zone.hidden, trouble_ignored: !!zone.trouble_ignored };
   clearZoneDirty();
-  if (typeof els.zoneDialog.showModal === 'function') els.zoneDialog.showModal();
-  else els.zoneDialog.setAttribute('open', '');
+  openDialog(els.zoneDialog);
   els.zoneDisplayName.focus();
 }
 
@@ -483,8 +483,7 @@ function closeZoneDetail() {
   state.selectedZoneId = null;
   zoneStaged = null;
   clearZoneDirty();
-  if (typeof els.zoneDialog.close === 'function') els.zoneDialog.close();
-  else els.zoneDialog.removeAttribute('open');
+  closeDialog(els.zoneDialog);
 }
 
 // Commit the staged name + Hidden; only fields that actually changed are sent.

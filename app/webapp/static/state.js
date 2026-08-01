@@ -691,6 +691,51 @@ export const els = {
   loginError: document.getElementById('loginError'),
 };
 
+// ------------------------------------------------- persisted UI preferences
+// Every list toggle/sort/pick that survives a reload is a localStorage string
+// wrapped in a try/catch (private mode throws, and the pref must then just stay
+// in memory for the session). That read-with-catch / write-with-catch pair used
+// to be hand-rolled six times across network-devices / network-wifi /
+// network-survey (issue #571). These own the storage concern only — value
+// semantics (what an absent or unrecognised string means) stay at the call site.
+
+/** `{read, write}` over one localStorage key. `read()` yields the raw stored
+ *  string, or `fallback` when absent or unreadable; `write(value)` removes the
+ *  key for a null/empty value and stores `String(value)` otherwise. */
+export function persistedPref(key, fallback) {
+  const missing = fallback === undefined ? null : fallback;
+  return {
+    read() {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? missing : raw;
+      } catch (_e) {
+        return missing;  // private mode — in-memory only
+      }
+    },
+    write(value) {
+      try {
+        if (value == null || value === '') localStorage.removeItem(key);
+        else localStorage.setItem(key, String(value));
+      } catch (_e) { /* private mode — in-memory only */ }
+    },
+  };
+}
+
+/** `persistedPref` for an on/off flag stored as `'1'`/`'0'`. `read()` is a
+ *  boolean (absent or unreadable → `fallback`, default `false`). */
+export function persistedFlag(key, fallback) {
+  const pref = persistedPref(key, null);
+  const missing = fallback === undefined ? false : fallback;
+  return {
+    read() {
+      const raw = pref.read();
+      return raw === null ? missing : raw === '1';
+    },
+    write(on) { pref.write(on ? '1' : '0'); },
+  };
+}
+
 // ----------------------------------------------------------- auth utils
 export function tokenFromUrl() {
   const params = new URLSearchParams(window.location.search);

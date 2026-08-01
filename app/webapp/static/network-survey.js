@@ -22,13 +22,15 @@
 
 'use strict';
 
-import { state, els, toast, NETWORK_SURVEY_MAC_KEY } from './state.js';
+import { state, els, toast, NETWORK_SURVEY_MAC_KEY, persistedPref } from './state.js';
 import { api, jsonApi } from './api.js';
 import { emptyStateEl } from './empty-state.js';
+import { renderSignalBar } from './format.js';
 import { icon } from './_vendored/icons/icons.js';
 // Same identity precedence the device list uses (custom label → vendor →
 // hostname → MAC), imported rather than restated so a rename shows up here too.
 import { deviceLabel } from './network-devices.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 // One warm-up round-trip (discarded — it pays for connection setup) plus this
 // many timed ones. Ten keeps a sample under ~2 s on a healthy link while still
@@ -84,24 +86,17 @@ function signalClass(signal) {
 }
 
 // --------------------------------------------------------------- device pick
-function readSurveyMac() {
-  try {
-    return localStorage.getItem(NETWORK_SURVEY_MAC_KEY) || null;
-  } catch (_e) {
-    return null; // private mode — the pick stays in memory for this session
-  }
-}
+// Private mode throws on localStorage — the pick then stays in memory for this
+// session. That read/write-with-catch pair lives in state.js (issue #571).
+const surveyMacPref = persistedPref(NETWORK_SURVEY_MAC_KEY);
 
 function writeSurveyMac(mac) {
   state.networkSurveyMac = mac || null;
-  try {
-    if (mac) localStorage.setItem(NETWORK_SURVEY_MAC_KEY, mac);
-    else localStorage.removeItem(NETWORK_SURVEY_MAC_KEY);
-  } catch (_e) { /* private mode — in-memory only */ }
+  surveyMacPref.write(mac);
 }
 
 export function initSurveyMacPref() {
-  state.networkSurveyMac = readSurveyMac();
+  state.networkSurveyMac = surveyMacPref.read() || null;
 }
 
 function wirelessDevices() {
@@ -286,17 +281,7 @@ function roomRow(entry) {
   } else if (!entry.last_found) {
     sig.textContent = 'not seen';
   } else if (entry.last_signal != null) {
-    const bar = document.createElement('span');
-    bar.className = 'net-signal-bar';
-    const fill = document.createElement('span');
-    fill.className = 'net-signal-fill';
-    fill.style.width = Math.max(0, Math.min(100, entry.last_signal)) + '%';
-    bar.appendChild(fill);
-    sig.appendChild(bar);
-    const pct = document.createElement('span');
-    pct.className = 'net-signal-pct';
-    pct.textContent = entry.last_signal + '%';
-    sig.appendChild(pct);
+    sig.appendChild(renderSignalBar(entry.last_signal));
   } else {
     sig.textContent = '—';
   }
@@ -457,13 +442,11 @@ function openDevicePicker() {
   } else {
     devices.forEach(function (d) { els.netSurveyDialogList.appendChild(pickerRow(d)); });
   }
-  if (typeof els.netSurveyDialog.showModal === 'function') els.netSurveyDialog.showModal();
-  else els.netSurveyDialog.setAttribute('open', '');
+  openDialog(els.netSurveyDialog);
 }
 
 function closeDevicePicker() {
-  if (typeof els.netSurveyDialog.close === 'function') els.netSurveyDialog.close();
-  else els.netSurveyDialog.removeAttribute('open');
+  closeDialog(els.netSurveyDialog);
 }
 
 export function wireSurvey() {

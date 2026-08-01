@@ -12,9 +12,8 @@
 
 'use strict';
 
-import { state, els, reportFetchFailure, reportFetchOk } from './state.js';
+import { state, els, reportFetchOk } from './state.js';
 import { jsonApi } from './api.js';
-import { emptyStateEl } from './empty-state.js';
 import { esc, group, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
@@ -23,7 +22,7 @@ import {
   createForecastChart, setForecastData, restyleForecast,
 } from './charts.js';
 import { createPoller } from './poll.js';
-import { createViewState } from './view-state.js';
+import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import {
   arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
 } from './pv-system.js';
@@ -46,47 +45,31 @@ let energyLastGood = null;
 const energyView = createViewState('energyLive');
 
 function renderEnergyFeedback() {
-  if (!els.paneEnergy || !els.energyFeedback) return;
-  els.paneEnergy.dataset.state = energyView.state;
-  els.paneEnergy.setAttribute('aria-busy', energyView.state === 'loading' ? 'true' : 'false');
-  els.energyFeedback.innerHTML = '';
-  els.energyFeedback.hidden = false;
-  if (energyView.state === 'loading') {
-    els.energyFeedback.appendChild(emptyStateEl('refresh-cw', 'Reading live energy…'));
-    return;
-  }
-  if (energyView.state === 'error') {
-    els.energyFeedback.appendChild(emptyStateEl('zap', 'Live energy unavailable', {
-      actionLabel: 'Retry',
-      onAction: function () { loadEnergy(); },
-    }));
-    return;
-  }
-  if (energyView.state === 'stale') {
-    const note = document.createElement('p');
-    note.className = 'muted small energy-stale-note';
-    note.textContent = energyView.liveUnavailable
-      ? energyView.lastUpdatedLabel() + ' · live data unavailable'
-      : snapshotLabel('energyLive');
-    els.energyFeedback.appendChild(note);
-    return;
-  }
-  els.energyFeedback.hidden = true;
+  if (!els.paneEnergy) return;
+  renderFeedback(energyView, els.energyFeedback, {
+    paneEl: els.paneEnergy,
+    ariaBusy: true,
+    icon: 'zap',
+    loadingIcon: 'refresh-cw',
+    loadingLabel: 'Reading live energy…',
+    errorLabel: 'Live energy unavailable',
+    snapshotKey: 'energyLive',
+    onRetry: function () { loadEnergy(); },
+  });
 }
 
 function markEnergyFailure() {
-  energyView.set(energyLastGood ? 'stale' : 'error', {
-    liveUnavailable: true,
+  markTabFailure(energyView, {
+    hasData: !!energyLastGood,
+    scope: 'energy',
+    label: 'live energy',
+    render: function () {
+      renderEnergyFeedback();
+      if (energyLastGood) {
+        els.liveMeta.textContent = '· ' + energyView.lastUpdatedLabel() + ' · live data unavailable';
+      }
+    },
   });
-  reportFetchFailure(
-    'energy',
-    { message: 'live data unavailable' },
-    'live energy'
-  );
-  renderEnergyFeedback();
-  if (energyLastGood) {
-    els.liveMeta.textContent = '· ' + energyView.lastUpdatedLabel() + ' · live data unavailable';
-  }
 }
 
 // --------------------------------------------------------------- formatting

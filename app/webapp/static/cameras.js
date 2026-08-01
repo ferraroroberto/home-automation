@@ -15,12 +15,13 @@
 
 'use strict';
 
-import { els, state, toast, readToken, reportFetchOk, reportFetchFailure } from './state.js';
+import { els, state, toast, readToken, reportFetchOk } from './state.js';
 import { api, jsonApi } from './api.js';
 import { confirmAction } from './network.js';
 import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
-import { createViewState } from './view-state.js';
+import { createViewState, markTabFailure } from './view-state.js';
+import { closeDialog, openDialog } from './dialog.js';
 
 let snapshotUrl = null;   // objectURL for the detail-modal snapshot (revoked on replace)
 let liveRecording = false;
@@ -79,13 +80,12 @@ function showCamerasState(message, retry) {
 }
 
 function markCamerasFailure() {
-  camerasView.set((state.cameras || []).length ? 'stale' : 'error');
-  reportFetchFailure(
-    'cameras',
-    { message: 'live data unavailable' },
-    'cameras'
-  );
-  renderCameras();
+  markTabFailure(camerasView, {
+    hasData: (state.cameras || []).length > 0,
+    scope: 'cameras',
+    label: 'cameras',
+    render: renderCameras,
+  });
 }
 
 function thumbUrl(cameraId) {
@@ -227,14 +227,12 @@ async function openZoom(cameraId) {
     toast('No snapshot yet — open the camera to capture one.', 'warning');
   };
   els.cameraZoomImg.src = thumbUrl(cameraId);
-  if (typeof els.cameraZoomDialog.showModal === 'function') els.cameraZoomDialog.showModal();
-  else els.cameraZoomDialog.setAttribute('open', '');
+  openDialog(els.cameraZoomDialog);
 }
 
 function closeZoom() {
   els.cameraZoomImg.onerror = null;
-  if (typeof els.cameraZoomDialog.close === 'function') els.cameraZoomDialog.close();
-  else els.cameraZoomDialog.removeAttribute('open');
+  closeDialog(els.cameraZoomDialog);
 }
 
 // --- detail snapshot (blob → objectURL; <img> can't send the bearer header) -
@@ -275,13 +273,11 @@ function openCameraDetail(cameraId) {
   els.cameraLiveBtn.hidden = !cam.reachable;
   if (els.cameraSave) els.cameraSave.disabled = true;
   loadSnapshotInto(els.cameraSnapshot, cameraId);
-  if (typeof els.cameraDialog.showModal === 'function') els.cameraDialog.showModal();
-  else els.cameraDialog.setAttribute('open', '');
+  openDialog(els.cameraDialog);
 }
 
 function closeCameraDetail() {
-  if (typeof els.cameraDialog.close === 'function') els.cameraDialog.close();
-  else els.cameraDialog.removeAttribute('open');
+  closeDialog(els.cameraDialog);
 }
 
 async function saveCameraName() {
@@ -336,13 +332,11 @@ async function openLiveView(cameraId) {
   renderPresets();
   if (presetsOk) loadPresets(cameraId);
   if (cam.ptz_absolute) refreshCoords();
-  if (typeof els.cameraLiveDialog.showModal === 'function') els.cameraLiveDialog.showModal();
-  else els.cameraLiveDialog.setAttribute('open', '');
+  openDialog(els.cameraLiveDialog);
 }
 
 function closeLiveView() {
-  if (typeof els.cameraLiveDialog.close === 'function') els.cameraLiveDialog.close();
-  else els.cameraLiveDialog.removeAttribute('open');
+  closeDialog(els.cameraLiveDialog);
 }
 
 // --- PTZ: mode toggle + step/hold buttons -----------------------------------
