@@ -1354,6 +1354,25 @@ the helper's 320/390/430/772px × light/dark matrix against the home view,
 driving the theme through the app's own `home-automation.theme` localStorage
 boot path with a per-leg check that the theme actually applied.
 
+Leaked browser helpers are reclaimed by `tests/e2e/_browser_sweep.py` — vendored
+**byte-identical** from `project-scaffolding/tests/e2e/_browser_sweep.py` (never
+fork it, upstream changes first), wired as `pytest_sessionfinish` in
+`tests/e2e/conftest.py` with this checkout as the only call-site argument. After
+every session it classifies each WebKit helper process and tree-kills only those
+that are really running, genuinely orphaned (dead parent, checked against PID
+reuse) **and** whose working directory sits under this checkout — the leak that
+otherwise pins the directory and makes a later `git worktree remove` fail as an
+unexplained "busy". Everything else gets its own verdict instead of a kill: an
+already-exited-but-handle-held `zombie` (unkillable, harmless, never a gate
+failure), a live-parent session, a sibling checkout, or an unreadable cwd.
+Killing by image name alone stays forbidden, so Chromium is deliberately out of
+the sweep set. The run prints a one-line `[e2e] browser sweep (scope …): …`
+verdict breakdown; it can also be run standalone before removing a worktree:
+
+```powershell
+& .\.venv\Scripts\python.exe tests\e2e\_browser_sweep.py E:\automation\home-automation-wt-1 --dry-run
+```
+
 ```powershell
 & .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 & .\.venv\Scripts\python.exe -m playwright install chromium webkit
