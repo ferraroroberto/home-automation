@@ -21,7 +21,7 @@ expected_Wh = expected_W · 1h            # GTI is an hourly mean
 
 `kwp` is that sub-array's peak power, defined at the **1000 W/m² STC reference**, so `GTI / 1000` is the fraction of peak the current irradiance represents. `performance_ratio` (the derate) is shared across all sub-arrays — it folds together every loss the irradiance model does not (inverter efficiency, wiring and thermal losses, soiling, mismatch) into one factor (typically ~0.75–0.85), and isn't orientation-dependent. The day total is the sum of every sub-array's hourly Wh, shown as kWh.
 
-This is a **rough, clearly-labelled estimate**, not a guarantee: it ignores panel temperature, horizon shading, inverter clipping, and snow/soiling events. Treat it as "what a clear-sky-ish day of this weather should roughly yield."
+This is a **rough, clearly-labelled estimate**, not a guarantee: by default it ignores panel temperature (see "Panel temperature" below for the optional, off-by-default term that models it), and it always ignores horizon shading, inverter clipping, and snow/soiling events. Treat it as "what a clear-sky-ish day of this weather should roughly yield."
 
 ## Config — `config/pv_system.json`
 
@@ -43,7 +43,8 @@ Per-machine, **gitignored** (the repo is public). Copy `config/pv_system.sample.
 | `arrays[].kwp` | that sub-array's peak power (kW) | the only required field per entry; must be > 0 |
 | `arrays[].tilt_deg` | panel tilt from horizontal | 0–90, clamped; default 30; **always non-negative** |
 | `arrays[].azimuth_deg` | panel compass orientation | Open-Meteo convention — **0 = South, −90 = East, 90 = West, 180 = North**; default 0 (due south) |
-| `performance_ratio` | shared derate factor | 0–1, clamped; default 0.8; one value for the whole system, not per sub-array |
+| `performance_ratio` | shared derate factor | 0–1, clamped; default 0.8; one value for the whole system, not per sub-array. **Its meaning depends on `thermal_model_enabled`** — see "Panel temperature" |
+| `thermal_model_enabled` | arm the panel-temperature term | optional boolean, default `false`; only a literal `true` arms it. See "Panel temperature" — turning it on requires migrating `performance_ratio` in the same edit |
 
 **Expressing an opposite-mounted panel:** don't use a negative tilt. A panel "tilted −15° facing north" and a panel "tilted +15° facing the 180°/north azimuth" are the physically same orientation under Open-Meteo's tilt≥0 convention — always encode it as `tilt_deg: 15, azimuth_deg: 180` (or whatever `180 − south_azimuth` works out to for a non-south main array).
 
@@ -76,9 +77,9 @@ Issue #555 asked whether pulling live from [PVGIS](https://joint-research-centre
 `performance_ratio` is the single knob that turns clear-sky irradiance into a believable yield, so it is worth setting deliberately rather than leaving at the 0.8 default. Crucially, **it is not the same number as a PVGIS "system loss"**, even though it is tempting to set `1 − loss`:
 
 - **PVGIS** applies its `loss` percentage (cabling, inverter, soiling, mismatch) *on top of* a separate, physics-based **panel-temperature** correction — hot panels lose efficiency, and PVGIS models that hour by hour.
-- **This model has no temperature term.** It scales GTI straight to power, so `performance_ratio` has to absorb *both* the PVGIS-style system losses *and* the temperature loss PVGIS would have handled separately.
+- **This model has no temperature term by default.** It scales GTI straight to power, so `performance_ratio` has to absorb *both* the PVGIS-style system losses *and* the temperature loss PVGIS would have handled separately. (With `thermal_model_enabled: true` that stops being so — the temperature loss is modelled and the ratio becomes system-loss-only. Read "Panel temperature" below **before** changing either value.)
 
-So translating a PVGIS setup, don't copy `1 − loss/100` verbatim — subtract a further few points for thermal loss. Worked example, using the values in the sister `pvgis` repo's `.env` (this home's own array has since been expanded to **8.8 kWp** — see `config/pv_system.json`; the translation method below is what matters here, not the peak-power figure):
+So translating a PVGIS setup with the thermal term off, don't copy `1 − loss/100` verbatim — subtract a further few points for thermal loss. Worked example, using the values in the sister `pvgis` repo's `.env` (this home's own array has since been expanded to **8.8 kWp** — see `config/pv_system.json`; the translation method below is what matters here, not the peak-power figure):
 
 | PVGIS input | value | → this model |
 | --- | --- | --- |
@@ -90,6 +91,31 @@ So translating a PVGIS setup, don't copy `1 − loss/100` verbatim — subtract 
 | **combined** | | **`performance_ratio: 0.80`** |
 
 Empirically this matters: 0.86 (the raw `1 − loss`) forecast ≈ 51 kWh for a clear June day, while PVGIS's own annual model lands ~45–48 kWh — 0.80 brings the estimate back in line. If you have measured generation, tune `performance_ratio` so the dashed forecast sits over the filled actual curve on clear days.
+
+### Panel temperature (issue #591) — optional, off by default
+
+The constant thermal allowance folded into `performance_ratio` above is the weakest part of that translation: the real loss ranges from ~0% at a 25 °C cell to ~13% at 62 °C, and one number cannot track it. `thermal_model_enabled` replaces the constant with a physical term.
+
+**The model.** `temperature_2m` rides along in the *same* Open-Meteo request as GTI (no extra call), cell temperature comes from the standard NOCT form, and power is scaled by the panel's power temperature coefficient:
+
+```
+T_cell = T_air + (NOCT − 20) / 800 · GTI          # NOCT = 45 °C
+factor = 1 + γ · (T_cell − 25)                     # γ = −0.0035 / °C, floored at 0
+expected_Wh = kwp · (GTI / 1000) · performance_ratio · factor
+```
+
+γ and NOCT are constants in `src/pv_forecast.py`, not config fields: issue #578 fitted them against this array's own measured output and they land within ±5% for every morning and midday hour, and there is no UI through which a user could recalibrate them meaningfully. **Wind speed is deliberately not modelled** — the still-air NOCT form already fits within measurement noise here, and the residual gap it does *not* close is the afternoon one, which is geometric (horizon shading, #578 part b), not thermal. A wind term would only appear to absorb it.
+
+**Turning it on is a migration, not a toggle.** The two settings are read together:
+
+| `thermal_model_enabled` | what `performance_ratio` means | this array |
+| --- | --- | --- |
+| `false` (default) | combined derate — system losses **plus** a constant thermal allowance | 0.80 |
+| `true` | system losses **only**; the thermal loss is now modelled hour by hour | ~0.88 (`1 − 0.14` PVGIS loss) |
+
+Flipping the switch while leaving `performance_ratio` at 0.80 would subtract the thermal loss twice and under-forecast by roughly 10%. That combination is **refused, not computed**: `src/pv_system_config.py`'s `thermal_migration_error()` is the single place that names it, and both halves of the app route through it — the strict writer raises (so the Energy-tab editor gets a **400** explaining the conflict) and the forecast returns `{ "available": false, "reason": "thermal_ratio_unmigrated" }` rather than a plausible-looking wrong curve. The floor is `MIN_THERMAL_PERFORMANCE_RATIO` (0.85); migrate both values in the same edit.
+
+**With the switch off nothing changes at all** — not the numbers, not the payload's keys, not even the upstream request (`temperature_2m` is only asked for when the term is armed). That is the deliberate default: the committed config leaves it off, and only a literal JSON `true` arms it, so a stray `"yes"` in a hand-edited file cannot change what the card predicts by truthiness.
 
 ## Endpoint
 
@@ -115,9 +141,9 @@ Empirically this matters: 0.86 (the raw `1 − loss`) forecast ≈ 51 kWh for a 
 
 `actual` is the measured generation for that day from the local energy-history DB (`hourly_day`), 24 hourly points where a `null` hour is an asleep inverter or an hour with no sample (drawn as a gap, never a 0) — the same "asleep is not zero" rule the live chart uses. `tomorrow` has no actuals, so `actual` is `null`.
 
-`system` echoes back the sub-array params the curve was computed from, so the card can show them in a caption (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast.
+`system` echoes back the sub-array params the curve was computed from, so the card can show them in a caption (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast. It carries an extra `thermal_model: { gamma_per_c, noct_c }` block **only** when the panel-temperature term is armed — with the term off the payload's keys are exactly what they were before #591.
 
-Always HTTP 200: when the array/location is unconfigured or Open-Meteo is unreachable it returns `{ "available": false, "reason": … }` and the card keeps its note — the forecast is decorative, never a 500.
+Always HTTP 200: when the array/location is unconfigured or Open-Meteo is unreachable it returns `{ "available": false, "reason": … }` and the card keeps its note — the forecast is decorative, never a 500. The reasons are `not_configured`, `no_location`, `too_old`, `unreachable`, `no_data`, and `thermal_ratio_unmigrated` (the panel-temperature term armed on top of an un-migrated `performance_ratio` — see "Panel temperature" above).
 
 ## Reading the model back: the sun-position diagnostic (issue #590)
 

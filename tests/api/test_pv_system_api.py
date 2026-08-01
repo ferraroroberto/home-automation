@@ -122,3 +122,61 @@ def test_editing_a_legacy_flat_config_preserves_its_doc_note(
     assert raw["_doc"] == "why 8.8 kWp"
     assert "kwp" not in raw
     assert len(raw["arrays"]) == 2
+
+
+# --------------------------- the panel-temperature switch's blast radius (#591)
+# The editor has no control for the switch, but it does edit the ratio the
+# switch reinterprets — so the two have to be validated together or the app
+# itself becomes the way the inconsistent combination gets written.
+
+
+def test_put_cannot_strand_an_armed_thermal_term_on_a_combined_ratio(
+    client: TestClient, _isolate_pv_config
+) -> None:
+    """Lowering the derate back to a pre-#591 combined ~0.80 while the panel-
+    temperature term is armed would double-count the thermal loss. It must be a
+    400 naming the conflict, not a saved file."""
+    _isolate_pv_config.write_text(
+        json.dumps(
+            {
+                "arrays": [{"kwp": 8.0, "tilt_deg": 15}],
+                "performance_ratio": 0.88,
+                "thermal_model_enabled": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resp = client.put(
+        "/api/energy/pv-system",
+        json={"arrays": [{"kwp": 8.0, "tilt_deg": 15}], "performance_ratio": 0.8},
+    )
+    assert resp.status_code == 400
+    assert "thermal_model_enabled" in resp.json()["detail"]
+
+    raw = json.loads(_isolate_pv_config.read_text(encoding="utf-8"))
+    assert raw["performance_ratio"] == 0.88
+
+
+def test_an_ordinary_edit_leaves_the_hand_set_switch_armed(
+    client: TestClient, _isolate_pv_config
+) -> None:
+    _isolate_pv_config.write_text(
+        json.dumps(
+            {
+                "arrays": [{"kwp": 8.0}],
+                "performance_ratio": 0.88,
+                "thermal_model_enabled": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    resp = client.put(
+        "/api/energy/pv-system",
+        json={"arrays": [{"kwp": 8.0}, {"kwp": 1.0, "azimuth_deg": 180}]},
+    )
+    assert resp.status_code == 200
+
+    raw = json.loads(_isolate_pv_config.read_text(encoding="utf-8"))
+    assert raw["thermal_model_enabled"] is True
+    assert raw["performance_ratio"] == 0.88

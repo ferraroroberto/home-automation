@@ -580,6 +580,12 @@ async def update_pv_system(payload: PvSystemPayload) -> Dict[str, Any]:
     Unlike the read path this one is strict: an invalid row is a 400 naming the
     field, never a silently dropped or clamped value (see
     :func:`src.pv_system_config.validate_pv_system`).
+
+    The editor has no control for the panel-temperature switch (issue #591), but
+    it does edit the ratio the switch reinterprets — so the stored switch is
+    carried into the validated config. Lowering the ratio back to a combined
+    ~0.80 while the term is armed is therefore a 400 explaining the conflict,
+    not a saved file that double-counts the thermal loss.
     """
     stored = load_pv_system_config()
     ratio = payload.performance_ratio
@@ -592,6 +598,7 @@ async def update_pv_system(payload: PvSystemPayload) -> Dict[str, Any]:
             for a in payload.arrays
         ],
         performance_ratio=ratio,
+        thermal_model_enabled=bool(stored and stored.thermal_model_enabled),
     )
     try:
         save_pv_system_config(config)

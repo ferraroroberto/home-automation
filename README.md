@@ -686,6 +686,17 @@ input.
   just one entry; the legacy flat single-orientation shape (pre-#555) still
   loads unmigrated. Coordinates are reused from `config/location.json` (the
   weather tile's file) — there is no separate lat/lon.
+- **Panel temperature (#591) — optional, off by default:** setting
+  `thermal_model_enabled: true` adds a PVWatts-style cell-temperature derate
+  (NOCT 45 °C, γ = −0.0035/°C), fetching `temperature_2m` in the *same*
+  Open-Meteo request. Left off, nothing changes — not the numbers, not the
+  payload keys, not even the request. Turning it on is a **migration**:
+  `performance_ratio` stops meaning "system losses + a constant thermal
+  allowance" (~0.80) and must become system-loss-only (~0.88), or the thermal
+  loss is counted twice. The half-migrated pair is refused rather than computed
+  — a 400 from the editor, `reason: "thermal_ratio_unmigrated"` from the
+  forecast. See [`docs/pv-forecast.md`](docs/pv-forecast.md) → "Panel
+  temperature".
 - **Editing it:** the Energy tab's **PV system** card (directly under the
   forecast card) adds/edits/removes panel rows and the shared performance ratio
   and coordinates — no file editing needed, and no restart: the forecast reads

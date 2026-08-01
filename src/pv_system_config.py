@@ -20,6 +20,21 @@ opposite-facing orientation captured by azimuth alone (e.g. a panel mounted the
 opposite way from a 15°-tilt south array is ``tilt_deg: 15, azimuth_deg: 180``,
 never a negative tilt). See ``docs/pv-forecast.md``.
 
+The optional ``thermal_model_enabled`` switch (issue #591) selects which of two
+meanings ``performance_ratio`` carries, so the two can never be mixed up:
+
+* **off** (the default, and what every existing file gets) — no temperature term
+  in the model, so ``performance_ratio`` is the *combined* derate with a constant
+  thermal allowance folded in (~0.80 for this home's array).
+* **on** — :mod:`src.pv_forecast` applies a PVWatts-style cell-temperature
+  derate, so ``performance_ratio`` must be a *system-loss-only* factor (~0.88).
+
+Flipping the switch without migrating the ratio would double-count the thermal
+loss, so that combination is refused rather than computed:
+:func:`thermal_migration_error` names it, the strict validator raises it (a 400
+from the editor) and the forecast reports it as unavailable rather than emitting
+numbers that are quietly ~10% low.
+
 **Read and write are deliberately different contracts** (issue #561, which made
 the config editable from the Energy tab). :func:`load_pv_system_config` is
 *lenient* — a hand-edited file with one malformed sub-array degrades (skip +
@@ -63,10 +78,22 @@ class PvSystemConfig:
 
     arrays: List[PvArray] = field(default_factory=list)
     performance_ratio: float = 0.8
+    # Issue #591 — off by default so the live forecast is unchanged. See the
+    # module docstring for what turning it on also requires.
+    thermal_model_enabled: bool = False
 
     @property
     def total_kwp(self) -> float:
         return sum(a.kwp for a in self.arrays)
+
+
+# With the thermal term ON, ``performance_ratio`` is a system-loss-only factor
+# (~0.88 measured for this array: PVGIS-style 14% system loss, nothing thermal).
+# The pre-#591 combined ratios sit around 0.80 because they also absorb a
+# constant ~6% thermal allowance. Anything below this floor is therefore still
+# an un-migrated combined ratio, and running the temperature term on top of it
+# would subtract the thermal loss twice.
+MIN_THERMAL_PERFORMANCE_RATIO = 0.85
 
 
 def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfig]:
@@ -79,6 +106,10 @@ def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfi
     list form, and the legacy single-orientation flat form (``kwp``/``tilt_deg``/
     ``azimuth_deg``/``performance_ratio`` at the top level, pre-#555), which loads
     as a single-element ``arrays`` list — existing configs keep working unmigrated.
+
+    ``thermal_model_enabled`` (issue #591) is absent from every existing file and
+    absent means off, so nothing here changes what the forecast predicts until
+    the key is added by hand.
     """
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     if not target.exists():
@@ -112,7 +143,13 @@ def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfi
         logger.warning("⚠️ %s has no valid sub-arrays — forecast disabled", target)
         return None
 
-    return PvSystemConfig(arrays=arrays, performance_ratio=pr)
+    # Only a literal ``true`` arms the temperature term. A stray "yes"/1 left in
+    # a hand-edited file must not change what the card predicts by truthiness.
+    thermal = raw.get("thermal_model_enabled") is True
+
+    return PvSystemConfig(
+        arrays=arrays, performance_ratio=pr, thermal_model_enabled=thermal
+    )
 
 
 def _parse_array(entry: object, target: Path, index: int) -> Optional[PvArray]:
@@ -152,6 +189,10 @@ def _clamp_float(value: object, default: float, lo: float, hi: float) -> float:
 # whoever wrote it and survives a save untouched. The legacy flat keys are
 # listed too so a legacy file edited in the app migrates cleanly to ``arrays``
 # instead of keeping a stale, contradictory ``kwp`` beside the new list.
+#
+# ``thermal_model_enabled`` is deliberately NOT owned (issue #591): the editor
+# has no control for it, so a save must leave a hand-set switch exactly as it
+# found it rather than silently writing the default back over it.
 _OWNED_KEYS = frozenset(
     {"arrays", "performance_ratio", "kwp", "tilt_deg", "azimuth_deg"}
 )
@@ -166,6 +207,34 @@ def _require_finite(value: object, field_name: str) -> float:
     if not math.isfinite(out):
         raise ValueError(f"{field_name} must be a number")
     return out
+
+
+def thermal_migration_error(config: PvSystemConfig) -> Optional[str]:
+    """Name the one combination that would double-count the thermal loss.
+
+    Returns ``None`` when the config is self-consistent, or a human-readable
+    explanation when the temperature term is armed on top of a
+    ``performance_ratio`` that still folds a constant thermal allowance in.
+    Both halves of the codebase route through this one function — the strict
+    writer raises it, the forecast refuses to compute on it — so the inconsistent
+    state cannot silently produce numbers (issue #591).
+    """
+    if not config.thermal_model_enabled:
+        return None
+    try:
+        pr = float(config.performance_ratio)
+    except (TypeError, ValueError):
+        return None  # the plain performance_ratio check will speak for itself
+    if pr >= MIN_THERMAL_PERFORMANCE_RATIO:
+        return None
+    return (
+        f"performance_ratio {pr:.2f} is too low for thermal_model_enabled: with "
+        "the panel-temperature term on, performance_ratio must be a system-loss-"
+        f"only factor (at least {MIN_THERMAL_PERFORMANCE_RATIO:.2f}, ~0.88 for a "
+        "PVGIS 14% loss). A ratio around 0.80 still folds the thermal allowance "
+        "in, so the loss would be counted twice — migrate the ratio in the same "
+        "edit as the switch, or leave the switch off"
+    )
 
 
 def validate_pv_system(config: PvSystemConfig) -> None:
@@ -197,6 +266,10 @@ def validate_pv_system(config: PvSystemConfig) -> None:
     pr = _require_finite(config.performance_ratio, "performance_ratio")
     if not 0.0 < pr <= 1.0:
         raise ValueError("performance_ratio must be greater than 0 and at most 1")
+
+    mismatch = thermal_migration_error(config)
+    if mismatch is not None:
+        raise ValueError(mismatch)
 
 
 def save_pv_system_config(
