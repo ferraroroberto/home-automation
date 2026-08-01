@@ -507,7 +507,7 @@ Smoke-test the credentials with the CLI:
 
 ## Energy monitoring & history
 
-The PWA splits into seven tabs: **Home** (a consolidated dashboard — weather strip,
+The PWA splits into six tabs: **Home** (a consolidated dashboard — weather strip,
 the actionable alarm tile, a one-line-per-unit AC summary with inline power
 toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
 card as the Energy tab; alarm + AC act, the rest inform),
