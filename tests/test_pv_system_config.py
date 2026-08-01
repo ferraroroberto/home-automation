@@ -17,10 +17,12 @@ from pathlib import Path
 import pytest
 
 from src.pv_system_config import (
+    MIN_THERMAL_PERFORMANCE_RATIO,
     PvArray,
     PvSystemConfig,
     load_pv_system_config,
     save_pv_system_config,
+    thermal_migration_error,
     validate_pv_system,
 )
 
@@ -210,3 +212,92 @@ def test_save_does_not_write_an_invalid_config(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         save_pv_system_config(_config(PvArray(kwp=-1)), path)
     assert not path.exists()
+
+
+# ------------------------------ panel-temperature switch (issue #591)
+# The switch reinterprets ``performance_ratio`` rather than merely adding a
+# term, so the tests that matter are the ones pinning (a) that every existing
+# file still reads as "off" and (b) that the half-migrated pair is refused.
+
+
+def test_the_switch_is_absent_from_existing_files_and_absent_means_off(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path, {"arrays": [{"kwp": 5.0}], "performance_ratio": 0.8})
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert config.thermal_model_enabled is False
+    assert PvSystemConfig().thermal_model_enabled is False
+
+
+def test_a_literal_true_arms_the_switch(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        {
+            "arrays": [{"kwp": 5.0}],
+            "performance_ratio": 0.88,
+            "thermal_model_enabled": True,
+        },
+    )
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert config.thermal_model_enabled is True
+
+
+@pytest.mark.parametrize("value", ["true", "yes", 1, [1], {}])
+def test_only_a_literal_true_arms_the_switch(tmp_path: Path, value: object) -> None:
+    """A truthy string or 1 left in a hand-edited file must not change what the
+    forecast predicts — arming the term is an explicit act, not a coincidence."""
+    path = _write(
+        tmp_path,
+        {"arrays": [{"kwp": 5.0}], "thermal_model_enabled": value},
+    )
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert config.thermal_model_enabled is False
+
+
+def test_the_switch_off_reports_no_migration_error() -> None:
+    assert thermal_migration_error(_config(PvArray(kwp=5.0), ratio=0.8)) is None
+
+
+def test_the_switch_on_with_a_migrated_ratio_reports_no_error() -> None:
+    config = _config(PvArray(kwp=5.0), ratio=0.88)
+    config.thermal_model_enabled = True
+    assert thermal_migration_error(config) is None
+    validate_pv_system(config)  # must not raise
+
+
+@pytest.mark.parametrize("ratio", [0.8, 0.75, MIN_THERMAL_PERFORMANCE_RATIO - 0.01])
+def test_the_switch_on_over_an_unmigrated_ratio_is_refused(ratio: float) -> None:
+    """The one combination that would double-count the thermal loss."""
+    config = _config(PvArray(kwp=5.0), ratio=ratio)
+    config.thermal_model_enabled = True
+
+    message = thermal_migration_error(config)
+    assert message is not None
+    assert "double" in message or "twice" in message
+    with pytest.raises(ValueError, match="thermal_model_enabled"):
+        validate_pv_system(config)
+
+
+def test_save_preserves_a_hand_set_switch_it_does_not_own(tmp_path: Path) -> None:
+    """The editor has no control for the switch, so a save must leave it alone
+    rather than writing the default back over a deliberate setting."""
+    path = _write(
+        tmp_path,
+        {
+            "_doc": "note",
+            "arrays": [{"kwp": 5.0}],
+            "performance_ratio": 0.88,
+            "thermal_model_enabled": True,
+        },
+    )
+    config = _config(PvArray(kwp=6.0), ratio=0.9)
+    config.thermal_model_enabled = True
+    save_pv_system_config(config, path)
+
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    assert raw["thermal_model_enabled"] is True
+    assert raw["arrays"] == [{"kwp": 6.0, "tilt_deg": 30.0, "azimuth_deg": 0.0}]
+    assert load_pv_system_config(path).thermal_model_enabled is True

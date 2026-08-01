@@ -22,6 +22,15 @@ Source & model (deliberately self-contained, approximate):
   peak); GTI is a preceding-hour mean, so one hour of it integrates straight to
   ``expected_Wh``. The sub-array totals are summed per hour into the combined
   curve.
+* **Optionally** (issue #591, off by default) a PVWatts-style panel-temperature
+  derate multiplies that: hot cells lose efficiency, a loss that swings from ~0%
+  at 25 °C cell to ~13% at 62 °C and which a constant derate cannot track. The
+  term is armed by ``thermal_model_enabled`` in ``config/pv_system.json``; with
+  it off, not even the upstream request changes, so the card's numbers are
+  exactly what they were. Turning it on also requires migrating
+  ``performance_ratio`` to a system-loss-only factor — see
+  :func:`src.pv_system_config.thermal_migration_error`, which makes the
+  half-migrated combination refuse to compute rather than under-report ~10%.
 
 Array parameters come from ``config/pv_system.json`` (:mod:`src.pv_system_config`)
 and the coordinates from ``config/location.json`` (:mod:`src.location_config`,
@@ -44,12 +53,35 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 
 from src.location_config import LocationConfig, load_location_config
-from src.pv_system_config import PvArray, PvSystemConfig, load_pv_system_config
+from src.pv_system_config import (
+    PvArray,
+    PvSystemConfig,
+    load_pv_system_config,
+    thermal_migration_error,
+)
 
 logger = logging.getLogger(__name__)
 
 _OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 _TIMEOUT_S = 8.0
+
+# ------------------------------------------- panel temperature (issue #591)
+# A PVWatts-style NOCT cell-temperature model. #578's diagnosis fitted these two
+# numbers against this array's measured output and landed within ±5% for every
+# morning and midday hour, so they start as constants rather than as config the
+# user has no way to calibrate. Wind speed is deliberately NOT modelled: the
+# still-air NOCT form already fits to within the measurement noise here, and the
+# residual afternoon gap it does not close is geometric (horizon shading, #578
+# part b), not thermal — a wind term would only appear to absorb it.
+
+# Power temperature coefficient, per °C away from the 25 °C STC cell reference.
+THERMAL_GAMMA_PER_C = -0.0035
+# Nominal Operating Cell Temperature: the cell temperature reached at 800 W/m²
+# in 20 °C still air, the two reference conditions below.
+THERMAL_NOCT_C = 45.0
+_NOCT_IRRADIANCE_W = 800.0
+_NOCT_AMBIENT_C = 20.0
+_STC_CELL_C = 25.0
 
 # Day selector → offset from today's local date.
 _DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
@@ -78,11 +110,28 @@ def _unavailable(day: str, reason: str) -> PvForecast:
     return PvForecast(available=False, day=day, reason=reason)
 
 
+def cell_temperature_c(air_c: float, gti_w: float) -> float:
+    """NOCT cell temperature (°C) for an hour of ``gti_w`` at ``air_c`` ambient."""
+    rise = (THERMAL_NOCT_C - _NOCT_AMBIENT_C) / _NOCT_IRRADIANCE_W
+    return air_c + rise * gti_w
+
+
+def thermal_derate(air_c: float, gti_w: float) -> float:
+    """Efficiency multiplier (≤1 when hot) for one hour's irradiance + ambient.
+
+    Floored at zero: γ is only linear over the range panels actually reach, and
+    a negative factor would turn a hot hour into negative generation.
+    """
+    cell = cell_temperature_c(air_c, gti_w)
+    return max(0.0, 1.0 + THERMAL_GAMMA_PER_C * (cell - _STC_CELL_C))
+
+
 async def _fetch_array_gti(
     session: aiohttp.ClientSession,
     location: LocationConfig,
     array: PvArray,
     past_days: int = 1,
+    with_temperature: bool = False,
 ) -> Dict[str, Any]:
     """One Open-Meteo hourly-GTI request for a single sub-array's orientation.
 
@@ -91,11 +140,19 @@ async def _fetch_array_gti(
     named days all resolve to ``past_days=1``, so the forecast card's request —
     and therefore its answer — is byte-for-byte what it was before that
     diagnostic existed.
+
+    ``with_temperature`` adds ``temperature_2m`` to the *same* request (issue
+    #591) — no second call, and no change at all to the request when the thermal
+    term is off, so the disabled path cannot drift on the back of a feature that
+    is not running.
     """
+    hourly = "global_tilted_irradiance"
+    if with_temperature:
+        hourly += ",temperature_2m"
     params = {
         "latitude": location.lat,
         "longitude": location.lon,
-        "hourly": "global_tilted_irradiance",
+        "hourly": hourly,
         "tilt": array.tilt_deg,
         "azimuth": array.azimuth_deg,
         "past_days": past_days,
@@ -158,6 +215,13 @@ async def fetch_pv_forecast_for_date(
     if system is None:
         return _unavailable(day, "not_configured")
 
+    # Refuse the half-migrated combination rather than quietly subtracting the
+    # thermal loss twice (issue #591) — a wrong curve is worse than no curve.
+    mismatch = thermal_migration_error(system)
+    if mismatch is not None:
+        logger.warning("⚠️ PV forecast refused: %s", mismatch)
+        return _unavailable(day, "thermal_ratio_unmigrated")
+
     location = location or load_location_config()
     if location is None:
         return _unavailable(day, "no_location")
@@ -174,7 +238,13 @@ async def fetch_pv_forecast_for_date(
         async with aiohttp.ClientSession(timeout=timeout) as session:
             responses = await asyncio.gather(
                 *(
-                    _fetch_array_gti(session, location, array, past_days)
+                    _fetch_array_gti(
+                        session,
+                        location,
+                        array,
+                        past_days,
+                        with_temperature=system.thermal_model_enabled,
+                    )
                     for array in system.arrays
                 )
             )
@@ -192,15 +262,27 @@ async def fetch_pv_forecast_for_date(
         if not times or len(times) != len(gti):
             return _unavailable(day, "no_data")
 
+        if system.thermal_model_enabled:
+            air = hourly.get("temperature_2m") or []
+            if len(air) != len(times):
+                return _unavailable(day, "no_data")
+        else:
+            air = [None] * len(times)
+
         # kWp is defined at 1000 W/m² STC: expected_W = kwp · GTI/1000 · PR. GTI
         # is a preceding-hour mean, so one hour of it is expected_Wh directly.
         scale = array.kwp * system.performance_ratio  # × (GTI/1000) × 1000h→Wh ⇒ × GTI
 
-        for stamp, irradiance in zip(times, gti):
+        for stamp, irradiance, air_c in zip(times, gti, air):
             if not str(stamp).startswith(iso_prefix):
                 continue
             watts = float(irradiance) if irradiance is not None else 0.0
             wh = max(0.0, scale * watts)
+            # A null ambient for one hour (an upstream gap) falls back to no
+            # derate — the pre-#591 value — rather than dropping the hour from
+            # a curve whose irradiance is perfectly good.
+            if system.thermal_model_enabled and air_c is not None:
+                wh *= thermal_derate(float(air_c), watts)
             try:
                 hour = datetime.fromisoformat(str(stamp)).hour
             except ValueError:
@@ -215,17 +297,26 @@ async def fetch_pv_forecast_for_date(
     ]
     total_wh = sum(totals_by_hour.values())
 
+    described: Dict[str, Any] = {
+        "arrays": [
+            {"kwp": a.kwp, "tilt_deg": a.tilt_deg, "azimuth_deg": a.azimuth_deg}
+            for a in system.arrays
+        ],
+        "total_kwp": round(system.total_kwp, 3),
+        "performance_ratio": system.performance_ratio,
+    }
+    # Only present when the term is armed: with it off the payload — keys
+    # included, not just values — is exactly what it was before #591.
+    if system.thermal_model_enabled:
+        described["thermal_model"] = {
+            "gamma_per_c": THERMAL_GAMMA_PER_C,
+            "noct_c": THERMAL_NOCT_C,
+        }
+
     return PvForecast(
         available=True,
         day=day,
         expected=expected,
         expected_total_wh=round(total_wh, 1),
-        system={
-            "arrays": [
-                {"kwp": a.kwp, "tilt_deg": a.tilt_deg, "azimuth_deg": a.azimuth_deg}
-                for a in system.arrays
-            ],
-            "total_kwp": round(system.total_kwp, 3),
-            "performance_ratio": system.performance_ratio,
-        },
+        system=described,
     )
