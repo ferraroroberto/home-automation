@@ -645,3 +645,35 @@ def test_confirm_alarm_action_raises_after_exhausting_all_retries(monkeypatch) -
     # (the last recheck, at the final backoff, gives up instead of resending).
     assert control_calls == ["arm", "arm", "arm"]
     assert len(fetch_calls) == 3  # one read-only recheck per backoff delay
+
+
+# --- blocked vs failed wording (issue #599) ---
+
+
+def test_blocked_outcome_does_not_read_as_a_failed_command() -> None:
+    """A block means nothing was attempted, so it must not say FAILED.
+
+    The 2026-08-01 report was a user seeing "Automatic alarm arm FAILED" 20 s
+    after a correct auto-disarm and reasonably concluding a command had failed.
+    """
+    blocked = AN._compose_message(
+        AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED,
+        "ana still reported home since 2026-08-01T17:51:07.924162+00:00", None,
+    )
+    assert "FAILED" not in blocked
+    assert "on hold" in blocked
+    assert "ana still reported home since" in blocked
+
+    # A genuine command failure is untouched.
+    failed = AN._compose_message(
+        AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_ERROR, "RISCO rejected 'arm': D:", None,
+    )
+    assert "FAILED" in failed
+
+
+def test_blocked_outcome_rides_the_error_toggle_and_dedupe() -> None:
+    """Reuses #533's existing plumbing rather than adding a notify path."""
+    on = AN.AlarmNotifyPrefs(error=True)
+    off = AN.AlarmNotifyPrefs(error=False)
+    assert AN._should_notify(on, AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED) is True
+    assert AN._should_notify(off, AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED) is False
