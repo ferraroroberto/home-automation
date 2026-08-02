@@ -5,14 +5,21 @@ that serves a per-sub-array GTI response keyed by (tilt, azimuth), mirroring
 the pattern in ``tests/test_travel_time.py``. These pin: two sub-arrays being
 requested concurrently and summed correctly, and one sub-array's failure
 sinking the whole forecast (never a silently-undercounted partial result).
+
+Also covers the upstream-caching/429/backoff fix (issue #597): the cache,
+shared session and failure backoff all live in module state, so an autouse
+fixture resets them between tests — the same pattern ``test_huawei_client.py``
+uses for its own module-state backoff.
 """
 
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 
+import aiohttp
 import pytest
 
 import src.pv_forecast as pf
@@ -21,6 +28,21 @@ from src.pv_system_config import PvArray, PvSystemConfig
 
 _LOCATION = LocationConfig(lat=41.4, lon=2.1)
 _TODAY = date(2026, 7, 20)
+
+
+@pytest.fixture(autouse=True)
+def _reset_module_state():
+    """The cache, shared session and 429 backoff live in module state — don't
+    leak them between tests."""
+    pf._forecast_cache.clear()
+    pf._session = None
+    pf._failure_until = 0.0
+    pf._failure_streak = 0
+    yield
+    pf._forecast_cache.clear()
+    pf._session = None
+    pf._failure_until = 0.0
+    pf._failure_streak = 0
 
 
 def _hourly_payload(
@@ -57,17 +79,18 @@ class _FakeResp:
 
 
 class _FakeSession:
-    """Serves a GTI payload keyed by the request's (tilt, azimuth)."""
+    """Serves a GTI payload keyed by the request's (tilt, azimuth).
+
+    Not used as a context manager any more (issue #597 — the fetch path now
+    reuses one long-lived session via ``_get_session()`` instead of opening
+    and closing one per call), just ``.closed`` for the reuse check itself.
+    """
+
+    closed = False
 
     def __init__(self, payloads_by_orientation: Dict[Tuple[float, float], object]) -> None:
         self._payloads = payloads_by_orientation
         self.requested: List[Tuple[float, float]] = []
-
-    async def __aenter__(self) -> "_FakeSession":
-        return self
-
-    async def __aexit__(self, *_a: object) -> bool:
-        return False
 
     def get(self, url: str, *, params: dict):
         key = (params["tilt"], params["azimuth"])
@@ -82,6 +105,20 @@ class _FailingSession(_FakeSession):
         if key == (15, 180):
             raise RuntimeError("boom")
         return _FakeResp(self._payloads[key])
+
+
+class _RateLimitedSession(_FakeSession):
+    """Every request 429s, the way Open-Meteo does once it starts throttling."""
+
+    class _ReqInfo:
+        real_url = "https://api.open-meteo.com/v1/forecast"
+
+    def get(self, url: str, *, params: dict):
+        key = (params["tilt"], params["azimuth"])
+        self.requested.append(key)
+        raise aiohttp.ClientResponseError(
+            self._ReqInfo(), (), status=429, message="Too Many Requests"
+        )
 
 
 def _patch_session(monkeypatch: pytest.MonkeyPatch, session) -> None:
@@ -377,3 +414,220 @@ def test_a_single_null_ambient_hour_falls_back_to_no_derate(
     )
     assert result.expected[0]["wh"] == pytest.approx(3520.0)   # no ambient → no derate
     assert result.expected[1]["wh"] == pytest.approx(3150.4)
+
+
+# --------------------------------------------- caching / 429 / backoff (#597)
+# A per-render Open-Meteo request, an unhandled 429, and no backoff turned a
+# batch of e2e/backend runs into a self-sustaining rate limit. These pin: one
+# upstream request set per cache TTL window, a 429 surfacing as its own
+# ``rate_limited`` reason with a backoff opened, and the last good curve being
+# served — never a blank card — both while an existing backoff is active and
+# when a live refetch itself 429s.
+
+
+def test_repeated_renders_within_ttl_reuse_the_cached_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _recording(monkeypatch, _TODAY)
+    for _ in range(5):
+        result = asyncio.run(
+            pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+        )
+        assert result.available is True
+        assert result.expected == [{"hour": 10, "wh": 2000.0}]
+    assert len(session.params) == 1
+
+
+def test_session_is_reused_across_independent_fetches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two fetches whose cache keys differ (different array config) must not
+    open two connection pools — issue #597's second defect."""
+    session = _FakeSession({(30, 0): _hourly_payload({s: 500.0 for s in _stamps(_TODAY, [10])})})
+    calls = {"n": 0}
+
+    def _factory(**_kw):
+        calls["n"] += 1
+        return session
+
+    monkeypatch.setattr(pf.aiohttp, "ClientSession", _factory)
+
+    system_a = PvSystemConfig(arrays=[PvArray(kwp=5.0, tilt_deg=30, azimuth_deg=0)], performance_ratio=0.8)
+    system_b = PvSystemConfig(arrays=[PvArray(kwp=6.0, tilt_deg=30, azimuth_deg=0)], performance_ratio=0.8)
+
+    r1 = asyncio.run(pf.fetch_pv_forecast("today", system=system_a, location=_LOCATION, today=_TODAY))
+    r2 = asyncio.run(pf.fetch_pv_forecast("today", system=system_b, location=_LOCATION, today=_TODAY))
+
+    assert r1.available is True and r2.available is True
+    assert calls["n"] == 1  # one aiohttp.ClientSession() call for both fetches
+
+
+def test_a_429_is_reported_as_rate_limited_and_opens_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _RateLimitedSession({})
+    _patch_session(monkeypatch, session)
+
+    result = asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+
+    assert result.available is False
+    assert result.reason == "rate_limited"
+    assert result.reason != "unreachable"
+    assert pf._failure_streak == 1
+    assert pf._failure_until > 0.0
+
+
+def test_while_an_existing_backoff_is_active_the_last_good_curve_is_served(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    good = _recording(monkeypatch, _TODAY)
+    result = asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+    assert result.available is True
+    assert len(good.params) == 1
+
+    # Age the cache past its TTL, then open a backoff window as an earlier
+    # failed render would have — a fresh render now must not touch the network.
+    key = pf._cache_key(_TODAY, _ONE_ARRAY, _LOCATION)
+    ts, cached = pf._forecast_cache[key]
+    pf._forecast_cache[key] = (ts - pf._CACHE_TTL_S - 1, cached)
+    pf._failure_until = time.monotonic() + 60
+    pf._failure_streak = 1
+
+    limited = _RateLimitedSession({})
+    _patch_session(monkeypatch, limited)
+
+    served = asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+
+    assert served.available is True
+    assert served.expected == result.expected
+    assert limited.requested == []  # backing off: no upstream call at all
+
+
+def test_a_429_on_a_live_refetch_still_serves_the_stale_cached_curve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    good = _recording(monkeypatch, _TODAY)
+    result = asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+    assert result.available is True
+
+    # Age the cache past its TTL (but well within the stale-serve window) so
+    # the next render attempts a live refetch instead of a plain cache hit.
+    key = pf._cache_key(_TODAY, _ONE_ARRAY, _LOCATION)
+    ts, cached = pf._forecast_cache[key]
+    pf._forecast_cache[key] = (ts - pf._CACHE_TTL_S - 1, cached)
+
+    # The real session survives across renders (that's issue #597's fix); for
+    # this test we swap in a session that starts 429ing, the way the real one
+    # would once Open-Meteo starts throttling it.
+    pf._session = None
+    limited = _RateLimitedSession({})
+    _patch_session(monkeypatch, limited)
+
+    served = asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+
+    assert served.available is True
+    assert served.expected == result.expected
+    assert limited.requested == [(30, 0)]  # a live attempt was made, and it 429'd
+    assert pf._failure_streak == 1
+
+
+def test_a_429_with_no_cache_at_all_reports_rate_limited_without_a_curve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limited = _RateLimitedSession({})
+    _patch_session(monkeypatch, limited)
+
+    result = asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+
+    assert result.available is False
+    assert result.reason == "rate_limited"
+
+
+def test_a_non_429_failure_does_not_open_the_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A generic network failure stays ``unreachable`` and must not be
+    conflated with the rate-limit backoff — a real outage would then be
+    invisible behind a 429's stale-cache fallback."""
+    south = PvArray(kwp=8.0, tilt_deg=15, azimuth_deg=0)
+    north = PvArray(kwp=2.0, tilt_deg=15, azimuth_deg=180)
+    system = PvSystemConfig(arrays=[south, north], performance_ratio=1.0)
+    payloads = {(15, 0): _hourly_payload({s: 1000.0 for s in _stamps(_TODAY, [12])})}
+    session = _FailingSession(payloads)
+    _patch_session(monkeypatch, session)
+
+    result = asyncio.run(
+        pf.fetch_pv_forecast("today", system=system, location=_LOCATION, today=_TODAY)
+    )
+
+    assert result.available is False
+    assert result.reason == "unreachable"
+    assert pf._failure_streak == 0
+    assert pf._failure_until == 0.0
+
+
+def test_backoff_doubles_per_streak_and_success_clears_it() -> None:
+    pf._note_failure(1000.0)
+    assert pf._failure_streak == 1
+    assert pf._failure_until == 1000.0 + pf._FAILURE_BACKOFF_BASE_S
+
+    pf._note_failure(pf._failure_until)
+    assert pf._failure_streak == 2
+    assert pf._failure_until == pytest.approx(
+        1000.0 + pf._FAILURE_BACKOFF_BASE_S + pf._FAILURE_BACKOFF_BASE_S * 2
+    )
+
+    pf._note_success()
+    assert pf._failure_streak == 0
+    assert pf._failure_until == 0.0
+
+
+def test_a_successful_fetch_prunes_cache_entries_past_the_stale_serve_horizon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without this, the cache would grow by one entry per calendar day for as
+    long as the tray stays up (``target_day`` rolls forward daily)."""
+    session = _recording(monkeypatch, _TODAY)
+    asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+    key = pf._cache_key(_TODAY, _ONE_ARRAY, _LOCATION)
+    ts, cached = pf._forecast_cache[key]
+    pf._forecast_cache[key] = (ts - pf._STALE_SERVE_MAX_S - 1, cached)
+    # A second, unrelated day so there's a fresh entry to write and trigger pruning.
+    pf._forecast_cache[("stale-sentinel",)] = (ts - pf._STALE_SERVE_MAX_S - 1, cached)
+
+    asyncio.run(
+        pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
+    )
+
+    assert ("stale-sentinel",) not in pf._forecast_cache
+    assert key in pf._forecast_cache  # the entry this render just wrote
+
+
+def test_the_existing_reasons_are_unaffected_by_the_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """not_configured / no_location / too_old / no_data still behave exactly
+    as before — the cache/backoff wrapper only sits around the network call."""
+    monkeypatch.setattr(pf, "load_pv_system_config", lambda: None)
+    assert asyncio.run(pf.fetch_pv_forecast("today", location=_LOCATION)).reason == "not_configured"
+
+    result = asyncio.run(
+        pf.fetch_pv_forecast_for_date(
+            date(2026, 1, 1), system=_ONE_ARRAY, location=_LOCATION, today=_TODAY
+        )
+    )
+    assert result.reason == "too_old"

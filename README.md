@@ -717,6 +717,15 @@ input.
   `pv_system.json`/`location.json` is absent or Open-Meteo is unreachable it
   returns `{available: false, reason}` with HTTP 200 — the card keeps a one-line
   note and nothing else breaks.
+- **Caching & rate limits (#597):** the upstream response is cached per
+  `(location, array-set, day)` for 15 minutes and one `aiohttp.ClientSession`
+  is reused across calls, so repeated card renders cost one upstream request
+  set, not one per render. A `429` from Open-Meteo gets its own
+  `reason: "rate_limited"` (distinct from `unreachable`) and opens a backoff
+  (60 s, doubling to a 900 s ceiling); while backing off, the last good curve
+  is served instead of a blank card as long as it's under 6 hours old. See
+  [`docs/pv-forecast.md`](docs/pv-forecast.md) → "Caching, rate limits and
+  backoff".
 
 ### Sun-position diagnostic (measured vs modelled)
 

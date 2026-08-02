@@ -46,9 +46,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+import time
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 
@@ -64,6 +65,25 @@ logger = logging.getLogger(__name__)
 
 _OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 _TIMEOUT_S = 8.0
+
+# How long one upstream response is reused, keyed by (location, array-set, day)
+# — see :func:`_cache_key`. Open-Meteo's hourly irradiance only changes on an
+# hourly grid, so a request per card render (issue #597) is pure waste; every
+# render inside this window is served from the cache instead.
+_CACHE_TTL_S = 900
+
+# How stale a cached forecast may be and still be served while backing off a
+# 429, rather than blanking the card. Generous relative to the TTL above: the
+# point isn't freshness, it's riding out a sustained rate-limit window without
+# showing "unavailable" for a curve that was fine minutes ago.
+_STALE_SERVE_MAX_S = 6 * 3600
+
+# How long to stay quiet after a 429, doubling per consecutive one — same
+# shape as huawei_client's login backoff, for the same reason: hammering an
+# endpoint that just told you to slow down is how a transient rate limit turns
+# into a sustained one.
+_FAILURE_BACKOFF_BASE_S = 60
+_FAILURE_BACKOFF_MAX_S = 900
 
 # ------------------------------------------- panel temperature (issue #591)
 # A PVWatts-style NOCT cell-temperature model. #578's diagnosis fitted these two
@@ -91,6 +111,23 @@ _DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
 # here rather than turned into a network error the caller has to interpret.
 MAX_PAST_DAYS = 92
 
+# One aiohttp session reused across calls (issue #597) — opening a fresh one
+# per render, per sub-array, was the other half of the request storm. The lock
+# only guards creation; the session itself is safe for concurrent requests.
+_session: Optional[aiohttp.ClientSession] = None
+_session_lock: Optional[asyncio.Lock] = None
+
+# cache_key -> (monotonic timestamp, forecast for that exact target_day). The
+# ``day``/``label`` a caller asked for is applied on top of the cached value —
+# see :func:`_relabel` — so "today" and an equivalent ``fetch_pv_forecast_for_date``
+# call share one cache entry, the way huawei_client shares one FusionSolar read.
+_forecast_cache: Dict[tuple, Tuple[float, "PvForecast"]] = {}
+
+# Monotonic deadline before which no upstream call is attempted after a 429,
+# and the streak that set it — see :func:`_note_failure` / :func:`_note_success`.
+_failure_until: float = 0.0
+_failure_streak: int = 0
+
 
 @dataclass
 class PvForecast:
@@ -108,6 +145,106 @@ class PvForecast:
 
 def _unavailable(day: str, reason: str) -> PvForecast:
     return PvForecast(available=False, day=day, reason=reason)
+
+
+def _relabel(cached: PvForecast, day: str) -> PvForecast:
+    """A cache hit for the same ``target_day`` under whichever ``day`` label the
+    caller asked for — "today" and its equivalent ISO date share one entry."""
+    if cached.day == day:
+        return cached
+    return replace(cached, day=day)
+
+
+def _cache_key(
+    target_day: date, system: PvSystemConfig, location: LocationConfig
+) -> tuple:
+    """Identifies the exact upstream request this forecast would make.
+
+    Deliberately excludes ``today``/``past_days``: for a fixed ``target_day``,
+    Open-Meteo answers the same regardless of how far the request's lookback
+    window reaches, so the read-only sun-position diagnostic (#590) and the
+    named-day card share a cache entry for the same date.
+    """
+    arrays = tuple((a.kwp, a.tilt_deg, a.azimuth_deg) for a in system.arrays)
+    return (
+        round(location.lat, 4),
+        round(location.lon, 4),
+        arrays,
+        system.performance_ratio,
+        system.thermal_model_enabled,
+        target_day.isoformat(),
+    )
+
+
+def _prune_cache(now: float) -> None:
+    """Drop cache entries too old to ever be served again.
+
+    ``target_day`` rolls forward daily and the sun-position diagnostic can ask
+    for any of the last 92 days, so without this the dict would grow by a new
+    entry every day for as long as the tray stays up. Anything past the
+    stale-serve horizon is dead weight — it will never be read again either
+    as a TTL hit or as a 429 fallback.
+    """
+    stale = [k for k, (ts, _f) in _forecast_cache.items() if now - ts >= _STALE_SERVE_MAX_S]
+    for k in stale:
+        del _forecast_cache[k]
+
+
+def _backoff_for(streak: int) -> float:
+    """Seconds to stay quiet after ``streak`` consecutive 429s."""
+    if streak < 1:
+        return 0.0
+    return min(_FAILURE_BACKOFF_MAX_S, _FAILURE_BACKOFF_BASE_S * 2 ** (streak - 1))
+
+
+def _note_failure(now: float) -> None:
+    """Open (or lengthen) the backoff window after a 429."""
+    global _failure_until, _failure_streak
+
+    _failure_streak += 1
+    wait = _backoff_for(_failure_streak)
+    _failure_until = now + wait
+    logger.warning(
+        "⚠️ PV forecast rate-limited by Open-Meteo (%d consecutive 429(s)); "
+        "not retrying for %ds",
+        _failure_streak,
+        wait,
+    )
+
+
+def _note_success() -> None:
+    """Clear the backoff after a good read."""
+    global _failure_until, _failure_streak
+
+    if _failure_streak:
+        logger.info("✅ PV forecast recovered after %d rate-limited attempt(s)", _failure_streak)
+    _failure_streak = 0
+    _failure_until = 0.0
+
+
+def _get_session_lock() -> asyncio.Lock:
+    global _session_lock
+    if _session_lock is None:
+        _session_lock = asyncio.Lock()
+    return _session_lock
+
+
+async def _get_session() -> aiohttp.ClientSession:
+    """Return the module's shared session, opening (or reopening) it as needed.
+
+    One session reused across calls (issue #597) rather than a fresh
+    connection pool per render — the same fix ``huawei_client`` already makes
+    for FusionSolar. Guarded by a lock only around creation; concurrent
+    requests against an already-open session are fine.
+    """
+    global _session
+
+    async with _get_session_lock():
+        if _session is None or _session.closed:
+            _session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=_TIMEOUT_S)
+            )
+        return _session
 
 
 def cell_temperature_c(air_c: float, gti_w: float) -> float:
@@ -233,24 +370,56 @@ async def fetch_pv_forecast_for_date(
     if past_days > MAX_PAST_DAYS:
         return _unavailable(day, "too_old")
 
-    try:
-        timeout = aiohttp.ClientTimeout(total=_TIMEOUT_S)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            responses = await asyncio.gather(
-                *(
-                    _fetch_array_gti(
-                        session,
-                        location,
-                        array,
-                        past_days,
-                        with_temperature=system.thermal_model_enabled,
-                    )
-                    for array in system.arrays
-                )
+    key = _cache_key(target_day, system, location)
+    now = time.monotonic()
+
+    cached = _forecast_cache.get(key)
+    if cached is not None and now - cached[0] < _CACHE_TTL_S:
+        return _relabel(cached[1], day)
+
+    if now < _failure_until:
+        # Backing off a 429 — serve the last good curve rather than a blank
+        # card, as long as it isn't too old to still describe today's weather.
+        if cached is not None and now - cached[0] < _STALE_SERVE_MAX_S:
+            logger.info(
+                "ℹ️ PV forecast serving cached curve (%.0fs old) while "
+                "rate-limit backoff is active",
+                now - cached[0],
             )
+            return _relabel(cached[1], day)
+        return _unavailable(day, "rate_limited")
+
+    try:
+        session = await _get_session()
+        responses = await asyncio.gather(
+            *(
+                _fetch_array_gti(
+                    session,
+                    location,
+                    array,
+                    past_days,
+                    with_temperature=system.thermal_model_enabled,
+                )
+                for array in system.arrays
+            )
+        )
+    except aiohttp.ClientResponseError as exc:
+        if exc.status == 429:
+            _note_failure(now)
+            if cached is not None and now - cached[0] < _STALE_SERVE_MAX_S:
+                logger.info(
+                    "ℹ️ PV forecast serving cached curve (%.0fs old) after a 429",
+                    now - cached[0],
+                )
+                return _relabel(cached[1], day)
+            return _unavailable(day, "rate_limited")
+        logger.warning("⚠️ Failed to read PV forecast: %s", exc)
+        return _unavailable(day, "unreachable")
     except Exception as exc:  # noqa: BLE001 — forecast is decorative, fail quiet
         logger.warning("⚠️ Failed to read PV forecast: %s", exc)
         return _unavailable(day, "unreachable")
+
+    _note_success()
 
     iso_prefix = target_day.isoformat()
     totals_by_hour: Dict[int, float] = {}
@@ -313,10 +482,13 @@ async def fetch_pv_forecast_for_date(
             "noct_c": THERMAL_NOCT_C,
         }
 
-    return PvForecast(
+    result = PvForecast(
         available=True,
         day=day,
         expected=expected,
         expected_total_wh=round(total_wh, 1),
         system=described,
     )
+    _prune_cache(now)
+    _forecast_cache[key] = (now, result)
+    return result
