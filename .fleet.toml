@@ -11,3 +11,105 @@ chips       = ["FastAPI", "PWA", "MELCloud", "FusionSolar", "Tuya", "HA", "Teleg
 [vendored]
 e2e_live_guard = { src = "tests/e2e/_e2e_live_guard.py", sha = "469dc7513153177a5fd13ff829adad33c6f5b98e", dest = "tests/e2e/_e2e_live_guard.py" }
 browser_sweep = { src = "tests/e2e/_browser_sweep.py", sha = "60dc05f990bfdd0b479179f02f6e5e0e0c53a7f3", dest = "tests/e2e/_browser_sweep.py" }
+classify_e2e = { src = "scripts/classify_e2e.py", sha = "1ec97cfb1ce4fb1543e294fcb3be59d11398c7a2", dest = "scripts/classify_e2e.py" }
+
+# Diff-proportionate e2e routing (ferraroroberto/home-automation#603,
+# project-scaffolding#180, schema: project-scaffolding/docs/e2e-routing.md).
+# Rules are evaluated top-to-bottom; FIRST MATCH WINS -- a narrow rule for a
+# subtree must precede the broader rule for its enclosing prefix. Unmatched
+# paths fail safe to "full" (scripts/classify_e2e.py); this table only ever
+# narrows what an already-recognized-as-narrow diff runs, never what an
+# unmatched one runs. Update in the same PR as any new e2e-relevant directory.
+[e2e]
+static_pytest_target = "tests/e2e/test_smoke.py"
+static_browsers       = ["chromium"]
+full_pytest_target    = "tests/e2e"
+
+# Inert image/font/manifest assets under the static tree -> smoke is enough.
+[[e2e.rule]]
+tier       = "static"
+prefix     = "app/webapp/static/"
+extensions = ["svg", "png", "jpg", "jpeg", "gif", "ico", "webp", "woff", "woff2", "ttf", "webmanifest"]
+
+# Vendored HTML fragments are pure markup; their .css/.js siblings are NOT
+# covered here and fall through to "full" below (real nav/icon behaviour).
+[[e2e.rule]]
+tier       = "static"
+prefix     = "app/webapp/static/_vendored/"
+extensions = ["html", "md"]
+
+# The e2e suite itself, and its shared conftest/helpers -- a harness change
+# must be exercised by running the harness (home-automation#593).
+[[e2e.rule]]
+tier   = "full"
+prefix = "tests/e2e/"
+
+# The whole FastAPI + PWA product: routers (the browser's API surface),
+# middleware, server boot, the static tree, and the automation modules that
+# feed state the UI renders (push notifications, activity log, presence).
+# Deliberately not split narrower -- several automation modules here have no
+# template of their own but do change what the UI shows, so a finer split
+# would risk silently under-testing a real UI-affecting change.
+[[e2e.rule]]
+tier   = "full"
+prefix = "app/webapp/"
+
+# The Windows tray that owns the webapp lifecycle.
+[[e2e.rule]]
+tier   = "full"
+prefix = "app/tray/"
+
+# Device clients + domain logic with no UI template of their own -- no
+# browser impact unless paired with an app/webapp/ change (which already
+# routes full above on its own).
+[[e2e.rule]]
+tier       = "none"
+prefix     = "src/"
+extensions = ["py"]
+
+# The Home Assistant integration is a thin API adapter with no browser UI.
+[[e2e.rule]]
+tier   = "none"
+prefix = "custom_components/"
+
+[[e2e.rule]]
+tier   = "none"
+prefix = "scripts/"
+
+[[e2e.rule]]
+tier   = "none"
+prefix = "config/"
+
+[[e2e.rule]]
+tier   = "none"
+prefix = "docs/"
+
+# Non-e2e tests (tests/e2e/ already matched full above).
+[[e2e.rule]]
+tier       = "none"
+prefix     = "tests/"
+extensions = ["py"]
+
+# Repo meta / docs / launcher scripts -- no runtime behaviour of their own;
+# the e2e fixture boots the app directly, not through these .bat/.sh wrappers.
+[[e2e.rule]]
+tier = "none"
+path = ".fleet.toml"
+[[e2e.rule]]
+tier = "none"
+path = ".gitignore"
+[[e2e.rule]]
+tier = "none"
+path = "LICENSE"
+[[e2e.rule]]
+tier = "none"
+path = "AGENTS.md"
+[[e2e.rule]]
+tier = "none"
+path = "CLAUDE.md"
+[[e2e.rule]]
+tier       = "none"
+extensions = ["md"]
+[[e2e.rule]]
+tier       = "none"
+extensions = ["bat", "sh"]

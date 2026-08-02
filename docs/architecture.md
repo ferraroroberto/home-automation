@@ -135,7 +135,7 @@ A thin adapter over the existing `/api/*` endpoints that exposes native `climate
 
 ## `scripts/`
 
-`gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_web_push_keys.py` (generate local VAPID keys for Web Push), `gen_icons.py` (PWA icons; Pillow dev-only), `ha_config_sync.py` (deploy the voice-PE HA config into the HA VM's `/config` over SSH — preflight / deploy / rollback / probe; #243, see [Home Assistant config deploy](../README.md#home-assistant-config-deploy-over-ssh)).
+`gen_tailscale_cert.py` (HTTPS via `tailscale cert`, `--check` auto-renew), `gen_token.py` / `set_password.py` (auth), `gen_web_push_keys.py` (generate local VAPID keys for Web Push), `gen_icons.py` (PWA icons; Pillow dev-only), `ha_config_sync.py` (deploy the voice-PE HA config into the HA VM's `/config` over SSH — preflight / deploy / rollback / probe; #243, see [Home Assistant config deploy](../README.md#home-assistant-config-deploy-over-ssh)), `classify_e2e.py` (diff-proportionate e2e routing mechanism, vendored verbatim from `project-scaffolding` — never edit per-app; reads the `.fleet.toml` `[e2e]` table; #603), `verify-before-ship.ps1` (the pre-ship gate: byte-compile + backend suite unconditionally, then the browser suite routed by `classify_e2e.py`).
 
 ## `spike/`
 
