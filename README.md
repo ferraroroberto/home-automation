@@ -1369,7 +1369,22 @@ Print visible iCloud Find My presence entities:
 
 ## Tests
 
-Two suites, both run with the same interpreter and `pytest`.
+Two suites, both run with the same interpreter and `pytest`. One pre-ship gate
+command runs both and routes the browser suite proportionately to the diff:
+
+```powershell
+& .\scripts\verify-before-ship.ps1
+```
+
+Byte-compiles the repo and runs the backend suite unconditionally, then
+classifies the branch's changed files against `.fleet.toml`'s `[e2e]` table
+(`scripts/classify_e2e.py`, vendored byte-identical from `project-scaffolding`)
+and runs a browser slice proportionate to the diff: a backend/docs/meta-only
+change skips the browser suite entirely, an inert static asset gets a narrow
+Chromium-only smoke check, and any real UI/behaviour change (including a
+change to the e2e harness itself) gets the full Chromium + WebKit run. Any
+mixed, unmatched, or ambiguous diff fails safe to the full suite — routing
+never narrows coverage on uncertainty. On CI the full suite always runs.
 
 ### Backend suite — fast, no network or browser
 
