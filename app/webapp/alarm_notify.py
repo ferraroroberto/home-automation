@@ -34,7 +34,13 @@ from src.activity_log import append_activity
 from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
-from src.risco_client import RiscoCommandError, SecurityState, control_system, fetch_security_state
+from src.risco_client import (
+    RiscoCommandError,
+    RiscoConfigError,
+    SecurityState,
+    control_system,
+    fetch_security_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +149,13 @@ async def confirm_alarm_action(action: str) -> SecurityState:
     confirmation only; once it fails there is nothing left to try, so we give
     up. Raises :class:`RiscoCommandError` with the last-seen error only once
     every retry is exhausted (~210s worst case: 30 + 60 + 120s).
+
+    :class:`RiscoConfigError` (missing/invalid ``RISCO_USERNAME`` /
+    ``RISCO_PASSWORD`` / ``RISCO_PIN``) is not retried at all - it means the
+    panel was never even reachable, so waiting and resending can't change the
+    outcome. It propagates immediately instead of being absorbed into the
+    generic backoff loop and relabelled as a ``RiscoCommandError`` ~210s later
+    (issue #610).
     """
 
     error = "unknown error"
@@ -151,6 +164,8 @@ async def confirm_alarm_action(action: str) -> SecurityState:
         nonlocal error
         try:
             state = await pending
+        except RiscoConfigError:
+            raise
         except Exception as exc:  # noqa: BLE001 - surfaced only once every retry is exhausted
             error = str(exc)
             return None

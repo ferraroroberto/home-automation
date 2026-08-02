@@ -169,6 +169,45 @@ def test_security_schedule_tick_alerts_after_confirm_exhausts_retries(monkeypatc
     assert recorded[0]["dedupe_key"] == "schedule:arm-fails"
 
 
+def test_security_schedule_tick_alerts_on_missing_credentials(monkeypatch) -> None:
+    """Issue #610: a RiscoConfigError (missing RISCO_USERNAME/PASSWORD/PIN)
+    must alert + log like any other automatic-action failure, and must not
+    mark the schedule as fired so tick() retries it on its own next poll."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="no-creds", time="05:00", days=["mon"], action="disarm"),
+    ]
+
+    async def fake_confirm(action: str) -> object:
+        raise engine.RiscoConfigError(
+            "Missing credentials. Copy .env.example to .env and set "
+            "RISCO_USERNAME, RISCO_PASSWORD and RISCO_PIN "
+            "(your RISCO Cloud login and panel PIN)."
+        )
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    state = engine._EngineState(last_fire_day={})
+    now = datetime(2026, 6, 22, 5, 0, 10)
+
+    asyncio.run(engine.tick(config, state, now))
+
+    assert state.last_fire_day == {}
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes == [("schedule", "disarm", "error")]
+    assert "Missing credentials" in recorded[0]["error"]
+    assert recorded[0]["dedupe_key"] == "schedule:no-creds"
+
+
 def test_security_schedule_tick_retries_failed_entry_hours_later_same_day(monkeypatch) -> None:
     """#527: a schedule that fails right after its fire time must not be
     abandoned until tomorrow — it should still fire successfully hours later
