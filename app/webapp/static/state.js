@@ -19,6 +19,14 @@ export const state = {
   selectedId: null,
   // Local Tuya / Smart Life device cards from GET /api/tuya.
   plugs: [],
+  // Athom CT-clamp meters (one entry per meter, each with all its channels)
+  // from GET /api/circuits (issue #25).
+  circuits: [],
+  // Discovery/read problem text for the Circuits card, kept separate from an
+  // empty meter list: "mDNS could not run" and "no meters here" differ (#25).
+  circuitsError: '',
+  // Channel key ("<meter_id>:<channel>") whose rename modal is open, or null.
+  selectedCircuitKey: null,
   // Local USB UPS state from GET /api/ups.
   ups: null,
   // Home Assistant Hyper-V VM state from GET /api/hyperv (issue #240).
@@ -350,6 +358,12 @@ export const els = {
   blindsCard: document.getElementById('blindsCard'),
   blindsList: document.getElementById('blindsList'),
   blindsCount: document.getElementById('blindsCount'),
+  // Circuits — per-breaker CT-clamp meters, the IoT card after Plugs (#25).
+  circuitsCard: document.getElementById('circuitsCard'),
+  circuitsList: document.getElementById('circuitsList'),
+  circuitsCount: document.getElementById('circuitsCount'),
+  circuitsRefresh: document.getElementById('circuitsRefresh'),
+  circuitsNote: document.getElementById('circuitsNote'),
   plugsNote: document.getElementById('plugsNote'),
   plugsRefresh: document.getElementById('plugsRefresh'),
   plugsToggleBtn: document.getElementById('plugsToggleBtn'),
@@ -399,6 +413,15 @@ export const els = {
   plugHiddenToggle: document.getElementById('plugHiddenToggle'),
   plugDetailClose: document.getElementById('plugDetailClose'),
   plugSave: document.getElementById('plugSave'),
+  // Circuit channel rename + sign-flip modal (#25)
+  circuitDialog: document.getElementById('circuitDialog'),
+  circuitDetailName: document.getElementById('circuitDetailName'),
+  circuitDisplayName: document.getElementById('circuitDisplayName'),
+  circuitOriginalName: document.getElementById('circuitOriginalName'),
+  circuitInvertSection: document.getElementById('circuitInvertSection'),
+  circuitInvertToggle: document.getElementById('circuitInvertToggle'),
+  circuitDetailClose: document.getElementById('circuitDetailClose'),
+  circuitSave: document.getElementById('circuitSave'),
   // Elgato lights — the IoT tab's middle row-list card (#136).
   lightsCard: document.getElementById('lightsCard'),
   lightsCount: document.getElementById('lightsCount'),

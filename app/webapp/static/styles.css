@@ -1474,6 +1474,59 @@ button.device-row-name:hover { text-decoration: underline; }
   color: var(--accent);
 }
 
+/* Circuits card (issue #25): one caption row per CT-clamp meter, then that
+   meter's channels as ordinary .device-row entries beneath it. The head is a
+   group label rather than a device, so it is quieter than the rows it
+   introduces — no hairline of its own, since the first .device-row draws one. */
+.circuit-meter {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0 2px;
+}
+.circuit-meter.is-unavailable { opacity: 0.6; }
+/* Tap-to-rename like a device row's name, but styled as the quiet group label
+   it is. The name yields first: the live figures to its right are fixed-width
+   and the more useful of the two when a phone runs out of room. */
+button.circuit-meter-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.circuit-meter-name:hover { text-decoration: underline; }
+.circuit-meter-detail {
+  flex: none;
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Wattage on a circuit row reads as primary text, like the row's own name,
+   rather than the accent the plug rows use. A Circuits card shows six figures
+   at once where a plug row shows one, and six accent-blue numbers stop reading
+   as a list. Scoped to .circuit-row so the Plugs card is untouched. */
+.circuit-row .plug-watts { color: var(--ink); }
+
+/* A load circuit reading below zero means the clamp is still fitted backwards —
+   attention (a thing to fix), not danger (a thing that failed). Needs the same
+   two-class specificity as the rule above to win. */
+.circuit-row .plug-watts.circuit-watts-negative { color: var(--attention); }
+
 /* Blind controls: up / stop / down icon buttons. */
 .blind-controls { flex: none; display: inline-flex; gap: 6px; }
 .blind-btn {

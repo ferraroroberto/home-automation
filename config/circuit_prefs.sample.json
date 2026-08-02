@@ -1,0 +1,10 @@
+{
+  "AA:BB:CC:DD:EE:01:1": {
+    "display_name": "water heater",
+    "invert": true
+  },
+  "AA:BB:CC:DD:EE:01:2": {
+    "display_name": "",
+    "invert": false
+  }
+}
