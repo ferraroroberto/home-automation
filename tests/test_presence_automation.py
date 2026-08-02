@@ -73,6 +73,12 @@ def _wire_common(monkeypatch) -> None:
         pass
 
     monkeypatch.setattr(PA, "_sync_arm_block_diagnostic", fake_sync_arm_block_diagnostic)
+    # Same treatment as the arm-block diagnostic above: a cheap local-only step
+    # that is not what these tests are about. `_Config` and the `load_people`
+    # sentinel are deliberately minimal, so the real helper (#598) can't read
+    # them. Its own logic is covered in tests/test_presence_engine.py; that it
+    # is wired into tick() at all is asserted separately below.
+    monkeypatch.setattr(PA, "_consume_satisfied_disarm", lambda security_mode: None)
 
 
 def test_presence_tick_applies_arm_via_confirm_helper_and_records_ok(monkeypatch) -> None:
@@ -313,3 +319,44 @@ def test_sync_arm_block_diagnostic_end_to_end_writes_activity_log(monkeypatch, t
             "consumer": "alarm",
         }
     ]
+
+
+def test_presence_tick_consumes_satisfied_disarm(monkeypatch) -> None:
+    """tick() must retire an already-satisfied disarm arrival every poll (#598).
+
+    `_wire_common` stubs the helper out for the apply-path tests, so this is the
+    one place that proves the call site exists and gets the panel's real mode.
+    """
+    seen: list[str] = []
+    _wire_common(monkeypatch)
+    monkeypatch.setattr(PA, "_consume_satisfied_disarm", lambda mode: seen.append(mode))
+    monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: None)
+
+    asyncio.run(PA.tick())
+
+    assert seen == ["disarmed"]
+
+
+def test_consume_satisfied_disarm_marks_and_is_idempotent(monkeypatch, tmp_path) -> None:
+    """The helper itself, against the real engine rather than the stubs."""
+    import src.presence_engine as P
+
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    arrival = datetime(2026, 8, 1, 17, 51, 39, tzinfo=timezone.utc)
+    person = P.PersonPresence(
+        person_id="roberto", state="home", updated_at=arrival, state_since=arrival,
+    )
+    monkeypatch.setattr(PA, "load_people", lambda: {"roberto": person})
+    monkeypatch.setattr(
+        PA, "load_automation_config",
+        lambda: P.PresenceAutomationConfig(auto_disarm_enabled=True, stale_after_s=10**9),
+    )
+
+    PA._consume_satisfied_disarm("disarmed")
+    assert P._last_key("disarm") == f"disarm:{arrival.isoformat()}"
+
+    # Second pass has nothing left to retire.
+    marked: list[str] = []
+    monkeypatch.setattr(PA, "mark_disarm_satisfied", lambda key: marked.append(key))
+    PA._consume_satisfied_disarm("disarmed")
+    assert marked == []
