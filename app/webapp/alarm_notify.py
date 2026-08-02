@@ -218,7 +218,7 @@ async def record_alarm_action(
     now: Optional[datetime] = None,
     prefs_loader: Callable[[], AlarmNotifyPrefs] = load_alarm_notify_prefs,
     notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
-) -> None:
+) -> bool:
     """Log an alarm command and notify when policy allows.
 
     Args:
@@ -235,6 +235,14 @@ async def record_alarm_action(
             schedule/presence sources, which are already unambiguous.
         dedupe_key: when set, an ``error`` notifies at most once per local day per key.
         now / prefs_loader / notifier_factory: injection seams for tests.
+
+    Returns:
+        ``True`` only when a Telegram message was actually delivered this
+        call — ``False`` for a manual source, a toggled-off preference, a
+        same-day dedupe hit, a missing notifier, or a delivery failure
+        (#601). Callers that mark their own "already notified" bookkeeping
+        must gate that marker on this return value, not on having merely
+        reached the send attempt — see :func:`src.presence_engine.set_arm_block`.
     """
 
     event_kind = "unset" if _verb(action) == "disarm" else "set"
@@ -258,20 +266,20 @@ async def record_alarm_action(
 
     # Manual actions are logged but never push — the user is at the app.
     if source == SOURCE_MANUAL:
-        return
+        return False
 
     prefs = prefs_loader()
     if not _should_notify(prefs, source, action, outcome):
-        return
+        return False
 
     today = (now or datetime.now()).strftime("%Y-%m-%d")
     if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED) and dedupe_key is not None:
         if _last_error_notify.get(dedupe_key) == today:
-            return
+            return False
 
     notifier = notifier_factory()
     if notifier is None:
-        return
+        return False
     try:
         # notifier.send_text is blocking network I/O called from an async tick
         # sharing uvicorn's single event loop — thread it off so a slow/failing
@@ -281,7 +289,7 @@ async def record_alarm_action(
         )
     except NotifierError as exc:  # delivery must never break the automation loop
         logger.warning("⚠️ Telegram alarm notification failed: %s", exc)
-        return
+        return False
 
     logger.info("✅ Telegram alarm notification sent: %s/%s/%s", source, action, outcome)
     # Only mark the day as "already notified" once a send actually went
@@ -291,6 +299,7 @@ async def record_alarm_action(
     if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED) and dedupe_key is not None:
         _last_error_notify[dedupe_key] = today
         _save_dedupe(_last_error_notify)
+    return True
 
 
 # --------------------------------------------------------------------------

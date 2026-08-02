@@ -526,19 +526,65 @@ def load_arm_block() -> Dict[str, Any]:
     }
 
 
+# Floor between retried arm-block notification attempts once one is due
+# (issue #601) — independent of ``dwell_s``, which only gates the *first*
+# attempt. Without this, a send that keeps declining or failing (Telegram
+# down, no notifier configured, the ``error`` toggle off) would be
+# re-attempted on every ~10s presence poll tick instead of backing off.
+_ARM_BLOCK_RETRY_COOLDOWN_S = 300
+
+
 @dataclass(frozen=True)
 class ArmBlockObservation:
     """What one :func:`set_arm_block` call observed.
 
     ``changed`` is a *new episode* (newly appeared, different blocking people,
     or newly cleared) — the log-once signal. ``notify`` additionally requires
-    the episode to have persisted for the configured dwell and not to have been
-    notified already, which is what separates "someone is arriving" from
-    "someone's presence is stuck" (issue #599).
+    the episode to have persisted for the configured dwell, not to have been
+    confirmed notified already, and not to be cooling down from a recent
+    attempt — which is what separates "someone is arriving" from "someone's
+    presence is stuck" (issue #599). ``notify=True`` means a notification is
+    *due*, not that one was sent — the caller must attempt the send itself and
+    report the outcome via :func:`mark_arm_block_notified` (issue #601).
     """
 
     changed: bool
     notify: bool
+
+
+def mark_arm_block_notified(key: str) -> None:
+    """Record that the due arm-block notification for ``key`` was delivered (#601).
+
+    Call only once the caller has confirmed the send actually went through.
+    Marking it eagerly — the pre-#601 behaviour, the same shape #527 fixed for
+    the per-day error de-dupe — meant a failed or unconfigured notifier
+    silently burned the episode's one alert for good, since ``block.key``
+    stays stable for as long as the presence itself stays stuck.
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    if str(meta.get("arm_blocked_key") or "") != key:
+        return  # the episode has already moved on; nothing to mark
+    meta["arm_blocked_notified"] = True
+    _save_state(raw)
+
+
+def mark_arm_block_attempted(key: str, *, at: Optional[datetime] = None) -> None:
+    """Stamp the last arm-block notification attempt for ``key`` (#601).
+
+    Call on every attempt regardless of outcome — this is what backs the
+    ``_ARM_BLOCK_RETRY_COOLDOWN_S`` floor in :func:`set_arm_block`, so a
+    declining or persistently-failing send is retried at most once per
+    cooldown window instead of on every poll tick.
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    if str(meta.get("arm_blocked_key") or "") != key:
+        return
+    meta["arm_blocked_last_attempt_at"] = _iso(at or now_utc())
+    _save_state(raw)
 
 
 def set_arm_block(
@@ -556,6 +602,12 @@ def set_arm_block(
     false alert this dwell exists to stop. A changed key restarts the clock.
 
     ``dwell_s=0`` notifies on first observation — the pre-#599 behaviour.
+
+    Does **not** mark the episode notified itself (#601) — ``notify=True``
+    only reports that a send is due; the caller confirms delivery via
+    :func:`mark_arm_block_notified`, and should stamp every attempt (sent or
+    not) via :func:`mark_arm_block_attempted` so a failing send backs off
+    instead of retrying every tick.
     """
 
     stamp = at or now_utc()
@@ -570,23 +622,32 @@ def set_arm_block(
         meta["arm_blocked_key"] = ""
         meta["arm_blocked_first_seen"] = None
         meta["arm_blocked_notified"] = False
+        meta["arm_blocked_last_attempt_at"] = None
         _save_state(raw)
         return ArmBlockObservation(changed=changed, notify=False)
 
     changed = prior_key != block.key
     if changed:
-        first_seen, notified = stamp, False
+        first_seen, notified, last_attempt = stamp, False, None
     else:
         first_seen = _parse_dt(meta.get("arm_blocked_first_seen")) or stamp
         notified = bool(meta.get("arm_blocked_notified"))
-    notify = not notified and (stamp - first_seen).total_seconds() >= dwell_s
+        last_attempt = _parse_dt(meta.get("arm_blocked_last_attempt_at"))
+    due = (stamp - first_seen).total_seconds() >= dwell_s
+    cooling_down = (
+        last_attempt is not None
+        and (stamp - last_attempt).total_seconds() < _ARM_BLOCK_RETRY_COOLDOWN_S
+    )
+    notify = not notified and due and not cooling_down
 
     meta["arm_blocked"] = True
     meta["arm_blocked_person_ids"] = list(block.blocking_person_ids)
     meta["arm_blocked_since"] = _iso(block.since)
     meta["arm_blocked_key"] = block.key
     meta["arm_blocked_first_seen"] = _iso(first_seen)
-    meta["arm_blocked_notified"] = notified or notify
+    if changed:
+        meta["arm_blocked_notified"] = False
+        meta["arm_blocked_last_attempt_at"] = None
     _save_state(raw)
     return ArmBlockObservation(changed=changed, notify=notify)
 

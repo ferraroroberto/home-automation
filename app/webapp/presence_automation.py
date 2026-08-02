@@ -33,6 +33,8 @@ from src.presence_engine import (
     load_automation_config,
     load_kids_home_override,
     load_people,
+    mark_arm_block_attempted,
+    mark_arm_block_notified,
     mark_decision_applied,
     mark_disarm_satisfied,
     satisfied_disarm_key,
@@ -106,13 +108,19 @@ async def _sync_arm_block_diagnostic(security_mode: str) -> None:
     # not read as a failed command.
     if not observed.notify:
         return
-    await record_alarm_action(
+    # Stamp the attempt before sending, regardless of outcome, so a declined
+    # or failed send backs off for `_ARM_BLOCK_RETRY_COOLDOWN_S` instead of
+    # retrying on every ~10s poll tick (#601).
+    mark_arm_block_attempted(block.key)
+    sent = await record_alarm_action(
         source=SOURCE_PRESENCE,
         action="arm",
         outcome=OUTCOME_BLOCKED,
         error=f"{', '.join(block.blocking_person_ids)} still reported home since {block.since.isoformat()}",
         dedupe_key=f"presence:blocked:{block.key}",
     )
+    if sent:
+        mark_arm_block_notified(block.key)
 
 
 def _consume_satisfied_disarm(security_mode: str) -> None:
