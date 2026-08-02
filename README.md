@@ -698,14 +698,23 @@ input.
   — a 400 from the editor, `reason: "thermal_ratio_unmigrated"` from the
   forecast. See [`docs/pv-forecast.md`](docs/pv-forecast.md) → "Panel
   temperature".
+- **Horizon / shading profile (#578 part b) — optional, off by default:** a
+  hand-entered obstruction-elevation-by-azimuth profile (`horizon_profile`,
+  editable from the PV system card regardless of the switch) that, once
+  `horizon_profile_enabled: true` is set, attenuates an hour's direct-beam
+  share whenever the sun sits at or below the profile's elevation for its
+  azimuth. Left off (the committed default — pending an installer conversation
+  about the real obstruction geometry), nothing changes, same contract as the
+  thermal term above. See [`docs/pv-forecast.md`](docs/pv-forecast.md) →
+  "Horizon / shading profile".
 - **Editing it:** the Energy tab's **PV system** card (directly under the
-  forecast card) adds/edits/removes panel rows and the shared performance ratio
-  and coordinates — no file editing needed, and no restart: the forecast reads
-  the config per request. The file stays the source of truth and remains
-  hand-editable (`config/pv_system.sample.json` is the committed template); a
-  hand-written `_doc` note survives an edit made in the app. `GET`/`PUT
-  /api/energy/pv-system`; the `PUT` validates strictly and returns 400 naming
-  the offending field rather than clamping it.
+  forecast card) adds/edits/removes panel rows, horizon points, and the shared
+  performance ratio and coordinates — no file editing needed, and no restart:
+  the forecast reads the config per request. The file stays the source of
+  truth and remains hand-editable (`config/pv_system.sample.json` is the
+  committed template); a hand-written `_doc` note survives an edit made in the
+  app. `GET`/`PUT /api/energy/pv-system`; the `PUT` validates strictly and
+  returns 400 naming the offending field rather than clamping it.
 - **Endpoint:** `GET /api/energy/forecast?day=yesterday|today|tomorrow` returns
   the hourly expected curve, the day's `expected_total_kwh`, the `system` params
   used (`arrays` / `total_kwp` / `performance_ratio`), and (for today/yesterday)

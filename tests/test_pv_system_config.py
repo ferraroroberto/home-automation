@@ -19,6 +19,7 @@ import pytest
 from src.pv_system_config import (
     MIN_THERMAL_PERFORMANCE_RATIO,
     PvArray,
+    PvHorizonPoint,
     PvSystemConfig,
     load_pv_system_config,
     save_pv_system_config,
@@ -169,7 +170,7 @@ def test_save_migrates_a_legacy_flat_file_without_leaving_stale_keys(
     )
 
     raw = json.loads(path.read_text(encoding="utf-8"))
-    assert set(raw) == {"_doc", "arrays", "performance_ratio"}
+    assert set(raw) == {"_doc", "arrays", "performance_ratio", "horizon_profile"}
     assert raw["performance_ratio"] == 0.75
 
 
@@ -301,3 +302,132 @@ def test_save_preserves_a_hand_set_switch_it_does_not_own(tmp_path: Path) -> Non
     assert raw["thermal_model_enabled"] is True
     assert raw["arrays"] == [{"kwp": 6.0, "tilt_deg": 30.0, "azimuth_deg": 0.0}]
     assert load_pv_system_config(path).thermal_model_enabled is True
+
+
+# --------------------------- horizon/shading profile switch (issue #578 part b)
+# Same shape as the panel-temperature switch's tests above: pin that every
+# existing file reads as "off", that only a literal ``true`` arms it, and that
+# a save preserves a hand-set switch it has no editor control for. Unlike the
+# thermal switch, the *points* themselves are an owned, editor-controlled list.
+
+
+def test_horizon_switch_is_absent_from_existing_files_and_absent_means_off(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path, {"arrays": [{"kwp": 5.0}], "performance_ratio": 0.8})
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert config.horizon_profile_enabled is False
+    assert config.horizon_profile == []
+    assert PvSystemConfig().horizon_profile_enabled is False
+
+
+@pytest.mark.parametrize("value", ["true", "yes", 1, [1], {}])
+def test_only_a_literal_true_arms_the_horizon_switch(
+    tmp_path: Path, value: object
+) -> None:
+    path = _write(
+        tmp_path,
+        {"arrays": [{"kwp": 5.0}], "horizon_profile_enabled": value},
+    )
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert config.horizon_profile_enabled is False
+
+
+def test_horizon_profile_loads_and_clamps_points(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        {
+            "arrays": [{"kwp": 5.0}],
+            "horizon_profile": [
+                {"azimuth_deg": 165, "elevation_deg": 5},
+                {"azimuth_deg": 400, "elevation_deg": -10},  # wraps, clamps to 0
+                {"azimuth_deg": 285, "elevation_deg": 120},  # clamps to 90
+            ],
+        },
+    )
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert len(config.horizon_profile) == 3
+    assert config.horizon_profile[1].azimuth_deg == 40.0
+    assert config.horizon_profile[1].elevation_deg == 0.0
+    assert config.horizon_profile[2].elevation_deg == 90.0
+
+
+def test_a_malformed_horizon_point_is_skipped_not_fatal(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        {
+            "arrays": [{"kwp": 5.0}],
+            "horizon_profile": [
+                {"azimuth_deg": 90, "elevation_deg": 5},
+                {"elevation_deg": 10},  # missing azimuth_deg — skipped
+                "not an object",  # skipped
+            ],
+        },
+    )
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert len(config.horizon_profile) == 1
+    assert config.horizon_profile[0].azimuth_deg == 90.0
+
+
+def test_a_non_list_horizon_profile_is_ignored_not_fatal(tmp_path: Path) -> None:
+    path = _write(tmp_path, {"arrays": [{"kwp": 5.0}], "horizon_profile": "nope"})
+    config = load_pv_system_config(path)
+    assert config is not None
+    assert config.horizon_profile == []
+
+
+@pytest.mark.parametrize(
+    "point, fragment",
+    [
+        (PvHorizonPoint(azimuth_deg=400, elevation_deg=5), "azimuth_deg"),
+        (PvHorizonPoint(azimuth_deg=-1, elevation_deg=5), "azimuth_deg"),
+        (PvHorizonPoint(azimuth_deg=90, elevation_deg=-1), "elevation_deg"),
+        (PvHorizonPoint(azimuth_deg=90, elevation_deg=91), "elevation_deg"),
+    ],
+)
+def test_validate_rejects_bad_horizon_points(point: PvHorizonPoint, fragment: str) -> None:
+    config = _config(PvArray(kwp=1))
+    config.horizon_profile = [point]
+    with pytest.raises(ValueError, match=fragment):
+        validate_pv_system(config)
+
+
+def test_save_round_trips_the_horizon_profile(tmp_path: Path) -> None:
+    path = tmp_path / "pv_system.json"
+    config = _config(PvArray(kwp=5.0))
+    config.horizon_profile = [
+        PvHorizonPoint(azimuth_deg=165, elevation_deg=5),
+        PvHorizonPoint(azimuth_deg=285, elevation_deg=20),
+    ]
+    save_pv_system_config(config, path)
+
+    reloaded = load_pv_system_config(path)
+    assert reloaded is not None
+    assert [(p.azimuth_deg, p.elevation_deg) for p in reloaded.horizon_profile] == [
+        (165.0, 5.0),
+        (285.0, 20.0),
+    ]
+
+
+def test_save_preserves_a_hand_set_horizon_switch_it_does_not_own(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        {
+            "arrays": [{"kwp": 5.0}],
+            "horizon_profile": [{"azimuth_deg": 90, "elevation_deg": 10}],
+            "horizon_profile_enabled": True,
+        },
+    )
+    config = _config(PvArray(kwp=6.0))
+    config.horizon_profile = [PvHorizonPoint(azimuth_deg=270, elevation_deg=15)]
+    save_pv_system_config(config, path)
+
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    assert raw["horizon_profile_enabled"] is True
+    assert raw["horizon_profile"] == [{"azimuth_deg": 270.0, "elevation_deg": 15.0}]

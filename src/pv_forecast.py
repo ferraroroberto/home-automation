@@ -31,6 +31,12 @@ Source & model (deliberately self-contained, approximate):
   ``performance_ratio`` to a system-loss-only factor — see
   :func:`src.pv_system_config.thermal_migration_error`, which makes the
   half-migrated combination refuse to compute rather than under-report ~10%.
+* **Optionally** (issue #578 part b, off by default) a horizon/shading profile
+  attenuates the direct-beam share of an hour's GTI when the sun sits below a
+  hand-entered obstruction elevation for its azimuth. Armed by
+  ``horizon_profile_enabled``; with it off the upstream request and the numbers
+  are unchanged, same contract as the thermal switch. See "Horizon shading"
+  below.
 
 Array parameters come from ``config/pv_system.json`` (:mod:`src.pv_system_config`)
 and the coordinates from ``config/location.json`` (:mod:`src.location_config`,
@@ -45,6 +51,7 @@ UI-free: imported by the energy API, never imports the UI.
 from __future__ import annotations
 
 import asyncio
+import calendar
 import logging
 import time
 from dataclasses import dataclass, field, replace
@@ -56,10 +63,12 @@ import aiohttp
 from src.location_config import LocationConfig, load_location_config
 from src.pv_system_config import (
     PvArray,
+    PvHorizonPoint,
     PvSystemConfig,
     load_pv_system_config,
     thermal_migration_error,
 )
+from src.sun_position import sun_position
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +111,16 @@ THERMAL_NOCT_C = 45.0
 _NOCT_IRRADIANCE_W = 800.0
 _NOCT_AMBIENT_C = 20.0
 _STC_CELL_C = 25.0
+
+# ---------------------------------------- horizon / shading (issue #578 part b)
+# Open-Meteo's ``global_tilted_irradiance`` is a single combined figure — it
+# does not hand back how much of it is direct beam vs. sky-diffuse. This model
+# does not attempt its own beam/diffuse transposition either (that would be a
+# second, independently-error-prone model on top of Open-Meteo's own); instead
+# it estimates the diffuse *share* of GTI from the horizontal split Open-Meteo
+# does publish (``direct_radiation`` / ``diffuse_radiation``) and treats that
+# share as what a shaded panel still receives — an obstruction blocks the sun's
+# disc, not the sky. Deliberately approximate, like the thermal term above.
 
 # Day selector → offset from today's local date.
 _DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
@@ -166,12 +185,15 @@ def _cache_key(
     named-day card share a cache entry for the same date.
     """
     arrays = tuple((a.kwp, a.tilt_deg, a.azimuth_deg) for a in system.arrays)
+    horizon = tuple((p.azimuth_deg, p.elevation_deg) for p in system.horizon_profile)
     return (
         round(location.lat, 4),
         round(location.lon, 4),
         arrays,
         system.performance_ratio,
         system.thermal_model_enabled,
+        system.horizon_profile_enabled,
+        horizon,
         target_day.isoformat(),
     )
 
@@ -263,12 +285,73 @@ def thermal_derate(air_c: float, gti_w: float) -> float:
     return max(0.0, 1.0 + THERMAL_GAMMA_PER_C * (cell - _STC_CELL_C))
 
 
+def _utc_epoch_s(stamp: str, utc_offset_s: float) -> float:
+    """UTC epoch seconds for one Open-Meteo local timestamp.
+
+    ``timezone=auto`` requests get back wall-clock local time with no offset in
+    the string itself; ``utc_offset_seconds`` from the same response is what
+    turns it back into the unambiguous instant :func:`src.sun_position.sun_position`
+    needs. The naive timestamp's digits are read as if they were UTC (which
+    gives the same *wall-clock* epoch), then the local offset is subtracted to
+    reach the real UTC instant.
+    """
+    naive = datetime.fromisoformat(str(stamp))
+    return calendar.timegm(naive.timetuple()) - utc_offset_s
+
+
+def horizon_elevation_deg(profile: List[PvHorizonPoint], azimuth_deg: float) -> float:
+    """Interpolated obstruction elevation (°) at ``azimuth_deg`` (compass,
+    clockwise from true north).
+
+    An empty profile has no obstruction anywhere, so it reports −90° — the sun
+    is always "above" that, making the shading term a no-op, per the
+    switch-on-empty-profile contract. A single-point profile reports that one
+    elevation for every azimuth (nothing to interpolate against yet). Two or
+    more points interpolate linearly between their azimuth-sorted neighbours,
+    wrapping at 360° the way a horizon actually does.
+    """
+    if not profile:
+        return -90.0
+    points = sorted(profile, key=lambda p: p.azimuth_deg % 360.0)
+    if len(points) == 1:
+        return points[0].elevation_deg
+
+    az = azimuth_deg % 360.0
+    n = len(points)
+    for i in range(n):
+        a0 = points[i].azimuth_deg % 360.0
+        a1 = points[(i + 1) % n].azimuth_deg % 360.0
+        span = (a1 - a0) % 360.0
+        if span == 0.0:
+            continue
+        offset = (az - a0) % 360.0
+        if offset <= span:
+            t = offset / span
+            return points[i].elevation_deg + t * (points[(i + 1) % n].elevation_deg - points[i].elevation_deg)
+    return points[-1].elevation_deg
+
+
+def _diffuse_fraction(direct_w: float, diffuse_w: float) -> float:
+    """Diffuse share of one hour's horizontal irradiance, clamped to [0, 1].
+
+    Used as the stand-in for "what a shaded panel still receives" — see the
+    module-level note above. An hour with no light at all (both zero) has
+    nothing to shade either way, so the fraction is moot; 1.0 is returned so a
+    shaded near-zero hour doesn't get multiplied by a division artefact.
+    """
+    total = direct_w + diffuse_w
+    if total <= 0.0:
+        return 1.0
+    return max(0.0, min(1.0, diffuse_w / total))
+
+
 async def _fetch_array_gti(
     session: aiohttp.ClientSession,
     location: LocationConfig,
     array: PvArray,
     past_days: int = 1,
     with_temperature: bool = False,
+    with_horizon: bool = False,
 ) -> Dict[str, Any]:
     """One Open-Meteo hourly-GTI request for a single sub-array's orientation.
 
@@ -281,11 +364,15 @@ async def _fetch_array_gti(
     ``with_temperature`` adds ``temperature_2m`` to the *same* request (issue
     #591) — no second call, and no change at all to the request when the thermal
     term is off, so the disabled path cannot drift on the back of a feature that
-    is not running.
+    is not running. ``with_horizon`` similarly adds ``direct_radiation`` +
+    ``diffuse_radiation`` (issue #578 part b) only when the shading term is
+    armed.
     """
     hourly = "global_tilted_irradiance"
     if with_temperature:
         hourly += ",temperature_2m"
+    if with_horizon:
+        hourly += ",direct_radiation,diffuse_radiation"
     params = {
         "latitude": location.lat,
         "longitude": location.lon,
@@ -399,6 +486,7 @@ async def fetch_pv_forecast_for_date(
                     array,
                     past_days,
                     with_temperature=system.thermal_model_enabled,
+                    with_horizon=system.horizon_profile_enabled,
                 )
                 for array in system.arrays
             )
@@ -438,11 +526,24 @@ async def fetch_pv_forecast_for_date(
         else:
             air = [None] * len(times)
 
+        if system.horizon_profile_enabled:
+            direct_h = hourly.get("direct_radiation") or []
+            diffuse_h = hourly.get("diffuse_radiation") or []
+            if len(direct_h) != len(times) or len(diffuse_h) != len(times):
+                return _unavailable(day, "no_data")
+            utc_offset_s = data.get("utc_offset_seconds") or 0
+        else:
+            direct_h = [None] * len(times)
+            diffuse_h = [None] * len(times)
+            utc_offset_s = 0
+
         # kWp is defined at 1000 W/m² STC: expected_W = kwp · GTI/1000 · PR. GTI
         # is a preceding-hour mean, so one hour of it is expected_Wh directly.
         scale = array.kwp * system.performance_ratio  # × (GTI/1000) × 1000h→Wh ⇒ × GTI
 
-        for stamp, irradiance, air_c in zip(times, gti, air):
+        for stamp, irradiance, air_c, direct_w, diffuse_w in zip(
+            times, gti, air, direct_h, diffuse_h
+        ):
             if not str(stamp).startswith(iso_prefix):
                 continue
             watts = float(irradiance) if irradiance is not None else 0.0
@@ -452,6 +553,20 @@ async def fetch_pv_forecast_for_date(
             # a curve whose irradiance is perfectly good.
             if system.thermal_model_enabled and air_c is not None:
                 wh *= thermal_derate(float(air_c), watts)
+            # Same fallback shape for a null direct/diffuse pair (issue #578
+            # part b): skip the shading term for that hour rather than the
+            # whole curve.
+            if (
+                system.horizon_profile_enabled
+                and system.horizon_profile
+                and direct_w is not None
+                and diffuse_w is not None
+            ):
+                ts = _utc_epoch_s(stamp, utc_offset_s)
+                sun = sun_position(ts, location.lat, location.lon)
+                needed = horizon_elevation_deg(system.horizon_profile, sun.azimuth_deg)
+                if sun.elevation_deg <= needed:
+                    wh *= _diffuse_fraction(float(direct_w), float(diffuse_w))
             try:
                 hour = datetime.fromisoformat(str(stamp)).hour
             except ValueError:

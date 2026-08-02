@@ -35,6 +35,18 @@ loss, so that combination is refused rather than computed:
 from the editor) and the forecast reports it as unavailable rather than emitting
 numbers that are quietly ~10% low.
 
+The optional ``horizon_profile`` (issue #578 part b) is a hand-entered
+obstruction-elevation-by-azimuth profile, editable from the PV system card in
+the same staged-dialog style as the panel rows. Its azimuth is **compass,
+clockwise from true north** (0/90/180/270 = N/E/S/W) — :mod:`src.sun_position`'s
+convention, deliberately *not* ``arrays[].azimuth_deg``'s Open-Meteo
+south-relative one, because the profile is compared against a computed sun
+azimuth, never a panel orientation. Like the panel-temperature switch,
+``horizon_profile_enabled`` has no editor control and defaults to **off** — the
+owner arms it by hand once the geometry has been entered. The list of points is
+editable (and saved) regardless of the switch, so the profile can be built
+before it is armed.
+
 **Read and write are deliberately different contracts** (issue #561, which made
 the config editable from the Energy tab). :func:`load_pv_system_config` is
 *lenient* — a hand-edited file with one malformed sub-array degrades (skip +
@@ -73,6 +85,17 @@ class PvArray:
 
 
 @dataclass
+class PvHorizonPoint:
+    """One obstruction-elevation sample of the horizon/shading profile (issue
+    #578 part b). ``azimuth_deg`` is compass, clockwise from true north — see
+    the module docstring; ``elevation_deg`` is how high the obstruction stands
+    above the horizontal at that azimuth."""
+
+    azimuth_deg: float
+    elevation_deg: float = 0.0
+
+
+@dataclass
 class PvSystemConfig:
     """User-authored PV-array parameters for the generation forecast."""
 
@@ -81,6 +104,10 @@ class PvSystemConfig:
     # Issue #591 — off by default so the live forecast is unchanged. See the
     # module docstring for what turning it on also requires.
     thermal_model_enabled: bool = False
+    # Issue #578 part (b) — off by default; see the module docstring. The
+    # points themselves are editable independently of the switch.
+    horizon_profile_enabled: bool = False
+    horizon_profile: List[PvHorizonPoint] = field(default_factory=list)
 
     @property
     def total_kwp(self) -> float:
@@ -107,9 +134,10 @@ def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfi
     ``azimuth_deg``/``performance_ratio`` at the top level, pre-#555), which loads
     as a single-element ``arrays`` list — existing configs keep working unmigrated.
 
-    ``thermal_model_enabled`` (issue #591) is absent from every existing file and
-    absent means off, so nothing here changes what the forecast predicts until
-    the key is added by hand.
+    ``thermal_model_enabled`` (issue #591) and ``horizon_profile_enabled``
+    (issue #578 part b) are both absent from every existing file, and absent
+    means off for both, so nothing here changes what the forecast predicts
+    until one is added by hand.
     """
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     if not target.exists():
@@ -143,12 +171,18 @@ def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfi
         logger.warning("⚠️ %s has no valid sub-arrays — forecast disabled", target)
         return None
 
-    # Only a literal ``true`` arms the temperature term. A stray "yes"/1 left in
-    # a hand-edited file must not change what the card predicts by truthiness.
+    # Only a literal ``true`` arms either term. A stray "yes"/1 left in a
+    # hand-edited file must not change what the card predicts by truthiness.
     thermal = raw.get("thermal_model_enabled") is True
+    horizon_enabled = raw.get("horizon_profile_enabled") is True
+    horizon_profile = _parse_horizon_profile(raw.get("horizon_profile"), target)
 
     return PvSystemConfig(
-        arrays=arrays, performance_ratio=pr, thermal_model_enabled=thermal
+        arrays=arrays,
+        performance_ratio=pr,
+        thermal_model_enabled=thermal,
+        horizon_profile_enabled=horizon_enabled,
+        horizon_profile=horizon_profile,
     )
 
 
@@ -175,6 +209,36 @@ def _parse_array(entry: object, target: Path, index: int) -> Optional[PvArray]:
     return PvArray(kwp=kwp, tilt_deg=tilt, azimuth_deg=azimuth)
 
 
+def _parse_horizon_profile(raw: object, target: Path) -> List[PvHorizonPoint]:
+    """Lenient parse of the horizon/shading profile (issue #578 part b).
+
+    A malformed point is skipped and logged, same as a malformed sub-array —
+    never a reason to disable the whole forecast.
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        logger.warning("⚠️ %s 'horizon_profile' must be a list — ignored", target)
+        return []
+
+    points: List[PvHorizonPoint] = []
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            logger.warning("⚠️ %s horizon_profile[%d] is not an object — skipped", target, i)
+            continue
+        try:
+            azimuth = float(entry["azimuth_deg"]) % 360.0
+        except (KeyError, TypeError, ValueError):
+            logger.warning(
+                "⚠️ %s horizon_profile[%d] is missing a valid azimuth_deg — skipped",
+                target, i,
+            )
+            continue
+        elevation = _clamp_float(entry.get("elevation_deg"), default=0.0, lo=0.0, hi=90.0)
+        points.append(PvHorizonPoint(azimuth_deg=azimuth, elevation_deg=elevation))
+    return points
+
+
 def _clamp_float(value: object, default: float, lo: float, hi: float) -> float:
     """Coerce ``value`` to a float clamped to ``[lo, hi]``, falling back to ``default``."""
     try:
@@ -190,11 +254,13 @@ def _clamp_float(value: object, default: float, lo: float, hi: float) -> float:
 # listed too so a legacy file edited in the app migrates cleanly to ``arrays``
 # instead of keeping a stale, contradictory ``kwp`` beside the new list.
 #
-# ``thermal_model_enabled`` is deliberately NOT owned (issue #591): the editor
-# has no control for it, so a save must leave a hand-set switch exactly as it
-# found it rather than silently writing the default back over it.
+# ``thermal_model_enabled`` and ``horizon_profile_enabled`` are deliberately
+# NOT owned (issues #591, #578 part b): the editor has no control for either
+# switch, so a save must leave a hand-set switch exactly as it found it rather
+# than silently writing the default back over it. ``horizon_profile`` itself
+# *is* owned — the editor does have a control for the points.
 _OWNED_KEYS = frozenset(
-    {"arrays", "performance_ratio", "kwp", "tilt_deg", "azimuth_deg"}
+    {"arrays", "performance_ratio", "kwp", "tilt_deg", "azimuth_deg", "horizon_profile"}
 )
 
 
@@ -271,6 +337,17 @@ def validate_pv_system(config: PvSystemConfig) -> None:
     if mismatch is not None:
         raise ValueError(mismatch)
 
+    for i, point in enumerate(config.horizon_profile):
+        azimuth = _require_finite(point.azimuth_deg, f"horizon_profile[{i}].azimuth_deg")
+        if not 0.0 <= azimuth < 360.0:
+            raise ValueError(
+                f"horizon_profile[{i}].azimuth_deg must be between 0 and 360 "
+                "(compass, clockwise from true north)"
+            )
+        elevation = _require_finite(point.elevation_deg, f"horizon_profile[{i}].elevation_deg")
+        if not 0.0 <= elevation <= 90.0:
+            raise ValueError(f"horizon_profile[{i}].elevation_deg must be between 0 and 90")
+
 
 def save_pv_system_config(
     config: PvSystemConfig, path: Optional[Path] = None
@@ -303,6 +380,10 @@ def save_pv_system_config(
         for a in config.arrays
     ]
     payload["performance_ratio"] = float(config.performance_ratio)
+    payload["horizon_profile"] = [
+        {"azimuth_deg": float(p.azimuth_deg), "elevation_deg": float(p.elevation_deg)}
+        for p in config.horizon_profile
+    ]
 
     write_json_atomic(target, payload)
     logger.info(
