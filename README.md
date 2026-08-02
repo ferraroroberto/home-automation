@@ -165,7 +165,7 @@ toggles, persisted to gitignored `config/alarm_notify_prefs.json`
 | Automatic disarm (schedule) | a weekly schedule disarmed the alarm |
 | Arm on everyone-away (presence) | presence automation armed (everyone left) |
 | Disarm on arrival (presence) | presence automation disarmed (someone arrived) |
-| Error on any automatic arm/disarm | an automatic attempt failed (carries the panel's error text), **or** presence auto-arm couldn't fire at all because a tracked person's presence is stuck `home` (issue #533 — names who, and since when) |
+| Error on any automatic arm/disarm | an automatic attempt failed (carries the panel's error text), **or** presence auto-arm couldn't fire at all because a tracked person's presence is stuck `home` (issue #533 — names who, and since when). The two read differently: a failed command says `FAILED`, a block says `on hold`, since nothing was attempted. A block must persist for `arm_block_notify_after_s` (default 900 s, `config/presence_automation.json`) before it notifies — below that it is just two people walking in a few seconds apart, which used to page for nothing (issue #599). The block still shows in the Presence card immediately; the dwell gates only the Telegram ping. |
 | Alarm triggered (intrusion) | the panel goes into ongoing/memory alarm (🚨) |
 | Panel mains power lost/restored | the panel's `ac_lost` flag flips either way (⚠️/✅) |
 

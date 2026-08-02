@@ -44,6 +44,12 @@ SOURCE_PRESENCE = "presence"
 
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
+# A condition that stopped an automatic action from being *attempted* at all
+# (issue #599). Distinct from OUTCOME_ERROR, which means a command was sent
+# and the panel rejected it - reporting a block as "FAILED" told the user a
+# command had failed when none was ever issued. Rides the same `error`
+# notify toggle and per-day de-dupe.
+OUTCOME_BLOCKED = "blocked"
 
 # Backoff before giving up on confirming an arm/disarm action took effect - a
 # rejected command or a mismatched read-back is often a transient RISCO
@@ -176,6 +182,12 @@ def _compose_message(
     source: str, action: str, outcome: str, error: Optional[str], detail: Optional[str]
 ) -> str:
     suffix = f" · {detail}" if detail else ""
+    if outcome == OUTCOME_BLOCKED:
+        # Nothing was attempted, so this must not read as a failed command.
+        return (
+            f"🚧 Automatic alarm {_verb(action)} on hold — {source}{suffix}: "
+            f"{error or 'unknown reason'}"
+        )
     if outcome == OUTCOME_ERROR:
         return (
             f"⚠️ Automatic alarm {_verb(action)} FAILED — {source}{suffix}: "
@@ -187,7 +199,7 @@ def _compose_message(
 
 
 def _should_notify(prefs: AlarmNotifyPrefs, source: str, action: str, outcome: str) -> bool:
-    if outcome == OUTCOME_ERROR:
+    if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED):
         return prefs.error
     return bool(getattr(prefs, f"{source}_{_verb(action)}", False))
 
@@ -251,7 +263,7 @@ async def record_alarm_action(
         return
 
     today = (now or datetime.now()).strftime("%Y-%m-%d")
-    if outcome == OUTCOME_ERROR and dedupe_key is not None:
+    if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED) and dedupe_key is not None:
         if _last_error_notify.get(dedupe_key) == today:
             return
 
@@ -274,7 +286,7 @@ async def record_alarm_action(
     # through - marking it beforehand (the old behaviour) meant an
     # unconfigured/failing notifier silently burned the day's one alert for
     # good, with no retry (#527).
-    if outcome == OUTCOME_ERROR and dedupe_key is not None:
+    if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED) and dedupe_key is not None:
         _last_error_notify[dedupe_key] = today
         _save_dedupe(_last_error_notify)
 

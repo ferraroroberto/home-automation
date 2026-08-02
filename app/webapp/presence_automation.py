@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from app.webapp.alarm_notify import (
+    OUTCOME_BLOCKED,
     OUTCOME_ERROR,
     OUTCOME_OK,
     SOURCE_PRESENCE,
@@ -82,27 +83,32 @@ async def _sync_arm_block_diagnostic(security_mode: str) -> None:
     config = load_automation_config()
     people = list(load_people().values())
     block = evaluate_arm_block(people, security_mode=security_mode, config=config)
-    changed = set_arm_block(block)
-    if not changed:
+    observed = set_arm_block(block, dwell_s=config.arm_block_notify_after_s)
+    if block is None:
+        if observed.changed:
+            logger.info("✅ Auto-arm block cleared")
         return
-    if block is not None:
+    if observed.changed:
         logger.info(
             "ℹ️ Auto-arm blocked: %s still reported home since %s",
             ", ".join(block.blocking_person_ids),
             block.since.isoformat(),
         )
-        # Same alert kind as a presence-triggered arm that failed to confirm
-        # (#533) - reuses the existing "error" Telegram toggle and per-day
-        # dedupe, not a new notification path.
-        await record_alarm_action(
-            source=SOURCE_PRESENCE,
-            action="arm",
-            outcome=OUTCOME_ERROR,
-            error=f"{', '.join(block.blocking_person_ids)} still reported home since {block.since.isoformat()}",
-            dedupe_key=f"presence:blocked:{block.key}",
-        )
-    else:
-        logger.info("✅ Auto-arm block cleared")
+    # Held back until the block has persisted for `arm_block_notify_after_s`
+    # (#599): two people walking in 32 s apart briefly look exactly like a
+    # stuck presence, and used to page for it. Reuses the existing "error"
+    # Telegram toggle and per-day dedupe (#533) rather than a new path, but
+    # reports as `blocked`, not `error` - nothing was attempted, so it must
+    # not read as a failed command.
+    if not observed.notify:
+        return
+    await record_alarm_action(
+        source=SOURCE_PRESENCE,
+        action="arm",
+        outcome=OUTCOME_BLOCKED,
+        error=f"{', '.join(block.blocking_person_ids)} still reported home since {block.since.isoformat()}",
+        dedupe_key=f"presence:blocked:{block.key}",
+    )
 
 
 def _consume_satisfied_disarm(security_mode: str) -> None:
