@@ -117,6 +117,12 @@ Flipping the switch while leaving `performance_ratio` at 0.80 would subtract the
 
 **With the switch off nothing changes at all** — not the numbers, not the payload's keys, not even the upstream request (`temperature_2m` is only asked for when the term is armed). That is the deliberate default: the committed config leaves it off, and only a literal JSON `true` arms it, so a stray `"yes"` in a hand-edited file cannot change what the card predicts by truthiness.
 
+## Caching, rate limits and backoff (issue #597)
+
+The card is polled by an always-on dashboard, and Open-Meteo's hourly irradiance only changes on an hourly grid, so `src/pv_forecast.py` caches the response per `(location, array-set, day)` for 15 minutes and reuses one `aiohttp.ClientSession` across calls — the same pattern `src/huawei_client.py` uses for FusionSolar. A render inside the cache window costs no upstream request at all; the sun-position diagnostic (#590) shares the same cache entry for a date it also fetches.
+
+A `429` from Open-Meteo gets its own reason, `rate_limited`, distinct from `unreachable` — the server answered, it just refused this request rate. It also opens a backoff window (60 s, doubling to a 900 s ceiling per consecutive 429) during which no further upstream call is attempted at all, and — as long as one is still less than 6 hours old — the last successfully-fetched curve is served instead of a blank card, whether the 429 opened the backoff just now or an earlier one is still active.
+
 ## Endpoint
 
 `GET /api/energy/forecast?day=yesterday|today|tomorrow` →
@@ -143,7 +149,7 @@ Flipping the switch while leaving `performance_ratio` at 0.80 would subtract the
 
 `system` echoes back the sub-array params the curve was computed from, so the card can show them in a caption (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast. It carries an extra `thermal_model: { gamma_per_c, noct_c }` block **only** when the panel-temperature term is armed — with the term off the payload's keys are exactly what they were before #591.
 
-Always HTTP 200: when the array/location is unconfigured or Open-Meteo is unreachable it returns `{ "available": false, "reason": … }` and the card keeps its note — the forecast is decorative, never a 500. The reasons are `not_configured`, `no_location`, `too_old`, `unreachable`, `no_data`, and `thermal_ratio_unmigrated` (the panel-temperature term armed on top of an un-migrated `performance_ratio` — see "Panel temperature" above).
+Always HTTP 200: when the array/location is unconfigured or Open-Meteo is unreachable it returns `{ "available": false, "reason": … }` and the card keeps its note — the forecast is decorative, never a 500. The reasons are `not_configured`, `no_location`, `too_old`, `unreachable`, `rate_limited` (Open-Meteo answered with a 429 — see "Caching, rate limits and backoff" above), `no_data`, and `thermal_ratio_unmigrated` (the panel-temperature term armed on top of an un-migrated `performance_ratio` — see "Panel temperature" above).
 
 ## Reading the model back: the sun-position diagnostic (issue #590)
 

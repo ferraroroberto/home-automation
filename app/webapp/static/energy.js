@@ -427,6 +427,10 @@ function setCostRange(range) {
 const FORECAST_NOTES = {
   not_configured: 'Add your panel rows in the PV system card below to enable the forecast.',
   no_location: 'Set the home coordinates in the PV system card below to enable the forecast.',
+  // Distinct from the generic fallback below (#597): Open-Meteo is answering,
+  // just refusing this request rate — not the same as a network failure. Only
+  // reached when there's no cached curve recent enough to show instead.
+  rate_limited: 'Weather provider is rate-limiting us right now — retrying shortly.',
 };
 
 // "1.5 kWp · 35° · S · PR 0.80" (single array) or
@@ -493,6 +497,7 @@ const SUN_OVERLAY_NOTES = {
   not_configured: 'Add your panel rows in the PV system card below.',
   no_location: 'Set the home coordinates in the PV system card below.',
   too_old: 'Irradiance history only reaches back about three months.',
+  rate_limited: 'Weather provider is rate-limiting us right now — retrying shortly.',
 };
 
 // Today in the browser's own local date, which is the day the hourly rollups
