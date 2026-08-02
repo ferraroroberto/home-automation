@@ -76,6 +76,15 @@ export function azimuthCompass(deg) {
   return COMPASS[Math.round(Number(deg) / 45) + 4];
 }
 
+// Compass azimuth (0=N, 90=E, 180=S, 270=W — src.sun_position's convention,
+// used only by the horizon profile below; deliberately not azimuthCompass()'s
+// Open-Meteo south-relative one) → the same 8-point letter (COMPASS_LONG above
+// already maps letter → label, and that mapping doesn't depend on convention).
+export function compassFromNorth(deg) {
+  const n = Math.round((((Number(deg) % 360) + 360) % 360) / 45) % 8;
+  return COMPASS[n];
+}
+
 // Trim a trailing ".0" so 1.5 → "1.5" but 8 → "8".
 export function trimNum(n) {
   return String(Number(n)).replace(/\.0$/, '');
@@ -170,6 +179,82 @@ export function renderPvSystem() {
   });
 }
 
+// --------------------------------------- horizon/shading profile (issue #578b)
+
+function horizonDefaults() {
+  return {
+    // Same index-derived-id trick as arrayDefaults() above.
+    id: 'ph-' + (state.pvHorizonProfile || []).length,
+    azimuth_deg: 0,
+    elevation_deg: 0,
+  };
+}
+
+// Points carry no identity on disk either — same positional-id contract as
+// normalizedArrays() above.
+function normalizedHorizonProfile(entries) {
+  return (entries || state.pvHorizonProfile || []).map(function (entry, idx) {
+    return {
+      id: 'ph-' + idx,
+      azimuth_deg: Number(entry.azimuth_deg) || 0,
+      elevation_deg: Number(entry.elevation_deg) || 0,
+    };
+  });
+}
+
+// One horizon point's "165° · 5° elevation".
+function horizonSummary(p) {
+  return trimNum(p.azimuth_deg) + '° · ' + trimNum(p.elevation_deg) + '° elevation';
+}
+
+export function renderPvHorizonProfile() {
+  if (!els.pvHorizonList) return;
+  els.pvHorizonList.innerHTML = '';
+  state.pvHorizonProfile = normalizedHorizonProfile();
+
+  if (!state.pvHorizonProfile.length) {
+    els.pvHorizonList.appendChild(
+      emptyStateEl('sun', 'No horizon points yet — the shading term stays inert either way.')
+    );
+    return;
+  }
+
+  state.pvHorizonProfile.forEach(function (entry, idx) {
+    const row = document.createElement('div');
+    row.className = 'list-row automation-summary-row';
+    row.dataset.pvHorizonId = entry.id;
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'automation-summary-main';
+    main.setAttribute('aria-label', 'Edit horizon point ' + horizonSummary(entry));
+
+    const copy = document.createElement('span');
+    copy.className = 'automation-summary-copy';
+    const title = document.createElement('span');
+    title.className = 'automation-summary-title';
+    title.textContent = horizonSummary(entry);
+    const meta = document.createElement('span');
+    meta.className = 'automation-summary-meta';
+    meta.textContent = COMPASS_LONG[compassFromNorth(entry.azimuth_deg)] || '';
+    copy.appendChild(title);
+    copy.appendChild(meta);
+    main.appendChild(copy);
+
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'icon automation-summary-chevron');
+    chevron.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#i-chevron-right');
+    chevron.appendChild(use);
+    main.appendChild(chevron);
+
+    main.addEventListener('click', function () { horizonEditor.open(idx, main); });
+    row.appendChild(main);
+    els.pvHorizonList.appendChild(row);
+  });
+}
+
 // ------------------------------------------------------------------- load
 
 export async function loadPvSystem() {
@@ -178,12 +263,15 @@ export async function loadPvSystem() {
     const body = await jsonApi('/api/energy/pv-system');
     state.pvArrays = (body && body.arrays) || [];
     state.pvPerformanceRatio = (body && body.performance_ratio) || DEFAULT_PERFORMANCE_RATIO;
+    state.pvHorizonProfile = (body && body.horizon_profile) || [];
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     state.pvArrays = [];
+    state.pvHorizonProfile = [];
   }
   if (els.pvPerformanceRatio) els.pvPerformanceRatio.value = state.pvPerformanceRatio;
   renderPvSystem();
+  renderPvHorizonProfile();
   await loadPvLocation();
 }
 
@@ -207,6 +295,8 @@ const FIELD_ERRORS = [
   ['pvArrayKwp', 'pvArrayKwpError'],
   ['pvArrayTilt', 'pvArrayTiltError'],
   ['pvArrayAzimuth', 'pvArrayAzimuthError'],
+  ['pvHorizonAzimuth', 'pvHorizonAzimuthError'],
+  ['pvHorizonElevation', 'pvHorizonElevationError'],
 ];
 
 function clearFieldErrors() {
@@ -302,6 +392,77 @@ function renderAzimuthEcho() {
   els.pvArrayAzimuthEcho.textContent = compass ? COMPASS_LONG[compass] : '';
 }
 
+// --------------------------------------- horizon point editor (issue #578b)
+
+const horizonEditor = denseListEditor({
+  dialog: els.pvHorizonDialog,
+  addButton: els.pvHorizonAdd,
+  closeButton: els.pvHorizonEditorClose,
+  saveButton: els.pvHorizonSave,
+  deleteButton: els.pvHorizonDelete,
+  titleEl: els.pvHorizonEditorTitle,
+  listEl: els.pvHorizonList,
+  focusEl: els.pvHorizonAzimuth,
+  rowIdAttr: 'data-pv-horizon-id',
+  titles: { add: 'Add horizon point', edit: 'Horizon point' },
+  deleteConfirm: {
+    title: 'Delete this horizon point?',
+    message: 'The profile will no longer include this direction.',
+  },
+  toasts: {
+    saved: 'Horizon profile saved',
+    failed: "Couldn't save the horizon profile",
+  },
+  defaults: horizonDefaults,
+  getEntries: function () { return state.pvHorizonProfile; },
+  setEntries: function (entries) { state.pvHorizonProfile = entries; },
+  normalize: normalizedHorizonProfile,
+  render: renderPvHorizonProfile,
+  populate: function (staged) {
+    clearFieldErrors();
+    els.pvHorizonAzimuth.value = staged.azimuth_deg;
+    els.pvHorizonElevation.value = staged.elevation_deg;
+    renderHorizonAzimuthEcho();
+  },
+  collect: function (staged) {
+    clearFieldErrors();
+
+    const azimuth = Number(els.pvHorizonAzimuth.value);
+    if (!Number.isFinite(azimuth) || azimuth < 0 || azimuth >= 360) {
+      return showFieldError(
+        'pvHorizonAzimuth', 'pvHorizonAzimuthError', 'Azimuth must be between 0 and 359°.'
+      );
+    }
+    const elevation = Number(els.pvHorizonElevation.value);
+    if (!Number.isFinite(elevation) || elevation < 0 || elevation > 90) {
+      return showFieldError(
+        'pvHorizonElevation', 'pvHorizonElevationError', 'Obstruction elevation must be between 0 and 90°.'
+      );
+    }
+
+    staged.azimuth_deg = azimuth;
+    staged.elevation_deg = elevation;
+  },
+  // Positional ids are a rendering concern — the file stores a plain list.
+  payloadEntries: function (entries) {
+    return entries.map(function (p) {
+      return { azimuth_deg: p.azimuth_deg, elevation_deg: p.elevation_deg };
+    });
+  },
+  endpoint: '/api/energy/pv-system',
+  bodyKey: 'horizon_profile',
+  // No afterSave/estimate suffix (unlike the panel-row editor above): the
+  // switch that would apply this profile has no editor control and stays
+  // off, so saving a point never changes the forecast's numbers.
+});
+
+function renderHorizonAzimuthEcho() {
+  if (!els.pvHorizonAzimuthEcho) return;
+  const deg = Number(els.pvHorizonAzimuth.value);
+  const compass = Number.isFinite(deg) ? compassFromNorth(deg) : null;
+  els.pvHorizonAzimuthEcho.textContent = compass ? COMPASS_LONG[compass] : '';
+}
+
 // ------------------------------------------------- system-level (inline)
 
 async function savePerformanceRatio() {
@@ -370,4 +531,8 @@ export function wirePvSystem() {
   [els.pvLat, els.pvLon].forEach(function (el) {
     if (el) el.addEventListener('blur', savePvLocation);
   });
+  if (els.pvHorizonDialog) {
+    horizonEditor.wire();
+    if (els.pvHorizonAzimuth) els.pvHorizonAzimuth.addEventListener('input', renderHorizonAzimuthEcho);
+  }
 }

@@ -24,7 +24,8 @@ import pytest
 
 import src.pv_forecast as pf
 from src.location_config import LocationConfig
-from src.pv_system_config import PvArray, PvSystemConfig
+from src.pv_system_config import PvArray, PvHorizonPoint, PvSystemConfig
+from src.sun_position import SunPosition
 
 _LOCATION = LocationConfig(lat=41.4, lon=2.1)
 _TODAY = date(2026, 7, 20)
@@ -414,6 +415,163 @@ def test_a_single_null_ambient_hour_falls_back_to_no_derate(
     )
     assert result.expected[0]["wh"] == pytest.approx(3520.0)   # no ambient → no derate
     assert result.expected[1]["wh"] == pytest.approx(3150.4)
+
+
+# ------------------------------------------ horizon / shading (issue #578 part b)
+# Same shape as the thermal-term tests above: the off path must be byte-for-
+# byte identical to before, and the on path is pinned against hand-computed
+# arithmetic — a fixed sun position (via monkeypatch, so the test doesn't
+# depend on getting real solar geometry right) and a known diffuse fraction.
+
+_HORIZON_ARRAY = PvArray(kwp=5.0, tilt_deg=30, azimuth_deg=0)
+
+
+def _horizon_system(*, enabled: bool, profile=None) -> PvSystemConfig:
+    return PvSystemConfig(
+        arrays=[_HORIZON_ARRAY],
+        performance_ratio=0.8,
+        horizon_profile_enabled=enabled,
+        horizon_profile=profile or [],
+    )
+
+
+def _horizon_payload(
+    gti: float = 800.0, direct: float = 600.0, diffuse: float = 200.0,
+    include_components: bool = True,
+) -> dict:
+    stamps = _stamps(_TODAY, [15])
+    hourly: Dict[str, object] = {"time": stamps, "global_tilted_irradiance": [gti]}
+    if include_components:
+        hourly["direct_radiation"] = [direct]
+        hourly["diffuse_radiation"] = [diffuse]
+    return {"hourly": hourly, "utc_offset_seconds": 0}
+
+
+def _horizon_session(monkeypatch: pytest.MonkeyPatch, payload: dict) -> _RecordingSession:
+    session = _RecordingSession({(30, 0): payload})
+    _patch_session(monkeypatch, session)
+    return session
+
+
+def test_horizon_switch_off_changes_neither_the_request_nor_the_numbers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _horizon_session(monkeypatch, _horizon_payload())
+    result = asyncio.run(
+        pf.fetch_pv_forecast(
+            "today",
+            system=_horizon_system(enabled=False),
+            location=_LOCATION,
+            today=_TODAY,
+        )
+    )
+    assert session.params[0]["hourly"] == "global_tilted_irradiance"
+    # 5.0 kWp × (800/1000) × 0.8 = 3200 Wh — unaffected by direct/diffuse present
+    # in the response but never requested for a real (non-test) call.
+    assert result.expected == [{"hour": 15, "wh": 3200.0}]
+
+
+def test_horizon_switch_on_asks_for_components_in_the_same_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _horizon_session(monkeypatch, _horizon_payload())
+    asyncio.run(
+        pf.fetch_pv_forecast(
+            "today",
+            system=_horizon_system(enabled=True, profile=[PvHorizonPoint(90, 10)]),
+            location=_LOCATION,
+            today=_TODAY,
+        )
+    )
+    # One request, not two or three.
+    assert len(session.params) == 1
+    assert session.params[0]["hourly"] == (
+        "global_tilted_irradiance,direct_radiation,diffuse_radiation"
+    )
+
+
+def test_sun_above_the_horizon_point_is_unshaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        pf, "sun_position",
+        lambda ts, lat, lon: SunPosition(azimuth_deg=180.0, elevation_deg=40.0),
+    )
+    _horizon_session(monkeypatch, _horizon_payload())
+    result = asyncio.run(
+        pf.fetch_pv_forecast(
+            "today",
+            system=_horizon_system(enabled=True, profile=[PvHorizonPoint(180, 10)]),
+            location=_LOCATION,
+            today=_TODAY,
+        )
+    )
+    assert result.expected == [{"hour": 15, "wh": 3200.0}]
+
+
+def test_sun_below_the_horizon_point_keeps_only_the_diffuse_share(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        pf, "sun_position",
+        lambda ts, lat, lon: SunPosition(azimuth_deg=180.0, elevation_deg=5.0),
+    )
+    _horizon_session(monkeypatch, _horizon_payload(direct=600.0, diffuse=200.0))
+    result = asyncio.run(
+        pf.fetch_pv_forecast(
+            "today",
+            system=_horizon_system(enabled=True, profile=[PvHorizonPoint(180, 10)]),
+            location=_LOCATION,
+            today=_TODAY,
+        )
+    )
+    # diffuse fraction = 200/(600+200) = 0.25; 3200 Wh × 0.25 = 800 Wh.
+    assert result.expected == [{"hour": 15, "wh": 800.0}]
+
+
+def test_empty_profile_with_switch_on_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Switch on + no points entered yet must not zero the evening."""
+    monkeypatch.setattr(
+        pf, "sun_position",
+        lambda ts, lat, lon: SunPosition(azimuth_deg=180.0, elevation_deg=-5.0),
+    )
+    _horizon_session(monkeypatch, _horizon_payload())
+    result = asyncio.run(
+        pf.fetch_pv_forecast(
+            "today",
+            system=_horizon_system(enabled=True, profile=[]),
+            location=_LOCATION,
+            today=_TODAY,
+        )
+    )
+    assert result.expected == [{"hour": 15, "wh": 3200.0}]
+
+
+def test_horizon_switch_on_without_components_in_the_response_is_no_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _horizon_session(monkeypatch, _horizon_payload(include_components=False))
+    result = asyncio.run(
+        pf.fetch_pv_forecast(
+            "today",
+            system=_horizon_system(enabled=True, profile=[PvHorizonPoint(90, 10)]),
+            location=_LOCATION,
+            today=_TODAY,
+        )
+    )
+    assert result.available is False
+    assert result.reason == "no_data"
+
+
+def test_horizon_elevation_deg_interpolates_and_wraps() -> None:
+    profile = [PvHorizonPoint(0, 0), PvHorizonPoint(90, 20), PvHorizonPoint(270, 10)]
+    assert pf.horizon_elevation_deg(profile, 45) == pytest.approx(10.0)
+    assert pf.horizon_elevation_deg(profile, 315) == pytest.approx(5.0)  # wraps 270→0
+    assert pf.horizon_elevation_deg([], 45) == -90.0
+    assert pf.horizon_elevation_deg([PvHorizonPoint(50, 15)], 300) == 15.0
+
+
+def test_diffuse_fraction_handles_the_zero_light_edge_case() -> None:
+    assert pf._diffuse_fraction(600.0, 200.0) == pytest.approx(0.25)
+    assert pf._diffuse_fraction(0.0, 0.0) == 1.0
 
 
 # --------------------------------------------- caching / 429 / backoff (#597)

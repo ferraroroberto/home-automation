@@ -28,7 +28,12 @@ def _isolate_pv_config(monkeypatch, tmp_path):
 
 def test_get_unconfigured_is_200_not_500(client: TestClient) -> None:
     body = client.get("/api/energy/pv-system").json()
-    assert body == {"configured": False, "arrays": [], "performance_ratio": 0.8}
+    assert body == {
+        "configured": False,
+        "arrays": [],
+        "performance_ratio": 0.8,
+        "horizon_profile": [],
+    }
 
 
 def test_put_then_get_round_trips(client: TestClient) -> None:
@@ -180,3 +185,103 @@ def test_an_ordinary_edit_leaves_the_hand_set_switch_armed(
     raw = json.loads(_isolate_pv_config.read_text(encoding="utf-8"))
     assert raw["thermal_model_enabled"] is True
     assert raw["performance_ratio"] == 0.88
+
+
+# ------------------------------------- horizon/shading profile (issue #578b)
+# Three independent editors now share this one PUT (panel rows, performance
+# ratio, horizon points); the load-bearing property is that each can save
+# without wiping the fields it didn't touch — including ``arrays`` itself,
+# which used to be implicitly required on every PUT.
+
+
+def test_put_then_get_round_trips_the_horizon_profile(client: TestClient) -> None:
+    resp = client.put(
+        "/api/energy/pv-system",
+        json={
+            "arrays": [{"kwp": 5.0}],
+            "horizon_profile": [
+                {"azimuth_deg": 165, "elevation_deg": 5},
+                {"azimuth_deg": 285, "elevation_deg": 20},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    out = resp.json()
+    assert out["horizon_profile"] == [
+        {"azimuth_deg": 165.0, "elevation_deg": 5.0},
+        {"azimuth_deg": 285.0, "elevation_deg": 20.0},
+    ]
+
+    reread = client.get("/api/energy/pv-system").json()
+    assert reread["horizon_profile"] == out["horizon_profile"]
+
+
+def test_a_horizon_only_put_omits_arrays_and_keeps_the_stored_ones(
+    client: TestClient,
+) -> None:
+    """The horizon-points editor is a separate dense-collection editor from the
+    panel rows and PUTs only its own bodyKey — ``arrays`` must not be implicitly
+    wiped to empty the way an always-required field would."""
+    client.put("/api/energy/pv-system", json={"arrays": [{"kwp": 7.5}]})
+    out = client.put(
+        "/api/energy/pv-system",
+        json={"horizon_profile": [{"azimuth_deg": 90, "elevation_deg": 10}]},
+    ).json()
+    assert out["arrays"] == [{"kwp": 7.5, "tilt_deg": 30.0, "azimuth_deg": 0.0}]
+    assert out["horizon_profile"] == [{"azimuth_deg": 90.0, "elevation_deg": 10.0}]
+
+
+def test_an_arrays_only_put_keeps_the_stored_horizon_profile(
+    client: TestClient,
+) -> None:
+    client.put(
+        "/api/energy/pv-system",
+        json={
+            "arrays": [{"kwp": 5.0}],
+            "horizon_profile": [{"azimuth_deg": 200, "elevation_deg": 8}],
+        },
+    )
+    out = client.put(
+        "/api/energy/pv-system", json={"arrays": [{"kwp": 5.0}, {"kwp": 1.0}]}
+    ).json()
+    assert out["horizon_profile"] == [{"azimuth_deg": 200.0, "elevation_deg": 8.0}]
+
+
+@pytest.mark.parametrize(
+    "payload, fragment",
+    [
+        ({"arrays": [{"kwp": 1}], "horizon_profile": [{"azimuth_deg": 400}]}, "azimuth_deg"),
+        (
+            {"arrays": [{"kwp": 1}], "horizon_profile": [{"azimuth_deg": 90, "elevation_deg": 91}]},
+            "elevation_deg",
+        ),
+    ],
+)
+def test_put_rejects_invalid_horizon_points_with_a_400(
+    client: TestClient, payload: dict, fragment: str
+) -> None:
+    resp = client.put("/api/energy/pv-system", json=payload)
+    assert resp.status_code == 400
+    assert fragment in resp.json()["detail"]
+
+
+def test_the_horizon_switch_has_no_editor_control_and_stays_off(
+    client: TestClient, _isolate_pv_config
+) -> None:
+    _isolate_pv_config.write_text(
+        json.dumps(
+            {
+                "arrays": [{"kwp": 8.0}],
+                "horizon_profile": [{"azimuth_deg": 90, "elevation_deg": 10}],
+                "horizon_profile_enabled": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    client.put(
+        "/api/energy/pv-system",
+        json={"horizon_profile": [{"azimuth_deg": 90, "elevation_deg": 15}]},
+    )
+    raw = json.loads(_isolate_pv_config.read_text(encoding="utf-8"))
+    assert raw["horizon_profile_enabled"] is True
+    assert raw["horizon_profile"] == [{"azimuth_deg": 90.0, "elevation_deg": 15.0}]

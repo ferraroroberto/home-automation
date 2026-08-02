@@ -17,7 +17,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from src.energy_history import (
     MIN_TRUSTED_COVERAGE,
@@ -31,6 +31,7 @@ from src.location_config import load_location_config
 from src.pv_forecast import MAX_PAST_DAYS, fetch_pv_forecast, fetch_pv_forecast_for_date
 from src.pv_system_config import (
     PvArray,
+    PvHorizonPoint,
     PvSystemConfig,
     load_pv_system_config,
     save_pv_system_config,
@@ -535,13 +536,26 @@ class PvArrayPayload(BaseModel):
     azimuth_deg: float = 0.0
 
 
-class PvSystemPayload(BaseModel):
-    """A whole-system replace. ``performance_ratio`` is optional so the shared
-    dense-collection editor — which PUTs only its entry list — doesn't have to
-    restate a field it isn't editing; omitted, the stored value is kept."""
+class PvHorizonPointPayload(BaseModel):
+    """One horizon/shading point (issue #578 part b) as the editor sends it.
 
-    arrays: List[PvArrayPayload] = Field(default_factory=list)
+    ``azimuth_deg`` is compass, clockwise from true north — see
+    :mod:`src.pv_system_config`'s module docstring; deliberately not the same
+    convention as ``PvArrayPayload.azimuth_deg``.
+    """
+
+    azimuth_deg: float
+    elevation_deg: float = 0.0
+
+
+class PvSystemPayload(BaseModel):
+    """A whole-system replace. Every field is optional and omitted-keeps-stored
+    so each of the three independent editors (panel rows, performance ratio,
+    horizon points) can PUT only what it actually edited."""
+
+    arrays: Optional[List[PvArrayPayload]] = None
     performance_ratio: Optional[float] = None
+    horizon_profile: Optional[List[PvHorizonPointPayload]] = None
 
 
 def _pv_system_payload(config: Optional[PvSystemConfig]) -> Dict[str, Any]:
@@ -551,6 +565,7 @@ def _pv_system_payload(config: Optional[PvSystemConfig]) -> Dict[str, Any]:
             "configured": False,
             "arrays": [],
             "performance_ratio": PvSystemConfig().performance_ratio,
+            "horizon_profile": [],
         }
     return {
         "configured": True,
@@ -560,6 +575,10 @@ def _pv_system_payload(config: Optional[PvSystemConfig]) -> Dict[str, Any]:
         ],
         "performance_ratio": config.performance_ratio,
         "total_kwp": round(config.total_kwp, 3),
+        "horizon_profile": [
+            {"azimuth_deg": p.azimuth_deg, "elevation_deg": p.elevation_deg}
+            for p in config.horizon_profile
+        ],
     }
 
 
@@ -586,19 +605,41 @@ async def update_pv_system(payload: PvSystemPayload) -> Dict[str, Any]:
     carried into the validated config. Lowering the ratio back to a combined
     ~0.80 while the term is armed is therefore a 400 explaining the conflict,
     not a saved file that double-counts the thermal loss.
+
+    Three independent editors share this one endpoint (panel rows, performance
+    ratio, and the horizon/shading points, issue #578 part b) — each PUTs only
+    the field it actually edited; every field omitted-keeps-stored, not just
+    ``performance_ratio``, so one editor's save can never wipe another's data.
+    The horizon-profile *switch* has no editor control either, same as the
+    thermal one — only the points are editable.
     """
     stored = load_pv_system_config()
     ratio = payload.performance_ratio
     if ratio is None:
         ratio = stored.performance_ratio if stored else PvSystemConfig().performance_ratio
 
-    config = PvSystemConfig(
-        arrays=[
+    if payload.arrays is not None:
+        arrays = [
             PvArray(kwp=a.kwp, tilt_deg=a.tilt_deg, azimuth_deg=a.azimuth_deg)
             for a in payload.arrays
-        ],
+        ]
+    else:
+        arrays = list(stored.arrays) if stored else []
+
+    if payload.horizon_profile is not None:
+        horizon_profile = [
+            PvHorizonPoint(azimuth_deg=p.azimuth_deg, elevation_deg=p.elevation_deg)
+            for p in payload.horizon_profile
+        ]
+    else:
+        horizon_profile = list(stored.horizon_profile) if stored else []
+
+    config = PvSystemConfig(
+        arrays=arrays,
         performance_ratio=ratio,
         thermal_model_enabled=bool(stored and stored.thermal_model_enabled),
+        horizon_profile_enabled=bool(stored and stored.horizon_profile_enabled),
+        horizon_profile=horizon_profile,
     )
     try:
         save_pv_system_config(config)

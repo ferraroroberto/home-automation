@@ -126,6 +126,10 @@ export const state = {
   // the file itself stores a plain list.
   pvArrays: [],
   pvPerformanceRatio: 0.8,
+  // Horizon/shading profile points (issue #578 part b) — same GET/PUT
+  // endpoint, own dense-editor bodyKey. Not yet applied to the forecast; the
+  // switch that arms it has no editor control.
+  pvHorizonProfile: [],
   // Fleet solar-boost sequencing knobs, from GET/PUT
   // /api/hvac/boost-coordinator (issue #562). Seconds/watts on the wire exactly
   // as stored; only the settle interval is *rendered* in minutes.
@@ -668,6 +672,19 @@ export const els = {
   pvArrayAzimuthEcho: document.getElementById('pvArrayAzimuthEcho'),
   pvArrayDelete: document.getElementById('pvArrayDelete'),
   pvArraySave: document.getElementById('pvArraySave'),
+  // Energy tab: horizon/shading profile editor (issue #578 part b)
+  pvHorizonList: document.getElementById('pvHorizonList'),
+  pvHorizonAdd: document.getElementById('pvHorizonAdd'),
+  pvHorizonDialog: document.getElementById('pvHorizonDialog'),
+  pvHorizonEditorTitle: document.getElementById('pvHorizonEditorTitle'),
+  pvHorizonEditorClose: document.getElementById('pvHorizonEditorClose'),
+  pvHorizonAzimuth: document.getElementById('pvHorizonAzimuth'),
+  pvHorizonAzimuthError: document.getElementById('pvHorizonAzimuthError'),
+  pvHorizonAzimuthEcho: document.getElementById('pvHorizonAzimuthEcho'),
+  pvHorizonElevation: document.getElementById('pvHorizonElevation'),
+  pvHorizonElevationError: document.getElementById('pvHorizonElevationError'),
+  pvHorizonDelete: document.getElementById('pvHorizonDelete'),
+  pvHorizonSave: document.getElementById('pvHorizonSave'),
   // Energy tab: fleet solar-boost sequencing knobs (issue #562)
   boostCoordSummary: document.getElementById('boostCoordSummary'),
   boostSettleMin: document.getElementById('boostSettleMin'),

@@ -21,7 +21,7 @@ expected_Wh = expected_W · 1h            # GTI is an hourly mean
 
 `kwp` is that sub-array's peak power, defined at the **1000 W/m² STC reference**, so `GTI / 1000` is the fraction of peak the current irradiance represents. `performance_ratio` (the derate) is shared across all sub-arrays — it folds together every loss the irradiance model does not (inverter efficiency, wiring and thermal losses, soiling, mismatch) into one factor (typically ~0.75–0.85), and isn't orientation-dependent. The day total is the sum of every sub-array's hourly Wh, shown as kWh.
 
-This is a **rough, clearly-labelled estimate**, not a guarantee: by default it ignores panel temperature (see "Panel temperature" below for the optional, off-by-default term that models it), and it always ignores horizon shading, inverter clipping, and snow/soiling events. Treat it as "what a clear-sky-ish day of this weather should roughly yield."
+This is a **rough, clearly-labelled estimate**, not a guarantee: by default it ignores panel temperature and horizon shading (see "Panel temperature" and "Horizon / shading profile" below for the optional, off-by-default terms that model each), and it always ignores inverter clipping and snow/soiling events. Treat it as "what a clear-sky-ish day of this weather should roughly yield."
 
 ## Config — `config/pv_system.json`
 
@@ -45,6 +45,8 @@ Per-machine, **gitignored** (the repo is public). Copy `config/pv_system.sample.
 | `arrays[].azimuth_deg` | panel compass orientation | Open-Meteo convention — **0 = South, −90 = East, 90 = West, 180 = North**; default 0 (due south) |
 | `performance_ratio` | shared derate factor | 0–1, clamped; default 0.8; one value for the whole system, not per sub-array. **Its meaning depends on `thermal_model_enabled`** — see "Panel temperature" |
 | `thermal_model_enabled` | arm the panel-temperature term | optional boolean, default `false`; only a literal `true` arms it. See "Panel temperature" — turning it on requires migrating `performance_ratio` in the same edit |
+| `horizon_profile` | obstruction elevation by azimuth | optional list of `{azimuth_deg, elevation_deg}`, default `[]`; editable from the PV system card regardless of the switch. See "Horizon / shading profile" |
+| `horizon_profile_enabled` | arm the horizon/shading term | optional boolean, default `false`; only a literal `true` arms it. See "Horizon / shading profile" |
 
 **Expressing an opposite-mounted panel:** don't use a negative tilt. A panel "tilted −15° facing north" and a panel "tilted +15° facing the 180°/north azimuth" are the physically same orientation under Open-Meteo's tilt≥0 convention — always encode it as `tilt_deg: 15, azimuth_deg: 180` (or whatever `180 − south_azimuth` works out to for a non-south main array).
 
@@ -116,6 +118,25 @@ expected_Wh = kwp · (GTI / 1000) · performance_ratio · factor
 Flipping the switch while leaving `performance_ratio` at 0.80 would subtract the thermal loss twice and under-forecast by roughly 10%. That combination is **refused, not computed**: `src/pv_system_config.py`'s `thermal_migration_error()` is the single place that names it, and both halves of the app route through it — the strict writer raises (so the Energy-tab editor gets a **400** explaining the conflict) and the forecast returns `{ "available": false, "reason": "thermal_ratio_unmigrated" }` rather than a plausible-looking wrong curve. The floor is `MIN_THERMAL_PERFORMANCE_RATIO` (0.85); migrate both values in the same edit.
 
 **With the switch off nothing changes at all** — not the numbers, not the payload's keys, not even the upstream request (`temperature_2m` is only asked for when the term is armed). That is the deliberate default: the committed config leaves it off, and only a literal JSON `true` arms it, so a stray `"yes"` in a hand-edited file cannot change what the card predicts by truthiness.
+
+### Horizon / shading profile (issue #578 part b) — optional, off by default
+
+The residual gap the thermal term above does *not* close is the afternoon one — a knee that repeats to the minute across clear days, the signature of a fixed obstruction (a ridge, a neighbouring roof, a tree line), not weather or panel temperature. `horizon_profile_enabled` arms a hand-entered obstruction-elevation-by-azimuth profile that attenuates the direct-beam share of an hour once the sun drops behind it. **Currently off pending an installer conversation about the real geometry** — the profile is buildable now (editable from the PV system card in the panel-row's staged-dialog style), but nothing it contains is applied until the switch is flipped by hand.
+
+**The profile.** A list of `{azimuth_deg, elevation_deg}` points — the same shape PVGIS/PVsyst use for a horizon line. `azimuth_deg` is **compass, clockwise from true north** (0=N, 90=E, 180=S, 270=W) — `src/sun_position.py`'s convention, deliberately *not* `arrays[].azimuth_deg`'s Open-Meteo south-relative one, because a horizon point is compared against a *computed sun position*, never a panel orientation. `elevation_deg` (0–90) is how high the obstruction stands above the horizontal at that azimuth. Two or more points interpolate linearly between their azimuth-sorted neighbours, wrapping at the 360°/0° boundary; a single point applies to every azimuth; an empty list is a no-op (see below).
+
+**The model.** For each hour, per sub-array, the sun's azimuth/elevation is computed from `src/sun_position.py` (reused from the #590 diagnostic — no second solar-position implementation) at the hour's Open-Meteo timestamp. If the sun's elevation is at or below the profile's interpolated obstruction elevation for that azimuth, the hour's GTI is scaled down to its **diffuse-only share**:
+
+```
+if sun_elevation_deg <= horizon_elevation_deg(profile, sun_azimuth_deg):
+    expected_Wh *= diffuse_radiation / (direct_radiation + diffuse_radiation)
+```
+
+Open-Meteo does not publish a direct/diffuse split of the *tilted* GTI figure itself, so this uses the **horizontal** `direct_radiation` / `diffuse_radiation` split (fetched in the same request as GTI, only when the term is armed) as a stand-in for "what a shaded panel still receives" — an obstruction blocks the sun's disc, not the sky. This is deliberately approximate, the same spirit as the thermal term's constants: a from-scratch beam/diffuse transposition onto the tilted plane would be a second, independently-error-prone model stacked on top of Open-Meteo's own.
+
+**Switch-on + empty/unconfigured profile is a no-op**, not a zeroed evening — an empty profile reports "no obstruction anywhere" (−90° everywhere), so the sun is always "above" it and the shading branch never fires. Building the editor and populating it is safe at any time; only a hand-set `horizon_profile_enabled: true` changes what the forecast predicts.
+
+**With the switch off nothing changes at all** — same contract as the thermal term: no `direct_radiation`/`diffuse_radiation` in the request, no change to the numbers. The committed config leaves it off, and only a literal JSON `true` arms it.
 
 ## Caching, rate limits and backoff (issue #597)
 

@@ -971,6 +971,15 @@
             <input id="pvLon" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
           </label>
           <p class="muted small pv-system-note">A rough estimate — the derate folds inverter, wiring, thermal and soiling losses into one factor (typically 0.75–0.85).</p>
+
+          <!-- Horizon / shading profile (issue #578 part b) — obstruction
+               elevation by compass azimuth, entered here so the geometry is
+               ready whenever it gets armed. Not applied to the forecast yet:
+               the switch has no control here, on purpose (see docs/pv-forecast.md). -->
+          <h4 class="net-group-head">Horizon / shading profile</h4>
+          <p class="muted small">Obstruction height by compass direction — not yet applied to the forecast.</p>
+          <div id="pvHorizonList" class="alarm-schedule-list"></div>
+          <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
         </div>
       </details>
 
@@ -1888,6 +1897,42 @@
 
       <div class="detail-actions">
         <button id="pvArraySave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- One point of the horizon/shading profile (issue #578 part b). Same
+       staged-editor contract as the panel row dialog above. Azimuth here is
+       compass, clockwise from true north — a different convention from the
+       panel row's Open-Meteo south-relative one, because this is compared
+       against a computed sun position, not a panel orientation. -->
+  <dialog id="pvHorizonDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="pvHorizonEditorTitle">Horizon point</h2>
+        <button id="pvHorizonEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Azimuth (°)</span>
+        <input id="pvHorizonAzimuth" type="number" min="0" max="359" step="1" inputmode="decimal" class="input-native" placeholder="0">
+      </label>
+      <p class="muted small pv-field-hint">
+        <span>0 = north · 90 = east · 180 = south · 270 = west</span>
+        <span id="pvHorizonAzimuthEcho" class="pv-azimuth-echo"></span>
+      </p>
+      <p id="pvHorizonAzimuthError" class="pv-field-error" role="alert" hidden></p>
+
+      <label class="row">
+        <span>Obstruction elevation (°)</span>
+        <input id="pvHorizonElevation" type="number" min="0" max="90" step="1" inputmode="decimal" class="input-native" placeholder="0">
+      </label>
+      <p id="pvHorizonElevationError" class="pv-field-error" role="alert" hidden></p>
+
+      <button id="pvHorizonDelete" type="button" class="schedule-editor-delete" hidden>Delete horizon point</button>
+
+      <div class="detail-actions">
+        <button id="pvHorizonSave" type="button" class="detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
