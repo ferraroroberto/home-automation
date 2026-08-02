@@ -61,7 +61,7 @@ from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import activity, auth, calendar_events, cameras, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
+from app.webapp.routers import activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
@@ -253,6 +253,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(units.router)
     app.include_router(energy.router)
+    app.include_router(circuits.router)
     app.include_router(weather.router)
     app.include_router(tuya.router)
     app.include_router(ups.router)

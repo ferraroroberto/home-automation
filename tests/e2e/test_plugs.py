@@ -46,7 +46,7 @@ def test_plugs_tab_renders_all_devices(
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
     # One row per device, split across the two list cards.
-    expect(page.locator(".device-row")).to_have_count(len(sample_plugs))
+    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(len(sample_plugs))
     expect(page.locator("#plugsList")).to_contain_text("Test Heater")
     expect(page.locator("#blindsList")).to_contain_text("Test Blind")
 
@@ -120,7 +120,7 @@ def test_plug_refresh_failure_preserves_last_good_rows(
         page, base_url, sample_units, sample_plugs,
         mock_api, mock_energy, mock_tuya,
     )
-    expect(page.locator(".device-row")).to_have_count(len(sample_plugs))
+    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(len(sample_plugs))
 
     page.route(
         "**/api/tuya",
@@ -134,7 +134,7 @@ def test_plug_refresh_failure_preserves_last_good_rows(
     page.locator("#tabIot").click()
 
     expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "stale")
-    expect(page.locator(".device-row")).to_have_count(len(sample_plugs))
+    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(len(sample_plugs))
     expect(page.locator("#plugsFeedback")).to_contain_text("Last updated")
     expect(page.locator("#plugsFeedback")).to_contain_text("live data unavailable")
     expect(page.locator("#plugsFeedback")).not_to_contain_text("192.0.2.60")
@@ -421,7 +421,7 @@ def test_default_view_shows_no_ip_adapters(
     note = no_ip.locator(".plug-unavailable")
     expect(note).to_have_text("No IP")
     expect(note).to_have_attribute("title", re.compile("tinytuya snapshot"))
-    expect(page.locator(".device-row")).to_have_count(5)
+    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(5)
     expect(page.locator("#plugsHiddenCount")).to_be_hidden()
 
 
@@ -443,13 +443,13 @@ def test_reachable_only_toggle_hides_no_ip_adapters(
 
     # Click "Reachable only" → no-IP hidden.
     toggle.click()
-    expect(page.locator(".device-row")).to_have_count(4)
+    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(4)
     expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(0)
     expect(page.locator("#plugsHiddenCount")).to_contain_text("1 no-IP hidden")
 
     # Click again ("Show all devices") → back to 5.
     toggle.click()
-    expect(page.locator(".device-row")).to_have_count(5)
+    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(5)
     expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(1)
 
 

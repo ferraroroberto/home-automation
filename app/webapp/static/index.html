@@ -1085,6 +1085,33 @@
         </div>
       </details>
 
+      <!-- Circuits (issue #25): per-breaker power from the Athom BL0906 CT-clamp
+           meters, sitting right after Plugs because it answers the same "what is
+           drawing power" question one level deeper — a plug measures an
+           appliance, a clamp measures a whole breaker.
+
+           Meters are discovered over mDNS with nothing to register, and EVERY
+           channel a meter has is listed whether or not a clamp is fitted, so a
+           clamp added later starts reading with no code change and no config
+           edit. Tapping a channel opens the rename + sign-flip dialog. -->
+      <details class="card card--collapsible device-list-card" id="circuitsCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-gauge"></use></svg>
+            <h3 class="collapse-title">Circuits</h3>
+            <span id="circuitsCount" class="muted small security-hidden-count" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="device-list-body">
+          <div class="lights-toolbar" aria-label="Circuit meter controls">
+            <button id="circuitsRefresh" type="button" class="range-tab" data-testid="circuits-refresh">Refresh</button>
+          </div>
+          <section id="circuitsList" class="device-list" aria-label="Circuits" aria-live="polite"></section>
+          <p id="circuitsNote" class="muted small lights-note" role="status" hidden></p>
+        </div>
+      </details>
+
       <!-- Elgato lights — a peer of the Plugs/Blinds row lists, sitting right
            after Plugs since both are on/off power devices. Its bulk actions
            live in the card body rather than a pane toolbar, so they stay
@@ -2097,6 +2124,44 @@
 
       <div class="detail-actions">
         <button id="plugSave" type="button" class="detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Circuit channel rename + sign-flip modal (issue #25). Mirrors the plug
+       rename dialog. The invert toggle exists because the BL0906 reports signed
+       power, so a CT clamp fitted with its arrow against the flow reads negative
+       on an ordinary load — correcting it here beats reopening a live consumer
+       unit to rotate the clamp. -->
+  <dialog id="circuitDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="circuitDetailName">Circuit</h2>
+        <button id="circuitDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="circuitDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <!-- Which meter and channel this row is, so an unlabelled clamp can still
+           be traced back to the physical device it is fitted on. -->
+      <p id="circuitOriginalName" class="muted small zone-original-name"></p>
+
+      <!-- Hidden when the dialog is renaming a whole meter rather than one of
+           its channels: a meter has no clamp direction to correct. -->
+      <div id="circuitInvertSection">
+        <div class="row">
+          <span>Clamp fitted backwards</span>
+          <button id="circuitInvertToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Invert this channel's reading">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <p class="muted small zone-original-name">Turn this on when an ordinary load reads as a negative number.</p>
+      </div>
+
+      <div class="detail-actions">
+        <button id="circuitSave" type="button" class="detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>

@@ -506,6 +506,32 @@ Smoke-test the credentials with the CLI:
 
 `GET /api/energy` serves the same snapshot to the PWA.
 
+## Per-circuit monitoring (CT clamps)
+
+The solar/energy read above answers *how much* the house is importing or exporting. This answers *where the consumption is going* — the measurement the eventual solar load-balancing automation needs before it can shift **one specific load** (the heat pump) to match PV surplus. Issue #25.
+
+**Hardware: Athom "Energy Monitor (6 Channels)"** — an ESP32-C3 running stock **ESPHome** firmware over a BL0906 metering front-end, with up to six passive clamp-on CTs. Non-invasive (nothing is fitted inside an appliance), local-only, and open: no cloud account, no vendor API, replaceable firmware. Because the inverter already reports the whole-home total, clamps are only needed on the circuits that matter — the unmeasured remainder is `total − Σ(measured)`.
+
+**Nothing to configure.** Meters are found over **mDNS** (`_esphomelib._tcp.local.`) and filtered to Athom energy monitors by their own advertised `package_import_url` / `project_name`, which is what keeps the household's other ESPHome devices (the Home Assistant Voice PE satellites answer the same service type) out of the list. Power a new meter, join it to Wi-Fi, and it appears on its own within the discovery TTL — no code change and no config edit. `ATHOM_METER_HOSTS` in `.env` is the static escape hatch for a network where mDNS is blocked, exactly as `ELGATO_LIGHT_HOSTS` is for the lights.
+
+**All channels, always.** A channel with no clamp fitted is never hidden: the meter reports six, so six are listed on every read, and a clamp added later starts showing a live figure immediately. The count comes from the device itself (its advertised `(6 Channels)` / `-x6.yaml`, else the highest `power_N` sensor it actually published), so a 3-channel model reports three with no special-casing. `null` is never collapsed into `0` — 0 W is a real, common answer here (an idle circuit, or a channel with no clamp) and stays distinguishable from a failed read.
+
+**Sign convention.** The BL0906 reports **signed** per-channel power, so a CT clamp fitted with its arrow against the direction of flow reads negative for an ordinary load. That is an installation detail, not data, so it is corrected in software rather than by reopening a live consumer unit: each channel carries an **invert** flag, toggled from the card's own dialog. Both the raw and the corrected value are on the wire (`power_raw_w` / `power_w`) so the correction stays visible and reversible. A channel still reading negative after correction is flagged in the UI.
+
+**Reading costs one round trip.** ESPHome exposes both `GET /sensor/<id>` per sensor and an `/events` SSE stream that dumps every entity's state on connect. A six-channel meter is 21+ sensors, so the per-sensor path would be 21 requests per poll against an ESP32 on 2.4 GHz Wi-Fi; the client instead takes one SSE snapshot and drops the stream as soon as it is complete.
+
+**A missed mDNS sweep never deletes a meter.** Measured on this network, one cold 3-second browse missed the live meter **1 time in 20** (2.4 GHz multicast drops packets) — and mDNS reports that as an empty result, not as an error. A sweep that finds nothing while meters were known is therefore treated as *unproven*: the previous list is kept and re-checked in 30 s instead of the full TTL, so circuits cannot blink out of the card at random. A meter that is genuinely gone then shows up as `reachable=false` on its own row, which is the honest answer.
+
+- **Card:** **IoT → Circuits**, immediately after Plugs — a plug measures an appliance, a clamp measures a whole breaker. Each meter is a caption row (live total · volts · Wi-Fi dBm) followed by its channels as **name · current + kWh · watts** rows.
+- **Rename a clamp:** tap a channel's name. The label saves via `PUT /api/circuits/{key}/display_name` to gitignored `config/circuit_prefs.json` (`…sample.json` committed), keyed `"<meter_id>:<channel>"` where the meter id is its **MAC** — so a DHCP move cannot orphan a label. The same dialog carries the **Clamp fitted backwards** toggle; both commit only on **Save**.
+- **Rename a meter:** tap the meter's caption name. Same store and endpoint, keyed by the bare meter id — so `Athom Energy Monitor ddee01` can become `cuadro principal` once there is more than one.
+- **Refresh:** re-runs discovery immediately rather than waiting out the TTL (for a meter joined a minute ago).
+- **Endpoints:** `GET /api/circuits` (every meter with all channels, the `display_name` overrides, and `discovery_ok` as its own flag — "mDNS could not run" and "mDNS ran and found nothing" are different facts), `POST /api/circuits/refresh`, `PUT /api/circuits/{key}/display_name`, `PUT /api/circuits/{key}/invert` (`{"invert": true|false}`).
+- **Cadence:** every ~15 s **only while the IoT tab is open**, like Plugs. One meter read is shared by all callers for `ATHOM_CACHE_TTL_S` (default 5 s) so the PWA and the Home Assistant integration don't each open their own connection.
+- **Offline meter:** renders `reachable=false` with its channels still listed and `null` readings, so circuits never vanish mid-watch; other meters stay live.
+
+**First-time setup (once per meter).** A factory/reset Athom broadcasts an **open** Wi-Fi AP named `athom-em-6-<mac-suffix>`; join it, open `http://192.168.4.1/`, and submit the household SSID + password. It reboots onto the LAN and is discoverable from then on. Two things worth checking before committing it: the portal's `GET /config.json` lists **the networks the meter itself can see, with RSSI**, which is the only honest way to pick its SSID (the nearest-looking AP is often not the strongest from inside a consumer unit), and the meter is **2.4 GHz only**. Give it a name in the **Network** tab afterwards so it is identifiable there too.
+
 ## Energy monitoring & history
 
 The PWA splits into six tabs: **Home** (a consolidated dashboard — weather strip,
@@ -796,7 +822,7 @@ The wizard writes `devices.json` in the project root. That file contains device 
 
 ### 🔌 IoT tab
 
-The PWA's **IoT** tab is the single surface for every local device, split into **three collapsible cards — Plugs, Lights, and Blinds — all collapsed by default** (issues #191, #136). Each renders its devices as a compact divider-separated **row list** in the same low-chrome style as the Network tab's "Attached devices" list, not chunky sub-cards. A **plug row** is a single **name · wattage · on/off** line (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app); a **light row** is **name + power** with brightness/warmth sliders beneath (see *Elgato lights* below); a **blind row** is **name + up / stop / down icon buttons** wired to the cover open/stop/close path. A **summary block** above the cards totals Tuya devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json`, `/api/lights`, and local LAN status only.
+The PWA's **IoT** tab is the single surface for every local device, split into **four collapsible cards — Plugs, Circuits, Lights, and Blinds — all collapsed by default** (issues #191, #136, #25). Each renders its devices as a compact divider-separated **row list** in the same low-chrome style as the Network tab's "Attached devices" list, not chunky sub-cards. A **plug row** is a single **name · wattage · on/off** line (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app); a **light row** is **name + power** with brightness/warmth sliders beneath (see *Elgato lights* below); a **blind row** is **name + up / stop / down icon buttons** wired to the cover open/stop/close path. A **summary block** above the cards totals Tuya devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json`, `/api/lights`, and local LAN status only.
 
 Lights lived on their own top-level tab until #136: they are local device controls like the plugs and blinds, and seven peer tabs was more navigation weight than a phone PWA should carry. Folding them in took the bar to six.
 
@@ -1373,6 +1399,16 @@ Print every device's live state:
 
 ```bash
 ./.venv/bin/python -m src.list_devices                            # POSIX
+```
+
+Print live per-circuit power from every discovered CT-clamp meter:
+
+```powershell
+& .\.venv\Scripts\python.exe -m src.list_circuits                 # Windows
+```
+
+```bash
+./.venv/bin/python -m src.list_circuits                           # POSIX
 ```
 
 Print visible iCloud Find My presence entities:

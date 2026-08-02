@@ -35,6 +35,7 @@ import {
   restoreEnergySnapshots,
 } from './energy.js';
 import { onPlugsTab, wirePlugsRefresh, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
+import { onCircuitsTab, wireCircuitsRefresh, wireCircuitDetail } from './circuits.js';
 import { onUpsTab, restoreUpsSnapshot } from './ups.js';
 import { wirePowerNotify } from './ups-notify.js';
 import { wirePcFleet, onPcFleetTab } from './pc-fleet.js';
@@ -175,6 +176,8 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wirePlugsToggle();
   wirePlugsRefresh();
   wirePlugDetail();
+  wireCircuitsRefresh();
+  wireCircuitDetail();
   wirePowerNotify();
   wirePcFleet();
   wireLightControls();
@@ -209,7 +212,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // Energy, Plugs, Lights, Network, and Security each adjust their own
   // polling cadence on tab change.
   wireTabs(function (tab) {
-    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
+    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onCircuitsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
   });
 
   // AC units only matter on Home (summary tile) and AC (cards), so poll them
