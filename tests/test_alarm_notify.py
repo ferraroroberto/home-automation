@@ -24,7 +24,7 @@ from src.alarm_notify_prefs import (
     save_alarm_notify_prefs,
 )
 from src.notify import NotifierError
-from src.risco_client import RiscoCommandError
+from src.risco_client import RiscoCommandError, RiscoConfigError
 
 
 class FakeNotifier:
@@ -694,6 +694,39 @@ def test_confirm_alarm_action_raises_after_exhausting_all_retries(monkeypatch) -
     # (the last recheck, at the final backoff, gives up instead of resending).
     assert control_calls == ["arm", "arm", "arm"]
     assert len(fetch_calls) == 3  # one read-only recheck per backoff delay
+
+
+def test_confirm_alarm_action_does_not_retry_a_config_error(monkeypatch) -> None:
+    """Issue #610: missing/invalid RISCO credentials is not a transient panel
+    glitch - retrying it for ~210s can never change the outcome. It must
+    propagate as RiscoConfigError immediately, with no resend and no
+    read-only recheck, instead of being absorbed into the generic backoff
+    loop and relabelled as a RiscoCommandError once retries are exhausted."""
+
+    control_calls: list[str] = []
+
+    async def fake_control(action: str) -> _FakeState:
+        control_calls.append(action)
+        raise RiscoConfigError("Missing credentials. Copy .env.example to .env and set ...")
+
+    async def fail_fetch() -> _FakeState:
+        raise AssertionError("fetch_security_state must not be called - no retry for a config error")
+
+    monkeypatch.setattr(AN, "control_system", fake_control)
+    monkeypatch.setattr(AN, "fetch_security_state", fail_fetch)
+    monkeypatch.setattr(AN, "CONFIRM_RETRY_DELAYS_S", (0, 0, 0))
+
+    try:
+        asyncio.run(AN.confirm_alarm_action("disarm"))
+        raised = False
+    except RiscoConfigError as exc:
+        raised = True
+        assert "Missing credentials" in str(exc)
+    except RiscoCommandError:
+        raised = False  # wrong type - the bug this test guards against
+
+    assert raised is True
+    assert control_calls == ["disarm"]  # exactly one attempt, no resend
 
 
 # --- blocked vs failed wording (issue #599) ---

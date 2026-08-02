@@ -23,7 +23,7 @@ from app.webapp.alarm_notify import (
     record_alarm_action,
 )
 from src.presence_engine import note_manual_alarm_action
-from src.risco_client import RiscoCommandError
+from src.risco_client import RiscoCommandError, RiscoConfigError
 from src.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
 
 logger = logging.getLogger(__name__)
@@ -97,10 +97,11 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
             # any genuinely later arrival has a newer transition timestamp.
             note_manual_alarm_action(entry.action)
             await confirm_alarm_action(entry.action)
-    except RiscoCommandError as exc:
+    except (RiscoCommandError, RiscoConfigError) as exc:
         # Every attempt (initial + all read-only retries) failed to confirm the
-        # expected state: log + alert once per day, and re-raise so tick() leaves
-        # last_fire_day unset and retries again on its own next poll.
+        # expected state, or credentials/config are missing entirely: log +
+        # alert once per day, and re-raise so tick() leaves last_fire_day unset
+        # and retries again on its own next poll.
         await record_alarm_action(
             source=SOURCE_SCHEDULE,
             action=entry.action,
