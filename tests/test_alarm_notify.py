@@ -189,24 +189,26 @@ def test_error_uses_error_toggle_and_carries_text(tmp_path: Path, monkeypatch) -
 
 def test_no_notifier_is_safe_noop(tmp_path: Path, monkeypatch) -> None:
     _redirect_logs(monkeypatch, tmp_path)
-    asyncio.run(AN.record_alarm_action(
+    sent = asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_SCHEDULE, action="disarm", outcome=AN.OUTCOME_OK,
         prefs_loader=lambda: AlarmNotifyPrefs(schedule_disarm=True),
         notifier_factory=lambda: None,
     ))
     assert _read_log(tmp_path)[0]["event"] == "unset"  # logged, no crash
+    assert sent is False  # #601 - callers must not mark their own state as notified
 
 
 def test_delivery_failure_is_swallowed(tmp_path: Path, monkeypatch) -> None:
     _redirect_logs(monkeypatch, tmp_path)
     # Must not raise even though the notifier blows up.
-    asyncio.run(AN.record_alarm_action(
+    sent = asyncio.run(AN.record_alarm_action(
         source=AN.SOURCE_SCHEDULE, action="arm", outcome=AN.OUTCOME_ERROR,
         error="boom",
         prefs_loader=lambda: AlarmNotifyPrefs(error=True),
         notifier_factory=lambda: BoomNotifier(),
     ))
     assert _read_log(tmp_path)[0]["outcome"] == "error"
+    assert sent is False  # #601 - callers must not mark their own state as notified
 
 
 def test_error_dedupes_once_per_day_but_logs_every_attempt(tmp_path: Path, monkeypatch) -> None:
@@ -308,6 +310,53 @@ def test_successful_send_logs_info_breadcrumb(tmp_path: Path, monkeypatch, caplo
             notifier_factory=lambda: FakeNotifier(),
         ))
     assert any("Telegram alarm notification sent" in r.message for r in caplog.records)
+
+
+def test_return_value_reports_whether_a_send_was_actually_delivered(tmp_path: Path, monkeypatch) -> None:
+    """#601: the return value is the only thing a caller may use to decide
+    whether it's safe to mark its own "already notified" state - it must be
+    ``True`` only on a confirmed delivery, ``False`` for every other path
+    (manual, toggle off, same-day dedupe hit, no notifier, delivery failure)."""
+
+    _redirect_logs(monkeypatch, tmp_path)
+
+    manual = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_MANUAL, action="arm", outcome=AN.OUTCOME_OK,
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: FakeNotifier(),
+    ))
+    assert manual is False
+
+    toggle_off = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_OK,
+        prefs_loader=lambda: AlarmNotifyPrefs(presence_arm=False),
+        notifier_factory=lambda: FakeNotifier(),
+    ))
+    assert toggle_off is False
+
+    delivered = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_OK,
+        prefs_loader=lambda: AlarmNotifyPrefs(presence_arm=True),
+        notifier_factory=lambda: FakeNotifier(),
+    ))
+    assert delivered is True
+
+    dedupe_hit = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_BLOCKED,
+        error="ana still reported home", dedupe_key="presence:blocked:x",
+        now=datetime(2026, 8, 2, 9, 0, 0),
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: FakeNotifier(),
+    ))
+    assert dedupe_hit is True
+    dedupe_repeat = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_BLOCKED,
+        error="ana still reported home", dedupe_key="presence:blocked:x",
+        now=datetime(2026, 8, 2, 9, 5, 0),
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: FakeNotifier(),
+    ))
+    assert dedupe_repeat is False
 
 
 # ------------------------------------------- panel events (intrusion / ac_lost)

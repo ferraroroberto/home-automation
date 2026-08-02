@@ -311,13 +311,16 @@ def test_set_arm_block_persists_and_reports_new_episode(monkeypatch, tmp_path):
     since = datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc)
     block = P.PresenceBlock(key="block:ana:" + since.isoformat(), blocking_person_ids=("ana",), since=since)
 
-    # dwell_s defaults to 0, i.e. notify on first observation (pre-#599 shape).
+    # dwell_s defaults to 0, i.e. notify is due on first observation (pre-#599 shape).
     assert P.set_arm_block(block) == P.ArmBlockObservation(changed=True, notify=True)
     assert P.load_arm_block() == {
         "blocked": True,
         "person_ids": ["ana"],
         "since": since.isoformat(),
     }
+    # A confirmed send is what latches "already notified" (#601) - set_arm_block
+    # itself never marks it just because a send was due.
+    P.mark_arm_block_notified(block.key)
     # Same episode again - not a new observation, and already notified.
     assert P.set_arm_block(block) == P.ArmBlockObservation(changed=False, notify=False)
     # Clearing is itself a new observation, but never a notification.
@@ -558,11 +561,98 @@ def test_block_notifies_once_after_dwell(monkeypatch, tmp_path):
     assert P.set_arm_block(
         block, dwell_s=900, at=_ANA_IN + timedelta(seconds=900)
     ).notify is True
+    # A confirmed send (#601) is what latches "already notified" - without it
+    # the episode would keep reporting `notify=True` forever.
+    P.mark_arm_block_notified(block.key)
     # And not again on later ticks of the same episode.
     for extra in (901, 1200, 7200):
         assert P.set_arm_block(
             block, dwell_s=900, at=_ANA_IN + timedelta(seconds=extra)
         ).notify is False
+
+
+# --- a send that's due but not (yet) confirmed sent (issue #601) ---
+#
+# #527 fixed the per-day error de-dupe to only latch once a Telegram send was
+# *confirmed* delivered. The arm-block path had the same eager-latch bug:
+# `set_arm_block` used to mark `arm_blocked_notified` the moment a send became
+# due, regardless of whether the caller's send actually went through - a
+# failed/unconfigured notifier silently burned the episode's one-and-only
+# alert with `block.key` staying stable for as long as the presence itself
+# stayed stuck.
+
+
+def test_notify_due_is_not_marked_notified_until_confirmed(monkeypatch, tmp_path):
+    """A send that never happens (declined, failed, no notifier) must not burn
+    the episode's alert - `set_arm_block` alone must never latch `notified`."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = _ana_block()
+    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+
+    at = _ANA_IN + timedelta(seconds=900)
+    assert P.set_arm_block(block, dwell_s=900, at=at).notify is True
+    # Nothing marked it delivered - still due on a later tick, once the retry
+    # cooldown (untouched here) has elapsed.
+    assert P.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S)
+    ).notify is True
+
+
+def test_failed_attempt_backs_off_instead_of_retrying_every_tick(monkeypatch, tmp_path):
+    """A declined/failed send must retry on a *later* tick, not every ~10s
+    poll tick - `mark_arm_block_attempted` is what backs this off."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = _ana_block()
+    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+
+    at = _ANA_IN + timedelta(seconds=900)
+    assert P.set_arm_block(block, dwell_s=900, at=at).notify is True
+    P.mark_arm_block_attempted(block.key, at=at)  # attempted, but not confirmed sent
+
+    # A tick shortly after (the ~10s presence poll cadence) must not retry yet.
+    assert P.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=10)
+    ).notify is False
+    assert P.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S - 1)
+    ).notify is False
+    # Once the cooldown window elapses, a retry is due again.
+    assert P.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S)
+    ).notify is True
+
+
+def test_mark_arm_block_notified_ignores_a_stale_key(monkeypatch, tmp_path):
+    """A confirmed send for an episode that has since moved on must not mark
+    the wrong (current) episode as notified."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = _ana_block()
+    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+    at = _ANA_IN + timedelta(seconds=900)
+    P.set_arm_block(block, dwell_s=900, at=at)
+
+    P.mark_arm_block_notified("some-other-episode-key")
+
+    assert P.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S)
+    ).notify is True
+
+
+def test_mark_arm_block_attempted_ignores_a_stale_key(monkeypatch, tmp_path):
+    """An attempt timestamp for a superseded episode must not throttle the
+    current one."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = _ana_block()
+    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+    at = _ANA_IN + timedelta(seconds=900)
+    P.set_arm_block(block, dwell_s=900, at=at)
+
+    P.mark_arm_block_attempted("some-other-episode-key", at=at)
+
+    # The (misdirected) attempt must not have started this episode's cooldown.
+    assert P.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=1)
+    ).notify is True
 
 
 def test_dwell_is_anchored_to_first_seen_not_to_since(monkeypatch, tmp_path):

@@ -222,7 +222,7 @@ def test_sync_arm_block_diagnostic_logs_once_per_episode(monkeypatch, caplog) ->
     assert "ana" in block_logs[0]
 
 
-def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypatch) -> None:
+def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypatch, tmp_path) -> None:
     """Regression for #533: a UI note alone wasn't enough - the user wants a
     proactive Telegram ping through the SAME alert path already used for a
     presence-triggered arm that failed to confirm (``record_alarm_action``
@@ -232,6 +232,8 @@ def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypa
 
     from src.presence_engine import PresenceBlock
 
+    monkeypatch.setattr("src.presence_engine.STATE_PATH", tmp_path / "presence_state.json")
+
     block = PresenceBlock(
         key="block:ana:2026-07-25T20:21:21+00:00",
         blocking_person_ids=("ana",),
@@ -239,8 +241,9 @@ def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypa
     )
     recorded: list[dict] = []
 
-    async def fake_record_alarm_action(**kw) -> None:
+    async def fake_record_alarm_action(**kw) -> bool:
         recorded.append(kw)
+        return True  # a confirmed send - the second call must see it as notified
 
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
     monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
@@ -263,6 +266,51 @@ def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypa
     assert call["outcome"] == PA.OUTCOME_BLOCKED
     assert "ana" in call["error"]
     assert call["dedupe_key"] == f"presence:blocked:{block.key}"
+
+
+def test_sync_arm_block_diagnostic_wires_attempt_and_notified_markers(monkeypatch) -> None:
+    """#601: the call site itself must stamp every attempt regardless of
+    outcome, and only mark the episode notified once the send is confirmed -
+    this exercises the wiring in ``_sync_arm_block_diagnostic``, not just the
+    ``presence_engine`` state machine underneath it."""
+
+    from src.presence_engine import PresenceBlock
+
+    block = PresenceBlock(
+        key="block:ana:2026-07-25T20:21:21+00:00",
+        blocking_person_ids=("ana",),
+        since=datetime(2026, 7, 25, 20, 21, 21, tzinfo=timezone.utc),
+    )
+    attempted: list[str] = []
+    notified: list[str] = []
+
+    monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
+    monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: block)
+    monkeypatch.setattr(
+        PA, "set_arm_block",
+        lambda b, **kw: ArmBlockObservation(changed=True, notify=True),
+    )
+    monkeypatch.setattr(PA, "mark_arm_block_attempted", lambda key, **kw: attempted.append(key))
+    monkeypatch.setattr(PA, "mark_arm_block_notified", lambda key: notified.append(key))
+
+    # A declined/failed send: the attempt is stamped, but never marked notified.
+    async def fake_declined(**kw) -> bool:
+        return False
+
+    monkeypatch.setattr(PA, "record_alarm_action", fake_declined)
+    asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
+    assert attempted == [block.key]
+    assert notified == []
+
+    # A confirmed send: also marked notified.
+    async def fake_sent(**kw) -> bool:
+        return True
+
+    monkeypatch.setattr(PA, "record_alarm_action", fake_sent)
+    asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
+    assert attempted == [block.key, block.key]
+    assert notified == [block.key]
 
 
 def test_sync_arm_block_diagnostic_does_not_alert_when_block_clears(monkeypatch) -> None:
@@ -302,6 +350,7 @@ def test_sync_arm_block_diagnostic_end_to_end_writes_activity_log(monkeypatch, t
 
     monkeypatch.setattr(AN, "_DEDUPE_PATH", tmp_path / "alarm_notify_dedupe.json")
     AN._last_error_notify.clear()
+    monkeypatch.setattr("src.presence_engine.STATE_PATH", tmp_path / "presence_state.json")
 
     block = PresenceBlock(
         key="block:ana:2026-07-25T20:21:21+00:00",
