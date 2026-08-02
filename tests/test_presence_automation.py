@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 import app.webapp.alarm_notify as AN
 import app.webapp.presence_automation as PA
 from src.activity_log import log_path_for
-from src.presence_engine import PresenceDecision
+from src.presence_engine import ArmBlockObservation, PresenceDecision
 from src.risco_client import RiscoCommandError
 
 
@@ -40,6 +40,7 @@ class _FakeConfirmState:
 class _Config:
     auto_arm_enabled = True
     auto_disarm_enabled = True
+    arm_block_notify_after_s = 900
 
 
 _DECISION = PresenceDecision(
@@ -195,12 +196,13 @@ def test_sync_arm_block_diagnostic_logs_once_per_episode(monkeypatch, caplog) ->
     block = PresenceBlock(key="block:ana:t0", blocking_person_ids=("ana",), since=datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc))
     seen_keys: set[str] = set()
 
-    def fake_set_arm_block(b: PresenceBlock) -> bool:
-        # Mirrors the real function's contract: True only the first time a
-        # given block key is observed.
+    def fake_set_arm_block(b: PresenceBlock, **kw) -> ArmBlockObservation:
+        # Mirrors the real function's contract: `changed` only the first time a
+        # given block key is observed. `notify` is the dwell gate (#599) and is
+        # exercised separately - this test is about the log line.
         is_new = b.key not in seen_keys
         seen_keys.add(b.key)
-        return is_new
+        return ArmBlockObservation(changed=is_new, notify=False)
 
     async def fake_record_alarm_action(**kw) -> None:
         pass
@@ -243,8 +245,12 @@ def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypa
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
     monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
     monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: block)
-    # First call observes a new episode; second call (unchanged block) does not.
-    monkeypatch.setattr(PA, "set_arm_block", lambda b: len(recorded) == 0)
+    # First call observes a new episode past its dwell; the second (unchanged
+    # block, already notified) does not.
+    monkeypatch.setattr(
+        PA, "set_arm_block",
+        lambda b, **kw: ArmBlockObservation(changed=not recorded, notify=not recorded),
+    )
     monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
 
     asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
@@ -254,7 +260,7 @@ def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypa
     call = recorded[0]
     assert call["source"] == PA.SOURCE_PRESENCE
     assert call["action"] == "arm"
-    assert call["outcome"] == PA.OUTCOME_ERROR
+    assert call["outcome"] == PA.OUTCOME_BLOCKED
     assert "ana" in call["error"]
     assert call["dedupe_key"] == f"presence:blocked:{block.key}"
 
@@ -271,7 +277,10 @@ def test_sync_arm_block_diagnostic_does_not_alert_when_block_clears(monkeypatch)
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
     monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
     monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: None)
-    monkeypatch.setattr(PA, "set_arm_block", lambda b: True)  # clearing is itself "new"
+    monkeypatch.setattr(
+        PA, "set_arm_block",
+        lambda b, **kw: ArmBlockObservation(changed=True, notify=False),
+    )  # clearing is itself "new"
     monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
 
     asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
@@ -302,7 +311,10 @@ def test_sync_arm_block_diagnostic_end_to_end_writes_activity_log(monkeypatch, t
     monkeypatch.setattr(PA, "load_automation_config", lambda: _Config())
     monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
     monkeypatch.setattr(PA, "evaluate_arm_block", lambda people, **kw: block)
-    monkeypatch.setattr(PA, "set_arm_block", lambda b: True)  # first observation
+    monkeypatch.setattr(
+        PA, "set_arm_block",
+        lambda b, **kw: ArmBlockObservation(changed=True, notify=True),
+    )  # first observation, dwell already elapsed
 
     asyncio.run(PA._sync_arm_block_diagnostic("disarmed"))
 
@@ -313,7 +325,7 @@ def test_sync_arm_block_diagnostic_end_to_end_writes_activity_log(monkeypatch, t
             "source": PA.SOURCE_PRESENCE,
             "action": "arm",
             "event": "set",
-            "outcome": PA.OUTCOME_ERROR,
+            "outcome": PA.OUTCOME_BLOCKED,
             "error": "ana still reported home since 2026-07-25T20:21:21+00:00",
             "ts": entries[0]["ts"],
             "consumer": "alarm",

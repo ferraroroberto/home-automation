@@ -165,7 +165,7 @@ toggles, persisted to gitignored `config/alarm_notify_prefs.json`
 | Automatic disarm (schedule) | a weekly schedule disarmed the alarm |
 | Arm on everyone-away (presence) | presence automation armed (everyone left) |
 | Disarm on arrival (presence) | presence automation disarmed (someone arrived) |
-| Error on any automatic arm/disarm | an automatic attempt failed (carries the panel's error text), **or** presence auto-arm couldn't fire at all because a tracked person's presence is stuck `home` (issue #533 — names who, and since when) |
+| Error on any automatic arm/disarm | an automatic attempt failed (carries the panel's error text), **or** presence auto-arm couldn't fire at all because a tracked person's presence is stuck `home` (issue #533 — names who, and since when). The two read differently: a failed command says `FAILED`, a block says `on hold`, since nothing was attempted. A block must persist for `arm_block_notify_after_s` (default 900 s, `config/presence_automation.json`) before it notifies — below that it is just two people walking in a few seconds apart, which used to page for nothing (issue #599). The block still shows in the Presence card immediately; the dwell gates only the Telegram ping. |
 | Alarm triggered (intrusion) | the panel goes into ongoing/memory alarm (🚨) |
 | Panel mains power lost/restored | the panel's `ac_lost` flag flips either way (⚠️/✅) |
 
@@ -182,7 +182,7 @@ notifier is a silent no-op. The notifier itself is the universal
 
 **Local activity log.** Independently of Telegram, **every** alarm command the
 app issues — schedule, presence, *and* manual — is appended with its result
-(`ok` / `error` + the error text) to gitignored `logs/alarm.jsonl`, a local
+(`ok` / `error` / `blocked` + the accompanying text) to gitignored `logs/alarm.jsonl`, a local
 alternative to the RISCO cloud event log so you can see what was attempted, how
 often, and whether it worked. It is written through the reusable
 `src.activity_log.append_activity(consumer, event)` facility (one append-only

@@ -311,19 +311,20 @@ def test_set_arm_block_persists_and_reports_new_episode(monkeypatch, tmp_path):
     since = datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc)
     block = P.PresenceBlock(key="block:ana:" + since.isoformat(), blocking_person_ids=("ana",), since=since)
 
-    assert P.set_arm_block(block) is True
+    # dwell_s defaults to 0, i.e. notify on first observation (pre-#599 shape).
+    assert P.set_arm_block(block) == P.ArmBlockObservation(changed=True, notify=True)
     assert P.load_arm_block() == {
         "blocked": True,
         "person_ids": ["ana"],
         "since": since.isoformat(),
     }
-    # Same episode again - not a new observation.
-    assert P.set_arm_block(block) is False
-    # Clearing is itself a new observation.
-    assert P.set_arm_block(None) is True
+    # Same episode again - not a new observation, and already notified.
+    assert P.set_arm_block(block) == P.ArmBlockObservation(changed=False, notify=False)
+    # Clearing is itself a new observation, but never a notification.
+    assert P.set_arm_block(None) == P.ArmBlockObservation(changed=True, notify=False)
     assert P.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
     # Already clear - not new.
-    assert P.set_arm_block(None) is False
+    assert P.set_arm_block(None) == P.ArmBlockObservation(changed=False, notify=False)
 
 
 # --- stale disarm decisions (issue #598) ---
@@ -505,3 +506,137 @@ def test_disarm_max_age_falls_back_to_bounded_default_on_garbage(tmp_path):
             '{"auto_disarm_enabled": true, "disarm_max_age_s": %s}' % bad, encoding="utf-8"
         )
         assert P.load_automation_config(path).disarm_max_age_s == 900
+
+
+# --- arm-block notification dwell (issue #599) ---
+#
+# Production incident 2026-08-01: ana's arrival webhook landed at 17:51:07 and
+# roberto's at 17:51:39. The block diagnostic fired a Telegram "FAILED" at
+# 17:51:27 - inside the 32 s gap between two people walking in together - and
+# cleared itself 12 s later. Nothing had failed; nothing was even attempted.
+
+
+_ANA_IN = datetime(2026, 8, 1, 17, 51, 7, 924162, tzinfo=timezone.utc)
+_ROB_IN = datetime(2026, 8, 1, 17, 51, 39, 885749, tzinfo=timezone.utc)
+_ALERTED_AT = datetime(2026, 8, 1, 17, 51, 27, 903472, tzinfo=timezone.utc)
+
+
+def _ana_block() -> P.PresenceBlock:
+    return P.PresenceBlock(
+        key=f"block:ana:{_ANA_IN.isoformat()}",
+        blocking_person_ids=("ana",),
+        since=_ANA_IN,
+    )
+
+
+def test_two_arrivals_32s_apart_do_not_notify(monkeypatch, tmp_path):
+    """The exact production window: no notification inside the arrival gap."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = _ana_block()
+
+    first = P.set_arm_block(block, dwell_s=900, at=_ANA_IN + timedelta(seconds=10))
+    assert first.changed is True      # still worth logging + showing in the UI
+    assert first.notify is False      # ...but not worth paging about
+
+    # The tick that actually paged in production.
+    assert P.set_arm_block(block, dwell_s=900, at=_ALERTED_AT).notify is False
+
+    # roberto arrives; the block evaporates on its own.
+    cleared = P.set_arm_block(None, dwell_s=900, at=_ROB_IN)
+    assert cleared.changed is True and cleared.notify is False
+
+
+def test_block_notifies_once_after_dwell(monkeypatch, tmp_path):
+    """A genuinely stuck presence still pages - once - after the dwell."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = _ana_block()
+
+    assert P.set_arm_block(block, dwell_s=900, at=_ANA_IN).notify is False
+    assert P.set_arm_block(
+        block, dwell_s=900, at=_ANA_IN + timedelta(seconds=899)
+    ).notify is False
+    assert P.set_arm_block(
+        block, dwell_s=900, at=_ANA_IN + timedelta(seconds=900)
+    ).notify is True
+    # And not again on later ticks of the same episode.
+    for extra in (901, 1200, 7200):
+        assert P.set_arm_block(
+            block, dwell_s=900, at=_ANA_IN + timedelta(seconds=extra)
+        ).notify is False
+
+
+def test_dwell_is_anchored_to_first_seen_not_to_since(monkeypatch, tmp_path):
+    """`since` can be hours old for someone legitimately home all day.
+
+    Anchoring the dwell to it would fire instantly the moment anyone else left
+    - reintroducing the very false alert this dwell exists to prevent.
+    """
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    home_all_day = datetime(2026, 8, 1, 9, 0, tzinfo=timezone.utc)
+    other_leaves = datetime(2026, 8, 1, 18, 0, tzinfo=timezone.utc)  # 9 h later
+    block = P.PresenceBlock(
+        key=f"block:ana:{home_all_day.isoformat()}",
+        blocking_person_ids=("ana",),
+        since=home_all_day,
+    )
+
+    assert P.set_arm_block(block, dwell_s=900, at=other_leaves).notify is False
+    assert P.set_arm_block(
+        block, dwell_s=900, at=other_leaves + timedelta(seconds=900)
+    ).notify is True
+
+
+def test_new_episode_restarts_the_dwell(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    first = _ana_block()
+    P.set_arm_block(first, dwell_s=900, at=_ANA_IN)
+    assert P.set_arm_block(
+        first, dwell_s=900, at=_ANA_IN + timedelta(seconds=900)
+    ).notify is True
+
+    # A different set of blocking people is a different episode.
+    second = P.PresenceBlock(
+        key="block:ana,roberto:x", blocking_person_ids=("ana", "roberto"), since=_ANA_IN,
+    )
+    at = _ANA_IN + timedelta(seconds=1000)
+    assert P.set_arm_block(second, dwell_s=900, at=at).notify is False
+    assert P.set_arm_block(
+        second, dwell_s=900, at=at + timedelta(seconds=900)
+    ).notify is True
+
+
+def test_recurring_block_after_clear_notifies_again(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = _ana_block()
+    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)
+    assert P.set_arm_block(
+        block, dwell_s=900, at=_ANA_IN + timedelta(seconds=900)
+    ).notify is True
+    P.set_arm_block(None, dwell_s=900, at=_ANA_IN + timedelta(hours=1))
+
+    back = _ANA_IN + timedelta(hours=2)
+    assert P.set_arm_block(block, dwell_s=900, at=back).notify is False
+    assert P.set_arm_block(
+        block, dwell_s=900, at=back + timedelta(seconds=900)
+    ).notify is True
+
+
+def test_block_is_visible_in_the_api_before_the_dwell_elapses(monkeypatch, tmp_path):
+    """The dwell gates the *notification*, not the diagnostic (#599)."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    P.set_arm_block(_ana_block(), dwell_s=900, at=_ANA_IN + timedelta(seconds=10))
+    assert P.load_arm_block() == {
+        "blocked": True,
+        "person_ids": ["ana"],
+        "since": _ANA_IN.isoformat(),
+    }
+
+
+def test_arm_block_dwell_config_round_trips(tmp_path):
+    path = tmp_path / "presence_automation.json"
+    path.write_text('{"arm_block_notify_after_s": 120}', encoding="utf-8")
+    assert P.load_automation_config(path).arm_block_notify_after_s == 120
+    # Absent / malformed -> the default dwell, never an instant page.
+    for body in ('{}', '{"arm_block_notify_after_s": null}', '{"arm_block_notify_after_s": "x"}'):
+        path.write_text(body, encoding="utf-8")
+        assert P.load_automation_config(path).arm_block_notify_after_s == 900

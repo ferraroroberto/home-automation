@@ -69,6 +69,7 @@ def test_put_automation_preserves_fields_the_pwa_does_not_send(
             arm_action="perimeter",
             disarm_action="disarm",
             disarm_max_age_s=300,
+            arm_block_notify_after_s=120,
         )
     )
 
@@ -89,5 +90,6 @@ def test_put_automation_preserves_fields_the_pwa_does_not_send(
     # ...and the ones it never carries survive, on disk as well as in the reply.
     assert body["arm_action"] == "perimeter"
     assert body["disarm_max_age_s"] == 300
+    assert body["arm_block_notify_after_s"] == 120
     assert pe.load_automation_config(config_path).disarm_max_age_s == 300
     assert pe.load_automation_config(config_path).arm_action == "perimeter"

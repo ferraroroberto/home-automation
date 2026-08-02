@@ -58,7 +58,8 @@ function detailText(ev) {
   else if (p.text) bits.push(String(p.text));
   else if (p.reason) bits.push(String(p.reason));
   if (ev.source && bits.length === 0) bits.push(ev.source);
-  if (ev.outcome === 'error' && p.error) bits.push(String(p.error));
+  // 'blocked' (#599) carries its reason in the same field as 'error'.
+  if ((ev.outcome === 'error' || ev.outcome === 'blocked') && p.error) bits.push(String(p.error));
   return bits.join(' · ');
 }
 

@@ -57,6 +57,11 @@ class PresenceAutomationConfig:
     # disables the bound. See `evaluate_alarm_decision` for why this is a
     # disarm-only knob.
     disarm_max_age_s: int = 900
+    # How long an auto-arm block must persist before it is worth telling anyone
+    # about (issue #599). "One person home, another away" is the *normal* state
+    # of a partly-occupied house; it is only diagnostic once it sticks. ``0``
+    # notifies immediately (the pre-#599 behaviour).
+    arm_block_notify_after_s: int = 900
 
 
 @dataclass(frozen=True)
@@ -229,6 +234,7 @@ def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationCon
         # (The neighbouring `int(... or 0)` idiom would turn a null into 0,
         # which here means *disabled* — the wrong direction for a safety bound.)
         disarm_max_age_s=_int_or(raw.get("disarm_max_age_s"), 900),
+        arm_block_notify_after_s=max(0, _int_or(raw.get("arm_block_notify_after_s"), 900)),
     )
 
 
@@ -520,14 +526,39 @@ def load_arm_block() -> Dict[str, Any]:
     }
 
 
-def set_arm_block(block: Optional[PresenceBlock]) -> bool:
-    """Persist the current arm-block diagnostic.
+@dataclass(frozen=True)
+class ArmBlockObservation:
+    """What one :func:`set_arm_block` call observed.
 
-    Returns True when this call observes a *new* episode (block newly
-    appeared, changed which people are blocking, or newly cleared) so the
-    caller can log once per episode instead of once per poll tick.
+    ``changed`` is a *new episode* (newly appeared, different blocking people,
+    or newly cleared) — the log-once signal. ``notify`` additionally requires
+    the episode to have persisted for the configured dwell and not to have been
+    notified already, which is what separates "someone is arriving" from
+    "someone's presence is stuck" (issue #599).
     """
 
+    changed: bool
+    notify: bool
+
+
+def set_arm_block(
+    block: Optional[PresenceBlock],
+    *,
+    dwell_s: int = 0,
+    at: Optional[datetime] = None,
+) -> ArmBlockObservation:
+    """Persist the current arm-block diagnostic and report what to do about it.
+
+    The dwell clock is anchored to when *this episode* was first observed, not
+    to ``block.since``. ``since`` is the blocking person's ``state_since``,
+    which can be hours old for someone legitimately at home all day — anchoring
+    to it would fire instantly the moment anyone else left, which is the very
+    false alert this dwell exists to stop. A changed key restarts the clock.
+
+    ``dwell_s=0`` notifies on first observation — the pre-#599 behaviour.
+    """
+
+    stamp = at or now_utc()
     raw = _load_state()
     meta = _automation_meta(raw)
     prior_key = str(meta.get("arm_blocked_key") or "")
@@ -537,14 +568,27 @@ def set_arm_block(block: Optional[PresenceBlock]) -> bool:
         meta["arm_blocked_person_ids"] = []
         meta["arm_blocked_since"] = None
         meta["arm_blocked_key"] = ""
+        meta["arm_blocked_first_seen"] = None
+        meta["arm_blocked_notified"] = False
+        _save_state(raw)
+        return ArmBlockObservation(changed=changed, notify=False)
+
+    changed = prior_key != block.key
+    if changed:
+        first_seen, notified = stamp, False
     else:
-        changed = prior_key != block.key
-        meta["arm_blocked"] = True
-        meta["arm_blocked_person_ids"] = list(block.blocking_person_ids)
-        meta["arm_blocked_since"] = _iso(block.since)
-        meta["arm_blocked_key"] = block.key
+        first_seen = _parse_dt(meta.get("arm_blocked_first_seen")) or stamp
+        notified = bool(meta.get("arm_blocked_notified"))
+    notify = not notified and (stamp - first_seen).total_seconds() >= dwell_s
+
+    meta["arm_blocked"] = True
+    meta["arm_blocked_person_ids"] = list(block.blocking_person_ids)
+    meta["arm_blocked_since"] = _iso(block.since)
+    meta["arm_blocked_key"] = block.key
+    meta["arm_blocked_first_seen"] = _iso(first_seen)
+    meta["arm_blocked_notified"] = notified or notify
     _save_state(raw)
-    return changed
+    return ArmBlockObservation(changed=changed, notify=notify)
 
 
 def append_trigger_log(event: Dict[str, Any], path: Optional[Path] = None) -> None:

@@ -42,7 +42,10 @@ _WARN_EVENTS = frozenset({"ac_lost", "power_lost"})
 
 def _severity_for(record: Dict[str, Any]) -> str:
     """Best-effort severity for the unified telemetry copy of an activity event."""
-    if record.get("outcome") == "error":
+    # "blocked" (#599) is adverse in the same way "error" is - an automatic
+    # action did not happen - so it earns the same amber wash. Without this it
+    # falls through to "info", which has no activity-row style at all.
+    if record.get("outcome") in ("error", "blocked"):
         return "warning"
     name = str(record.get("action") or record.get("event") or "")
     if name in _ALARM_EVENTS:
