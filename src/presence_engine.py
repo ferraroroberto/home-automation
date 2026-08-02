@@ -446,9 +446,11 @@ def satisfied_disarm_key(
     moment it becomes moot, which is the honest bookkeeping: the condition
     "someone is home and the panel should be disarmed" *is* met, just not by us.
 
-    Mirrors the decision path's own gates (enabled, freshness) so it can only
-    ever consume a key that path would itself have considered. ``None`` when
-    there is nothing to consume.
+    Applies the decision path's *input* gates (enabled, freshness) so it can
+    only ever consume a key that path would itself have considered. It
+    deliberately does not check ``_manual_after``: that timestamp only moves
+    forward, so consuming can never do anything but prevent a deliberate arm
+    from being undone. ``None`` when there is nothing to consume.
     """
 
     if not config.auto_disarm_enabled or security_mode != "disarmed":

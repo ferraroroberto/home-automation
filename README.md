@@ -305,7 +305,8 @@ Alarm behavior:
 - First fresh confirmed arrival while armed → `control_system("disarm")`.
 - **Kids home** override (Presence card toggle): when active, the everyone-away trigger arms perimeter only instead of full — for leaving a child at home without arming the interior. It is transient: the next disarm-on-arrival auto-resets it to off, so the system never silently stays on perimeter when it should default to full. Stored in `config/presence_state.json`, not the persisted automation config.
 - Stale/uncertain state never disarms.
-- Any manual alarm action in the UI suppresses automation until a later presence transition.
+- An arrival older than `disarm_max_age_s` (default 900 s, `config/presence_automation.json`; `<= 0` disables the bound) never auto-disarms — an arrival the engine never got to act on must not undo an arm made hours later. Deliberately disarm-only: bounding the arm side would leave an empty house unarmed after a long outage.
+- Any manual alarm action in the UI suppresses automation until a later presence transition. Note that an arm made **outside** this app (RISCO keypad or their app) is invisible to that suppression — the age bound above is what protects it.
 - Each attempted transition appends a JSONL audit row to `logs/presence_triggers.jsonl` (gitignored).
 
 ### Family locator — "where's mom/dad" (#438)
