@@ -45,3 +45,49 @@ def test_presence_automation_surfaces_persisted_block(
     assert body["arm_blocked"] is True
     assert body["arm_blocked_person_ids"] == ["ana"]
     assert body["arm_blocked_since"] == since.isoformat()
+
+
+def test_put_automation_preserves_fields_the_pwa_does_not_send(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A save must not reset the knobs the PWA form has no input for (#598).
+
+    ``static/presence-automation.js`` only ever posts the four toggle/number
+    fields, so rebuilding the config from bare defaults silently wiped
+    ``arm_action`` / ``disarm_action`` and would have wiped the new
+    ``disarm_max_age_s`` safety bound every time a toggle was flipped.
+    """
+    import src.presence_engine as pe
+
+    config_path = tmp_path / "presence_automation.json"
+    monkeypatch.setattr(pe, "AUTOMATION_PATH", config_path)
+    _wire_state_path(monkeypatch, tmp_path)
+    pe.save_automation_config(
+        pe.PresenceAutomationConfig(
+            auto_arm_enabled=False,
+            auto_disarm_enabled=False,
+            arm_action="perimeter",
+            disarm_action="disarm",
+            disarm_max_age_s=300,
+        )
+    )
+
+    body = client.put(
+        "/api/presence/automation",
+        json={
+            "auto_arm_enabled": True,
+            "arm_away_after_s": 600,
+            "stale_after_s": 1800,
+            "auto_disarm_enabled": True,
+        },
+    ).json()
+
+    # The payload's own fields are applied...
+    assert body["auto_arm_enabled"] is True
+    assert body["auto_disarm_enabled"] is True
+    assert body["arm_away_after_s"] == 600
+    # ...and the ones it never carries survive, on disk as well as in the reply.
+    assert body["arm_action"] == "perimeter"
+    assert body["disarm_max_age_s"] == 300
+    assert pe.load_automation_config(config_path).disarm_max_age_s == 300
+    assert pe.load_automation_config(config_path).arm_action == "perimeter"

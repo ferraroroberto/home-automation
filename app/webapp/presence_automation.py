@@ -33,6 +33,8 @@ from src.presence_engine import (
     load_kids_home_override,
     load_people,
     mark_decision_applied,
+    mark_disarm_satisfied,
+    satisfied_disarm_key,
     set_arm_block,
     set_kids_home_override,
 )
@@ -103,6 +105,30 @@ async def _sync_arm_block_diagnostic(security_mode: str) -> None:
         logger.info("✅ Auto-arm block cleared")
 
 
+def _consume_satisfied_disarm(security_mode: str) -> None:
+    """Retire an arrival that the panel being already disarmed made moot (#598).
+
+    Cheap and local — reads config/presence state only, never RISCO — so it
+    rides the same tick as everything else. Without it the arrival sits pending
+    and disarms the *next* arm, however many hours later that is.
+    """
+
+    config = load_automation_config()
+    people = list(load_people().values())
+    if not people:
+        return
+    key = satisfied_disarm_key(
+        people,
+        security_mode=security_mode,
+        config=config,
+        at=datetime.now(timezone.utc),
+    )
+    if key is None:
+        return
+    mark_disarm_satisfied(key)
+    logger.info("ℹ️ Retired already-satisfied disarm arrival %s", key)
+
+
 async def tick() -> None:
     """Alert on panel events, then evaluate one presence transition."""
 
@@ -135,6 +161,7 @@ async def tick() -> None:
     consider_security_override(security)
 
     await _sync_arm_block_diagnostic(security.mode)
+    _consume_satisfied_disarm(security.mode)
 
     decision = _evaluate_current_decision(security.mode)
     if decision is None:

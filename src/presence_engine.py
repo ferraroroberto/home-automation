@@ -53,6 +53,10 @@ class PresenceAutomationConfig:
     auto_disarm_enabled: bool = False
     arm_action: str = "arm"
     disarm_action: str = "disarm"
+    # Oldest arrival an auto-disarm may still act on (issue #598). ``<= 0``
+    # disables the bound. See `evaluate_alarm_decision` for why this is a
+    # disarm-only knob.
+    disarm_max_age_s: int = 900
 
 
 @dataclass(frozen=True)
@@ -185,6 +189,15 @@ def set_person_state(
     return PersonPresence(clean_id, clean_state, stamp, source, state_since=state_since)
 
 
+def _int_or(value: Any, fallback: int) -> int:
+    """Coerce untrusted JSON to an int, falling back on null/garbage."""
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationConfig:
     """Return persisted presence automation config, defaulting safely off."""
 
@@ -210,6 +223,12 @@ def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationCon
         auto_disarm_enabled=auto_disarm_enabled,
         arm_action=str(raw.get("arm_action") or "arm"),
         disarm_action=str(raw.get("disarm_action") or "disarm"),
+        # An absent *or malformed* key must fall back to the bounded default,
+        # never to "unbounded" — a config written before #598, or one with a
+        # null/garbage value, is exactly the case the bound exists to protect.
+        # (The neighbouring `int(... or 0)` idiom would turn a null into 0,
+        # which here means *disabled* — the wrong direction for a safety bound.)
+        disarm_max_age_s=_int_or(raw.get("disarm_max_age_s"), 900),
     )
 
 
@@ -262,15 +281,31 @@ def load_kids_home_override() -> bool:
     return bool(meta.get("kids_home_override", False))
 
 
-def mark_decision_applied(decision: PresenceDecision, outcome: str) -> None:
-    """Remember an applied decision key to keep actions edge-triggered."""
+def _mark_key(kind: str, key: str, outcome: str) -> None:
+    """The single writer for the ``last_<kind>_*`` edge-trigger bookkeeping."""
 
     raw = _load_state()
     meta = _automation_meta(raw)
-    meta[f"last_{decision.kind}_key"] = decision.key
-    meta[f"last_{decision.kind}_outcome"] = outcome
-    meta[f"last_{decision.kind}_at"] = _iso(now_utc())
+    meta[f"last_{kind}_key"] = key
+    meta[f"last_{kind}_outcome"] = outcome
+    meta[f"last_{kind}_at"] = _iso(now_utc())
     _save_state(raw)
+
+
+def mark_decision_applied(decision: PresenceDecision, outcome: str) -> None:
+    """Remember an applied decision key to keep actions edge-triggered."""
+
+    _mark_key(decision.kind, decision.key, outcome)
+
+
+def mark_disarm_satisfied(key: str) -> None:
+    """Consume a disarm key that an already-disarmed panel made moot (#598).
+
+    Recording it here is what stops it from sitting pending until the panel is
+    next armed — see :func:`satisfied_disarm_key`.
+    """
+
+    _mark_key("disarm", key, "already disarmed")
 
 
 def _last_key(kind: str) -> str:
@@ -284,6 +319,17 @@ def _manual_after(transition_at: datetime) -> bool:
         return False
     manual_at = _parse_dt(meta.get("manual_alarm_action_at"))
     return manual_at is not None and manual_at >= transition_at
+
+
+def _older_than(transition_at: datetime, stamp: datetime, max_age_s: int) -> bool:
+    """True when ``transition_at`` predates ``stamp`` by more than ``max_age_s``.
+
+    ``max_age_s <= 0`` means unbounded — the explicit opt-out.
+    """
+
+    if max_age_s <= 0:
+        return False
+    return (stamp - transition_at).total_seconds() > max_age_s
 
 
 def _fresh_people(
@@ -333,15 +379,29 @@ def evaluate_alarm_decision(
         # the disarm fire once, as intended.
         transition_at = max(p.state_since for p in home)
         key = f"disarm:{transition_at.isoformat()}"
-        if key != _last_key("disarm") and not _manual_after(transition_at):
-            return PresenceDecision(
-                kind="disarm",
-                action=config.disarm_action,
-                key=key,
-                reason="first confirmed arrival",
-                transition_at=transition_at,
-            )
-        return None
+        if key == _last_key("disarm") or _manual_after(transition_at):
+            return None
+        # Freshness bound (#598). An arrival the engine never got to act on -
+        # because the panel was already disarmed when it landed - stays pending
+        # indefinitely and fires the moment the panel is next armed. That is how
+        # a 22:43 keypad arm was undone by a 19:51 arrival: nearly three hours
+        # later, reported as a "first confirmed arrival". An arrival that old is
+        # not news, so refuse it outright.
+        #
+        # Deliberately NOT applied to the arm path below, and it must stay that
+        # way: refusing a stale disarm leaves the house armed (fails safe), but
+        # refusing a stale arm would leave an empty house unarmed after any
+        # webapp downtime longer than the bound (fails unsafe). The two
+        # directions are asymmetric on purpose - do not "symmetrise" this.
+        if _older_than(transition_at, stamp, config.disarm_max_age_s):
+            return None
+        return PresenceDecision(
+            kind="disarm",
+            action=config.disarm_action,
+            key=key,
+            reason="first confirmed arrival",
+            transition_at=transition_at,
+        )
 
     if len(away) == len(fresh) and config.auto_arm_enabled and security_mode == "disarmed":
         # When everyone left (transition time), not last-seen — so the arm-away
@@ -364,6 +424,49 @@ def evaluate_alarm_decision(
                 transition_at=all_away_since,
             )
     return None
+
+
+def satisfied_disarm_key(
+    people: Iterable[PersonPresence],
+    *,
+    security_mode: str,
+    config: PresenceAutomationConfig,
+    at: Optional[datetime] = None,
+) -> Optional[str]:
+    """The disarm key an already-disarmed panel has made moot (issue #598).
+
+    :func:`evaluate_alarm_decision` only records a disarm key when it *acts* on
+    it. An arrival that lands while the panel is already disarmed therefore
+    produces a key that is never recorded — there is nothing to do — and it
+    stays pending until the panel is next armed, at which point it fires and
+    undoes that arm. The observed case: two people arriving 32 s apart, the
+    second arrival left pending for nearly three hours.
+
+    Returning the key here lets the consumer record it as satisfied at the
+    moment it becomes moot, which is the honest bookkeeping: the condition
+    "someone is home and the panel should be disarmed" *is* met, just not by us.
+
+    Applies the decision path's *input* gates (enabled, freshness) so it can
+    only ever consume a key that path would itself have considered. It
+    deliberately does not check ``_manual_after``: that timestamp only moves
+    forward, so consuming can never do anything but prevent a deliberate arm
+    from being undone. ``None`` when there is nothing to consume.
+    """
+
+    if not config.auto_disarm_enabled or security_mode != "disarmed":
+        return None
+    stamp = at or now_utc()
+    current = list(people)
+    if not current:
+        return None
+    fresh = _fresh_people(current, config=config, at=stamp)
+    if len(fresh) != len(current):
+        return None
+    home = [p for p in fresh if p.state == "home"]
+    if not home:
+        return None
+    key = f"disarm:{max(p.state_since for p in home).isoformat()}"
+    return None if key == _last_key("disarm") else key
 
 
 def evaluate_arm_block(

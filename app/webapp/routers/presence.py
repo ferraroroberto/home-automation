@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import os
 from typing import Any, Dict, Optional, Tuple
@@ -25,7 +25,6 @@ from src.presence_display_names import (
     set_presence_display_name,
 )
 from src.presence_engine import (
-    PresenceAutomationConfig,
     load_arm_block,
     load_automation_config,
     load_kids_home_override,
@@ -689,7 +688,12 @@ class PresenceAutomationPayload(BaseModel):
 
 @router.put("/api/presence/automation")
 async def update_presence_automation(payload: PresenceAutomationPayload) -> Dict[str, Any]:
-    config = PresenceAutomationConfig(
+    # Rebuild from the persisted config rather than from bare defaults, so the
+    # fields the PWA form does not carry (`arm_action`, `disarm_action`, and the
+    # #598 `disarm_max_age_s` safety bound) survive a save instead of being
+    # silently reset every time a toggle is flipped.
+    config = replace(
+        load_automation_config(),
         auto_arm_enabled=payload.auto_arm_enabled,
         arm_away_after_s=max(0, payload.arm_away_after_s),
         stale_after_s=max(60, payload.stale_after_s),

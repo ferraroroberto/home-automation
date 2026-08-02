@@ -4,5 +4,6 @@
   "stale_after_s": 3600,
   "auto_disarm_enabled": false,
   "arm_action": "arm",
-  "disarm_action": "disarm"
+  "disarm_action": "disarm",
+  "disarm_max_age_s": 900
 }
