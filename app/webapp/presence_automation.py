@@ -75,9 +75,13 @@ async def _sync_arm_block_diagnostic(security_mode: str) -> None:
     Runs every tick regardless of whether a decision fired this round - it
     only reads local config/state, never RISCO, so it's cheap. Logs once per
     distinct blocking episode (new blocker(s), or the block clearing), not on
-    every poll - the same episode-based ``changed`` gate also throttles the
-    Telegram alert below (#533), so a block that persists for hours pings
-    Telegram exactly once, not every ~10s tick.
+    every poll.
+
+    The Telegram alert (#533) is gated separately, on ``notify`` rather than
+    ``changed`` (#599): a block must also have *persisted* for
+    ``arm_block_notify_after_s`` before it is worth paging about, so a block
+    that lasts hours pings exactly once and one that evaporates in 32 seconds
+    - two people walking in together - never pings at all.
     """
 
     config = load_automation_config()

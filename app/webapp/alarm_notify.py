@@ -224,8 +224,10 @@ async def record_alarm_action(
     Args:
         source: one of ``manual`` / ``schedule`` / ``presence``.
         action: the RISCO action (``arm`` / ``disarm`` / ``partial`` / ``perimeter``).
-        outcome: ``ok`` or ``error``.
-        error: the failure text (carried verbatim into the message) when ``error``.
+        outcome: ``ok``, ``error`` (a command was sent and the panel rejected
+            it), or ``blocked`` (#599 — a condition stopped the action being
+            attempted at all; notified like ``error`` but worded differently).
+        error: the failure/block text, carried verbatim into the message.
         detail: short human context (schedule time, presence reason) for the message.
         reason: stored in the activity log (not the message) for audit.
         actor: for ``source=manual`` only, which caller issued the command —

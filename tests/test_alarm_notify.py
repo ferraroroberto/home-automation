@@ -677,3 +677,18 @@ def test_blocked_outcome_rides_the_error_toggle_and_dedupe() -> None:
     off = AN.AlarmNotifyPrefs(error=False)
     assert AN._should_notify(on, AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED) is True
     assert AN._should_notify(off, AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED) is False
+
+
+def test_blocked_rows_get_the_same_amber_severity_as_errors() -> None:
+    """A `blocked` row is adverse and must not fall through to `info` (#599).
+
+    `info` has no `.activity-sev-*` rule in styles.css, so the row would render
+    with no severity wash at all — silently less visible than the condition
+    deserves.
+    """
+    from src.activity_log import _severity_for
+
+    blocked = {"source": "presence", "action": "arm", "outcome": "blocked"}
+    assert _severity_for(blocked) == "warning"
+    assert _severity_for({**blocked, "outcome": "error"}) == "warning"
+    assert _severity_for({**blocked, "outcome": "ok"}) == "info"

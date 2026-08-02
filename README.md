@@ -182,7 +182,7 @@ notifier is a silent no-op. The notifier itself is the universal
 
 **Local activity log.** Independently of Telegram, **every** alarm command the
 app issues — schedule, presence, *and* manual — is appended with its result
-(`ok` / `error` + the error text) to gitignored `logs/alarm.jsonl`, a local
+(`ok` / `error` / `blocked` + the accompanying text) to gitignored `logs/alarm.jsonl`, a local
 alternative to the RISCO cloud event log so you can see what was attempted, how
 often, and whether it worked. It is written through the reusable
 `src.activity_log.append_activity(consumer, event)` facility (one append-only
