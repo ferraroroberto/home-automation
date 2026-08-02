@@ -90,18 +90,26 @@ def _adopt_port() -> int:
 
     Read from ``config/webapp_config.json`` rather than hardcoded, because
     "the live instance" is per checkout: a concurrent `git worktree` session
-    (fleet-config's worktree_claim workflow) configures its own port so it never
-    claims the primary checkout's tray. With a hardcoded 8447 the guard below
-    refused every worktree run — even though the run would have autobooted a
-    disposable instance on a free port and never gone near the tray. On the
-    primary checkout this resolves to 8447 exactly as before.
-    """
-    try:
-        from src.webapp_config import load_webapp_config
+    (fleet-config's worktree_claim workflow, fleet-config#537) rewrites its
+    own copy's ``port`` at setup time so it never resolves to the primary
+    checkout's tray. With a hardcoded 8447 the guard below refused every
+    worktree run — even though the run would have autobooted a disposable
+    instance on a free port and never gone near the tray. On the primary
+    checkout this resolves to 8447 exactly as before.
 
-        return int(load_webapp_config().port)
-    except Exception:  # noqa: BLE001 — a missing/broken config must not break the guard
-        return 8447
+    ``load_webapp_config()`` already falls back to the default (8447) when
+    the file is missing or unreadable, so nothing here needs to guess at
+    that case. What's left uncaught — a config that parses but carries an
+    invalid ``port`` (out of range, wrong type) — is left to raise: silently
+    substituting 8447 there could wrongly declare a collision with the
+    primary's tray from inside a worktree whose config is broken, the exact
+    false positive this function exists to avoid (#593). A hard failure at
+    collection time is the honest outcome when this checkout's own port
+    can't be determined.
+    """
+    from src.webapp_config import load_webapp_config
+
+    return int(load_webapp_config().port)
 
 
 _ADOPT_PORT = _adopt_port()
