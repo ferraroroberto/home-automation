@@ -92,6 +92,28 @@ def test_lists_every_channel_including_unclamped(
     assert channels[2]["power_w"] is None
 
 
+def test_a_discovered_meter_reports_its_mac(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
+) -> None:
+    """The id already is the MAC (issue #619) — it just gets its own field."""
+    _patch_state(monkeypatch, _state())
+    assert client.get("/api/circuits").json()["meters"][0]["mac"] == METER_ID
+
+
+def test_a_statically_configured_meter_reports_no_mac(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
+) -> None:
+    """``ATHOM_METER_HOSTS`` gives a ``host:<ip>`` id, which is not a MAC.
+
+    Printing that under a "MAC" label would be a different fact wearing the
+    same field, so it comes back null and the card shows a dash.
+    """
+    state = _state()
+    state.meters[0].meter_id = "host:192.0.2.73"
+    _patch_state(monkeypatch, state)
+    assert client.get("/api/circuits").json()["meters"][0]["mac"] is None
+
+
 def test_reports_the_raw_and_corrected_power(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
 ) -> None:
@@ -152,6 +174,47 @@ def test_invert_is_persisted(
     assert response.status_code == 200
     assert response.json() == {"key": key, "invert": True}
     assert load_inverted_channels(_prefs) == {key: True}
+
+
+def test_hidden_is_persisted_and_rides_along_on_the_wire(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
+) -> None:
+    from src.circuit_prefs import load_hidden_channels
+
+    _patch_state(monkeypatch, _state())
+    key = f"{METER_ID}:5"
+    response = client.put(f"/api/circuits/{key}/hidden", json={"hidden": True})
+    assert response.status_code == 200
+    assert response.json() == {"key": key, "hidden": True}
+    assert load_hidden_channels(_prefs) == {key: True}
+
+    # Hiding is presentation only: the server still returns every channel, and
+    # only flags the one. The card decides what to draw.
+    channels = client.get("/api/circuits").json()["meters"][0]["channels"]
+    assert len(channels) == 6
+    assert [c["hidden"] for c in channels] == [False, False, False, False, True, False]
+
+
+def test_hiding_a_channel_does_not_drop_any_cache(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
+) -> None:
+    """Unlike the invert flip, hiding changes no reading — nothing to re-read."""
+    import app.webapp.routers.circuits as router
+
+    _patch_state(monkeypatch, _state())
+    cleared: list[str] = []
+    monkeypatch.setattr(router, "clear_read_cache", lambda: cleared.append("read"))
+
+    client.put(f"/api/circuits/{METER_ID}:5/hidden", json={"hidden": True})
+    assert cleared == []
+
+
+def test_hidden_rejects_a_non_boolean(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
+) -> None:
+    _patch_state(monkeypatch, _state())
+    response = client.put(f"/api/circuits/{METER_ID}:1/hidden", json={"hidden": "maybe"})
+    assert response.status_code == 422
 
 
 def test_invert_rejects_a_non_boolean(

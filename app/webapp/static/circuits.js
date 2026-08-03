@@ -1,27 +1,55 @@
 /* Circuits (per-breaker CT clamps) data + card controller.
  *
- * Owns the IoT tab's Circuits card: one section per Athom BL0906 meter, and
- * under it EVERY channel that meter has — clamp fitted or not. Reads
- * GET /api/circuits and writes the per-channel rename / sign-flip endpoints.
+ * Owns the IoT tab's Circuits card: one foldable group per Athom BL0906 meter,
+ * and under it EVERY channel that meter has — clamp fitted or not. Reads
+ * GET /api/circuits and writes the per-channel rename / sign-flip / hide
+ * endpoints.
  *
  * Two deliberate behaviours, both because clamps get added over time:
- *  - a channel is never hidden for reading 0 W, so a clamp fitted next week
- *    starts showing a live figure with nothing to reconfigure;
+ *  - a channel is never dropped for reading 0 W, so a clamp fitted next week
+ *    starts showing a live figure with nothing to reconfigure. Hiding one is a
+ *    *user* decision (issue #619), never inferred from a reading;
  *  - meters are discovered server-side over mDNS, so a new meter simply
- *    appears here on its own.
+ *    appears here on its own — which is why this card has no Refresh button.
+ *
+ * One number per row (issue #619): watts. Amps, cumulative kWh, mains voltage,
+ * Wi-Fi signal and the meter's MAC are reference figures, so they live in the
+ * detail dialog where you go looking for them deliberately.
  *
  * Cadence is tab-aware like plugs.js: poll only while the IoT tab is open. */
 
 'use strict';
 
-import { state, els, toast, reportFetchOk } from './state.js';
+import {
+  state, els, toast, reportFetchOk,
+  CIRCUITS_COLLAPSED_KEY, CIRCUITS_SHOW_HIDDEN_KEY,
+} from './state.js';
 import { jsonApi } from './api.js';
 import { fmtW } from './format.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { icon } from './_vendored/icons/icons.js';
 
 const POLL_MS = 15_000;
+
+// Which meter groups are folded shut. renderCircuits() rebuilds the whole list
+// on every poll, so this cannot live in the DOM the way voice-commands.js's
+// groups can — that card renders once. Held here and re-applied each render.
+const collapsedMeters = new Set();
+
+function loadCollapsedMeters() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CIRCUITS_COLLAPSED_KEY) || '[]');
+    if (Array.isArray(raw)) raw.forEach(function (id) { collapsedMeters.add(String(id)); });
+  } catch (_) { /* private mode, or a hand-mangled value — start expanded */ }
+}
+
+function saveCollapsedMeters() {
+  try {
+    localStorage.setItem(CIRCUITS_COLLAPSED_KEY, JSON.stringify(Array.from(collapsedMeters)));
+  } catch (_) { /* private mode */ }
+}
 
 // ------------------------------------------------------------- lookups
 function allChannels() {
@@ -50,40 +78,89 @@ function channelLabel(channel) {
   return channel.display_name || 'Clamp ' + channel.channel;
 }
 
+// A→Z on the label actually on screen, numeric-aware — so renaming meters
+// "1 …", "2 …", "10 …" orders the board the obvious way instead of lexically
+// (and instead of mDNS discovery order, which is arbitrary).
+function byMeterLabel(a, b) {
+  return meterLabel(a).localeCompare(meterLabel(b), undefined, {
+    numeric: true, sensitivity: 'base',
+  });
+}
+
+// Physical terminal order (1..N — the order printed on the meter's own terminal
+// block), minus anything the user has put away.
+function visibleChannels(meter) {
+  const ordered = (meter.channels || []).slice().sort(function (a, b) {
+    return a.channel - b.channel;
+  });
+  if (state.circuitsShowHidden) return ordered;
+  return ordered.filter(function (channel) { return !channel.hidden; });
+}
+
 // ------------------------------------------------------------- row DOM
-// One muted caption line per meter, above its channels: which device this is
-// and whether it is actually talking to us.
-function buildMeterHead(meter) {
-  const head = document.createElement('div');
-  head.className = 'circuit-meter';
-  head.dataset.meterId = meter.meter_id;
+// One foldable group per meter (issue #619). The header carries the meter's
+// name and nothing else: this card exists to show individual circuits, so the
+// meter's own aggregate would be the one figure on screen nobody asked for.
+// Its reference data (voltage, total, signal, MAC) is in the dialog instead.
+function buildMeterGroup(meter) {
+  const group = document.createElement('details');
+  group.className = 'circuit-group';
+  group.dataset.meterId = meter.meter_id;
+  group.open = !collapsedMeters.has(meter.meter_id);
+
+  const summary = document.createElement('summary');
+  summary.className = 'collapse-summary circuit-meter';
+
+  const main = document.createElement('span');
+  main.className = 'collapse-main';
 
   // Tappable like a channel name: with three meters on the way, "cuadro
-  // principal" beats "Athom Energy Monitor ddee01".
+  // principal" beats "Athom Energy Monitor ddee01". The summary-embedded-control
+  // pattern (as on the HA card's power switch) — this click edits the meter and
+  // must never fold the group, so it stops the summary's default toggle.
   const name = document.createElement('button');
   name.type = 'button';
   name.className = 'circuit-meter-name';
   name.title = 'Rename this meter';
   name.textContent = meterLabel(meter);
-  name.addEventListener('click', function () { openCircuitDetail(meter.meter_id); });
-  head.appendChild(name);
+  name.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    openCircuitDetail(meter.meter_id);
+  });
+  main.appendChild(name);
 
-  const detail = document.createElement('span');
-  detail.className = 'circuit-meter-detail';
+  // "offline" is a state, not a reading — the readings left this row in #619,
+  // but why every channel below reads nothing has to stay visible, including
+  // while the group is folded shut.
   if (!meter.reachable) {
-    detail.textContent = 'offline';
-    detail.title = meter.error || 'No response on the LAN.';
-    head.classList.add('is-unavailable');
-  } else {
-    const bits = [];
-    if (meter.total_power_w != null) bits.push(fmtW(meter.total_power_w));
-    if (meter.voltage_v != null) bits.push(meter.voltage_v.toFixed(0) + ' V');
-    if (meter.wifi_rssi_dbm != null) bits.push(meter.wifi_rssi_dbm.toFixed(0) + ' dBm');
-    detail.textContent = bits.join(' · ');
-    detail.title = meter.model || '';
+    summary.classList.add('is-unavailable');
+    const note = document.createElement('span');
+    note.className = 'circuit-meter-detail';
+    note.textContent = 'offline';
+    note.title = meter.error || 'No response on the LAN.';
+    main.appendChild(note);
   }
-  head.appendChild(detail);
-  return head;
+
+  summary.appendChild(main);
+  // No leading glyph: the header is deliberately just the name, and the chevron
+  // alone carries the disclosure affordance.
+  summary.insertAdjacentHTML('beforeend', icon('chevron-right', 'collapse-chevron'));
+  group.appendChild(summary);
+
+  group.addEventListener('toggle', function () {
+    if (group.open) collapsedMeters.delete(meter.meter_id);
+    else collapsedMeters.add(meter.meter_id);
+    saveCollapsedMeters();
+  });
+
+  const body = document.createElement('div');
+  body.className = 'circuit-group-body';
+  visibleChannels(meter).forEach(function (channel) {
+    body.appendChild(buildChannelRow(meter, channel));
+  });
+  group.appendChild(body);
+  return group;
 }
 
 function buildChannelRow(meter, channel) {
@@ -94,10 +171,20 @@ function buildChannelRow(meter, channel) {
   const name = document.createElement('button');
   name.type = 'button';
   name.className = 'device-row-name';
-  name.title = 'Rename / fix clamp direction';
+  name.title = 'Readings / rename / fix clamp direction';
   name.textContent = channelLabel(channel);
   name.addEventListener('click', function () { openCircuitDetail(channel.key); });
   row.appendChild(name);
+
+  // Only visible while "Show hidden" is on, so it is worth saying which rows
+  // are the ones normally put away.
+  if (channel.hidden) {
+    row.classList.add('is-hidden-circuit');
+    const flag = document.createElement('span');
+    flag.className = 'device-row-note';
+    flag.textContent = 'hidden';
+    row.appendChild(flag);
+  }
 
   // A meter that is offline still lists its channels (so circuits don't vanish
   // mid-watch), but they carry no readings — say so rather than showing 0 W.
@@ -110,17 +197,8 @@ function buildChannelRow(meter, channel) {
     return row;
   }
 
-  // Current + cumulative energy as a caption; power is the headline figure.
-  const bits = [];
-  if (channel.current_a != null) bits.push(channel.current_a.toFixed(2) + ' A');
-  if (channel.energy_kwh != null) bits.push(channel.energy_kwh.toFixed(2) + ' kWh');
-  if (bits.length) {
-    const note = document.createElement('span');
-    note.className = 'device-row-note';
-    note.textContent = bits.join(' · ');
-    row.appendChild(note);
-  }
-
+  // Watts is the whole row (issue #619): amps and cumulative kWh moved into the
+  // dialog, because six rows of three figures each stop being scannable.
   const watts = document.createElement('span');
   watts.className = 'plug-watts';
   watts.textContent = fmtW(channel.power_w);
@@ -151,17 +229,25 @@ function clearCircuitDirty() {
   if (els.circuitSave) els.circuitSave.disabled = true;
 }
 
-function renderInvertToggle(inverted) {
-  const btn = els.circuitInvertToggle;
+function renderToggle(btn, on, label) {
   if (!btn) return;
-  btn.className = 'toggle' + (inverted ? ' on' : ' off');
-  btn.setAttribute('aria-checked', inverted ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(inverted);
+  btn.className = 'toggle' + (on ? ' on' : ' off');
+  btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  btn.innerHTML = toggleMarkup(on);
+  if (label) btn.setAttribute('aria-label', label);
+}
+
+// "—" rather than a blank cell: an absent reading is a fact worth showing.
+function setReading(el, value, unit, digits) {
+  if (!el) return;
+  el.textContent = value == null ? '—' : value.toFixed(digits) + ' ' + unit;
 }
 
 // One dialog serves both a channel and a whole meter: the key tells them apart
-// (a channel key is its meter's id plus ":<channel>"), and a meter simply has
-// no clamp direction to correct, so that section is hidden for it.
+// (a channel key is its meter's id plus ":<channel>"). A meter has no clamp
+// direction to correct, and hiding one would hide every circuit under it, so
+// both toggle sections are for a channel only — and each gets the read-only
+// block that suits it.
 function openCircuitDetail(key) {
   const entry = channelByKey(key);
   const meter = entry ? null : meterByKey(key);
@@ -169,6 +255,9 @@ function openCircuitDetail(key) {
   state.selectedCircuitKey = key;
 
   if (els.circuitInvertSection) els.circuitInvertSection.hidden = !entry;
+  if (els.circuitHiddenSection) els.circuitHiddenSection.hidden = !entry;
+  if (els.circuitReadings) els.circuitReadings.hidden = !entry;
+  if (els.circuitMeterInfo) els.circuitMeterInfo.hidden = !meter;
 
   if (meter) {
     els.circuitDetailName.textContent = meterLabel(meter);
@@ -178,7 +267,16 @@ function openCircuitDetail(key) {
       els.circuitOriginalName.textContent =
         (meter.name || meter.meter_id) + (meter.host ? ' · ' + meter.host : '');
     }
-    circuitStaged = { invert: false };
+    setReading(els.circuitMeterVoltage, meter.voltage_v, 'V', 0);
+    // fmtW already renders a missing value as the same em dash setReading uses.
+    if (els.circuitMeterTotal) els.circuitMeterTotal.textContent = fmtW(meter.total_power_w);
+    setReading(els.circuitMeterSignal, meter.wifi_rssi_dbm, 'dBm', 0);
+    if (els.circuitMeterMac) {
+      // Statically-configured meters have no MAC until read — the server sends
+      // null rather than dressing "host:<ip>" up as one.
+      els.circuitMeterMac.textContent = meter.mac || '—';
+    }
+    circuitStaged = { invert: false, hidden: false };
   } else {
     els.circuitDetailName.textContent = channelLabel(entry.channel);
     els.circuitDisplayName.value = entry.channel.display_name || '';
@@ -188,8 +286,17 @@ function openCircuitDetail(key) {
       els.circuitOriginalName.textContent =
         meterLabel(entry.meter) + ' · channel ' + entry.channel.channel;
     }
-    circuitStaged = { invert: !!entry.channel.inverted };
-    renderInvertToggle(circuitStaged.invert);
+    if (els.circuitReadingPower) {
+      els.circuitReadingPower.textContent = fmtW(entry.channel.power_w);
+    }
+    setReading(els.circuitReadingCurrent, entry.channel.current_a, 'A', 2);
+    setReading(els.circuitReadingEnergy, entry.channel.energy_kwh, 'kWh', 2);
+    circuitStaged = {
+      invert: !!entry.channel.inverted,
+      hidden: !!entry.channel.hidden,
+    };
+    renderToggle(els.circuitInvertToggle, circuitStaged.invert);
+    renderToggle(els.circuitHiddenToggle, circuitStaged.hidden);
   }
   clearCircuitDirty();
   openDialog(els.circuitDialog);
@@ -206,7 +313,14 @@ function closeCircuitDetail() {
 function toggleCircuitInvert() {
   if (!circuitStaged) return;
   circuitStaged.invert = !circuitStaged.invert;
-  renderInvertToggle(circuitStaged.invert);
+  renderToggle(els.circuitInvertToggle, circuitStaged.invert);
+  markCircuitDirty();
+}
+
+function toggleCircuitHidden() {
+  if (!circuitStaged) return;
+  circuitStaged.hidden = !circuitStaged.hidden;
+  renderToggle(els.circuitHiddenToggle, circuitStaged.hidden);
   markCircuitDirty();
 }
 
@@ -245,13 +359,20 @@ async function saveCircuitDetail() {
       if (entry) patchChannel(key, patch); else patchMeter(key, patch);
     }));
   }
-  // Only a channel has a clamp direction; a meter never sends this.
+  // Only a channel has a clamp direction or a hidden flag; a meter never sends
+  // either of these.
   const signChanged = !!entry && !!entry.channel.inverted !== circuitStaged.invert;
   if (signChanged) {
     ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/invert', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invert: circuitStaged.invert }),
     }).then(function () { patchChannel(key, { inverted: circuitStaged.invert }); }));
+  }
+  if (!!entry && !!entry.channel.hidden !== circuitStaged.hidden) {
+    ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/hidden', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: circuitStaged.hidden }),
+    }).then(function () { patchChannel(key, { hidden: circuitStaged.hidden }); }));
   }
   try {
     await Promise.all(ops);
@@ -280,14 +401,36 @@ function setNote(message) {
   els.circuitsNote.hidden = !message;
 }
 
+// The "Show hidden" affordance only exists once something is actually put away
+// — same rule as the Plugs card. It lives in the card's own summary beside the
+// chevron, so it stays reachable even with the card folded.
+function renderHiddenToggle() {
+  const n = state.circuitsHiddenCount || 0;
+  const btn = els.circuitsHiddenToggle;
+  if (!btn) return;
+  btn.hidden = n === 0;
+  btn.textContent = state.circuitsShowHidden ? 'Hide hidden' : 'Show hidden (' + n + ')';
+  btn.classList.toggle('active', state.circuitsShowHidden);
+  btn.setAttribute('aria-pressed', state.circuitsShowHidden ? 'true' : 'false');
+}
+
 export function renderCircuits() {
   if (!els.circuitsList) return;
   els.circuitsList.innerHTML = '';
 
   const channels = allChannels();
+  state.circuitsHiddenCount = channels.filter(function (entry) {
+    return entry.channel.hidden;
+  }).length;
+  renderHiddenToggle();
+
+  // The badge counts what is actually drawn, so it agrees with the card.
+  const shown = state.circuitsShowHidden
+    ? channels.length
+    : channels.length - state.circuitsHiddenCount;
   if (els.circuitsCount) {
-    els.circuitsCount.textContent = String(channels.length);
-    els.circuitsCount.hidden = channels.length === 0;
+    els.circuitsCount.textContent = String(shown);
+    els.circuitsCount.hidden = shown === 0;
   }
 
   if (!state.circuits.length) {
@@ -302,16 +445,10 @@ export function renderCircuits() {
   }
   setNote(state.circuitsError || '');
 
-  // One meter at a time, its channels in physical order (1..N) — the order
-  // they are printed on the meter's own terminal block.
-  state.circuits.forEach(function (meter) {
-    els.circuitsList.appendChild(buildMeterHead(meter));
-    const ordered = (meter.channels || []).slice().sort(function (a, b) {
-      return a.channel - b.channel;
-    });
-    ordered.forEach(function (channel) {
-      els.circuitsList.appendChild(buildChannelRow(meter, channel));
-    });
+  // One foldable group per meter, A→Z by name; channels inside stay in physical
+  // terminal order. Sorted on a copy — state.circuits mirrors the server body.
+  state.circuits.slice().sort(byMeterLabel).forEach(function (meter) {
+    els.circuitsList.appendChild(buildMeterGroup(meter));
   });
 }
 
@@ -332,28 +469,27 @@ export async function loadCircuits() {
   }
 }
 
-export function wireCircuitsRefresh() {
-  if (!els.circuitsRefresh) return;
-  els.circuitsRefresh.addEventListener('click', async function () {
-    // A refresh re-runs mDNS discovery server-side (a few seconds), so say the
-    // wait is expected rather than looking hung.
-    els.circuitsRefresh.disabled = true;
-    els.circuitsRefresh.textContent = 'Scanning…';
+// There is no Refresh button (issue #619): the card re-polls on its own while
+// the IoT tab is open, and a meter that joins the Wi-Fi appears by itself once
+// the server's mDNS discovery TTL lapses. POST /api/circuits/refresh still
+// exists for a forced sweep from the command line.
+export function wireCircuitsToggle() {
+  try {
+    state.circuitsShowHidden = localStorage.getItem(CIRCUITS_SHOW_HIDDEN_KEY) === 'true';
+  } catch (_) { /* private mode */ }
+  loadCollapsedMeters();
+
+  if (!els.circuitsHiddenToggle) return;
+  els.circuitsHiddenToggle.addEventListener('click', function (ev) {
+    // It sits inside the card's <summary>: filtering the list must never be
+    // read as a request to fold the card away.
+    ev.preventDefault();
+    ev.stopPropagation();
+    state.circuitsShowHidden = !state.circuitsShowHidden;
     try {
-      const body = await jsonApi('/api/circuits/refresh', { method: 'POST' });
-      reportFetchOk('circuits');
-      state.circuits = (body && body.meters) || [];
-      state.circuitsError = (body && body.error) || '';
-      renderCircuits();
-      toast((body && body.refresh && body.refresh.detail) || 'Circuits refreshed', '');
-    } catch (exc) {
-      if (String(exc.message) !== 'auth required') {
-        toast('Failed: ' + (exc.message || exc), 'error');
-      }
-    } finally {
-      els.circuitsRefresh.disabled = false;
-      els.circuitsRefresh.textContent = 'Refresh';
-    }
+      localStorage.setItem(CIRCUITS_SHOW_HIDDEN_KEY, String(state.circuitsShowHidden));
+    } catch (_) { /* private mode */ }
+    renderCircuits();
   });
 }
 
@@ -370,6 +506,9 @@ export function wireCircuitDetail() {
   });
   if (els.circuitInvertToggle) {
     els.circuitInvertToggle.addEventListener('click', toggleCircuitInvert);
+  }
+  if (els.circuitHiddenToggle) {
+    els.circuitHiddenToggle.addEventListener('click', toggleCircuitHidden);
   }
   if (els.circuitSave) els.circuitSave.addEventListener('click', saveCircuitDetail);
 }
