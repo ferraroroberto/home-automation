@@ -3,6 +3,8 @@
 .env.bak*
 devices.json
 tinytuya.json
+tuya-raw.json
+snapshot.json
 
 # Webapp secrets + per-machine generated artifacts (public repo!)
 # Wildcard covers every real config file; negation keeps the committed samples.
