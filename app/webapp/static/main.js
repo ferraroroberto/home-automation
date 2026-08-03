@@ -34,7 +34,7 @@ import {
   restyleEnergyCharts,
   restoreEnergySnapshots,
 } from './energy.js';
-import { onPlugsTab, wirePlugsRefresh, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
+import { onPlugsTab, wirePlugsPair, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
 import { onCircuitsTab, wireCircuitsRefresh, wireCircuitDetail } from './circuits.js';
 import { onUpsTab, restoreUpsSnapshot } from './ups.js';
 import { wirePowerNotify } from './ups-notify.js';
@@ -174,7 +174,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireUnitsControls();
   wireEnergyControls();
   wirePlugsToggle();
-  wirePlugsRefresh();
+  wirePlugsPair();
   wirePlugDetail();
   wireCircuitsRefresh();
   wireCircuitDetail();

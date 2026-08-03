@@ -1238,11 +1238,17 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
             # POST .../switch|.../cover or PUT .../display_name on /api/tuya/{id}/{verb}
             parts = req.url.rstrip("/").split("/")
             verb, did = parts[-1], parts[-2]
-            if verb == "refresh":
+            if verb == "pair":  # #612 — cloud sync + LAN rescan; "nothing new"
                 route.fulfill(
                     status=200,
                     content_type="application/json",
-                    body=_json({"devices": list(store.values()), "refresh": {"safe": True}}),
+                    body=_json({
+                        "devices": list(store.values()),
+                        "pair": {
+                            "added": [], "updated": [], "recovered": [],
+                            "detail": "No new devices",
+                        },
+                    }),
                 )
                 return
             device = store.get(did)

@@ -4,6 +4,9 @@
 and current wattage; ``POST /api/tuya/{id}/switch`` and
 ``POST /api/tuya/{id}/cover`` write on/off and blind controls. Everything here
 is LAN-only through the gitignored ``devices.json`` — no Tuya Cloud at runtime.
+The one exception is ``POST /api/tuya/pair`` (issue #612), the explicit
+"Add device" action that captures a newly-paired device's identity and local
+key from the Tuya Cloud so no ``tinytuya wizard`` terminal run is needed.
 
 Listing fans the per-device LAN status reads out in parallel (TinyTuya is
 blocking, so each read runs in a worker thread) and catches failures per
@@ -21,6 +24,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, make_display_name_endpoint
+from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
 from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 from src.tuya_client import (
@@ -161,43 +165,80 @@ async def list_tuya() -> Dict[str, Any]:
     return {"devices": list(cards)}
 
 
-@router.post("/api/tuya/refresh")
-async def refresh_tuya() -> Dict[str, Any]:
-    """Explicit UI refresh path: live LAN rescan, then read back state.
+def _pair_detail(added: List[str], recovered: List[str], found: int, scan_error: str) -> str:
+    """One sentence naming what actually happened — distinct per outcome."""
+    parts: List[str] = []
+    if added:
+        parts.append(f"Added {len(added)} new device(s) from the Tuya cloud")
+    else:
+        parts.append("No new devices in the Tuya cloud account")
+    if scan_error:
+        parts.append(f"LAN scan failed ({scan_error}); showing last-known addresses")
+    elif recovered:
+        parts.append(f"recovered {len(recovered)} stale address(es) of {found} on the LAN")
+    elif found:
+        parts.append(f"LAN scan found {found} device(s), addresses already current")
+    else:
+        parts.append(
+            "LAN scan found nothing — check you're on the home network and the plugs "
+            "are powered on"
+        )
+    if not added:
+        parts.append("pair the plug in the Smart Life app linked at iot.tuya.com first")
+    return "; ".join(parts) + "."
 
-    A plug that took a new DHCP lease has a stale IP in ``devices.json``, so
-    merely re-reading the file leaves it offline forever. This runs a TinyTuya
-    UDP broadcast scan (no Tuya Cloud, no local keys), reconciles the discovered
-    LAN addresses into ``devices.json`` by device id, then retries the per-device
-    reads. The scan is gated to this explicit action because a broadcast scan
-    takes several seconds — page-load reads stay fast off the stored file.
+
+@router.post("/api/tuya/pair")
+async def pair_tuya() -> Dict[str, Any]:
+    """Capture newly-paired devices from the Tuya Cloud, rescan the LAN, read back.
+
+    The in-app replacement for a ``python -m tinytuya wizard`` terminal run
+    (issue #612): pair the plug in the Smart Life app, tap Add, and it lands on
+    the Plugs card. Two steps, because the cloud and the LAN each know half the
+    story — the cloud has the identity, local key and DPS mapping, while only a
+    broadcast scan knows the device's address here.
+
+    The scan is **unconditional**, not just for newly-added devices: this is
+    also the only remaining LAN-rediscovery path now that the separate Refresh
+    button is gone, so a plug that merely took a new DHCP lease has to be
+    recoverable from here too. Gated to this explicit, confirmed action — a
+    cloud round trip plus an ~8s broadcast scan is never a page-load or
+    poll-tick cost.
     """
     try:
-        summary = await asyncio.to_thread(rescan_addresses)
-    except TuyaConfigError as exc:
+        summary = await asyncio.to_thread(sync_devices_from_cloud)
+    except TuyaCloudError as exc:
+        # Configuration/authorization problem, not a device being offline —
+        # 503 with the actionable text, matching the missing-devices.json path.
+        logger.warning("⚠️  Tuya cloud sync failed: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
-    except Exception as exc:  # noqa: BLE001 — surface scan failure, keep serving
-        logger.warning("⚠️  Tuya LAN rescan failed: %s", exc)
-        summary = {"found": 0, "updated": [], "addresses": {}, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001 — surface any unexpected error
+        logger.warning("⚠️  Tuya cloud sync failed unexpectedly: %s", exc)
+        raise HTTPException(status_code=502, detail=f"cloud sync failed: {exc}")
+
+    added = summary.get("added", [])
+    updated = summary.get("updated", [])
+
+    # A failed scan must not sink the sync that already succeeded — report it
+    # in the detail line and still serve the devices.
+    found, recovered, scan_error = 0, [], ""
+    try:
+        scan = await asyncio.to_thread(rescan_addresses)
+        found = scan.get("found", 0)
+        recovered = scan.get("updated", [])
+    except Exception as exc:  # noqa: BLE001 — the cloud sync itself already landed
+        logger.warning("⚠️  Tuya LAN rescan after cloud sync failed: %s", exc)
+        scan_error = str(exc)
 
     body = await list_tuya()
-    found = summary.get("found", 0)
-    updated = summary.get("updated", [])
-    if summary.get("error"):
-        detail = f"LAN scan failed ({summary['error']}); showing last-known state."
-    elif updated:
-        detail = (
-            f"LAN scan found {found} device(s); recovered {len(updated)} stale "
-            "address(es) and refreshed live state."
-        )
-    elif found:
-        detail = f"LAN scan found {found} device(s); stored addresses already current."
-    else:
-        detail = (
-            "LAN scan found no devices — make sure you're on the home network "
-            "and the plugs are powered on."
-        )
-    body["refresh"] = {"safe": True, "found": found, "updated": updated, "detail": detail}
+    body["pair"] = {
+        "added": added,
+        "updated": updated,
+        "recovered": recovered,
+        "total": summary.get("total", 0),
+        "found": found,
+        "detail": _pair_detail(added, recovered, found, scan_error),
+    }
     return body
 
 

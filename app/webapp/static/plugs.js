@@ -18,6 +18,7 @@ import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { confirmAction } from './confirm.js';
 
 const POLL_MS = 15_000;
 
@@ -452,33 +453,53 @@ export function wirePlugsToggle() {
   }
 }
 
-export function wirePlugsRefresh() {
-  if (!els.plugsRefresh) return;
-  els.plugsRefresh.addEventListener('click', async function () {
-    // A refresh runs a LAN broadcast scan server-side (~8s), so signal that the
-    // wait is expected rather than a hang.
-    els.plugsRefresh.disabled = true;
-    els.plugsRefresh.textContent = 'Scanning…';
+// Shared by the poll/load path and the Add action: take a /api/tuya-shaped
+// body, snapshot it, and re-render from it.
+function applyPlugsBody(body) {
+  reportFetchOk('plugs');
+  saveSnapshot('plugs', body);
+  state.plugs = (body && body.devices) || [];
+  plugsView.set(state.plugs.length ? 'ready' : 'empty', {
+    updatedAt: new Date(),
+    liveUnavailable: false,
+  });
+  renderPlugs();
+}
+
+// #612: the in-app replacement for a `tinytuya wizard` terminal run, and since
+// the Refresh button was retired it is also the LAN-rediscovery path — the
+// server pairs *and* rescans in one action. Confirmed because it leaves the LAN
+// and talks to the Tuya cloud; it is slow (a cloud round trip plus an ~8s
+// broadcast scan), so the button goes disabled with a busy label to signal that
+// the wait is expected rather than a hang.
+export function wirePlugsPair() {
+  const btn = els.plugsPair;
+  if (!btn) return;
+  const idleLabel = btn.textContent;
+  btn.addEventListener('click', async function () {
+    const ok = await confirmAction({
+      title: 'Add device',
+      message: 'Fetch newly-paired devices from the Tuya cloud and rescan the LAN? '
+        + 'Pair the plug in the Smart Life app first — this only captures what that '
+        + 'account already has.',
+      okLabel: 'Sync',
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    btn.textContent = 'Syncing…';
     try {
-      const body = await jsonApi('/api/tuya/refresh', { method: 'POST' });
-      reportFetchOk('plugs');
-      saveSnapshot('plugs', body);
-      state.plugs = (body && body.devices) || [];
-      plugsView.set(state.plugs.length ? 'ready' : 'empty', {
-        updatedAt: new Date(),
-        liveUnavailable: false,
-      });
-      renderPlugs();
-      const info = (body && body.refresh) || {};
-      const recovered = (info.updated && info.updated.length) || 0;
-      toast(info.detail || 'Plugs refreshed', recovered ? 'success' : '');
+      const body = await jsonApi('/api/tuya/pair', { method: 'POST' });
+      applyPlugsBody(body);
+      const info = (body && body.pair) || {};
+      const changed = (info.added && info.added.length) || (info.recovered && info.recovered.length);
+      toast(info.detail || 'Tuya sync finished', changed ? 'success' : '');
     } catch (exc) {
       if (String(exc.message) !== 'auth required') {
         markPlugsFailure();
       }
     } finally {
-      els.plugsRefresh.disabled = false;
-      els.plugsRefresh.textContent = 'Refresh';
+      btn.disabled = false;
+      btn.textContent = idleLabel;
     }
   });
 }
@@ -504,15 +525,7 @@ export async function loadPlugs() {
     renderPlugs();
   }
   try {
-    const body = await jsonApi('/api/tuya');
-    reportFetchOk('plugs');
-    saveSnapshot('plugs', body);
-    state.plugs = (body && body.devices) || [];
-    plugsView.set(state.plugs.length ? 'ready' : 'empty', {
-      updatedAt: new Date(),
-      liveUnavailable: false,
-    });
-    renderPlugs();
+    applyPlugsBody(await jsonApi('/api/tuya'));
   } catch (exc) {
     if (String(exc.message) === 'auth required') return;
     markPlugsFailure();

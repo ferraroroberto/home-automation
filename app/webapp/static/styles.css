@@ -1402,10 +1402,16 @@ button, input, select, textarea {
     gap: 6px;
     text-align: left;
   }
+  /* Three actions (Add · Reachable only · Show hidden) must sit on ONE line
+     (#612 retired the fourth, Refresh). At 390px they fit with 13px to spare,
+     but a 375px iPhone SE missed it by half a pixel — so the gap tightens to
+     6px here, buying ~4px. wrap stays as the safety net for a ~320px viewport,
+     where three pills genuinely cannot fit without shrinking the labels. */
   .plugs-toolbar {
     justify-self: stretch;
     justify-content: flex-start;
     flex-wrap: wrap;
+    gap: 6px;
   }
 }
 

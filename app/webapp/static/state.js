@@ -365,7 +365,7 @@ export const els = {
   circuitsRefresh: document.getElementById('circuitsRefresh'),
   circuitsNote: document.getElementById('circuitsNote'),
   plugsNote: document.getElementById('plugsNote'),
-  plugsRefresh: document.getElementById('plugsRefresh'),
+  plugsPair: document.getElementById('plugsPair'),
   plugsToggleBtn: document.getElementById('plugsToggleBtn'),
   plugsHiddenToggle: document.getElementById('plugsHiddenToggle'),
   plugsHiddenCount: document.getElementById('plugsHiddenCount'),
