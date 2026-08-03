@@ -24,6 +24,16 @@ def _endpoint(channels: int = 6) -> MeterEndpoint:
     )
 
 
+def _endpoint2(channels: int = 6) -> MeterEndpoint:
+    return MeterEndpoint(
+        meter_id="AA:BB:CC:DD:EE:02",
+        host="192.0.2.74",
+        name="Athom Energy Monitor ddee02",
+        model="China Athom Technology.Athom Energy Monitor(6 Channels)",
+        channel_count=channels,
+    )
+
+
 # A trimmed but byte-faithful excerpt of what the real meter streams on connect:
 # a ping banner, a couple of device sensors, one live channel, one idle channel,
 # and a log frame that must be ignored.
@@ -189,6 +199,24 @@ class TestDiscoveryCache:
         self._browse(monkeypatch, [])
         found, _ = asyncio.run(ac.discover_meters(force=True))
         assert found == [endpoint], "a missed browse must not delete a known meter"
+
+    def test_partial_sweep_keeps_the_meter_it_missed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A sweep that finds SOME but not all known meters must not drop the rest.
+
+        With one meter this never came up (the miss was always all-or-nothing);
+        with several, a sweep missing a subset is the common case (issue #615).
+        """
+        one, two = _endpoint(), _endpoint2()
+        self._browse(monkeypatch, [[one, two]])
+        found, _ = asyncio.run(ac.discover_meters())
+        assert {e.meter_id for e in found} == {one.meter_id, two.meter_id}
+
+        # Next sweep (forced past the TTL) only catches one of the two.
+        self._browse(monkeypatch, [[one]])
+        found, _ = asyncio.run(ac.discover_meters(force=True))
+        assert {e.meter_id for e in found} == {one.meter_id, two.meter_id}, (
+            "a partial browse must not delete the meter it missed"
+        )
 
     def test_empty_sweep_with_nothing_known_reports_no_meters(
         self, monkeypatch: pytest.MonkeyPatch
