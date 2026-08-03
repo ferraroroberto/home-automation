@@ -1498,7 +1498,7 @@ button.device-row-name:hover { text-decoration: underline; }
    baseline-aligned now that it is a single line of text. */
 .circuit-meter {
   min-height: var(--row-sm);
-  padding: 4px 0;
+  padding: var(--space-xs) 0;
   gap: 10px;
 }
 .circuit-meter .collapse-main { align-items: center; line-height: 1.2; }
@@ -1534,8 +1534,9 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 /* (The first row in each group body needs no border reset — the shared
    .device-row:first-child rule already covers it, one group body at a time.) */
 /* Only on screen while "Show hidden" is on, so it is dimmed to read as the
-   put-away row it is. */
-.circuit-row.is-hidden-circuit { opacity: 0.55; }
+   put-away row it is — at the same one dim level .is-unavailable uses, rather
+   than inventing a second nearly-identical opacity. */
+.circuit-row.is-hidden-circuit { opacity: 0.6; }
 
 /* A load circuit reading below zero means the clamp is still fitted backwards —
    attention (a thing to fix), not danger (a thing that failed). */
