@@ -30,7 +30,6 @@ from src.athom_client import (
     CircuitReading,
     CircuitsState,
     MeterState,
-    clear_caches,
     clear_read_cache,
     fetch_circuits_state,
 )
@@ -108,13 +107,22 @@ async def get_circuits() -> Dict[str, Any]:
 
 @router.post("/api/circuits/refresh")
 async def refresh_circuits() -> Dict[str, Any]:
-    """Explicit UI refresh: drop the discovery + read caches, then re-read.
+    """Explicit UI refresh: re-run mDNS now instead of waiting out the TTL.
 
     A meter joined in the last few minutes is otherwise invisible until the
-    discovery TTL lapses, so the card offers a way to look again now.
+    discovery TTL lapses, so the card offers a way to look again now. Only the
+    per-meter read cache is dropped (for a fresh live reading); the discovery
+    cache is deliberately left alone — wiping it would throw away the previous
+    sweep a forced, possibly-partial mDNS browse relies on to avoid dropping a
+    meter it simply missed this time (issue #615).
     """
-    clear_caches()
-    body = await get_circuits()
+    clear_read_cache()
+    try:
+        state = await fetch_circuits_state(force=True)
+    except Exception as exc:  # noqa: BLE001 — surface any unexpected error
+        logger.warning("⚠️  Failed to refresh circuits: %s", exc)
+        raise HTTPException(status_code=502, detail=f"failed to refresh circuits: {exc}")
+    body = _circuits_dict(state)
     meters = body.get("meters") or []
     live = sum(1 for m in meters if m.get("reachable"))
     if not meters:

@@ -71,7 +71,7 @@ def _prefs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _patch_state(monkeypatch: pytest.MonkeyPatch, state: CircuitsState) -> None:
     import app.webapp.routers.circuits as router
 
-    async def fake() -> CircuitsState:
+    async def fake(force: bool = False) -> CircuitsState:
         return state
 
     monkeypatch.setattr(router, "fetch_circuits_state", fake)
@@ -172,13 +172,38 @@ def test_invert_does_not_re_run_discovery(
     per-meter read cache.
     """
     import app.webapp.routers.circuits as router
-    import src.athom_client as ac
 
     _patch_state(monkeypatch, _state())
     cleared: list[str] = []
-    monkeypatch.setattr(router, "clear_caches", lambda: cleared.append("all"))
     monkeypatch.setattr(router, "clear_read_cache", lambda: cleared.append("read"))
 
     client.put(f"/api/circuits/{METER_ID}:1/invert", json={"invert": True})
     assert cleared == ["read"]
-    assert ac.clear_read_cache is not ac.clear_caches
+
+
+def test_refresh_forces_a_sweep_without_discarding_the_safety_net(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
+) -> None:
+    """Regression: refresh must not wipe the discovery cache either (see #615).
+
+    A forced sweep can legitimately miss a subset of previously-known meters;
+    clearing the discovery cache first would throw away the only thing that
+    lets ``discover_meters()`` merge them back in instead of dropping them.
+    Refresh still has to bypass the TTL, so it goes through
+    ``fetch_circuits_state(force=True)`` rather than clearing anything discovery-side.
+    """
+    import app.webapp.routers.circuits as router
+
+    calls: list = []
+    monkeypatch.setattr(router, "clear_read_cache", lambda: calls.append("read"))
+
+    async def fake(force: bool = False) -> CircuitsState:
+        calls.append(("state", force))
+        return _state()
+
+    monkeypatch.setattr(router, "fetch_circuits_state", fake)
+
+    response = client.post("/api/circuits/refresh")
+    assert response.status_code == 200
+    assert calls == ["read", ("state", True)]
+    assert not hasattr(router, "clear_caches"), "refresh must not import/use clear_caches at all"

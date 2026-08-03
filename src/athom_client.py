@@ -391,16 +391,20 @@ async def discover_meters(force: bool = False) -> tuple[List[MeterEndpoint], Opt
 
     The result is cached for ``ATHOM_DISCOVERY_TTL_S``.
 
-    **An empty sweep never erases a known meter.** Measured on this network, one
-    cold 3 s browse missed the live meter 1 time in 20 — 2.4 GHz multicast at
-    -68 dBm loses packets, and mDNS reports that as "nothing found" rather than
-    as a failure. Letting that silently replace a good list would make circuits
-    blink out of the card at random, which is exactly the "a check that could
-    not establish a fact reported it as a passing state" trap. So a sweep that
-    finds nothing while meters were known is treated as *unproven*: the previous
-    list is kept and re-checked in :data:`_DISCOVERY_EMPTY_TTL_S` instead of the
-    full TTL. A meter genuinely gone then shows up as unreachable on its own
-    card — an honest answer — rather than vanishing.
+    **A sweep never erases a known meter, empty or partial.** Measured on this
+    network, one cold 3 s browse missed a given meter 1 time in 20 — 2.4 GHz
+    multicast at -68 dBm loses packets, and mDNS reports that as "not found"
+    rather than as a failure. With several meters on the network, that miss
+    lands on a different subset each sweep, so a sweep finding *some* but not
+    all previously-known meters is the common case, not the empty one. Letting
+    either case silently replace a good list would make circuits blink out of
+    the card at random, which is exactly the "a check that could not establish
+    a fact reported it as a passing state" trap. So any meter missing from the
+    current sweep — whether the sweep found nothing or found some other subset
+    — is kept from the previous list and re-checked in
+    :data:`_DISCOVERY_EMPTY_TTL_S` instead of the full TTL. A meter genuinely
+    gone then shows up as unreachable on its own card — an honest answer —
+    rather than vanishing.
 
     The single retry is belt-and-braces on top of that: a second browse costs
     nothing on the common path (it only runs when the first found nothing) and
@@ -441,15 +445,20 @@ async def discover_meters(force: bool = False) -> tuple[List[MeterEndpoint], Opt
         endpoints[endpoint.meter_id] = endpoint
 
     previous = cached[1] if cached is not None else []
-    if not endpoints and previous:
-        # Could not prove the meters are gone — keep them and look again soon.
+    missing = [e for e in previous if e.meter_id not in endpoints]
+    if missing:
+        # Could not prove these meters are gone — keep them (on top of whatever
+        # this sweep did find) and look again soon.
         logger.info(
-            "ℹ️ Athom sweep found nothing but %d meter(s) were known; keeping them "
-            "and re-checking in %ds",
-            len(previous), _DISCOVERY_EMPTY_TTL_S,
+            "ℹ️ Athom sweep missed %d of %d known meter(s); keeping them and "
+            "re-checking in %ds",
+            len(missing), len(previous), _DISCOVERY_EMPTY_TTL_S,
         )
-        _discovery_cache = (now + _DISCOVERY_EMPTY_TTL_S, previous)
-        return previous, error
+        for endpoint in missing:
+            endpoints[endpoint.meter_id] = endpoint
+        found = list(endpoints.values())
+        _discovery_cache = (now + _DISCOVERY_EMPTY_TTL_S, found)
+        return found, error
 
     found = list(endpoints.values())
     _discovery_cache = (now + ttl, found)
@@ -643,18 +652,24 @@ async def _read_meter(
     return state
 
 
-async def fetch_circuits_state() -> CircuitsState:
+async def fetch_circuits_state(force: bool = False) -> CircuitsState:
     """Read every discoverable Athom meter and return a flattened snapshot.
 
     Never raises. No meters, a meter that has dropped off Wi-Fi, and mDNS being
     unable to run are all normal results reported through ``discovery_ok`` /
     ``error`` / per-meter ``reachable`` rather than as exceptions — the same
     contract as :func:`src.huawei_client.fetch_energy_state`.
+
+    ``force`` re-runs mDNS now instead of waiting out the discovery TTL (the
+    explicit "Refresh" button), but still merges against the previous sweep —
+    see :func:`discover_meters`. It must never be paired with wiping the
+    discovery cache first: that would discard the very safety net a forced,
+    possibly-partial sweep depends on.
     """
     load_dotenv(override=True)
     cache_ttl_s = _env_int("ATHOM_CACHE_TTL_S", _DEFAULT_CACHE_TTL_S)
 
-    endpoints, discovery_error = await discover_meters()
+    endpoints, discovery_error = await discover_meters(force=force)
     if not endpoints:
         return CircuitsState(meters=[], discovery_ok=discovery_error is None, error=discovery_error)
 
