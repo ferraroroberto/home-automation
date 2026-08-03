@@ -532,18 +532,19 @@ def test_tuya_route_surfaces_no_ip_identity_and_refresh(
     # A no-IP device with a key reports the LAN-scan reason, not the wizard one.
     assert "No local IP" in card["error"]
 
-    # Refresh now runs a LAN rescan server-side; fake it so the test never scans.
+    # Add (the only remaining rediscovery path, #612) runs a LAN rescan
+    # server-side; fake both it and the cloud so the test never leaves the box.
     monkeypatch.setattr(
         "app.webapp.routers.tuya.rescan_addresses",
         lambda: {"found": 2, "updated": ["plug-noip"], "addresses": {"plug-noip": "192.0.2.7"}},
     )
-    refreshed = client.post("/api/tuya/refresh")
-    assert refreshed.status_code == 200
-    refresh = refreshed.json()["refresh"]
-    assert refresh["safe"] is True
-    assert refresh["found"] == 2
-    assert refresh["updated"] == ["plug-noip"]
-    assert "recovered 1 stale" in refresh["detail"]
+    monkeypatch.setattr("src.tuya_cloud._fetch_cloud_rows", lambda entries: [])
+    paired = client.post("/api/tuya/pair")
+    assert paired.status_code == 200
+    pair = paired.json()["pair"]
+    assert pair["found"] == 2
+    assert pair["recovered"] == ["plug-noip"]
+    assert "recovered 1 stale" in pair["detail"]
 
 
 def test_cameras_route_runs_with_monkeypatched_onvif(

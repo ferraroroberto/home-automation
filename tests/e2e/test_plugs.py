@@ -453,11 +453,26 @@ def test_reachable_only_toggle_hides_no_ip_adapters(
     expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(1)
 
 
-def test_refresh_button_reloads_plugs(
+def test_add_device_is_gated_by_a_confirm(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
-    _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
+    """#612: the cloud sync must never fire on a stray tap.
 
-    page.get_by_test_id("plugs-refresh").click()
-    expect(page.locator("#toast")).to_have_text("Plugs refreshed")
+    Cancelling has to leave the account untouched, so the request is asserted
+    to happen only after an explicit confirm.
+    """
+    _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
+    calls: List[str] = []
+    page.on("request", lambda req: calls.append(req.url) if "/api/tuya/pair" in req.url else None)
+
+    page.get_by_test_id("plugs-pair").click()
+    expect(page.locator("#confirmDialog")).to_be_visible()
+    page.locator("#confirmCancel").click()
+    expect(page.locator("#confirmDialog")).to_be_hidden()
+    assert calls == []
+
+    page.get_by_test_id("plugs-pair").click()
+    page.locator("#confirmOk").click()
+    expect(page.locator("#toast")).to_have_text("No new devices")
+    assert len(calls) == 1
