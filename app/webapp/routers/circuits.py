@@ -20,7 +20,8 @@ stay distinguishable from "not measured".
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -33,18 +34,43 @@ from src.athom_client import (
     clear_read_cache,
     fetch_circuits_state,
 )
-from src.circuit_prefs import load_circuit_display_names, set_circuit_display_name, set_circuit_inverted
+from src.circuit_prefs import (
+    load_circuit_display_names,
+    load_hidden_channels,
+    set_circuit_display_name,
+    set_circuit_hidden,
+    set_circuit_inverted,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+#: A meter id that is a real MAC, as :func:`src.athom_client._normalise_mac`
+#: writes it. A statically-configured meter (``ATHOM_METER_HOSTS``) instead gets
+#: ``"host:<ip>"`` until it is read, and has no MAC to report.
+_MAC_RE = re.compile(r"^[0-9A-F]{2}(?::[0-9A-F]{2}){5}$")
 
-def _channel_dict(reading: CircuitReading, names: Dict[str, str]) -> Dict[str, Any]:
-    """Flatten one channel, merging in its custom label.
 
-    ``display_name`` is merged here rather than in the client so the device
-    layer stays UI-free — the same split the Tuya and MELCloud routers use.
+def _mac_or_none(meter_id: str) -> Optional[str]:
+    """The meter's MAC, or ``None`` when its id isn't one.
+
+    The id already *is* the normalised MAC for an mDNS-discovered meter, but the
+    card should not print ``host:192.0.2.73`` under a "MAC" label — that is a
+    different fact wearing the same field.
+    """
+    return meter_id if _MAC_RE.match(meter_id or "") else None
+
+
+def _channel_dict(
+    reading: CircuitReading, names: Dict[str, str], hidden: Dict[str, bool]
+) -> Dict[str, Any]:
+    """Flatten one channel, merging in its custom label and hidden flag.
+
+    ``display_name`` and ``hidden`` are merged here rather than in the client so
+    the device layer stays UI-free — the same split the Tuya and MELCloud
+    routers use. Hiding is presentation only: a hidden channel is still returned
+    in full, flagged, and the card decides whether to draw it.
     """
     return {
         "channel": reading.channel,
@@ -55,14 +81,20 @@ def _channel_dict(reading: CircuitReading, names: Dict[str, str]) -> Dict[str, A
         "current_a": reading.current_a,
         "energy_kwh": reading.energy_kwh,
         "inverted": reading.inverted,
+        "hidden": bool(hidden.get(reading.key)),
     }
 
 
-def _meter_dict(meter: MeterState, names: Dict[str, str]) -> Dict[str, Any]:
+def _meter_dict(
+    meter: MeterState, names: Dict[str, str], hidden: Dict[str, bool]
+) -> Dict[str, Any]:
     """Flatten one meter and all of its channels."""
     return {
         "meter_id": meter.meter_id,
         "name": meter.name,
+        # The meter's own MAC, so a renamed meter can still be matched to the
+        # box on the DIN rail (and to its row in the Network tab).
+        "mac": _mac_or_none(meter.meter_id),
         # A meter is renamed through the same store and the same endpoint as its
         # channels, keyed by the bare meter id — so "Athom Energy Monitor ddee01"
         # can become "cuadro principal" once there is more than one of them.
@@ -77,14 +109,15 @@ def _meter_dict(meter: MeterState, names: Dict[str, str]) -> Dict[str, Any]:
         "wifi_rssi_dbm": meter.wifi_rssi_dbm,
         "total_power_w": meter.total_power_w,
         "total_energy_kwh": meter.total_energy_kwh,
-        "channels": [_channel_dict(c, names) for c in meter.channels],
+        "channels": [_channel_dict(c, names, hidden) for c in meter.channels],
     }
 
 
 def _circuits_dict(state: CircuitsState) -> Dict[str, Any]:
     """Flatten a :class:`CircuitsState` into the JSON body the PWA reads."""
     names = load_circuit_display_names()
-    meters: List[Dict[str, Any]] = [_meter_dict(m, names) for m in state.meters]
+    hidden = load_hidden_channels()
+    meters: List[Dict[str, Any]] = [_meter_dict(m, names, hidden) for m in state.meters]
     return {
         "meters": meters,
         # Kept as its own flag rather than inferred from an empty list: "mDNS
@@ -170,3 +203,24 @@ async def update_invert(key: str, payload: InvertPayload) -> Dict[str, Any]:
     # card for a flipped clamp, which is exactly what happened in testing.
     clear_read_cache()
     return {"key": key, "invert": payload.invert}
+
+
+class HiddenPayload(BaseModel):
+    hidden: bool
+
+
+@router.put("/api/circuits/{key}/hidden")
+async def update_hidden(key: str, payload: HiddenPayload) -> Dict[str, Any]:
+    """Put one channel away in the card, or bring it back (issue #619).
+
+    A 6-channel meter on a 4-breaker board reports two channels that will never
+    read anything, and they are noise on a card scanned at a glance. Unlike the
+    invert flip this changes nothing about the *reading*, so neither cache is
+    dropped — the next poll re-renders with the flag already on the wire.
+    """
+    try:
+        set_circuit_hidden(key, payload.hidden)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  Failed to save hidden flag for %s: %s", key, exc)
+        raise HTTPException(status_code=500, detail=f"failed to save hidden flag: {exc}")
+    return {"key": key, "hidden": payload.hidden}

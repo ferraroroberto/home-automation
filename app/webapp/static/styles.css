@@ -1472,30 +1472,39 @@ button.device-row-name:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 
-/* Live wattage — sits just left of the toggle, on the same row as the name. */
+/* Live wattage — sits just left of the toggle, on the same row as the name.
+   Reads as primary text like the row's own name, not as an accent: a wattage is
+   a *value*, not something you can click, and the blue read as a link. This was
+   scoped to .circuit-row first (six accent-blue numbers stop reading as a list)
+   and generalized to the plug rows in #619 — the accent is now reserved for
+   interactive emphasis app-wide, per design.md's "one accent" rule. */
 .plug-watts {
   flex: none;
   font-size: var(--font-body);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--ink);
 }
 
-/* Circuits card (issue #25): one caption row per CT-clamp meter, then that
-   meter's channels as ordinary .device-row entries beneath it. The head is a
-   group label rather than a device, so it is quieter than the rows it
-   introduces — no hairline of its own, since the first .device-row draws one. */
+/* Circuits card (issue #25, reshaped in #619): one foldable <details> group per
+   CT-clamp meter, that meter's channels as ordinary .device-row entries inside.
+   The header is the meter's *name alone* — the aggregate figures it used to
+   carry moved into the detail dialog, because this card exists to show the
+   individual circuits rather than the meter's own total. */
+.circuit-group { border-top: 1px solid var(--line); }
+.circuit-group:first-child { border-top: 0; }
+/* The group header reads at the same size as the channel rows it introduces
+   (700 vs their 600 marks it as the group), vertically centred rather than
+   baseline-aligned now that it is a single line of text. */
 .circuit-meter {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  min-height: var(--row-sm);
+  padding: var(--space-xs) 0;
   gap: 10px;
-  padding: 12px 0 2px;
 }
+.circuit-meter .collapse-main { align-items: center; line-height: 1.2; }
 .circuit-meter.is-unavailable { opacity: 0.6; }
-/* Tap-to-rename like a device row's name, but styled as the quiet group label
-   it is. The name yields first: the live figures to its right are fixed-width
-   and the more useful of the two when a phone runs out of room. */
+/* Tap-to-rename like a device row's name. It yields first: on a narrow phone
+   the chevron and the offline flag matter more than the tail of a long label. */
 button.circuit-meter-name {
   flex: 0 1 auto;
   min-width: 0;
@@ -1506,9 +1515,9 @@ button.circuit-meter-name {
   margin: 0;
   text-align: left;
   font: inherit;
-  font-size: var(--font-caption);
+  font-size: var(--font-body);
   font-weight: 700;
-  color: var(--muted);
+  color: var(--ink);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1522,16 +1531,15 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   color: var(--muted);
   white-space: nowrap;
 }
-
-/* Wattage on a circuit row reads as primary text, like the row's own name,
-   rather than the accent the plug rows use. A Circuits card shows six figures
-   at once where a plug row shows one, and six accent-blue numbers stop reading
-   as a list. Scoped to .circuit-row so the Plugs card is untouched. */
-.circuit-row .plug-watts { color: var(--ink); }
+/* (The first row in each group body needs no border reset — the shared
+   .device-row:first-child rule already covers it, one group body at a time.) */
+/* Only on screen while "Show hidden" is on, so it is dimmed to read as the
+   put-away row it is — at the same one dim level .is-unavailable uses, rather
+   than inventing a second nearly-identical opacity. */
+.circuit-row.is-hidden-circuit { opacity: 0.6; }
 
 /* A load circuit reading below zero means the clamp is still fitted backwards —
-   attention (a thing to fix), not danger (a thing that failed). Needs the same
-   two-class specificity as the rule above to win. */
+   attention (a thing to fix), not danger (a thing that failed). */
 .circuit-row .plug-watts.circuit-watts-negative { color: var(--attention); }
 
 /* Blind controls: up / stop / down icon buttons. */

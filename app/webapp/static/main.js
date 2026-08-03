@@ -35,7 +35,7 @@ import {
   restoreEnergySnapshots,
 } from './energy.js';
 import { onPlugsTab, wirePlugsPair, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
-import { onCircuitsTab, wireCircuitsRefresh, wireCircuitDetail } from './circuits.js';
+import { onCircuitsTab, wireCircuitsToggle, wireCircuitDetail } from './circuits.js';
 import { onUpsTab, restoreUpsSnapshot } from './ups.js';
 import { wirePowerNotify } from './ups-notify.js';
 import { wirePcFleet, onPcFleetTab } from './pc-fleet.js';
@@ -176,7 +176,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wirePlugsToggle();
   wirePlugsPair();
   wirePlugDetail();
-  wireCircuitsRefresh();
+  wireCircuitsToggle();
   wireCircuitDetail();
   wirePowerNotify();
   wirePcFleet();

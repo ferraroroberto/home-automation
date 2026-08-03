@@ -27,6 +27,9 @@ export const state = {
   circuitsError: '',
   // Channel key ("<meter_id>:<channel>") whose rename modal is open, or null.
   selectedCircuitKey: null,
+  // Reveal user-hidden circuit channels (issue #619), and how many there are.
+  circuitsShowHidden: false,
+  circuitsHiddenCount: 0,
   // Local USB UPS state from GET /api/ups.
   ups: null,
   // Home Assistant Hyper-V VM state from GET /api/hyperv (issue #240).
@@ -161,6 +164,11 @@ export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
 export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
 export const PLUGS_SHOW_HIDDEN_KEY = 'home-automation.plugsShowHidden';
+export const CIRCUITS_SHOW_HIDDEN_KEY = 'home-automation.circuitsShowHidden';
+// Which meter groups are folded shut (issue #619) — a JSON array of meter ids.
+// Per-browser rather than server-side: how much of the board you want unrolled
+// is a property of the screen you are reading it on, not of the house.
+export const CIRCUITS_COLLAPSED_KEY = 'home-automation.circuitsCollapsed';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
 export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
@@ -362,7 +370,7 @@ export const els = {
   circuitsCard: document.getElementById('circuitsCard'),
   circuitsList: document.getElementById('circuitsList'),
   circuitsCount: document.getElementById('circuitsCount'),
-  circuitsRefresh: document.getElementById('circuitsRefresh'),
+  circuitsHiddenToggle: document.getElementById('circuitsHiddenToggle'),
   circuitsNote: document.getElementById('circuitsNote'),
   plugsNote: document.getElementById('plugsNote'),
   plugsPair: document.getElementById('plugsPair'),
@@ -418,8 +426,19 @@ export const els = {
   circuitDetailName: document.getElementById('circuitDetailName'),
   circuitDisplayName: document.getElementById('circuitDisplayName'),
   circuitOriginalName: document.getElementById('circuitOriginalName'),
+  circuitReadings: document.getElementById('circuitReadings'),
+  circuitReadingPower: document.getElementById('circuitReadingPower'),
+  circuitReadingCurrent: document.getElementById('circuitReadingCurrent'),
+  circuitReadingEnergy: document.getElementById('circuitReadingEnergy'),
+  circuitMeterInfo: document.getElementById('circuitMeterInfo'),
+  circuitMeterVoltage: document.getElementById('circuitMeterVoltage'),
+  circuitMeterTotal: document.getElementById('circuitMeterTotal'),
+  circuitMeterSignal: document.getElementById('circuitMeterSignal'),
+  circuitMeterMac: document.getElementById('circuitMeterMac'),
   circuitInvertSection: document.getElementById('circuitInvertSection'),
   circuitInvertToggle: document.getElementById('circuitInvertToggle'),
+  circuitHiddenSection: document.getElementById('circuitHiddenSection'),
+  circuitHiddenToggle: document.getElementById('circuitHiddenToggle'),
   circuitDetailClose: document.getElementById('circuitDetailClose'),
   circuitSave: document.getElementById('circuitSave'),
   // Elgato lights — the IoT tab's middle row-list card (#136).

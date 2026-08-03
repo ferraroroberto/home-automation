@@ -1093,20 +1093,30 @@
            Meters are discovered over mDNS with nothing to register, and EVERY
            channel a meter has is listed whether or not a clamp is fitted, so a
            clamp added later starts reading with no code change and no config
-           edit. Tapping a channel opens the rename + sign-flip dialog. -->
+           edit. Tapping a channel opens the rename + sign-flip dialog.
+
+           Each meter is its own <details> group (issue #619), rendered by
+           circuits.js: tap the header to fold it away, tap its name to rename.
+           There is no Refresh button — the card re-polls on its own, and a
+           newly-joined meter appears when the mDNS discovery TTL lapses. -->
       <details class="card card--collapsible device-list-card" id="circuitsCard">
+        <!-- "Show hidden" rides in the summary beside the chevron (the
+             summary-embedded-control pattern the HA card's VM switch uses), not
+             in a toolbar row of its own: it is a card-level filter, and a lone
+             pill above the first meter read as a floating orphan. Its click
+             never folds the card. Only rendered once something is hidden. -->
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-gauge"></use></svg>
             <h3 class="collapse-title">Circuits</h3>
             <span id="circuitsCount" class="muted small security-hidden-count" hidden></span>
           </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          <span class="security-zones-tools">
+            <button id="circuitsHiddenToggle" type="button" class="range-tab" data-testid="circuits-show-hidden-toggle" hidden>Show hidden</button>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </span>
         </summary>
         <div class="device-list-body">
-          <div class="lights-toolbar" aria-label="Circuit meter controls">
-            <button id="circuitsRefresh" type="button" class="range-tab" data-testid="circuits-refresh">Refresh</button>
-          </div>
           <section id="circuitsList" class="device-list" aria-label="Circuits" aria-live="polite"></section>
           <p id="circuitsNote" class="muted small lights-note" role="status" hidden></p>
         </div>
@@ -2132,12 +2142,35 @@
        rename dialog. The invert toggle exists because the BL0906 reports signed
        power, so a CT clamp fitted with its arrow against the flow reads negative
        on an ordinary load — correcting it here beats reopening a live consumer
-       unit to rotate the clamp. -->
+       unit to rotate the clamp.
+
+       This dialog is also where the *reference* figures live (issue #619): the
+       card itself shows one number per row (watts), because that is the one
+       worth reading at a glance — amps, cumulative kWh, mains voltage, signal
+       and the meter's MAC are all things you go looking for deliberately. -->
   <dialog id="circuitDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="circuitDetailName">Circuit</h2>
         <button id="circuitDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <!-- One channel's live readings. Hidden when the dialog is showing a
+           whole meter (which has the block below instead). -->
+      <div id="circuitReadings">
+        <div class="row"><span>Power</span><span id="circuitReadingPower" class="muted">—</span></div>
+        <div class="row"><span>Current</span><span id="circuitReadingCurrent" class="muted">—</span></div>
+        <div class="row"><span>Energy</span><span id="circuitReadingEnergy" class="muted">—</span></div>
+      </div>
+
+      <!-- The meter's own reference data, off the group header (issue #619) —
+           the header carries the name alone, because what this card is for is
+           the individual circuit, not the meter's aggregate. -->
+      <div id="circuitMeterInfo">
+        <div class="row"><span>Voltage</span><span id="circuitMeterVoltage" class="muted">—</span></div>
+        <div class="row"><span>Total power</span><span id="circuitMeterTotal" class="muted">—</span></div>
+        <div class="row"><span>Wi-Fi signal</span><span id="circuitMeterSignal" class="muted">—</span></div>
+        <div class="row"><span>MAC</span><span id="circuitMeterMac" class="muted">—</span></div>
       </div>
 
       <label class="row">
@@ -2148,8 +2181,9 @@
            be traced back to the physical device it is fitted on. -->
       <p id="circuitOriginalName" class="muted small zone-original-name"></p>
 
-      <!-- Hidden when the dialog is renaming a whole meter rather than one of
-           its channels: a meter has no clamp direction to correct. -->
+      <!-- Both sections below are hidden when the dialog is renaming a whole
+           meter rather than one of its channels: a meter has no clamp direction
+           to correct, and hiding one would hide every circuit under it. -->
       <div id="circuitInvertSection">
         <div class="row">
           <span>Clamp fitted backwards</span>
@@ -2158,6 +2192,16 @@
           </button>
         </div>
         <p class="muted small zone-original-name">Turn this on when an ordinary load reads as a negative number.</p>
+      </div>
+
+      <div id="circuitHiddenSection">
+        <div class="row">
+          <span>Hidden</span>
+          <button id="circuitHiddenToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide this channel">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <p class="muted small zone-original-name">Put a terminal with no clamp fitted away. It keeps being measured — fit a clamp later and unhide it.</p>
       </div>
 
       <div class="detail-actions">
