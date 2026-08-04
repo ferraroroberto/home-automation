@@ -439,8 +439,12 @@ def next_boost_admission(
     if not settled:
         return BoostDecision(reason="held_settle", held=ordered)
     if last_change_as_of is not None and energy_as_of == last_change_as_of:
-        # Same 5-minute bucket the last change was made against: this reading
-        # cannot yet contain that change's draw.
+        # The very reading the last change was made against, so it cannot yet
+        # contain that change's draw. This bites on the cloud path, where a
+        # 5-minute bucket is re-served for minutes; on the local Modbus path
+        # every read carries a fresh second and the guard simply never fires —
+        # correctly, since a 1-second-old reading *does* already contain the
+        # change. The real protection either way is the settle floor above.
         return BoostDecision(reason="held_settle", held=ordered)
     if pv_surplus_w < surplus_on_w + config.admission_margin_w:
         return BoostDecision(reason="held_margin", held=ordered)
