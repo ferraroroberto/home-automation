@@ -500,10 +500,23 @@ def test_lights_route_keeps_legacy_host_display_name_fallback(
 
 
 def test_tuya_route_surfaces_no_ip_identity_and_refresh(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """No-IP Tuya rows stay visible with stable non-secret identity metadata."""
+    import json
+
+    import src.tuya_client as tuya_client
     from src.tuya_client import TuyaDeviceInfo
+
+    # ``POST /api/tuya/pair`` reads ``devices.json`` off disk (issue #621) —
+    # point it at a throwaway file so the test never depends on whether the
+    # real, gitignored one happens to exist in the checkout running it.
+    devices_file = tmp_path / "devices.json"
+    devices_file.write_text(
+        json.dumps([{"id": "plug-noip", "name": "Fixture Plug", "key": "k"}]),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tuya_client, "_DEVICE_FILE", devices_file)
 
     info = TuyaDeviceInfo(
         device_id="plug-noip",
