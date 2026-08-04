@@ -295,8 +295,11 @@ def boosted_target(
 #: pre-admission surplus — conclude there is still room, and admit again. That
 #: reconstructs the very herd this coordinator exists to prevent. The interval
 #: must also cover the inverter compressor's own ramp-up, not just the meter's
-#: publish cadence. Not configurable below this; the loader clamps up and the
-#: writer refuses.
+#: publish cadence — so the floor **stands unchanged now that local Modbus
+#: serves the flow about a second old** (issue #618). The publish cadence stopped
+#: being the binding reason; the compressor ramp never was cloud-specific, and
+#: the cloud is still the fallback. Not configurable below this; the loader
+#: clamps up and the writer refuses.
 MIN_SETTLE_INTERVAL_S = 300
 #: Sanity ceiling — a typo'd interval must not park the coordinator for a day.
 MAX_SETTLE_INTERVAL_S = 3600

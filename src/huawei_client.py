@@ -10,15 +10,23 @@ generation, house consumption, and the grid exchange measured by the inverter's
 RS485 power sensor — so there is no separate meter/inverter split and no local
 network dependency.
 
-Why cloud and not local Modbus
-------------------------------
-The installed **SUN2000-8K-LC0** exposes no usable Modbus interface: TCP 502 is
-refused on both the LAN address and the inverter's own access point, and the
-proprietary port 6607 accepts a connection but answers no Modbus request (it is
-TLS-wrapped on this generation). Verified down to the wire protocol, including
-against the ``huawei-solar`` library. Enabling it needs an ``SDongleA-05``
-fitted by the installer; until then the cloud API is the only complete source.
-See the investigation write-up referenced from ``README.md``.
+Local Modbus first, this cloud path as the fallback
+---------------------------------------------------
+Since an **SDongleA-05** smart dongle was fitted and wired to the LAN (#618),
+:mod:`src.huawei_modbus` reads the same flow off the inverter directly, about
+a second old instead of the portal's 5-minute grid.
+:func:`fetch_energy_state` tries that first and falls back here on any failure.
+
+The fallback is not belt-and-braces. The dongle self-reboots when it loses its
+route to the cloud, so both paths tend to fail *together* — deleting this one
+would make an outage worse, not shorter. It also remains the only source for
+:func:`fetch_energy_day` (the registers are instantaneous, with no history) and
+for today's cumulative kWh counters.
+
+(This section previously recorded that the inverter exposed no usable Modbus at
+all — TCP 502 refused on both the LAN address and its own access point, port
+6607 answering nothing because it is TLS-wrapped on this generation. That was
+true, and verified to the wire protocol, until the dongle existed.)
 
 Sign convention
 ---------------
@@ -632,8 +640,36 @@ def _derive(state: EnergyState) -> None:
         state.house_consumption_w = round(state.pv_power_w + imp - exp, 1)
 
 
+async def _cloud_cumulative(state: EnergyState, config: EnergyConfig) -> None:
+    """Fill today's kWh counters from the cloud, best-effort (issue #618).
+
+    The Modbus path cannot supply these. The power sensor's own cumulative
+    registers are **lifetime** totals, and these two fields are today's — the
+    HA integration publishes them as ``TOTAL_INCREASING`` "energy today"
+    sensors, which a silent swap to a lifetime basis would corrupt outright.
+
+    So they keep coming from the portal, which already serves them. This costs
+    no extra traffic in the steady state: :func:`_fetch_stats` is cached for
+    ``cache_ttl_s`` and returns immediately while backing off, so the call rate
+    is exactly what it was before Modbus became primary. A failure simply
+    leaves both fields ``None`` rather than disturbing the local read.
+    """
+    stats = await _fetch_stats(config)
+    if stats is None:
+        return
+    state.grid_import_kwh = _as_float(stats.get("totalBuyPower"))
+    state.grid_export_kwh = _as_float(stats.get("totalOnGridPower"))
+
+
 async def fetch_energy_state() -> EnergyState:
-    """Read the live FusionSolar energy flow and return a flattened snapshot.
+    """Read the live energy flow and return a flattened snapshot.
+
+    **Local Modbus first, cloud on any failure** (issue #618). The dongle
+    answers about a second old where the portal publishes every 5 minutes and
+    lags several more; :mod:`src.huawei_modbus` reports an unreadable dongle as
+    ``None``, and everything below is the unchanged cloud path that then serves.
+    Which source answered is logged on every change, so a fallback that quietly
+    becomes permanent is visible rather than merely slower.
 
     Never raises for missing credentials, a portal outage, or a stale upload —
     partial or empty data is a normal, useful result.  The reachability flags
@@ -650,6 +686,18 @@ async def fetch_energy_state() -> EnergyState:
     meter and the inverter as independent sources.
     """
     config = _load_config()
+
+    # Imported here rather than at module scope: huawei_modbus imports
+    # EnergyState and _derive from this module, so a top-level import would be
+    # circular. Same lazy-import pattern src.camera_client uses for
+    # src.network_client.
+    from src.huawei_modbus import fetch_modbus_state
+
+    local = await fetch_modbus_state()
+    if local is not None:
+        await _cloud_cumulative(local, config)
+        return local
+
     state = EnergyState()
 
     stats = await _fetch_stats(config)

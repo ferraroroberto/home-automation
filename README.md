@@ -430,21 +430,50 @@ automation (shift HVAC load to match PV).
 with an 8.8 kWp array and an RS485 power sensor on the grid connection. No
 battery is fitted.
 
-**Source: the FusionSolar cloud.** One call to the portal returns the whole flow
-— PV production, house consumption, and the grid exchange — so there is no local
-host to configure and no meter/inverter split. A point older than
-`FUSIONSOLAR_MAX_STALENESS_S` is treated as **stale** and reported as
-unavailable rather than served as live, so a frozen upload cannot flat-line the
-chart (issue #94).
+**Source: local Modbus TCP first, the FusionSolar cloud as fallback** (issue
+#618). A **Smart Dongle `SDongleA-05`** is now fitted to the inverter and wired
+to the LAN, so `src/huawei_modbus.py` reads PV production and the grid exchange
+straight off the inverter's holding registers — about **1 s old**, against the
+portal's 5-minute grid and the further few minutes it runs behind. On any
+failure `src/huawei_client.py` falls back to the cloud path unchanged, and the
+serving source is logged whenever it changes so a fallback that quietly becomes
+permanent is visible. A cloud point older than `FUSIONSOLAR_MAX_STALENESS_S` is
+still treated as **stale** and reported unavailable rather than served as live,
+so a frozen upload cannot flat-line the chart (issue #94).
 
-> **Why not local Modbus?** This inverter exposes none. TCP 502 is *refused* on
-> both the LAN address and the inverter's own access point, and the proprietary
-> port 6607 accepts a connection but answers no Modbus request (it is TLS-wrapped
-> on the LC0 generation) — verified to the wire protocol, including against the
-> `huawei-solar` library. There is no setting in the app or the web portal to
-> enable it. A **Smart Dongle `SDongleA-05` on Ethernet** would add a local path
-> (~1 s resolution instead of ~5 min, and no cloud dependency); that is tracked
-> separately as a follow-up.
+Enable Modbus on the dongle once, in the owner portal: **FusionSolar Web →
+Monitoring → your dongle → Configuration → ModBus-TCP → `Enable
+(unrestricted)`**. Then set `HUAWEI_MODBUS_MAC` (and optionally
+`HUAWEI_MODBUS_HOST` as a cold-start hint) in `.env` — see `.env.example`. With
+neither set the local path is simply disabled and the cloud serves, which is
+also what keeps CI off the real inverter.
+
+> **Sign convention — register `37113` is positive when *exporting*,** the exact
+> opposite of the cloud's `meterActivePower` (positive when *importing*). Each
+> source splits its own signed figure into `grid_import_w` / `grid_export_w` in
+> exactly one place, and the two must never be collapsed into a shared helper.
+> Proven on the live system rather than inferred: the cloud reported exporting
+> 1004 W while `37113` read +1015 W two minutes later, and across a 220-second
+> window with `37113` positive throughout, the meter's cumulative register
+> `37119` advanced at the matching rate while `37121` stayed frozen.
+
+> **The cloud is not belt-and-braces — keep it.** The dongle self-reboots when it
+> loses its route to the gateway or to the FusionSolar cloud, so both paths tend
+> to fail *together*; dropping the cloud would lengthen outages, not shorten
+> them. The cloud also remains the **only** source for history backfill (the
+> registers are instantaneous, with no series) and for today's cumulative kWh
+> counters (the meter's own counters are lifetime totals, which would corrupt
+> the Home Assistant `TOTAL_INCREASING` "energy today" sensors).
+
+> **Only one client may talk to the dongle at a time** — Huawei's own guide, and
+> observed: opening a second session dropped the first mid-read. This app must
+> be the sole collector, so let Home Assistant read `/api/energy` and never poll
+> the dongle itself. Reads are serialised behind a lock, one snapshot is reused
+> for `HUAWEI_MODBUS_CACHE_TTL_S` (default 5 s) to hold the on-device cadence
+> down, and the session is closed after every cycle. The dongle also **moves**:
+> it holds a DHCP lease, so the MAC is the authoritative address and a failed
+> read re-resolves it via `src.network_client.resolve_ip_by_mac` before conceding
+> to the cloud.
 
 **Reading around the source's gaps.** The portal serves the day as parallel
 5-minute series, and the newest data is not always trustworthy. Two hazards,
