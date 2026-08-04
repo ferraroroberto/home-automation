@@ -29,7 +29,7 @@ from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger("tuya")
 
-_DEVICE_FILE = Path("devices.json")
+_DEVICE_FILE = Path(__file__).resolve().parent.parent / "devices.json"
 _LOCAL_TIMEOUT_SECONDS = 1.0
 _LOCAL_RETRY_LIMIT = 1
 # UDP broadcast scan window for a Refresh-triggered LAN rediscovery. Long enough
