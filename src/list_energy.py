@@ -1,8 +1,8 @@
 r"""
-Show live FusionSolar energy flow (CLI)
-=======================================
-Smoke test: confirm the Huawei FusionSolar integration returns live energy data
-before building solar load-balancing on top of it.
+Show the live Huawei energy flow (CLI)
+======================================
+Smoke test: confirm the Huawei energy integration returns live data before
+building solar load-balancing on top of it.
 
 Run from the project root with the venv interpreter::
 
@@ -10,9 +10,11 @@ Run from the project root with the venv interpreter::
     ./.venv/bin/python -m src.list_energy                 # POSIX
 
 The whole flow — PV production, house consumption and the grid exchange — comes
-from the FusionSolar cloud in one call, using the ``FUSIONSOLAR_*`` credentials
-in ``.env``. At night the inverter stops reporting PV, which the output flags
-rather than treating as an error.
+from the inverter's own Modbus TCP registers over the SDongleA-05 dongle
+(``HUAWEI_MODBUS_*`` in ``.env``), falling back automatically to the FusionSolar
+cloud (``FUSIONSOLAR_*``) when the dongle can't be read. The ``INFO`` line this
+prints on startup says which of the two actually served. At night the inverter
+stops reporting PV, which the output flags rather than treating as an error.
 """
 
 from __future__ import annotations

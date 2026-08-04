@@ -1,8 +1,13 @@
 # MELCloud Home API client (async, pure-HTTP PKCE login — no browser)
 aiomelcloudhome==0.1.7
 
-# Huawei FusionSolar: cloud portal read for the SUN2000 inverter + power sensor
+# Huawei FusionSolar: cloud portal read for the SUN2000 inverter + power sensor.
+# Since issue #618 this is the fallback behind the local Modbus path below.
 fusion_solar_py==0.1.2
+
+# Huawei SUN2000 local Modbus TCP over the SDongleA-05 dongle (issue #618) — the
+# primary live-flow source, ~1 s resolution against the cloud's 5-minute grid.
+pymodbus==3.11.4
 
 # Tuya / Smart Life: local LAN control via gitignored devices.json
 tinytuya==1.18.1

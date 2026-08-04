@@ -11,7 +11,8 @@
 flowchart TB
   subgraph external["External devices & cloud services"]
     MELCLOUD["MELCloud Home cloud\n(HVAC, via aiomelcloudhome)"]
-    SOLAR["Huawei solar/energy\n(FusionSolar cloud — SUN2000 + power sensor)"]
+    SOLARLOCAL["Huawei SUN2000 LAN\n(Modbus TCP via SDongleA-05 — primary, ~1 s)"]
+    SOLAR["Huawei solar/energy\n(FusionSolar cloud — fallback + history backfill)"]
     ATHOM["Athom BL0906 CT-clamp meters LAN\n(per-circuit power; ESPHome, mDNS-discovered)"]
     RISCO["RISCO Cloud + WebUI\n(alarm)"]
     TUYA["Tuya / Smart Life LAN\n(plugs)"]
@@ -29,7 +30,7 @@ flowchart TB
   end
 
   subgraph core["src/ — UI-free device clients & domain logic"]
-    CLIENTS["melcloud_client · huawei_client · athom_client · risco_client/risco_webui ·\ntuya_client (+tuya_cloud) · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine/\npresence_places/presence_roles · ups_client (+host_shutdown) ·\nhyperv_client · ha_client · voice_client · searxng_client"]
+    CLIENTS["melcloud_client · huawei_client (+huawei_modbus) · athom_client ·\nrisco_client/risco_webui ·\ntuya_client (+tuya_cloud) · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine/\npresence_places/presence_roles · ups_client (+host_shutdown) ·\nhyperv_client · ha_client · voice_client · searxng_client"]
     DOMAIN["tariff · pv_forecast · sun_position · hvac_automation · dhcp_plan ·\ntelemetry / energy_history / network_history / network_survey"]
     STORES["display_names & sibling rename/hidden/prefs stores\n(_atomic_json · _schedule_store · _toggle_prefs)"]
     ACTIVITY["activity_log — domain-free append-only event log\n(one logs/*.jsonl file per consumer)"]
@@ -38,7 +39,8 @@ flowchart TB
   end
 
   MELCLOUD --> CLIENTS
-  SOLAR --> CLIENTS
+  SOLARLOCAL --> CLIENTS
+  SOLAR -->|fallback| CLIENTS
   ATHOM --> CLIENTS
   RISCO --> CLIENTS
   TUYA --> CLIENTS

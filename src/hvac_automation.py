@@ -295,8 +295,11 @@ def boosted_target(
 #: pre-admission surplus — conclude there is still room, and admit again. That
 #: reconstructs the very herd this coordinator exists to prevent. The interval
 #: must also cover the inverter compressor's own ramp-up, not just the meter's
-#: publish cadence. Not configurable below this; the loader clamps up and the
-#: writer refuses.
+#: publish cadence — so the floor **stands unchanged now that local Modbus
+#: serves the flow about a second old** (issue #618). The publish cadence stopped
+#: being the binding reason; the compressor ramp never was cloud-specific, and
+#: the cloud is still the fallback. Not configurable below this; the loader
+#: clamps up and the writer refuses.
 MIN_SETTLE_INTERVAL_S = 300
 #: Sanity ceiling — a typo'd interval must not park the coordinator for a day.
 MAX_SETTLE_INTERVAL_S = 3600
@@ -436,8 +439,12 @@ def next_boost_admission(
     if not settled:
         return BoostDecision(reason="held_settle", held=ordered)
     if last_change_as_of is not None and energy_as_of == last_change_as_of:
-        # Same 5-minute bucket the last change was made against: this reading
-        # cannot yet contain that change's draw.
+        # The very reading the last change was made against, so it cannot yet
+        # contain that change's draw. This bites on the cloud path, where a
+        # 5-minute bucket is re-served for minutes; on the local Modbus path
+        # every read carries a fresh second and the guard simply never fires —
+        # correctly, since a 1-second-old reading *does* already contain the
+        # change. The real protection either way is the settle floor above.
         return BoostDecision(reason="held_settle", held=ordered)
     if pv_surplus_w < surplus_on_w + config.admission_margin_w:
         return BoostDecision(reason="held_margin", held=ordered)
