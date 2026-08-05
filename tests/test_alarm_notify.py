@@ -3,8 +3,9 @@
 Covers :mod:`src.activity_log`, :mod:`src.alarm_notify_prefs`, and the
 :func:`app.webapp.alarm_notify.record_alarm_action` policy: manual never
 notifies, automatic notifies only when its toggle is on, errors use the
-``error`` toggle, a missing notifier / delivery failure is a safe no-op, and a
-keyed error de-dupes to once per local day while still logging every attempt.
+``error`` toggle, a ``blocked`` outcome never notifies regardless of any
+toggle, a missing notifier / delivery failure is a safe no-op, and a keyed
+error de-dupes to once per local day while still logging every attempt.
 No network, no real config files (all redirected to ``tmp_path``).
 """
 
@@ -342,21 +343,54 @@ def test_return_value_reports_whether_a_send_was_actually_delivered(tmp_path: Pa
     assert delivered is True
 
     dedupe_hit = asyncio.run(AN.record_alarm_action(
-        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_BLOCKED,
-        error="ana still reported home", dedupe_key="presence:blocked:x",
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_ERROR,
+        error="RISCO rejected 'arm'", dedupe_key="presence:error:x",
         now=datetime(2026, 8, 2, 9, 0, 0),
         prefs_loader=lambda: AlarmNotifyPrefs(error=True),
         notifier_factory=lambda: FakeNotifier(),
     ))
     assert dedupe_hit is True
     dedupe_repeat = asyncio.run(AN.record_alarm_action(
-        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_BLOCKED,
-        error="ana still reported home", dedupe_key="presence:blocked:x",
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_ERROR,
+        error="RISCO rejected 'arm'", dedupe_key="presence:error:x",
         now=datetime(2026, 8, 2, 9, 5, 0),
         prefs_loader=lambda: AlarmNotifyPrefs(error=True),
         notifier_factory=lambda: FakeNotifier(),
     ))
     assert dedupe_repeat is False
+
+    # #626: a `blocked` outcome never delivers, even with the `error` toggle
+    # on and no prior same-day dedupe hit for its key.
+    blocked_never_delivers = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_BLOCKED,
+        error="ana still reported home", dedupe_key="presence:blocked:x",
+        now=datetime(2026, 8, 2, 9, 0, 0),
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: FakeNotifier(),
+    ))
+    assert blocked_never_delivers is False
+
+
+def test_blocked_outcome_still_logged_but_never_sent_to_telegram(tmp_path: Path, monkeypatch) -> None:
+    """#626: the on-hold alert is expected, frequent noise on Telegram, but must
+    stay fully traceable in the local activity log regardless."""
+
+    _redirect_logs(monkeypatch, tmp_path)
+    notifier = FakeNotifier()
+
+    delivered = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_PRESENCE, action="arm", outcome=AN.OUTCOME_BLOCKED,
+        error="ana still reported home", dedupe_key="presence:blocked:y",
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: notifier,
+    ))
+
+    assert delivered is False
+    assert notifier.sent == []
+    rows = _read_log(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["outcome"] == "blocked"
+    assert rows[0]["error"] == "ana still reported home"
 
 
 # ------------------------------------------- panel events (intrusion / ac_lost)
@@ -753,11 +787,11 @@ def test_blocked_outcome_does_not_read_as_a_failed_command() -> None:
     assert "FAILED" in failed
 
 
-def test_blocked_outcome_rides_the_error_toggle_and_dedupe() -> None:
-    """Reuses #533's existing plumbing rather than adding a notify path."""
+def test_blocked_outcome_never_notifies_regardless_of_the_error_toggle() -> None:
+    """A stuck-presence block is expected, frequent noise - never worth a phone alert (#626)."""
     on = AN.AlarmNotifyPrefs(error=True)
     off = AN.AlarmNotifyPrefs(error=False)
-    assert AN._should_notify(on, AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED) is True
+    assert AN._should_notify(on, AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED) is False
     assert AN._should_notify(off, AN.SOURCE_PRESENCE, "arm", AN.OUTCOME_BLOCKED) is False
 
 

@@ -102,10 +102,10 @@ async def _sync_arm_block_diagnostic(security_mode: str) -> None:
         )
     # Held back until the block has persisted for `arm_block_notify_after_s`
     # (#599): two people walking in 32 s apart briefly look exactly like a
-    # stuck presence, and used to page for it. Reuses the existing "error"
-    # Telegram toggle and per-day dedupe (#533) rather than a new path, but
-    # reports as `blocked`, not `error` - nothing was attempted, so it must
-    # not read as a failed command.
+    # stuck presence, and used to page for it. `record_alarm_action` never
+    # pushes a `blocked` outcome to Telegram (#626 - expected, frequent noise)
+    # but always logs it, so this still records the episode every
+    # `_ARM_BLOCK_RETRY_COOLDOWN_S` for as long as it persists.
     if not observed.notify:
         return
     # Stamp the attempt before sending, regardless of outcome, so a declined

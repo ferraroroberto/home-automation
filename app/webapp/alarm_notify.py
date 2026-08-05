@@ -12,6 +12,9 @@ and the manual button route. It does two things:
    :class:`AlarmNotifyPrefs` is on, and only when a notifier is configured. A
    delivery failure is logged and swallowed so it can never break an automation
    loop. Manual actions never notify (the user is already at the app).
+   ``OUTCOME_BLOCKED`` is the one exception — it never notifies regardless of
+   the ``error`` toggle (issue #626): a stuck-presence block is expected,
+   frequent noise, not an event worth a phone alert.
 
 Persistent failures (an offline panel retried every poll) would otherwise spam:
 errors carrying a ``dedupe_key`` notify **once per local day** per key. The
@@ -53,8 +56,9 @@ OUTCOME_ERROR = "error"
 # A condition that stopped an automatic action from being *attempted* at all
 # (issue #599). Distinct from OUTCOME_ERROR, which means a command was sent
 # and the panel rejected it - reporting a block as "FAILED" told the user a
-# command had failed when none was ever issued. Rides the same `error`
-# notify toggle and per-day de-dupe.
+# command had failed when none was ever issued. Never notifies over Telegram
+# (issue #626 - a stuck-presence block is expected, frequent noise); still
+# always logged via append_activity(), same as every other outcome.
 OUTCOME_BLOCKED = "blocked"
 
 # Backoff before giving up on confirming an arm/disarm action took effect - a
@@ -214,7 +218,12 @@ def _compose_message(
 
 
 def _should_notify(prefs: AlarmNotifyPrefs, source: str, action: str, outcome: str) -> bool:
-    if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED):
+    if outcome == OUTCOME_BLOCKED:
+        # Never pushes to Telegram (#626) - a stuck-presence block is expected,
+        # frequent noise, unlike a genuine command failure. Still always
+        # logged, since append_activity() runs before this gate.
+        return False
+    if outcome == OUTCOME_ERROR:
         return prefs.error
     return bool(getattr(prefs, f"{source}_{_verb(action)}", False))
 
@@ -241,7 +250,8 @@ async def record_alarm_action(
         action: the RISCO action (``arm`` / ``disarm`` / ``partial`` / ``perimeter``).
         outcome: ``ok``, ``error`` (a command was sent and the panel rejected
             it), or ``blocked`` (#599 — a condition stopped the action being
-            attempted at all; notified like ``error`` but worded differently).
+            attempted at all; worded like a block, not a failure, and never
+            notified over Telegram — #626).
         error: the failure/block text, carried verbatim into the message.
         detail: short human context (schedule time, presence reason) for the message.
         reason: stored in the activity log (not the message) for audit.
@@ -288,7 +298,9 @@ async def record_alarm_action(
         return False
 
     today = (now or datetime.now()).strftime("%Y-%m-%d")
-    if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED) and dedupe_key is not None:
+    # OUTCOME_BLOCKED never reaches here — _should_notify() above already
+    # returned False for it.
+    if outcome == OUTCOME_ERROR and dedupe_key is not None:
         if _last_error_notify.get(dedupe_key) == today:
             return False
 
@@ -311,7 +323,7 @@ async def record_alarm_action(
     # through - marking it beforehand (the old behaviour) meant an
     # unconfigured/failing notifier silently burned the day's one alert for
     # good, with no retry (#527).
-    if outcome in (OUTCOME_ERROR, OUTCOME_BLOCKED) and dedupe_key is not None:
+    if outcome == OUTCOME_ERROR and dedupe_key is not None:
         _last_error_notify[dedupe_key] = today
         _save_dedupe(_last_error_notify)
     return True
