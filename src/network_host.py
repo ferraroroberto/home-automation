@@ -303,7 +303,7 @@ def _wifi_candidate_channels(band: str) -> tuple[int, ...]:
         return tuple(range(1, 14))
     if band == "5GHz":
         # Common 20 MHz primary channels, including the DFS range currently used
-        # by the REDWIFI radio in this home. We do not auto-apply DFS choices.
+        # by the 5 GHz radio in this home. We do not auto-apply DFS choices.
         return (
             36, 40, 44, 48,
             52, 56, 60, 64,

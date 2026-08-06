@@ -115,7 +115,7 @@ SSID 1 : HomeNet
 def test_wifi_channel_insights_rank_candidates_and_coordinate_pairs() -> None:
     bssids = [
         network_client.WifiBssid(
-            ssid="REDWIFI",
+            ssid="TESTNET-A",
             bssid="AA:BB:CC:DD:EE:08",
             signal=80,
             rssi_dbm=-60,
@@ -126,7 +126,7 @@ def test_wifi_channel_insights_rank_candidates_and_coordinate_pairs() -> None:
             encryption="CCMP",
         ),
         network_client.WifiBssid(
-            ssid="MOVISTAR",
+            ssid="TESTNET-B",
             bssid="AA:BB:CC:DD:EE:13",
             signal=57,
             rssi_dbm=-71,
