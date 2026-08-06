@@ -1503,8 +1503,10 @@ backend in-process:
 ### Browser E2E suite
 
 A Playwright browser-E2E suite lives in `tests/e2e/`. It boots the real
-webapp (adopting a running one on :8447, else autobooting a disposable
-instance with the energy sampler off) and drives the PWA, **stubbing
+webapp — always its **own disposable instance**, with the energy sampler off
+(#538); if the configured port is already taken it *refuses* rather than
+adopting whatever is there, unless `E2E_LIVE=1` explicitly opts in (see
+`tests/e2e/_e2e_live_guard.py` and CLAUDE.md) — and drives the PWA, **stubbing
 `/api/units`, the `/api/energy*` endpoints, and `/api/tuya*` with fixtures** so
 it never touches the live cloud, the LAN, or actuates real HVAC. Coverage
 includes the Home/AC/Energy/IoT tab navigation, the Home AC summary, an
@@ -1513,9 +1515,11 @@ watts, a switch round-trip, cover controls, light controls, and an offline
 device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14.
 
-As of 2026-07-17 (#464), the suite is 96 test functions / 208 dual-projection
-executions, measured at ~4 min (3m55s) on an idle dev box — CLAUDE.md tracks
-this as a runtime budget, not a fixed test-count cap.
+As of 2026-08-06 (#636), the suite is 140 test functions / 296 executions,
+measured at ~5 min (4m59s). It is more than the flat ×2 the dual projection
+implies because `test_design_matrix.py` additionally fans one function across
+the viewport × theme matrix below. CLAUDE.md tracks this as a runtime budget,
+not a fixed test-count cap.
 
 Rendered-geometry design checks (44px effective touch targets, non-overlap,
 horizontal overflow, live Chart.js tick/cue config) go through
