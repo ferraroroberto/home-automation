@@ -50,29 +50,9 @@ Keep extending the direct client for the next PR. `python-elgato` is useful as p
 
 Reconsider adopting the wrapper only if scene upload/activation turns out to require more protocol surface than the simple `/elgato/lights` and `/elgato/lights/settings` calls.
 
-### UX recommendation
+### Not yet built
 
-The next app slice should be Control Center parity for daily controls, not a scene editor:
-
-1. Add capability fields to each light: `supports_temperature`, `supports_color`, `supports_battery`, `supports_settings`, and later `supports_scenes`.
-2. Keep the current card grid and all-on/all-off toolbar. Add **All off** / **All on** only as today; avoid group presets until per-light color support exists.
-3. For Key Light / Ring Light class cards, keep power, brightness, and warmth exactly as implemented.
-4. For Light Strip cards, replace the unavailable temperature note with a compact color swatch button plus brightness. The detail modal can hold hue/saturation numeric/read-only metadata if needed, but the card should stay one-tap useful.
-5. For Key Light Mini, show battery percentage/status as a small status chip only after `battery-info` verifies live.
-6. For Light Strip Pro, start with scene activation from known Control Center scene instances/templates once the real strip is online and the LAN write path is proven. Do not build arbitrary JavaScript scene editing in the PWA.
-7. Keep every command confirm-free except disruptive diagnostics such as restart. Light brightness/color changes are reversible and should behave like existing sliders: write, read back, re-render.
-
-### Next implementation scope
-
-Recommended next PR:
-
-- Extend `ElgatoLight` with optional hue/saturation, settings, and battery/status fields.
-- Probe `GET /elgato/lights/settings` and `GET /elgato/battery-info` opportunistically, treating `404` as unsupported.
-- Accept and serialize `hue` / `saturation` in `PUT /elgato/lights` only for devices whose current state reports color fields or whose product/features identify a Light Strip.
-- Update the Lights card (IoT tab) to render a color swatch for Light Strip-class devices and battery status for Key Light Mini-class devices when available.
-- Add unit/API/e2e tests with monkeypatched fixtures for a Key Light, a Light Strip RGB device, a Key Light Mini battery-capable device, and an offline device.
-
-Explicitly out of scope for that PR: Light Strip Pro JavaScript scene authoring, cloud control, schedules/automation, vendor display-name writes, and restart/identify buttons.
+The parity work these findings point at — hue/saturation for the Light Strip, battery status for the Key Light Mini, the opportunistic `/elgato/lights/settings` + `/elgato/battery-info` probes, and the capability flags that gate them — is tracked in [#638](https://github.com/ferraroroberto/home-automation/issues/638), not here. This document stays what it is: the spike result, the verified LAN API shape, and the wrapper decision record.
 
 ## Verification
 

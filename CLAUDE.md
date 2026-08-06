@@ -39,7 +39,7 @@ Optional. Lives at `tests/e2e/`. **Don't create the folder until the first regre
 - **One shared session fixture boots the app once per pytest run.** Boot on a fixed or free port; **adopt** an instance already listening rather than spawning a second.
 - **Boot failure is a hard failure — never `pytest.skip`.** A regression suite that skips when the app isn't up reports green on a build it never tested.
 - Budget by runtime, not test count — add coverage whenever (1)–(3) above hold; there is no fixed cap on test count. No Page Object Model. Don't gate commits on e2e.
-- **Local runtime contract (measured 2026-07-17, #464): 208 executions (96 test functions, dual Chromium + WebKit projection) in ~4 min (3m55s) on an idle dev box.** Investigate if a full run exceeds ~8 min.
+- **Local runtime contract (re-measured 2026-08-06, #636: 296 executions from 140 test functions in ~5 min (4m59s), all passing).** Executions are more than 2× the function count because on top of the dual Chromium + WebKit projection, `test_design_matrix.py` fans one function across the 4 viewports × 2 themes of `_geometry.py`'s matrix — so the projection is not a flat ×2 and the execution count is what to re-count, via `pytest tests/e2e --collect-only`. Investigate if a full run exceeds **~10 min** — the trigger is 2× the measured baseline, so re-derive it whenever that baseline is re-measured (the previous ~8 min was 2× the 2026-07-17 / #464 measurement of 208 executions in 3m55s). Measured in a worktree on its own port with the tray still up, i.e. a normally-loaded box rather than an idle one.
 - When you remove a feature, remove its e2e test in the same commit.
 
 ## UX surface
