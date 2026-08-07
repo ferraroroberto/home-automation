@@ -21,7 +21,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 
 const ENDPOINT = '/api/hvac/boost-coordinator';
 const SECONDS_PER_MIN = 60;
@@ -77,7 +77,7 @@ export async function loadBoostCoordinator() {
   try {
     state.boostCoord = await jsonApi(ENDPOINT);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     // Never blank the card on a failed read — show the defaults the engine
     // itself falls back to.
     state.boostCoord = state.boostCoord || DEFAULTS;
@@ -103,7 +103,7 @@ async function saveField(key, value, label) {
     toast('Solar boost saved', 'success');
   } catch (exc) {
     renderBoostCoordinator();  // roll the input back to what is stored
-    if (String(exc.message) !== 'auth required') {
+    if (!isAuthRequired(exc)) {
       toast("Couldn't save " + label, 'error');
     }
   }

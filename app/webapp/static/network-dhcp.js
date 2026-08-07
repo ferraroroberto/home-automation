@@ -12,7 +12,7 @@
 'use strict';
 
 import { els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import { confirmAction } from './confirm.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -410,9 +410,7 @@ async function setDhcpOverride(mac, category) {
     toast(category ? 'Assigned to ' + category : 'Group cleared', 'success');
     await loadDhcpPlan();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to assign group: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to assign group');
   }
 }
 
@@ -502,9 +500,7 @@ async function applyDhcpChanges() {
     manualAdds = [];
     await loadDhcpPlan();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Apply failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Apply failed');
     els.netDhcpNote.textContent = 'Apply failed: ' + (exc && exc.message ? exc.message : exc);
   } finally {
     dhcpApplying = false;

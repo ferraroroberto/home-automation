@@ -835,6 +835,10 @@ export function writeToken(t) {
 // `auth required` is never surfaced (it routes to the login overlay instead).
 const fetchFailing = {};  // scope -> currently in a failed state
 export function reportFetchFailure(scope, exc, label) {
+  // The one place the sentinel is still compared by hand rather than through
+  // api.js's `isAuthRequired()`: state.js is the leaf every module imports and
+  // api.js imports *it*, so reaching back would make the first import cycle in
+  // this app for a single line. Keep the two spellings in step (issue #631).
   if (exc && String(exc.message) === 'auth required') return;
   if (fetchFailing[scope]) return;  // already toasted for this outage
   fetchFailing[scope] = true;

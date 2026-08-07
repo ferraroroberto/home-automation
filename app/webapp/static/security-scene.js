@@ -14,7 +14,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
@@ -212,7 +212,7 @@ export async function loadScenePairings() {
     state.scenePairings = (results[0] && results[0].entries) || [];
     state.cameras = (results[1] && results[1].cameras) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.scenePairings = state.scenePairings || [];
     if (els.scenePairingsNote) {
       els.scenePairingsNote.hidden = false;

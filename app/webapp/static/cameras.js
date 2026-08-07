@@ -16,7 +16,7 @@
 'use strict';
 
 import { els, state, toast, readToken, reportFetchOk } from './state.js';
-import { api, jsonApi } from './api.js';
+import { api, jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { confirmAction } from './confirm.js';
 import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -211,7 +211,7 @@ export async function loadCameras() {
     });
     renderCameras();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markCamerasFailure();
   }
 }
@@ -251,9 +251,7 @@ async function loadSnapshotInto(imgEl, cameraId) {
     // The fresh frame was persisted server-side → refresh the list thumbnail.
     bumpSnapshot(cameraId);
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Snapshot failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Snapshot failed');
     // Styled placeholder instead of a raw broken-image box (issue #362).
     imgEl.hidden = true;
     if (els.cameraSnapshotEmpty) els.cameraSnapshotEmpty.hidden = false;
@@ -298,9 +296,7 @@ async function saveCameraName() {
     if (els.cameraSave) els.cameraSave.disabled = true;
     toast('Saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Rename failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Rename failed');
   }
 }
 
@@ -364,9 +360,7 @@ async function ptz(action, payload) {
       body: JSON.stringify(Object.assign({ action: action }, payload || {})),
     });
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('PTZ failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'PTZ failed');
   }
 }
 
@@ -442,7 +436,7 @@ async function loadPresets(cameraId) {
     state.cameraPresets = (body && body.presets) || [];
     renderPresets();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
+    if (!isAuthRequired(exc)) {
       state.cameraPresets = [];
       renderPresets();
     }
@@ -467,9 +461,7 @@ async function savePreset() {
     await loadPresets(id);
     toast('Saved ' + name, 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Save preset failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Save preset failed');
   }
 }
 
@@ -488,9 +480,7 @@ async function renamePreset(token, current) {
     await loadPresets(id);
     toast('Renamed', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Rename failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Rename failed');
   }
 }
 
@@ -501,9 +491,7 @@ async function gotoPreset(token) {
     await jsonApi('/api/cameras/' + encodeURIComponent(id) + '/presets/' +
       encodeURIComponent(token) + '/goto', { method: 'POST' });
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Recall failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Recall failed');
   }
 }
 
@@ -522,9 +510,7 @@ async function removePreset(token, name) {
       encodeURIComponent(token), { method: 'DELETE' });
     await loadPresets(id);
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Delete failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Delete failed');
   }
 }
 
@@ -549,9 +535,7 @@ async function refreshCoords() {
     setCoordHint(els.cameraTiltInput, body.tilt_range);
     setCoordHint(els.cameraZoomInput, body.zoom_range);
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Read position failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Read position failed');
   }
 }
 
@@ -574,9 +558,7 @@ async function gotoCoords() {
       body: JSON.stringify(payload),
     });
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Move failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Move failed');
   }
 }
 
@@ -599,9 +581,7 @@ async function downloadSnapshot() {
     bumpSnapshot(id);   // the grab was persisted as the new last frame
     toast('Screenshot saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Screenshot failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Screenshot failed');
   }
 }
 
@@ -622,9 +602,7 @@ async function toggleRecord() {
     renderCameras();
     toast(next ? ('Recording → ' + (body.file || 'started')) : 'Recording saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Recording failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Recording failed');
   }
 }
 

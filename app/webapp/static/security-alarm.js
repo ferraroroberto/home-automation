@@ -14,7 +14,7 @@
 'use strict';
 
 import { state, els, toast, SECURITY_SHOW_HIDDEN_KEY } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import { fmtTime } from './presence.js';
 import { renderSecurity } from './security.js';
 import { toggleMarkup } from './toggle.js';
@@ -113,9 +113,7 @@ async function postAction(action) {
     await loadSecurityEvents();
     toast(ACTION_DONE[action] || 'Done', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed');
   } finally {
     actionBusy = false;
     renderActions();
@@ -144,9 +142,7 @@ async function setBypass(zone, bypass, btn) {
     await loadSecurityEvents();
     toast(zoneLabel(zone) + (bypass ? ' bypassed' : ' active'), 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed');
   } finally {
     bypassBusy.delete(zone.id);
     // On success renderSecurity() rebuilt the row; on error the old node stays,
@@ -522,9 +518,7 @@ async function saveZone() {
     clearZoneDirty();
     toast('Saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save');
     if (els.zoneSave) els.zoneSave.disabled = false;
   }
 }

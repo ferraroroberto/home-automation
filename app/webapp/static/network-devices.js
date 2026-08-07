@@ -37,7 +37,7 @@ import {
   persistedFlag,
   persistedPref,
 } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import { renderSignalBar } from './format.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
 import { renderNetwork } from './network.js';
@@ -744,9 +744,7 @@ async function saveNetDevice() {
     clearNetDirty();
     toast('Saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save');
     if (els.netDeviceSave) els.netDeviceSave.disabled = false;
   }
 }
@@ -826,9 +824,7 @@ async function saveGroupName() {
     renderNetwork();
     toast('Group renamed', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to rename group: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to rename group');
     if (els.netGroupSave) els.netGroupSave.disabled = false;
   }
 }
@@ -856,9 +852,7 @@ async function deleteGroup() {
     renderNetwork();
     toast('Group deleted', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to delete group: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to delete group');
   }
 }
 

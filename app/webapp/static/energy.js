@@ -13,7 +13,7 @@
 'use strict';
 
 import { state, els, reportFetchOk } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { esc, group, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
@@ -229,7 +229,7 @@ export async function loadEnergy() {
     // A hard fetch failure (network/500) is surfaced once per outage; the live
     // values keep their last render. A successful fetch that simply has no live
     // data (meter/inverter unreachable) is handled inline in renderEnergy.
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markEnergyFailure();
   }
 }

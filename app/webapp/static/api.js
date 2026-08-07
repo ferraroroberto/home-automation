@@ -2,11 +2,17 @@
  *
  * `api()` attaches the bearer token and routes a 401 to the login
  * overlay; `jsonApi()` adds JSON parsing + error shaping on top.
+ *
+ * A 401 reaches callers as `Error('auth required')`, which the login overlay has
+ * already handled — so no call site may surface it as a failure.
+ * `isAuthRequired()` is that test (never hand-roll the string compare) and
+ * `reportActionFailure()` is the whole mutation-path idiom in one line: silent
+ * on auth, otherwise one "<label>: <reason>" error toast (issue #631).
  */
 
 'use strict';
 
-import { els, readToken } from './state.js';
+import { els, readToken, toast } from './state.js';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
@@ -18,6 +24,21 @@ export function showLogin() {
 }
 export function hideLogin() {
   if (els.loginOverlay) els.loginOverlay.hidden = true;
+}
+
+// True when `exc` is the sentinel `api()` throws on a 401. The login overlay is
+// already up, so the caller stays quiet instead of toasting a failure.
+export function isAuthRequired(exc) {
+  return String(exc && exc.message) === 'auth required';
+}
+
+// The mutation-path failure idiom: quiet on auth, one error toast otherwise.
+// `label` names the action that failed ('Rename failed', 'Failed to save', …);
+// the reason is appended. A call site that also has cleanup to skip on auth
+// keeps its own `if (!isAuthRequired(exc)) { … }` block instead.
+export function reportActionFailure(exc, label) {
+  if (isAuthRequired(exc)) return;
+  toast(label + ': ' + ((exc && exc.message) || exc), 'error');
 }
 
 export async function api(path, opts) {

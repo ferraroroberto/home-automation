@@ -17,7 +17,7 @@
 'use strict';
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { confirmAction } from './confirm.js';
 import { createPoller } from './poll.js';
@@ -152,7 +152,7 @@ async function onToggle() {
     });
     toast(action === 'stop' ? 'Home Assistant is shutting down' : 'Home Assistant is starting', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
+    if (!isAuthRequired(exc)) {
       toast(
         action === 'stop'
           ? "Couldn't stop Home Assistant"
@@ -199,7 +199,7 @@ export async function loadVm() {
     });
     renderVm();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     vmView.set(state.vm && state.vm.available === true ? 'stale' : 'error', {
       liveUnavailable: true,
     });

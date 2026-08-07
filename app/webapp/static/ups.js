@@ -7,7 +7,7 @@
 'use strict';
 
 import { state, els, toast, reportFetchOk } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { esc, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot } from './snapshots.js';
@@ -169,7 +169,7 @@ export async function loadUps() {
     handleTransition(state.ups);
     renderUps();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markTabFailure(upsView, {
       hasData: !!(state.ups && state.ups.available === true),
       scope: 'ups',

@@ -8,7 +8,7 @@
 'use strict';
 
 import { els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 const FIELDS = [
@@ -41,9 +41,7 @@ export async function loadPowerNotifyPrefs() {
   try {
     applyPrefs(await jsonApi('/api/ups/notify-prefs'));
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Power notification settings failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Power notification settings failed');
   }
 }
 
@@ -62,9 +60,7 @@ async function savePowerNotifyPrefs() {
     );
     toast('Notifications saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Notifications save failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Notifications save failed');
   }
 }
 

@@ -15,7 +15,7 @@
 'use strict';
 
 import { state, els, reportFetchOk } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
@@ -112,7 +112,7 @@ async function loadSecurityState() {
     // precedent as the alarm tile being actionable on Home too (issue #72).
     if (state.tab === 'security' || state.tab === 'home') loadPresence();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markSecurityFailure();
   }
 }
@@ -135,7 +135,7 @@ export async function loadSecurity() {
     securityView.set('ready', { updatedAt: new Date() });
     renderSecurity();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markSecurityFailure();
   }
 }

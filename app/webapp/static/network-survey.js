@@ -23,7 +23,7 @@
 'use strict';
 
 import { state, els, toast, NETWORK_SURVEY_MAC_KEY, persistedPref } from './state.js';
-import { api, jsonApi } from './api.js';
+import { api, jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { renderSignalBar } from './format.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -134,7 +134,7 @@ async function measureRtt() {
       await api('/api/version', { cache: 'no-store', timeoutMs: RTT_TIMEOUT_MS });
       if (i > 0) times.push(performance.now() - t0);
     } catch (exc) {
-      if (String(exc.message) === 'auth required') throw exc;
+      if (isAuthRequired(exc)) throw exc;
       if (i > 0) failures++;
     }
   }
@@ -164,7 +164,7 @@ async function measureThroughput() {
     if (!(seconds > 0) || !buf.byteLength) return null;
     return round1((buf.byteLength * 8) / seconds / 1e6);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') throw exc;
+    if (isAuthRequired(exc)) throw exc;
     return null;
   }
 }
@@ -231,9 +231,7 @@ async function recordHere() {
     // than the red one; only a failed read is an error the user should re-try.
     toast(message, sample.found ? 'success' : (sample.source === SOURCE_UNKNOWN ? 'error' : ''));
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to record: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to record');
   } finally {
     recording = false;
     els.netSurveyRecord.disabled = false;
@@ -252,9 +250,7 @@ async function deleteRoom(room) {
     renderSurvey();
     toast('Deleted ' + room, 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to delete: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to delete');
   }
 }
 
@@ -381,7 +377,7 @@ export function renderSurvey() {
       // Reset the latch so the next poll retries rather than leaving the card
       // permanently empty after one transient failure.
       surveyLoaded = false;
-      if (String(exc.message) !== 'auth required') {
+      if (!isAuthRequired(exc)) {
         els.netSurveyNote.hidden = false;
         els.netSurveyNote.textContent = 'Walk-test history unavailable.';
       }

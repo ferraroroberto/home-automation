@@ -11,7 +11,7 @@
 'use strict';
 
 import { state, els, toast, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW } from './format.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { createPoller } from './poll.js';
@@ -80,9 +80,7 @@ async function toggleSwitch(device, btn) {
     renderPlugs();
     toast(plugLabel(device) + (next ? ' on' : ' off'), 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed');
   } finally {
     switchBusy.delete(device.device_id);
     // On success renderPlugs() rebuilt the row; on error the old node stays,
@@ -104,9 +102,7 @@ async function coverAction(device, action) {
     );
     toast(plugLabel(device) + ' ' + action, 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed');
   }
 }
 
@@ -305,9 +301,7 @@ async function savePlugDetail() {
     clearPlugDirty();
     toast('Saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save');
     if (els.plugSave) els.plugSave.disabled = false;
   }
 }
@@ -494,7 +488,7 @@ export function wirePlugsPair() {
       const changed = (info.added && info.added.length) || (info.recovered && info.recovered.length);
       toast(info.detail || 'Tuya sync finished', changed ? 'success' : '');
     } catch (exc) {
-      if (String(exc.message) !== 'auth required') {
+      if (!isAuthRequired(exc)) {
         markPlugsFailure();
       }
     } finally {
@@ -527,7 +521,7 @@ export async function loadPlugs() {
   try {
     applyPlugsBody(await jsonApi('/api/tuya'));
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markPlugsFailure();
   }
 }

@@ -24,7 +24,7 @@ import {
   state, els, toast, reportFetchOk,
   CIRCUITS_COLLAPSED_KEY, CIRCUITS_SHOW_HIDDEN_KEY,
 } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW } from './format.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
@@ -387,9 +387,7 @@ async function saveCircuitDetail() {
     // than leaving the old sign on screen until the next poll.
     if (signChanged) loadCircuits();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save');
     if (els.circuitSave) els.circuitSave.disabled = false;
   }
 }
@@ -463,7 +461,7 @@ export async function loadCircuits() {
     state.circuitsError = (body && body.error) || '';
     renderCircuits();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.circuitsError = 'Circuits unavailable: ' + (exc.message || exc);
     renderCircuits();
   }

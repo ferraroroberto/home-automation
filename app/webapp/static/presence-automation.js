@@ -11,7 +11,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 import { loadPresence, presenceById, presenceEntityLabel } from './presence.js';
 
@@ -64,9 +64,7 @@ async function toggleKidsHome() {
     await loadPresence();
     toast(next ? 'Kids home on · perimeter when away' : 'Kids home off', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Kids home toggle failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Kids home toggle failed');
   }
 }
 
@@ -81,9 +79,7 @@ export async function loadPresenceAutomation() {
     setToggleState(els.presenceDisarmOnArrival, cfg.auto_disarm_enabled === true);
     renderPresenceAutomationNote();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Automation settings failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Automation settings failed');
   }
 }
 
@@ -103,9 +99,7 @@ async function savePresenceAutomation() {
     renderPresenceAutomationNote();
     toast('Automation saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Automation save failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Automation save failed');
   }
 }
 

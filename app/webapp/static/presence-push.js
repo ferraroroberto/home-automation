@@ -9,7 +9,7 @@
 'use strict';
 
 import { els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 
 function base64UrlToUint8Array(value) {
   const padding = '='.repeat((4 - value.length % 4) % 4);
@@ -44,9 +44,7 @@ async function subscribePush() {
     });
     toast('Notifications enabled', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Notifications failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Notifications failed');
   }
 }
 

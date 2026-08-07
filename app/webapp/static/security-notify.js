@@ -9,7 +9,7 @@
 'use strict';
 
 import { els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 
 const FIELDS = [
@@ -47,9 +47,7 @@ export async function loadNotifyPrefs() {
   try {
     applyPrefs(await jsonApi('/api/security/notify-prefs'));
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Notification settings failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Notification settings failed');
   }
 }
 
@@ -68,9 +66,7 @@ async function saveNotifyPrefs() {
     );
     toast('Notifications saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Notifications save failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Notifications save failed');
   }
 }
 
