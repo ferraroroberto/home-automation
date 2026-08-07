@@ -215,7 +215,12 @@ async def tick() -> None:
     try:
         if failure is None:
             logger.info("✅ Presence automation %s -> %s", decision.reason, decision.action)
-            send_push("Presence automation", f"{decision.reason}: {decision.action}")
+            # send_push is blocking network I/O (one pywebpush HTTP POST per
+            # subscription) and this tick shares uvicorn's single event loop —
+            # thread it off so a slow/failing push can't stall the webapp.
+            await asyncio.to_thread(
+                send_push, "Presence automation", f"{decision.reason}: {decision.action}"
+            )
             await record_alarm_action(
                 source=SOURCE_PRESENCE,
                 action=decision.action,

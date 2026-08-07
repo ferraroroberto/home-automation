@@ -221,10 +221,19 @@ def _send_telegram_photo(image: bytes, caption: str) -> bool:
         return False
 
 
-def _deliver(
+async def _deliver(
     zones: List[Tuple[int, str]], verdict: object, captures: List[SceneCapture]
 ) -> None:
-    """Push + Telegram the verdict (with the captured frame attached). Never raises."""
+    """Push + Telegram the verdict (with the captured frame attached). Never raises.
+
+    Every send below is blocking network I/O (``pywebpush`` HTTP POST per
+    subscription, a ``urlopen`` with a 20s timeout, the Telegram text send) and
+    this coroutine runs on a detached task sharing uvicorn's single event loop —
+    thread each one off so a genuine alarm can't stall the whole webapp (HVAC
+    control, camera streaming, every concurrent API request) at exactly the
+    moment responsiveness matters most. Same pattern as ``alarm_notify``,
+    ``power_notify`` and ``wake_alarm_automation``.
+    """
 
     emoji = _VERDICT_EMOJI.get(getattr(verdict, "verdict", ""), _DEFAULT_EMOJI)
     where = ", ".join(name for _, name in zones) or "alarm"
@@ -232,7 +241,7 @@ def _deliver(
     title = f"{emoji} Alarm scene — {where}"
     body = summary
     try:
-        send_push(title, body, url="/")
+        await asyncio.to_thread(send_push, title, body, url="/")
     except Exception as exc:  # noqa: BLE001 — push is best-effort
         logger.warning("⚠️ alarm scene push failed: %s", exc)
 
@@ -243,10 +252,10 @@ def _deliver(
     # Attach the first usable frame so the verdict arrives with the image; fall
     # back to a plain-text message if there's no frame or the photo upload fails.
     frame = next((c.frame for c in captures if c.ok and c.frame), None)
-    if frame is not None and _send_telegram_photo(frame, caption):
+    if frame is not None and await asyncio.to_thread(_send_telegram_photo, frame, caption):
         return
     try:
-        notifier.send_text(caption)
+        await asyncio.to_thread(notifier.send_text, caption)
     except NotifierError as exc:
         logger.warning("⚠️ alarm scene Telegram notify failed: %s", exc)
 
@@ -287,7 +296,7 @@ async def _run_onset(zones: List[Tuple[int, str]], config: AlarmSceneConfig) -> 
         verdict = await analyze_scene(
             captures, model=config.model, base_url=config.base_url
         )
-        _deliver(zones, verdict, captures)
+        await _deliver(zones, verdict, captures)
         append_activity(_LOG_CONSUMER, {
             "event": "scene_capture",
             "zones": [{"id": zid, "name": name} for zid, name in zones],

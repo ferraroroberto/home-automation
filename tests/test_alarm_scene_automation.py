@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 import app.webapp.alarm_scene_automation as auto
 from src.alarm_scene import SceneCapture, SceneVerdict
@@ -405,7 +406,7 @@ def test_deliver_attaches_photo_when_frame_present(monkeypatch) -> None:
                         lambda img, cap: (photo.append((img, cap)), True)[1])
 
     verdict = SceneVerdict(verdict="real", summary="person at the gate")
-    auto._deliver([(3, "Garden")], verdict, _deliver_caps(ok=True, frame=b"IMG"))
+    asyncio.run(auto._deliver([(3, "Garden")], verdict, _deliver_caps(ok=True, frame=b"IMG")))
 
     assert photo and photo[0][0] == b"IMG"
     assert "person at the gate" in photo[0][1]
@@ -420,8 +421,8 @@ def test_deliver_falls_back_to_text_without_frame(monkeypatch) -> None:
     monkeypatch.setattr(auto, "_send_telegram_photo",
                         lambda img, cap: called.__setitem__("photo", True) or True)
 
-    auto._deliver([(3, "Garden")], SceneVerdict(verdict="false", summary="just a cat"),
-                  _deliver_caps(ok=False, frame=None))
+    asyncio.run(auto._deliver([(3, "Garden")], SceneVerdict(verdict="false", summary="just a cat"),
+                              _deliver_caps(ok=False, frame=None)))
 
     assert called["photo"] is False
     assert "just a cat" in notifier.text
@@ -433,10 +434,64 @@ def test_deliver_photo_failure_falls_back_to_text(monkeypatch) -> None:
     monkeypatch.setattr(auto, "build_alarm_notifier", lambda: notifier)
     monkeypatch.setattr(auto, "_send_telegram_photo", lambda img, cap: False)
 
-    auto._deliver([(3, "Garden")], SceneVerdict(verdict="real", summary="someone"),
-                  _deliver_caps(ok=True, frame=b"IMG"))
+    asyncio.run(auto._deliver([(3, "Garden")], SceneVerdict(verdict="real", summary="someone"),
+                              _deliver_caps(ok=True, frame=b"IMG")))
 
     assert "someone" in notifier.text  # photo upload failed -> text fallback fired
+
+
+_BLOCK_S = 0.4
+
+
+async def _run_watching_the_loop(coro) -> tuple[float, float]:
+    """Await ``coro`` while heart-beating; return (worst wakeup gap, elapsed).
+
+    A coroutine that does its blocking I/O inline pins the loop for the whole
+    duration, so the heartbeat's worst gap ≈ the block; one that threads the
+    call off keeps waking on schedule.
+    """
+
+    gaps: list[float] = []
+
+    async def heartbeat() -> None:
+        last = time.monotonic()
+        while True:
+            await asyncio.sleep(0.005)
+            now = time.monotonic()
+            gaps.append(now - last)
+            last = now
+
+    beat = asyncio.create_task(heartbeat())
+    started = time.monotonic()
+    try:
+        await coro
+    finally:
+        elapsed = time.monotonic() - started
+        beat.cancel()
+        try:
+            await beat
+        except asyncio.CancelledError:
+            pass
+    return max(gaps, default=elapsed), elapsed
+
+
+def test_deliver_never_blocks_the_event_loop(monkeypatch) -> None:
+    """Regression for #635: ``_deliver`` runs as a detached task on uvicorn's
+    single event loop, and every send in it is blocking network I/O (a
+    pywebpush POST per subscription, a 20s-timeout urlopen, the Telegram text
+    send). Run inline, a genuine alarm froze HVAC control, camera streaming and
+    every concurrent API request for as long as the sends took."""
+
+    monkeypatch.setattr(auto, "send_push", lambda *a, **k: time.sleep(_BLOCK_S))
+    monkeypatch.setattr(auto, "build_alarm_notifier", lambda: None)
+
+    stall, elapsed = asyncio.run(_run_watching_the_loop(
+        auto._deliver([(3, "Garden")], SceneVerdict(verdict="real", summary="someone"),
+                      _deliver_caps(ok=True, frame=b"IMG"))
+    ))
+
+    assert elapsed >= _BLOCK_S, "the blocking send did not actually run"
+    assert stall < _BLOCK_S / 2, f"event loop stalled {stall:.3f}s inside _deliver"
 
 
 def test_multipart_photo_encodes_fields_and_image() -> None:
