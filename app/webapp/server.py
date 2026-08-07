@@ -11,6 +11,7 @@ with the router set the way the old exhaustive table did (#453).
     auth               → /api/login
     units              → /api/units*                    (MELCloud Home units)
     energy             → /api/energy*                   (solar flow/history/cost/forecast)
+    circuits           → /api/circuits*                  (Athom CT-clamp per-circuit power)
     weather            → /api/weather
     tuya               → /api/tuya*                      (Smart Life / Tuya plugs, blinds)
     ups                → /api/ups*                        (USB UPS + notify prefs)
@@ -26,14 +27,15 @@ with the router set the way the old exhaustive table did (#453).
     presence           → /api/presence*, /api/location*
     push               → /api/push*                       (browser Web Push)
     hyperv             → /api/hyperv*                      (Home Assistant VM status/start/stop)
+    searxng            → /api/searxng*                      (Tier-3 voice search backend status/start)
     ha                 → /api/ha*                          (Voice PE rooms, push-to-talk, transcribe proxy)
     activity           → /api/activity*                    (unified event log)
     nav_debug          → /api/nav-debug                    (client nav-pin diagnostics)
     wake_alarms        → /api/wake-alarms*, /api/wake-timers*
     reminders          → /api/reminders*                    (bidirectional voice/app reminders, issue #314)
     calendar_events    → /api/calendar/voice                 (voice-only Google Calendar event creation, issue #313)
+    voice_commands     → /api/voice-commands                 (read-only voice cheat-sheet catalogue, issue #437)
     pc_fleet           → /api/pc-fleet*                     (UPS-triggered fleet-shutdown prefs + hub proxy)
-    searxng            → /api/searxng*                      (Tier-3 voice search backend status/start)
 
 Run with::
 

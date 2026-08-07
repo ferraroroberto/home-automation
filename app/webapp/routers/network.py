@@ -2,18 +2,19 @@
 
 ``GET /api/network`` returns one :class:`NetworkState` snapshot — host-side
 internet health, the NETGEAR access-point health + full attached-device
-inventory, the Vodafone router reachability/login + WAN status, and the derived
-network-quality alerts. Reboots: ``POST /api/network/access-point/reboot`` and
-``POST /api/network/router/reboot`` (both confirm-gated client-side).
+inventory, and the Vodafone router reachability/login + WAN status. Reboots:
+``POST /api/network/access-point/reboot`` and ``POST /api/network/router/reboot``
+(both confirm-gated client-side).
 
 Phase 4 layers a tiny per-MAC history (:mod:`src.network_history`) on top: each
 read records the currently-seen, non-randomised devices, then the response
 carries each device's ``online`` state, ``first_seen`` / ``last_seen`` /
 ``times_seen``, the ``important`` flag, and an ``is_new`` badge — plus
-synthesised **offline** rows for known devices absent from this read. Two extra
-alerts fall out of that: a never-before-seen device joining, and an important
-device dropping offline. ``POST /api/network/devices/{mac}/important`` toggles
-the flag.
+synthesised **offline** rows for known devices absent from this read.
+``POST /api/network/devices/{mac}/important`` toggles the flag. A joining or
+departing device is surfaced **on its own row** (the ``is_new`` badge, the
+dimmed offline row) rather than as a separate alert strip: the UI's alert strip
+was removed in ``cce000a`` and the response carries no ``alerts`` key.
 
 User-defined **display groups** (issue #513) ride along on the same snapshot:
 each device carries its ``group`` (null = the synthetic Unclassified bucket the
@@ -38,8 +39,8 @@ The DHCP reservation planner + staged reservation manager (issue #170/#176)
 used to live here too; it was split out to :mod:`app.webapp.routers.dhcp_plan`
 (issue #328) since it is a self-contained feature over ``src.dhcp_plan`` /
 ``src.dhcp_overrides`` that only grew inside this router because the AP device
-inventory lived here. The shared helpers below (``_device_label``,
-``_device_dict``, ``_offline_device_dict``) stay with this main snapshot
+inventory lived here. The shared helpers below (``_device_dict``,
+``_offline_device_dict``) stay with this main snapshot
 endpoint; the DHCP module makes its own, separate ``fetch_network_state`` call
 for classification.
 """
@@ -50,7 +51,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Dict, List, Mapping, Optional, Set
+from typing import Any, Dict, Mapping, Optional, Set
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
@@ -114,15 +115,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _device_label(mac: str, name: str | None, vendor: str | None, overrides: Mapping[str, str]) -> str:
-    """Identity precedence for an alert/synthesised row: label → vendor → name → MAC.
-
-    Mirrors ``deviceLabel`` in ``network.js`` so an alert names a device the same
-    way the list does.
-    """
-    return overrides.get(mac) or vendor or name or mac
-
-
 def _device_dict(
     d: NetDevice,
     overrides: Mapping[str, str],
@@ -176,8 +168,9 @@ def _device_dict(
         "times_seen": rec["times_seen"] if rec else None,
         "important": bool(rec["important"]) if rec else False,
         "hidden": mac_key in hidden_macs,
-        # ``is_new`` is the 24 h "recently appeared" badge (persists across polls);
-        # ``new_macs`` (this exact cycle) drives the one-shot alert instead.
+        # ``is_new`` is the 24 h "recently appeared" badge, computed from the
+        # registry record so it persists across polls (not just the cycle the
+        # MAC first showed up in).
         "is_new": is_new(rec, now) if rec else False,
     }
 
@@ -304,26 +297,6 @@ def _wifi_dict(
     }
 
 
-def _history_alerts(
-    known: Mapping[str, Mapping[str, Any]],
-    online_macs: Set[str],
-    new_macs: Set[str],
-    overrides: Mapping[str, str],
-) -> List[str]:
-    """Phase-4 alerts derived from the history: new device + important offline."""
-    alerts: List[str] = []
-    for mac in sorted(new_macs):
-        rec = known.get(mac, {})
-        label = _device_label(mac, rec.get("last_name"), vendor_for_mac(mac), overrides)
-        alerts.append(f"New device joined the network: {label}.")
-    for mac in sorted(known):
-        rec = known[mac]
-        if rec.get("important") and mac not in online_macs:
-            label = _device_label(mac, rec.get("last_name"), vendor_for_mac(mac), overrides)
-            alerts.append(f"Important device offline: {label}.")
-    return alerts
-
-
 def _network_dict(
     s: NetworkState,
     overrides: Mapping[str, str],
@@ -332,7 +305,6 @@ def _network_dict(
     wifi_overrides: Mapping[str, str],
     hidden_wifi_ids: Set[str],
     known: Mapping[str, Mapping[str, Any]],
-    new_macs: Set[str],
     now: int,
 ) -> Dict[str, Any]:
     """Flatten a :class:`NetworkState` (+ history) into a JSON-serialisable dict."""
@@ -350,8 +322,6 @@ def _network_dict(
             devices.append(
                 _offline_device_dict(mac, known[mac], overrides, hidden_macs, groups)
             )
-
-    alerts = list(s.alerts) + _history_alerts(known, online_macs, new_macs, overrides)
 
     return {
         "internet": {
@@ -388,7 +358,6 @@ def _network_dict(
         },
         "wifi": _wifi_dict(s.wifi, wifi_overrides, hidden_wifi_ids),
         "devices": devices,
-        "alerts": alerts,
     }
 
 
@@ -411,9 +380,11 @@ async def get_network(
     wifi_overrides = load_network_wifi_display_names()
     hidden_wifi_ids = load_hidden_wifi_ids()
     now = int(time.time())
-    # Record the live, non-randomised devices and get back the new-this-cycle
-    # MACs + the full registry snapshot. Best-effort: a history failure must not
-    # break the live read, so fall back to no history rather than 502.
+    # Record the live, non-randomised devices and get back the full registry
+    # snapshot (the new-this-cycle MAC list is discarded — the 24 h ``is_new``
+    # badge is computed per row from the snapshot instead). Best-effort: a
+    # history failure must not break the live read, so fall back to no history
+    # rather than 502.
     seen = [
         {
             "mac": normalize_mac(d.mac),
@@ -426,10 +397,10 @@ async def get_network(
         if d.mac and not is_randomized_mac(d.mac)
     ]
     try:
-        new_list, known = await asyncio.to_thread(record_and_snapshot, seen, now)
+        _new_list, known = await asyncio.to_thread(record_and_snapshot, seen, now)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  network history update failed: %s", exc)
-        new_list, known = [], {}
+        known = {}
     return _network_dict(
         state,
         overrides,
@@ -438,7 +409,6 @@ async def get_network(
         wifi_overrides,
         hidden_wifi_ids,
         known,
-        set(new_list),
         now,
     )
 

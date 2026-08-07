@@ -29,7 +29,6 @@ def test_network_tab_groups_devices_and_switches_sort(
     page.locator("#tabNetwork").click()
 
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
-    expect(page.locator("#netAlerts")).to_be_hidden()
     # Attached devices is collapsed by default now; open it for the inventory.
     devices_card = page.locator("details.net-devices-card")
     expect(devices_card).not_to_have_attribute("open", "")

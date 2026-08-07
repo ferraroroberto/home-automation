@@ -2954,17 +2954,6 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-speed-btn .icon { width: 1.15em; height: 1.15em; }
 .net-speed-btn.is-busy { opacity: 0.7; cursor: progress; }
 
-/* Alerts strip — a slim attention-tinted banner, one row per alert. */
-.net-alerts { margin-bottom: var(--gap); display: flex; flex-direction: column; gap: 6px; }
-/* Background tint carries the attention colour (issue #367 impeccable pass) —
-   same color-mix tint recipe as .ups-alerts span, not a border-left "side-tab". */
-.net-alert {
-  background: color-mix(in srgb, var(--attention) 16%, transparent);
-  border-radius: var(--radius-md);
-  padding: 8px 10px;
-  font-size: var(--font-label); font-weight: 600; color: var(--attention);
-}
-
 /* AP + router health row — two compact cards side by side. */
 .net-health-row {
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);

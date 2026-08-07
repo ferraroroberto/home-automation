@@ -1359,7 +1359,6 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     },
                 ],
             },
-            "alerts": ["1 wireless client(s) on weak signal (<40%)."],
             "devices": [
                 {
                     "mac": "AA:00:00:00:00:01",
