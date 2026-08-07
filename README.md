@@ -1515,6 +1515,13 @@ watts, a switch round-trip, cover controls, light controls, and an offline
 device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14.
 
+Test modules are scoped **one per feature area** — `test_tabs.py` is pure nav
+and tab switching, with the tab content it used to carry now in
+`test_home_tab.py`, `test_vm_tile.py`, `test_ac_tab.py`, `test_energy_tab.py`,
+`test_security_tab.py`, `test_cameras.py` and `test_presence.py` (#634). Add a
+new case to the module named after what it exercises; `tests/e2e/_app.py` holds
+the shared `boot_home()` opener the feature modules use.
+
 As of 2026-08-06 (#636), the suite is 140 test functions / 296 executions,
 measured at ~5 min (4m59s). It is more than the flat ×2 the dual projection
 implies because `test_design_matrix.py` additionally fans one function across
