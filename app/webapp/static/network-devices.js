@@ -521,7 +521,8 @@ function appendCustomGroup(name, members, editable, showOffline) {
 // ------------------------------------------------- device detail + rename
 function deviceByMac(mac) {
   const list = (state.network && state.network.devices) || [];
-  return list.find(function (d) { return d.mac === mac; }) || null;
+  const target = String(mac || '').toUpperCase();
+  return list.find(function (d) { return String(d.mac || '').toUpperCase() === target; }) || null;
 }
 
 function connText(d) {
@@ -678,8 +679,9 @@ function clearNetDirty() {
 
 function patchNetDevice(mac, patch) {
   if (state.network && Array.isArray(state.network.devices)) {
+    const target = String(mac || '').toUpperCase();
     state.network.devices = state.network.devices.map(function (d) {
-      return d.mac === mac ? Object.assign({}, d, patch) : d;
+      return String(d.mac || '').toUpperCase() === target ? Object.assign({}, d, patch) : d;
     });
   }
 }
