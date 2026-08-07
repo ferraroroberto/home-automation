@@ -7,10 +7,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-
-def _boot(page: Page, base_url: str) -> None:
-    page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#paneHome", state="visible")
+from tests.e2e._app import boot_home
 
 
 def test_network_tab_groups_devices_and_switches_sort(
@@ -24,7 +21,7 @@ def test_network_tab_groups_devices_and_switches_sort(
     mock_api(sample_units)
     mock_energy()
     mock_network()
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
 
@@ -99,7 +96,7 @@ def test_network_tab_shows_loading_before_first_result(
           return originalFetch(input, init);
         };
     """)
-    _boot(page, base_url)
+    boot_home(page, base_url)
     page.locator("#tabNetwork").click()
 
     expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "loading")
@@ -127,7 +124,7 @@ def test_network_tab_shows_contextual_unavailable_state(
             body='{"detail":"router 192.0.2.1 timed out after 10 seconds"}',
         ),
     )
-    _boot(page, base_url)
+    boot_home(page, base_url)
     page.locator("#tabNetwork").click()
 
     expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "error")
@@ -149,7 +146,7 @@ def test_network_poll_failure_preserves_and_labels_last_good_data(
     mock_api(sample_units)
     mock_energy()
     mock_network()
-    _boot(page, base_url)
+    boot_home(page, base_url)
     page.locator("#tabNetwork").click()
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
 
@@ -206,7 +203,7 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
         "last_seen": 1_700_000_100,
         "times_seen": 4,
     })
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
     page.locator("details.net-devices-card > summary").click()  # collapsed by default now
@@ -297,7 +294,7 @@ def test_network_offline_toggle_hides_devices_with_no_live_link(
     mock_energy()
     snapshot = mock_network()
     snapshot["devices"].append(_lease_only_device())
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
     page.locator("details.net-devices-card > summary").click()
@@ -360,7 +357,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     mock_api(sample_units)
     mock_energy()
     mock_network()
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
     page.locator("details.net-wifi-card > summary").click()
@@ -446,7 +443,7 @@ def test_network_device_groups_create_move_rename_and_delete(
         "last_seen": 1_700_000_100,
         "times_seen": 4,
     })
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
     page.locator("details.net-devices-card > summary").click()
@@ -563,7 +560,7 @@ def test_network_wifi_header_stays_quiet_when_scan_unavailable(
         "error": "Wi-Fi diagnostics are unavailable in this fixture.",
         "bssids": [],
     }
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
 
@@ -591,7 +588,7 @@ def test_network_tab_retries_after_first_load_failure(
     mock_api(sample_units)
     mock_energy()
     mock_network(failures_before_success=1)
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
 
@@ -620,7 +617,7 @@ def test_network_walk_test_picks_a_device_and_records_a_room(
     mock_api(sample_units)
     mock_energy()
     mock_network()
-    _boot(page, base_url)
+    boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
     page.locator("details.net-survey-card > summary").click()
