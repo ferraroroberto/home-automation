@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 import app.webapp.alarm_notify as AN
@@ -142,6 +143,67 @@ def test_presence_tick_alerts_only_after_confirm_helper_exhausts_retries(monkeyp
             "dedupe_key": "presence:arm",
         }
     ]
+
+
+_BLOCK_S = 0.4
+
+
+async def _run_watching_the_loop(coro) -> tuple[float, float]:
+    """Await ``coro`` while heart-beating; return (worst wakeup gap, elapsed).
+
+    A coroutine that does its blocking I/O inline pins the loop for the whole
+    duration, so the heartbeat's worst gap ≈ the block; one that threads the
+    call off keeps waking on schedule.
+    """
+
+    gaps: list[float] = []
+
+    async def heartbeat() -> None:
+        last = time.monotonic()
+        while True:
+            await asyncio.sleep(0.005)
+            now = time.monotonic()
+            gaps.append(now - last)
+            last = now
+
+    beat = asyncio.create_task(heartbeat())
+    started = time.monotonic()
+    try:
+        await coro
+    finally:
+        elapsed = time.monotonic() - started
+        beat.cancel()
+        try:
+            await beat
+        except asyncio.CancelledError:
+            pass
+    return max(gaps, default=elapsed), elapsed
+
+
+def test_presence_tick_push_never_blocks_the_event_loop(monkeypatch) -> None:
+    """Regression for #635: ``send_push`` is blocking network I/O (one
+    pywebpush POST per subscription) and this tick shares uvicorn's single
+    event loop, so calling it inline stalled the whole webapp on every
+    auto-arm/disarm."""
+
+    _wire_common(monkeypatch)
+    monkeypatch.setattr(PA, "send_push", lambda *a, **k: time.sleep(_BLOCK_S))
+
+    async def fake_confirm(action: str) -> _FakeConfirmState:
+        return _FakeConfirmState("armed")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        pass
+
+    monkeypatch.setattr(PA, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(PA, "mark_decision_applied", lambda d, o: None)
+    monkeypatch.setattr(PA, "set_kids_home_override", lambda v: None)
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
+
+    stall, elapsed = asyncio.run(_run_watching_the_loop(PA.tick()))
+
+    assert elapsed >= _BLOCK_S, "the blocking push did not actually run"
+    assert stall < _BLOCK_S / 2, f"event loop stalled {stall:.3f}s inside tick()"
 
 
 def test_evaluate_current_decision_considers_every_tracked_person(monkeypatch) -> None:

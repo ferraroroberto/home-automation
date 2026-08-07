@@ -10,7 +10,7 @@ chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "
 
 [vendored]
 e2e_live_guard = { src = "tests/e2e/_e2e_live_guard.py", sha = "469dc7513153177a5fd13ff829adad33c6f5b98e", dest = "tests/e2e/_e2e_live_guard.py" }
-browser_sweep = { src = "tests/e2e/_browser_sweep.py", sha = "60dc05f990bfdd0b479179f02f6e5e0e0c53a7f3", dest = "tests/e2e/_browser_sweep.py" }
+browser_sweep = { src = "tests/e2e/_browser_sweep.py", sha = "7a2452b983938d1a8807daf720a8157bbd0edc08", dest = "tests/e2e/_browser_sweep.py" }
 classify_e2e = { src = "scripts/classify_e2e.py", sha = "1ec97cfb1ce4fb1543e294fcb3be59d11398c7a2", dest = "scripts/classify_e2e.py" }
 
 # Diff-proportionate e2e routing (ferraroroberto/home-automation#603,
