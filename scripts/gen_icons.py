@@ -16,15 +16,25 @@ Writes into ``app/webapp/static/``: ``icon-512.png``, ``icon-512-maskable.png``,
 
 Usage:
     python scripts/gen_icons.py
+
+The ``project-scaffolding`` checkout is located via the ``PROJECT_SCAFFOLDING_ROOT``
+environment variable, defaulting to ``E:\\automation\\project-scaffolding``.
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-SCAFFOLDING_SCRIPTS = Path(r"E:\automation\project-scaffolding\scripts")
-sys.path.insert(0, str(SCAFFOLDING_SCRIPTS))
+# Overridable so this script (and its master art) work outside this single
+# developer's machine layout — falls back to the historical absolute path when
+# the env var isn't set (issue #633). Same `PROJECT_SCAFFOLDING_ROOT` spelling
+# as the sister repos' own `gen_icons.py`, so one export covers the fleet.
+SCAFFOLDING_ROOT = Path(
+    os.environ.get("PROJECT_SCAFFOLDING_ROOT", r"E:\automation\project-scaffolding")
+)
+sys.path.insert(0, str(SCAFFOLDING_ROOT / "scripts"))
 
 from brand_gen import render_set  # noqa: E402
 
@@ -34,7 +44,7 @@ STATIC_DIR = PROJECT_ROOT / "app" / "webapp" / "static"
 
 def main() -> None:
     render_set(
-        master=Path(r"E:\automation\project-scaffolding\brand\house.svg"),
+        master=SCAFFOLDING_ROOT / "brand" / "house.svg",
         out_dir=STATIC_DIR,
         tray_out_dir=PROJECT_ROOT / "assets" / "tray",
         stream_deck_out_dir=PROJECT_ROOT / "assets" / "stream-deck",
