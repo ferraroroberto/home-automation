@@ -16,7 +16,7 @@ import {
   NETWORK_SHOW_HIDDEN_WIFI_KEY,
   persistedFlag,
 } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import {
   createWifiChannelChart,
   setWifiChannelData,
@@ -276,9 +276,7 @@ async function saveNetWifiName() {
     renderNetwork();
     toast('Name saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save name: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save name');
   }
 }
 
@@ -303,9 +301,7 @@ async function toggleWifiHidden() {
     renderNetwork();
     toast(next ? 'Hidden' : 'Restored', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to update: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to update');
   }
 }
 

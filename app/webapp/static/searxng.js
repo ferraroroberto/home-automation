@@ -8,7 +8,7 @@
 'use strict';
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { createPoller } from './poll.js';
 import { createViewState } from './view-state.js';
 
@@ -64,7 +64,7 @@ async function onStart() {
     searxngView.set(state.searxng && state.searxng.available ? 'ready' : 'error', { updatedAt: new Date() });
     toast('Search engine starting', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
+    if (!isAuthRequired(exc)) {
       toast("Couldn't start the search engine", 'error');
     }
   } finally {
@@ -100,7 +100,7 @@ export async function loadSearxng() {
     searxngView.set(state.searxng && state.searxng.available ? 'ready' : 'error', { updatedAt: new Date() });
     renderSearxng();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     searxngView.set('error', {});
     reportFetchFailure('searxng', { message: 'live data unavailable' }, 'Search engine');
     renderSearxng();

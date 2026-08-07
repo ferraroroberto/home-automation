@@ -14,7 +14,7 @@
 'use strict';
 
 import { state, els } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 
 const LANG_LABELS = { en: 'EN', es: 'ES' };
@@ -223,7 +223,7 @@ async function loadVoiceCommands() {
     const body = await jsonApi('/api/voice-commands');
     state.voiceCommands = (body && body.groups) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.voiceCommands = [];
     if (els.voiceCommandsNote) {
       els.voiceCommandsNote.hidden = false;

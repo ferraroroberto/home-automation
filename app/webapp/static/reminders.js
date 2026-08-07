@@ -10,7 +10,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { createPoller } from './poll.js';
@@ -148,7 +148,7 @@ export async function loadReminders() {
     const body = await jsonApi('/api/reminders');
     state.reminders = (body && body.entries) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.reminders = [];
     if (els.remindersNote) {
       els.remindersNote.hidden = false;

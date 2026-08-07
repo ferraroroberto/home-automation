@@ -19,7 +19,7 @@ import {
   modeIcon,
 } from './state.js';
 import { icon } from './_vendored/icons/icons.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 import { createViewState, markTabFailure, renderFeedback, staleText } from './view-state.js';
@@ -185,9 +185,7 @@ async function applyControl(unitId, patch) {
     if (state.selectedId === updated.unit_id) populateDetail(updated);
     toast('Saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed');
   }
 }
 
@@ -549,7 +547,7 @@ async function loadAutomation(unitId) {
     setToggleState(els.ruleBoostEnabled, rule.boost_enabled === true);
     els.ruleBoostOffset.value = rule.boost_offset_c == null ? '' : rule.boost_offset_c;
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
   }
   try {
     const sched = await jsonApi('/api/units/' + encodeURIComponent(unitId) + '/schedule');
@@ -559,7 +557,7 @@ async function loadAutomation(unitId) {
     const unit = unitById(unitId);
     if (unit) renderScheduleList(unit);
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
   }
 }
 
@@ -672,7 +670,7 @@ export async function loadUnits() {
     }
   } catch (exc) {
     // A 401 already surfaced the login overlay (api.js → showLogin); stay quiet.
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markAcFailure();
   }
 }
@@ -721,9 +719,7 @@ async function saveDisplayName() {
     renderAcSummary();
     toast('Name saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save name: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save name');
   }
 }
 
@@ -769,9 +765,7 @@ async function saveRule() {
     renderAcSummary();
     toast('Rule saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save rule: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save rule');
   }
 }
 
@@ -802,9 +796,7 @@ async function saveSchedules() {
     renderAcSummary();
     toast('Schedules saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save schedules: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save schedules');
   }
 }
 

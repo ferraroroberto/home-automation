@@ -11,7 +11,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { denseListEditor } from './dense-editor.js';
 import { closeDialog, openDialog } from './dialog.js';
 
@@ -90,7 +90,7 @@ export async function loadPresencePlaces() {
     const body = await jsonApi('/api/presence/places');
     state.presencePlacesList = (body && body.places) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.presencePlacesList = [];
     if (els.presencePlacesNote) {
       els.presencePlacesNote.hidden = false;

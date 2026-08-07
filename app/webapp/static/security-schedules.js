@@ -9,7 +9,7 @@
 'use strict';
 
 import { state, els } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
@@ -180,7 +180,7 @@ export async function loadSecuritySchedules() {
     const body = await jsonApi('/api/security/schedules');
     state.securitySchedules = (body && body.entries) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.securitySchedules = [];
     if (els.securitySchedulesNote) {
       els.securitySchedulesNote.hidden = false;

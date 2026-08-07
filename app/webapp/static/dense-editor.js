@@ -35,7 +35,7 @@
 'use strict';
 
 import { toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { confirmAction } from './confirm.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -106,7 +106,7 @@ export function denseListEditor(config) {
     } catch (exc) {
       config.setEntries(previous);
       config.render();
-      if (String(exc.message) !== 'auth required') {
+      if (!isAuthRequired(exc)) {
         toast(config.toasts.failed, 'error');
       }
       return false;

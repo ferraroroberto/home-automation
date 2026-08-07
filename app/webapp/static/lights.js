@@ -7,7 +7,7 @@
 
 import { state, els, toast, reportFetchOk } from './state.js';
 import { createViewState, markTabFailure } from './view-state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { emptyStateEl } from './empty-state.js';
 import { createPoller } from './poll.js';
@@ -93,9 +93,7 @@ async function applyLight(light, patch) {
     renderLights();
     if (isToggle) toast(label(updated) + (patch.on ? ' on' : ' off'), 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed');
   }
 }
 
@@ -124,7 +122,7 @@ async function applyAllLights(on) {
       await wait(250);
     } catch (exc) {
       failures += 1;
-      if (String(exc.message) !== 'auth required') {
+      if (!isAuthRequired(exc)) {
         toast('Failed: ' + label(light) + ': ' + (exc.message || exc), 'error');
         await wait(250);
       }
@@ -306,9 +304,7 @@ async function saveLightName() {
     if (els.lightSave) els.lightSave.disabled = true;
     toast('Saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save name: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save name');
   }
 }
 
@@ -384,7 +380,7 @@ export async function loadLights() {
     });
     renderLights();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markLightsFailure();
   }
 }
@@ -427,7 +423,7 @@ export function wireLightControls() {
         renderLights();
         toast('Lights refreshed', 'success');
       } catch (exc) {
-        if (String(exc.message) !== 'auth required') {
+        if (!isAuthRequired(exc)) {
           markLightsFailure();
         }
       } finally {

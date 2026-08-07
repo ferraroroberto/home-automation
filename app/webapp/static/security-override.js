@@ -15,7 +15,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
@@ -144,7 +144,7 @@ export async function loadSecurityOverrides() {
     const body = await jsonApi('/api/security/overrides');
     state.securityOverrides = (body && body.entries) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.securityOverrides = state.securityOverrides || [];
     if (els.securityOverridesNote) {
       els.securityOverridesNote.hidden = false;

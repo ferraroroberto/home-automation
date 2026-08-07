@@ -1581,39 +1581,21 @@ def mock_network(page: Page) -> Callable[..., Dict]:
             if method in {"PUT", "POST"}:
                 body_json = route.request.post_data_json or {}
                 if "/api/network/devices/" in url and url.endswith("/display_name"):
-                    mac = unquote(url.split("/api/network/devices/", 1)[1].split("/", 1)[0])
-                    name = (body_json.get("display_name") or "").strip()
-                    for device in body["devices"]:
-                        if device["mac"] == mac:
-                            device["display_name"] = name or None
-                    route.fulfill(
-                        status=200,
-                        content_type="application/json",
-                        body=_json({"mac": mac, "display_name": name or None}),
+                    _patch_field(
+                        route, body["devices"], "mac", _device_mac(url),
+                        "display_name", _text_or_none(body_json.get("display_name")),
                     )
                     return
                 if "/api/network/devices/" in url and url.endswith("/hidden"):
-                    mac = unquote(url.split("/api/network/devices/", 1)[1].split("/", 1)[0])
-                    hidden = bool(body_json.get("hidden"))
-                    for device in body["devices"]:
-                        if device["mac"] == mac:
-                            device["hidden"] = hidden
-                    route.fulfill(
-                        status=200,
-                        content_type="application/json",
-                        body=_json({"mac": mac, "hidden": hidden}),
+                    _patch_field(
+                        route, body["devices"], "mac", _device_mac(url),
+                        "hidden", bool(body_json.get("hidden")),
                     )
                     return
                 if "/api/network/devices/" in url and url.endswith("/group"):
-                    mac = unquote(url.split("/api/network/devices/", 1)[1].split("/", 1)[0])
-                    group = (body_json.get("group") or "").strip()
-                    for device in body["devices"]:
-                        if device["mac"] == mac:
-                            device["group"] = group or None
-                    route.fulfill(
-                        status=200,
-                        content_type="application/json",
-                        body=_json({"mac": mac, "group": group or None}),
+                    _patch_field(
+                        route, body["devices"], "mac", _device_mac(url),
+                        "group", _text_or_none(body_json.get("group")),
                     )
                     return
                 if url.endswith("/api/network/groups/rename"):
@@ -1644,27 +1626,15 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                     )
                     return
                 if url.endswith("/api/network/wifi/display_name"):
-                    wifi_id = body_json.get("wifi_id")
-                    name = (body_json.get("display_name") or "").strip()
-                    for bssid in body["wifi"]["bssids"]:
-                        if bssid["wifi_id"] == wifi_id:
-                            bssid["display_name"] = name or None
-                    route.fulfill(
-                        status=200,
-                        content_type="application/json",
-                        body=_json({"wifi_id": wifi_id, "display_name": name or None}),
+                    _patch_field(
+                        route, body["wifi"]["bssids"], "wifi_id", body_json.get("wifi_id"),
+                        "display_name", _text_or_none(body_json.get("display_name")),
                     )
                     return
                 if url.endswith("/api/network/wifi/hidden"):
-                    wifi_id = body_json.get("wifi_id")
-                    hidden = bool(body_json.get("hidden"))
-                    for bssid in body["wifi"]["bssids"]:
-                        if bssid["wifi_id"] == wifi_id:
-                            bssid["hidden"] = hidden
-                    route.fulfill(
-                        status=200,
-                        content_type="application/json",
-                        body=_json({"wifi_id": wifi_id, "hidden": hidden}),
+                    _patch_field(
+                        route, body["wifi"]["bssids"], "wifi_id", body_json.get("wifi_id"),
+                        "hidden", bool(body_json.get("hidden")),
                     )
                     return
             route.fulfill(status=200, content_type="application/json", body=_json(body))
@@ -1678,3 +1648,30 @@ def mock_network(page: Page) -> Callable[..., Dict]:
 def _json(obj) -> str:
     import json
     return json.dumps(obj)
+
+
+def _device_mac(url: str) -> str:
+    """The MAC path segment of a /api/network/devices/<mac>/<field> URL."""
+    return unquote(url.split("/api/network/devices/", 1)[1].split("/", 1)[0])
+
+
+def _text_or_none(value) -> Optional[str]:
+    """A PUT'd free-text field: trimmed, with blank normalised to None."""
+    return (value or "").strip() or None
+
+
+def _patch_field(route, items, id_field, id_value, field, value) -> None:
+    """Set one field on the item `id_value` identifies, and echo the write back.
+
+    Every single-field PUT the network mock serves (device display_name/hidden/
+    group, wifi-bssid display_name/hidden) is this same shape, so they all route
+    through here rather than hand-rolling find-set-fulfil five times over.
+    """
+    for item in items:
+        if item[id_field] == id_value:
+            item[field] = value
+    route.fulfill(
+        status=200,
+        content_type="application/json",
+        body=_json({id_field: id_value, field: value}),
+    )

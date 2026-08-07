@@ -25,7 +25,7 @@ import {
   reportFetchOk,
   PRESENCE_SHOW_HIDDEN_KEY,
 } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { toggleMarkup } from './toggle.js';
 import { createViewState } from './view-state.js';
@@ -418,7 +418,7 @@ export async function loadPresence() {
     );
     refreshThisDeviceLocation();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markPresenceFailure();
     return;
   }
@@ -540,9 +540,7 @@ async function savePresenceDetail() {
     if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
     toast('Saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to save: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to save');
   }
 }
 
@@ -568,9 +566,7 @@ async function togglePresenceHidden() {
     renderPresence();
     toast(next ? 'Presence hidden' : 'Presence shown', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Failed to update presence: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Failed to update presence');
   }
 }
 

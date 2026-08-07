@@ -14,7 +14,7 @@
 'use strict';
 
 import { els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle, buildToggle } from './toggle.js';
 import { esc } from './format.js';
 import { createPoller } from './poll.js';
@@ -151,9 +151,7 @@ async function savePrefs() {
     }));
     toast('Fleet shutdown saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Fleet shutdown save failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Fleet shutdown save failed');
   }
 }
 
@@ -165,7 +163,7 @@ async function loadMachines() {
     hubUnreachable = false;
     renderMachines();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     machines = [];
     hubUnreachable = true;
     renderMachines();
@@ -177,9 +175,7 @@ export async function loadPcFleet() {
   try {
     applyPrefs(await jsonApi('/api/pc-fleet/prefs'));
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Fleet shutdown settings failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Fleet shutdown settings failed');
   }
   await loadMachines();
 }
@@ -191,9 +187,7 @@ async function wakeMachine(id) {
     toast('Wake signal sent', 'success');
     loadMachines();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Wake failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Wake failed');
   }
 }
 

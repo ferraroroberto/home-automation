@@ -25,7 +25,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired } from './api.js';
 import { denseListEditor } from './dense-editor.js';
 import { emptyStateEl } from './empty-state.js';
 import { putLocation } from './presence-location.js';
@@ -265,7 +265,7 @@ export async function loadPvSystem() {
     state.pvPerformanceRatio = (body && body.performance_ratio) || DEFAULT_PERFORMANCE_RATIO;
     state.pvHorizonProfile = (body && body.horizon_profile) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.pvArrays = [];
     state.pvHorizonProfile = [];
   }
@@ -490,7 +490,7 @@ async function savePerformanceRatio() {
     toast(withEstimateSuffix('PV system saved', total), 'success');
   } catch (exc) {
     els.pvPerformanceRatio.value = state.pvPerformanceRatio;
-    if (String(exc.message) !== 'auth required') {
+    if (!isAuthRequired(exc)) {
       toast("Couldn't save the PV system", 'error');
     }
   }
@@ -515,7 +515,7 @@ async function savePvLocation() {
     const total = await safeOnSaved();
     toast(withEstimateSuffix('Location saved', total), 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
+    if (!isAuthRequired(exc)) {
       toast("Couldn't save the location", 'error');
     }
   }

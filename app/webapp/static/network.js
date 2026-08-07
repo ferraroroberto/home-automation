@@ -25,7 +25,7 @@ import {
   toast,
   reportFetchOk,
 } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtPct } from './format.js';
 import {
   restoreSnapshot,
@@ -258,7 +258,7 @@ async function loadNetwork(opts) {
     renderNetwork();
     return true;
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     markNetworkFailure();
     return false;
   } finally {
@@ -288,9 +288,7 @@ async function runSpeedTest() {
   try {
     if (await loadNetwork({ speedtest: true })) toast('Speed test complete', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Speed test failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Speed test failed');
   } finally {
     speedtestRunning = false;
     els.netSpeedBtn.disabled = false;
@@ -312,9 +310,7 @@ async function rebootAccessPoint() {
     await jsonApi('/api/network/access-point/reboot', { method: 'POST' });
     toast('Reboot command accepted — the AP will drop for ~1–2 min', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Reboot failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Reboot failed');
   }
 }
 
@@ -331,9 +327,7 @@ async function rebootRouter() {
     await jsonApi('/api/network/router/reboot', { method: 'POST' });
     toast('Reboot command accepted — the router will be down ~5 min', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Reboot failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Reboot failed');
   }
 }
 

@@ -18,7 +18,7 @@ import {
   THIS_DEVICE_PRESENCE_KEY,
   THIS_DEVICE_LOCATION_KEY,
 } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, reportActionFailure } from './api.js';
 import { renderPresence, loadPresence } from './presence.js';
 
 function distanceMeters(lat1, lon1, lat2, lon2) {
@@ -133,9 +133,7 @@ async function refreshPresenceDiagnostics() {
     await loadPresence();
     toast('Presence refreshed', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Presence refresh failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Presence refresh failed');
   }
 }
 
@@ -149,9 +147,7 @@ export async function loadLocation() {
     if (hydrateThisDeviceLocation()) renderPresence();
     refreshThisDeviceLocation();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Location failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Location failed');
   }
 }
 
@@ -185,9 +181,7 @@ async function saveLocation() {
     toast('Location saved', 'success');
     await refreshPresenceDiagnostics();
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Location failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Location failed');
   }
 }
 

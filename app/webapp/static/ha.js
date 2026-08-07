@@ -9,7 +9,7 @@
 
 'use strict';
 
-import { api, jsonApi } from './api.js';
+import { api, jsonApi, isAuthRequired } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
 import { els, readToken, state, toast } from './state.js';
@@ -133,7 +133,7 @@ async function loadHa() {
     haViewState = 'ready';
     renderHa();
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     haViewState = 'error';
     renderSatellites([]);
     toast((exc && exc.message) || 'Home Assistant unavailable', 'error');

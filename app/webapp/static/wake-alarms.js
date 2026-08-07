@@ -10,7 +10,7 @@
 'use strict';
 
 import { state, els, toast } from './state.js';
-import { jsonApi } from './api.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
@@ -256,7 +256,7 @@ export async function loadWakeAlarms() {
     const body = await jsonApi('/api/wake-alarms');
     state.wakeAlarms = (body && body.entries) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.wakeAlarms = [];
     if (els.wakeAlarmsNote) {
       els.wakeAlarmsNote.hidden = false;
@@ -279,9 +279,7 @@ async function saveWakeAlarms() {
     renderWakeAlarms();
     toast('Wake alarms saved', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Wake alarm save failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Wake alarm save failed');
   }
 }
 
@@ -289,9 +287,7 @@ async function dismissWakeAlarm(alarmId) {
   try {
     await jsonApi('/api/wake-alarms/' + encodeURIComponent(alarmId) + '/dismiss', { method: 'POST' });
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Dismiss failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Dismiss failed');
   }
   loadWakeAlarms();
 }
@@ -341,7 +337,7 @@ export async function loadWakeTimers() {
     const body = await jsonApi('/api/wake-timers');
     state.wakeTimers = (body && body.timers) || [];
   } catch (exc) {
-    if (String(exc.message) === 'auth required') return;
+    if (isAuthRequired(exc)) return;
     state.wakeTimers = [];
   }
   renderWakeTimers();
@@ -356,9 +352,7 @@ async function createWakeTimer(seconds, label) {
     });
     toast('Timer started', 'success');
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Timer start failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Timer start failed');
   }
   loadWakeTimers();
 }
@@ -367,9 +361,7 @@ async function cancelWakeTimer(timerId) {
   try {
     await jsonApi('/api/wake-timers/' + encodeURIComponent(timerId), { method: 'DELETE' });
   } catch (exc) {
-    if (String(exc.message) !== 'auth required') {
-      toast('Timer cancel failed: ' + (exc.message || exc), 'error');
-    }
+    reportActionFailure(exc, 'Timer cancel failed');
   }
   loadWakeTimers();
 }
