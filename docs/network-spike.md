@@ -166,6 +166,13 @@ AP/router health row with reboot buttons, and the device list (MAC → friendly
 name, signal, band) with the weak-signal/offline alerts surfaced. Reboot is a
 deliberate user action with a confirm — never automatic.
 
+> **Later correction (#632).** The alert strip did ship, then was removed again
+> in `cce000a` to tighten the tab's mobile layout, and `GET /api/network` no
+> longer returns an `alerts` key. Every fact it carried is surfaced on the
+> device's own row instead — the weak-signal count in the stat chips, the 24 h
+> `is_new` badge, and the dimmed `online=false` row with its `important` flag.
+> `NetworkState.alerts` itself stays: `src/list_network.py` still prints it.
+
 ## Follow-up checklist
 
 - [x] ZTE `menuData` session-token scheme → WAN/internet status read (#129 Phase 3)

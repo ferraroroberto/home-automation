@@ -156,8 +156,8 @@ def device_inputs_from_inventory(
 def device_label(d: DeviceInput) -> str:
     """Identity precedence: display-name → vendor → hostname → MAC.
 
-    Mirrors ``_device_label`` in the network router so the planner names a device
-    the same way the Network list does.
+    Mirrors ``deviceLabel`` in ``app/webapp/static/network-devices.js`` so the
+    planner names a device the same way the Network list does.
     """
     return d.display_name or d.vendor or d.name or d.mac
 

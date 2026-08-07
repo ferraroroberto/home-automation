@@ -150,11 +150,6 @@ function renderInternet(net) {
   }
 }
 
-function renderAlerts(_alerts) {
-  els.netAlerts.innerHTML = '';
-  els.netAlerts.hidden = true;
-}
-
 function setMetaLines(el, lines) {
   el.innerHTML = '';
   lines.forEach(function (text) {
@@ -219,7 +214,6 @@ function renderHealth(ap, router) {
 function renderNetwork() {
   const net = state.network;
   renderInternet(net ? net.internet : null);
-  renderAlerts(net ? net.alerts : []);
   renderHealth(net ? net.access_point : null, net ? net.router : null);
   renderWifi(net ? net.wifi : null);
   renderSurvey();

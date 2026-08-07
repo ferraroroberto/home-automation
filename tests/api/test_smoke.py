@@ -1190,7 +1190,9 @@ def test_network_route_flattens_state_with_monkeypatched_core(
     assert body["router"]["wan_online"] is None
     assert body["router"]["public_ip"] is None
     assert [d["is_wireless"] for d in body["devices"]] == [True, False]
-    assert body["alerts"][0].startswith("1 wireless")
+    # The response carries no ``alerts`` key — the UI strip that read it is gone
+    # and a weak client is highlighted on its own row instead (issue #632).
+    assert "alerts" not in body
 
     iot, wired = body["devices"]
     assert iot["vendor"] == "Espressif"
@@ -1421,10 +1423,11 @@ def test_network_history_store_seeds_then_flags_new_and_prunes(tmp_path) -> None
 def test_network_route_tracks_offline_and_important(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``GET /api/network`` derives online/offline + the important-offline alert.
+    """``GET /api/network`` derives the online/offline rows + the important flag.
 
     A device present in one read then absent from the next is synthesised as an
-    ``online=false`` row; marking it important makes its disappearance alert.
+    ``online=false`` row carrying its last-known identity and its ``important``
+    flag — the per-row surface that replaced the removed alert strip (#632).
     """
     dev_a = NetDevice(
         mac="5C:CF:7F:AA:BB:CC", ip="192.168.0.5", name=None, conn_type="5GHz",
@@ -1450,12 +1453,13 @@ def test_network_route_tracks_offline_and_important(
         "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
     )
 
-    # First read seeds the registry: both online, no new-device alert.
+    # First read seeds the registry: both online, and a seed is never badged new.
     body = client.get("/api/network").json()
     by_mac = {d["mac"]: d for d in body["devices"]}
     assert by_mac["5C:CF:7F:AA:BB:CC"]["online"] is True
     assert by_mac["B8:27:EB:11:22:33"]["online"] is True
-    assert not any("New device" in a for a in body["alerts"])
+    assert by_mac["5C:CF:7F:AA:BB:CC"]["is_new"] is False
+    assert by_mac["B8:27:EB:11:22:33"]["is_new"] is False
 
     # Mark the wired host important (lower-case MAC normalises to the store key).
     resp = client.post(
@@ -1464,7 +1468,7 @@ def test_network_route_tracks_offline_and_important(
     assert resp.status_code == 200
     assert resp.json() == {"mac": "B8:27:EB:11:22:33", "important": True}
 
-    # Next read: the important device drops off → offline row + offline alert.
+    # Next read: the important device drops off → a synthesised offline row.
     holder["state"] = NetworkState(devices=(dev_a,), **base)
     body = client.get("/api/network").json()
     by_mac = {d["mac"]: d for d in body["devices"]}
@@ -1474,7 +1478,6 @@ def test_network_route_tracks_offline_and_important(
     assert offline["important"] is True
     assert offline["source"] == "history"
     assert offline["ip"] == "192.168.0.10"  # last-known IP retained
-    assert any("Important device offline" in a for a in body["alerts"])
 
 
 def test_dhcp_plan_route_classifies_and_assigns(
