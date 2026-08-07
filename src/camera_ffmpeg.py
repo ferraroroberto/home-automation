@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Coroutine, Dict, Optional
 
 from src._atomic_json import atomic_write_bytes
+from src._no_window import NO_WINDOW
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,14 @@ _JPEG_SOI = b"\xff\xd8"
 # and awaited from the caller's (selector) loop via ``_run_on_proactor``.
 _proactor_loop: Optional[asyncio.AbstractEventLoop] = None
 _proactor_lock = threading.Lock()
+
+# Every ffmpeg spawn below also passes ``creationflags=NO_WINDOW`` (issue #633).
+# The proactor bridge is about *which loop* runs the spawn; it says nothing about
+# the console window, and these are the repo's most frequent short-lived children
+# (one per snapshot, per live-view pump, per recording) under the windowless
+# tray. ``asyncio.create_subprocess_exec`` forwards unknown kwargs straight to
+# ``subprocess.Popen``, so the shared constant drops in unchanged — and it is 0
+# off Windows, which Popen accepts everywhere.
 
 
 def _ensure_proactor_loop() -> asyncio.AbstractEventLoop:
@@ -141,6 +150,7 @@ async def snapshot(camera_id: str, path: Optional[Path] = None) -> bytes:
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-rtsp_transport", "tcp",
             "-i", url, "-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            creationflags=NO_WINDOW,
         )
         try:
             out, err = await asyncio.wait_for(proc.communicate(), _FFMPEG_SNAPSHOT_TIMEOUT_S)
@@ -187,6 +197,7 @@ async def mjpeg_frames(
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-rtsp_transport", "tcp",
             "-i", url, "-r", str(fps), "-f", "image2pipe", "-c:v", "mjpeg", "pipe:1",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+            creationflags=NO_WINDOW,
         )
         proc_holder["proc"] = proc
         buf = b""
@@ -277,6 +288,7 @@ async def start_record(camera_id: str, path: Optional[Path] = None) -> str:
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-rtsp_transport", "tcp",
             "-i", url, "-c", "copy", str(out_path),
             stdin=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+            creationflags=NO_WINDOW,
         )
 
     # The Process object below is bound to the proactor loop that created it
