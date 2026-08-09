@@ -1178,6 +1178,34 @@ open `https://<pc>.<tailnet>.ts.net:8447` in Safari/Chrome — the lock is solid
 on first visit thanks to the Let's Encrypt cert (see
 [HTTPS](#https-tailscale-cert)) — then **Share → Add to Home Screen**.
 
+## Generalized action alias (Stream Deck etc.)
+
+`POST /api/actions/{action_id}` (issue #641) is a single stable surface over
+the existing per-device-family endpoints, for an external trigger (a physical
+Stream Deck button — companion issue `ferraroroberto/fleet-config#574` — or
+anything else later) that just wants "run this named thing" without knowing
+each domain's own path/id shape (`device_id`s, per-domain request bodies).
+It carries the same bearer-token requirement as every other API route
+(loopback exempt, remote needs `Authorization: Bearer <token>` or `?token=`).
+
+```powershell
+curl -X POST https://<host>:8447/api/actions/alarm_disarm -H "Authorization: Bearer <token>"
+```
+
+Registered actions today:
+
+| `action_id` | Effect |
+|-------------|--------|
+| `alarm_arm` / `alarm_disarm` / `alarm_partial` / `alarm_perimeter` | Same as `POST /api/security/{action}` — wraps `control_system()` with the same manual-action side effects (presence-engine `note_manual_alarm_action`, `alarm.jsonl` activity entry). |
+| `plug_on` / `plug_off` | Toggles the **"luz despacho"** Tuya plug (`bfc158aece14a52035diwf`) via `set_switch()` — the one device confirmed with Roberto for issue #641; there is no UI for re-pointing it, edit `app/webapp/actions_registry.py` if the bound device changes. |
+| `ac_on` / `ac_off` | Turns the **despacho** MELCloud unit on/off via Home Assistant's own `climate.despacho` entity, using `climate.set_hvac_mode` (`hvac_mode: "cool"` / `"off"`) — `climate.turn_on`/`climate.turn_off` were tried first and 500 on this integration (found via a live test against the real device), see note below. |
+
+Each call also records one `domain="action"` telemetry event (`GET /api/activity?domain=action`) tagged with the caller's `X-Automation-Source` header (any short token — this endpoint accepts values beyond the security router's fixed `ha`/`voice-pe` set, since it's meant for arbitrary future external triggers; an absent header records as `external`). This is what makes an action-endpoint call distinguishable from the same device being driven through its own webapp-UI endpoint, which never writes this domain.
+
+Unknown `action_id` → 404. Adding a new action is "add one registry entry" in `app/webapp/actions_registry.py` — a handler that wraps one already-existing device call — not a new endpoint.
+
+> **AC control investigation (#641).** This repo has no integration of its own that turns an AC unit on/off — `src/melcloud_client.py` only reads/sets HVAC mode, temperature, fan, and vanes, never power. However Home Assistant already exposes one `climate.*` entity per room via its own independent MELCloud integration (separate from this repo's), reachable via `HomeAssistantClient.call_service()`. Live-testing against the real device found `climate.turn_on`/`climate.turn_off` (the generic HA services one would reach for first) return HTTP 500 on this integration, so `ac_on`/`ac_off` use `climate.set_hvac_mode` instead — a fixed target mode per direction (`cool` for on, `off` for off; see `_AC_ON_MODE` in `app/webapp/actions_registry.py`), not a "restore the last mode" — good enough for a single fixed Stream Deck button, not a full climate control surface. Only the despacho unit is wired; the other five rooms (`hab_matrimonio`, `salon_superior`, `hab_valentina`, `hab_luca`, `salon_inferior`) are reachable the same way if a future action needs them — add a registry entry, no new integration required.
+
 ## Auth (token + password)
 
 Both layers are optional. With nothing configured the API is open (fine on a

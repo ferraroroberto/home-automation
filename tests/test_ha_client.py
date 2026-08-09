@@ -110,6 +110,27 @@ def test_open_ws_uses_mac_resolved_base_url() -> None:
     assert captured["url"] == "ws://192.0.2.10:8123/api/websocket"
 
 
+def test_call_service_posts_to_the_domain_service_path_with_entity_and_extra_fields() -> None:
+    client = HomeAssistantClient(
+        object(), HaConfig(base_url="http://ha.test:8123", token="token")
+    )
+
+    captured: dict = {}
+
+    async def fake_json(method, path, *, body=None):
+        captured.update(method=method, path=path, body=body)
+
+    client._json = fake_json  # type: ignore[assignment]
+
+    asyncio.run(client.call_service("climate", "turn_on", "climate.despacho"))
+
+    assert captured == {
+        "method": "POST",
+        "path": "/api/services/climate/turn_on",
+        "body": {"entity_id": "climate.despacho"},
+    }
+
+
 def test_normalize_pipeline_run_keeps_complete_voice_interaction() -> None:
     row = normalize_pipeline_run(
         {
