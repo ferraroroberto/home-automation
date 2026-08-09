@@ -197,9 +197,35 @@ calls it with a `query` argument; `resource_template` hits
 passes the function's arguments as the template's own variable namespace — `{{ query
 }}`, not `{{ arguments.query }}`, a gotcha caught by testing the template against HA's
 `/api/template` endpoint before wiring it live); `value_template` trims the JSON response
-to the top 3 results' title + a 150-char snippet so the tool-result context stays small.
-The system prompt gained one rule telling the model to call `web_search` for current-info
-questions and to say so (never guess) if it finds nothing useful.
+to the **top 8** results' title + a **200-char** snippet (widened from top-3/150-char at
+launch — see "Stale-snippet fix" below) so the tool-result context stays small without
+starving the model of the current answer. The system prompt tells the model to call
+`web_search` for current-info questions, to say so (never guess) if it finds nothing
+useful, and — since the stale-snippet fix — to trust the most specific dated result and
+never combine facts from two different results. `temperature` is `0.2` (down from the
+agent's original `0.5`) for more faithful, less "creative" summarization of search
+results.
+
+### Stale-snippet fix (issue #648)
+
+The top-3/150-char window from the initial rollout produced confidently wrong answers
+for "who won X" style questions — e.g. "who won the last world cup" answered "Argentina
+... 2022" after the 2026 World Cup (won by Spain) had already concluded. The tool-calling
+path itself was never broken: HA debug logs confirmed the model correctly called
+`web_search`, SearXNG returned real, correct results, and the model faithfully summarized
+what it was given — the problem was that the top-ranked SearXNG hit for this query shape
+is often a stale-cached reference/list page (Google's cached snippet for "List of FIFA
+World Cup finals - Wikipedia" still read "...from 1930 to 2022"), while the correct
+current answer sat at result #6+, outside the 3-snippet window. A secondary failure mode
+at a wider window but the original `temperature: 0.5`: the small `qwen3.5-4b-nothink`
+model occasionally conflated facts across two different snippets in the same reply (one
+trial mixed an unrelated 1982-era snippet with the correct 2026 facts into "Italy...
+defeating Argentina"). Widening to top-8/200-char, adding the "don't combine facts" prompt
+rule, and dropping `temperature` to `0.2` took the question from 0/2 correct to 10/10
+correct in a fresh batch, verified live on the puck. This is inherently probabilistic
+(free key-less search snippet freshness + a 4B model's synthesis fidelity), not something
+config tuning alone can guarantee to 100% — a rare wrong answer on a very recently
+current-events question is still possible.
 
 **English only for now.** The Spanish pipeline ("Hey Mycroft") runs HA's built-in
 conversation agent — deterministic-only, no LLM fallback, by design (see "Command
@@ -223,6 +249,14 @@ test needed — matches the probe-based verification already used elsewhere in t
 | "what is 2 plus 2" (no search needed — regression check) | "2 plus 2 equals 4." | 323 ms |
 | "what is the capital of france" (no search needed) | "The capital of France is Paris." | 311 ms |
 
+Re-verified 2026-08-09 (#648, post stale-snippet fix — top-8/200-char window,
+`temperature: 0.2`), 10 fresh trials of the question below plus a live puck check:
+
+| Question (English) | Answer | Result |
+|---|---|---|
+| "who won the last world cup" | "Spain won the 2026 FIFA World Cup, defeating Argentina 1-0 in extra time." | 10/10 correct |
+| "what is the latest model from OpenAI" (live, on the puck) | correct, per live confirmation | 1/1 correct |
+
 Search-backed answers land around **1.8–2.0 s** (vs. the ~0.7–1.0 s baseline from #234) —
 the added cost is one LAN round trip to SearXNG plus a second model pass to summarize the
 result. Non-search questions are unaffected. Spanish: "busca en internet quien gano la
@@ -236,10 +270,11 @@ shape (shell out, flatten, "partial data stays 200"), probing `/healthz` to dist
 "container up" from "actually answering queries".
 
 **To revert:** remove the `web_search` entry from the `functions` YAML in the Hub Haiku
-subentry (restore from `/config/backups/voice-web-search/`) and drop the added prompt
-rule, then `ha core restart`. The Spanish custom_sentences/intent_script can stay — they
-degrade to a no-op "no entiendo" only if the English side is also reverted and someone
-still asks in Spanish, which is harmless either way.
+subentry (restore from `/config/backups/voice-web-search/` for the original rollout, or
+`/config/backups/voice-web-search-topn/` for just the #648 top-8/temperature tuning) and
+drop the added prompt rule(s), then `ha core restart`. The Spanish custom_sentences/
+intent_script can stay — they degrade to a no-op "no entiendo" only if the English side is
+also reverted and someone still asks in Spanish, which is harmless either way.
 
 ## Setup reference
 
