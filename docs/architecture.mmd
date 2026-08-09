@@ -68,7 +68,7 @@ flowchart TB
 
   subgraph webapp["app/webapp/ — the product: FastAPI + PWA, tray-owned on :8447"]
     SERVER["server.py + middleware.py"]
-    ROUTERS["routers/ — units · energy · network · dhcp_plan ·\ncameras · presence · hyperv · ha · tuya · ups · pc_fleet · lights · weather ·\npush · wake_alarms · reminders · calendar_events · voice_commands · searxng ·\nactivity · security (+ _scene / _schedules / _notify / _override) · auth · misc"]
+    ROUTERS["routers/ — units · energy · network · dhcp_plan ·\ncameras · presence · hyperv · ha · tuya · ups · pc_fleet · lights · weather ·\npush · wake_alarms · reminders · calendar_events · voice_commands · searxng ·\nactivity · actions · security (+ _scene / _schedules / _notify / _override) · auth · misc"]
     BGTASKS["background tasks (app lifespan) — sampler · automation ·\nsecurity_automation · presence_automation · wake_alarm_automation ·\nsecurity_override_automation · power_monitor · ha_trace_collector ·\ntelemetry_sampler · presence_refresher"]
     STATIC["static/ — PWA (main.js, tabs.js + per-tab modules incl.\nsearxng.js, activity.js, security-scene/-schedules/-notify,\nservice worker, Chart.js + Leaflet vendor)"]
   end

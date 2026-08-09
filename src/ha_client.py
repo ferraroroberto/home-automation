@@ -159,6 +159,22 @@ class HomeAssistantClient:
             body={"entity_id": entity_id, "message": message},
         )
 
+    async def call_service(
+        self, domain: str, service: str, entity_id: str, **fields: Any
+    ) -> None:
+        """Call an arbitrary HA service against one entity (e.g. ``climate.turn_on``).
+
+        Generalizes what ``announce`` already does for ``assist_satellite`` —
+        added for the actions-alias endpoint (issue #641) so other domains
+        (starting with ``climate``) don't need their own bespoke method.
+        """
+
+        await self._json(
+            "POST",
+            f"/api/services/{domain}/{service}",
+            body={"entity_id": entity_id, **fields},
+        )
+
     async def _open_ws(self) -> aiohttp.ClientWebSocketResponse:
         # Derive the WS URL from the *resolved* base URL, not the raw config —
         # the WebSocket leg going to the stale ``HA_URL`` host while the REST
