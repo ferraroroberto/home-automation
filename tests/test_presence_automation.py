@@ -70,17 +70,27 @@ def _wire_common(monkeypatch) -> None:
     monkeypatch.setattr(PA, "load_kids_home_override", lambda: False)
     monkeypatch.setattr(PA, "send_push", lambda *a, **k: None)
     monkeypatch.setattr(PA, "append_trigger_log", lambda event: None)
+    # Issue #653: tick() builds an iCloud corroboration map every round. Not
+    # what these tests are about, so keep it a cheap no-op ({}).
+    monkeypatch.setattr(PA, "_build_icloud_corroboration", lambda cache: {})
 
-    async def fake_sync_arm_block_diagnostic(security_mode: str) -> None:
+    async def fake_sync_arm_block_diagnostic(security_mode: str, corroboration=None) -> None:
         pass
 
     monkeypatch.setattr(PA, "_sync_arm_block_diagnostic", fake_sync_arm_block_diagnostic)
+
+    async def fake_sync_staleness_block_diagnostic(corroboration=None) -> None:
+        pass
+
+    monkeypatch.setattr(PA, "_sync_staleness_block_diagnostic", fake_sync_staleness_block_diagnostic)
     # Same treatment as the arm-block diagnostic above: a cheap local-only step
     # that is not what these tests are about. `_Config` and the `load_people`
     # sentinel are deliberately minimal, so the real helper (#598) can't read
     # them. Its own logic is covered in tests/test_presence_engine.py; that it
     # is wired into tick() at all is asserted separately below.
-    monkeypatch.setattr(PA, "_consume_satisfied_disarm", lambda security_mode: None)
+    monkeypatch.setattr(
+        PA, "_consume_satisfied_disarm", lambda security_mode, corroboration=None: None
+    )
 
 
 def test_presence_tick_applies_arm_via_confirm_helper_and_records_ok(monkeypatch) -> None:
@@ -452,12 +462,111 @@ def test_presence_tick_consumes_satisfied_disarm(monkeypatch) -> None:
     """
     seen: list[str] = []
     _wire_common(monkeypatch)
-    monkeypatch.setattr(PA, "_consume_satisfied_disarm", lambda mode: seen.append(mode))
+    monkeypatch.setattr(
+        PA, "_consume_satisfied_disarm", lambda mode, corroboration=None: seen.append(mode)
+    )
     monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: None)
 
     asyncio.run(PA.tick())
 
     assert seen == ["disarmed"]
+
+
+def test_presence_tick_wires_staleness_block_diagnostic(monkeypatch) -> None:
+    """tick() must call the staleness-block diagnostic every round (#653) -
+    `_wire_common` stubs it out for the apply-path tests, so this is the one
+    place that proves the call site exists."""
+    seen: list = []
+    _wire_common(monkeypatch)
+
+    async def fake(corroboration=None) -> None:
+        seen.append(corroboration)
+
+    monkeypatch.setattr(PA, "_sync_staleness_block_diagnostic", fake)
+    monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: None)
+
+    asyncio.run(PA.tick())
+
+    assert len(seen) == 1
+
+
+def _entity(entity_id: str, name: str, *, last_seen=None, at_home=None):
+    from src.presence_client import PresenceEntity
+
+    return PresenceEntity(
+        entity_id=entity_id,
+        name=name,
+        model=None,
+        device_class=None,
+        latitude=None,
+        longitude=None,
+        horizontal_accuracy_m=None,
+        last_seen=last_seen,
+        battery_level_pct=None,
+        battery_status=None,
+        at_home=at_home,
+    )
+
+
+def _cache(entities):
+    from app.webapp.presence_refresher import PresenceDiagnosticsCache
+
+    return PresenceDiagnosticsCache(entities=entities)
+
+
+def test_build_icloud_corroboration_matches_by_effective_display_name(monkeypatch) -> None:
+    """Person id "roberto" matches an iCloud entity displayed as "Roberto" -
+    already the convention this household's config follows (issue #653)."""
+
+    monkeypatch.setattr(PA, "load_presence_display_names", lambda: {"dev-1": "Roberto"})
+    monkeypatch.setattr(PA, "load_people", lambda: {"roberto": object(), "ana": object()})
+
+    seen = datetime(2026, 8, 11, 5, 0, tzinfo=timezone.utc)
+    cache = _cache([_entity("dev-1", "Roberto's iPhone", last_seen=seen, at_home=False)])
+
+    corroboration = PA._build_icloud_corroboration(cache)
+
+    assert set(corroboration) == {"roberto"}
+    assert corroboration["roberto"].last_seen == seen
+    assert corroboration["roberto"].at_home is False
+
+
+def test_build_icloud_corroboration_falls_back_to_raw_device_name(monkeypatch) -> None:
+    monkeypatch.setattr(PA, "load_presence_display_names", lambda: {})
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object()})
+
+    seen = datetime(2026, 8, 11, 5, 0, tzinfo=timezone.utc)
+    cache = _cache([_entity("dev-2", "Ana", last_seen=seen, at_home=True)])
+
+    corroboration = PA._build_icloud_corroboration(cache)
+
+    assert corroboration["ana"].at_home is True
+
+
+def test_build_icloud_corroboration_skips_unmatched_and_ambiguous(monkeypatch) -> None:
+    monkeypatch.setattr(PA, "load_presence_display_names", lambda: {})
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
+
+    seen = datetime(2026, 8, 11, 5, 0, tzinfo=timezone.utc)
+    cache = _cache([
+        # Two entities both named "Ana" - ambiguous, must not corroborate.
+        _entity("dev-1", "Ana", last_seen=seen, at_home=True),
+        _entity("dev-2", "Ana", last_seen=seen, at_home=False),
+        # No entity matches "roberto" at all.
+    ])
+
+    corroboration = PA._build_icloud_corroboration(cache)
+
+    assert corroboration == {}
+
+
+def test_build_icloud_corroboration_skips_entity_with_no_last_seen(monkeypatch) -> None:
+    monkeypatch.setattr(PA, "load_presence_display_names", lambda: {})
+    monkeypatch.setattr(PA, "load_people", lambda: {"ana": object()})
+
+    cache = _cache([_entity("dev-1", "Ana", last_seen=None, at_home=True)])
+
+    assert PA._build_icloud_corroboration(cache) == {}
 
 
 def test_consume_satisfied_disarm_marks_and_is_idempotent(monkeypatch, tmp_path) -> None:

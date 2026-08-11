@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -22,14 +22,18 @@ from app.webapp.alarm_notify import (
     record_alarm_action,
 )
 from app.webapp.alarm_scene_automation import consider_security_read
+from app.webapp.presence_refresher import PresenceDiagnosticsCache, get_cache
 from app.webapp.security_override_automation import (
     consider_security_read as consider_security_override,
 )
+from src.presence_display_names import load_presence_display_names
 from src.presence_engine import (
+    PresenceCorroboration,
     PresenceDecision,
     append_trigger_log,
     evaluate_alarm_decision,
     evaluate_arm_block,
+    evaluate_staleness_block,
     load_automation_config,
     load_kids_home_override,
     load_people,
@@ -37,9 +41,12 @@ from src.presence_engine import (
     mark_arm_block_notified,
     mark_decision_applied,
     mark_disarm_satisfied,
+    mark_staleness_block_attempted,
+    mark_staleness_block_notified,
     satisfied_disarm_key,
     set_arm_block,
     set_kids_home_override,
+    set_staleness_block,
 )
 from src.push_notifications import send_push
 from src.risco_client import fetch_security_state
@@ -47,7 +54,46 @@ from src.risco_client import fetch_security_state
 logger = logging.getLogger(__name__)
 
 
-def _evaluate_current_decision(security_mode: str) -> Optional[PresenceDecision]:
+def _build_icloud_corroboration(
+    cache: PresenceDiagnosticsCache,
+) -> Dict[str, PresenceCorroboration]:
+    """Map webhook ``person_id`` -> iCloud corroboration signal (issue #653).
+
+    Matches by case-insensitive equality between the webhook person id and the
+    iCloud entity's effective display name (the ``presence_display_names``
+    override, falling back to the raw Find My device name) — already the
+    convention this household's own config follows (person id "roberto" <->
+    the iCloud entity displayed as "Roberto"), so no new mapping config is
+    needed. A person with no match, or an ambiguous (>1) match, is simply
+    absent from the returned map — the engine treats that as "no
+    corroboration available" and falls back to today's behavior for them.
+    """
+
+    names = load_presence_display_names()
+    by_name: Dict[str, list] = {}
+    for entity in cache.entities:
+        label = (names.get(entity.entity_id) or entity.name or "").strip().lower()
+        if label:
+            by_name.setdefault(label, []).append(entity)
+
+    corroboration: Dict[str, PresenceCorroboration] = {}
+    for person_id in load_people():
+        matches = by_name.get(person_id.strip().lower())
+        if not matches or len(matches) != 1:
+            continue
+        entity = matches[0]
+        if entity.last_seen is None:
+            continue
+        corroboration[person_id] = PresenceCorroboration(
+            last_seen=entity.last_seen, at_home=entity.at_home
+        )
+    return corroboration
+
+
+def _evaluate_current_decision(
+    security_mode: str,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+) -> Optional[PresenceDecision]:
     """Load current presence inputs and evaluate one alarm decision."""
 
     config = load_automation_config()
@@ -68,10 +114,14 @@ def _evaluate_current_decision(security_mode: str) -> Optional[PresenceDecision]
         config=config,
         at=datetime.now(timezone.utc),
         override_perimeter=load_kids_home_override(),
+        corroboration=corroboration,
     )
 
 
-async def _sync_arm_block_diagnostic(security_mode: str) -> None:
+async def _sync_arm_block_diagnostic(
+    security_mode: str,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+) -> None:
     """Update the persisted "why hasn't auto-arm fired" diagnostic (#531).
 
     Runs every tick regardless of whether a decision fired this round - it
@@ -88,7 +138,9 @@ async def _sync_arm_block_diagnostic(security_mode: str) -> None:
 
     config = load_automation_config()
     people = list(load_people().values())
-    block = evaluate_arm_block(people, security_mode=security_mode, config=config)
+    block = evaluate_arm_block(
+        people, security_mode=security_mode, config=config, corroboration=corroboration
+    )
     observed = set_arm_block(block, dwell_s=config.arm_block_notify_after_s)
     if block is None:
         if observed.changed:
@@ -123,7 +175,51 @@ async def _sync_arm_block_diagnostic(security_mode: str) -> None:
         mark_arm_block_notified(block.key)
 
 
-def _consume_satisfied_disarm(security_mode: str) -> None:
+async def _sync_staleness_block_diagnostic(
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+) -> None:
+    """Alert when stale, uncorroborated presence data is what's blocking
+    automation (issue #653) — the companion to :func:`_sync_arm_block_diagnostic`,
+    which only alerts on "someone fresh is still home". Without this, a person
+    whose Shortcut simply hasn't crossed their geofence in a while — and whose
+    iCloud entity can't corroborate them either — blocked arm/disarm silently
+    forever, with zero trace anywhere.
+    """
+
+    config = load_automation_config()
+    people = list(load_people().values())
+    block = evaluate_staleness_block(people, config=config, corroboration=corroboration)
+    observed = set_staleness_block(block, dwell_s=config.arm_block_notify_after_s)
+    if block is None:
+        if observed.changed:
+            logger.info("✅ Stale-presence block cleared")
+        return
+    if observed.changed:
+        logger.info(
+            "ℹ️ Auto-arm/disarm blocked: %s presence data is stale with no iCloud corroboration",
+            ", ".join(block.stale_person_ids),
+        )
+    if not observed.notify:
+        return
+    mark_staleness_block_attempted(block.key)
+    sent = await record_alarm_action(
+        source=SOURCE_PRESENCE,
+        action="arm",
+        outcome=OUTCOME_BLOCKED,
+        error=(
+            f"{', '.join(block.stale_person_ids)} presence data is stale "
+            "with no iCloud corroboration"
+        ),
+        dedupe_key=f"presence:stale_blocked:{block.key}",
+    )
+    if sent:
+        mark_staleness_block_notified(block.key)
+
+
+def _consume_satisfied_disarm(
+    security_mode: str,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+) -> None:
     """Retire an arrival that the panel being already disarmed made moot (#598).
 
     Cheap and local — reads config/presence state only, never RISCO — so it
@@ -140,6 +236,7 @@ def _consume_satisfied_disarm(security_mode: str) -> None:
         security_mode=security_mode,
         config=config,
         at=datetime.now(timezone.utc),
+        corroboration=corroboration,
     )
     if key is None:
         return
@@ -178,10 +275,17 @@ async def tick() -> None:
     # also catches the arm event that restores a previously bypassed zone.
     consider_security_override(security)
 
-    await _sync_arm_block_diagnostic(security.mode)
-    _consume_satisfied_disarm(security.mode)
+    # Built once per tick from the live iCloud diagnostics cache (issue #653)
+    # so a stale webhook person's last known state can be corroborated by a
+    # fresher, agreeing Find My read instead of silently blocking every
+    # decision below.
+    corroboration = _build_icloud_corroboration(get_cache())
 
-    decision = _evaluate_current_decision(security.mode)
+    await _sync_arm_block_diagnostic(security.mode, corroboration)
+    await _sync_staleness_block_diagnostic(corroboration)
+    _consume_satisfied_disarm(security.mode, corroboration)
+
+    decision = _evaluate_current_decision(security.mode, corroboration)
     if decision is None:
         return
 
@@ -192,7 +296,7 @@ async def tick() -> None:
         # Re-read both the panel and persisted presence/command timestamps before
         # acting so a decision is never applied from a stale snapshot.
         security = await fetch_security_state()
-        refreshed_decision = _evaluate_current_decision(security.mode)
+        refreshed_decision = _evaluate_current_decision(security.mode, corroboration)
         if refreshed_decision is None:
             logger.info(
                 "ℹ️ Presence automation skipped stale %s decision after coordinated re-check",

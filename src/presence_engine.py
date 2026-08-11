@@ -1,7 +1,11 @@
 """Webhook-backed presence state and alarm-transition decisions.
 
 iCloud/Find My remains a cached diagnostic read path. Automation decisions come
-from explicit home/away webhooks keyed by stable person ids.
+from explicit home/away webhooks keyed by stable person ids. The one exception
+(issue #653) is staleness corroboration: when a person's webhook data has gone
+stale, the caller may supply a per-person :class:`PresenceCorroboration` signal
+(built from the live iCloud diagnostics cache) to vouch for it — this module
+itself stays iCloud-free; it only ever reads whatever the caller hands it.
 """
 
 from __future__ import annotations
@@ -62,6 +66,26 @@ class PresenceAutomationConfig:
     # of a partly-occupied house; it is only diagnostic once it sticks. ``0``
     # notifies immediately (the pre-#599 behaviour).
     arm_block_notify_after_s: int = 900
+    # How old a corroborating iCloud/Find My fix may be and still vouch for a
+    # stale webhook person (issue #653). The webhook write path is edge-
+    # triggered only (Arrive/Leave geofence crossings, no heartbeat), so a
+    # person who simply stays put past ``stale_after_s`` isn't broken - this
+    # lets a fresher, agreeing iCloud read stand in for the missing heartbeat
+    # instead of the engine refusing every decision for the whole household.
+    icloud_corroboration_window_s: int = 21600
+
+
+@dataclass(frozen=True)
+class PresenceCorroboration:
+    """One person's iCloud/Find My corroboration signal (issue #653).
+
+    Supplied per-tick by the caller (``app/webapp/presence_automation.py``,
+    which already reads the iCloud diagnostics cache) — this module never
+    fetches iCloud data itself, it only reads whatever signal it's handed.
+    """
+
+    last_seen: datetime
+    at_home: Optional[bool]
 
 
 @dataclass(frozen=True)
@@ -235,6 +259,9 @@ def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationCon
         # which here means *disabled* — the wrong direction for a safety bound.)
         disarm_max_age_s=_int_or(raw.get("disarm_max_age_s"), 900),
         arm_block_notify_after_s=max(0, _int_or(raw.get("arm_block_notify_after_s"), 900)),
+        icloud_corroboration_window_s=max(
+            0, _int_or(raw.get("icloud_corroboration_window_s"), 21600)
+        ),
     )
 
 
@@ -338,16 +365,42 @@ def _older_than(transition_at: datetime, stamp: datetime, max_age_s: int) -> boo
     return (stamp - transition_at).total_seconds() > max_age_s
 
 
+def _corroborated(
+    person: PersonPresence,
+    *,
+    config: PresenceAutomationConfig,
+    at: datetime,
+    corroboration: Dict[str, PresenceCorroboration],
+) -> bool:
+    """True when a stale person's last known state is vouched for by a fresh,
+    agreeing iCloud/Find My signal (issue #653)."""
+
+    signal = corroboration.get(person.person_id)
+    if signal is None:
+        return False
+    age_s = (at - signal.last_seen.astimezone(timezone.utc)).total_seconds()
+    if age_s > config.icloud_corroboration_window_s:
+        return False
+    expected_at_home = person.state == "home"
+    return signal.at_home is not None and bool(signal.at_home) == expected_at_home
+
+
 def _fresh_people(
     people: Iterable[PersonPresence],
     *,
     config: PresenceAutomationConfig,
     at: datetime,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
 ) -> list[PersonPresence]:
-    return [
-        p for p in people
-        if (at - p.updated_at.astimezone(timezone.utc)).total_seconds() <= config.stale_after_s
-    ]
+    corroboration = corroboration or {}
+    fresh: list[PersonPresence] = []
+    for p in people:
+        age_s = (at - p.updated_at.astimezone(timezone.utc)).total_seconds()
+        if age_s <= config.stale_after_s or _corroborated(
+            p, config=config, at=at, corroboration=corroboration
+        ):
+            fresh.append(p)
+    return fresh
 
 
 def evaluate_alarm_decision(
@@ -357,11 +410,15 @@ def evaluate_alarm_decision(
     config: PresenceAutomationConfig,
     at: Optional[datetime] = None,
     override_perimeter: bool = False,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
 ) -> Optional[PresenceDecision]:
     """Return the next alarm action, or ``None`` when no action is safe.
 
     ``override_perimeter`` (the "kids home" toggle) arms perimeter instead of
     full on the everyone-away trigger; the disarm path is unaffected.
+    ``corroboration`` (issue #653) lets a stale person's last known state
+    stand in as fresh when a fresher, agreeing iCloud/Find My read vouches for
+    it — see :func:`_corroborated`.
     """
 
     stamp = at or now_utc()
@@ -371,7 +428,7 @@ def evaluate_alarm_decision(
     current = list(people)
     if not current:
         return None
-    fresh = _fresh_people(current, config=config, at=stamp)
+    fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
     if len(fresh) != len(current):
         return None
 
@@ -438,6 +495,7 @@ def satisfied_disarm_key(
     security_mode: str,
     config: PresenceAutomationConfig,
     at: Optional[datetime] = None,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
 ) -> Optional[str]:
     """The disarm key an already-disarmed panel has made moot (issue #598).
 
@@ -465,7 +523,7 @@ def satisfied_disarm_key(
     current = list(people)
     if not current:
         return None
-    fresh = _fresh_people(current, config=config, at=stamp)
+    fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
     if len(fresh) != len(current):
         return None
     home = [p for p in fresh if p.state == "home"]
@@ -481,6 +539,7 @@ def evaluate_arm_block(
     security_mode: str,
     config: PresenceAutomationConfig,
     at: Optional[datetime] = None,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
 ) -> Optional[PresenceBlock]:
     """Diagnose why an otherwise-armable house hasn't auto-armed (issue #531).
 
@@ -490,8 +549,8 @@ def evaluate_arm_block(
     satisfied yet, but it isn't obviously *wrong* either from a house that's
     only partly empty for a normal reason. It does not fire when everyone is
     home (nothing has left, nothing to block) or everyone is away (arm would
-    already fire) or presence data is stale (a distinct, already-visible
-    staleness case, not this one).
+    already fire) or presence data is stale and uncorroborated (a distinct
+    case surfaced by :func:`evaluate_staleness_block` instead, not this one).
     """
 
     if not config.auto_arm_enabled or security_mode != "disarmed":
@@ -500,7 +559,7 @@ def evaluate_arm_block(
     current = list(people)
     if not current:
         return None
-    fresh = _fresh_people(current, config=config, at=stamp)
+    fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
     if len(fresh) != len(current):
         return None
     home = [p for p in fresh if p.state == "home"]
@@ -511,6 +570,49 @@ def evaluate_arm_block(
     blocking_ids = tuple(sorted(p.person_id for p in home))
     key = f"block:{','.join(blocking_ids)}:{since.isoformat()}"
     return PresenceBlock(key=key, blocking_person_ids=blocking_ids, since=since)
+
+
+@dataclass(frozen=True)
+class StalePresenceBlock:
+    """Diagnostic: which tracked people are stale enough — webhook AND, if
+    checked, iCloud corroboration — to be preventing automation from acting
+    at all (issue #653). The companion to :class:`PresenceBlock`, which only
+    diagnoses "someone fresh is still home"; this one diagnoses "the engine
+    can't tell what's going on with someone" — the failure mode that
+    previously left auto-arm silently dead with zero trace.
+    """
+
+    key: str
+    stale_person_ids: tuple[str, ...]
+
+
+def evaluate_staleness_block(
+    people: Iterable[PersonPresence],
+    *,
+    config: PresenceAutomationConfig,
+    at: Optional[datetime] = None,
+    corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+) -> Optional[StalePresenceBlock]:
+    """Diagnose whether stale, uncorroborated presence data is what's blocking
+    automation (issue #653). Fires whenever at least one tracked person fails
+    the same freshness gate ``evaluate_alarm_decision``/``evaluate_arm_block``
+    apply — i.e. exactly the condition that otherwise silently stops the whole
+    household's automation with no trace anywhere.
+    """
+
+    if not config.auto_arm_enabled and not config.auto_disarm_enabled:
+        return None
+    stamp = at or now_utc()
+    current = list(people)
+    if not current:
+        return None
+    fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
+    if len(fresh) == len(current):
+        return None
+    fresh_ids = {p.person_id for p in fresh}
+    stale_ids = tuple(sorted(p.person_id for p in current if p.person_id not in fresh_ids))
+    key = f"stale:{','.join(stale_ids)}"
+    return StalePresenceBlock(key=key, stale_person_ids=stale_ids)
 
 
 def load_arm_block() -> Dict[str, Any]:
@@ -648,6 +750,103 @@ def set_arm_block(
     if changed:
         meta["arm_blocked_notified"] = False
         meta["arm_blocked_last_attempt_at"] = None
+    _save_state(raw)
+    return ArmBlockObservation(changed=changed, notify=notify)
+
+
+def load_staleness_block() -> Dict[str, Any]:
+    """Return the persisted stale-presence-block diagnostic, or all-clear."""
+
+    meta = _load_state().get("automation", {})
+    if not isinstance(meta, dict):
+        meta = {}
+    return {
+        "blocked": bool(meta.get("stale_blocked", False)),
+        "person_ids": list(meta.get("stale_blocked_person_ids") or []),
+    }
+
+
+def mark_staleness_block_notified(key: str) -> None:
+    """Record that the due stale-block notification for ``key`` was delivered.
+
+    Same confirmed-delivery contract as :func:`mark_arm_block_notified`
+    (issue #601's fix, applied here from the start) — kept in an independent
+    ``stale_blocked_*`` state namespace so it can never interact with the
+    "someone fresh is home" diagnostic's own notify latch.
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    if str(meta.get("stale_blocked_key") or "") != key:
+        return
+    meta["stale_blocked_notified"] = True
+    _save_state(raw)
+
+
+def mark_staleness_block_attempted(key: str, *, at: Optional[datetime] = None) -> None:
+    """Stamp the last stale-block notification attempt for ``key``.
+
+    Backs the same ``_ARM_BLOCK_RETRY_COOLDOWN_S`` floor as the arm-block
+    path, so a declining/failing send retries at most once per cooldown
+    window instead of on every ~10s poll tick.
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    if str(meta.get("stale_blocked_key") or "") != key:
+        return
+    meta["stale_blocked_last_attempt_at"] = _iso(at or now_utc())
+    _save_state(raw)
+
+
+def set_staleness_block(
+    block: Optional[StalePresenceBlock],
+    *,
+    dwell_s: int = 0,
+    at: Optional[datetime] = None,
+) -> ArmBlockObservation:
+    """Persist the current stale-block diagnostic; the companion to
+    :func:`set_arm_block` for the "webhook stale, no iCloud corroboration"
+    case (issue #653) — same changed/notify/dwell/cooldown contract, kept in
+    its own independent ``stale_blocked_*`` state namespace.
+    """
+
+    stamp = at or now_utc()
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    prior_key = str(meta.get("stale_blocked_key") or "")
+    if block is None:
+        changed = prior_key != ""
+        meta["stale_blocked"] = False
+        meta["stale_blocked_person_ids"] = []
+        meta["stale_blocked_key"] = ""
+        meta["stale_blocked_first_seen"] = None
+        meta["stale_blocked_notified"] = False
+        meta["stale_blocked_last_attempt_at"] = None
+        _save_state(raw)
+        return ArmBlockObservation(changed=changed, notify=False)
+
+    changed = prior_key != block.key
+    if changed:
+        first_seen, notified, last_attempt = stamp, False, None
+    else:
+        first_seen = _parse_dt(meta.get("stale_blocked_first_seen")) or stamp
+        notified = bool(meta.get("stale_blocked_notified"))
+        last_attempt = _parse_dt(meta.get("stale_blocked_last_attempt_at"))
+    due = (stamp - first_seen).total_seconds() >= dwell_s
+    cooling_down = (
+        last_attempt is not None
+        and (stamp - last_attempt).total_seconds() < _ARM_BLOCK_RETRY_COOLDOWN_S
+    )
+    notify = not notified and due and not cooling_down
+
+    meta["stale_blocked"] = True
+    meta["stale_blocked_person_ids"] = list(block.stale_person_ids)
+    meta["stale_blocked_key"] = block.key
+    meta["stale_blocked_first_seen"] = _iso(first_seen)
+    if changed:
+        meta["stale_blocked_notified"] = False
+        meta["stale_blocked_last_attempt_at"] = None
     _save_state(raw)
     return ArmBlockObservation(changed=changed, notify=notify)
 

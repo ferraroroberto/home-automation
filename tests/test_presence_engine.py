@@ -730,3 +730,179 @@ def test_arm_block_dwell_config_round_trips(tmp_path):
     for body in ('{}', '{"arm_block_notify_after_s": null}', '{"arm_block_notify_after_s": "x"}'):
         path.write_text(body, encoding="utf-8")
         assert P.load_automation_config(path).arm_block_notify_after_s == 900
+
+
+# --- iCloud staleness corroboration (issue #653) ---
+#
+# Production incident 2026-08-11: roberto's "leave home" webhook fired
+# correctly, but auto-arm never fired because ana's webhook record hadn't
+# updated in ~4 days (she simply hadn't crossed her geofence) - the freshness
+# gate silently refused every decision for the whole household, with zero
+# trace. Corroboration lets a fresher, agreeing iCloud/Find My read stand in
+# for the missing webhook heartbeat.
+
+
+def test_icloud_corroboration_window_config_round_trips(tmp_path):
+    path = tmp_path / "presence_automation.json"
+    path.write_text('{"icloud_corroboration_window_s": 3600}', encoding="utf-8")
+    assert P.load_automation_config(path).icloud_corroboration_window_s == 3600
+    for body in ('{}', '{"icloud_corroboration_window_s": null}', '{"icloud_corroboration_window_s": "x"}'):
+        path.write_text(body, encoding="utf-8")
+        assert P.load_automation_config(path).icloud_corroboration_window_s == 21600
+
+
+def test_stale_webhook_arms_when_icloud_corroboration_agrees(monkeypatch, tmp_path):
+    """The exact production shape: ana's webhook is stale, but her iCloud
+    entity is fresh and agrees she's away - the arm must still fire."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 11, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(
+        auto_arm_enabled=True, arm_away_after_s=60, stale_after_s=3600,
+        icloud_corroboration_window_s=21600,
+    )
+    ana_stale = _person("ana", "away", t0 - timedelta(days=4))  # far past stale_after_s
+    roberto_left = _person("roberto", "away", t0)
+    corroboration = {
+        "ana": P.PresenceCorroboration(last_seen=t0 - timedelta(hours=1), at_home=False),
+    }
+    decision = P.evaluate_alarm_decision(
+        [ana_stale, roberto_left],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=5),
+        corroboration=corroboration,
+    )
+    assert decision is not None
+    assert decision.kind == "arm"
+
+
+def test_stale_webhook_still_blocks_when_icloud_also_stale(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 11, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(
+        auto_arm_enabled=True, arm_away_after_s=60, stale_after_s=3600,
+        icloud_corroboration_window_s=21600,
+    )
+    ana_stale = _person("ana", "away", t0 - timedelta(days=4))
+    roberto_left = _person("roberto", "away", t0)
+    corroboration = {
+        # Also outside the corroboration window - can't vouch for her either.
+        "ana": P.PresenceCorroboration(last_seen=t0 - timedelta(days=2), at_home=False),
+    }
+    assert P.evaluate_alarm_decision(
+        [ana_stale, roberto_left],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=5),
+        corroboration=corroboration,
+    ) is None
+
+
+def test_stale_webhook_still_blocks_when_icloud_disagrees(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 11, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(
+        auto_arm_enabled=True, arm_away_after_s=60, stale_after_s=3600,
+        icloud_corroboration_window_s=21600,
+    )
+    ana_stale = _person("ana", "away", t0 - timedelta(days=4))
+    roberto_left = _person("roberto", "away", t0)
+    corroboration = {
+        # Fresh, but says she's actually home - disagrees with the stale webhook.
+        "ana": P.PresenceCorroboration(last_seen=t0 - timedelta(hours=1), at_home=True),
+    }
+    assert P.evaluate_alarm_decision(
+        [ana_stale, roberto_left],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=5),
+        corroboration=corroboration,
+    ) is None
+
+
+def test_fresh_webhook_is_unaffected_by_absent_corroboration(monkeypatch, tmp_path):
+    """A person with no corroboration entry at all (no linked iCloud entity)
+    is unaffected as long as their webhook data is itself fresh."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, arm_away_after_s=300, stale_after_s=3600)
+    decision = P.evaluate_alarm_decision(
+        [_person("roberto", "away", t0), _person("ana", "away", t0 + timedelta(seconds=30))],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=6),
+        corroboration={},
+    )
+    assert decision is not None and decision.kind == "arm"
+
+
+def test_evaluate_staleness_block_fires_when_uncorroborated(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 11, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, stale_after_s=3600)
+    block = P.evaluate_staleness_block(
+        [_person("ana", "away", t0 - timedelta(days=4)), _person("roberto", "away", t0)],
+        config=cfg,
+        at=t0 + timedelta(minutes=5),
+    )
+    assert block is not None
+    assert block.stale_person_ids == ("ana",)
+
+
+def test_evaluate_staleness_block_does_not_fire_when_corroborated(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 11, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, stale_after_s=3600)
+    corroboration = {
+        "ana": P.PresenceCorroboration(last_seen=t0 - timedelta(hours=1), at_home=False),
+    }
+    assert P.evaluate_staleness_block(
+        [_person("ana", "away", t0 - timedelta(days=4)), _person("roberto", "away", t0)],
+        config=cfg,
+        at=t0 + timedelta(minutes=5),
+        corroboration=corroboration,
+    ) is None
+
+
+def test_evaluate_staleness_block_does_not_fire_when_everyone_fresh(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, stale_after_s=3600)
+    assert P.evaluate_staleness_block(
+        [_person("ana", "away", t0), _person("roberto", "away", t0)],
+        config=cfg,
+        at=t0,
+    ) is None
+
+
+def test_set_staleness_block_notifies_once_after_dwell(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 11, 6, 0, tzinfo=timezone.utc)
+    block = P.StalePresenceBlock(key="stale:ana", stale_person_ids=("ana",))
+
+    assert P.set_staleness_block(block, dwell_s=900, at=t0).notify is False
+    assert P.set_staleness_block(
+        block, dwell_s=900, at=t0 + timedelta(seconds=899)
+    ).notify is False
+    assert P.set_staleness_block(
+        block, dwell_s=900, at=t0 + timedelta(seconds=900)
+    ).notify is True
+    P.mark_staleness_block_notified(block.key)
+    assert P.set_staleness_block(
+        block, dwell_s=900, at=t0 + timedelta(seconds=1200)
+    ).notify is False
+
+    # Independent state namespace: the arm-block diagnostic must be unaffected.
+    assert P.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
+    assert P.load_staleness_block() == {"blocked": True, "person_ids": ["ana"]}
+
+
+def test_set_staleness_block_clears(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    block = P.StalePresenceBlock(key="stale:ana", stale_person_ids=("ana",))
+    P.set_staleness_block(block, dwell_s=0)
+    assert P.load_staleness_block()["blocked"] is True
+
+    cleared = P.set_staleness_block(None)
+    assert cleared.changed is True and cleared.notify is False
+    assert P.load_staleness_block() == {"blocked": False, "person_ids": []}
