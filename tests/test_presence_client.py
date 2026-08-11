@@ -227,3 +227,117 @@ def test_iter_devices_refreshes_with_location() -> None:
 
     assert len(out) == 1
     assert devices.refreshed is True
+
+
+@pytest.fixture(autouse=True)
+def _clear_service_cache() -> None:
+    """Isolate each test's session cache — module-global by design (#651)."""
+
+    P._SERVICE_CACHE.clear()
+    yield
+    P._SERVICE_CACHE.clear()
+
+
+def test_connect_reuses_cached_session(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    build_calls = []
+
+    def fake_build(config: P.PresenceConfig) -> object:
+        build_calls.append(config)
+        return _FakeApi()
+
+    monkeypatch.setattr(P, "_build_service", fake_build)
+
+    first = P._connect(cfg)
+    second = P._connect(cfg)
+
+    assert first is second
+    assert len(build_calls) == 1
+
+
+def test_connect_rebuilds_after_invalidation(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    build_calls = []
+
+    def fake_build(config: P.PresenceConfig) -> object:
+        build_calls.append(config)
+        return _FakeApi()
+
+    monkeypatch.setattr(P, "_build_service", fake_build)
+
+    first = P._connect(cfg)
+    P._invalidate_session(cfg)
+    second = P._connect(cfg)
+
+    assert first is not second
+    assert len(build_calls) == 2
+
+
+def test_fetch_presence_reuses_session_across_calls(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    api = _FakeApi()
+    build_calls = []
+
+    def fake_build(config: P.PresenceConfig) -> object:
+        build_calls.append(config)
+        return api
+
+    monkeypatch.setattr(P, "_build_service", fake_build)
+    monkeypatch.setattr(P, "load_location_config", lambda: None)
+
+    P.fetch_presence(config=cfg)
+    P.fetch_presence(config=cfg)
+
+    assert len(build_calls) == 1
+
+
+def test_fetch_presence_evicts_session_on_failure_and_reconnects(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    build_calls = []
+
+    def fake_build(config: P.PresenceConfig) -> object:
+        build_calls.append(config)
+        return _FakeApi()
+
+    monkeypatch.setattr(P, "_build_service", fake_build)
+    monkeypatch.setattr(P, "load_location_config", lambda: None)
+
+    def boom(devices: object) -> list[object]:
+        raise RuntimeError("session expired")
+
+    monkeypatch.setattr(P, "_iter_devices", boom)
+
+    with pytest.raises(RuntimeError, match="session expired"):
+        P.fetch_presence(config=cfg)
+
+    assert str(cfg.session_dir) not in P._SERVICE_CACHE
+
+    monkeypatch.setattr(P, "_iter_devices", lambda devices: [])
+    P.fetch_presence(config=cfg)
+
+    assert len(build_calls) == 2
+
+
+def test_fetch_presence_keeps_cached_session_on_pending_2fa(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    api = _FakeApi(requires_2fa=True)
+    build_calls = []
+
+    def fake_build(config: P.PresenceConfig) -> object:
+        build_calls.append(config)
+        return api
+
+    monkeypatch.setattr(P, "_build_service", fake_build)
+
+    with pytest.raises(P.PresenceAuthError):
+        P.fetch_presence(config=cfg)
+    with pytest.raises(P.PresenceAuthError):
+        P.fetch_presence(config=cfg)
+
+    # Still cached - a pending 2FA state doesn't force a fresh Apple handshake.
+    assert len(build_calls) == 1
+    assert str(cfg.session_dir) in P._SERVICE_CACHE

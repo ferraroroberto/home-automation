@@ -208,20 +208,42 @@ def fetch_presence(
     cfg = config or load_presence_config()
     cfg.session_dir.mkdir(parents=True, exist_ok=True)
     api = _connect(cfg)
-    _complete_2fa(api, verification_code=verification_code, trust_session=trust_session)
+    try:
+        _complete_2fa(api, verification_code=verification_code, trust_session=trust_session)
 
-    home = location if location is not None else load_location_config()
-    devices = _iter_devices(api.devices)
-    entities = [
-        _entity_from_device(device, home, home_radius_m=cfg.home_radius_m)
-        for device in devices
-    ]
+        home = location if location is not None else load_location_config()
+        devices = _iter_devices(api.devices)
+        entities = [
+            _entity_from_device(device, home, home_radius_m=cfg.home_radius_m)
+            for device in devices
+        ]
+    except PresenceAuthError:
+        # 2FA still pending is not a broken session - keep the cached instance
+        # so the next poll re-checks ``requires_2fa`` for free instead of
+        # paying for another full Apple handshake while stuck in this state.
+        raise
+    except Exception:
+        _invalidate_session(cfg)
+        raise
     logger.info("✅ Fetched %d iCloud Find My entit(y/ies)", len(entities))
     return entities
 
 
-def _connect(config: PresenceConfig) -> Any:
-    """Create a ``pyicloud`` service instance lazily so tests can avoid import-time I/O."""
+# Authenticated pyicloud sessions, keyed by session dir (one per account).
+# Reused across polls (issue #651): rebuilding a ``PyiCloudService`` from
+# scratch performs a full Apple sign-in handshake, and doing that every
+# ``PRESENCE_ICLOUD_REFRESH_INTERVAL_S`` poll (every ~15 min, forever) reads
+# to Apple as a fresh sign-in, which was triggering repeated "someone is
+# trying to access your account" prompts on the user's trusted devices.
+_SERVICE_CACHE: dict[str, Any] = {}
+
+
+def _build_service(config: PresenceConfig) -> Any:
+    """Perform the real Apple sign-in handshake for one account.
+
+    Split out from :func:`_connect` purely so tests can substitute a fake
+    service without an import-time dependency on the real ``pyicloud`` package.
+    """
 
     try:
         from pyicloud import PyiCloudService
@@ -237,6 +259,24 @@ def _connect(config: PresenceConfig) -> Any:
         cookie_directory=str(config.session_dir),
         with_family=config.with_family,
     )
+
+
+def _connect(config: PresenceConfig) -> Any:
+    """Return this account's cached authenticated session, building one if needed."""
+
+    cache_key = str(config.session_dir)
+    cached = _SERVICE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    api = _build_service(config)
+    _SERVICE_CACHE[cache_key] = api
+    return api
+
+
+def _invalidate_session(config: PresenceConfig) -> None:
+    """Evict a cached session so the next :func:`_connect` rebuilds it from scratch."""
+
+    _SERVICE_CACHE.pop(str(config.session_dir), None)
 
 
 def _complete_2fa(
