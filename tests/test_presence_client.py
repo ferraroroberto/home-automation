@@ -121,12 +121,14 @@ def test_load_presence_config_reads_home_radius(
     monkeypatch.setenv("PRESENCE_HOME_RADIUS_M", "150")
     monkeypatch.delenv("ICLOUD_EMAIL_2", raising=False)
     monkeypatch.delenv("ICLOUD_PASSWORD_2", raising=False)
+    monkeypatch.delenv("ICLOUD_LABEL", raising=False)
 
     cfg = P.load_presence_config(session_dir=tmp_path)
 
     assert cfg.home_radius_m == 150
     assert cfg.session_dir == tmp_path
     assert cfg.label == "1"
+    assert cfg.friendly_name == ""
 
 
 def test_load_presence_configs_single_account_when_no_second(
@@ -137,6 +139,7 @@ def test_load_presence_configs_single_account_when_no_second(
     monkeypatch.setenv("ICLOUD_PASSWORD", "secret")
     monkeypatch.delenv("ICLOUD_EMAIL_2", raising=False)
     monkeypatch.delenv("ICLOUD_PASSWORD_2", raising=False)
+    monkeypatch.delenv("ICLOUD_LABEL", raising=False)
 
     configs = P.load_presence_configs(primary_session_dir=tmp_path)
 
@@ -155,12 +158,33 @@ def test_load_presence_configs_includes_second_account(
     monkeypatch.setenv("ICLOUD_EMAIL_2", "two@example.com")
     monkeypatch.setenv("ICLOUD_PASSWORD_2", "secret2")
     monkeypatch.setenv("ICLOUD_SESSION_DIR_2", "webapp/custom_session_2")
+    monkeypatch.delenv("ICLOUD_LABEL", raising=False)
+    monkeypatch.delenv("ICLOUD_LABEL_2", raising=False)
 
     configs = P.load_presence_configs()
 
     assert [c.email for c in configs] == ["one@example.com", "two@example.com"]
     assert [c.label for c in configs] == ["1", "2"]
     assert configs[1].session_dir == P.Path("webapp/custom_session_2")
+    assert [c.friendly_name for c in configs] == ["", ""]
+
+
+def test_load_presence_configs_reads_friendly_labels(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #655: an optional friendly per-account label for Telegram copy."""
+
+    monkeypatch.setattr(P, "load_dotenv", lambda override=True: None)
+    monkeypatch.setenv("ICLOUD_EMAIL", "one@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD", "secret1")
+    monkeypatch.setenv("ICLOUD_LABEL", "Roberto")
+    monkeypatch.setenv("ICLOUD_EMAIL_2", "two@example.com")
+    monkeypatch.setenv("ICLOUD_PASSWORD_2", "secret2")
+    monkeypatch.setenv("ICLOUD_LABEL_2", "Ana")
+
+    configs = P.load_presence_configs()
+
+    assert [c.friendly_name for c in configs] == ["Roberto", "Ana"]
 
 
 def test_load_presence_configs_second_account_defaults_session_dir(
@@ -266,7 +290,7 @@ def test_connect_rebuilds_after_invalidation(monkeypatch: pytest.MonkeyPatch, tm
     monkeypatch.setattr(P, "_build_service", fake_build)
 
     first = P._connect(cfg)
-    P._invalidate_session(cfg)
+    P.invalidate_session(cfg)
     second = P._connect(cfg)
 
     assert first is not second

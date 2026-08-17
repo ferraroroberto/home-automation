@@ -37,13 +37,37 @@ def _entity(entity_id: str) -> PresenceEntity:
     )
 
 
-def _config(label: str) -> PresenceConfig:
+def _config(label: str, *, friendly_name: str = "") -> PresenceConfig:
     return PresenceConfig(
         email=f"{label}@example.com",
         password="secret",
         home_radius_m=200.0,
         label=label,
+        friendly_name=friendly_name,
     )
+
+
+class _FakeNotifier:
+    """Collects sent messages instead of hitting the network (issue #655)."""
+
+    def __init__(self) -> None:
+        self.sent: list[str] = []
+
+    def send_text(self, text: str) -> None:
+        self.sent.append(text)
+
+
+@pytest.fixture(autouse=True)
+def _reset_presence_refresher_state() -> None:
+    """Each test starts from a clean cache + retry-backoff tracker.
+
+    Both are module-level globals shared across the whole test process; without
+    this, one test's leftover ``_CACHE.accounts`` would silently become the next
+    test's ``prev_status`` input for the backoff-retry/notify logic (#655).
+    """
+
+    R._CACHE = R.PresenceDiagnosticsCache(entities=[])
+    R._LAST_RETRY_ATTEMPT.clear()
 
 
 def _run_refresh(
@@ -183,3 +207,117 @@ def test_refresh_fetches_accounts_concurrently_not_sequentially(
     assert {e.entity_id for e in cache.entities} == {"1", "2"}
     # Sequential fetches would take >= 2 * DELAY_S; concurrent ones stay near 1x.
     assert elapsed < DELAY_S * 1.8, f"expected concurrent fetch, took {elapsed:.2f}s"
+
+
+# --------------------------------------------------------------------------
+# Self-heal retry + Telegram notification (issue #655)
+# --------------------------------------------------------------------------
+
+
+def test_broken_account_retries_and_notifies_reconnect_and_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A previously-broken account due for retry gets a forced fresh session
+    build (announced beforehand) and, once the fetch succeeds, a recovery
+    notification — both in the same poll."""
+
+    configs = [_config("1", friendly_name="Roberto")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
+    )
+    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    R._CACHE = R.PresenceDiagnosticsCache(
+        entities=[],
+        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+    )
+    notifier = _FakeNotifier()
+
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert invalidated == ["1"]
+    assert cache.accounts[0].available is True
+    assert len(notifier.sent) == 2
+    assert "Reconnecting Roberto" in notifier.sent[0]
+    assert "Roberto" in notifier.sent[1] and "restored" in notifier.sent[1]
+    assert "1" not in R._LAST_RETRY_ATTEMPT  # cleared on recovery
+
+
+def test_broken_account_does_not_retry_before_backoff_elapses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No repeated handshake/notification spam within the backoff window."""
+
+    configs = [_config("1", friendly_name="Roberto")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
+    )
+    monkeypatch.setattr(
+        R, "fetch_presence", lambda *, config: (_ for _ in ()).throw(
+            PresenceAuthError("iCloud requires 2FA")
+        )
+    )
+    R._CACHE = R.PresenceDiagnosticsCache(
+        entities=[],
+        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+    )
+    R._LAST_RETRY_ATTEMPT["1"] = R.datetime.now(R.timezone.utc)
+    notifier = _FakeNotifier()
+
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert invalidated == []
+    assert notifier.sent == []
+    assert cache.accounts[0].available is False
+
+
+def test_first_observed_failure_does_not_retry_or_notify(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh process's first-ever poll (no prior status) must not treat a
+    brand-new failure as a retry-worthy break — that would notify on every
+    tray restart, not only on a genuinely stuck session."""
+
+    configs = [_config("1", friendly_name="Roberto")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
+    )
+    monkeypatch.setattr(
+        R, "fetch_presence", lambda *, config: (_ for _ in ()).throw(
+            PresenceAuthError("iCloud requires 2FA")
+        )
+    )
+    notifier = _FakeNotifier()
+
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert invalidated == []
+    assert notifier.sent == []
+    assert cache.accounts[0].available is False
+
+
+def test_healthy_account_never_retries_or_notifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configs = [_config("1", friendly_name="Roberto")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
+    )
+    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    R._CACHE = R.PresenceDiagnosticsCache(
+        entities=[_entity("mine")],
+        accounts=[R.PresenceAccountStatus("1", True, "ok", "", entity_count=1)],
+    )
+    notifier = _FakeNotifier()
+
+    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert invalidated == []
+    assert notifier.sent == []
