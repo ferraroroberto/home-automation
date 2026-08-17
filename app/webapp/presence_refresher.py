@@ -10,18 +10,21 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Dict, Optional
 
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
+from src.notify import Notifier, NotifierError
+from src.notify_config import build_alarm_notifier
 from src.presence_client import (
     PresenceAuthError,
     PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
     fetch_presence,
+    invalidate_session,
     load_presence_configs,
 )
 
@@ -96,31 +99,108 @@ def get_cache() -> PresenceDiagnosticsCache:
     return _CACHE
 
 
-def _fetch_account(config: PresenceConfig) -> tuple[list[PresenceEntity], PresenceAccountStatus]:
+_RETRY_BACKOFF_S_DEFAULT = 4 * 60 * 60  # 4 hours
+
+
+def _retry_backoff_s() -> int:
+    return max(60, _env_int("PRESENCE_ICLOUD_RETRY_BACKOFF_S", _RETRY_BACKOFF_S_DEFAULT))
+
+
+# Per-account (keyed by ``PresenceConfig.label``) timestamp of the last forced
+# session rebuild attempted while that account was broken (issue #655). A
+# healthy account never touches this — only the backoff-gated self-heal retry
+# below does. In-memory only: a tray restart already forces a fresh attempt via
+# ``presence_client._connect()``'s normal cache-miss path, so there is nothing
+# useful to persist across restarts.
+_LAST_RETRY_ATTEMPT: Dict[str, datetime] = {}
+
+
+def _retry_due(label: str, *, now: datetime) -> bool:
+    last = _LAST_RETRY_ATTEMPT.get(label)
+    return last is None or (now - last).total_seconds() >= _retry_backoff_s()
+
+
+def _account_display_name(config: PresenceConfig) -> str:
+    return config.friendly_name or f"account {config.label}"
+
+
+def _notify(notifier_factory: Callable[[], Optional[Notifier]], text: str) -> None:
+    """Best-effort Telegram send — never lets a delivery failure break a poll."""
+
+    notifier = notifier_factory()
+    if notifier is None:
+        return
+    try:
+        notifier.send_text(text)
+    except NotifierError as exc:
+        logger.warning("⚠️ Telegram presence notification failed: %s", exc)
+
+
+def _fetch_account(
+    config: PresenceConfig,
+    *,
+    prev_status: Optional[PresenceAccountStatus],
+    notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
+) -> tuple[list[PresenceEntity], PresenceAccountStatus]:
     """Fetch one account's Find My devices, mapping failures to a per-account status.
 
     A failure here degrades only this account — the caller keeps every other
     account's entities (issue #478), so one Apple ID needing 2FA never blanks the
     whole snapshot.
+
+    Issue #655: when ``prev_status`` shows this account was already broken, a
+    fresh sign-in handshake is forced (and Telegram-announced beforehand) at
+    most once per :func:`_retry_backoff_s` — self-healing a session that is
+    actually fine again (the trusted cookies were re-validated out of band, or
+    Apple's own hold lifted) without needing a manual tray restart, while
+    staying far short of #651's every-poll re-authentication that was
+    triggering repeated "someone is trying to access your account" prompts. A
+    healthy account is never touched by this — same caching/cadence as before.
     """
+
+    now = datetime.now(timezone.utc)
+    was_broken = prev_status is not None and not prev_status.available
+    if was_broken and _retry_due(config.label, now=now):
+        invalidate_session(config)
+        _LAST_RETRY_ATTEMPT[config.label] = now
+        _notify(
+            notifier_factory,
+            f"🔑 Reconnecting {_account_display_name(config)}'s iCloud Find My — "
+            "approve the sign-in on a trusted device if prompted.",
+        )
 
     try:
         entities = fetch_presence(config=config)
     except PresenceAuthError as exc:
-        return [], PresenceAccountStatus(config.label, False, "2fa_required", str(exc))
+        entities = []
+        status = PresenceAccountStatus(config.label, False, "2fa_required", str(exc))
     except PresenceConfigError as exc:
-        return [], PresenceAccountStatus(config.label, False, "not_configured", str(exc))
+        entities = []
+        status = PresenceAccountStatus(config.label, False, "not_configured", str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "⚠️ Failed to refresh iCloud account %s: %s", config.label, exc
         )
-        return [], PresenceAccountStatus(config.label, False, "error", str(exc))
-    return entities, PresenceAccountStatus(
-        config.label, True, "ok", "", entity_count=len(entities)
-    )
+        entities = []
+        status = PresenceAccountStatus(config.label, False, "error", str(exc))
+    else:
+        status = PresenceAccountStatus(
+            config.label, True, "ok", "", entity_count=len(entities)
+        )
+
+    if was_broken and status.available:
+        _LAST_RETRY_ATTEMPT.pop(config.label, None)
+        _notify(
+            notifier_factory,
+            f"✅ {_account_display_name(config)}'s iCloud Find My connection restored.",
+        )
+
+    return entities, status
 
 
-async def refresh_once() -> PresenceDiagnosticsCache:
+async def refresh_once(
+    *, notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier
+) -> PresenceDiagnosticsCache:
     """Fetch every configured account's Find My devices once into the cache.
 
     Each account authenticates independently and degrades independently: a
@@ -130,6 +210,10 @@ async def refresh_once() -> PresenceDiagnosticsCache:
     locate refresh in ``routers/presence.py``) would otherwise have that
     budget split serially across accounts, making a 2-account setup roughly
     twice as likely to lose the race as a 1-account one.
+
+    ``notifier_factory`` is an injection seam for tests (issue #655) — every
+    real caller uses the default, which is hard-disabled under pytest anyway
+    (see ``build_alarm_notifier``'s safety net).
     """
 
     global _CACHE
@@ -146,8 +230,17 @@ async def refresh_once() -> PresenceDiagnosticsCache:
         )
         return _CACHE
 
+    prev_by_label = {status.label: status for status in _CACHE.accounts}
     results = await asyncio.gather(
-        *(asyncio.to_thread(_fetch_account, config) for config in configs)
+        *(
+            asyncio.to_thread(
+                _fetch_account,
+                config,
+                prev_status=prev_by_label.get(config.label),
+                notifier_factory=notifier_factory,
+            )
+            for config in configs
+        )
     )
     entities: list[PresenceEntity] = []
     statuses: list[PresenceAccountStatus] = []

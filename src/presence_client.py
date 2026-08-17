@@ -71,6 +71,7 @@ class PresenceConfig:
     home_radius_m: float = DEFAULT_HOME_RADIUS_M
     with_family: bool = True
     label: str = "1"  # 1-based account index, for per-account diagnostics/CLI
+    friendly_name: str = ""  # e.g. "Roberto"/"Ana" (issue #655); "" -> caller falls back to "account {label}"
 
 
 @dataclass(frozen=True)
@@ -139,6 +140,7 @@ def load_presence_configs(
             session_dir=primary_dir,
             home_radius_m=home_radius_m,
             label="1",
+            friendly_name=(os.getenv("ICLOUD_LABEL") or "").strip(),
         )
     ]
 
@@ -154,6 +156,7 @@ def load_presence_configs(
                 ),
                 home_radius_m=home_radius_m,
                 label="2",
+                friendly_name=(os.getenv("ICLOUD_LABEL_2") or "").strip(),
             )
         )
     elif email2 or password2:
@@ -223,7 +226,7 @@ def fetch_presence(
         # paying for another full Apple handshake while stuck in this state.
         raise
     except Exception:
-        _invalidate_session(cfg)
+        invalidate_session(cfg)
         raise
     logger.info("✅ Fetched %d iCloud Find My entit(y/ies)", len(entities))
     return entities
@@ -273,8 +276,13 @@ def _connect(config: PresenceConfig) -> Any:
     return api
 
 
-def _invalidate_session(config: PresenceConfig) -> None:
-    """Evict a cached session so the next :func:`_connect` rebuilds it from scratch."""
+def invalidate_session(config: PresenceConfig) -> None:
+    """Evict a cached session so the next :func:`_connect` rebuilds it from scratch.
+
+    Public (issue #655): the presence refresher calls this to force a fresh
+    Apple sign-in handshake when retrying a session stuck in a failed state —
+    see :mod:`app.webapp.presence_refresher`'s backoff-gated retry.
+    """
 
     _SERVICE_CACHE.pop(str(config.session_dir), None)
 
