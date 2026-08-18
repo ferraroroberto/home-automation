@@ -241,7 +241,60 @@ def test_broken_account_retries_and_notifies_reconnect_and_recovery(
     assert len(notifier.sent) == 2
     assert "Reconnecting Roberto" in notifier.sent[0]
     assert "Roberto" in notifier.sent[1] and "restored" in notifier.sent[1]
-    assert "1" not in R._LAST_RETRY_ATTEMPT  # cleared on recovery
+    # Issue #656: NOT cleared on recovery - a flapping account must stay
+    # backoff-throttled instead of every recovery resetting the clock to zero.
+    assert "1" in R._LAST_RETRY_ATTEMPT
+
+
+def test_flapping_account_stays_backoff_throttled_after_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #656 regression: a break -> recover -> break-again cycle within
+    the backoff window must not force a second handshake/notification pair.
+
+    This is the exact shape of the reported bug: pyicloud's FindMy sub-service
+    can leave a freshly-rebuilt session's ``requires_2fa`` stuck true again a
+    poll or two after a successful self-heal, with no exception logged. If the
+    backoff timestamp were cleared on recovery (as it used to be), this second
+    break would look like a brand-new first-time failure and retry/notify
+    immediately - reproducing the every-~30-minutes handshake spam.
+    """
+
+    configs = [_config("1", friendly_name="Roberto")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
+    )
+    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    R._CACHE = R.PresenceDiagnosticsCache(
+        entities=[],
+        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+    )
+    notifier = _FakeNotifier()
+
+    # First poll: broken -> self-heal fires, recovers.
+    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+    assert invalidated == ["1"]
+    assert len(notifier.sent) == 2
+
+    # Account flaps broken again immediately (e.g. pyicloud's internal
+    # sub-service reauth silently poisoned requires_2fa) - still well within
+    # the default 4h backoff window.
+    monkeypatch.setattr(
+        R, "fetch_presence", lambda *, config: (_ for _ in ()).throw(
+            PresenceAuthError("iCloud requires 2FA")
+        )
+    )
+    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    # Third poll: still broken, still within backoff - must stay quiet.
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert invalidated == ["1"]  # no second forced reconnect
+    assert len(notifier.sent) == 2  # no additional Telegram traffic
+    assert cache.accounts[0].available is False
+    assert cache.accounts[0].reason == "2fa_required"
 
 
 def test_broken_account_does_not_retry_before_backoff_elapses(

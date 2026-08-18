@@ -156,6 +156,17 @@ def _fetch_account(
     staying far short of #651's every-poll re-authentication that was
     triggering repeated "someone is trying to access your account" prompts. A
     healthy account is never touched by this — same caching/cadence as before.
+
+    Issue #656: the backoff timestamp is deliberately *not* cleared once the
+    account recovers (see the bottom of this function). pyicloud's FindMy
+    sub-service does its own internal re-authentication when its own token
+    times out, and when that needs 2FA it swallows the failure rather than
+    raising — leaving the cached session's in-memory ``requires_2fa`` stuck
+    true even though nothing actually needs a human. A "healthy-looking"
+    account can flip broken again within minutes; clearing the timestamp on
+    every recovery made each such flap look like a brand-new failure to
+    :func:`_retry_due`, so the backoff never actually throttled anything and
+    every flap forced a fresh Apple handshake roughly every 30 minutes.
     """
 
     now = datetime.now(timezone.utc)
@@ -189,7 +200,10 @@ def _fetch_account(
         )
 
     if was_broken and status.available:
-        _LAST_RETRY_ATTEMPT.pop(config.label, None)
+        # Deliberately not popped from _LAST_RETRY_ATTEMPT (issue #656) — see
+        # this function's docstring. The backoff clock keeps running from the
+        # last forced handshake regardless of a recovery in between, so a
+        # flapping account still gets throttled to one handshake per window.
         _notify(
             notifier_factory,
             f"✅ {_account_display_name(config)}'s iCloud Find My connection restored.",

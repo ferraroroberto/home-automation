@@ -315,9 +315,19 @@ def test_fetch_presence_reuses_session_across_calls(monkeypatch: pytest.MonkeyPa
     assert len(build_calls) == 1
 
 
-def test_fetch_presence_evicts_session_on_failure_and_reconnects(
+def test_fetch_presence_keeps_cached_session_on_generic_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
+    """A generic fetch failure must not evict the cached session (issue #656).
+
+    Eviction is the expensive, user-visible operation (a full Apple sign-in
+    handshake that can prompt a trusted-device approval) - unconditionally
+    evicting on every failure here bypassed the presence refresher's
+    backoff-gated self-heal entirely, forcing a fresh handshake on every poll
+    while an account was flapping. Only an explicit ``invalidate_session()``
+    call (made by that backoff-gated self-heal) may evict now.
+    """
+
     cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
     build_calls = []
 
@@ -336,12 +346,12 @@ def test_fetch_presence_evicts_session_on_failure_and_reconnects(
     with pytest.raises(RuntimeError, match="session expired"):
         P.fetch_presence(config=cfg)
 
-    assert str(cfg.session_dir) not in P._SERVICE_CACHE
+    assert str(cfg.session_dir) in P._SERVICE_CACHE
 
     monkeypatch.setattr(P, "_iter_devices", lambda devices: [])
     P.fetch_presence(config=cfg)
 
-    assert len(build_calls) == 2
+    assert len(build_calls) == 1
 
 
 def test_fetch_presence_keeps_cached_session_on_pending_2fa(
