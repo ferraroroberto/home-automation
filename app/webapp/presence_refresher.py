@@ -121,7 +121,11 @@ def _retry_due(label: str, *, now: datetime) -> bool:
 
 
 def _account_display_name(config: PresenceConfig) -> str:
-    return config.friendly_name or f"account {config.label}"
+    """Name an account in a Telegram message — friendly name if set, else the
+    Apple ID email itself (issue #658: "account 1"/"account 2" gave no way to
+    tell which real account a reconnect message was actually about)."""
+
+    return config.friendly_name or config.email
 
 
 def _notify(notifier_factory: Callable[[], Optional[Notifier]], text: str) -> None:

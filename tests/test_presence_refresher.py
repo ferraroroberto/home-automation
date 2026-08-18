@@ -214,6 +214,29 @@ def test_refresh_fetches_accounts_concurrently_not_sequentially(
 # --------------------------------------------------------------------------
 
 
+def test_account_display_name_falls_back_to_email_not_bare_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #658: an unset ICLOUD_LABEL must still identify *which* Apple ID
+    a reconnect message is about - "account 1"/"account 2" gave no way to
+    tell the accounts apart."""
+
+    configs = [_config("1", friendly_name="")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    monkeypatch.setattr(R, "invalidate_session", lambda cfg: None)
+    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    R._CACHE = R.PresenceDiagnosticsCache(
+        entities=[],
+        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+    )
+    notifier = _FakeNotifier()
+
+    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert "1@example.com" in notifier.sent[0]
+    assert "account 1" not in notifier.sent[0]
+
+
 def test_broken_account_retries_and_notifies_reconnect_and_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
