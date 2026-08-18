@@ -226,7 +226,13 @@ def fetch_presence(
         # paying for another full Apple handshake while stuck in this state.
         raise
     except Exception:
-        invalidate_session(cfg)
+        # Issue #656: a failed fetch on an otherwise-cached session is not
+        # evidence the session itself is bad - evicting it unconditionally
+        # here forced every subsequent poll into a full Apple sign-in
+        # handshake (the same "someone is trying to access your account"
+        # prompt #651 fixed) regardless of the presence refresher's own
+        # backoff-gated self-heal (#655). Session eviction is now solely
+        # that self-heal's call (``invalidate_session``, backoff-limited).
         raise
     logger.info("✅ Fetched %d iCloud Find My entit(y/ies)", len(entities))
     return entities
