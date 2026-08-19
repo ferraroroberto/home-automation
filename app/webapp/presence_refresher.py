@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Callable, Dict, Optional
 
@@ -122,7 +122,7 @@ def _retry_due(label: str, *, now: datetime) -> bool:
 
 def _account_display_name(config: PresenceConfig) -> str:
     """Name an account in a Telegram message — friendly name if set, else the
-    Apple ID email itself (issue #658: "account 1"/"account 2" gave no way to
+    Apple ID email itself (issue #657: "account 1"/"account 2" gave no way to
     tell which real account a reconnect message was actually about)."""
 
     return config.friendly_name or config.email
@@ -162,15 +162,20 @@ def _fetch_account(
     healthy account is never touched by this — same caching/cadence as before.
 
     Issue #656: the backoff timestamp is deliberately *not* cleared once the
-    account recovers (see the bottom of this function). pyicloud's FindMy
-    sub-service does its own internal re-authentication when its own token
-    times out, and when that needs 2FA it swallows the failure rather than
-    raising — leaving the cached session's in-memory ``requires_2fa`` stuck
-    true even though nothing actually needs a human. A "healthy-looking"
-    account can flip broken again within minutes; clearing the timestamp on
-    every recovery made each such flap look like a brand-new failure to
-    :func:`_retry_due`, so the backoff never actually throttled anything and
-    every flap forced a fresh Apple handshake roughly every 30 minutes.
+    account recovers (see the bottom of this function) — the backoff clock
+    runs from the last forced handshake, so an account that keeps failing
+    and recovering is still throttled to one handshake per window.
+
+    Issue #658: "broken" means the Find My fetch itself failed. pyicloud's
+    FindMy sub-service re-authenticates internally when Apple answers 450 and,
+    when the browser trust has expired, leaves the cached session's in-memory
+    ``requires_2fa`` true while still serving every device;
+    :func:`fetch_presence` no longer treats that flag as a failure, so a
+    working session is never reported ``2fa_required`` here and this
+    self-heal (plus its Telegram pair) fires only for real breakage. The
+    fetch runs with ``request_2fa_push=False``: this process can never enter
+    a 2FA code, so pyicloud must not ask Apple to push one to the household's
+    phones on every fresh sign-in.
     """
 
     now = datetime.now(timezone.utc)
@@ -178,6 +183,13 @@ def _fetch_account(
     if was_broken and _retry_due(config.label, now=now):
         invalidate_session(config)
         _LAST_RETRY_ATTEMPT[config.label] = now
+        logger.warning(
+            "🔑 iCloud account %s still broken (%s) — forcing a fresh sign-in "
+            "(backoff %ds)",
+            config.label,
+            prev_status.reason if prev_status else "?",
+            _retry_backoff_s(),
+        )
         _notify(
             notifier_factory,
             f"🔑 Reconnecting {_account_display_name(config)}'s iCloud Find My — "
@@ -185,11 +197,17 @@ def _fetch_account(
         )
 
     try:
-        entities = fetch_presence(config=config)
+        entities = fetch_presence(config=replace(config, request_2fa_push=False))
     except PresenceAuthError as exc:
+        logger.warning(
+            "⚠️ iCloud account %s needs re-auth (2fa_required): %s", config.label, exc
+        )
         entities = []
         status = PresenceAccountStatus(config.label, False, "2fa_required", str(exc))
     except PresenceConfigError as exc:
+        logger.warning(
+            "⚠️ iCloud account %s not configured: %s", config.label, exc
+        )
         entities = []
         status = PresenceAccountStatus(config.label, False, "not_configured", str(exc))
     except Exception as exc:  # noqa: BLE001
