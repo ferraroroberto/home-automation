@@ -812,3 +812,66 @@ def test_adopted_service_is_demoted_to_no_push_class(tmp_path) -> None:
     assert type(api) is not PyiCloudService
     assert type(api)._request_2fa_code is not PyiCloudService._request_2fa_code
     P._SERVICE_CACHE.pop(str(tmp_path), None)
+
+
+class _FakeBridgeTrustApi(_FakeTrustApi):
+    """Issue #662: pyicloud's trusted-device bridge can return False from
+    validate_2fa_code while Apple has already accepted the approval; a
+    follow-up trust_session() (token re-login, no push) then proves trust."""
+
+    def __init__(self, *, apple_granted: bool, trust_raises: bool = False) -> None:
+        super().__init__(accept="never-matches")
+        self.apple_granted = apple_granted
+        self.trust_raises = trust_raises
+
+    def trust_session(self) -> bool:
+        self.calls.append("trust_session")
+        if self.trust_raises:
+            raise RuntimeError("2sv/trust 4xx")
+        if self.apple_granted:
+            self.requires_2fa = False
+            self.is_trusted_session = True
+            return True
+        return False
+
+
+def test_complete_trust_renewal_rejected_client_side_but_apple_granted_trust(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    cfg = _trust_cfg(tmp_path)
+    api = _FakeBridgeTrustApi(apple_granted=True)
+    monkeypatch.setattr(P, "_build_service", lambda config: api)
+    P.begin_trust_renewal(cfg)
+
+    with caplog.at_level("INFO", logger="presence"):
+        state = P.complete_trust_renewal(cfg, "111111")
+
+    assert state.status == "trusted"
+    assert state.trusted is True
+    assert P._SERVICE_CACHE[str(tmp_path)] is api
+    assert str(tmp_path) not in P._PENDING_TRUST
+    assert api.calls[-2:] == ["validate", "trust_session"]
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("granted browser trust" in m for m in msgs)
+    assert any("verifying 2FA code via legacy endpoint" in m for m in msgs)
+    assert not any("111111" in m for m in msgs)
+    P._SERVICE_CACHE.pop(str(tmp_path), None)
+
+
+@pytest.mark.parametrize("trust_raises", [False, True])
+def test_complete_trust_renewal_rejected_and_apple_confirms_no_trust_stays_invalid(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, trust_raises: bool
+) -> None:
+    cfg = _trust_cfg(tmp_path)
+    api = _FakeBridgeTrustApi(apple_granted=False, trust_raises=trust_raises)
+    monkeypatch.setattr(P, "_build_service", lambda config: api)
+    P.begin_trust_renewal(cfg)
+
+    state = P.complete_trust_renewal(cfg, "111111")
+
+    assert state.status == "invalid_code"
+    assert "try once more" in state.detail
+    assert str(tmp_path) in P._PENDING_TRUST  # still retryable
+    assert P._PENDING_TRUST[str(tmp_path)].attempts == 1
+    assert P._SERVICE_CACHE == {}
+    P._discard_pending(str(tmp_path))
