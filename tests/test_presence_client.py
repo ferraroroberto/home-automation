@@ -794,3 +794,21 @@ def test_session_trust_state_is_none_without_a_cached_session(tmp_path) -> None:
     assert P.session_trust_state(cfg) is False
     api.requires_2fa = False
     assert P.session_trust_state(cfg) is True
+
+
+def test_adopted_service_is_demoted_to_no_push_class(tmp_path) -> None:
+    """A renewed session lives in the unattended tray afterwards, so the
+    attended (pushing) service must not stay pushing once adopted (#659)."""
+
+    from pyicloud import PyiCloudService
+
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    api = object.__new__(PyiCloudService)  # real class, no sign-in
+
+    P._adopt_service(cfg, api)
+
+    assert P._SERVICE_CACHE[str(tmp_path)] is api
+    assert isinstance(api, PyiCloudService)
+    assert type(api) is not PyiCloudService
+    assert type(api)._request_2fa_code is not PyiCloudService._request_2fa_code
+    P._SERVICE_CACHE.pop(str(tmp_path), None)

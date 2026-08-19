@@ -656,8 +656,36 @@ def _adopt_service(config: PresenceConfig, api: Any) -> None:
     old = _SERVICE_CACHE.get(key)
     if old is not None and old is not api:
         _stop_background_refresh(old)
+    _quiet_adopted_service(api)
     _SERVICE_CACHE[key] = api
     _UNTRUSTED_WARNED.discard(key)
+
+
+def _quiet_adopted_service(api: Any) -> None:
+    """Demote a service built for the attended flow to the no-push class.
+
+    The renewal builds its service with ``request_2fa_push=True`` because the
+    push is wanted *then*. Once adopted it lives in the unattended tray for
+    the rest of the process — if browser trust lapses again (~30 days) with
+    no restart in between, pyicloud's internal Find My re-auth on this very
+    object would otherwise push a code from the tray, the exact spam #658
+    removed. Only real pyicloud services are re-classed; test doubles are
+    left alone.
+    """
+
+    try:
+        from pyicloud import PyiCloudService
+    except ImportError:  # pragma: no cover - covered by requirements
+        return
+    if not isinstance(api, PyiCloudService):
+        return
+    quiet = _service_class(request_2fa_push=False)
+    if type(api) is quiet:
+        return
+    try:
+        api.__class__ = quiet
+    except TypeError as exc:  # pragma: no cover - layout mismatch, never seen
+        logger.warning("⚠️ Could not demote adopted iCloud service to no-push class: %s", exc)
 
 
 def _stop_background_refresh(api: Any) -> None:
