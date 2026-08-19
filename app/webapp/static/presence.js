@@ -33,6 +33,7 @@ import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocat
 import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
 import { wirePresencePushControls } from './presence-push.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { confirmAction } from './confirm.js';
 
 // Re-export so callers (security.js, main.js) keep a single import surface —
 // same convention security.js itself uses for its own sub-modules.
@@ -253,6 +254,9 @@ export function renderPresence() {
     presenceView.state === 'loading' ? 'true' : 'false'
   );
   const presence = state.presence;
+  // The per-account iCloud rows (#659) live on the diagnostics, which survive
+  // a stale poll — render them from whatever snapshot is held.
+  renderPresenceAccounts(presence);
   if (presenceView.state === 'loading') {
     els.presenceSummary.textContent = 'Loading';
     showPresenceState('Reading presence…', false);
@@ -279,7 +283,7 @@ export function renderPresence() {
     showPresenceState('Presence unavailable', false);
     els.presenceNote.hidden = false;
     els.presenceNote.textContent = presence.reason === '2fa_required'
-      ? 'iCloud needs 2FA; run the CLI once to refresh the trusted session.'
+      ? 'iCloud needs re-authentication — use Renew trust on the account row below.'
       : (presence.detail || 'Presence is not configured.');
     hidePresenceRefreshNote();
     return;
@@ -398,6 +402,201 @@ function renderPresenceRefreshNote() {
   els.presenceRefreshNote.textContent =
     'The open tab reloads the local snapshot every 10 s. Find My refreshes in the background about every ' + interval +
     ' min. This device is browser GPS only: it updates only while this tab/PWA is open and is not used for alarm automation. Alarm automation uses Shortcut webhook people. Last Find My refresh: ' + last + '.';
+}
+
+// ------------------------------------------- iCloud accounts + trust renewal
+// (issue #659) One row per configured Apple ID from diagnostics.accounts[]:
+// who it is, whether its cached session still holds Apple's ~30-day browser
+// trust, and a Renew trust action. Renewal is two POSTs on the SAME live
+// pyicloud session server-side: begin (Apple pushes a 6-digit code) → the code
+// dialog → complete. Untrusted is not broken — Find My keeps serving; only
+// fresh sign-ins get expensive — so the row states it plainly rather than as
+// an error, and the button is merely emphasised.
+const accountNotes = {};   // label → inline result line, survives the 10 s re-render
+const accountBusy = {};    // label → true while begin is in flight
+let trustAccount = null;   // the account the code dialog is open for
+
+function accountLabel(acct) {
+  return acct.display_name || ('account ' + acct.label);
+}
+
+function accountTrustState(acct) {
+  if (acct.available === false) {
+    return { cls: 'is-broken', text: 'broken: ' + (acct.reason || 'error') };
+  }
+  if (acct.trusted === true) return { cls: 'is-trusted', text: 'trusted' };
+  if (acct.trusted === false) {
+    return { cls: 'is-untrusted', text: 'untrusted — password login on each fresh sign-in' };
+  }
+  return { cls: 'is-unknown', text: 'trust unknown — no session yet' };
+}
+
+function renderPresenceAccounts(presence) {
+  if (!els.presenceAccounts || !els.presenceAccountsList) return;
+  const diag = (presence && presence.diagnostics) || {};
+  const accounts = Array.isArray(diag.accounts) ? diag.accounts : [];
+  if (!accounts.length) {
+    els.presenceAccounts.hidden = true;
+    els.presenceAccountsList.innerHTML = '';
+    return;
+  }
+  els.presenceAccounts.hidden = false;
+  els.presenceAccountsList.innerHTML = '';
+  accounts.forEach(function (acct) {
+    const label = String(acct.label);
+    const trust = accountTrustState(acct);
+    const row = document.createElement('div');
+    row.className = 'presence-account-row ' + trust.cls;
+    row.dataset.account = label;
+    row.dataset.testid = 'presence-account-row';
+
+    const main = document.createElement('div');
+    main.className = 'presence-main';
+    const name = document.createElement('span');
+    name.className = 'presence-name';
+    name.textContent = accountLabel(acct);
+    main.appendChild(name);
+    const stateLine = document.createElement('span');
+    stateLine.className = 'presence-account-state';
+    stateLine.textContent = trust.text;
+    main.appendChild(stateLine);
+    if (accountNotes[label]) {
+      const note = document.createElement('span');
+      note.className = 'presence-account-note';
+      note.setAttribute('role', 'status');
+      note.textContent = accountNotes[label];
+      main.appendChild(note);
+    }
+    row.appendChild(main);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'range-tab presence-account-renew';
+    if (trust.cls !== 'is-trusted') btn.classList.add('active');
+    btn.dataset.testid = 'presence-account-renew';
+    btn.textContent = accountBusy[label] ? 'Sending…' : 'Renew trust';
+    btn.disabled = !!accountBusy[label];
+    btn.setAttribute('aria-label', 'Renew iCloud trust for ' + accountLabel(acct));
+    btn.addEventListener('click', function () { renewAccountTrust(acct); });
+    row.appendChild(btn);
+    els.presenceAccountsList.appendChild(row);
+  });
+}
+
+function trustUrl(label, step) {
+  return '/api/presence/icloud/' + encodeURIComponent(label) + '/trust/' + step;
+}
+
+async function renewAccountTrust(acct) {
+  const label = String(acct.label);
+  if (accountBusy[label]) return;
+  const who = accountLabel(acct);
+  const ok = await confirmAction({
+    title: 'Renew iCloud trust',
+    message: 'Apple will push a 6-digit code to ' + who + '\u2019s trusted devices. Have one at hand, then continue.',
+    okLabel: 'Send code',
+  });
+  if (!ok) return;
+  accountBusy[label] = true;
+  delete accountNotes[label];
+  renderPresenceAccounts(state.presence);
+  try {
+    const res = await jsonApi(trustUrl(label, 'begin'), { method: 'POST', timeoutMs: 60000 });
+    if (res && res.status === 'code_sent') {
+      openTrustCodeDialog(acct, res.detail);
+    } else if (res && res.status === 'already_trusted') {
+      accountNotes[label] = res.detail || 'Already trusted.';
+      toast('Already trusted', 'success');
+      loadPresence();
+    } else {
+      accountNotes[label] = (res && res.detail) || 'Trust renewal could not start.';
+      toast('Trust renewal failed', 'error');
+    }
+  } catch (exc) {
+    reportActionFailure(exc, 'Failed to start trust renewal');
+  } finally {
+    delete accountBusy[label];
+    renderPresenceAccounts(state.presence);
+  }
+}
+
+function openTrustCodeDialog(acct, hint) {
+  if (!els.presenceTrustDialog) return;
+  trustAccount = acct;
+  els.presenceTrustTitle.textContent = 'Renew iCloud trust · ' + accountLabel(acct);
+  els.presenceTrustHint.textContent = hint || 'Apple pushed a 6-digit code to the account\u2019s trusted devices.';
+  els.presenceTrustCode.value = '';
+  els.presenceTrustNote.hidden = true;
+  els.presenceTrustNote.textContent = '';
+  els.presenceTrustVerify.disabled = false;
+  els.presenceTrustVerify.textContent = 'Verify';
+  openDialog(els.presenceTrustDialog);
+  els.presenceTrustCode.focus();
+}
+
+function closeTrustCodeDialog() {
+  trustAccount = null;
+  closeDialog(els.presenceTrustDialog);
+}
+
+function showTrustNote(text) {
+  els.presenceTrustNote.textContent = text;
+  els.presenceTrustNote.hidden = !text;
+}
+
+async function verifyTrustCode() {
+  if (!trustAccount) return;
+  const label = String(trustAccount.label);
+  const code = (els.presenceTrustCode.value || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(code)) {
+    showTrustNote('Enter the 6-digit code.');
+    els.presenceTrustCode.focus();
+    return;
+  }
+  els.presenceTrustVerify.disabled = true;
+  els.presenceTrustVerify.textContent = 'Verifying…';
+  showTrustNote('');
+  try {
+    const res = await jsonApi(trustUrl(label, 'complete'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code }),
+      timeoutMs: 60000,
+    });
+    const status = res && res.status;
+    if (status === 'trusted') {
+      accountNotes[label] = res.detail || 'Browser trust renewed.';
+      toast('iCloud trust renewed', 'success');
+      closeTrustCodeDialog();
+      loadPresence();
+      return;
+    }
+    // invalid_code / expired / failed — Apple's own words, inline; the dialog
+    // stays open so a mistyped code can be retried without a second push.
+    showTrustNote((res && res.detail) || 'Verification failed.');
+    if (status !== 'invalid_code') accountNotes[label] = (res && res.detail) || 'Verification failed.';
+    els.presenceTrustCode.focus();
+    els.presenceTrustCode.select();
+  } catch (exc) {
+    reportActionFailure(exc, 'Failed to verify the code');
+  } finally {
+    els.presenceTrustVerify.disabled = false;
+    els.presenceTrustVerify.textContent = 'Verify';
+    renderPresenceAccounts(state.presence);
+  }
+}
+
+function wirePresenceTrustDialog() {
+  if (!els.presenceTrustDialog) return;
+  els.presenceTrustClose.addEventListener('click', closeTrustCodeDialog);
+  els.presenceTrustDialog.addEventListener('click', function (ev) {
+    if (ev.target === els.presenceTrustDialog) closeTrustCodeDialog();
+  });
+  els.presenceTrustDialog.addEventListener('cancel', function () { trustAccount = null; });
+  els.presenceTrustVerify.addEventListener('click', verifyTrustCode);
+  els.presenceTrustCode.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); verifyTrustCode(); }
+  });
 }
 
 export async function loadPresence() {
@@ -594,6 +793,7 @@ export function wirePresenceControls() {
   wirePresenceAutomationControls();
   wirePresenceLocationControls();
   wirePresencePushControls();
+  wirePresenceTrustDialog();
 
   if (els.presenceDetailClose) els.presenceDetailClose.addEventListener('click', closePresenceDetail);
   if (els.presenceDialog) {

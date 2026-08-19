@@ -2237,6 +2237,37 @@ button.presence-name {
   cursor: pointer;
 }
 button.presence-name:hover { text-decoration: underline; }
+/* Per-account iCloud rows + Renew trust (issue #659) — the .presence-row grid
+   (name + trust state left, one .range-tab action right), state as plain
+   colour-coded caption text like .presence-status-line, no pill. Untrusted is
+   amber (attention), not red: Find My keeps serving, only fresh sign-ins get
+   expensive; a really broken account is red. */
+.presence-accounts { padding: 0 14px 14px; }
+.presence-accounts-title { margin: 0; }
+.presence-account-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--line);
+}
+.presence-account-row:first-child { border-top: 0; }
+.presence-account-state {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--muted);
+  white-space: normal;
+}
+.presence-account-note {
+  font-size: var(--font-caption);
+  color: var(--muted);
+  white-space: normal;
+}
+.presence-account-row.is-trusted .presence-account-state { color: var(--on); }
+.presence-account-row.is-untrusted .presence-account-state { color: var(--attention); }
+.presence-account-row.is-broken .presence-account-state { color: var(--deficit); }
+.presence-account-renew { flex: none; white-space: nowrap; }
 /* Home-tab "Mom & Dad locator" card (issue #438) — mirrors .presence-list /
    .presence-row's grid (name+role left, resolved place+last-seen right). */
 .locator-list {

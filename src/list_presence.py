@@ -9,26 +9,41 @@ Run from the project root with the venv interpreter::
     & .\.venv\Scripts\python.exe -m src.list_presence          # Windows
     ./.venv/bin/python -m src.list_presence                    # POSIX
 
-If Apple asks for 2FA, rerun with ``--2fa-code <code>`` from a trusted Apple
-device. Reads ICLOUD_EMAIL / ICLOUD_PASSWORD from ``.env`` and caches the
-trusted session under ``webapp/icloud_session`` by default.
+Reads ICLOUD_EMAIL / ICLOUD_PASSWORD from ``.env`` and caches the trusted
+session under ``webapp/icloud_session`` by default.
 
 A second account (``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2``) is listed too when
-configured (issue #478). 2FA is per Apple ID, so target one account at a time to
-trust/re-auth it: ``--account 2 --2fa-code <code>``.
+configured (issue #478). 2FA is per Apple ID, so target one account at a time.
+
+Renewing Apple's ~30-day browser trust (issue #659) — the attended CLI fallback
+to the app's Presence card → **Renew trust** button::
+
+    & .\.venv\Scripts\python.exe -m src.list_presence --account 1 --renew-trust
+
+One run: Apple pushes a 6-digit code to that account's trusted devices, you
+type it at the prompt, the session is re-trusted. ``--2fa-code <code>`` remains
+for the narrower case where the session token itself is invalid at build time
+and Apple asks for 2FA during the fetch — the two-run "get the push, rerun with
+the code" dance cannot renew trust (the second run's SRP opens a new Apple auth
+session the earlier code is not valid for), so prefer ``--renew-trust``.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from datetime import datetime
 from typing import Optional
 
 from src.presence_client import (
+    MAX_CODE_ATTEMPTS,
     PresenceAuthError,
+    PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
+    begin_trust_renewal,
+    complete_trust_renewal,
     fetch_presence,
     load_presence_configs,
 )
@@ -103,8 +118,17 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         help=(
             "Query/trust only this configured iCloud account (1-based). "
-            "Required alongside --2fa-code, since 2FA is per Apple ID. "
-            "Omit to list every configured account."
+            "Required alongside --2fa-code / --renew-trust, since 2FA is per "
+            "Apple ID. Omit to list every configured account."
+        ),
+    )
+    parser.add_argument(
+        "--renew-trust",
+        action="store_true",
+        help=(
+            "Attended: renew this account's iCloud browser trust in one run — "
+            "Apple pushes a 6-digit code to its trusted devices, you type it "
+            "here. Requires --account N; nothing is listed."
         ),
     )
     return parser.parse_args()
@@ -123,6 +147,41 @@ def _print_entities(entities: list[PresenceEntity]) -> None:
         print()
 
 
+def _renew_trust(config: PresenceConfig) -> None:
+    """Attended one-run browser-trust renewal for one account (issue #659).
+
+    The only place in the presence stack that reads from stdin — the library
+    never prompts. Refuses to run without a terminal, since the code has to be
+    typed here.
+    """
+
+    if not sys.stdin.isatty():
+        raise SystemExit(
+            "❌ --renew-trust is attended: run it from a terminal (a 6-digit code "
+            "must be typed), or use the app's Presence card → Renew trust."
+        )
+    who = config.display_name
+    print(f"Requesting a 2FA code for {who} (account {config.label})…")
+    begun = begin_trust_renewal(config)
+    if begun.status == "already_trusted":
+        print(f"✅ {begun.detail}")
+        return
+    if begun.status != "code_sent":
+        raise SystemExit(f"❌ Trust renewal could not start: {begun.detail}")
+    print(f"📲 {begun.detail}")
+
+    for _attempt in range(MAX_CODE_ATTEMPTS):
+        code = input("Enter the 6-digit code shown on your trusted device: ").strip()
+        done = complete_trust_renewal(config, code)
+        if done.status == "trusted":
+            print(f"✅ {done.detail}")
+            return
+        if done.status != "invalid_code":
+            raise SystemExit(f"❌ Trust renewal failed ({done.status}): {done.detail}")
+        print(f"⚠️ {done.detail}")
+    raise SystemExit("❌ Trust renewal failed: too many rejected codes — run again for a new push.")
+
+
 def main() -> None:
     """Fetch every visible Find My entity per configured account and print it."""
 
@@ -137,11 +196,16 @@ def main() -> None:
             )
         selected = [(args.account, configs[args.account - 1])]
     else:
-        if args.verification_code:
+        if args.verification_code or args.renew_trust:
             raise SystemExit(
-                "❌ Specify --account N with --2fa-code; 2FA is per Apple ID."
+                "❌ Specify --account N with --2fa-code / --renew-trust; "
+                "2FA is per Apple ID."
             )
         selected = list(enumerate(configs, start=1))
+
+    if args.renew_trust:
+        _renew_trust(selected[0][1])
+        return
 
     for number, config in selected:
         # The verification code only applies to an explicitly-targeted account.

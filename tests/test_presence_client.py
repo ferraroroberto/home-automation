@@ -255,11 +255,16 @@ def test_iter_devices_refreshes_with_location() -> None:
 
 @pytest.fixture(autouse=True)
 def _clear_service_cache() -> None:
-    """Isolate each test's session cache — module-global by design (#651)."""
+    """Isolate each test's session cache — module-global by design (#651) —
+    plus the untrusted-WARNING latch and the pending trust renewals (#659)."""
 
     P._SERVICE_CACHE.clear()
+    P._UNTRUSTED_WARNED.clear()
+    P._PENDING_TRUST.clear()
     yield
     P._SERVICE_CACHE.clear()
+    P._UNTRUSTED_WARNED.clear()
+    P._PENDING_TRUST.clear()
 
 
 def test_connect_reuses_cached_session(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -514,3 +519,296 @@ def test_build_service_uses_quiet_class_when_push_disabled(
 
     assert seen == [False]
     assert api.kwargs["cookie_directory"] == str(tmp_path)
+
+
+# ------------------------------------------------ browser-trust renewal (#659)
+class _StopEvent:
+    def __init__(self) -> None:
+        self.stopped = False
+
+    def set(self) -> None:
+        self.stopped = True
+
+
+class _FakeManager:
+    """Stands in for pyicloud's lazily-built Find My manager (monitor thread)."""
+
+    def __init__(self) -> None:
+        self.stop_event = _StopEvent()
+
+    def __len__(self) -> int:  # bool(manager) must never be consulted (network!)
+        raise AssertionError("bool()/len() on the Find My manager triggers a refresh")
+
+
+class _FakeTrustApi:
+    """pyicloud through the renewal state machine: ``authenticate(force_refresh)``
+    ends either challenged (2FA required, code pushed) or already trusted;
+    ``validate_2fa_code`` accepts one code and - like the real 2.6.5, which
+    calls ``trust_session()`` + a fresh ``accountLogin`` inside - refreshes
+    the trust flags on success."""
+
+    def __init__(self, *, challenge: bool = True, accept: str = "123456", trust_after: bool = True) -> None:
+        self.challenge = challenge
+        self.accept = accept
+        self.trust_after = trust_after
+        self.requires_2fa = False
+        self.is_trusted_session = False
+        self.two_factor_delivery_method = "trusted_device"
+        self.calls: list[str] = []
+        self._devices = None
+
+    def authenticate(self, force_refresh: bool = False) -> None:
+        self.calls.append("authenticate:%s" % force_refresh)
+        self.requires_2fa = self.challenge
+        self.is_trusted_session = not self.challenge
+
+    def validate_2fa_code(self, code: str) -> bool:
+        self.calls.append("validate")
+        if code != self.accept:
+            return False
+        if self.trust_after:
+            self.requires_2fa = False
+            self.is_trusted_session = True
+            return True
+        return False
+
+
+def _trust_cfg(tmp_path, **overrides) -> P.PresenceConfig:
+    return P.PresenceConfig(
+        email="a@example.com", password="x", session_dir=tmp_path, label="1", **overrides
+    )
+
+
+def test_begin_trust_renewal_parks_challenged_service_and_reports_code_sent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    api = _FakeTrustApi()
+    built: list[P.PresenceConfig] = []
+
+    def fake_build(config: P.PresenceConfig) -> object:
+        built.append(config)
+        return api
+
+    monkeypatch.setattr(P, "_build_service", fake_build)
+    # Even a config the unattended refresher opted out of pushes for: this is
+    # the attended flow, the push is wanted.
+    cfg = _trust_cfg(tmp_path, request_2fa_push=False)
+
+    state = P.begin_trust_renewal(cfg)
+
+    assert state.status == "code_sent"
+    assert state.trusted is False
+    assert "trusted devices" in state.detail
+    assert built[0].request_2fa_push is True
+    assert api.calls == ["authenticate:True"]
+    assert P._PENDING_TRUST[str(tmp_path)].api is api
+    # Only a *completed* renewal touches the tray's cache.
+    assert P._SERVICE_CACHE == {}
+
+
+def test_begin_trust_renewal_does_not_force_a_second_sign_in_on_a_fresh_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A brand-new session dir has no token: the build itself already ran SRP
+    and pushed the code, so forcing another sign-in would push twice."""
+
+    class _ChallengedAtBuild(_FakeTrustApi):
+        def __init__(self) -> None:
+            super().__init__()
+            self.requires_2fa = True  # pyicloud's constructor already hit 2FA
+
+    api = _ChallengedAtBuild()
+    monkeypatch.setattr(P, "_build_service", lambda config: api)
+
+    state = P.begin_trust_renewal(_trust_cfg(tmp_path))
+
+    assert state.status == "code_sent"
+    assert api.calls == []  # no authenticate(force_refresh=True) on top
+    assert P._PENDING_TRUST[str(tmp_path)].api is api
+
+
+def test_begin_trust_renewal_sms_delivery_is_named(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    api = _FakeTrustApi()
+    api.two_factor_delivery_method = "sms"
+    monkeypatch.setattr(P, "_build_service", lambda config: api)
+
+    state = P.begin_trust_renewal(_trust_cfg(tmp_path))
+
+    assert state.status == "code_sent"
+    assert "SMS" in state.detail
+
+
+def test_complete_trust_renewal_replaces_cache_and_clears_untrusted_latch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """The happy path: code accepted -> trusted service becomes the account's
+    cached session (the tray's next poll reuses it), the retired service's
+    Find My monitor thread is stopped so it cannot re-save the old, untrusted
+    session data over the new trust token, the WARNING latch is cleared, and
+    the pending challenge is consumed."""
+
+    cfg = _trust_cfg(tmp_path)
+    key = str(tmp_path)
+    old = _FakeTrustApi()
+    old._devices = _FakeManager()
+    P._SERVICE_CACHE[key] = old
+    P._UNTRUSTED_WARNED.add(key)
+    fresh = _FakeTrustApi()
+    monkeypatch.setattr(P, "_build_service", lambda config: fresh)
+
+    assert P.begin_trust_renewal(cfg).status == "code_sent"
+    state = P.complete_trust_renewal(cfg, "123456")
+
+    assert state.status == "trusted"
+    assert state.trusted is True
+    assert P._SERVICE_CACHE[key] is fresh
+    assert old._devices.stop_event.stopped is True
+    assert key not in P._UNTRUSTED_WARNED
+    assert key not in P._PENDING_TRUST
+    assert P.session_trust_state(cfg) is True
+
+
+def test_complete_trust_renewal_invalid_code_allows_one_retry_then_needs_new_begin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    cfg = _trust_cfg(tmp_path)
+    fresh = _FakeTrustApi()
+    monkeypatch.setattr(P, "_build_service", lambda config: fresh)
+    P.begin_trust_renewal(cfg)
+
+    first = P.complete_trust_renewal(cfg, "000000")
+    assert first.status == "invalid_code"
+    assert "try once more" in first.detail
+    assert str(tmp_path) in P._PENDING_TRUST  # same challenge, retry allowed
+
+    second = P.complete_trust_renewal(cfg, "000000")
+    assert second.status == "invalid_code"
+    assert "start again" in second.detail
+    assert str(tmp_path) not in P._PENDING_TRUST  # challenge discarded
+
+    third = P.complete_trust_renewal(cfg, "123456")
+    assert third.status == "expired"
+    assert P._SERVICE_CACHE == {}
+
+
+def test_complete_trust_renewal_without_begin_or_after_ttl_is_expired(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    cfg = _trust_cfg(tmp_path)
+    assert P.complete_trust_renewal(cfg, "123456").status == "expired"
+
+    fresh = _FakeTrustApi()
+    monkeypatch.setattr(P, "_build_service", lambda config: fresh)
+    P.begin_trust_renewal(cfg)
+    P._PENDING_TRUST[str(tmp_path)].started_at -= P.PENDING_TRUST_TTL_S + 1
+
+    state = P.complete_trust_renewal(cfg, "123456")
+
+    assert state.status == "expired"
+    assert "expired" in state.detail
+    assert str(tmp_path) not in P._PENDING_TRUST
+    assert fresh.calls == ["authenticate:True"]  # the code was never sent to Apple
+
+
+def test_complete_trust_renewal_reports_failed_when_trust_does_not_stick(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A code Apple accepts but a trust it does not grant is neither a wrong
+    code nor success - distinct state, cache untouched, challenge consumed."""
+
+    cfg = _trust_cfg(tmp_path)
+
+    class _AcceptsButUntrusted(_FakeTrustApi):
+        def validate_2fa_code(self, code: str) -> bool:
+            self.calls.append("validate")
+            self.requires_2fa = True  # accountLogin inside trust_session said: still untrusted
+            return True
+
+    fresh = _AcceptsButUntrusted()
+    monkeypatch.setattr(P, "_build_service", lambda config: fresh)
+    P.begin_trust_renewal(cfg)
+
+    state = P.complete_trust_renewal(cfg, "123456")
+
+    assert state.status == "failed"
+    assert state.trusted is False
+    assert P._SERVICE_CACHE == {}
+    assert str(tmp_path) not in P._PENDING_TRUST
+
+
+def test_begin_trust_renewal_already_trusted_adopts_fresh_service(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    cfg = _trust_cfg(tmp_path)
+    key = str(tmp_path)
+    P._UNTRUSTED_WARNED.add(key)
+    fresh = _FakeTrustApi(challenge=False)
+    monkeypatch.setattr(P, "_build_service", lambda config: fresh)
+
+    state = P.begin_trust_renewal(cfg)
+
+    assert state.status == "already_trusted"
+    assert state.trusted is True
+    assert P._SERVICE_CACHE[key] is fresh
+    assert key not in P._UNTRUSTED_WARNED
+    assert key not in P._PENDING_TRUST
+
+
+def test_begin_trust_renewal_maps_apple_refusal_to_failed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from pyicloud.exceptions import PyiCloudFailedLoginException
+
+    def refuse(config: P.PresenceConfig) -> object:
+        raise PyiCloudFailedLoginException("Invalid email/password combination.")
+
+    monkeypatch.setattr(P, "_build_service", refuse)
+
+    state = P.begin_trust_renewal(_trust_cfg(tmp_path))
+
+    assert state.status == "failed"
+    assert "Invalid email/password" in state.detail
+    assert P._PENDING_TRUST == {}
+
+
+def test_trust_renewal_never_logs_the_code(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    cfg = _trust_cfg(tmp_path)
+    monkeypatch.setattr(P, "_build_service", lambda config: _FakeTrustApi(accept="654321"))
+    with caplog.at_level("DEBUG", logger=P.logger.name):
+        P.begin_trust_renewal(cfg)
+        P.complete_trust_renewal(cfg, "111111")  # rejected
+        P.complete_trust_renewal(cfg, "654321")  # accepted
+
+    joined = "\n".join(r.getMessage() for r in caplog.records)
+    assert "111111" not in joined and "654321" not in joined
+    assert "browser trust renewed" in joined
+
+
+def test_session_trust_state_is_none_without_a_cached_session(tmp_path) -> None:
+    cfg = _trust_cfg(tmp_path)
+    assert P.session_trust_state(cfg) is None
+    api = _FakeApi(requires_2fa=True)
+    P._SERVICE_CACHE[str(tmp_path)] = api
+    assert P.session_trust_state(cfg) is False
+    api.requires_2fa = False
+    assert P.session_trust_state(cfg) is True
+
+
+def test_adopted_service_is_demoted_to_no_push_class(tmp_path) -> None:
+    """A renewed session lives in the unattended tray afterwards, so the
+    attended (pushing) service must not stay pushing once adopted (#659)."""
+
+    from pyicloud import PyiCloudService
+
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    api = object.__new__(PyiCloudService)  # real class, no sign-in
+
+    P._adopt_service(cfg, api)
+
+    assert P._SERVICE_CACHE[str(tmp_path)] is api
+    assert isinstance(api, PyiCloudService)
+    assert type(api) is not PyiCloudService
+    assert type(api)._request_2fa_code is not PyiCloudService._request_2fa_code
+    P._SERVICE_CACHE.pop(str(tmp_path), None)
