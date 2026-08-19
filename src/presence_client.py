@@ -33,6 +33,15 @@ pyicloud's Find My sub-service re-authenticates on its own when Apple answers
 450, and when the browser-trust token isn't honoured that internal re-auth
 leaves ``requires_2fa`` true even though the very same fetch then serves every
 device. Gating on the flag marked perfectly working sessions broken.
+
+Browser-trust renewal (issue #659): Apple's ~30-day browser trust makes a fresh
+session build a silent token login; once it lapses every fresh build costs a
+password (SRP) sign-in Apple throttles. Renewing it is a two-step, attended
+flow that must run inside ONE live ``PyiCloudService`` — the 2FA push and the
+code entry belong to the same Apple auth session — so
+:func:`begin_trust_renewal` parks the challenged service in
+:data:`_PENDING_TRUST` and :func:`complete_trust_renewal` finishes it, then
+swaps the trusted service into :data:`_SERVICE_CACHE` for the tray's next poll.
 """
 
 from __future__ import annotations
@@ -40,7 +49,8 @@ from __future__ import annotations
 import logging
 import math
 import os
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -85,6 +95,14 @@ class PresenceConfig:
     # refresher sets False — nobody in that process will ever type the code,
     # so the push is pure noise on every phone in the household.
     request_2fa_push: bool = True
+
+    @property
+    def display_name(self) -> str:
+        """Name this account for a human — friendly name if set, else the Apple
+        ID email (issue #657: a bare "account 1"/"account 2" gave no way to tell
+        which real account a message or row was about)."""
+
+        return self.friendly_name or self.email
 
 
 @dataclass(frozen=True)
@@ -249,7 +267,8 @@ def fetch_presence(
         if _is_auth_failure(exc):
             raise PresenceAuthError(
                 f"iCloud Find My refused the session ({type(exc).__name__}: {exc}). "
-                "Re-trust it via src.list_presence --account <N> --2fa-code <code>."
+                "Re-trust it from the app (Presence card → Renew trust) or via "
+                "src.list_presence --account <N> --renew-trust."
             ) from exc
         raise
     entities = [
@@ -288,8 +307,8 @@ def _warn_once_if_untrusted(api: Any, config: PresenceConfig) -> None:
     logger.warning(
         "⚠️ iCloud account %s: Find My is serving on an untrusted session "
         "(browser trust expired). Locations keep flowing; each fresh sign-in "
-        "costs a password login until re-trusted via src.list_presence "
-        "--account %s --2fa-code <code>.",
+        "costs a password login until re-trusted from the app (Presence card → "
+        "Renew trust) or via src.list_presence --account %s --renew-trust.",
         config.label,
         config.label,
     )
@@ -419,6 +438,244 @@ def invalidate_session(config: PresenceConfig) -> None:
 
     _SERVICE_CACHE.pop(str(config.session_dir), None)
     _UNTRUSTED_WARNED.discard(str(config.session_dir))
+
+
+def session_trust_state(config: PresenceConfig) -> Optional[bool]:
+    """Whether this account's *cached* session currently holds browser trust.
+
+    ``None`` when no session is cached yet (nothing to say). Reads pyicloud's
+    ``requires_2fa`` — the same flag :func:`_warn_once_if_untrusted` keys off —
+    so the diagnostics row and the log WARNING can never disagree. Cheap: no
+    Apple round-trip.
+    """
+
+    api = _SERVICE_CACHE.get(str(config.session_dir))
+    if api is None:
+        return None
+    return not bool(getattr(api, "requires_2fa", False))
+
+
+# ------------------------------------------------------- browser-trust renewal
+# (issue #659) One challenged-but-not-yet-verified PyiCloudService per session
+# dir, parked between begin_trust_renewal() and complete_trust_renewal(). The
+# 2FA code Apple pushes is only valid for the auth session (scnt /
+# X-Apple-ID-Session-Id) that requested it, which lives on this exact object.
+PENDING_TRUST_TTL_S = 10 * 60
+MAX_CODE_ATTEMPTS = 2  # rejected codes tolerated per push before a new begin is needed
+
+
+@dataclass(frozen=True)
+class TrustRenewalState:
+    """Outcome of one step of the attended browser-trust renewal (issue #659).
+
+    ``status`` after :func:`begin_trust_renewal`: ``code_sent`` /
+    ``already_trusted`` / ``failed``; after :func:`complete_trust_renewal`:
+    ``trusted`` / ``invalid_code`` / ``expired`` / ``failed``. ``detail`` is a
+    human-readable line for the UI/CLI (Apple's own message on a failure).
+    ``trusted`` is what the account's session holds after this step, when known.
+    """
+
+    status: str
+    detail: str = ""
+    trusted: Optional[bool] = None
+
+
+@dataclass
+class _PendingTrust:
+    api: Any
+    started_at: float  # time.monotonic()
+    attempts: int = 0
+
+
+_PENDING_TRUST: dict[str, _PendingTrust] = {}
+
+
+def begin_trust_renewal(config: PresenceConfig) -> TrustRenewalState:
+    """Ask Apple to challenge a fresh sign-in so a 2FA code reaches the owner.
+
+    Builds a **fresh** service (with ``request_2fa_push=True`` — this is the
+    attended flow, the push is wanted) and forces the full challenge with
+    ``authenticate(force_refresh=True)``: token login → Apple says untrusted →
+    SRP password login → 2FA required → pyicloud asks Apple to push a code to
+    the trusted devices. The challenged service is parked in
+    :data:`_PENDING_TRUST` for :func:`complete_trust_renewal`; any previous
+    pending renewal for this account is discarded. Never prompts.
+    """
+
+    key = str(config.session_dir)
+    _discard_pending(key)
+    config.session_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        api = _build_service(replace(config, request_2fa_push=True))
+        # A brand-new session dir has no token to log in with, so the build
+        # itself already ran SRP and pushed the code — forcing a second
+        # sign-in here would push twice. Only a token-authenticated build
+        # needs the challenge forced.
+        if not bool(getattr(api, "requires_2fa", False)):
+            api.authenticate(force_refresh=True)
+    except Exception as exc:  # noqa: BLE001 - mapped to a user-facing state
+        logger.warning(
+            "⚠️ iCloud account %s: trust renewal could not start (%s: %s)",
+            config.label,
+            type(exc).__name__,
+            exc,
+        )
+        return TrustRenewalState("failed", detail=_apple_detail(exc))
+
+    if bool(getattr(api, "requires_2fa", False)):
+        _PENDING_TRUST[key] = _PendingTrust(api=api, started_at=time.monotonic())
+        method = str(getattr(api, "two_factor_delivery_method", "unknown") or "unknown")
+        detail = (
+            "Apple sent a 6-digit code by SMS to the account's trusted phone number."
+            if method == "sms"
+            else "Apple pushed a 6-digit code to the account's trusted devices."
+        )
+        logger.info(
+            "📲 iCloud account %s: 2FA code requested for trust renewal (delivery: %s)",
+            config.label,
+            method,
+        )
+        return TrustRenewalState("code_sent", detail=detail, trusted=False)
+
+    if bool(getattr(api, "is_trusted_session", False)):
+        # Apple honoured the trust token after all — adopt this fresh, trusted
+        # service so the tray stops carrying an untrusted one for the account.
+        _adopt_service(config, api)
+        logger.info("ℹ️ iCloud account %s: session already trusted, nothing to renew", config.label)
+        return TrustRenewalState(
+            "already_trusted",
+            detail="Apple still trusts this session; nothing to renew.",
+            trusted=True,
+        )
+
+    logger.warning(
+        "⚠️ iCloud account %s: Apple issued no 2FA challenge and reports no trust",
+        config.label,
+    )
+    return TrustRenewalState(
+        "failed",
+        detail="Apple issued no 2FA challenge and did not report the session as trusted.",
+        trusted=False,
+    )
+
+
+def complete_trust_renewal(config: PresenceConfig, code: str) -> TrustRenewalState:
+    """Verify the pushed code on the pending service and prove the new trust.
+
+    ``validate_2fa_code`` in the pinned ``pyicloud==2.6.5`` already calls
+    ``trust_session()`` (GET ``2sv/trust`` → new trust token) and then
+    re-authenticates with ``accountLogin`` — so a ``True`` return means Apple
+    both accepted the code *and* reported ``hsaTrustedBrowser`` on a fresh
+    login; ``is_trusted_session`` afterwards reads that fresh response, not the
+    stale pre-challenge one. On success the trusted service replaces the
+    account's cached one (the tray's next poll reuses it) and the untrusted
+    WARNING latch is cleared. A rejected code keeps the pending challenge for
+    one more attempt, then a new :func:`begin_trust_renewal` is required.
+    The code is never logged.
+    """
+
+    key = str(config.session_dir)
+    pending = _PENDING_TRUST.get(key)
+    if pending is None:
+        return TrustRenewalState(
+            "expired", detail="No trust renewal in progress for this account — start again."
+        )
+    if time.monotonic() - pending.started_at > PENDING_TRUST_TTL_S:
+        _discard_pending(key)
+        logger.info("ℹ️ iCloud account %s: pending trust renewal expired", config.label)
+        return TrustRenewalState(
+            "expired", detail="The code request expired — start again to get a new code."
+        )
+
+    api = pending.api
+    try:
+        accepted = bool(api.validate_2fa_code(code))
+    except Exception as exc:  # noqa: BLE001 - mapped to a user-facing state
+        _discard_pending(key)
+        logger.warning(
+            "⚠️ iCloud account %s: code verification failed (%s: %s)",
+            config.label,
+            type(exc).__name__,
+            exc,
+        )
+        return TrustRenewalState("failed", detail=_apple_detail(exc), trusted=False)
+
+    if not accepted:
+        pending.attempts += 1
+        if pending.attempts >= MAX_CODE_ATTEMPTS:
+            _discard_pending(key)
+            detail = "Apple rejected the code again — start again to get a new code."
+        else:
+            detail = "Apple rejected the code — check it and try once more."
+        logger.warning(
+            "⚠️ iCloud account %s: Apple rejected the 2FA code (attempt %d/%d)",
+            config.label,
+            pending.attempts,
+            MAX_CODE_ATTEMPTS,
+        )
+        return TrustRenewalState("invalid_code", detail=detail, trusted=False)
+
+    _discard_pending(key)
+    trusted = bool(getattr(api, "is_trusted_session", False)) and not bool(
+        getattr(api, "requires_2fa", False)
+    )
+    if not trusted:
+        logger.warning(
+            "⚠️ iCloud account %s: code accepted but Apple did not grant browser trust",
+            config.label,
+        )
+        return TrustRenewalState(
+            "failed",
+            detail="Apple accepted the code but did not grant browser trust — start again.",
+            trusted=False,
+        )
+
+    _adopt_service(config, api)
+    logger.info("✅ iCloud account %s: browser trust renewed", config.label)
+    return TrustRenewalState(
+        "trusted",
+        detail="Browser trust renewed; fresh sign-ins are silent token logins again.",
+        trusted=True,
+    )
+
+
+def _discard_pending(key: str) -> None:
+    _PENDING_TRUST.pop(key, None)
+
+
+def _adopt_service(config: PresenceConfig, api: Any) -> None:
+    """Make ``api`` the account's cached session, retiring the previous one.
+
+    The retired service's Find My manager runs a background refresh thread on
+    the *same* on-disk session file; left alive it would keep re-saving the
+    old, untrusted session data over the freshly written trust token, so it is
+    stopped first (a no-op when Find My was never initialised on it).
+    """
+
+    key = str(config.session_dir)
+    old = _SERVICE_CACHE.get(key)
+    if old is not None and old is not api:
+        _stop_background_refresh(old)
+    _SERVICE_CACHE[key] = api
+    _UNTRUSTED_WARNED.discard(key)
+
+
+def _stop_background_refresh(api: Any) -> None:
+    # ``_devices`` is pyicloud's lazily-built FindMyiPhoneServiceManager (None
+    # until ``.devices`` is first read); its ``stop_event`` ends the monitor
+    # thread. Identity checks only — ``bool(manager)`` calls ``__len__``, which
+    # would trigger a network refresh.
+    manager = getattr(api, "_devices", None)
+    stop = getattr(manager, "stop_event", None) if manager is not None else None
+    if stop is not None and callable(getattr(stop, "set", None)):
+        stop.set()
+
+
+def _apple_detail(exc: BaseException) -> str:
+    """Apple's own message for a failed step, or a neutral fallback."""
+
+    text = str(exc).strip()
+    return text or "Apple did not accept the sign-in; try again in a few minutes."
 
 
 def _complete_2fa(

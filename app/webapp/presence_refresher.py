@@ -26,6 +26,7 @@ from src.presence_client import (
     fetch_presence,
     invalidate_session,
     load_presence_configs,
+    session_trust_state,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,12 @@ class PresenceAccountStatus:
     reason: str
     detail: str = ""
     entity_count: int = 0
+    # Issue #659: who this account is (friendly name or Apple ID email) and
+    # whether its cached session still holds Apple's ~30-day browser trust —
+    # ``None`` until a session has been built. Untrusted is *not* unavailable:
+    # Find My keeps serving, only fresh sign-ins get expensive (#658).
+    display_name: str = ""
+    trusted: Optional[bool] = None
 
 
 @dataclass
@@ -123,9 +130,10 @@ def _retry_due(label: str, *, now: datetime) -> bool:
 def _account_display_name(config: PresenceConfig) -> str:
     """Name an account in a Telegram message — friendly name if set, else the
     Apple ID email itself (issue #657: "account 1"/"account 2" gave no way to
-    tell which real account a reconnect message was actually about)."""
+    tell which real account a reconnect message was actually about). Same rule
+    the diagnostics rows use (#659), so the message and the row agree."""
 
-    return config.friendly_name or config.email
+    return config.display_name
 
 
 def _notify(notifier_factory: Callable[[], Optional[Notifier]], text: str) -> None:
@@ -138,6 +146,27 @@ def _notify(notifier_factory: Callable[[], Optional[Notifier]], text: str) -> No
         notifier.send_text(text)
     except NotifierError as exc:
         logger.warning("⚠️ Telegram presence notification failed: %s", exc)
+
+
+def _account_status(
+    config: PresenceConfig,
+    available: bool,
+    reason: str,
+    detail: str = "",
+    *,
+    entity_count: int = 0,
+) -> PresenceAccountStatus:
+    """Build one account's status, stamped with its name + session trust (#659)."""
+
+    return PresenceAccountStatus(
+        config.label,
+        available,
+        reason,
+        detail,
+        entity_count=entity_count,
+        display_name=_account_display_name(config),
+        trusted=session_trust_state(config),
+    )
 
 
 def _fetch_account(
@@ -203,23 +232,21 @@ def _fetch_account(
             "⚠️ iCloud account %s needs re-auth (2fa_required): %s", config.label, exc
         )
         entities = []
-        status = PresenceAccountStatus(config.label, False, "2fa_required", str(exc))
+        status = _account_status(config, False, "2fa_required", str(exc))
     except PresenceConfigError as exc:
         logger.warning(
             "⚠️ iCloud account %s not configured: %s", config.label, exc
         )
         entities = []
-        status = PresenceAccountStatus(config.label, False, "not_configured", str(exc))
+        status = _account_status(config, False, "not_configured", str(exc))
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "⚠️ Failed to refresh iCloud account %s: %s", config.label, exc
         )
         entities = []
-        status = PresenceAccountStatus(config.label, False, "error", str(exc))
+        status = _account_status(config, False, "error", str(exc))
     else:
-        status = PresenceAccountStatus(
-            config.label, True, "ok", "", entity_count=len(entities)
-        )
+        status = _account_status(config, True, "ok", "", entity_count=len(entities))
 
     if was_broken and status.available:
         # Deliberately not popped from _LAST_RETRY_ATTEMPT (issue #656) — see

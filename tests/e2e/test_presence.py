@@ -7,9 +7,11 @@ failures, the compact right-aligned settings controls, and the diagnostic-only
 
 from __future__ import annotations
 
+import json
+import re
 from typing import Callable, Dict, List
 
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home
 
@@ -227,3 +229,81 @@ def test_this_device_presence_is_diagnostic_only(
     expect(page.locator(".presence-row").first).to_contain_text("This device")
     expect(page.locator(".presence-row").first).to_contain_text("Browser GPS · diagnostic only")
     expect(page.locator("#presenceRefreshNote")).to_contain_text("not used for alarm automation")
+
+
+def test_presence_icloud_account_rows_offer_trust_renewal(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """Issue #659: one row per configured Apple ID under the Presence card —
+    who, whether its session is trusted, and a Renew trust button. Renewal is
+    confirm-gated; a stubbed ``code_sent`` opens the 6-digit code dialog.
+    Fixture names only (public repo)."""
+
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence({
+        "available": True,
+        "total_count": 0, "located_count": 0, "home_count": 0, "away_count": 0,
+        "unknown_count": 0, "all_away": False, "home_radius_m": 200,
+        "entities": [],
+        "diagnostics": {
+            "available": True,
+            "reason": "ok",
+            "detail": "",
+            "refreshed_at": "2026-06-22T10:00:00+00:00",
+            "accounts": [
+                {"label": "1", "available": True, "reason": "ok", "detail": "",
+                 "entity_count": 2, "display_name": "Fixture One", "trusted": True},
+                {"label": "2", "available": True, "reason": "ok", "detail": "",
+                 "entity_count": 1, "display_name": "two@example.com", "trusted": False},
+            ],
+        },
+        "automation": {"auto_arm_enabled": False, "arm_away_after_s": 900,
+                       "stale_after_s": 3600, "auto_disarm_enabled": False},
+    })
+    begins: List[str] = []
+
+    def begin(route: Route) -> None:
+        begins.append(route.request.url)
+        route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({
+                "account": "2", "display_name": "two@example.com", "status": "code_sent",
+                "detail": "Apple pushed a 6-digit code to the account's trusted devices.",
+                "trusted": False,
+            }),
+        )
+
+    page.route("**/api/presence/icloud/2/trust/begin", begin)
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("details.presence-card > summary").click()
+
+    rows = page.get_by_test_id("presence-account-row")
+    expect(rows).to_have_count(2)
+    expect(rows.nth(0)).to_contain_text("Fixture One")
+    expect(rows.nth(0)).to_have_class(re.compile(r"\bis-trusted\b"))
+    expect(rows.nth(1)).to_contain_text("two@example.com")
+    expect(rows.nth(1)).to_contain_text("untrusted")
+    expect(rows.nth(1)).to_have_class(re.compile(r"\bis-untrusted\b"))
+    renew = rows.nth(1).get_by_test_id("presence-account-renew")
+    expect(renew).to_have_text("Renew trust")
+
+    # Confirm-gated: cancel sends nothing; confirm hits begin, code dialog opens.
+    renew.click()
+    expect(page.locator("#confirmDialog")).to_be_visible()
+    expect(page.locator("#confirmMessage")).to_contain_text("two@example.com")
+    page.locator("#confirmCancel").click()
+    expect(page.locator("#confirmDialog")).to_be_hidden()
+    assert begins == []
+
+    renew.click()
+    page.locator("#confirmOk").click()
+    expect(page.get_by_test_id("presence-trust-dialog")).to_be_visible()
+    expect(page.locator("#presenceTrustHint")).to_contain_text("6-digit code")
+    expect(page.get_by_test_id("presence-trust-code")).to_be_focused()
+    expect(page.get_by_test_id("presence-trust-verify")).to_be_enabled()
+    assert len(begins) == 1

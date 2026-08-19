@@ -1551,6 +1551,12 @@
         <div id="presenceList" class="presence-list" aria-live="polite"></div>
         <p id="presenceNote" class="muted small security-note" role="status" hidden></p>
         <p id="presenceRefreshNote" class="muted small security-note"></p>
+        <!-- Per-account iCloud session rows + browser-trust renewal (issue
+             #659). Hidden until GET /api/presence carries diagnostics.accounts. -->
+        <div id="presenceAccounts" class="presence-accounts" data-testid="presence-accounts" hidden>
+          <p class="muted small presence-accounts-title">iCloud accounts</p>
+          <div id="presenceAccountsList" class="presence-accounts-list"></div>
+        </div>
         <details class="presence-settings-card">
           <summary class="collapse-summary">
             <span class="collapse-main">
@@ -1874,6 +1880,27 @@
 
       <div class="detail-actions">
         <button id="presencePlaceSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- iCloud browser-trust renewal code entry (issue #659). Opened after
+       POST /api/presence/icloud/{account}/trust/begin answers code_sent; Verify
+       posts the 6-digit code to …/trust/complete on the same live session. -->
+  <dialog id="presenceTrustDialog" class="detail-dialog" data-testid="presence-trust-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="presenceTrustTitle">Renew iCloud trust</h2>
+        <button id="presenceTrustClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="presenceTrustHint" class="muted small">Apple pushed a 6-digit code to the account's trusted devices.</p>
+      <label class="row">
+        <span>Code</span>
+        <input id="presenceTrustCode" type="text" class="input-native" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="123456" data-testid="presence-trust-code">
+      </label>
+      <p id="presenceTrustNote" class="muted small security-note" role="status" hidden></p>
+      <div class="detail-actions">
+        <button id="presenceTrustVerify" type="button" class="detail-save-btn" data-testid="presence-trust-verify">Verify</button>
       </div>
     </div>
   </dialog>

@@ -430,3 +430,35 @@ def test_refresher_fetches_with_2fa_push_disabled_and_logs_broken_polls(
     breadcrumbs = [r for r in caplog.records if "needs re-auth" in r.getMessage()]
     assert len(breadcrumbs) == 1
     assert "account 2" in breadcrumbs[0].getMessage()
+
+
+def test_account_status_carries_display_name_and_session_trust(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #659: every per-account status names the account (friendly name
+    or Apple ID) and reports whether its cached session still holds browser
+    trust - on healthy *and* broken outcomes alike, and ``None`` when no
+    session has been built - so the PWA rows can render from the cache."""
+
+    configs = [_config("1", friendly_name="Fixture One"), _config("2"), _config("3")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    trust_by_label = {"1": True, "2": False, "3": None}
+    monkeypatch.setattr(R, "session_trust_state", lambda cfg: trust_by_label[cfg.label])
+
+    def fake_fetch(*, config: PresenceConfig) -> list[PresenceEntity]:
+        if config.label == "2":
+            raise PresenceAuthError("iCloud Find My refused the session")
+        return [_entity(config.label)]
+
+    monkeypatch.setattr(R, "fetch_presence", fake_fetch)
+
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: None))
+
+    by_label = {a.label: a for a in cache.accounts}
+    assert by_label["1"].display_name == "Fixture One"
+    assert by_label["1"].trusted is True
+    assert by_label["1"].available is True
+    assert by_label["2"].display_name == "2@example.com"
+    assert by_label["2"].trusted is False
+    assert by_label["2"].available is False  # broken and untrusted are separate facts
+    assert by_label["3"].trusted is None
