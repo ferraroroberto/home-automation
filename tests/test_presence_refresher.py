@@ -397,3 +397,36 @@ def test_healthy_account_never_retries_or_notifies(
 
     assert invalidated == []
     assert notifier.sent == []
+
+
+def test_refresher_fetches_with_2fa_push_disabled_and_logs_broken_polls(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Issue #658: the unattended refresher must never let pyicloud ask Apple to
+    push a 2FA code (nobody in the tray can enter it), and every poll that ends
+    broken must leave a log breadcrumb (those polls used to be invisible)."""
+
+    configs = [_config("1"), _config("2")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    seen: list[tuple[str, bool]] = []
+
+    def fake_fetch(*, config: PresenceConfig) -> list[PresenceEntity]:
+        seen.append((config.label, config.request_2fa_push))
+        if config.label == "2":
+            raise PresenceAuthError("iCloud Find My refused the session")
+        return [_entity("mine")]
+
+    monkeypatch.setattr(R, "fetch_presence", fake_fetch)
+    R._CACHE = R.PresenceDiagnosticsCache(entities=[])
+
+    with caplog.at_level("WARNING", logger=R.logger.name):
+        cache = asyncio.run(R.refresh_once(notifier_factory=lambda: None))
+
+    assert sorted(seen) == [("1", False), ("2", False)]
+    # The configs handed to the caller keep their attended default - only the
+    # refresher's own fetch opts out of the push.
+    assert all(cfg.request_2fa_push is True for cfg in configs)
+    assert cache.reason == "partial"
+    breadcrumbs = [r for r in caplog.records if "needs re-auth" in r.getMessage()]
+    assert len(breadcrumbs) == 1
+    assert "account 2" in breadcrumbs[0].getMessage()

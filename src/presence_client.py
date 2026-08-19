@@ -26,6 +26,13 @@ Config (from ``.env``):
 ``pyicloud`` may require an interactive 2FA code the first time a session is
 created, and again when Apple expires the trusted session. 2FA is per Apple ID,
 so each configured account trips it — and is trusted — independently.
+
+Health model (issue #658): a session is healthy when the Find My fetch
+succeeds — never because of pyicloud's in-memory ``requires_2fa`` flag.
+pyicloud's Find My sub-service re-authenticates on its own when Apple answers
+450, and when the browser-trust token isn't honoured that internal re-auth
+leaves ``requires_2fa`` true even though the very same fetch then serves every
+device. Gating on the flag marked perfectly working sessions broken.
 """
 
 from __future__ import annotations
@@ -72,6 +79,12 @@ class PresenceConfig:
     with_family: bool = True
     label: str = "1"  # 1-based account index, for per-account diagnostics/CLI
     friendly_name: str = ""  # e.g. "Roberto"/"Ana" (issue #655); "" -> caller falls back to "account {label}"
+    # Whether pyicloud may ask Apple to push a 2FA code to the trusted devices
+    # when a fresh sign-in ends up needing one (issue #658). True for the
+    # attended CLI (someone is there to read the code); the unattended tray
+    # refresher sets False — nobody in that process will ever type the code,
+    # so the push is pure noise on every phone in the household.
+    request_2fa_push: bool = True
 
 
 @dataclass(frozen=True)
@@ -203,39 +216,110 @@ def fetch_presence(
 ) -> list[PresenceEntity]:
     """Fetch Find My entities from iCloud and return normalized snapshots.
 
-    ``verification_code`` is only needed when Apple asks for 2FA. If omitted in
-    that state, the function raises :class:`PresenceAuthError` with a CLI-friendly
-    instruction rather than blocking for input inside library code.
+    ``verification_code`` is only needed to (re-)trust the session when Apple
+    asks for 2FA; it is applied both before and after the fetch (see below).
+    Without a code the fetch is still attempted — Find My serves an untrusted
+    session — and only a fetch that Apple actually refuses raises
+    :class:`PresenceAuthError` (with a CLI-friendly instruction rather than
+    blocking for input inside library code).
     """
 
     cfg = config or load_presence_config()
     cfg.session_dir.mkdir(parents=True, exist_ok=True)
     api = _connect(cfg)
-    try:
+
+    # Issue #658: the fetch itself is the health check. ``requires_2fa`` is
+    # consulted only to *apply* an explicitly supplied code (the CLI's
+    # ``--2fa-code``), never to refuse a fetch — pyicloud's Find My
+    # sub-service flips that flag on its own internal re-auth while still
+    # serving every device, so a pre-check turned healthy sessions into
+    # ``2fa_required`` on the very next poll. Auth failures raised *by* the
+    # fetch are what mean "really broken" (mapped to PresenceAuthError below).
+    #
+    # Neither failure path evicts the cached session (issue #656): eviction is
+    # a full Apple sign-in handshake, and only the presence refresher's
+    # backoff-gated self-heal (``invalidate_session``) may decide to pay it.
+    if verification_code:
         _complete_2fa(api, verification_code=verification_code, trust_session=trust_session)
 
-        home = location if location is not None else load_location_config()
+    home = location if location is not None else load_location_config()
+    try:
         devices = _iter_devices(api.devices)
-        entities = [
-            _entity_from_device(device, home, home_radius_m=cfg.home_radius_m)
-            for device in devices
-        ]
-    except PresenceAuthError:
-        # 2FA still pending is not a broken session - keep the cached instance
-        # so the next poll re-checks ``requires_2fa`` for free instead of
-        # paying for another full Apple handshake while stuck in this state.
+    except Exception as exc:  # noqa: BLE001 - re-raised or mapped, never swallowed
+        if _is_auth_failure(exc):
+            raise PresenceAuthError(
+                f"iCloud Find My refused the session ({type(exc).__name__}: {exc}). "
+                "Re-trust it via src.list_presence --account <N> --2fa-code <code>."
+            ) from exc
         raise
-    except Exception:
-        # Issue #656: a failed fetch on an otherwise-cached session is not
-        # evidence the session itself is bad - evicting it unconditionally
-        # here forced every subsequent poll into a full Apple sign-in
-        # handshake (the same "someone is trying to access your account"
-        # prompt #651 fixed) regardless of the presence refresher's own
-        # backoff-gated self-heal (#655). Session eviction is now solely
-        # that self-heal's call (``invalidate_session``, backoff-limited).
-        raise
+    entities = [
+        _entity_from_device(device, home, home_radius_m=cfg.home_radius_m)
+        for device in devices
+    ]
+
+    if verification_code:
+        # The internal re-auth that needs the code happens *inside* the fetch
+        # (Find My's 450 → accountLogin → SRP), so a code passed up-front only
+        # renews the browser trust if it is applied again afterwards.
+        _complete_2fa(api, verification_code=verification_code, trust_session=trust_session)
+
+    _warn_once_if_untrusted(api, cfg)
     logger.info("✅ Fetched %d iCloud Find My entit(y/ies)", len(entities))
     return entities
+
+
+# Session dirs already warned about serving on an untrusted session, so the
+# warning is edge-triggered per session build rather than repeated every poll.
+_UNTRUSTED_WARNED: set[str] = set()
+
+
+def _warn_once_if_untrusted(api: Any, config: PresenceConfig) -> None:
+    """One WARNING per session build when Find My serves without browser trust.
+
+    Not a failure — the data is flowing — but each *fresh* build of such a
+    session costs a full password sign-in with Apple (and, on the attended
+    CLI, a 2FA push), so the owner should re-trust it at some point.
+    """
+
+    key = str(config.session_dir)
+    if not bool(getattr(api, "requires_2fa", False)) or key in _UNTRUSTED_WARNED:
+        return
+    _UNTRUSTED_WARNED.add(key)
+    logger.warning(
+        "⚠️ iCloud account %s: Find My is serving on an untrusted session "
+        "(browser trust expired). Locations keep flowing; each fresh sign-in "
+        "costs a password login until re-trusted via src.list_presence "
+        "--account %s --2fa-code <code>.",
+        config.label,
+        config.label,
+    )
+
+
+def _is_auth_failure(exc: BaseException) -> bool:
+    """Whether a fetch exception means the session itself needs re-auth.
+
+    Lazy import: tests substitute a fake service and must not need pyicloud
+    at import time; without pyicloud nothing can be an auth failure anyway.
+    """
+
+    try:
+        from pyicloud.exceptions import (
+            PyiCloud2FARequiredException,
+            PyiCloud2SARequiredException,
+            PyiCloudAuthRequiredException,
+            PyiCloudFailedLoginException,
+        )
+    except ImportError:  # pragma: no cover - covered by requirements
+        return False
+    return isinstance(
+        exc,
+        (
+            PyiCloud2FARequiredException,
+            PyiCloud2SARequiredException,
+            PyiCloudAuthRequiredException,
+            PyiCloudFailedLoginException,
+        ),
+    )
 
 
 # Authenticated pyicloud sessions, keyed by session dir (one per account).
@@ -254,6 +338,30 @@ def _build_service(config: PresenceConfig) -> Any:
     service without an import-time dependency on the real ``pyicloud`` package.
     """
 
+    service_cls = _service_class(request_2fa_push=config.request_2fa_push)
+    logger.info("ℹ️ Authenticating with iCloud")
+    return service_cls(
+        config.email,
+        config.password,
+        cookie_directory=str(config.session_dir),
+        with_family=config.with_family,
+    )
+
+
+def _service_class(*, request_2fa_push: bool) -> Any:
+    """Return the ``PyiCloudService`` class to build sessions with.
+
+    ``request_2fa_push=False`` (issue #658) returns a subclass whose
+    ``_request_2fa_code`` hook is a no-op: pyicloud calls that hook right after
+    an SRP password login that Apple answers with "2FA required", and it asks
+    Apple to push a code to every trusted device (plus an SMS attempt). In an
+    unattended process nobody ever enters that code — the session serves Find
+    My regardless — so the push is only noise. The hook is private to the
+    pinned ``pyicloud==2.6.5``; :func:`_assert_push_hook_present` (and its
+    test) makes an upgrade that renames it fail loud rather than silently
+    start pushing again.
+    """
+
     try:
         from pyicloud import PyiCloudService
     except ImportError as exc:  # pragma: no cover - covered by requirements
@@ -261,13 +369,32 @@ def _build_service(config: PresenceConfig) -> Any:
             "pyicloud is not installed. Run pip install -r requirements.txt."
         ) from exc
 
-    logger.info("ℹ️ Authenticating with iCloud")
-    return PyiCloudService(
-        config.email,
-        config.password,
-        cookie_directory=str(config.session_dir),
-        with_family=config.with_family,
-    )
+    if request_2fa_push:
+        return PyiCloudService
+
+    _assert_push_hook_present(PyiCloudService)
+
+    class _QuietPyiCloudService(PyiCloudService):  # type: ignore[misc,valid-type]
+        """pyicloud session that never asks Apple to push a 2FA code."""
+
+        def _request_2fa_code(self) -> None:
+            logger.info(
+                "ℹ️ iCloud sign-in needs 2FA; not requesting Apple's trusted-device "
+                "push (unattended session, nobody here can enter the code)"
+            )
+
+    return _QuietPyiCloudService
+
+
+def _assert_push_hook_present(service_cls: Any) -> None:
+    """Fail loud if pyicloud no longer exposes the hook the quiet subclass overrides."""
+
+    if not callable(getattr(service_cls, "_request_2fa_code", None)):
+        raise PresenceConfigError(
+            "pyicloud no longer defines PyiCloudService._request_2fa_code; the "
+            "unattended no-push override in src.presence_client must be re-pinned "
+            "to the new hook before upgrading (issue #658)."
+        )
 
 
 def _connect(config: PresenceConfig) -> Any:
@@ -291,12 +418,18 @@ def invalidate_session(config: PresenceConfig) -> None:
     """
 
     _SERVICE_CACHE.pop(str(config.session_dir), None)
+    _UNTRUSTED_WARNED.discard(str(config.session_dir))
 
 
 def _complete_2fa(
     api: Any, *, verification_code: Optional[str], trust_session: bool
 ) -> None:
-    """Validate a 2FA code if Apple requires one."""
+    """Validate a supplied 2FA code if Apple currently requires one.
+
+    Only reached with an explicit ``verification_code`` (issue #658) — the
+    absence of a code is never a reason to refuse a fetch, so the "no code
+    given" branch below is only hit by direct callers/tests.
+    """
 
     if not bool(getattr(api, "requires_2fa", False)):
         return

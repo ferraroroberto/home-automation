@@ -354,11 +354,21 @@ def test_fetch_presence_keeps_cached_session_on_generic_failure(
     assert len(build_calls) == 1
 
 
-def test_fetch_presence_keeps_cached_session_on_pending_2fa(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
+def test_fetch_presence_serves_cached_session_despite_poisoned_2fa_flag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """Issue #658 regression: pyicloud's in-memory ``requires_2fa`` is not a
+    health signal. Its Find My sub-service flips it true on its own internal
+    re-auth (expired browser trust) while still serving every device; gating
+    on the flag reported working sessions as ``2fa_required`` on every poll
+    after the first, which drove the 4-hourly forced re-auth + Telegram cycle.
+    A fetch that succeeds is healthy - and the session stays cached."""
+
     cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    device = type("Device", (), {})()
+    device.data = {"id": "dev-1", "name": "Phone"}
     api = _FakeApi(requires_2fa=True)
+    api.devices = _FakeDevices([device])
     build_calls = []
 
     def fake_build(config: P.PresenceConfig) -> object:
@@ -366,12 +376,141 @@ def test_fetch_presence_keeps_cached_session_on_pending_2fa(
         return api
 
     monkeypatch.setattr(P, "_build_service", fake_build)
+    monkeypatch.setattr(P, "load_location_config", lambda: None)
+    P._UNTRUSTED_WARNED.discard(str(tmp_path))
 
-    with pytest.raises(P.PresenceAuthError):
-        P.fetch_presence(config=cfg)
-    with pytest.raises(P.PresenceAuthError):
-        P.fetch_presence(config=cfg)
+    with caplog.at_level("WARNING", logger="presence"):
+        first = P.fetch_presence(config=cfg)
+        second = P.fetch_presence(config=cfg)
 
-    # Still cached - a pending 2FA state doesn't force a fresh Apple handshake.
+    assert [e.entity_id for e in first] == ["dev-1"]
+    assert [e.entity_id for e in second] == ["dev-1"]
+    assert api.devices.refreshed is True
     assert len(build_calls) == 1
     assert str(cfg.session_dir) in P._SERVICE_CACHE
+    # Edge-triggered: one "untrusted session" warning per session build, not per poll.
+    untrusted = [r for r in caplog.records if "untrusted session" in r.getMessage()]
+    assert len(untrusted) == 1
+
+
+def test_fetch_presence_maps_pyicloud_auth_failure_to_auth_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A fetch Apple actually refuses is what "really broken" means (#658):
+    pyicloud's auth-flavoured exceptions become PresenceAuthError (so the
+    refresher reports ``2fa_required`` and its backoff-gated self-heal
+    applies) - and, per #656, the session is still not evicted here."""
+
+    from pyicloud.exceptions import PyiCloudAuthRequiredException
+
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    build_calls = []
+
+    def fake_build(config: P.PresenceConfig) -> object:
+        build_calls.append(config)
+        return _FakeApi()
+
+    monkeypatch.setattr(P, "_build_service", fake_build)
+    monkeypatch.setattr(P, "load_location_config", lambda: None)
+
+    def refuse(devices: object) -> list[object]:
+        raise PyiCloudAuthRequiredException("a@example.com", None)
+
+    monkeypatch.setattr(P, "_iter_devices", refuse)
+
+    with pytest.raises(P.PresenceAuthError, match="refused the session"):
+        P.fetch_presence(config=cfg)
+
+    assert str(cfg.session_dir) in P._SERVICE_CACHE
+    assert len(build_calls) == 1
+
+
+def test_is_auth_failure_only_matches_pyicloud_auth_exceptions() -> None:
+    from pyicloud.exceptions import (
+        PyiCloud2FARequiredException,
+        PyiCloudFailedLoginException,
+        PyiCloudNoDevicesException,
+    )
+
+    assert P._is_auth_failure(PyiCloud2FARequiredException("a@example.com", None))
+    assert P._is_auth_failure(PyiCloudFailedLoginException("bad password"))
+    assert not P._is_auth_failure(PyiCloudNoDevicesException())
+    assert not P._is_auth_failure(RuntimeError("network down"))
+
+
+def test_fetch_presence_applies_code_after_fetch_when_flag_flips_inside_devices(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """The internal re-auth that needs the code happens *inside* the fetch
+    (Find My 450 -> accountLogin -> SRP), so an explicit ``--2fa-code`` must be
+    applied again afterwards or the browser trust is never renewed (#658)."""
+
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+
+    class _FlippingApi(_FakeApi):
+        @property
+        def devices(self) -> _FakeDevices:
+            self.requires_2fa = True  # pyicloud's sub-service poisons the flag mid-fetch
+            return self._devices
+
+        @devices.setter
+        def devices(self, value: _FakeDevices) -> None:
+            self._devices = value
+
+    api = _FlippingApi(requires_2fa=False)
+    monkeypatch.setattr(P, "_build_service", lambda config: api)
+    monkeypatch.setattr(P, "load_location_config", lambda: None)
+
+    P.fetch_presence(config=cfg, verification_code="123456")
+
+    assert api.requires_2fa is False
+    assert api.trusted is True
+
+
+def test_service_class_quiet_variant_never_requests_2fa_push() -> None:
+    """The unattended tray must not have pyicloud ask Apple to push a 2FA code
+    (#658) - the attended CLI keeps pyicloud's real hook. The pinned
+    ``pyicloud==2.6.5`` hook must still exist, or the override is dead code."""
+
+    from pyicloud import PyiCloudService
+
+    assert P._service_class(request_2fa_push=True) is PyiCloudService
+    assert callable(getattr(PyiCloudService, "_request_2fa_code", None))
+
+    quiet = P._service_class(request_2fa_push=False)
+    assert issubclass(quiet, PyiCloudService)
+    assert quiet._request_2fa_code is not PyiCloudService._request_2fa_code
+    # The override touches nothing on the instance - a bare object stands in.
+    quiet._request_2fa_code(object.__new__(quiet))
+
+
+def test_assert_push_hook_present_fails_loud_when_pyicloud_renames_hook() -> None:
+    class _NoHook:
+        pass
+
+    with pytest.raises(P.PresenceConfigError, match="_request_2fa_code"):
+        P._assert_push_hook_present(_NoHook)
+
+
+def test_build_service_uses_quiet_class_when_push_disabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    seen: list[bool] = []
+
+    class _Recorder:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    def fake_service_class(*, request_2fa_push: bool) -> type:
+        seen.append(request_2fa_push)
+        return _Recorder
+
+    monkeypatch.setattr(P, "_service_class", fake_service_class)
+    cfg = P.PresenceConfig(
+        email="a@example.com", password="x", session_dir=tmp_path, request_2fa_push=False
+    )
+
+    api = P._build_service(cfg)
+
+    assert seen == [False]
+    assert api.kwargs["cookie_directory"] == str(tmp_path)
