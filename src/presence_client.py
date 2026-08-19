@@ -588,6 +588,12 @@ def complete_trust_renewal(config: PresenceConfig, code: str) -> TrustRenewalSta
         )
 
     api = pending.api
+    logger.info(
+        "🔎 iCloud account %s: verifying 2FA code via %s (delivery: %s)",
+        config.label,
+        _verification_path(api),
+        str(getattr(api, "two_factor_delivery_method", "unknown") or "unknown"),
+    )
     try:
         accepted = bool(api.validate_2fa_code(code))
     except Exception as exc:  # noqa: BLE001 - mapped to a user-facing state
@@ -599,6 +605,20 @@ def complete_trust_renewal(config: PresenceConfig, code: str) -> TrustRenewalSta
             exc,
         )
         return TrustRenewalState("failed", detail=_apple_detail(exc), trusted=False)
+
+    if not accepted and _apple_granted_trust_anyway(api):
+        # Issue #662: pyicloud's trusted-device *bridge* verification can
+        # report failure client-side after Apple has already accepted the
+        # approval (seen live 2026-08-19: three "rejected" codes, then the
+        # next begin found the session already trusted). trust_session() is
+        # a push-free, SRP-free re-login by token, so it is a safe second
+        # opinion before telling the user the code was wrong.
+        accepted = True
+        logger.info(
+            "ℹ️ iCloud account %s: code reported rejected client-side but Apple "
+            "granted browser trust — treating as verified",
+            config.label,
+        )
 
     if not accepted:
         pending.attempts += 1
@@ -641,6 +661,41 @@ def complete_trust_renewal(config: PresenceConfig, code: str) -> TrustRenewalSta
 
 def _discard_pending(key: str) -> None:
     _PENDING_TRUST.pop(key, None)
+
+
+def _verification_path(api: Any) -> str:
+    """Name the pyicloud 2.6.5 path ``validate_2fa_code`` will take (log breadcrumb)."""
+
+    bridge_state = getattr(api, "_trusted_device_bridge_state", None)
+    if bridge_state is None:
+        return "legacy endpoint"
+    if bool(getattr(bridge_state, "uses_legacy_trusted_device_verifier", False)):
+        return "legacy endpoint (bridge opted out)"
+    return "trusted-device bridge"
+
+
+def _apple_granted_trust_anyway(api: Any) -> bool:
+    """After a client-side ``False`` from ``validate_2fa_code``, ask Apple.
+
+    ``trust_session()`` (public pyicloud API) GETs ``2sv/trust`` and re-logs
+    in by token — no SRP, no push. It returns True only when Apple reports the
+    session trusted; a False leaves ``is_trusted_session`` false (so
+    ``requires_2fa`` stays true and the pending challenge is still retryable).
+    """
+
+    trust = getattr(api, "trust_session", None)
+    if not callable(trust):
+        return False
+    try:
+        granted = bool(trust())
+    except Exception as exc:  # noqa: BLE001 - a failed probe is just "not trusted"
+        logger.info("ℹ️ trust probe after rejected code failed: %s: %s", type(exc).__name__, exc)
+        return False
+    return (
+        granted
+        and bool(getattr(api, "is_trusted_session", False))
+        and not bool(getattr(api, "requires_2fa", False))
+    )
 
 
 def _adopt_service(config: PresenceConfig, api: Any) -> None:
