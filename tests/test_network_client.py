@@ -39,6 +39,42 @@ def test_ping_hides_windows_console(monkeypatch) -> None:
     assert calls[0]["creationflags"] == subprocess.CREATE_NO_WINDOW
 
 
+def _capture_console_probe_kwargs(monkeypatch, platform: str) -> list[dict[str, Any]]:
+    """Drive both host console probes and return the kwargs they spawned with."""
+    calls: list[dict[str, Any]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append({"cmd": cmd, **kwargs})
+        return subprocess.CompletedProcess(cmd, 0, stdout="")
+
+    monkeypatch.setattr(network_host.sys, "platform", platform)
+    monkeypatch.setattr(network_host.subprocess, "run", fake_run)
+
+    network_host._ping("192.0.2.1", count=1, timeout_s=1)
+    network_host._run_quiet(["netsh", "wlan", "show", "interfaces"])
+    return calls
+
+
+def test_console_probes_pin_oem_decoding_on_windows(monkeypatch) -> None:
+    """ping/netsh emit the OEM code page — never inherit text=True's locale.
+
+    The webapp runs under PYTHONUTF8=1 (app/webapp/manager.py), so an ambient
+    UTF-8 decode of an OEM-page reply silently yields empty/garbled stdout that
+    the callers read as "the probe found nothing" rather than as a failure.
+    """
+    calls = _capture_console_probe_kwargs(monkeypatch, "win32")
+
+    assert [c["encoding"] for c in calls] == ["oem", "oem"]
+    assert [c["errors"] for c in calls] == ["replace", "replace"]
+
+
+def test_console_probes_use_utf8_off_windows(monkeypatch) -> None:
+    """POSIX has no ``oem`` codec (it would raise LookupError) — and no need."""
+    calls = _capture_console_probe_kwargs(monkeypatch, "linux")
+
+    assert [c["encoding"] for c in calls] == ["utf-8", "utf-8"]
+
+
 def test_ping_reachable_true_when_ping_gets_a_reply(monkeypatch) -> None:
     monkeypatch.setattr(network_host, "_ping", lambda host, count=4, timeout_s=2: (3.5, 0.0))
 
