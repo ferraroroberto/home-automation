@@ -173,6 +173,49 @@ deliberate user action with a confirm — never automatic.
 > `is_new` badge, and the dimmed `online=false` row with its `important` flag.
 > `NetworkState.alerts` itself stays: `src/list_network.py` still prints it.
 
+## Why a lease-sourced row is "no link", not offline (#550, #552)
+
+A DHCP lease outlives the client that held it, so some router-sourced rows are
+phones that left hours ago — they come back in the read with no band, no SSID
+and no signal, and the list originally rendered them as ordinary online devices
+(16 of 63 "online" rows in one live snapshot). The classification **cannot** be
+done server-side: the lease table's `PhyPortName` reads `LAN4` for every client
+behind the access point, wired or not, and some lease-only rows still answer a
+ping. So it is the UI that declines to vouch for them — it asks for evidence of
+the link (a signal reading, or a wired connection) and shows anything else as
+**no link**, riding the same **Offline** toggle: hidden by default, revealed
+dimmed in a trailing **No link** group (band view) or shaded in place (group
+view), and excluded from a group header's *online* count, so "13/13 online"
+cannot be four absent phones.
+
+They are deliberately *not* relabelled offline. The read never established that
+they are gone, and the backend `online` flag — plus everything built on it: the
+history registry, the synthesised offline row an *important* device produces —
+keeps meaning "returned by this read".
+
+**Ping-probe promotion (#552)** acts on the "some lease-only rows still answer a
+ping" observation. Every read's no-link subset (signal-less, non-wired, has an
+IP) gets a bounded, concurrent host-side ping probe, cached briefly per device
+so a flapping result does not flicker between polls. A device that answers is
+promoted into the live view with its own **Reachable** marker — a distinct badge
+plus a "reachable via ping" signal-slot label — so it is clear the promotion came
+from a probe and not from AP/router evidence. A device that does not answer stays
+dimmed under **No link**. The probe never touches devices that already have
+AP/router evidence, and a synthesised offline row (genuinely absent from the
+read) is never probed.
+
+## Display groups are not `dhcp_plan.json` categories (#513, #519)
+
+~55 leases is too long a list to answer *"are all four Elgato lights up?"*, hence
+the **My groups** mode. Those groups are display-only and deliberately
+**independent of `config/dhcp_plan.json`'s categories**, which exist to drive
+IP-range assignment for reservations — one taxonomy quietly serving two purposes
+is how the reservation drift signal gets ruined.
+
+Devices behind the garage client bridge report an extender-translated
+`02:0F:B5:*` MAC, so they group under that derived identity; a device moved off
+the bridge simply reappears under Unclassified with its real address.
+
 ## Follow-up checklist
 
 - [x] ZTE `menuData` session-token scheme → WAN/internet status read (#129 Phase 3)
