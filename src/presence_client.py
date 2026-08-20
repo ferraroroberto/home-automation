@@ -1,9 +1,12 @@
 """
 iCloud Find My presence client
 ==============================
-Read-only spike client for Apple Find My device locations. The goal is to
-prove whether iCloud can provide a useful home/away input for later HVAC
-automation; this module does not drive any HVAC action.
+Read-only client for Apple Find My device locations, plus the attended
+browser-trust renewal flow the PWA drives. It is load-bearing for automation,
+not a spike: ``fetch_presence()`` produces the ``PresenceCorroboration`` signal
+``src/presence_engine.py`` uses to let a *stale* webhook person still count as
+fresh (issue #653), which is what permits an automatic arm or disarm of the
+house alarm. It drives no HVAC action.
 
 Config (from ``.env``):
 
