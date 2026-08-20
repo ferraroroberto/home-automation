@@ -6,6 +6,7 @@ import asyncio
 import hmac
 import logging
 import re
+from collections import OrderedDict
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import os
@@ -58,7 +59,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_REVERSE_CACHE: Dict[str, Dict[str, Any]] = {}
+# Nominatim answers are best-effort and the keyspace is open-ended (one entry
+# per lat/lon rounded to ~11 m, so a phone in motion mints a new one every few
+# seconds), while the webapp runs for weeks between tray restarts. Bounded
+# LRU for the same reason `ha_trace_collector._SeenRuns` is bounded (#667);
+# least-recently-used eviction keeps the household's usual places resident.
+REVERSE_CACHE_LIMIT = 256
+_REVERSE_CACHE: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
 
 
 def _entity_payload(
@@ -848,6 +855,7 @@ async def _reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
 
     key = f"{lat:.4f},{lon:.4f}"
     if key in _REVERSE_CACHE:
+        _REVERSE_CACHE.move_to_end(key)
         return _REVERSE_CACHE[key]
     url = "https://nominatim.openstreetmap.org/reverse"
     params = {"format": "jsonv2", "lat": f"{lat:.6f}", "lon": f"{lon:.6f}", "zoom": "16"}
@@ -864,6 +872,9 @@ async def _reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
     label = _short_place(str(data.get("display_name") or ""))
     payload = {"available": bool(label), "label": label}
     _REVERSE_CACHE[key] = payload
+    _REVERSE_CACHE.move_to_end(key)
+    while len(_REVERSE_CACHE) > REVERSE_CACHE_LIMIT:
+        _REVERSE_CACHE.popitem(last=False)
     return payload
 
 
