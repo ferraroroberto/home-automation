@@ -1,7 +1,7 @@
 """
 Elgato light LAN client
 =======================
-UI-free spike core for Elgato Key Light style devices.
+UI-free domain core for Elgato Key Light style devices.
 
 Elgato lights expose a small local HTTP API on port 9123. Discovery uses the
 ``_elg._tcp.local.`` mDNS service when available, and ``ELGATO_LIGHT_HOSTS`` is

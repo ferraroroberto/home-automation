@@ -15,8 +15,6 @@ import { state, TAB_KEY } from './state.js';
 import { recordNavEvent } from './nav-debug.js';
 import { initNavTabs } from './_vendored/nav/nav-tabs.js';
 
-let nav = null;
-
 // Tabs folded into 'iot' (issue #136). The vendored switcher drops a stored tab
 // name it doesn't recognise and falls back to the first one, so without this an
 // installed PWA parked on Plugs or Light silently reopens on Home. Rewriting the
@@ -32,13 +30,9 @@ function migrateStoredTab() {
   } catch (_) { /* private mode */ }
 }
 
-export function setTab(tab) {
-  if (nav) nav.setTab(tab);
-}
-
 export function wireTabs(onTab) {
   migrateStoredTab();
-  nav = initNavTabs({
+  initNavTabs({
     storageKey: TAB_KEY,
     navEvent: recordNavEvent,
     onChange: function (tab) {
