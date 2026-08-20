@@ -1,7 +1,9 @@
 /* Named-places dense-collection editor for the "where's mom/dad" voice locator
  * (issue #438). Same summary-row + staged-dialog contract as
  * ./security-schedules.js (list-row summary → Edit opens a staged <dialog>;
- * Save is the only persistence boundary; the whole list is PUT back).
+ * Save is the only persistence boundary; the whole list is PUT back), and
+ * since #664 the same shared `renderSummaryRow` scaffolding too — a place has
+ * nothing to enable, so it passes no `toggleName`.
  *
  * The "Pick on map" flow adds a second, stacked <dialog> with a vendored
  * Leaflet map (static/vendor/leaflet/) so a place doesn't have to be typed
@@ -12,7 +14,7 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
-import { denseListEditor } from './dense-editor.js';
+import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { closeDialog, openDialog } from './dialog.js';
 
 const DEFAULT_RADIUS_M = 150;
@@ -58,29 +60,14 @@ export function renderPresencePlaces() {
   els.presencePlacesNote.hidden = true;
 
   state.presencePlacesList.forEach(function (entry, idx) {
-    const row = document.createElement('div');
-    row.className = 'list-row automation-summary-row';
-    row.dataset.placeId = entry.id;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'automation-summary-main';
-    main.setAttribute('aria-label', 'Edit place ' + entry.label);
-
-    const copy = document.createElement('span');
-    copy.className = 'automation-summary-copy';
-    const title = document.createElement('span');
-    title.className = 'automation-summary-title';
-    title.textContent = entry.label;
-    const meta = document.createElement('span');
-    meta.className = 'automation-summary-meta';
-    meta.textContent = fmtRadius(entry.radius_m);
-    copy.appendChild(title);
-    copy.appendChild(meta);
-    main.appendChild(copy);
-    main.addEventListener('click', function () { placeEditor.open(idx, main); });
-    row.appendChild(main);
-    els.presencePlacesList.appendChild(row);
+    els.presencePlacesList.appendChild(renderSummaryRow({
+      id: entry.id,
+      idAttr: 'placeId',
+      title: entry.label,
+      meta: fmtRadius(entry.radius_m),
+      openLabel: 'Edit place ' + entry.label,
+      onOpen: function (btn) { placeEditor.open(idx, btn); },
+    }));
   });
 }
 

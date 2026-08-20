@@ -23,6 +23,7 @@ import {
   toast,
   reportFetchFailure,
   reportFetchOk,
+  persistedFlag,
   PRESENCE_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
@@ -39,6 +40,9 @@ import { confirmAction } from './confirm.js';
 // same convention security.js itself uses for its own sub-modules.
 export { loadLocation } from './presence-location.js';
 export { loadPresenceAutomation } from './presence-automation.js';
+
+// The "show hidden people" filter, on the shared localStorage wrapper.
+const showHiddenPref = persistedFlag(PRESENCE_SHOW_HIDDEN_KEY, false);
 
 const presenceView = createViewState();
 
@@ -770,11 +774,7 @@ async function togglePresenceHidden() {
 }
 
 export function wirePresenceControls() {
-  try {
-    if (localStorage.getItem(PRESENCE_SHOW_HIDDEN_KEY) === 'true') {
-      state.presenceShowHidden = true;
-    }
-  } catch (_) { /* private mode */ }
+  state.presenceShowHidden = showHiddenPref.read();
 
   if (hydrateThisDeviceLocation()) renderPresence();
   refreshThisDeviceLocation();
@@ -784,9 +784,7 @@ export function wirePresenceControls() {
       ev.preventDefault();
       ev.stopPropagation();
       state.presenceShowHidden = !state.presenceShowHidden;
-      try {
-        localStorage.setItem(PRESENCE_SHOW_HIDDEN_KEY, String(state.presenceShowHidden));
-      } catch (_) { /* private mode */ }
+      showHiddenPref.write(state.presenceShowHidden);
       renderPresence();
     });
   }

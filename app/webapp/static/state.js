@@ -804,14 +804,23 @@ export function persistedPref(key, fallback) {
 }
 
 /** `persistedPref` for an on/off flag stored as `'1'`/`'0'`. `read()` is a
- *  boolean (absent or unreadable → `fallback`, default `false`). */
+ *  boolean (absent or unreadable → `fallback`, default `false`).
+ *
+ *  `read()` also accepts the legacy `'true'`/`'false'` spelling (issue #664):
+ *  the circuits / plugs / presence / security "show hidden" flags hand-rolled
+ *  their own `localStorage` try/catch pair writing `String(bool)` before they
+ *  moved onto this helper, and a browser that already has one of those values
+ *  stored must keep its setting rather than silently reverting to the default.
+ *  Writes are always the canonical `'1'`/`'0'`, so a key self-migrates the
+ *  first time the user flips it. */
 export function persistedFlag(key, fallback) {
   const pref = persistedPref(key, null);
   const missing = fallback === undefined ? false : fallback;
   return {
     read() {
       const raw = pref.read();
-      return raw === null ? missing : raw === '1';
+      if (raw === null) return missing;
+      return raw === '1' || raw === 'true';
     },
     write(on) { pref.write(on ? '1' : '0'); },
   };

@@ -28,6 +28,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from app.webapp.routers._helpers import _json_body
 from src.pc_fleet_prefs import (
     PcFleetPrefs,
     load_pc_fleet_prefs,
@@ -74,12 +75,7 @@ async def get_pc_fleet_prefs() -> Dict[str, Any]:
 @router.put("/api/pc-fleet/prefs")
 async def update_pc_fleet_prefs(request: Request) -> Dict[str, Any]:
     """Accept the whole prefs object, persist it, and echo back what was saved."""
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="expected a JSON body")
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="expected a JSON object")
+    body = await _json_body(request)
 
     current = load_pc_fleet_prefs()
     excluded = body.get("excluded", current.excluded)

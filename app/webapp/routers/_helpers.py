@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from src.notify_config import is_notify_configured
 from src.static_versioning import BuildInfo
 
 logger = logging.getLogger(__name__)
@@ -132,6 +133,69 @@ def make_list_crud_router(
 
     router.get(path)(get_entries)
     router.put(path)(update_entries)
+    return router
+
+
+def make_bool_prefs_router(
+    load_fn: Callable[[], Any],
+    save_fn: Callable[[Any], Any],
+    prefs_cls: Type[Any],
+    *,
+    path: str,
+    noun: str = "notify prefs",
+    log_noun: Optional[str] = None,
+    slug: Optional[str] = None,
+    get_doc: Optional[str] = None,
+) -> APIRouter:
+    """Build a GET/PUT router for one frozen all-boolean preferences dataclass.
+
+    Collapses the shape shared by the alarm notify-prefs and UPS power
+    notify-prefs routers (issue #664): a GET that loads the prefs and wraps
+    them in ``{prefs, telegram_configured}`` (500 + warning on failure), and a
+    PUT that merges whatever boolean fields the body carries over the
+    currently-saved values, persists the reconstructed dataclass, and echoes
+    the same payload back. Partial bodies are the contract — the UI PUTs one
+    toggle at a time — so any field the body omits keeps its saved value.
+
+    The ``src`` half of this pair was deduped into ``src/_toggle_prefs.py``
+    long before the router half; this is the router half. ``noun`` is the
+    phrase in the HTTP ``detail`` text, ``log_noun`` overrides it for the
+    warning line, ``slug`` names the generated handlers.
+    """
+    log_phrase = log_noun or noun
+    handler_slug = slug or re.sub(r"[^a-z0-9]+", "_", noun.lower()).strip("_")
+
+    router = APIRouter()
+
+    def payload(prefs: Any) -> Dict[str, Any]:
+        return {"prefs": asdict(prefs), "telegram_configured": is_notify_configured()}
+
+    async def get_prefs() -> Dict[str, Any]:
+        try:
+            return payload(load_fn())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️  Failed to load %s: %s", log_phrase, exc)
+            raise HTTPException(status_code=500, detail=f"failed to load {noun}: {exc}")
+
+    async def update_prefs(request: Request) -> Dict[str, Any]:
+        body = await _json_body(request)
+        current = asdict(load_fn())
+        updated = {key: bool(body.get(key, current[key])) for key in current}
+        try:
+            prefs = prefs_cls(**updated)
+            save_fn(prefs)
+            return payload(prefs)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️  Failed to save %s: %s", log_phrase, exc)
+            raise HTTPException(status_code=500, detail=f"failed to save {noun}: {exc}")
+
+    get_prefs.__name__ = f"get_{handler_slug}"
+    update_prefs.__name__ = f"update_{handler_slug}"
+    if get_doc:
+        get_prefs.__doc__ = get_doc
+
+    router.get(path)(get_prefs)
+    router.put(path)(update_prefs)
     return router
 
 
