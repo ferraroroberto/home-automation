@@ -43,6 +43,27 @@ logger = logging.getLogger(__name__)
 _EXTERNAL_PROBE_HOST = "1.1.1.1"
 
 
+def _console_encoding() -> str:
+    """Decoding to pin when capturing a native OS console tool's stdout.
+
+    Windows console tools (``ping``, ``netsh``, …) write the **OEM** code page,
+    not UTF-8, and this app's webapp process runs under ``PYTHONUTF8=1`` /
+    ``PYTHONIOENCODING=utf-8`` (``app/webapp/manager.py``) — so a capture that
+    inherits the ambient locale decodes with the wrong codec. That does not
+    raise: it hands back empty or replacement-filled text, which every caller
+    here reads as "the probe found nothing" (blank latency/loss on the
+    internet-health tile, an empty Wi-Fi diagnostics tile, a no-link device that
+    silently stops being promoted). The fleet rule "Windows Python: UTF-8 stdout
+    under capture" therefore requires every such call site to pin its own
+    decoding rather than inherit ``text=True``'s ambient locale.
+
+    POSIX has no ``oem`` codec and its tools speak UTF-8, so the branch is read
+    per call; ``errors="replace"`` at the call sites keeps one odd byte costing
+    a character rather than the whole probe.
+    """
+    return "oem" if sys.platform.startswith("win") else "utf-8"
+
+
 # --------------------------------------------------------------------------- #
 # Internet health (host-side)                                                 #
 # --------------------------------------------------------------------------- #
@@ -61,6 +82,8 @@ def _ping(host: str, count: int = 4, timeout_s: int = 2) -> tuple[Optional[float
             cmd,
             capture_output=True,
             text=True,
+            encoding=_console_encoding(),
+            errors="replace",
             timeout=count * timeout_s + 5,
             stdin=subprocess.DEVNULL,
             creationflags=NO_WINDOW,
@@ -113,7 +136,7 @@ def _run_quiet(cmd: list[str], timeout: int = 12) -> str:
         cmd,
         capture_output=True,
         text=True,
-        encoding="utf-8",
+        encoding=_console_encoding(),
         errors="replace",
         timeout=timeout,
         stdin=subprocess.DEVNULL,
