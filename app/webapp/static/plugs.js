@@ -10,7 +10,10 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchOk, PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY } from './state.js';
+import {
+  state, els, toast, reportFetchOk, persistedFlag,
+  PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY,
+} from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW } from './format.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
@@ -19,6 +22,11 @@ import { createViewState, markTabFailure, renderFeedback } from './view-state.js
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { confirmAction } from './confirm.js';
+
+// The two list filters, on the shared localStorage wrapper. `showAll`
+// falls back to the in-memory default (true) when nothing is stored.
+const showAllPref = persistedFlag(PLUGS_SHOW_ALL_KEY, true);
+const showHiddenPref = persistedFlag(PLUGS_SHOW_HIDDEN_KEY, false);
 
 const POLL_MS = 15_000;
 
@@ -419,19 +427,13 @@ export function renderPlugs() {
 // ------------------------------------------------------- toggle wiring
 export function wirePlugsToggle() {
   // Restore persisted preferences on page load.
-  try {
-    const stored = localStorage.getItem(PLUGS_SHOW_ALL_KEY);
-    if (stored === 'true') state.plugsShowAll = true;
-    else if (stored === 'false') state.plugsShowAll = false;
-    state.plugsShowHidden = localStorage.getItem(PLUGS_SHOW_HIDDEN_KEY) === 'true';
-  } catch (_) { /* private mode */ }
+  state.plugsShowAll = showAllPref.read();
+  state.plugsShowHidden = showHiddenPref.read();
 
   if (els.plugsToggleBtn) {
     els.plugsToggleBtn.addEventListener('click', function () {
       state.plugsShowAll = !state.plugsShowAll;
-      try {
-        localStorage.setItem(PLUGS_SHOW_ALL_KEY, String(state.plugsShowAll));
-      } catch (_) { /* private mode */ }
+      showAllPref.write(state.plugsShowAll);
       renderPlugs();
     });
   }
@@ -439,9 +441,7 @@ export function wirePlugsToggle() {
   if (els.plugsHiddenToggle) {
     els.plugsHiddenToggle.addEventListener('click', function () {
       state.plugsShowHidden = !state.plugsShowHidden;
-      try {
-        localStorage.setItem(PLUGS_SHOW_HIDDEN_KEY, String(state.plugsShowHidden));
-      } catch (_) { /* private mode */ }
+      showHiddenPref.write(state.plugsShowHidden);
       renderPlugs();
     });
   }

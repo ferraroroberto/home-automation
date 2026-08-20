@@ -21,7 +21,7 @@
 'use strict';
 
 import {
-  state, els, toast, reportFetchOk,
+  state, els, toast, reportFetchOk, persistedFlag,
   CIRCUITS_COLLAPSED_KEY, CIRCUITS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
@@ -37,6 +37,9 @@ const POLL_MS = 15_000;
 // on every poll, so this cannot live in the DOM the way voice-commands.js's
 // groups can — that card renders once. Held here and re-applied each render.
 const collapsedMeters = new Set();
+
+// The "show hidden terminals" filter, on the shared localStorage wrapper.
+const showHiddenPref = persistedFlag(CIRCUITS_SHOW_HIDDEN_KEY, false);
 
 function loadCollapsedMeters() {
   try {
@@ -472,9 +475,7 @@ export async function loadCircuits() {
 // the server's mDNS discovery TTL lapses. POST /api/circuits/refresh still
 // exists for a forced sweep from the command line.
 export function wireCircuitsToggle() {
-  try {
-    state.circuitsShowHidden = localStorage.getItem(CIRCUITS_SHOW_HIDDEN_KEY) === 'true';
-  } catch (_) { /* private mode */ }
+  state.circuitsShowHidden = showHiddenPref.read();
   loadCollapsedMeters();
 
   if (!els.circuitsHiddenToggle) return;
@@ -484,9 +485,7 @@ export function wireCircuitsToggle() {
     ev.preventDefault();
     ev.stopPropagation();
     state.circuitsShowHidden = !state.circuitsShowHidden;
-    try {
-      localStorage.setItem(CIRCUITS_SHOW_HIDDEN_KEY, String(state.circuitsShowHidden));
-    } catch (_) { /* private mode */ }
+    showHiddenPref.write(state.circuitsShowHidden);
     renderCircuits();
   });
 }

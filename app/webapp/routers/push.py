@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.webapp.routers._helpers import _json_body
 from src.push_notifications import load_push_config, save_subscription
 
 router = APIRouter()
@@ -19,12 +20,7 @@ async def get_push_config() -> Dict[str, Any]:
 
 @router.post("/api/push/subscriptions")
 async def post_push_subscription(request: Request) -> Dict[str, Any]:
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="expected a JSON body")
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="expected a JSON object")
+    body = await _json_body(request)
     try:
         count = save_subscription(body)
     except Exception as exc:  # noqa: BLE001

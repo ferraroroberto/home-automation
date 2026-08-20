@@ -13,13 +13,16 @@
 
 'use strict';
 
-import { state, els, toast, SECURITY_SHOW_HIDDEN_KEY } from './state.js';
+import { state, els, toast, persistedFlag, SECURITY_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi, reportActionFailure } from './api.js';
 import { fmtTime } from './presence.js';
 import { renderSecurity } from './security.js';
 import { toggleMarkup } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { closeDialog, openDialog } from './dialog.js';
+
+// The "show hidden detectors" filter, on the shared localStorage wrapper.
+const showHiddenPref = persistedFlag(SECURITY_SHOW_HIDDEN_KEY, false);
 
 // The full alarm-control row, in display order. Always rendered; the live state
 // machine decides which are tappable and which is the current (selected) one.
@@ -552,20 +555,14 @@ export function wireZoneDetail() {
 // The button lives in the <summary>, so swallow the click so it flips the filter
 // instead of collapsing the card.
 export function wireSecurityHiddenToggle() {
-  try {
-    if (localStorage.getItem(SECURITY_SHOW_HIDDEN_KEY) === 'true') {
-      state.securityShowHidden = true;
-    }
-  } catch (_) { /* private mode */ }
+  state.securityShowHidden = showHiddenPref.read();
 
   if (!els.securityHiddenToggle) return;
   els.securityHiddenToggle.addEventListener('click', function (ev) {
     ev.preventDefault();
     ev.stopPropagation();
     state.securityShowHidden = !state.securityShowHidden;
-    try {
-      localStorage.setItem(SECURITY_SHOW_HIDDEN_KEY, String(state.securityShowHidden));
-    } catch (_) { /* private mode */ }
+    showHiddenPref.write(state.securityShowHidden);
     renderZones();
   });
 }

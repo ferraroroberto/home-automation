@@ -615,30 +615,18 @@ def evaluate_staleness_block(
     return StalePresenceBlock(key=key, stale_person_ids=stale_ids)
 
 
-def load_arm_block() -> Dict[str, Any]:
-    """Return the persisted arm-block diagnostic, or the all-clear default."""
-
-    meta = _load_state().get("automation", {})
-    if not isinstance(meta, dict):
-        meta = {}
-    return {
-        "blocked": bool(meta.get("arm_blocked", False)),
-        "person_ids": list(meta.get("arm_blocked_person_ids") or []),
-        "since": meta.get("arm_blocked_since"),
-    }
-
-
-# Floor between retried arm-block notification attempts once one is due
-# (issue #601) — independent of ``dwell_s``, which only gates the *first*
-# attempt. Without this, a send that keeps declining or failing (Telegram
-# down, no notifier configured, the ``error`` toggle off) would be
-# re-attempted on every ~10s presence poll tick instead of backing off.
+# Floor between retried block-notification attempts once one is due (issue
+# #601) — independent of ``dwell_s``, which only gates the *first* attempt.
+# Without this, a send that keeps declining or failing (Telegram down, no
+# notifier configured, the ``error`` toggle off) would be re-attempted on
+# every ~10s presence poll tick instead of backing off. Shared by both block
+# namespaces below.
 _ARM_BLOCK_RETRY_COOLDOWN_S = 300
 
 
 @dataclass(frozen=True)
 class ArmBlockObservation:
-    """What one :func:`set_arm_block` call observed.
+    """What one :func:`set_arm_block` / :func:`set_staleness_block` call observed.
 
     ``changed`` is a *new episode* (newly appeared, different blocking people,
     or newly cleared) — the log-once signal. ``notify`` additionally requires
@@ -654,6 +642,130 @@ class ArmBlockObservation:
     notify: bool
 
 
+@dataclass(frozen=True)
+class _BlockNamespace:
+    """One block-diagnostic notification state machine over its own key space.
+
+    The arm-block ("someone fresh is still home") and stale-block ("the engine
+    can't tell what's going on with someone") diagnostics run the *same*
+    changed / notify / dwell / cooldown contract and must never share a notify
+    latch — so each persists under an independent ``<prefix>_blocked_*`` key
+    namespace. That independence is what the ``prefix`` argument buys (issue
+    #664); it used to be bought by a verbatim copy of the whole machine, which
+    is exactly the kind of clone that drifts the moment one side is fixed.
+
+    ``person_ids_attr`` is the block dataclass's ids field
+    (:class:`PresenceBlock` names it ``blocking_person_ids``,
+    :class:`StalePresenceBlock` ``stale_person_ids``). ``track_since`` adds the
+    ``<prefix>_blocked_since`` key: the arm-block diagnostic surfaces the
+    blocking person's ``state_since`` in the API payload, while the stale one
+    has no equivalent timestamp and must not grow a phantom key.
+    """
+
+    prefix: str
+    person_ids_attr: str
+    track_since: bool = False
+
+    @property
+    def _flag(self) -> str:
+        return f"{self.prefix}_blocked"
+
+    def _key(self, suffix: str) -> str:
+        return f"{self.prefix}_blocked_{suffix}"
+
+    def load(self) -> Dict[str, Any]:
+        """Return the persisted diagnostic, or the all-clear default."""
+
+        meta = _load_state().get("automation", {})
+        if not isinstance(meta, dict):
+            meta = {}
+        payload: Dict[str, Any] = {
+            "blocked": bool(meta.get(self._flag, False)),
+            "person_ids": list(meta.get(self._key("person_ids")) or []),
+        }
+        if self.track_since:
+            payload["since"] = meta.get(self._key("since"))
+        return payload
+
+    def mark_notified(self, key: str) -> None:
+        raw = _load_state()
+        meta = _automation_meta(raw)
+        if str(meta.get(self._key("key")) or "") != key:
+            return  # the episode has already moved on; nothing to mark
+        meta[self._key("notified")] = True
+        _save_state(raw)
+
+    def mark_attempted(self, key: str, *, at: Optional[datetime] = None) -> None:
+        raw = _load_state()
+        meta = _automation_meta(raw)
+        if str(meta.get(self._key("key")) or "") != key:
+            return
+        meta[self._key("last_attempt_at")] = _iso(at or now_utc())
+        _save_state(raw)
+
+    def set(
+        self,
+        block: Optional[Any],
+        *,
+        dwell_s: int = 0,
+        at: Optional[datetime] = None,
+    ) -> ArmBlockObservation:
+        stamp = at or now_utc()
+        raw = _load_state()
+        meta = _automation_meta(raw)
+        prior_key = str(meta.get(self._key("key")) or "")
+        if block is None:
+            changed = prior_key != ""
+            meta[self._flag] = False
+            meta[self._key("person_ids")] = []
+            if self.track_since:
+                meta[self._key("since")] = None
+            meta[self._key("key")] = ""
+            meta[self._key("first_seen")] = None
+            meta[self._key("notified")] = False
+            meta[self._key("last_attempt_at")] = None
+            _save_state(raw)
+            return ArmBlockObservation(changed=changed, notify=False)
+
+        changed = prior_key != block.key
+        if changed:
+            first_seen, notified, last_attempt = stamp, False, None
+        else:
+            first_seen = _parse_dt(meta.get(self._key("first_seen"))) or stamp
+            notified = bool(meta.get(self._key("notified")))
+            last_attempt = _parse_dt(meta.get(self._key("last_attempt_at")))
+        due = (stamp - first_seen).total_seconds() >= dwell_s
+        cooling_down = (
+            last_attempt is not None
+            and (stamp - last_attempt).total_seconds() < _ARM_BLOCK_RETRY_COOLDOWN_S
+        )
+        notify = not notified and due and not cooling_down
+
+        meta[self._flag] = True
+        meta[self._key("person_ids")] = list(getattr(block, self.person_ids_attr))
+        if self.track_since:
+            meta[self._key("since")] = _iso(block.since)
+        meta[self._key("key")] = block.key
+        meta[self._key("first_seen")] = _iso(first_seen)
+        if changed:
+            meta[self._key("notified")] = False
+            meta[self._key("last_attempt_at")] = None
+        _save_state(raw)
+        return ArmBlockObservation(changed=changed, notify=notify)
+
+
+_ARM_BLOCK = _BlockNamespace(
+    prefix="arm", person_ids_attr="blocking_person_ids", track_since=True
+)
+_STALE_BLOCK = _BlockNamespace(prefix="stale", person_ids_attr="stale_person_ids")
+
+
+def load_arm_block() -> Dict[str, Any]:
+    """Return the persisted arm-block diagnostic, or the all-clear default."""
+
+    return _ARM_BLOCK.load()
+
+
 def mark_arm_block_notified(key: str) -> None:
     """Record that the due arm-block notification for ``key`` was delivered (#601).
 
@@ -664,12 +776,7 @@ def mark_arm_block_notified(key: str) -> None:
     stays stable for as long as the presence itself stays stuck.
     """
 
-    raw = _load_state()
-    meta = _automation_meta(raw)
-    if str(meta.get("arm_blocked_key") or "") != key:
-        return  # the episode has already moved on; nothing to mark
-    meta["arm_blocked_notified"] = True
-    _save_state(raw)
+    _ARM_BLOCK.mark_notified(key)
 
 
 def mark_arm_block_attempted(key: str, *, at: Optional[datetime] = None) -> None:
@@ -681,12 +788,7 @@ def mark_arm_block_attempted(key: str, *, at: Optional[datetime] = None) -> None
     cooldown window instead of on every poll tick.
     """
 
-    raw = _load_state()
-    meta = _automation_meta(raw)
-    if str(meta.get("arm_blocked_key") or "") != key:
-        return
-    meta["arm_blocked_last_attempt_at"] = _iso(at or now_utc())
-    _save_state(raw)
+    _ARM_BLOCK.mark_attempted(key, at=at)
 
 
 def set_arm_block(
@@ -712,58 +814,13 @@ def set_arm_block(
     instead of retrying every tick.
     """
 
-    stamp = at or now_utc()
-    raw = _load_state()
-    meta = _automation_meta(raw)
-    prior_key = str(meta.get("arm_blocked_key") or "")
-    if block is None:
-        changed = prior_key != ""
-        meta["arm_blocked"] = False
-        meta["arm_blocked_person_ids"] = []
-        meta["arm_blocked_since"] = None
-        meta["arm_blocked_key"] = ""
-        meta["arm_blocked_first_seen"] = None
-        meta["arm_blocked_notified"] = False
-        meta["arm_blocked_last_attempt_at"] = None
-        _save_state(raw)
-        return ArmBlockObservation(changed=changed, notify=False)
-
-    changed = prior_key != block.key
-    if changed:
-        first_seen, notified, last_attempt = stamp, False, None
-    else:
-        first_seen = _parse_dt(meta.get("arm_blocked_first_seen")) or stamp
-        notified = bool(meta.get("arm_blocked_notified"))
-        last_attempt = _parse_dt(meta.get("arm_blocked_last_attempt_at"))
-    due = (stamp - first_seen).total_seconds() >= dwell_s
-    cooling_down = (
-        last_attempt is not None
-        and (stamp - last_attempt).total_seconds() < _ARM_BLOCK_RETRY_COOLDOWN_S
-    )
-    notify = not notified and due and not cooling_down
-
-    meta["arm_blocked"] = True
-    meta["arm_blocked_person_ids"] = list(block.blocking_person_ids)
-    meta["arm_blocked_since"] = _iso(block.since)
-    meta["arm_blocked_key"] = block.key
-    meta["arm_blocked_first_seen"] = _iso(first_seen)
-    if changed:
-        meta["arm_blocked_notified"] = False
-        meta["arm_blocked_last_attempt_at"] = None
-    _save_state(raw)
-    return ArmBlockObservation(changed=changed, notify=notify)
+    return _ARM_BLOCK.set(block, dwell_s=dwell_s, at=at)
 
 
 def load_staleness_block() -> Dict[str, Any]:
     """Return the persisted stale-presence-block diagnostic, or all-clear."""
 
-    meta = _load_state().get("automation", {})
-    if not isinstance(meta, dict):
-        meta = {}
-    return {
-        "blocked": bool(meta.get("stale_blocked", False)),
-        "person_ids": list(meta.get("stale_blocked_person_ids") or []),
-    }
+    return _STALE_BLOCK.load()
 
 
 def mark_staleness_block_notified(key: str) -> None:
@@ -775,12 +832,7 @@ def mark_staleness_block_notified(key: str) -> None:
     "someone fresh is home" diagnostic's own notify latch.
     """
 
-    raw = _load_state()
-    meta = _automation_meta(raw)
-    if str(meta.get("stale_blocked_key") or "") != key:
-        return
-    meta["stale_blocked_notified"] = True
-    _save_state(raw)
+    _STALE_BLOCK.mark_notified(key)
 
 
 def mark_staleness_block_attempted(key: str, *, at: Optional[datetime] = None) -> None:
@@ -791,12 +843,7 @@ def mark_staleness_block_attempted(key: str, *, at: Optional[datetime] = None) -
     window instead of on every ~10s poll tick.
     """
 
-    raw = _load_state()
-    meta = _automation_meta(raw)
-    if str(meta.get("stale_blocked_key") or "") != key:
-        return
-    meta["stale_blocked_last_attempt_at"] = _iso(at or now_utc())
-    _save_state(raw)
+    _STALE_BLOCK.mark_attempted(key, at=at)
 
 
 def set_staleness_block(
@@ -811,44 +858,7 @@ def set_staleness_block(
     its own independent ``stale_blocked_*`` state namespace.
     """
 
-    stamp = at or now_utc()
-    raw = _load_state()
-    meta = _automation_meta(raw)
-    prior_key = str(meta.get("stale_blocked_key") or "")
-    if block is None:
-        changed = prior_key != ""
-        meta["stale_blocked"] = False
-        meta["stale_blocked_person_ids"] = []
-        meta["stale_blocked_key"] = ""
-        meta["stale_blocked_first_seen"] = None
-        meta["stale_blocked_notified"] = False
-        meta["stale_blocked_last_attempt_at"] = None
-        _save_state(raw)
-        return ArmBlockObservation(changed=changed, notify=False)
-
-    changed = prior_key != block.key
-    if changed:
-        first_seen, notified, last_attempt = stamp, False, None
-    else:
-        first_seen = _parse_dt(meta.get("stale_blocked_first_seen")) or stamp
-        notified = bool(meta.get("stale_blocked_notified"))
-        last_attempt = _parse_dt(meta.get("stale_blocked_last_attempt_at"))
-    due = (stamp - first_seen).total_seconds() >= dwell_s
-    cooling_down = (
-        last_attempt is not None
-        and (stamp - last_attempt).total_seconds() < _ARM_BLOCK_RETRY_COOLDOWN_S
-    )
-    notify = not notified and due and not cooling_down
-
-    meta["stale_blocked"] = True
-    meta["stale_blocked_person_ids"] = list(block.stale_person_ids)
-    meta["stale_blocked_key"] = block.key
-    meta["stale_blocked_first_seen"] = _iso(first_seen)
-    if changed:
-        meta["stale_blocked_notified"] = False
-        meta["stale_blocked_last_attempt_at"] = None
-    _save_state(raw)
-    return ArmBlockObservation(changed=changed, notify=notify)
+    return _STALE_BLOCK.set(block, dwell_s=dwell_s, at=at)
 
 
 def append_trigger_log(event: Dict[str, Any], path: Optional[Path] = None) -> None:

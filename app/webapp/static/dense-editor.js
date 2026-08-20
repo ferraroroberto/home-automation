@@ -178,10 +178,14 @@ export function denseListEditor(config) {
  *   meta         optional second line; omitted when falsy
  *   openLabel    aria-label on the summary button
  *   onOpen(btn)  click handler, passed the button so it can be refocused
- *   toggleName   `buildToggle`'s class name
+ *   toggleName   `buildToggle`'s class name; omit it for a row with no toggle
  *   toggleOn     the toggle's current state
  *   toggleLabel  aria-label on the toggle
  *   onToggle(on) toggle handler
+ *
+ * The trailing toggle is optional (issue #664): `presence-places` is a plain
+ * open-to-edit list with nothing to enable, and was the one dense-list editor
+ * still hand-rolling this scaffolding because of it.
  */
 export function renderSummaryRow(opts) {
   const row = document.createElement('div');
@@ -210,8 +214,10 @@ export function renderSummaryRow(opts) {
   main.addEventListener('click', function () { opts.onOpen(main); });
   row.appendChild(main);
 
-  const toggle = buildToggle(opts.toggleName, opts.toggleOn, opts.onToggle);
-  toggle.setAttribute('aria-label', opts.toggleLabel);
-  row.appendChild(toggle);
+  if (opts.toggleName) {
+    const toggle = buildToggle(opts.toggleName, opts.toggleOn, opts.onToggle);
+    toggle.setAttribute('aria-label', opts.toggleLabel);
+    row.appendChild(toggle);
+  }
   return row;
 }
