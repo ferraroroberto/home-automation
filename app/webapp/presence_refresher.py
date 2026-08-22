@@ -47,6 +47,17 @@ class PresenceAccountStatus:
     # Find My keeps serving, only fresh sign-ins get expensive (#658).
     display_name: str = ""
     trusted: Optional[bool] = None
+    # Issue #678: how many consecutive refreshes have failed for this account,
+    # carried across polls via ``_CACHE.accounts``. 0 whenever the last fetch
+    # succeeded. Both the self-heal handshake and the Telegram alert are gated
+    # on this streak, so a transient Apple hiccup costs neither.
+    consecutive_failures: int = 0
+    # When the current run of failures started (ISO-8601 UTC), ``None`` while
+    # healthy. Measured, not inferred: ``refresh_once`` is also driven on demand
+    # by the locate path, so streak x poll-interval would overstate the age of a
+    # break the user happened to hammer. ISO strings rather than ``datetime`` to
+    # match how the router already emits ``refreshed_at``.
+    failing_since: Optional[str] = None
 
 
 @dataclass
@@ -107,10 +118,49 @@ def get_cache() -> PresenceDiagnosticsCache:
 
 
 _RETRY_BACKOFF_S_DEFAULT = 4 * 60 * 60  # 4 hours
+_REFRESH_INTERVAL_S_DEFAULT = 15 * 60  # 15 minutes
+
+# Issue #678: how many consecutive failed refreshes an account must rack up
+# before it is treated as genuinely broken rather than as an Apple hiccup.
+#
+# ``_SELF_HEAL`` gates the forced sign-in handshake: Apple answers the Find My
+# fetch with a transient 409 ("Authentication required for Account.") often
+# enough that reacting to a single one threw away a working session for
+# nothing. ``_ALERT`` gates the Telegram message, and sits deliberately well
+# past the point the self-heal above could still have worked — a streak that
+# long is a stuck account (changed password, lapsed trust, Apple lock), never a
+# blip. At the default 15-minute poll the 2nd failure lands ~15 min into a break
+# and the 4th ~45 min in, so nothing is said for the first three quarters of an
+# hour — long past any hiccup this has ever been observed to be.
+_SELF_HEAL_AFTER_FAILURES_DEFAULT = 2
+_ALERT_AFTER_FAILURES_DEFAULT = 4
 
 
 def _retry_backoff_s() -> int:
     return max(60, _env_int("PRESENCE_ICLOUD_RETRY_BACKOFF_S", _RETRY_BACKOFF_S_DEFAULT))
+
+
+def _refresh_interval_s() -> int:
+    return max(
+        60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", _REFRESH_INTERVAL_S_DEFAULT)
+    )
+
+
+def _self_heal_after_failures() -> int:
+    return max(
+        1,
+        _env_int(
+            "PRESENCE_ICLOUD_SELF_HEAL_AFTER_FAILURES",
+            _SELF_HEAL_AFTER_FAILURES_DEFAULT,
+        ),
+    )
+
+
+def _alert_after_failures() -> int:
+    return max(
+        1,
+        _env_int("PRESENCE_ICLOUD_ALERT_AFTER_FAILURES", _ALERT_AFTER_FAILURES_DEFAULT),
+    )
 
 
 # Per-account (keyed by ``PresenceConfig.label``) timestamp of the last forced
@@ -125,6 +175,100 @@ _LAST_RETRY_ATTEMPT: Dict[str, datetime] = {}
 def _retry_due(label: str, *, now: datetime) -> bool:
     last = _LAST_RETRY_ATTEMPT.get(label)
     return last is None or (now - last).total_seconds() >= _retry_backoff_s()
+
+
+# Per-account (keyed by ``PresenceConfig.label``) latch for the "this account is
+# stuck" Telegram alert (issue #678). One message per broken episode, not one
+# per poll; cleared the moment the account fetches successfully again, which is
+# also the only thing that unlocks the paired recovery message. In-memory only,
+# same rationale as ``_LAST_RETRY_ATTEMPT``.
+_ALERTED: set[str] = set()
+
+
+def _humanize_duration(seconds: float) -> str:
+    """Render an elapsed span as "45m" / "1h" / "2h 30m"."""
+
+    minutes = max(1, round(seconds / 60))
+    hours, minutes = divmod(minutes, 60)
+    if not hours:
+        return f"{minutes}m"
+    return f"{hours}h" if not minutes else f"{hours}h {minutes}m"
+
+
+def _episode_start(status: PresenceAccountStatus) -> Optional[datetime]:
+    """Parse the current break's start stamp, ``None`` if there isn't a usable one."""
+
+    if not status.failing_since:
+        return None
+    try:
+        return datetime.fromisoformat(status.failing_since)
+    except ValueError:
+        return None
+
+
+def _failing_for(status: PresenceAccountStatus, *, now: datetime) -> str:
+    """How long this account's current break has actually lasted (#678).
+
+    Falls back to the streak count alone when the episode has no start stamp —
+    an unestablished duration is not worth stating as one.
+    """
+
+    started = _episode_start(status)
+    if started is None:
+        return ""
+    return _humanize_duration((now - started).total_seconds())
+
+
+def _retried_this_episode(label: str, status: PresenceAccountStatus) -> bool:
+    """Whether a forced sign-in was actually attempted during this break (#678).
+
+    Not the same question as "has this account been failing long enough" — the
+    handshake is throttled to one per :func:`_retry_backoff_s` (4h), far longer
+    than the alert threshold, so an episode that opens shortly after a previous
+    forced retry never gets one of its own. Telling the user "a fresh sign-in
+    did not fix it" in that case would state something that never happened.
+    """
+
+    last = _LAST_RETRY_ATTEMPT.get(label)
+    started = _episode_start(status)
+    return last is not None and started is not None and last >= started
+
+
+def _stuck_alert_text(
+    config: PresenceConfig, status: PresenceAccountStatus, *, now: datetime
+) -> str:
+    """Compose the one actionable message a genuinely stuck account earns (#678).
+
+    Deliberately says nothing about approving a sign-in: since #658 the
+    unattended refresher fetches with ``request_2fa_push=False``, so it can
+    never make Apple push a prompt to the household's phones. What it names
+    instead is the remedy that does exist — the in-app trust renewal (#659) or
+    the credential the account is missing.
+    """
+
+    detail = " ".join(status.detail.split())[:200]
+    reason = f"[{status.reason}] {detail}".strip()
+    age = _failing_for(status, now=now)
+    span = f"for ~{age} " if age else ""
+    if status.reason == "not_configured":
+        remedy = (
+            "Set this account's ICLOUD_EMAIL/ICLOUD_PASSWORD in .env and restart the tray."
+        )
+    else:
+        tried = (
+            "A fresh sign-in did not fix it. "
+            if _retried_this_episode(config.label, status)
+            else ""
+        )
+        remedy = (
+            f"{tried}Open Presence → Renew trust for this account, or update its "
+            "ICLOUD_PASSWORD in .env if the Apple ID password changed."
+        )
+    return (
+        f"⚠️ {_account_display_name(config)}'s iCloud Find My has been failing "
+        f"{span}({status.consecutive_failures} consecutive refreshes) — {reason}\n"
+        f"{remedy}"
+    )
 
 
 def _account_display_name(config: PresenceConfig) -> str:
@@ -155,6 +299,8 @@ def _account_status(
     detail: str = "",
     *,
     entity_count: int = 0,
+    consecutive_failures: int = 0,
+    failing_since: Optional[str] = None,
 ) -> PresenceAccountStatus:
     """Build one account's status, stamped with its name + session trust (#659)."""
 
@@ -166,6 +312,8 @@ def _account_status(
         entity_count=entity_count,
         display_name=_account_display_name(config),
         trusted=session_trust_state(config),
+        consecutive_failures=consecutive_failures,
+        failing_since=failing_since,
     )
 
 
@@ -181,12 +329,11 @@ def _fetch_account(
     account's entities (issue #478), so one Apple ID needing 2FA never blanks the
     whole snapshot.
 
-    Issue #655: when ``prev_status`` shows this account was already broken, a
-    fresh sign-in handshake is forced (and Telegram-announced beforehand) at
-    most once per :func:`_retry_backoff_s` — self-healing a session that is
-    actually fine again (the trusted cookies were re-validated out of band, or
-    Apple's own hold lifted) without needing a manual tray restart, while
-    staying far short of #651's every-poll re-authentication that was
+    Issue #655: when this account has been failing, a fresh sign-in handshake is
+    forced at most once per :func:`_retry_backoff_s` — self-healing a session
+    that is actually fine again (the trusted cookies were re-validated out of
+    band, or Apple's own hold lifted) without needing a manual tray restart,
+    while staying far short of #651's every-poll re-authentication that was
     triggering repeated "someone is trying to access your account" prompts. A
     healthy account is never touched by this — same caching/cadence as before.
 
@@ -201,30 +348,48 @@ def _fetch_account(
     ``requires_2fa`` true while still serving every device;
     :func:`fetch_presence` no longer treats that flag as a failure, so a
     working session is never reported ``2fa_required`` here and this
-    self-heal (plus its Telegram pair) fires only for real breakage. The
-    fetch runs with ``request_2fa_push=False``: this process can never enter
-    a 2FA code, so pyicloud must not ask Apple to push one to the household's
-    phones on every fresh sign-in.
+    self-heal fires only for real breakage. The fetch runs with
+    ``request_2fa_push=False``: this process can never enter a 2FA code, so
+    pyicloud must not ask Apple to push one to the household's phones on every
+    fresh sign-in.
+
+    Issue #678: one failed poll is not breakage. Apple answers the Find My
+    fetch with a transient 409 ("Authentication required for Account.") often
+    enough that reacting to a single one threw away a working, *trusted*
+    session and woke the household with a Telegram pair for something that
+    healed itself two polls later. Both reactions are now gated on a
+    consecutive-failure streak, and the handshake no longer announces itself:
+    the pre-emptive "approve the sign-in if prompted" heads-up existed to
+    explain an Apple push that, since #658's ``request_2fa_push=False``, this
+    process can no longer cause. What is left is one actionable message per
+    broken *episode*, sent only once an account is stuck well past the point
+    self-healing could still have worked — and its paired recovery message,
+    which fires only if that alert actually went out.
     """
 
     now = datetime.now(timezone.utc)
-    was_broken = prev_status is not None and not prev_status.available
-    if was_broken and _retry_due(config.label, now=now):
+    prior_failures = prev_status.consecutive_failures if prev_status is not None else 0
+    if prior_failures >= _self_heal_after_failures() and _retry_due(
+        config.label, now=now
+    ):
         invalidate_session(config)
         _LAST_RETRY_ATTEMPT[config.label] = now
         logger.warning(
-            "🔑 iCloud account %s still broken (%s) — forcing a fresh sign-in "
-            "(backoff %ds)",
+            "🔑 iCloud account %s broken for %d consecutive refresh(es) (%s) — "
+            "forcing a fresh sign-in (backoff %ds)",
             config.label,
+            prior_failures,
             prev_status.reason if prev_status else "?",
             _retry_backoff_s(),
         )
-        _notify(
-            notifier_factory,
-            f"🔑 Reconnecting {_account_display_name(config)}'s iCloud Find My — "
-            "approve the sign-in on a trusted device if prompted.",
-        )
 
+    failures = prior_failures + 1  # the streak this poll would extend, if it fails
+    # Keep the episode's own start stamp; only a success clears it.
+    since = (
+        prev_status.failing_since
+        if prev_status is not None and prev_status.failing_since
+        else now.isoformat()
+    )
     try:
         entities = fetch_presence(config=replace(config, request_2fa_push=False))
     except PresenceAuthError as exc:
@@ -232,31 +397,63 @@ def _fetch_account(
             "⚠️ iCloud account %s needs re-auth (2fa_required): %s", config.label, exc
         )
         entities = []
-        status = _account_status(config, False, "2fa_required", str(exc))
+        status = _account_status(
+            config,
+            False,
+            "2fa_required",
+            str(exc),
+            consecutive_failures=failures,
+            failing_since=since,
+        )
     except PresenceConfigError as exc:
         logger.warning(
             "⚠️ iCloud account %s not configured: %s", config.label, exc
         )
         entities = []
-        status = _account_status(config, False, "not_configured", str(exc))
+        status = _account_status(
+            config,
+            False,
+            "not_configured",
+            str(exc),
+            consecutive_failures=failures,
+            failing_since=since,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "⚠️ Failed to refresh iCloud account %s: %s", config.label, exc
         )
         entities = []
-        status = _account_status(config, False, "error", str(exc))
+        status = _account_status(
+            config,
+            False,
+            "error",
+            str(exc),
+            consecutive_failures=failures,
+            failing_since=since,
+        )
     else:
         status = _account_status(config, True, "ok", "", entity_count=len(entities))
 
-    if was_broken and status.available:
+    if status.available:
         # Deliberately not popped from _LAST_RETRY_ATTEMPT (issue #656) — see
         # this function's docstring. The backoff clock keeps running from the
         # last forced handshake regardless of a recovery in between, so a
         # flapping account still gets throttled to one handshake per window.
-        _notify(
-            notifier_factory,
-            f"✅ {_account_display_name(config)}'s iCloud Find My connection restored.",
-        )
+        if config.label in _ALERTED:
+            # Symmetry (#678): the household only hears "restored" for a break
+            # it was actually told about. A streak that healed under the alert
+            # threshold never surfaced, so its recovery has nothing to close.
+            _ALERTED.discard(config.label)
+            _notify(
+                notifier_factory,
+                f"✅ {_account_display_name(config)}'s iCloud Find My connection restored.",
+            )
+    elif (
+        status.consecutive_failures >= _alert_after_failures()
+        and config.label not in _ALERTED
+    ):
+        _ALERTED.add(config.label)
+        _notify(notifier_factory, _stuck_alert_text(config, status, now=now))
 
     return entities, status
 
@@ -341,5 +538,5 @@ def start_presence_refresher() -> Optional[asyncio.Task]:
     if not _env_bool("PRESENCE_ICLOUD_REFRESH_ENABLED", True):
         logger.info("ℹ️ Presence diagnostics refresher disabled")
         return None
-    interval_s = max(60, _env_int("PRESENCE_ICLOUD_REFRESH_INTERVAL_S", 900))
+    interval_s = _refresh_interval_s()
     return asyncio.create_task(_run(interval_s), name="presence-refresher")
