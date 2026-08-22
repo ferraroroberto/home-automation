@@ -565,6 +565,37 @@ def test_action_took_effect_treats_partial_and_perimeter_as_interchangeable() ->
     assert AN.action_took_effect("partial", _FakeState("armed")) is False
 
 
+# ------------------------------------------------- alarm_action_already_satisfied (#676)
+
+
+def test_already_satisfied_matches_action_took_effect_for_exact_states() -> None:
+    assert AN.alarm_action_already_satisfied("arm", _FakeState("armed")) is True
+    assert AN.alarm_action_already_satisfied("disarm", _FakeState("disarmed")) is True
+    assert AN.alarm_action_already_satisfied("perimeter", _FakeState("perimeter")) is True
+    assert AN.alarm_action_already_satisfied("partial", _FakeState("partial")) is True
+
+
+def test_already_satisfied_treats_full_arm_as_satisfying_perimeter_or_partial() -> None:
+    """A fully-armed panel already exceeds a perimeter/partial request - the
+    2026-08-21 false FAILED was exactly this: a `perimeter` schedule firing
+    while the panel was already fully `armed`."""
+    assert AN.alarm_action_already_satisfied("perimeter", _FakeState("armed")) is True
+    assert AN.alarm_action_already_satisfied("partial", _FakeState("armed")) is True
+
+
+def test_already_satisfied_does_not_downgrade_a_plain_arm_request() -> None:
+    """A plain `arm` schedule must still escalate a merely-partial panel -
+    a partial arm is *less* secure than what was requested."""
+    assert AN.alarm_action_already_satisfied("arm", _FakeState("partial")) is False
+    assert AN.alarm_action_already_satisfied("arm", _FakeState("perimeter")) is False
+    assert AN.alarm_action_already_satisfied("arm", _FakeState("disarmed")) is False
+
+
+def test_already_satisfied_requires_exact_match_for_disarm() -> None:
+    assert AN.alarm_action_already_satisfied("disarm", _FakeState("armed")) is False
+    assert AN.alarm_action_already_satisfied("disarm", _FakeState("perimeter")) is False
+
+
 # --------------------------------------------------------- confirm_alarm_action
 #
 # Shared by the schedule engine (app.webapp.security_automation) and the
@@ -808,3 +839,71 @@ def test_blocked_rows_get_the_same_amber_severity_as_errors() -> None:
     assert _severity_for(blocked) == "warning"
     assert _severity_for({**blocked, "outcome": "error"}) == "warning"
     assert _severity_for({**blocked, "outcome": "ok"}) == "info"
+
+
+# --- already-satisfied wording + notify policy (issue #676) ---
+
+
+def test_already_outcome_does_not_read_as_a_failed_command() -> None:
+    already_arm = AN._compose_message(AN.SOURCE_SCHEDULE, "perimeter", AN.OUTCOME_ALREADY, None, "23:00")
+    assert "FAILED" not in already_arm
+    assert "already set" in already_arm
+
+    already_disarm = AN._compose_message(AN.SOURCE_SCHEDULE, "disarm", AN.OUTCOME_ALREADY, None, "05:00")
+    assert "FAILED" not in already_disarm
+    assert "already unset" in already_disarm
+    assert "forget" in already_disarm
+
+
+def test_already_outcome_never_notifies_for_arm_family_regardless_of_toggle() -> None:
+    """The evening case: the goal (armed) is already met, so it must stay
+    completely silent - no Telegram message of any kind, on or off."""
+    on = AN.AlarmNotifyPrefs(error=True, schedule_arm=True)
+    off = AN.AlarmNotifyPrefs(error=False, schedule_arm=False)
+    for action in ("arm", "partial", "perimeter"):
+        assert AN._should_notify(on, AN.SOURCE_SCHEDULE, action, AN.OUTCOME_ALREADY) is False
+        assert AN._should_notify(off, AN.SOURCE_SCHEDULE, action, AN.OUTCOME_ALREADY) is False
+
+
+def test_already_outcome_disarm_reminder_follows_the_error_toggle() -> None:
+    """The morning case: not a failure, but still worth a reminder - reuses
+    the same `error` toggle this scenario already notified under."""
+    on = AN.AlarmNotifyPrefs(error=True)
+    off = AN.AlarmNotifyPrefs(error=False)
+    assert AN._should_notify(on, AN.SOURCE_SCHEDULE, "disarm", AN.OUTCOME_ALREADY) is True
+    assert AN._should_notify(off, AN.SOURCE_SCHEDULE, "disarm", AN.OUTCOME_ALREADY) is False
+
+
+def test_already_outcome_logged_but_arm_family_never_sent_to_telegram(tmp_path: Path, monkeypatch) -> None:
+    _redirect_logs(monkeypatch, tmp_path)
+    notifier = FakeNotifier()
+
+    delivered = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_SCHEDULE, action="perimeter", outcome=AN.OUTCOME_ALREADY,
+        detail="23:00", reason="schedule night",
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True, schedule_arm=True),
+        notifier_factory=lambda: notifier,
+    ))
+
+    assert delivered is False
+    assert notifier.sent == []
+    rows = _read_log(tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["outcome"] == "already"
+
+
+def test_already_outcome_disarm_reminder_is_delivered_when_error_toggle_on(tmp_path: Path, monkeypatch) -> None:
+    _redirect_logs(monkeypatch, tmp_path)
+    notifier = FakeNotifier()
+
+    delivered = asyncio.run(AN.record_alarm_action(
+        source=AN.SOURCE_SCHEDULE, action="disarm", outcome=AN.OUTCOME_ALREADY,
+        detail="05:00", reason="schedule morning",
+        prefs_loader=lambda: AlarmNotifyPrefs(error=True),
+        notifier_factory=lambda: notifier,
+    ))
+
+    assert delivered is True
+    assert len(notifier.sent) == 1
+    assert "FAILED" not in notifier.sent[0]
+    assert "forget" in notifier.sent[0]

@@ -112,10 +112,16 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
             raise engine.RiscoCommandError("panel down")
         return _FakeState("armed")
 
+    async def fake_fetch() -> object:
+        # Neither "arm" nor "disarm" is already satisfied by this mode, so
+        # both entries fall through to confirm_alarm_action as before (#676).
+        return _FakeState("perimeter")
+
     async def fake_record_alarm_action(**kw) -> None:
         recorded.append(kw)
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     # Prevent real Telegram sends and real log writes during this unit test.
     monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
@@ -150,10 +156,14 @@ def test_security_schedule_tick_alerts_after_confirm_exhausts_retries(monkeypatc
     async def fake_confirm(action: str) -> object:
         raise engine.RiscoCommandError(f"panel read back 'disarmed' after {action}, not the expected state")
 
+    async def fake_fetch() -> object:
+        return _FakeState("disarmed")  # not "armed" - the arm request is not yet satisfied
+
     async def fake_record_alarm_action(**kw) -> None:
         recorded.append(kw)
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
@@ -188,10 +198,14 @@ def test_security_schedule_tick_alerts_on_missing_credentials(monkeypatch) -> No
             "(your RISCO Cloud login and panel PIN)."
         )
 
+    async def fake_fetch() -> object:
+        return _FakeState("armed")  # not "disarmed" - the disarm request is not yet satisfied
+
     async def fake_record_alarm_action(**kw) -> None:
         recorded.append(kw)
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
@@ -226,10 +240,14 @@ def test_security_schedule_tick_retries_failed_entry_hours_later_same_day(monkey
             raise engine.RiscoCommandError("panel read back 'perimeter' after disarm, not the expected state")
         return _FakeState("disarmed")
 
+    async def fake_fetch() -> object:
+        return _FakeState("armed")  # not "disarmed" - the disarm request is not yet satisfied
+
     async def fake_record_alarm_action(**kw) -> None:
         recorded.append(kw)
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
@@ -273,10 +291,14 @@ def test_security_schedule_last_fire_day_survives_restart(monkeypatch) -> None:
     async def fake_confirm(action: str) -> object:
         return _FakeState("perimeter")
 
+    async def fake_fetch() -> object:
+        return _FakeState("disarmed")  # not armed-enough yet - the perimeter request is not satisfied
+
     async def fake_record_alarm_action(**kw) -> None:
         recorded.append(kw)
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
@@ -312,10 +334,14 @@ def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
     async def fake_confirm(action: str) -> object:
         return _FakeState("disarmed")
 
+    async def fake_fetch() -> object:
+        return _FakeState("armed")  # not "disarmed" - the disarm request is not yet satisfied
+
     async def fake_record_alarm_action(**kw) -> None:
         recorded.append(kw)
 
     monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
 
@@ -328,3 +354,75 @@ def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
     assert state.last_fire_day == {"disarm-ok": "2026-06-22"}
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "disarm", "ok")]
+
+
+def test_security_schedule_tick_skips_already_satisfied_arm(monkeypatch) -> None:
+    """#676: an armed panel must not be re-armed (and must not error) just
+    because the schedule fired - the goal is already met."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="night", time="23:00", days=["mon"], action="perimeter"),
+    ]
+
+    async def fake_confirm(action: str) -> object:
+        raise AssertionError("confirm_alarm_action must not be called when already satisfied")
+
+    async def fake_fetch() -> object:
+        return _FakeState("armed")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    state = engine._EngineState(last_fire_day={})
+    now = datetime(2026, 6, 22, 23, 0, 10)
+
+    asyncio.run(engine.tick(config, state, now))
+
+    assert state.last_fire_day == {"night": "2026-06-22"}
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes == [("schedule", "perimeter", "already")]
+
+
+def test_security_schedule_tick_skips_already_satisfied_disarm(monkeypatch) -> None:
+    """#676: a disarmed panel must not be re-disarmed (and must not error) -
+    it reads as a reminder, not a failure."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+    entries = [
+        SecurityScheduleEntry(id="morning", time="05:00", days=["mon"], action="disarm"),
+    ]
+
+    async def fake_confirm(action: str) -> object:
+        raise AssertionError("confirm_alarm_action must not be called when already satisfied")
+
+    async def fake_fetch() -> object:
+        return _FakeState("disarmed")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
+
+    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    state = engine._EngineState(last_fire_day={})
+    now = datetime(2026, 6, 22, 5, 0, 10)
+
+    asyncio.run(engine.tick(config, state, now))
+
+    assert state.last_fire_day == {"morning": "2026-06-22"}
+    outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
+    assert outcomes == [("schedule", "disarm", "already")]
