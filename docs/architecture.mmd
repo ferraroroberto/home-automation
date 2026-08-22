@@ -98,6 +98,7 @@ flowchart TB
   subgraph ops["scripts/ — ops"]
     CERTGEN["gen_tailscale_cert.py"]
     HASYNC["ha_config_sync.py"]
+    UNPIN["unpin_directory.py"]
   end
   CERTGEN -->|provisions HTTPS cert for| RUNTIME
   HASYNC -->|SSH deploy voice-PE config| HAVM

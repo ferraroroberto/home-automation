@@ -1609,6 +1609,29 @@ verdict breakdown; it can also be run standalone before removing a worktree:
 & .\.venv\Scripts\python.exe tests\e2e\_browser_sweep.py E:\automation\home-automation-wt-1 --dry-run
 ```
 
+**Read that `zombie` count as "not inspected", not "harmless" (#681).** The
+sweep infers "already exited" from `GetExitCodeProcess`, and a helper
+force-killed by the teardown watchdog can wedge *inside* termination: the exit
+code is set, so `taskkill` answers "no running instance" — but `GetProcessTimes`
+reports no exit time, a thread is still alive, and the **cwd handle is still
+held**. Such a helper is unkillable *and* still pinning whatever directory it
+ran from, which is how six empty, undeletable worktrees accumulated here. So
+the sweep is defence in depth, not the protection:
+
+- **The protection** is that the Playwright driver is started from `%TEMP%`
+  (`_neutral_driver_cwd` in `tests/e2e/conftest.py`). Every browser and helper
+  inherits the driver's working directory, so none of them ever roots in this
+  checkout and a wedged one pins a directory nobody wants to delete.
+  `tests/e2e/test_helper_cwd_isolation.py` pins that arrangement.
+- **The remedy**, if something pins a directory anyway, is
+  `scripts/unpin_directory.py` — no reboot needed. It closes the wedged
+  holder's cwd handle, and refuses outright when the holder is alive:
+
+  ```powershell
+  & .\.venv\Scripts\python.exe scripts\unpin_directory.py E:\automation\home-automation-wt-1
+  & .\.venv\Scripts\python.exe scripts\unpin_directory.py E:\automation\home-automation-wt-1 --close
+  ```
+
 ```powershell
 & .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 & .\.venv\Scripts\python.exe -m playwright install chromium webkit

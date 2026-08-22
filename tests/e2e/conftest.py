@@ -66,6 +66,7 @@ import tempfile
 import threading
 import time
 import urllib.request
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from urllib.parse import unquote
 from pathlib import Path
@@ -522,6 +523,51 @@ def _bounded_teardown(fn: Callable[[], None], label: str, driver_pid: Optional[i
         done.set()
 
 
+@contextmanager
+def _neutral_driver_cwd() -> Iterator[str]:
+    """Run the enclosed block with this process's cwd outside the checkout (#681).
+
+    Everything Playwright spawns inherits a working directory: the Node driver
+    takes this process's (``playwright/_impl/_transport.py`` passes no ``cwd``),
+    each browser takes the driver's, and each helper — ``WebKitWebProcess``,
+    ``WebKitGPUProcess``, ``WebKitNetworkProcess`` — takes the browser's. Run
+    the suite from ``home-automation-wt-<N>`` and that whole tree roots itself
+    in the worktree, and **Windows will not delete a directory that is a live
+    process's cwd**. That is what left six empty, undeletable worktrees on the
+    fleet host between 2026-08-19 and 2026-08-22.
+
+    It matters here and nowhere else in the fleet because of
+    ``_bounded_teardown`` above: when ``browser.close()`` overruns, it
+    ``taskkill /F /T``s the driver tree, which kills the browser out from under
+    its helpers. A helper killed that way can wedge *inside* termination —
+    ``ExitStatus`` set (so ``taskkill`` answers "no running instance" and
+    ``GetExitCodeProcess`` reports a clean 0), yet ``GetProcessTimes`` reports
+    no exit time, a thread still alive, and the cwd handle still held. It can
+    never be reaped, so the directory it pins is pinned for good. #440 knew the
+    watchdog leaked helpers; what it could not know is that the leak is
+    unkillable, which is why every mitigation aimed at *reaping* them (#480's
+    startup sweep, #583's ``_browser_sweep``) was aiming at the wrong half.
+
+    So don't fight the wedge — make it harmless. With the driver started from
+    ``%TEMP%`` no helper ever roots in the checkout, and a wedged one pins a
+    directory nobody wants to delete. ``gettempdir()`` deliberately, **not**
+    ``mkdtemp()``: a per-run temp directory would become unremovable by the
+    exact mechanism this exists to avoid.
+
+    Only the driver's *spawn* needs the neutral cwd — the driver's own working
+    directory is fixed at spawn and is what every later ``launch()`` inherits —
+    so this restores the caller's cwd immediately, and pytest carries on from
+    the checkout as before. ``tests/e2e/test_helper_cwd_isolation.py`` pins it.
+    """
+    original = os.getcwd()
+    neutral = tempfile.gettempdir()
+    os.chdir(neutral)
+    try:
+        yield neutral
+    finally:
+        os.chdir(original)
+
+
 @pytest.fixture(scope="session")
 def playwright(browser_name: str) -> Iterator[Playwright]:
     """One Playwright driver **per browser projection**, not one per session (#584).
@@ -543,8 +589,12 @@ def playwright(browser_name: str) -> Iterator[Playwright]:
     Per-projection drivers keep #440's guarantee (a wedged teardown is still
     bounded and still force-killed) while confining the damage to the projection
     that actually wedged. `tests/e2e/test_driver_isolation.py` pins this.
+
+    Started from a neutral cwd so nothing it spawns can pin this checkout —
+    see `_neutral_driver_cwd` (#681).
     """
-    pw = sync_playwright().start()
+    with _neutral_driver_cwd():
+        pw = sync_playwright().start()
     yield pw
     _bounded_teardown(pw.stop, f"playwright.stop() [{browser_name}]", _driver_pid(pw))
 
