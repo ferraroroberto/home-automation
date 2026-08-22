@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import timedelta
 
 import pytest
 
@@ -68,6 +69,26 @@ def _reset_presence_refresher_state() -> None:
 
     R._CACHE = R.PresenceDiagnosticsCache(entities=[])
     R._LAST_RETRY_ATTEMPT.clear()
+    R._ALERTED.clear()
+
+
+def _broken(
+    label: str,
+    reason: str = "2fa_required",
+    detail: str = "stale",
+    *,
+    failures: int,
+) -> R.PresenceAccountStatus:
+    """Seed a prior poll's broken status carrying a failure streak (#678).
+
+    Every self-heal/notify decision is gated on ``consecutive_failures`` now, so
+    a test that wants the *next* poll to react has to say how long the account
+    has already been failing rather than merely that it was broken once.
+    """
+
+    return R.PresenceAccountStatus(
+        label, False, reason, detail, consecutive_failures=failures
+    )
 
 
 def _run_refresh(
@@ -210,7 +231,7 @@ def test_refresh_fetches_accounts_concurrently_not_sequentially(
 
 
 # --------------------------------------------------------------------------
-# Self-heal retry + Telegram notification (issue #655)
+# Self-heal retry + Telegram notification (issues #655, #678)
 # --------------------------------------------------------------------------
 
 
@@ -218,16 +239,20 @@ def test_account_display_name_falls_back_to_email_not_bare_label(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Issue #658: an unset ICLOUD_LABEL must still identify *which* Apple ID
-    a reconnect message is about - "account 1"/"account 2" gave no way to
-    tell the accounts apart."""
+    an alert is about - "account 1"/"account 2" gave no way to tell the
+    accounts apart."""
 
     configs = [_config("1", friendly_name="")]
     monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
     monkeypatch.setattr(R, "invalidate_session", lambda cfg: None)
-    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    monkeypatch.setattr(
+        R, "fetch_presence", lambda *, config: (_ for _ in ()).throw(
+            PresenceAuthError("iCloud requires 2FA")
+        )
+    )
     R._CACHE = R.PresenceDiagnosticsCache(
         entities=[],
-        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+        accounts=[_broken("1", failures=R._alert_after_failures() - 1)],
     )
     notifier = _FakeNotifier()
 
@@ -237,12 +262,176 @@ def test_account_display_name_falls_back_to_email_not_bare_label(
     assert "account 1" not in notifier.sent[0]
 
 
-def test_broken_account_retries_and_notifies_reconnect_and_recovery(
+def test_transient_failure_streak_is_silent_and_self_heals(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A previously-broken account due for retry gets a forced fresh session
-    build (announced beforehand) and, once the fetch succeeds, a recovery
-    notification — both in the same poll."""
+    """Issue #678 regression: the reported bug, end to end.
+
+    Apple answers a few consecutive polls with a transient 409 and then serves
+    normally again - the exact overnight shape that woke the household with a
+    "Reconnecting ... approve the sign-in" / "restored" pair for an account
+    whose browser trust was never in question. The refresher may quietly force
+    one fresh sign-in on the way through, but it must not say a word: the whole
+    episode healed below the alert threshold, so there is nothing the user
+    could have done and nothing to tell them.
+    """
+
+    configs = [_config("1", friendly_name="Ana")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
+    )
+    notifier = _FakeNotifier()
+
+    def failing(*, config: PresenceConfig) -> list[PresenceEntity]:
+        raise RuntimeError("Authentication required for Account. (409):")
+
+    monkeypatch.setattr(R, "fetch_presence", failing)
+    # Three failed polls - one short of the default alert threshold, i.e. the
+    # observed episode (~04:37, 04:52, 05:07).
+    for expected in (1, 2, 3):
+        cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+        assert cache.accounts[0].consecutive_failures == expected
+
+    assert notifier.sent == [], "a self-healing hiccup must never notify"
+
+    # Apple comes back (05:22): the streak resets and the recovery stays silent
+    # too, because no break was ever announced.
+    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert cache.accounts[0].available is True
+    assert cache.accounts[0].consecutive_failures == 0
+    assert notifier.sent == []
+    # The silent self-heal is still allowed to have run - it is the *messages*
+    # that were the bug, not the handshake.
+    assert invalidated in ([], ["1"])
+
+
+def test_failing_since_is_measured_not_inferred_from_the_poll_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #678: the alert's "has been failing for ~X" must be a real elapsed
+    span, not ``streak * PRESENCE_ICLOUD_REFRESH_INTERVAL_S``.
+
+    ``refresh_once`` is also driven on demand by the locate path, so a break the
+    user happens to hammer racks up its streak far faster than the background
+    cadence - and a duration inferred from that cadence would overstate it by
+    an order of magnitude. The episode carries its own start stamp instead,
+    pinned on the first failure and cleared only by a success.
+    """
+
+    configs = [_config("1", friendly_name="Ana")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    monkeypatch.setattr(R, "invalidate_session", lambda cfg: None)
+    monkeypatch.setattr(
+        R, "fetch_presence", lambda *, config: (_ for _ in ()).throw(
+            PresenceAuthError("iCloud requires 2FA")
+        )
+    )
+
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: None))
+    started = cache.accounts[0].failing_since
+    assert started, "the first failure must pin the episode's start"
+
+    # Two more rapid polls (the locate path's shape): the stamp must not move.
+    for _ in range(2):
+        cache = asyncio.run(R.refresh_once(notifier_factory=lambda: None))
+    assert cache.accounts[0].failing_since == started
+    assert cache.accounts[0].consecutive_failures == 3
+
+    # A 30-minute-old break reports ~30m even though only 4 polls happened,
+    # which the interval-derived figure would have called an hour.
+    status = R.PresenceAccountStatus(
+        "1", False, "2fa_required", "stale", consecutive_failures=4,
+        failing_since=(
+            R.datetime.now(R.timezone.utc) - timedelta(minutes=30)
+        ).isoformat(),
+    )
+    text = R._stuck_alert_text(configs[0], status, now=R.datetime.now(R.timezone.utc))
+    assert "~30m" in text
+    assert "4 consecutive refreshes" in text
+
+    # Recovery clears the stamp so the next break starts its own episode.
+    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: None))
+    assert cache.accounts[0].failing_since is None
+
+
+def test_alert_only_claims_a_fresh_sign_in_that_actually_happened(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #678: "A fresh sign-in did not fix it" must be an observed fact.
+
+    The handshake is throttled to one per ``_retry_backoff_s`` (4h), far longer
+    than the alert threshold, so a break that re-opens inside that window never
+    gets a sign-in attempt of its own - and the message must not claim one.
+    """
+
+    config = _config("1", friendly_name="Ana")
+    now = R.datetime.now(R.timezone.utc)
+    status = R.PresenceAccountStatus(
+        "1", False, "2fa_required", "stale", consecutive_failures=4,
+        failing_since=(now - timedelta(minutes=45)).isoformat(),
+    )
+
+    # No forced retry recorded at all (or one from before this episode began):
+    # the remedy stands on its own, with no claim about a sign-in.
+    assert "A fresh sign-in" not in R._stuck_alert_text(config, status, now=now)
+    R._LAST_RETRY_ATTEMPT["1"] = now - timedelta(hours=3)  # a *previous* episode
+    assert "A fresh sign-in" not in R._stuck_alert_text(config, status, now=now)
+    # Renewing trust is still offered either way - that is the actionable part.
+    assert "Renew trust" in R._stuck_alert_text(config, status, now=now)
+
+    # A retry that did land inside this episode is reported honestly.
+    R._LAST_RETRY_ATTEMPT["1"] = now - timedelta(minutes=30)
+    assert "A fresh sign-in did not fix it." in R._stuck_alert_text(
+        config, status, now=now
+    )
+
+
+def test_single_failed_poll_does_not_force_a_handshake(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #678: one transient 409 must not throw away a working session.
+
+    ``invalidate_session`` costs a full password sign-in on the next build,
+    which Apple throttles hard once browser trust has lapsed (#659) - far too
+    expensive to spend on a single blip.
+    """
+
+    configs = [_config("1", friendly_name="Ana")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+    invalidated: list[str] = []
+    monkeypatch.setattr(
+        R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
+    )
+    monkeypatch.setattr(
+        R, "fetch_presence", lambda *, config: (_ for _ in ()).throw(
+            PresenceAuthError("iCloud requires 2FA")
+        )
+    )
+    R._CACHE = R.PresenceDiagnosticsCache(entities=[], accounts=[_broken("1", failures=1)])
+    notifier = _FakeNotifier()
+
+    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert invalidated == []
+    assert notifier.sent == []
+
+
+def test_stuck_account_alerts_once_then_notifies_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #678: a genuinely stuck account gets exactly one actionable alert
+    per episode - never one per poll - and its recovery closes that alert.
+
+    The message must name the account, its reason, and the remedy that actually
+    exists (in-app trust renewal / the password), and must not tell the user to
+    approve a sign-in: since #658 the unattended refresher fetches with
+    ``request_2fa_push=False`` and can no longer make Apple push anything.
+    """
 
     configs = [_config("1", friendly_name="Roberto")]
     monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
@@ -250,20 +439,40 @@ def test_broken_account_retries_and_notifies_reconnect_and_recovery(
     monkeypatch.setattr(
         R, "invalidate_session", lambda cfg: invalidated.append(cfg.label)
     )
-    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    monkeypatch.setattr(
+        R, "fetch_presence", lambda *, config: (_ for _ in ()).throw(
+            PresenceAuthError("iCloud Find My refused the session")
+        )
+    )
     R._CACHE = R.PresenceDiagnosticsCache(
         entities=[],
-        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+        accounts=[_broken("1", failures=R._alert_after_failures() - 1)],
     )
     notifier = _FakeNotifier()
 
     cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
 
-    assert invalidated == ["1"]
+    assert len(notifier.sent) == 1
+    alert = notifier.sent[0]
+    assert "Roberto" in alert
+    assert "2fa_required" in alert
+    assert "Renew trust" in alert
+    assert "approve the sign-in" not in alert
+    assert cache.accounts[0].consecutive_failures == R._alert_after_failures()
+
+    # Still stuck on the following polls: the latch holds, no repeat spam.
+    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+    assert len(notifier.sent) == 1
+
+    # Recovery closes the announced episode with exactly one message.
+    monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
+    cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
     assert cache.accounts[0].available is True
     assert len(notifier.sent) == 2
-    assert "Reconnecting Roberto" in notifier.sent[0]
     assert "Roberto" in notifier.sent[1] and "restored" in notifier.sent[1]
+    assert "1" not in R._ALERTED
     # Issue #656: NOT cleared on recovery - a flapping account must stay
     # backoff-throttled instead of every recovery resetting the clock to zero.
     assert "1" in R._LAST_RETRY_ATTEMPT
@@ -281,6 +490,10 @@ def test_flapping_account_stays_backoff_throttled_after_recovery(
     backoff timestamp were cleared on recovery (as it used to be), this second
     break would look like a brand-new first-time failure and retry/notify
     immediately - reproducing the every-~30-minutes handshake spam.
+
+    Issue #678 keeps the same guarantee against a *longer* flap: the second
+    break is seeded straight past the alert threshold, so only the backoff
+    stands between it and a second handshake.
     """
 
     configs = [_config("1", friendly_name="Roberto")]
@@ -292,14 +505,15 @@ def test_flapping_account_stays_backoff_throttled_after_recovery(
     monkeypatch.setattr(R, "fetch_presence", lambda *, config: [_entity("mine")])
     R._CACHE = R.PresenceDiagnosticsCache(
         entities=[],
-        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+        accounts=[_broken("1", failures=R._alert_after_failures())],
     )
+    R._ALERTED.add("1")  # this episode was announced, so its recovery closes it
     notifier = _FakeNotifier()
 
     # First poll: broken -> self-heal fires, recovers.
     asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
     assert invalidated == ["1"]
-    assert len(notifier.sent) == 2
+    assert len(notifier.sent) == 1  # the recovery message
 
     # Account flaps broken again immediately (e.g. pyicloud's internal
     # sub-service reauth silently poisoned requires_2fa) - still well within
@@ -309,13 +523,16 @@ def test_flapping_account_stays_backoff_throttled_after_recovery(
             PresenceAuthError("iCloud requires 2FA")
         )
     )
-    asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+    for _ in range(R._alert_after_failures()):
+        asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
 
-    # Third poll: still broken, still within backoff - must stay quiet.
+    # Still broken, still within backoff - must not force a second handshake.
     cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
 
     assert invalidated == ["1"]  # no second forced reconnect
-    assert len(notifier.sent) == 2  # no additional Telegram traffic
+    # The new break is a new episode, so it earns its one alert - but exactly
+    # one, no matter how many polls it spans.
+    assert len(notifier.sent) == 2
     assert cache.accounts[0].available is False
     assert cache.accounts[0].reason == "2fa_required"
 
@@ -338,9 +555,12 @@ def test_broken_account_does_not_retry_before_backoff_elapses(
     )
     R._CACHE = R.PresenceDiagnosticsCache(
         entities=[],
-        accounts=[R.PresenceAccountStatus("1", False, "2fa_required", "stale")],
+        # Well past the self-heal streak (#678), so the backoff is the only
+        # thing that can be holding the handshake back.
+        accounts=[_broken("1", failures=R._self_heal_after_failures() + 1)],
     )
     R._LAST_RETRY_ATTEMPT["1"] = R.datetime.now(R.timezone.utc)
+    R._ALERTED.add("1")  # already announced, so no second alert is due either
     notifier = _FakeNotifier()
 
     cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
