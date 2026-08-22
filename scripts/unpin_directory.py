@@ -74,6 +74,13 @@ STATE_WEDGED = "wedged"
 STATE_LIVE = "live"
 STATE_UNKNOWN = "unknown"
 
+DELETE = 0x00010000
+FILE_SHARE_ALL = 0x00000007
+OPEN_EXISTING = 3
+FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+INVALID_HANDLE_VALUE = 0xFFFFFFFFFFFFFFFF
+ERROR_SHARING_VIOLATION = 32
+
 
 class Holder(NamedTuple):
     """One process holding *scope* as its working directory."""
@@ -107,6 +114,11 @@ _k32.OpenProcess.restype = wintypes.HANDLE
 _k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 _k32.CloseHandle.argtypes = [wintypes.HANDLE]
 _k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+_k32.CreateFileW.restype = wintypes.HANDLE
+_k32.CreateFileW.argtypes = [
+    wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+    wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+]
 
 
 def _open(pid: int, access: int) -> int:
@@ -231,6 +243,31 @@ def find_holders(scope: Path) -> list[Holder]:
     return holders
 
 
+def is_delete_ready(scope: Path) -> Optional[bool]:
+    """Can *scope* be deleted right now? ``None`` when that can't be established.
+
+    This — not the holder list — is the authoritative answer, and the two are
+    not interchangeable. A cwd handle is opened without `FILE_SHARE_DELETE`, so
+    asking for `DELETE` access is exactly the question Windows answers with a
+    sharing violation while something pins the directory. The holder list is a
+    *diagnosis* (who to blame), and it is read from each process's PEB, where
+    the cwd **string survives its handle being closed** — so re-reading it after
+    a close would report a pin that is already gone.
+    """
+    ctypes.set_last_error(0)
+    handle = _k32.CreateFileW(
+        str(scope), DELETE, FILE_SHARE_ALL, None, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, None,
+    )
+    value = int(handle) if handle else 0
+    if value and value != INVALID_HANDLE_VALUE:
+        _k32.CloseHandle(wintypes.HANDLE(value))
+        return True
+    if ctypes.get_last_error() == ERROR_SHARING_VIOLATION:
+        return False
+    return None
+
+
 def unpin(holder: Holder) -> bool:
     """Close *holder*'s cwd handle remotely. Only ever called on a wedged one."""
     handle = _open(holder.pid, PROCESS_DUP_HANDLE)
@@ -264,14 +301,19 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"✅ {scope} does not exist — nothing to unpin")
         return 0
 
-    holders = find_holders(scope)
-    if not holders:
-        print(f"✅ no process holds {scope} as its working directory")
-        return 0
+    ready = is_delete_ready(scope)
+    if ready is None:
+        print(f"❓ could not establish whether {scope} is pinned — reporting unknown")
+        return 2
 
+    holders = find_holders(scope)
     for holder in holders:
         icon = {STATE_WEDGED: "⚠️", STATE_LIVE: "🔴", STATE_UNKNOWN: "❓"}[holder.state]
         print(f"{icon} {holder.name}#{holder.pid} [{holder.state}] cwd={holder.cwd}")
+
+    if ready:
+        print(f"✅ {scope} is not pinned — it can be deleted")
+        return 0
 
     live = [h for h in holders if h.state == STATE_LIVE]
     unknown = [h for h in holders if h.state == STATE_UNKNOWN]
@@ -283,17 +325,27 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"cwd handle is legitimately in use; stop the process itself, then re-run."
         )
         return 1
+    if not wedged:
+        print(
+            f"❓ {scope} is pinned, but no wedged holder explains it — the holder does "
+            f"not name it as a working directory, or could not be inspected "
+            f"({len(unknown)} unreadable). Nothing was touched."
+        )
+        return 2
     if not args.close:
         print(f"ℹ️ {len(wedged)} wedged holder(s); re-run with --close to free {scope}")
         return 1
 
     freed = sum(1 for holder in wedged if unpin(holder))
     print(f"🧹 closed {freed}/{len(wedged)} wedged cwd handle(s)")
-    if unknown:
-        print(f"❓ {len(unknown)} holder(s) could not be inspected — {scope} may still be pinned")
-    remaining = find_holders(scope)
-    if remaining:
-        print(f"❌ {scope} is still held by {len(remaining)} process(es)")
+    # Re-probe the filesystem, never the holder list: a closed handle leaves the
+    # PEB's cwd string behind, so re-reading holders would report a false pin.
+    after = is_delete_ready(scope)
+    if after is None:
+        print(f"❓ could not confirm {scope} is free — reporting unknown, not success")
+        return 2
+    if not after:
+        print(f"❌ {scope} is still pinned")
         return 1
     print(f"✅ {scope} is free — it can now be deleted")
     return 0
