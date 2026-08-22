@@ -50,8 +50,10 @@ import sys
 from pathlib import Path
 from typing import Iterator, NamedTuple, Optional
 
-if sys.platform == "win32":  # pragma: no branch - the whole module is Win32
-    from ctypes import wintypes
+if sys.platform != "win32":
+    raise ImportError("unpin_directory is Windows-only")
+
+from ctypes import wintypes
 
 STILL_ACTIVE = 259
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -223,7 +225,9 @@ def find_holders(scope: Path) -> list[Holder]:
     scope_resolved = scope.resolve()
     holders: list[Holder] = []
     for pid, name in _iter_processes():
-        handle = _open(pid, PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_DUP_HANDLE)
+        # Read-only rights: reporting must never ask for the right to close a
+        # handle. `unpin` requests PROCESS_DUP_HANDLE separately, when it acts.
+        handle = _open(pid, PROCESS_QUERY_INFORMATION | PROCESS_VM_READ)
         if not handle:
             continue
         try:
@@ -291,10 +295,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="close the wedged holders' cwd handles (default: report only)",
     )
     args = parser.parse_args(argv)
-
-    if sys.platform != "win32":
-        print(f"❌ unpin_directory is Windows-only; nothing checked on {sys.platform}")
-        return 2
 
     scope = Path(args.path)
     if not scope.exists():
