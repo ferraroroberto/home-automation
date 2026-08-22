@@ -97,6 +97,10 @@ def test_schedule_arm_suppresses_an_older_unconsumed_arrival(monkeypatch, tmp_pa
     async def fake_presence_record(**kwargs) -> None:
         presence_records.append(kwargs)
 
+    async def fake_schedule_fetch() -> _FakeSecurity:
+        return panel
+
+    monkeypatch.setattr(security_automation, "fetch_security_state", fake_schedule_fetch)
     monkeypatch.setattr(security_automation, "confirm_alarm_action", fake_schedule_confirm)
     monkeypatch.setattr(security_automation, "record_alarm_action", _async_noop)
     _wire_presence_tick(
@@ -149,6 +153,10 @@ def test_genuine_arrival_waits_for_schedule_then_disarms(monkeypatch, tmp_path) 
         panel.mode = "disarmed"
         return panel
 
+    async def fake_schedule_fetch() -> _FakeSecurity:
+        return panel
+
+    monkeypatch.setattr(security_automation, "fetch_security_state", fake_schedule_fetch)
     monkeypatch.setattr(security_automation, "confirm_alarm_action", fake_schedule_confirm)
     monkeypatch.setattr(security_automation, "record_alarm_action", _async_noop)
     _wire_presence_tick(
@@ -192,6 +200,10 @@ def test_failed_schedule_does_not_mask_a_later_arrival(monkeypatch, tmp_path) ->
     async def fake_confirm(_action: str) -> _FakeSecurity:
         raise RiscoCommandError("panel down")
 
+    async def fake_fetch() -> _FakeSecurity:
+        return _FakeSecurity("disarmed")
+
+    monkeypatch.setattr(security_automation, "fetch_security_state", fake_fetch)
     monkeypatch.setattr(security_automation, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(security_automation, "record_alarm_action", _async_noop)
 
@@ -214,3 +226,62 @@ def test_failed_schedule_does_not_mask_a_later_arrival(monkeypatch, tmp_path) ->
 
     assert decision is not None
     assert decision.kind == "disarm"
+
+
+def test_perimeter_schedule_skips_when_already_armed(monkeypatch, tmp_path) -> None:
+    """A perimeter schedule must not error just because the panel is already
+    more armed than requested (issue #676 - the 2026-08-21 false FAILED)."""
+
+    monkeypatch.setattr(presence_engine, "STATE_PATH", tmp_path / "presence_state.json")
+
+    async def fake_fetch() -> _FakeSecurity:
+        return _FakeSecurity("armed")
+
+    async def fake_confirm(_action: str) -> _FakeSecurity:
+        raise AssertionError("confirm_alarm_action must not be called when already satisfied")
+
+    records: list[dict] = []
+
+    async def fake_record(**kwargs) -> None:
+        records.append(kwargs)
+
+    monkeypatch.setattr(security_automation, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(security_automation, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(security_automation, "record_alarm_action", fake_record)
+
+    asyncio.run(security_automation._apply_schedule(_NIGHT_ENTRY))
+
+    assert len(records) == 1
+    assert records[0]["outcome"] == "already"
+    assert records[0]["action"] == "perimeter"
+
+
+def test_disarm_schedule_skips_when_already_disarmed(monkeypatch, tmp_path) -> None:
+    """A morning disarm schedule must not error when the alarm was never
+    armed overnight - the end state is already correct (issue #676)."""
+
+    monkeypatch.setattr(presence_engine, "STATE_PATH", tmp_path / "presence_state.json")
+    disarm_entry = SecurityScheduleEntry(
+        id="morning", enabled=True, time="05:00", days=["thu"], action="disarm"
+    )
+
+    async def fake_fetch() -> _FakeSecurity:
+        return _FakeSecurity("disarmed")
+
+    async def fake_confirm(_action: str) -> _FakeSecurity:
+        raise AssertionError("confirm_alarm_action must not be called when already satisfied")
+
+    records: list[dict] = []
+
+    async def fake_record(**kwargs) -> None:
+        records.append(kwargs)
+
+    monkeypatch.setattr(security_automation, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(security_automation, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(security_automation, "record_alarm_action", fake_record)
+
+    asyncio.run(security_automation._apply_schedule(disarm_entry))
+
+    assert len(records) == 1
+    assert records[0]["outcome"] == "already"
+    assert records[0]["action"] == "disarm"

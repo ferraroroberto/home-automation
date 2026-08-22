@@ -60,6 +60,12 @@ OUTCOME_ERROR = "error"
 # (issue #626 - a stuck-presence block is expected, frequent noise); still
 # always logged via append_activity(), same as every other outcome.
 OUTCOME_BLOCKED = "blocked"
+# The panel already reported the desired end state, so no command was ever
+# issued (issue #676) - e.g. a nightly arm schedule firing while the panel is
+# already armed, or a morning disarm schedule firing while it's already
+# disarmed. Distinct from OUTCOME_OK (a command was sent and confirmed) and
+# from OUTCOME_ERROR (a command was sent and the panel never confirmed it).
+OUTCOME_ALREADY = "already"
 
 # Backoff before giving up on confirming an arm/disarm action took effect - a
 # rejected command or a mismatched read-back is often a transient RISCO
@@ -140,6 +146,23 @@ def action_took_effect(action: str, state: SecurityState) -> bool:
     return state.mode in ("partial", "perimeter")
 
 
+def alarm_action_already_satisfied(action: str, state: SecurityState) -> bool:
+    """Whether the panel's *current* mode already satisfies ``action`` without
+    issuing any command (issue #676) - used to skip a schedule fire that would
+    just re-arm an already-armed panel, or re-disarm an already-disarmed one.
+
+    Broader than :func:`action_took_effect` for arm-family actions only: a
+    full ``armed`` mode also satisfies a ``partial``/``perimeter`` request -
+    it's a superset - on top of the existing partial/perimeter
+    interchangeability. An ``arm`` or ``disarm`` request still needs its own
+    exact match, since downgrading either would be less secure than asked.
+    """
+
+    if action_took_effect(action, state):
+        return True
+    return action in ("partial", "perimeter") and state.mode == "armed"
+
+
 async def confirm_alarm_action(action: str) -> SecurityState:
     """Issue ``action``, retrying with backoff until confirmed or exhausted.
 
@@ -212,6 +235,10 @@ def _compose_message(
             f"⚠️ Automatic alarm {_verb(action)} FAILED — {source}{suffix}: "
             f"{error or 'unknown error'}"
         )
+    if outcome == OUTCOME_ALREADY:
+        if _verb(action) == "disarm":
+            return f"ℹ️ Alarm was already unset — {source}{suffix} (did you forget to arm it?)"
+        return f"ℹ️ Alarm was already set — {source}{suffix}, nothing to do"
     if _verb(action) == "arm":
         return f"🔒 Alarm armed automatically — {source}{suffix}"
     return f"🔓 Alarm disarmed automatically — {source}{suffix}"
@@ -225,6 +252,10 @@ def _should_notify(prefs: AlarmNotifyPrefs, source: str, action: str, outcome: s
         return False
     if outcome == OUTCOME_ERROR:
         return prefs.error
+    if outcome == OUTCOME_ALREADY:
+        if _verb(action) == "disarm":
+            return prefs.error  # reuse the existing "worth knowing" toggle
+        return False  # goal already met — nothing to report, ever
     return bool(getattr(prefs, f"{source}_{_verb(action)}", False))
 
 
@@ -249,9 +280,12 @@ async def record_alarm_action(
         source: one of ``manual`` / ``schedule`` / ``presence``.
         action: the RISCO action (``arm`` / ``disarm`` / ``partial`` / ``perimeter``).
         outcome: ``ok``, ``error`` (a command was sent and the panel rejected
-            it), or ``blocked`` (#599 — a condition stopped the action being
+            it), ``blocked`` (#599 — a condition stopped the action being
             attempted at all; worded like a block, not a failure, and never
-            notified over Telegram — #626).
+            notified over Telegram — #626), or ``already`` (#676 — the panel
+            already reported the desired end state, so no command was sent;
+            an arm-family action never notifies, a disarm reads as a
+            reminder rather than a failure).
         error: the failure/block text, carried verbatim into the message.
         detail: short human context (schedule time, presence reason) for the message.
         reason: stored in the activity log (not the message) for audit.

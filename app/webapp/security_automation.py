@@ -15,15 +15,17 @@ from dotenv import load_dotenv
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from app.webapp.alarm_notify import (
+    OUTCOME_ALREADY,
     OUTCOME_ERROR,
     OUTCOME_OK,
     SOURCE_SCHEDULE,
+    alarm_action_already_satisfied,
     automatic_alarm_action_lock,
     confirm_alarm_action,
     record_alarm_action,
 )
 from src.presence_engine import note_manual_alarm_action
-from src.risco_client import RiscoCommandError, RiscoConfigError
+from src.risco_client import RiscoCommandError, RiscoConfigError, fetch_security_state
 from src.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
 
 logger = logging.getLogger(__name__)
@@ -89,6 +91,24 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
     detail = entry.time
     try:
         async with automatic_alarm_action_lock():
+            state = await fetch_security_state()
+            if alarm_action_already_satisfied(entry.action, state):
+                # The panel already reports the desired end state (#676) - e.g.
+                # arming when already armed, or disarming when already
+                # disarmed. Skip the command entirely rather than reissuing it
+                # and having the read-back confirmation misread "already
+                # there" as a mismatch.
+                logger.info(
+                    "ℹ️ Alarm schedule %s skipped - panel already %s", entry.id, state.mode
+                )
+                await record_alarm_action(
+                    source=SOURCE_SCHEDULE,
+                    action=entry.action,
+                    outcome=OUTCOME_ALREADY,
+                    detail=detail,
+                    reason=f"schedule {entry.id}",
+                )
+                return
             # Publish the deliberate command before the panel can enter its new
             # mode. Presence compares arrivals to this timestamp, so an older,
             # previously unconsumed arrival cannot undo an in-flight schedule.
