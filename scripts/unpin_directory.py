@@ -55,6 +55,16 @@ if sys.platform != "win32":
 
 from ctypes import wintypes
 
+# Piped/redirected stdout falls back to cp1252, where the status glyphs below
+# raise UnicodeEncodeError and exit 1 — which would be indistinguishable from
+# this script's documented "1 = still pinned". Same guard every sibling script
+# in this directory carries.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+except Exception:  # pragma: no cover - non-reconfigurable stream
+    pass
+
 STILL_ACTIVE = 259
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROCESS_QUERY_INFORMATION = 0x0400
