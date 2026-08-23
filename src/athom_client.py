@@ -456,17 +456,22 @@ async def discover_meters(force: bool = False) -> tuple[List[MeterEndpoint], Opt
         )
         for endpoint in missing:
             endpoints[endpoint.meter_id] = endpoint
-        found = list(endpoints.values())
+
+    found = list(endpoints.values())
+    if not found:
+        # A sweep that found nothing at all is no more trustworthy on a cold
+        # start (no previous discovery to fall back on yet) than a sweep that
+        # missed some previously-known meters — same packet-loss reasoning
+        # above. Caching it for the full TTL would leave a genuinely-present
+        # meter invisible for minutes instead of the short retry window.
         _discovery_cache = (now + _DISCOVERY_EMPTY_TTL_S, found)
         return found, error
 
-    found = list(endpoints.values())
     _discovery_cache = (now + ttl, found)
-    if found:
-        logger.info(
-            "✅ Athom discovery: %s",
-            ", ".join(f"{e.name} @ {e.host} ({e.channel_count}ch)" for e in found),
-        )
+    logger.info(
+        "✅ Athom discovery: %s",
+        ", ".join(f"{e.name} @ {e.host} ({e.channel_count}ch)" for e in found),
+    )
     return found, error
 
 

@@ -7,6 +7,7 @@ derivation and the discovery cache policy. Nothing here touches the network.
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -224,6 +225,24 @@ class TestDiscoveryCache:
         self._browse(monkeypatch, [])
         found, error = asyncio.run(ac.discover_meters())
         assert found == [] and error is None
+
+    def test_cold_start_total_miss_is_cached_for_the_short_retry_window(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A first-ever sweep that misses everything is not a proven "no
+        meters" fact any more than a partial miss against known history is
+        (issue #684) — it must be cached for the short retry window, not the
+        full discovery TTL, or a genuinely-present meter stays invisible for
+        minutes after a cold start instead of seconds.
+        """
+        before = time.monotonic()
+        self._browse(monkeypatch, [[], []])  # both the sweep and its retry miss
+        found, error = asyncio.run(ac.discover_meters())
+        assert found == [] and error is None
+
+        deadline, cached_found = ac._discovery_cache
+        assert cached_found == []
+        assert deadline <= before + ac._DISCOVERY_EMPTY_TTL_S + 1
 
     def test_an_empty_first_browse_is_retried_once_with_a_wider_window(
         self, monkeypatch: pytest.MonkeyPatch
