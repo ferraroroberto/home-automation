@@ -2311,7 +2311,8 @@ button.presence-name:hover { text-decoration: underline; }
 .locator-place {
   font-size: var(--font-caption);
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 .locator-meta {
   white-space: nowrap;
@@ -2548,6 +2549,15 @@ button.presence-name:hover { text-decoration: underline; }
     gap: 2px;
   }
   .presence-status {
+    justify-self: start;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .locator-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .locator-status {
     justify-self: start;
     align-items: flex-start;
     text-align: left;
