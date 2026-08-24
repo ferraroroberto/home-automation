@@ -30,7 +30,12 @@ from pathlib import Path
 from typing import List, Optional
 
 # Local imports
-from app.webapp.manager import WebappManager, cert_paths, load_config
+from app.webapp.manager import (
+    WebappManager,
+    WebappStartupPending,
+    cert_paths,
+    load_config,
+)
 from app.tray.single_instance import SingleInstance
 from src._no_window import NO_WINDOW
 from src.webapp_config import append_auth_token, load_webapp_config
@@ -342,6 +347,29 @@ def run_tray() -> int:
         try:
             manager.start(wait=True)
             _notify(icon, "Home Automation webapp ready", manager.base_url)
+        except WebappStartupPending as exc:
+            # Process is still alive, just slow (a boot-storm cold start has
+            # been observed taking ~20 minutes) — keep watching in the
+            # background instead of reporting a permanent failure (#687).
+            logger.warning(f"⚠️  {exc} — still watching")
+            _notify(
+                icon,
+                "Home Automation webapp starting…",
+                "Taking longer than usual — still watching.",
+            )
+
+            def _keep_watching():
+                if manager.watch_until_resolved():
+                    _notify(icon, "Home Automation webapp ready", manager.base_url)
+                else:
+                    logger.error("❌ webapp process exited before becoming ready")
+                    _notify(
+                        icon,
+                        "Home Automation start failed",
+                        "webapp process exited before becoming ready",
+                    )
+
+            threading.Thread(target=_keep_watching, daemon=True).start()
         except Exception as exc:  # noqa: BLE001
             starter_error["exc"] = exc
             logger.error(f"❌ webapp start failed: {exc}")

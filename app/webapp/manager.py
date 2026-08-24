@@ -52,6 +52,17 @@ OWNERSHIP_EXTERNAL = "external"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
+class WebappStartupPending(RuntimeError):
+    """``_wait_until_ready()`` gave up, but the spawned process is still
+    alive — distinct from a real failure (issue #687). On a boot-storm
+    cold start this app has been observed taking ~20 minutes to bind its
+    port even though ``startup_timeout_seconds`` (15s) is comfortably
+    enough on a warm start. A caller catching this specifically (rather
+    than the plain ``RuntimeError`` used for "process already exited")
+    knows it's still worth watching rather than reporting a hard failure.
+    """
+
+
 @dataclass(frozen=True)
 class WebappManagerConfig:
     """Runtime knobs; host/port come from config/webapp_config.json."""
@@ -316,7 +327,24 @@ class WebappManager:
                 logger.info(f"✅ Webapp ready at {self.base_url}")
                 return
             time.sleep(self.config.poll_interval_seconds)
-        raise RuntimeError(
-            f"❌ webapp did not become ready within "
-            f"{self.config.startup_timeout_seconds}s"
+        raise WebappStartupPending(
+            f"webapp not ready within {self.config.startup_timeout_seconds}s "
+            "(process still alive — may just be a slow boot)"
         )
+
+    def watch_until_resolved(self) -> bool:
+        """Keep polling a still-starting webapp until it's genuinely ready
+        or genuinely dead — no second fixed timeout to guess at (#687).
+
+        Call after ``start(wait=True)`` raises :class:`WebappStartupPending`.
+        Blocks the calling thread (run it off the UI/tray thread). Returns
+        ``True`` once ``is_reachable()`` succeeds, ``False`` if the spawned
+        process exits first without ever becoming reachable.
+        """
+        while True:
+            if self._proc is None or self._proc.poll() is not None:
+                return False
+            if self.is_reachable():
+                logger.info(f"✅ Webapp ready at {self.base_url}")
+                return True
+            time.sleep(self.config.poll_interval_seconds)
