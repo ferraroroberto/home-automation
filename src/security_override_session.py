@@ -10,15 +10,11 @@ next arm. Same atomic load/save shape as the rest of ``src/*_config.py``.
 
 from __future__ import annotations
 
-import json
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src._atomic_json import write_json_atomic
-
-logger = logging.getLogger(__name__)
+from src._schedule_store import read_json, save_json
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 SESSION_PATH = _CONFIG_DIR / "security_override_session.json"
@@ -34,16 +30,17 @@ class OverrideSession:
 
 
 def load_override_session(path: Optional[Path] = None) -> OverrideSession:
-    """Return the persisted session state, or a fresh one if absent/unreadable."""
+    """Return the persisted session state, or a fresh one if absent.
+
+    Raises :class:`~src._schedule_store.StoreUnreadableError` when the store
+    *exists* but can't be read (issue #692) — this is a read-modify-save
+    store (``_run_event_scan`` mutates the returned session and saves it
+    back), so degrading an unreadable read to a fresh default would erase
+    ``auto_bypassed_zones`` and silently leave a detector bypassed forever.
+    """
 
     target = Path(path) if path is not None else SESSION_PATH
-    if not target.exists():
-        return OverrideSession()
-    try:
-        data: Any = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); starting a fresh session", target, exc)
-        return OverrideSession()
+    data: Any = read_json(target, None)
     if not isinstance(data, dict):
         return OverrideSession()
     counts = data.get("session_counts")
@@ -59,7 +56,7 @@ def save_override_session(session: OverrideSession, path: Optional[Path] = None)
     """Atomically persist the session state."""
 
     target = Path(path) if path is not None else SESSION_PATH
-    write_json_atomic(
+    save_json(
         target,
         {
             "last_event_time": session.last_event_time,

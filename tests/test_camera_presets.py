@@ -57,3 +57,15 @@ def test_load_non_object_is_empty(tmp_path: Path) -> None:
     path = tmp_path / "presets.json"
     path.write_text(json.dumps(["not", "a", "dict"]), encoding="utf-8")
     assert P.list_local_presets("garden", path) == []
+
+
+def test_unreadable_file_raises_instead_of_returning_empty(tmp_path: Path) -> None:
+    """Issue #692: corrupt content must not look like "no presets saved" —
+    ``add_local_preset``/``remove_local_preset`` would save that empty default
+    back over every other camera's presets."""
+    from src._schedule_store import StoreUnreadableError
+
+    path = tmp_path / "presets.json"
+    path.write_text("{ not json", encoding="utf-8")
+    with pytest.raises(StoreUnreadableError):
+        P.list_local_presets("garden", path)

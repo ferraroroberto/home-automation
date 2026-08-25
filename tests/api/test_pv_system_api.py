@@ -11,6 +11,7 @@ write side is strict and 400s per field — that asymmetry is the point.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -104,6 +105,63 @@ def test_a_rejected_put_leaves_the_stored_config_untouched(
     assert client.get("/api/energy/pv-system").json()["arrays"] == [
         {"kwp": 5.0, "tilt_deg": 30.0, "azimuth_deg": 0.0}
     ]
+
+
+# ------------------------ an unreadable (not merely absent) store (#692)
+# A transient read failure must never look like "not configured" to the write
+# path — that is exactly how a stored array would get silently wiped.
+
+
+def _make_session_unreadable(monkeypatch, target: Path) -> None:
+    real_read_text = Path.read_text
+
+    def _fail_for_target(self, *args, **kwargs):
+        if self == target:
+            raise PermissionError(13, "Permission denied")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _fail_for_target)
+    import src._schedule_store as store_mod
+
+    monkeypatch.setattr(store_mod.time, "sleep", lambda _s: None)
+
+
+def test_get_stays_200_when_the_store_is_unreadable(
+    client: TestClient, _isolate_pv_config, monkeypatch
+) -> None:
+    """The read-only GET keeps its "always 200" contract even on a transient
+    read failure — there is no save here to corrupt."""
+    _isolate_pv_config.write_text(
+        json.dumps({"arrays": [{"kwp": 8.0}], "performance_ratio": 0.75}),
+        encoding="utf-8",
+    )
+    _make_session_unreadable(monkeypatch, _isolate_pv_config)
+
+    body = client.get("/api/energy/pv-system").json()
+    assert body["configured"] is False
+
+
+def test_put_raises_rather_than_silently_wiping_the_store_when_unreadable(
+    client: TestClient, _isolate_pv_config, monkeypatch
+) -> None:
+    """Unlike GET, the write path must not fold an unreadable read into
+    "nothing stored" — that would save an omitted field's default over the
+    real arrays the moment any other field is edited. Uncaught here (the
+    TestClient re-raises); a real ASGI server turns this into a 500."""
+    from src._schedule_store import StoreUnreadableError
+
+    _isolate_pv_config.write_text(
+        json.dumps({"arrays": [{"kwp": 8.0}], "performance_ratio": 0.75}),
+        encoding="utf-8",
+    )
+    _make_session_unreadable(monkeypatch, _isolate_pv_config)
+
+    with pytest.raises(StoreUnreadableError):
+        client.put("/api/energy/pv-system", json={"performance_ratio": 0.7})
+
+    monkeypatch.undo()
+    raw = json.loads(_isolate_pv_config.read_text(encoding="utf-8"))
+    assert raw == {"arrays": [{"kwp": 8.0}], "performance_ratio": 0.75}
 
 
 def test_editing_a_legacy_flat_config_preserves_its_doc_note(

@@ -9,7 +9,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from src import display_names as D
+from src._schedule_store import StoreUnreadableError
 
 
 def test_load_missing_file_is_empty(tmp_path: Path) -> None:
@@ -51,3 +54,13 @@ def test_load_non_object_is_empty(tmp_path: Path) -> None:
     path = tmp_path / "names.json"
     path.write_text(json.dumps(["not", "a", "dict"]), encoding="utf-8")
     assert D.load_display_names(path) == {}
+
+
+def test_unreadable_file_raises_instead_of_returning_empty(tmp_path: Path) -> None:
+    """Issue #692: corrupt content must not look like "no overrides saved" —
+    ``set_display_name`` would save that empty default back over every other
+    unit's display name."""
+    path = tmp_path / "names.json"
+    path.write_text("{ not json", encoding="utf-8")
+    with pytest.raises(StoreUnreadableError):
+        D.load_display_names(path)

@@ -13,7 +13,6 @@ template. A missing file is not an error — first run uses the defaults.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -21,6 +20,7 @@ from typing import Optional
 from urllib.parse import urlencode, urlparse, urlunparse
 
 from src._atomic_json import write_json_atomic
+from src._schedule_store import read_json
 
 logger = logging.getLogger("melcloud.webapp_config")
 
@@ -49,19 +49,18 @@ class WebappConfig:
 
 
 def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
-    """Load the webapp config, falling back to defaults if the file is missing."""
+    """Load the webapp config, falling back to defaults if the file is missing.
+
+    Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
+    exists but can't be read (issue #692) — ``update_webapp_config`` mutates
+    this return value and saves it whole, so a transient failure here would
+    otherwise get saved back over a real ``auth_token``/``auth_password``.
+    """
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
-    if not target.exists():
+    raw = read_json(target, None)
+    if raw is None:
         logger.info(
             "📂 webapp_config not found at %s, using defaults", target
-        )
-        return WebappConfig()
-
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning(
-            "⚠️ Could not read %s (%s); falling back to defaults", target, exc
         )
         return WebappConfig()
 

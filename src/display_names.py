@@ -8,12 +8,12 @@ error — returns an empty dict, same "graceful default" pattern as
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Dict, Optional
 
 from src._atomic_json import write_json_atomic
+from src._schedule_store import read_json
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +21,16 @@ DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config" / "display_name
 
 
 def load_display_names(path: Optional[Path] = None) -> Dict[str, str]:
-    """Return {unit_id: display_name} from the config file, or {} if absent."""
+    """Return {unit_id: display_name} from the config file, or {} if absent.
+
+    Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
+    exists but can't be read (issue #692) — ``set_display_name`` mutates this
+    return value and saves it whole, so a transient failure here would
+    otherwise get saved back over every other unit's display name.
+    """
     target = Path(path) if path is not None else DEFAULT_PATH
-    if not target.exists():
-        return {}
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty overrides", target, exc)
-        return {}
+    raw = read_json(target, None)
     if not isinstance(raw, dict):
-        logger.warning("⚠️ %s is not a JSON object; returning empty overrides", target)
         return {}
     return {str(k): str(v) for k, v in raw.items() if v}
 

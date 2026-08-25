@@ -12,12 +12,12 @@ missing file is not an error. Mirrors the atomic load/save discipline of
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from src._atomic_json import write_json_atomic
+from src._schedule_store import read_json
 
 logger = logging.getLogger(__name__)
 
@@ -27,16 +27,17 @@ Preset = Dict[str, object]
 
 
 def _load(path: Optional[Path] = None) -> Dict[str, List[Preset]]:
+    """Return the saved presets, or ``{}`` if absent.
+
+    Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
+    exists but can't be read (issue #692) — ``add_local_preset``/
+    ``remove_local_preset`` mutate this return value and save it whole, so a
+    transient failure here would otherwise get saved back over every other
+    camera's presets.
+    """
     target = Path(path) if path is not None else DEFAULT_PATH
-    if not target.exists():
-        return {}
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty presets", target, exc)
-        return {}
+    raw = read_json(target, None)
     if not isinstance(raw, dict):
-        logger.warning("⚠️ %s is not a JSON object; returning empty presets", target)
         return {}
     return {str(k): list(v) for k, v in raw.items() if isinstance(v, list)}
 

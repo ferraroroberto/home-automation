@@ -40,12 +40,12 @@ public repo. ``config/circuit_prefs.sample.json`` shows the shape.
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Dict, Optional
 
 from src._atomic_json import write_json_atomic
+from src._schedule_store import read_json
 
 logger = logging.getLogger(__name__)
 
@@ -59,17 +59,15 @@ def load_circuit_prefs(path: Optional[Path] = None) -> Dict[str, Dict[str, objec
     are dropped individually rather than discarding the whole file — one bad
     hand-edit must not silently un-label every other circuit. A row written by
     an older build simply has no ``hidden`` key and reads back as ``False``.
+
+    Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
+    exists but can't be read (issue #692) — ``_set_field`` mutates this
+    return value and saves it whole, so a transient failure here would
+    otherwise get saved back over every other channel's prefs.
     """
     target = Path(path) if path is not None else DEFAULT_PATH
-    if not target.exists():
-        return {}
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty prefs", target, exc)
-        return {}
+    raw = read_json(target, None)
     if not isinstance(raw, dict):
-        logger.warning("⚠️ %s is not a JSON object; returning empty prefs", target)
         return {}
 
     prefs: Dict[str, Dict[str, object]] = {}

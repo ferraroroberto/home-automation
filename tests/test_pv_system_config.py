@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from src._schedule_store import StoreUnreadableError
 from src.pv_system_config import (
     MIN_THERMAL_PERFORMANCE_RATIO,
     PvArray,
@@ -38,10 +39,13 @@ def test_missing_file_returns_none(tmp_path: Path) -> None:
     assert load_pv_system_config(tmp_path / "nope.json") is None
 
 
-def test_malformed_json_returns_none(tmp_path: Path) -> None:
+def test_malformed_json_raises_instead_of_returning_none(tmp_path: Path) -> None:
+    """Issue #692: corrupt content must not look like "not configured" —
+    ``update_pv_system`` would save that empty default back over a real array."""
     path = tmp_path / "pv_system.json"
     path.write_text("{not json", encoding="utf-8")
-    assert load_pv_system_config(path) is None
+    with pytest.raises(StoreUnreadableError):
+        load_pv_system_config(path)
 
 
 def test_multi_array_shape_loads_all_sub_arrays(tmp_path: Path) -> None:

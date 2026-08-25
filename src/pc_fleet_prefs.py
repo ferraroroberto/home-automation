@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from src._atomic_json import write_json_atomic
+from src._schedule_store import read_json
 
 logger = logging.getLogger(__name__)
 
@@ -68,17 +69,18 @@ def _legacy_enabled_seed() -> bool:
 
 def load_pc_fleet_prefs(path: Optional[Path] = None) -> PcFleetPrefs:
     """Return saved prefs; when the file is absent, defaults with ``enabled``
-    seeded from the legacy auto-shutdown toggle (migration, see module doc)."""
+    seeded from the legacy auto-shutdown toggle (migration, see module doc).
+
+    Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
+    exists but can't be read (issue #692) — ``update_pc_fleet_prefs`` mutates
+    this return value and saves it whole, so a transient failure here would
+    otherwise get saved back over a real ``threshold_minutes``/``excluded``.
+    """
     target = Path(path) if path is not None else DEFAULT_PATH
-    if not target.exists():
+    raw = read_json(target, None)
+    if raw is None:
         return PcFleetPrefs(enabled=_legacy_enabled_seed())
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); using defaults", target, exc)
-        return PcFleetPrefs()
     if not isinstance(raw, dict):
-        logger.warning("⚠️ %s is not a JSON object; using defaults", target)
         return PcFleetPrefs()
     excluded = raw.get("excluded", ())
     if not isinstance(excluded, (list, tuple)):
