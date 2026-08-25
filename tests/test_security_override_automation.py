@@ -11,6 +11,8 @@ touching a real RISCO connection or the real on-disk config.
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 
 import app.webapp.security_override_automation as engine
 import src.security_override as override_cfg
@@ -107,6 +109,51 @@ def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, 
     session = session_cfg.load_override_session()
     assert session.auto_bypassed_zones == []
     assert session.session_counts == {}
+
+
+def test_unreadable_session_store_does_not_clear_auto_bypassed_zones(
+    monkeypatch, tmp_path
+) -> None:
+    """Issue #692: a transient read failure on the session store — the file is
+    right there, only the read glitches — must never get folded into a fresh
+    default and saved back over the real session. That is exactly how a zone
+    this automation owed a restore would be silently forgotten forever.
+    """
+
+    monkeypatch.setattr(override_cfg, "OVERRIDES_PATH", tmp_path / "security_override.json")
+    monkeypatch.setattr(session_cfg, "SESSION_PATH", tmp_path / "security_override_session.json")
+    set_overrides([{"id": "jardin", "zone_id": 12, "max_retries": 2}], path=override_cfg.OVERRIDES_PATH)
+
+    real_session = {
+        "last_event_time": "2026-07-04T10:00:00Z",
+        "session_counts": {"12": 1},
+        "auto_bypassed_zones": [12],
+    }
+    session_cfg.SESSION_PATH.write_text(json.dumps(real_session), encoding="utf-8")
+
+    real_read_text = Path.read_text
+
+    def _fail_reading_the_session_store(self, *args, **kwargs):
+        if self == session_cfg.SESSION_PATH:
+            raise PermissionError(13, "Permission denied")
+        return real_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _fail_reading_the_session_store)
+    import src._schedule_store as store_mod
+
+    monkeypatch.setattr(store_mod.time, "sleep", lambda _s: None)
+
+    events = [
+        _FakeEvent("2026-07-04T10:05:00Z", name="Alarm - 'PUERTA JARDIN'", type="triggered", zone_id=12)
+    ]
+    monkeypatch.setattr(engine, "fetch_events", _async_return(events))
+
+    config = engine.OverrideAutomationConfig(enabled=True, event_scan_interval_s=20)
+    asyncio.run(engine._run_event_scan(config))  # must honor the "never raises" contract
+
+    monkeypatch.setattr(Path, "read_text", real_read_text)
+    on_disk = json.loads(session_cfg.SESSION_PATH.read_text(encoding="utf-8"))
+    assert on_disk == real_session
 
 
 def test_scan_skips_fetch_when_nothing_configured_or_pending(monkeypatch, tmp_path) -> None:

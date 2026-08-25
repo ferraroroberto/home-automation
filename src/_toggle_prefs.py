@@ -10,13 +10,13 @@ module reuses this instead of cloning the ~40 LOC pair again.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import asdict, fields
 from pathlib import Path
 from typing import Type, TypeVar
 
 from src._atomic_json import write_json_atomic
+from src._schedule_store import read_json
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +27,14 @@ def load_toggle_prefs(cls: Type[T], path: Path) -> T:
     """Return saved bool-toggle prefs of type ``cls``, or its defaults when absent/invalid.
 
     Every field of ``cls`` is coerced with ``bool(...)``, matching the
-    per-field ``bool(raw.get(name, default))`` calls this replaces.
+    per-field ``bool(raw.get(name, default))`` calls this replaces. Raises
+    :class:`~src._schedule_store.StoreUnreadableError` when the file exists
+    but can't be read (issue #692) — every caller is a read-modify-save
+    router that would otherwise save the defaults back over real prefs.
     """
 
-    if not path.exists():
-        return cls()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); using defaults", path, exc)
-        return cls()
+    raw = read_json(path, None)
     if not isinstance(raw, dict):
-        logger.warning("⚠️ %s is not a JSON object; using defaults", path)
         return cls()
     defaults = cls()
     kwargs = {f.name: bool(raw.get(f.name, getattr(defaults, f.name))) for f in fields(cls)}

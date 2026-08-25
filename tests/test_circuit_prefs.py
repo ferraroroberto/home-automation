@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from src._schedule_store import StoreUnreadableError
 from src.circuit_prefs import (
     load_circuit_display_names,
     load_circuit_prefs,
@@ -116,10 +119,13 @@ def test_a_malformed_row_does_not_discard_the_others(tmp_path: Path) -> None:
     assert load_circuit_display_names(path) == {KEY: "termo"}
 
 
-def test_unreadable_file_returns_empty(tmp_path: Path) -> None:
+def test_unreadable_file_raises_instead_of_returning_empty(tmp_path: Path) -> None:
+    """Issue #692: corrupt content must not look like "nothing saved yet" —
+    ``_set_field`` would save that empty default back over every channel."""
     path = tmp_path / "circuit_prefs.json"
     path.write_text("{ not json", encoding="utf-8")
-    assert load_circuit_prefs(path) == {}
+    with pytest.raises(StoreUnreadableError):
+        load_circuit_prefs(path)
 
 
 def test_names_are_stripped(tmp_path: Path) -> None:

@@ -27,6 +27,7 @@ from src.energy_history import (
     hourly_range,
     recent_samples,
 )
+from src._schedule_store import StoreUnreadableError
 from src.location_config import load_location_config
 from src.pv_forecast import MAX_PAST_DAYS, fetch_pv_forecast, fetch_pv_forecast_for_date
 from src.pv_system_config import (
@@ -587,9 +588,17 @@ async def get_pv_system() -> Dict[str, Any]:
     """The configured PV array, for the Energy tab's editor (issue #561).
 
     Always 200: an absent or malformed file is "not configured" — an empty row
-    list the editor renders as its empty state — never a 500.
+    list the editor renders as its empty state — never a 500. A store that
+    exists but is transiently unreadable (issue #692) degrades the same way
+    here — this is a read-only display, so there is no save to corrupt, unlike
+    ``update_pv_system`` below which lets the same failure propagate as a 500.
     """
-    return _pv_system_payload(load_pv_system_config())
+    try:
+        config = load_pv_system_config()
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ PV-system config unreadable: %s", exc)
+        config = None
+    return _pv_system_payload(config)
 
 
 @router.put("/api/energy/pv-system")
@@ -612,6 +621,12 @@ async def update_pv_system(payload: PvSystemPayload) -> Dict[str, Any]:
     ``performance_ratio``, so one editor's save can never wipe another's data.
     The horizon-profile *switch* has no editor control either, same as the
     thermal one — only the points are editable.
+
+    A store that exists but is transiently unreadable (issue #692) is
+    deliberately *not* caught here, unlike the GET endpoint above — this is
+    "field omitted keeps stored" only because ``stored`` genuinely reflects
+    what's on disk. Folding an unreadable read into ``stored=None`` would
+    save an omitted field's default over real data, so this 500s instead.
     """
     stored = load_pv_system_config()
     ratio = payload.performance_ratio

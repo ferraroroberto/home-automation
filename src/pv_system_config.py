@@ -59,7 +59,6 @@ reader's parsing.
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 from dataclasses import dataclass, field
@@ -67,6 +66,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src._atomic_json import write_json_atomic
+from src._schedule_store import read_json
 
 logger = logging.getLogger("melcloud.pv_system_config")
 
@@ -126,8 +126,17 @@ MIN_THERMAL_PERFORMANCE_RATIO = 0.85
 def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfig]:
     """Load the PV-system config.
 
-    Returns ``None`` when the file is missing or malformed (not configured) — the
-    caller treats that as "forecast unavailable", never as an error.
+    Returns ``None`` when the file is absent, or its content is malformed
+    (not configured) — the caller treats that as "forecast unavailable",
+    never as an error.
+
+    Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
+    *exists* but can't be read (issue #692) — ``update_pv_system`` mutates
+    this return value and saves it whole, so a transient failure here would
+    otherwise get saved back over a real array/horizon-profile config.
+    Callers for whom "not configured" is an acceptable, non-destructive
+    fallback (e.g. the read-only GET endpoint) should catch it explicitly
+    rather than relying on this function to fold it into ``None``.
 
     Accepts two shapes: the current ``{"arrays": [...], "performance_ratio": ...}``
     list form, and the legacy single-orientation flat form (``kwp``/``tilt_deg``/
@@ -140,14 +149,9 @@ def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfi
     until one is added by hand.
     """
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
-    if not target.exists():
+    raw = read_json(target, None)
+    if raw is None:
         logger.info("📂 PV-system config not found at %s — forecast disabled", target)
-        return None
-
-    try:
-        raw = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s) — forecast disabled", target, exc)
         return None
 
     pr = _clamp_float(raw.get("performance_ratio"), default=0.8, lo=0.0, hi=1.0)
@@ -356,20 +360,19 @@ def save_pv_system_config(
 
     Always writes the current ``arrays`` shape, and always preserves any
     top-level key this module doesn't own — an existing file's ``_doc`` note
-    is why the write merges instead of replacing.
+    is why the write merges instead of replacing. Raises
+    :class:`~src._schedule_store.StoreUnreadableError` (issue #692) when an
+    existing file can't be read for that merge — writing anyway would drop
+    the unowned keys (notably ``thermal_model_enabled``/
+    ``horizon_profile_enabled``) it exists to preserve.
     """
     validate_pv_system(config)
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
 
     payload: Dict[str, Any] = {}
-    if target.exists():
-        try:
-            existing = json.loads(target.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("⚠️ Could not read %s before saving (%s)", target, exc)
-            existing = None
-        if isinstance(existing, dict):
-            payload = {k: v for k, v in existing.items() if k not in _OWNED_KEYS}
+    existing = read_json(target, None)
+    if isinstance(existing, dict):
+        payload = {k: v for k, v in existing.items() if k not in _OWNED_KEYS}
 
     payload["arrays"] = [
         {
