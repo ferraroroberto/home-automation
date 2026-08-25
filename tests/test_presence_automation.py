@@ -73,13 +73,22 @@ def _wire_common(monkeypatch) -> None:
     # Issue #653: tick() builds an iCloud corroboration map every round. Not
     # what these tests are about, so keep it a cheap no-op ({}).
     monkeypatch.setattr(PA, "_build_icloud_corroboration", lambda cache: {})
+    # Issue #689: tick() also refreshes the known-people roster every round.
+    # Stubbed so these tests can never write the real config/presence_roster.json
+    # from their `{"p1": ...}` sentinel household; the roster's own behaviour is
+    # covered in tests/test_presence_roster.py.
+    monkeypatch.setattr(PA, "remember_known_people", lambda ids: tuple(ids))
 
-    async def fake_sync_arm_block_diagnostic(security_mode: str, corroboration=None) -> None:
+    async def fake_sync_arm_block_diagnostic(
+        security_mode: str, corroboration=None, known_person_ids=()
+    ) -> None:
         pass
 
     monkeypatch.setattr(PA, "_sync_arm_block_diagnostic", fake_sync_arm_block_diagnostic)
 
-    async def fake_sync_staleness_block_diagnostic(corroboration=None) -> None:
+    async def fake_sync_staleness_block_diagnostic(
+        corroboration=None, known_person_ids=()
+    ) -> None:
         pass
 
     monkeypatch.setattr(PA, "_sync_staleness_block_diagnostic", fake_sync_staleness_block_diagnostic)
@@ -89,7 +98,9 @@ def _wire_common(monkeypatch) -> None:
     # them. Its own logic is covered in tests/test_presence_engine.py; that it
     # is wired into tick() at all is asserted separately below.
     monkeypatch.setattr(
-        PA, "_consume_satisfied_disarm", lambda security_mode, corroboration=None: None
+        PA,
+        "_consume_satisfied_disarm",
+        lambda security_mode, corroboration=None, known_person_ids=(): None,
     )
 
 
@@ -460,16 +471,21 @@ def test_presence_tick_consumes_satisfied_disarm(monkeypatch) -> None:
     `_wire_common` stubs the helper out for the apply-path tests, so this is the
     one place that proves the call site exists and gets the panel's real mode.
     """
-    seen: list[str] = []
+    seen: list[tuple] = []
     _wire_common(monkeypatch)
     monkeypatch.setattr(
-        PA, "_consume_satisfied_disarm", lambda mode, corroboration=None: seen.append(mode)
+        PA,
+        "_consume_satisfied_disarm",
+        lambda mode, corroboration=None, known_person_ids=(): seen.append(
+            (mode, known_person_ids)
+        ),
     )
     monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: None)
 
     asyncio.run(PA.tick())
 
-    assert seen == ["disarmed"]
+    # ...and the roster it must refuse to act on when incomplete (#689).
+    assert seen == [("disarmed", ("p1",))]
 
 
 def test_presence_tick_wires_staleness_block_diagnostic(monkeypatch) -> None:
@@ -479,15 +495,17 @@ def test_presence_tick_wires_staleness_block_diagnostic(monkeypatch) -> None:
     seen: list = []
     _wire_common(monkeypatch)
 
-    async def fake(corroboration=None) -> None:
-        seen.append(corroboration)
+    async def fake(corroboration=None, known_person_ids=()) -> None:
+        seen.append((corroboration, known_person_ids))
 
     monkeypatch.setattr(PA, "_sync_staleness_block_diagnostic", fake)
     monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: None)
 
     asyncio.run(PA.tick())
 
-    assert len(seen) == 1
+    # It is also the diagnostic that reports a *missing* roster member (#689),
+    # so it has to be handed the roster.
+    assert seen == [({}, ("p1",))]
 
 
 def _entity(entity_id: str, name: str, *, last_seen=None, at_home=None):
@@ -592,3 +610,36 @@ def test_consume_satisfied_disarm_marks_and_is_idempotent(monkeypatch, tmp_path)
     monkeypatch.setattr(PA, "mark_disarm_satisfied", lambda key: marked.append(key))
     PA._consume_satisfied_disarm("disarmed")
     assert marked == []
+
+
+def test_a_successful_action_is_not_reported_as_failed_when_bookkeeping_read_fails(
+    monkeypatch,
+) -> None:
+    """Issue #689: `mark_decision_applied` reads `presence_state.json`. Since an
+    unreadable store now raises instead of degrading to empty, a hiccup there
+    used to land inside the `confirm_alarm_action` try and fire a Telegram alert
+    claiming an arm failed that the panel had actually accepted."""
+
+    from src._schedule_store import StoreUnreadableError
+
+    recorded: list[dict] = []
+    _wire_common(monkeypatch)
+
+    async def fake_confirm(action: str) -> _FakeConfirmState:
+        return _FakeConfirmState("armed")
+
+    def exploding_mark(decision, outcome):
+        raise StoreUnreadableError("could not read presence_state.json")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(PA, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(PA, "mark_decision_applied", exploding_mark)
+    monkeypatch.setattr(PA, "set_kids_home_override", lambda v: None)
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
+
+    asyncio.run(PA.tick())
+
+    assert [r["outcome"] for r in recorded] == [PA.OUTCOME_OK]
+    assert "error" not in recorded[0]

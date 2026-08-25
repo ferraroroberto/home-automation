@@ -18,6 +18,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 
 from app.webapp import automation
 from app.webapp.routers._helpers import make_display_name_endpoint
+from src._schedule_store import StoreUnreadableError
 from src.display_names import load_display_names, set_display_name
 from src.hvac_automation import (
     MIN_SETTLE_INTERVAL_S,
@@ -149,6 +150,25 @@ def _unit_dict(
     }
 
 
+def _decoration(load, label: str, empty):
+    """Read a store that only *decorates* a unit payload, never decides on it.
+
+    These reads are display enrichment layered onto the live MELCloud device
+    list, and they are never written back — so a momentarily unreadable file
+    (issue #689) degrades to "no rules/schedules shown this poll" with a logged
+    warning, instead of 500-ing `GET /api/units` and taking the PWA home grid
+    and the Home Assistant `climate` platform down over a file that has nothing
+    to do with the device list. Decision paths deliberately do the opposite and
+    refuse to act.
+    """
+
+    try:
+        return load()
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ %s unreadable this poll; showing none (%s)", label, exc)
+        return empty
+
+
 @router.get("/api/units")
 async def list_units() -> Dict[str, Any]:
     try:
@@ -159,8 +179,8 @@ async def list_units() -> Dict[str, Any]:
         logger.warning("⚠️  Failed to fetch units: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to fetch units: {exc}")
     display_names = load_display_names()
-    rules = load_rules()
-    schedules = load_schedules()
+    rules = _decoration(load_rules, "config/hvac_rules.json", {})
+    schedules = _decoration(load_schedules, "config/hvac_schedules.json", {})
     return {"units": [_unit_dict(d, display_names, rules, schedules) for d in devices]}
 
 
@@ -243,8 +263,8 @@ async def control_unit(unit_id: str, payload: ControlPayload) -> Dict[str, Any]:
         logger.warning("⚠️  Failed to control unit %s: %s", unit_id, exc)
         raise HTTPException(status_code=502, detail=f"failed to apply: {exc}")
     display_names = load_display_names()
-    rules = load_rules()
-    schedules = load_schedules()
+    rules = _decoration(load_rules, "config/hvac_rules.json", {})
+    schedules = _decoration(load_schedules, "config/hvac_schedules.json", {})
     return _unit_dict(updated, display_names, rules, schedules)
 
 
@@ -399,9 +419,13 @@ async def get_boost_coordinator() -> Dict[str, Any]:
     """The fleet solar-boost sequencing knobs (issue #562).
 
     Always 200: an absent or malformed file means "defaults", never a 500 — the
-    engine has to keep running off a hand-broken config.
+    engine has to keep running off a hand-broken config. That promise now has to
+    be kept explicitly (issue #689), since the underlying store raises on an
+    unreadable read rather than quietly returning empty.
     """
-    return _boost_coordinator_payload(load_boost_config())
+    return _boost_coordinator_payload(
+        _decoration(load_boost_config, "config/hvac_boost.json", BoostCoordinatorConfig())
+    )
 
 
 @router.put("/api/hvac/boost-coordinator")

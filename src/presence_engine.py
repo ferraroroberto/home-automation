@@ -10,17 +10,22 @@ itself stays iCloud-free; it only ever reads whatever the caller hands it.
 
 from __future__ import annotations
 
+import logging
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, Tuple
 
-from src._schedule_store import read_json, save_json
+from src._schedule_store import StoreUnreadableError, read_json, save_json
+from src.presence_roster import remember_people, roster_path_for
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 STATE_PATH = _CONFIG_DIR / "presence_state.json"
 AUTOMATION_PATH = _CONFIG_DIR / "presence_automation.json"
 TRIGGER_LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "presence_triggers.jsonl"
+
+logger = logging.getLogger(__name__)
 
 VALID_STATES = frozenset({"home", "away"})
 
@@ -146,6 +151,24 @@ def _save_state(data: Dict[str, Any], path: Optional[Path] = None) -> None:
     save_json(Path(path) if path is not None else STATE_PATH, data)
 
 
+def _roster_path(path: Optional[Path] = None) -> Path:
+    """The roster beside the state file this module is actually using.
+
+    Resolving it through ``STATE_PATH`` rather than the roster's own default is
+    what keeps the two stores together: anything that redirects presence state
+    — a test, a worktree's copied config — redirects the roster with it, and
+    can never reach the real household's file.
+    """
+
+    return roster_path_for(Path(path) if path is not None else STATE_PATH)
+
+
+def remember_known_people(person_ids: Iterable[str]) -> Tuple[str, ...]:
+    """Union ``person_ids`` into the roster, returning the full known set."""
+
+    return remember_people(person_ids, _roster_path())
+
+
 def load_people(path: Optional[Path] = None) -> Dict[str, PersonPresence]:
     """Return webhook-backed people keyed by person id."""
 
@@ -215,6 +238,18 @@ def set_person_state(
     }
     raw["people"] = people
     _save_state(raw, path)
+    # The roster is what lets the engine notice this person going *missing*
+    # later (issue #689), so it has to learn them at the same moment their
+    # state does — beside whichever state file this call actually wrote.
+    #
+    # Guarded because the state write above has already landed: raising here
+    # would fail the webhook for a change that succeeded, and HA's rest_command
+    # would read that as a lost update. The automation tick unions the roster
+    # every round anyway, so the registration is picked up within ~10s.
+    try:
+        remember_people([clean_id], _roster_path(path))
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ Could not register %s in the presence roster: %s", clean_id, exc)
     return PersonPresence(clean_id, clean_state, stamp, source, state_since=state_since)
 
 
@@ -385,6 +420,23 @@ def _corroborated(
     return signal.at_home is not None and bool(signal.at_home) == expected_at_home
 
 
+def missing_people(
+    people: Iterable[PersonPresence], known_person_ids: Iterable[str]
+) -> tuple[str, ...]:
+    """Roster members with no record at all in the current presence state (#689).
+
+    The freshness gate below can only reason about people it can *see*: a
+    person whose record has vanished outright looks exactly like a household
+    that never had them. Comparing against the roster is what turns that
+    silence back into a fact — and every caller below treats a non-empty
+    result the way it already treats a stale person, by refusing to act.
+    """
+
+    present = {p.person_id for p in people}
+    known = {str(pid).strip() for pid in known_person_ids if str(pid).strip()}
+    return tuple(sorted(known - present))
+
+
 def _fresh_people(
     people: Iterable[PersonPresence],
     *,
@@ -411,6 +463,7 @@ def evaluate_alarm_decision(
     at: Optional[datetime] = None,
     override_perimeter: bool = False,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: Iterable[str] = (),
 ) -> Optional[PresenceDecision]:
     """Return the next alarm action, or ``None`` when no action is safe.
 
@@ -419,6 +472,9 @@ def evaluate_alarm_decision(
     ``corroboration`` (issue #653) lets a stale person's last known state
     stand in as fresh when a fresher, agreeing iCloud/Find My read vouches for
     it — see :func:`_corroborated`.
+    ``known_person_ids`` (issue #689) is the roster this household is supposed
+    to be tracking; a member with no record at all refuses every decision, the
+    same way a stale one does.
     """
 
     stamp = at or now_utc()
@@ -427,6 +483,11 @@ def evaluate_alarm_decision(
 
     current = list(people)
     if not current:
+        return None
+    # A shrunken roster is not a smaller household (issue #689). Refuse both
+    # directions, not just arm: refusing a disarm leaves the house armed, which
+    # is the safe way to be wrong about who is in it.
+    if missing_people(current, known_person_ids):
         return None
     fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
     if len(fresh) != len(current):
@@ -496,6 +557,7 @@ def satisfied_disarm_key(
     config: PresenceAutomationConfig,
     at: Optional[datetime] = None,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: Iterable[str] = (),
 ) -> Optional[str]:
     """The disarm key an already-disarmed panel has made moot (issue #598).
 
@@ -523,6 +585,8 @@ def satisfied_disarm_key(
     current = list(people)
     if not current:
         return None
+    if missing_people(current, known_person_ids):
+        return None
     fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
     if len(fresh) != len(current):
         return None
@@ -540,6 +604,7 @@ def evaluate_arm_block(
     config: PresenceAutomationConfig,
     at: Optional[datetime] = None,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: Iterable[str] = (),
 ) -> Optional[PresenceBlock]:
     """Diagnose why an otherwise-armable house hasn't auto-armed (issue #531).
 
@@ -559,6 +624,11 @@ def evaluate_arm_block(
     current = list(people)
     if not current:
         return None
+    # A missing roster member is :func:`evaluate_staleness_block`'s story to
+    # tell, not this one's — reporting "ana is still home" while the engine has
+    # lost sight of roberto entirely would name the wrong blocker.
+    if missing_people(current, known_person_ids):
+        return None
     fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
     if len(fresh) != len(current):
         return None
@@ -574,16 +644,35 @@ def evaluate_arm_block(
 
 @dataclass(frozen=True)
 class StalePresenceBlock:
-    """Diagnostic: which tracked people are stale enough — webhook AND, if
-    checked, iCloud corroboration — to be preventing automation from acting
-    at all (issue #653). The companion to :class:`PresenceBlock`, which only
-    diagnoses "someone fresh is still home"; this one diagnoses "the engine
-    can't tell what's going on with someone" — the failure mode that
-    previously left auto-arm silently dead with zero trace.
+    """Diagnostic: which tracked people the engine can't currently account for.
+
+    Two distinct ways to lose sight of someone, reported together because they
+    block automation identically and a household only cares that *someone* has
+    gone dark:
+
+    ``stale_person_ids`` — their webhook data aged out and no iCloud read
+    corroborates it (issue #653). The engine knows where they last were and
+    can't vouch for it.
+
+    ``missing_person_ids`` — they have no record at all, though the roster says
+    they should (issue #689). The engine doesn't know they exist any more. This
+    is the strictly worse one: a stale person still blocks the freshness gate,
+    while a vanished person used to be invisible to every gate, which is how
+    the house armed itself on a household of two with one person asleep inside.
+
+    The companion to :class:`PresenceBlock`, which diagnoses the benign "someone
+    fresh is still home".
     """
 
     key: str
     stale_person_ids: tuple[str, ...]
+    missing_person_ids: tuple[str, ...] = ()
+
+    @property
+    def all_person_ids(self) -> tuple[str, ...]:
+        """Everyone this block is about, however they went dark."""
+
+        return tuple(sorted(set(self.stale_person_ids) | set(self.missing_person_ids)))
 
 
 def evaluate_staleness_block(
@@ -592,27 +681,34 @@ def evaluate_staleness_block(
     config: PresenceAutomationConfig,
     at: Optional[datetime] = None,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: Iterable[str] = (),
 ) -> Optional[StalePresenceBlock]:
-    """Diagnose whether stale, uncorroborated presence data is what's blocking
-    automation (issue #653). Fires whenever at least one tracked person fails
-    the same freshness gate ``evaluate_alarm_decision``/``evaluate_arm_block``
-    apply — i.e. exactly the condition that otherwise silently stops the whole
-    household's automation with no trace anywhere.
+    """Diagnose whether presence data the engine can't establish is what's
+    blocking automation (issues #653, #689). Fires whenever a tracked person
+    fails the freshness gate ``evaluate_alarm_decision``/``evaluate_arm_block``
+    apply, **or** a roster member has no record at all — i.e. exactly the
+    conditions that otherwise stop the household's automation, or silently
+    narrow it, with no trace anywhere.
     """
 
     if not config.auto_arm_enabled and not config.auto_disarm_enabled:
         return None
     stamp = at or now_utc()
     current = list(people)
-    if not current:
-        return None
+    # Deliberately no "nothing to say when there are no people" early return:
+    # an empty state file with a non-empty roster is the *loudest* case there
+    # is — the whole household's records are gone — and it must reach Telegram
+    # rather than be filed as "nobody is configured".
+    missing_ids = missing_people(current, known_person_ids)
     fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
-    if len(fresh) == len(current):
-        return None
     fresh_ids = {p.person_id for p in fresh}
     stale_ids = tuple(sorted(p.person_id for p in current if p.person_id not in fresh_ids))
-    key = f"stale:{','.join(stale_ids)}"
-    return StalePresenceBlock(key=key, stale_person_ids=stale_ids)
+    if not stale_ids and not missing_ids:
+        return None
+    key = f"stale:{','.join(stale_ids)}|missing:{','.join(missing_ids)}"
+    return StalePresenceBlock(
+        key=key, stale_person_ids=stale_ids, missing_person_ids=missing_ids
+    )
 
 
 # Floor between retried block-notification attempts once one is due (issue
@@ -713,6 +809,12 @@ class _BlockNamespace:
         stamp = at or now_utc()
         raw = _load_state()
         meta = _automation_meta(raw)
+        # Both diagnostics run every ~10s tick and, before issue #689, saved
+        # unconditionally — rewriting the whole presence state four times a tick
+        # to persist bytes identical to the ones just read. That churn is what
+        # kept `presence_state.json` permanently mid-`os.replace` and made a
+        # reader's sharing violation near-certain. Compare and skip instead.
+        before = deepcopy(meta)
         prior_key = str(meta.get(self._key("key")) or "")
         if block is None:
             changed = prior_key != ""
@@ -724,7 +826,8 @@ class _BlockNamespace:
             meta[self._key("first_seen")] = None
             meta[self._key("notified")] = False
             meta[self._key("last_attempt_at")] = None
-            _save_state(raw)
+            if meta != before:
+                _save_state(raw)
             return ArmBlockObservation(changed=changed, notify=False)
 
         changed = prior_key != block.key
@@ -750,14 +853,15 @@ class _BlockNamespace:
         if changed:
             meta[self._key("notified")] = False
             meta[self._key("last_attempt_at")] = None
-        _save_state(raw)
+        if meta != before:
+            _save_state(raw)
         return ArmBlockObservation(changed=changed, notify=notify)
 
 
 _ARM_BLOCK = _BlockNamespace(
     prefix="arm", person_ids_attr="blocking_person_ids", track_since=True
 )
-_STALE_BLOCK = _BlockNamespace(prefix="stale", person_ids_attr="stale_person_ids")
+_STALE_BLOCK = _BlockNamespace(prefix="stale", person_ids_attr="all_person_ids")
 
 
 def load_arm_block() -> Dict[str, Any]:

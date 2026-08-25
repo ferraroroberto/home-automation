@@ -906,3 +906,65 @@ def test_set_staleness_block_clears(monkeypatch, tmp_path):
     cleared = P.set_staleness_block(None)
     assert cleared.changed is True and cleared.notify is False
     assert P.load_staleness_block() == {"blocked": False, "person_ids": []}
+
+
+# --- write churn on the shared state file (issue #689) ---
+#
+# Both block diagnostics ran every ~10s tick and saved unconditionally, so
+# `presence_state.json` was rewritten four times a tick to persist bytes
+# identical to the ones just read. That churn is what kept the file permanently
+# mid-`os.replace` and made a concurrent reader's sharing violation - the read
+# that came back empty and wiped the roster - near-certain.
+
+
+def test_unchanged_block_tick_does_not_rewrite_the_state_file(monkeypatch, tmp_path):
+    state = tmp_path / "presence_state.json"
+    monkeypatch.setattr(P, "STATE_PATH", state)
+    since = datetime(2026, 8, 25, 3, 40, tzinfo=timezone.utc)
+    block = P.PresenceBlock(
+        key="block:roberto:" + since.isoformat(),
+        blocking_person_ids=("roberto",),
+        since=since,
+    )
+
+    P.set_arm_block(block, dwell_s=900, at=since)
+    settled = state.read_bytes()
+    mtime = state.stat().st_mtime_ns
+
+    # Same episode, same tick shape, nothing new to record.
+    P.set_arm_block(block, dwell_s=900, at=since + timedelta(seconds=10))
+    P.set_arm_block(block, dwell_s=900, at=since + timedelta(seconds=20))
+
+    assert state.read_bytes() == settled
+    assert state.stat().st_mtime_ns == mtime
+
+
+def test_an_already_clear_block_does_not_rewrite_the_state_file(monkeypatch, tmp_path):
+    state = tmp_path / "presence_state.json"
+    monkeypatch.setattr(P, "STATE_PATH", state)
+    P.set_arm_block(None)
+    settled = state.read_bytes()
+    mtime = state.stat().st_mtime_ns
+
+    P.set_arm_block(None)
+    P.set_arm_block(None)
+
+    assert state.read_bytes() == settled
+    assert state.stat().st_mtime_ns == mtime
+
+
+def test_a_real_block_change_still_persists(monkeypatch, tmp_path):
+    """The skip must not swallow an episode that genuinely moved."""
+
+    state = tmp_path / "presence_state.json"
+    monkeypatch.setattr(P, "STATE_PATH", state)
+    since = datetime(2026, 8, 25, 3, 40, tzinfo=timezone.utc)
+    first = P.PresenceBlock(key="block:ana", blocking_person_ids=("ana",), since=since)
+    second = P.PresenceBlock(
+        key="block:roberto", blocking_person_ids=("roberto",), since=since
+    )
+
+    P.set_arm_block(first, dwell_s=900, at=since)
+    assert P.load_arm_block()["person_ids"] == ["ana"]
+    assert P.set_arm_block(second, dwell_s=900, at=since).changed is True
+    assert P.load_arm_block()["person_ids"] == ["roberto"]

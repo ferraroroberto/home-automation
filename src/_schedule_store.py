@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any, List
 
@@ -25,17 +26,62 @@ DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _DAY_SET = frozenset(DAYS)
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
+# A store that exists but momentarily can't be opened is nearly always another
+# process's `os.replace` window — on Windows that surfaces as a sharing
+# violation (`PermissionError`/`[Errno 13]`) lasting milliseconds. Retry a few
+# times before concluding anything; the total stall is bounded well under a
+# second so it's safe on the webapp's event loop, where every background tick
+# reads these stores.
+_READ_ATTEMPTS = 4
+_READ_RETRY_DELAY_S = 0.05
+
+
+class StoreUnreadableError(RuntimeError):
+    """A store file exists but its contents could not be established.
+
+    Deliberately *not* interchangeable with "the file isn't there" (issue
+    #689). Every :func:`read_json` caller in this repo is a read-modify-save
+    store, so handing back an empty default on a failed read means the next
+    save persists that phantom empty over the real data. That is exactly how a
+    transient sharing violation on ``config/presence_state.json`` erased the
+    presence roster and let auto-arm fire "everyone away" on a household of
+    two with one person asleep inside.
+
+    Raising instead keeps the failure in its own state — unknown, not empty —
+    so a background loop logs a failed tick and simply doesn't act, and nothing
+    is written on top of data nobody could read.
+    """
+
 
 def read_json(path: Path, default: Any) -> Any:
-    """Return parsed JSON from ``path``, or ``default`` if absent/unreadable."""
+    """Return parsed JSON from ``path``, or ``default`` if the file is absent.
 
+    Raises :class:`StoreUnreadableError` when the file *exists* but cannot be
+    read or parsed after :data:`_READ_ATTEMPTS` tries — an absent store and an
+    unreadable one are different facts and must not share a return value.
+    """
+
+    last_exc: Exception | None = None
+    for attempt in range(_READ_ATTEMPTS):
+        if not path.exists():
+            return default
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            last_exc = exc
+        if attempt + 1 < _READ_ATTEMPTS:
+            time.sleep(_READ_RETRY_DELAY_S)
+    # Re-check rather than assume: a store legitimately deleted mid-retry is
+    # absent, not unreadable, and still deserves the default.
     if not path.exists():
         return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("⚠️ Could not read %s (%s); returning empty", path, exc)
-        return default
+    logger.error(
+        "❌ Could not read %s after %d attempts (%s) — refusing to treat it as empty",
+        path,
+        _READ_ATTEMPTS,
+        last_exc,
+    )
+    raise StoreUnreadableError(f"could not read {path}: {last_exc}") from last_exc
 
 
 def save_json(path: Path, data: Any) -> None:

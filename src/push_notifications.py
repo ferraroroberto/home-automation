@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src._schedule_store import read_json, save_json
+from src._schedule_store import StoreUnreadableError, read_json, save_json
 
 logger = logging.getLogger(__name__)
 
@@ -108,13 +108,26 @@ def validate_push_config(cfg: Optional[Dict[str, str]] = None) -> bool:
 def send_push(title: str, body: str, *, url: str = "/") -> int:
     """Send a Web Push notification to all subscriptions; never raises."""
 
-    cfg = load_push_config()
+    # "Never raises" is load-bearing (issue #689): the alarm consumer calls this
+    # *after* a successful arm/disarm and before it records the success, so a
+    # throw here would lose the record of a security action that really happened.
+    # A notification is never worth that, so an unreadable store just means no
+    # push this round.
+    try:
+        cfg = load_push_config()
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ Web Push config unreadable; skipping notification (%s)", exc)
+        return 0
     if not cfg["public_key"] or not cfg["private_key"]:
         logger.info("ℹ️ Web Push not configured; skipping transition notification")
         return 0
     if not validate_push_config(cfg):
         return 0
-    subs = load_subscriptions()
+    try:
+        subs = load_subscriptions()
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ Web Push subscriptions unreadable; skipping notification (%s)", exc)
+        return 0
     if not subs:
         logger.info("ℹ️ No Web Push subscriptions; skipping transition notification")
         return 0
