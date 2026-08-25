@@ -26,6 +26,7 @@ from app.webapp.presence_refresher import PresenceDiagnosticsCache, get_cache
 from app.webapp.security_override_automation import (
     consider_security_read as consider_security_override,
 )
+from src._schedule_store import StoreUnreadableError
 from src.presence_display_names import load_presence_display_names
 from src.presence_engine import (
     PresenceCorroboration,
@@ -37,6 +38,7 @@ from src.presence_engine import (
     load_automation_config,
     load_kids_home_override,
     load_people,
+    remember_known_people,
     mark_arm_block_attempted,
     mark_arm_block_notified,
     mark_decision_applied,
@@ -93,6 +95,7 @@ def _build_icloud_corroboration(
 def _evaluate_current_decision(
     security_mode: str,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: tuple[str, ...] = (),
 ) -> Optional[PresenceDecision]:
     """Load current presence inputs and evaluate one alarm decision."""
 
@@ -115,12 +118,14 @@ def _evaluate_current_decision(
         at=datetime.now(timezone.utc),
         override_perimeter=load_kids_home_override(),
         corroboration=corroboration,
+        known_person_ids=known_person_ids,
     )
 
 
 async def _sync_arm_block_diagnostic(
     security_mode: str,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: tuple[str, ...] = (),
 ) -> None:
     """Update the persisted "why hasn't auto-arm fired" diagnostic (#531).
 
@@ -139,7 +144,11 @@ async def _sync_arm_block_diagnostic(
     config = load_automation_config()
     people = list(load_people().values())
     block = evaluate_arm_block(
-        people, security_mode=security_mode, config=config, corroboration=corroboration
+        people,
+        security_mode=security_mode,
+        config=config,
+        corroboration=corroboration,
+        known_person_ids=known_person_ids,
     )
     observed = set_arm_block(block, dwell_s=config.arm_block_notify_after_s)
     if block is None:
@@ -175,30 +184,51 @@ async def _sync_arm_block_diagnostic(
         mark_arm_block_notified(block.key)
 
 
+def _unaccounted_for_reason(block) -> str:
+    """One human sentence naming who went dark and how (issues #653, #689)."""
+
+    parts = []
+    if block.stale_person_ids:
+        parts.append(
+            f"{', '.join(block.stale_person_ids)} presence data is stale "
+            "with no iCloud corroboration"
+        )
+    if block.missing_person_ids:
+        parts.append(
+            f"{', '.join(block.missing_person_ids)} has no presence record at all "
+            "— tracked by the roster but absent from presence_state.json"
+        )
+    return "; ".join(parts)
+
+
 async def _sync_staleness_block_diagnostic(
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: tuple[str, ...] = (),
 ) -> None:
-    """Alert when stale, uncorroborated presence data is what's blocking
-    automation (issue #653) — the companion to :func:`_sync_arm_block_diagnostic`,
-    which only alerts on "someone fresh is still home". Without this, a person
-    whose Shortcut simply hasn't crossed their geofence in a while — and whose
-    iCloud entity can't corroborate them either — blocked arm/disarm silently
-    forever, with zero trace anywhere.
+    """Alert when presence data the engine can't establish is what's blocking
+    automation (issues #653, #689) — the companion to
+    :func:`_sync_arm_block_diagnostic`, which only alerts on "someone fresh is
+    still home". Without this, a person whose Shortcut simply hasn't crossed
+    their geofence in a while — or whose record has disappeared from the state
+    file outright — blocked or silently narrowed arm/disarm with zero trace
+    anywhere.
     """
 
     config = load_automation_config()
     people = list(load_people().values())
-    block = evaluate_staleness_block(people, config=config, corroboration=corroboration)
+    block = evaluate_staleness_block(
+        people,
+        config=config,
+        corroboration=corroboration,
+        known_person_ids=known_person_ids,
+    )
     observed = set_staleness_block(block, dwell_s=config.arm_block_notify_after_s)
     if block is None:
         if observed.changed:
             logger.info("✅ Stale-presence block cleared")
         return
     if observed.changed:
-        logger.info(
-            "ℹ️ Auto-arm/disarm blocked: %s presence data is stale with no iCloud corroboration",
-            ", ".join(block.stale_person_ids),
-        )
+        logger.info("ℹ️ Auto-arm/disarm blocked: %s", _unaccounted_for_reason(block))
     if not observed.notify:
         return
     mark_staleness_block_attempted(block.key)
@@ -206,10 +236,7 @@ async def _sync_staleness_block_diagnostic(
         source=SOURCE_PRESENCE,
         action="arm",
         outcome=OUTCOME_BLOCKED,
-        error=(
-            f"{', '.join(block.stale_person_ids)} presence data is stale "
-            "with no iCloud corroboration"
-        ),
+        error=_unaccounted_for_reason(block),
         dedupe_key=f"presence:stale_blocked:{block.key}",
     )
     if sent:
@@ -219,6 +246,7 @@ async def _sync_staleness_block_diagnostic(
 def _consume_satisfied_disarm(
     security_mode: str,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
+    known_person_ids: tuple[str, ...] = (),
 ) -> None:
     """Retire an arrival that the panel being already disarmed made moot (#598).
 
@@ -237,6 +265,7 @@ def _consume_satisfied_disarm(
         config=config,
         at=datetime.now(timezone.utc),
         corroboration=corroboration,
+        known_person_ids=known_person_ids,
     )
     if key is None:
         return
@@ -281,11 +310,18 @@ async def tick() -> None:
     # decision below.
     corroboration = _build_icloud_corroboration(get_cache())
 
-    await _sync_arm_block_diagnostic(security.mode, corroboration)
-    await _sync_staleness_block_diagnostic(corroboration)
-    _consume_satisfied_disarm(security.mode, corroboration)
+    # The roster is a union of everyone ever seen (issue #689) — refreshed here
+    # so a person who reports in for the first time is known from that tick on,
+    # and written only when it actually grows. It can never shrink, which is
+    # the whole point: a state file that loses a record now shrinks *against*
+    # something, instead of quietly redefining who "everyone" means.
+    known_person_ids = remember_known_people(load_people().keys())
 
-    decision = _evaluate_current_decision(security.mode, corroboration)
+    await _sync_arm_block_diagnostic(security.mode, corroboration, known_person_ids)
+    await _sync_staleness_block_diagnostic(corroboration, known_person_ids)
+    _consume_satisfied_disarm(security.mode, corroboration, known_person_ids)
+
+    decision = _evaluate_current_decision(security.mode, corroboration, known_person_ids)
     if decision is None:
         return
 
@@ -296,7 +332,9 @@ async def tick() -> None:
         # Re-read both the panel and persisted presence/command timestamps before
         # acting so a decision is never applied from a stale snapshot.
         security = await fetch_security_state()
-        refreshed_decision = _evaluate_current_decision(security.mode, corroboration)
+        refreshed_decision = _evaluate_current_decision(
+            security.mode, corroboration, known_person_ids
+        )
         if refreshed_decision is None:
             logger.info(
                 "ℹ️ Presence automation skipped stale %s decision after coordinated re-check",
@@ -307,14 +345,30 @@ async def tick() -> None:
         try:
             updated = await confirm_alarm_action(decision.action)
             outcome = updated.mode
-            mark_decision_applied(decision, outcome)
-            # Someone arrived and the system disarmed: clear the transient kids-home
-            # override so the next away-cycle defaults back to a full arm.
-            if decision.kind == "disarm":
-                set_kids_home_override(False)
         except Exception as exc:  # noqa: BLE001
             outcome = f"error: {exc}"
             failure = exc
+        else:
+            # Bookkeeping only — deliberately outside the block above (issue
+            # #689). Both calls read `presence_state.json`, and a store that is
+            # momentarily unreadable must not turn a command the panel actually
+            # accepted into a Telegram alert claiming it failed. The un-recorded
+            # key means the next tick re-issues the same action, which is the
+            # safe way to be wrong here.
+            try:
+                mark_decision_applied(decision, outcome)
+                # Someone arrived and the system disarmed: clear the transient
+                # kids-home override so the next away-cycle defaults back to a
+                # full arm.
+                if decision.kind == "disarm":
+                    set_kids_home_override(False)
+            except StoreUnreadableError as exc:
+                logger.warning(
+                    "⚠️ Presence %s applied (%s) but could not be recorded: %s",
+                    decision.kind,
+                    outcome,
+                    exc,
+                )
 
     try:
         if failure is None:

@@ -207,6 +207,13 @@ async def _run_event_scan(config: OverrideAutomationConfig) -> None:
             latest = load_override_session()
             latest.last_event_time = event.time
             save_override_session(latest)
+    except Exception as exc:  # noqa: BLE001 — the docstring's "never raises" contract
+        # This coroutine is dispatched detached (`asyncio.create_task`) with no
+        # handler, so anything escaping here would surface only at GC time, if at
+        # all. Keeping the contract explicit matters more since issue #689 made
+        # `load_overrides()` / `load_override_session()` raise on an unreadable
+        # store rather than degrade to empty. The next scan simply retries.
+        logger.warning("⚠️ Security override event scan failed: %s", exc)
     finally:
         _state["scan_running"] = False
 

@@ -330,6 +330,12 @@ async def _coordinate_boost(
         return
 
     coord = load_boost_config()
+    # Logged from here rather than from the loop's start message (issue #689) —
+    # this is the first place the file is actually read, and a read here is
+    # retried by the tick loop instead of killing the task on the way in.
+    if state.boost_settle_logged != coord.settle_interval_s:
+        state.boost_settle_logged = coord.settle_interval_s
+        logger.info("🤖 HVAC boost settle interval: %ds", coord.settle_interval_s)
     decision = next_boost_admission(
         wants_boost=wants,
         # A unit that vanished from MELCloud's list this tick is not a unit we
@@ -503,6 +509,7 @@ class _EngineState:
     last_boost_change: Optional[float] = None  # monotonic ts of the last admit/shed
     last_boost_as_of: Optional[str] = None  # solar bucket that change was made against
     boost_hold_logged: Optional[str] = None  # unit whose hold episode is already logged
+    boost_settle_logged: Optional[int] = None  # settle interval already announced (#689)
 
 
 # The running engine's state, for the API layer to read live "is this unit
@@ -526,13 +533,14 @@ async def _run(config: AutomationConfig) -> None:
         config.poll_interval_s,
         logger=logger,
         name="HVAC automation",
+        # Deliberately no `load_boost_config()` here (issue #689): this argument is
+        # evaluated *before* `run_loop` is entered, so the `tick_fail_msg` below
+        # cannot protect it — an unreadable `config/hvac_boost.json` at boot would
+        # kill the whole task permanently, with no retry and no restart. The settle
+        # interval is logged from the first tick that actually reads it instead.
         start_msg=(
-            "🤖 HVAC automation started (poll %ds, adjust %ds, buffer %.1f°C, "
-            "boost settle %ds)"
-            % (
-                config.poll_interval_s, config.adjust_interval_s, config.buffer_c,
-                load_boost_config().settle_interval_s,
-            )
+            "🤖 HVAC automation started (poll %ds, adjust %ds, buffer %.1f°C)"
+            % (config.poll_interval_s, config.adjust_interval_s, config.buffer_c)
         ),
         tick_fail_msg="⚠️ HVAC automation tick failed: %s",
     )

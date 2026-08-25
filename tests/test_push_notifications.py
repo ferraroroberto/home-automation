@@ -99,3 +99,34 @@ def test_send_push_works_with_valid_raw_key_config_shape(monkeypatch: pytest.Mon
 
     # No subscriptions -> short-circuits after validation succeeds, still 0 sent.
     assert push.send_push("title", "body") == 0
+
+
+def test_send_push_never_raises_on_an_unreadable_store(monkeypatch, caplog):
+    """Issue #689: the alarm consumer calls send_push *after* a successful
+    arm/disarm and before it records that success, so a throw here would lose
+    the record of a security action that really happened. A notification is
+    never worth that."""
+
+    from src._schedule_store import StoreUnreadableError
+
+    def unreadable(*_args, **_kwargs):
+        raise StoreUnreadableError("could not read push_config.json")
+
+    monkeypatch.setattr(push, "load_push_config", unreadable)
+    assert push.send_push("title", "body") == 0
+
+
+def test_send_push_never_raises_on_unreadable_subscriptions(monkeypatch):
+    from src._schedule_store import StoreUnreadableError
+
+    def unreadable(*_args, **_kwargs):
+        raise StoreUnreadableError("could not read push_subscriptions.json")
+
+    monkeypatch.setattr(
+        push,
+        "load_push_config",
+        lambda *_a, **_k: {"public_key": "pub", "private_key": "priv", "subject": "mailto:x@y"},
+    )
+    monkeypatch.setattr(push, "validate_push_config", lambda cfg: True)
+    monkeypatch.setattr(push, "load_subscriptions", unreadable)
+    assert push.send_push("title", "body") == 0
