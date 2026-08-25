@@ -79,6 +79,128 @@ def test_kids_home_override_arms_perimeter(monkeypatch, tmp_path):
     assert decision.action == "perimeter"
 
 
+def test_guardian_home_holds_instead_of_arming(monkeypatch, tmp_path):
+    """Issue #693: a guardian (e.g. "Nonna") home and fresh must hold the arm
+    entirely — not even perimeter — overriding the kids-home toggle too."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, auto_disarm_enabled=True, arm_away_after_s=300, stale_after_s=3600)
+    decision = P.evaluate_alarm_decision(
+        [_person("roberto", "away", t0), _person("ana", "away", t0 + timedelta(seconds=30))],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=6),
+        override_perimeter=True,  # kids-home toggle also on — guardian must still win
+        guardian_home_name="Nonna",
+    )
+    assert decision is not None
+    assert decision.kind == "guardian_hold"
+    assert decision.action == "hold"
+    assert "Nonna" in decision.reason
+
+
+def test_guardian_hold_is_edge_triggered_once_per_episode(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, auto_disarm_enabled=True, arm_away_after_s=300, stale_after_s=3600)
+    people = [_person("roberto", "away", t0), _person("ana", "away", t0 + timedelta(seconds=30))]
+    at = t0 + timedelta(minutes=6)
+
+    first = P.evaluate_alarm_decision(
+        people, security_mode="disarmed", config=cfg, at=at, guardian_home_name="Nonna",
+    )
+    assert first is not None and first.kind == "guardian_hold"
+    P.mark_decision_applied(first, "held")
+
+    again = P.evaluate_alarm_decision(
+        people, security_mode="disarmed", config=cfg,
+        at=at + timedelta(minutes=1), guardian_home_name="Nonna",
+    )
+    assert again is None
+
+
+def test_guardian_leaving_still_lets_the_same_episode_arm(monkeypatch, tmp_path):
+    """The guardian_hold key must live in its own namespace — consuming it
+    must never mark the underlying 'everyone away' arm key as applied, or the
+    house could never arm for that departure once the guardian leaves."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, auto_disarm_enabled=True, arm_away_after_s=300, stale_after_s=3600)
+    people = [_person("roberto", "away", t0), _person("ana", "away", t0 + timedelta(seconds=30))]
+    at = t0 + timedelta(minutes=6)
+
+    held = P.evaluate_alarm_decision(
+        people, security_mode="disarmed", config=cfg, at=at, guardian_home_name="Nonna",
+    )
+    P.mark_decision_applied(held, "held")
+
+    # Guardian has now left / gone stale — the same departure episode arms.
+    now_armable = P.evaluate_alarm_decision(
+        people, security_mode="disarmed", config=cfg,
+        at=at + timedelta(minutes=2), guardian_home_name=None,
+    )
+    assert now_armable is not None
+    assert now_armable.kind == "arm"
+    assert now_armable.action == "arm"
+
+
+def test_stale_guardian_read_falls_back_to_arming(monkeypatch, tmp_path):
+    """A >=24h-old guardian read must not be trusted — presence_automation's
+    ``_resolve_guardian_home`` is what enforces the bound and would simply
+    pass ``guardian_home_name=None`` through in that case; this confirms the
+    engine arms normally whenever no (fresh) guardian name is supplied."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(auto_arm_enabled=True, auto_disarm_enabled=True, arm_away_after_s=300, stale_after_s=3600)
+    decision = P.evaluate_alarm_decision(
+        [_person("roberto", "away", t0), _person("ana", "away", t0 + timedelta(seconds=30))],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=6),
+        guardian_home_name=None,
+    )
+    assert decision is not None
+    assert decision.kind == "arm"
+
+
+def test_reproduces_2026_08_25_real_departure_with_guardian_home(monkeypatch, tmp_path):
+    """Reproduction (issue #693): replays today's real
+    config/presence_automation.json data — Roberto away 06:08:39Z, Ana away
+    06:08:42Z, kids_home_override True — which really armed 'perimeter' at
+    06:09:57Z while Nonna was in fact still home. With a synthetic fresh
+    Nonna-at-home signal, the fix must hold instead of arming any mode."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    roberto_away = datetime.fromisoformat("2026-08-25T06:08:39.514530+00:00")
+    ana_away = datetime.fromisoformat("2026-08-25T06:08:42.772446+00:00")
+    people = [
+        _person("roberto", "away", roberto_away),
+        _person("ana", "away", ana_away),
+    ]
+    cfg = P.PresenceAutomationConfig(
+        auto_arm_enabled=True, auto_disarm_enabled=True,
+        arm_away_after_s=60, stale_after_s=216000,
+    )
+    at = datetime.fromisoformat("2026-08-25T06:09:57.617832+00:00")
+
+    # Old behavior, unchanged: kids-home override armed perimeter for real.
+    old_decision = P.evaluate_alarm_decision(
+        people, security_mode="disarmed", config=cfg, at=at, override_perimeter=True,
+    )
+    assert old_decision is not None
+    assert old_decision.kind == "arm"
+    assert old_decision.action == "perimeter"
+
+    # New behavior: Nonna's (synthetic) fresh at-home read holds the arm
+    # instead, even with the kids-home override still on.
+    new_decision = P.evaluate_alarm_decision(
+        people, security_mode="disarmed", config=cfg, at=at,
+        override_perimeter=True, guardian_home_name="Nonna",
+    )
+    assert new_decision is not None
+    assert new_decision.kind == "guardian_hold"
+    assert new_decision.action == "hold"
+
+
 def test_kids_home_override_does_not_affect_disarm(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)

@@ -464,6 +464,7 @@ def evaluate_alarm_decision(
     override_perimeter: bool = False,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: Iterable[str] = (),
+    guardian_home_name: Optional[str] = None,
 ) -> Optional[PresenceDecision]:
     """Return the next alarm action, or ``None`` when no action is safe.
 
@@ -475,6 +476,17 @@ def evaluate_alarm_decision(
     ``known_person_ids`` (issue #689) is the roster this household is supposed
     to be tracking; a member with no record at all refuses every decision, the
     same way a stale one does.
+    ``guardian_home_name`` (issue #693) is the display name of an untracked
+    household member (e.g. "Nonna") whose iCloud/Find My read currently shows
+    them home and fresh (<24h by default) — set by the caller, which owns the
+    staleness/matching logic since it isn't webhook-tracked "presence" at all.
+    When set, the everyone-away arm trigger below returns a ``guardian_hold``
+    decision instead of arming: takes priority over ``override_perimeter``,
+    since a person actually home means no mode should engage. Deliberately
+    keyed and edge-triggered independently of the ordinary ``arm`` key (see
+    the branch below) so the underlying "everyone away" arm trigger is left
+    unconsumed — once the guardian leaves or their read goes stale, the same
+    departure episode can still arm normally.
     """
 
     stamp = at or now_utc()
@@ -534,6 +546,21 @@ def evaluate_alarm_decision(
         all_away_since = max(p.state_since for p in away)
         if (stamp - all_away_since).total_seconds() < config.arm_away_after_s:
             return None
+        if guardian_home_name:
+            # Own key namespace ("guardian_hold", not "arm") so recording this
+            # decision never marks the real arm key as applied - the everyone-
+            # away trigger must still be able to fire later for this same
+            # episode once the guardian leaves or their read goes stale.
+            hold_key = f"guardian_hold:{guardian_home_name}:{all_away_since.isoformat()}"
+            if hold_key == _last_key("guardian_hold") or _manual_after(all_away_since):
+                return None
+            return PresenceDecision(
+                kind="guardian_hold",
+                action="hold",
+                key=hold_key,
+                reason=f"everyone tracked away, but {guardian_home_name} is home",
+                transition_at=all_away_since,
+            )
         key = f"arm:{all_away_since.isoformat()}"
         if key != _last_key("arm") and not _manual_after(all_away_since):
             return PresenceDecision(

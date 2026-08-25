@@ -16,7 +16,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import app.webapp.alarm_notify as AN
 import app.webapp.presence_automation as PA
@@ -585,6 +585,102 @@ def test_build_icloud_corroboration_skips_entity_with_no_last_seen(monkeypatch) 
     cache = _cache([_entity("dev-1", "Ana", last_seen=None, at_home=True)])
 
     assert PA._build_icloud_corroboration(cache) == {}
+
+
+def test_load_guardian_home_config_parses_env(monkeypatch) -> None:
+    monkeypatch.setenv("PRESENCE_GUARDIAN_HOME_NAMES", "Nonna, Nonno")
+    monkeypatch.setenv("PRESENCE_GUARDIAN_HOME_STALE_AFTER_S", "3600")
+
+    cfg = PA._load_guardian_home_config()
+
+    assert cfg.names == ("Nonna", "Nonno")
+    assert cfg.stale_after_s == 3600
+
+
+def test_load_guardian_home_config_defaults_to_disabled(monkeypatch) -> None:
+    monkeypatch.delenv("PRESENCE_GUARDIAN_HOME_NAMES", raising=False)
+    monkeypatch.delenv("PRESENCE_GUARDIAN_HOME_STALE_AFTER_S", raising=False)
+
+    cfg = PA._load_guardian_home_config()
+
+    assert cfg.names == ()
+    assert cfg.stale_after_s == PA._GUARDIAN_HOME_STALE_AFTER_S_DEFAULT
+
+
+def test_resolve_guardian_home_matches_fresh_at_home_entity(monkeypatch) -> None:
+    monkeypatch.setattr(PA, "load_presence_display_names", lambda: {"dev-nonna": "Nonna"})
+
+    at = datetime(2026, 8, 25, 6, 9, tzinfo=timezone.utc)
+    seen = at - timedelta(hours=1)
+    cache = _cache([_entity("dev-nonna", "Nonna's iPhone", last_seen=seen, at_home=True)])
+    cfg = PA.GuardianHomeConfig(names=("Nonna",), stale_after_s=86400)
+
+    assert PA._resolve_guardian_home(cache, cfg, at=at) == "Nonna"
+
+
+def test_resolve_guardian_home_rejects_stale_reads(monkeypatch) -> None:
+    monkeypatch.setattr(PA, "load_presence_display_names", lambda: {"dev-nonna": "Nonna"})
+
+    at = datetime(2026, 8, 25, 6, 9, tzinfo=timezone.utc)
+    seen = at - timedelta(hours=25)  # older than the 24h default bound
+    cache = _cache([_entity("dev-nonna", "Nonna's iPhone", last_seen=seen, at_home=True)])
+    cfg = PA.GuardianHomeConfig(names=("Nonna",), stale_after_s=86400)
+
+    assert PA._resolve_guardian_home(cache, cfg, at=at) is None
+
+
+def test_resolve_guardian_home_ignores_not_at_home(monkeypatch) -> None:
+    monkeypatch.setattr(PA, "load_presence_display_names", lambda: {"dev-nonna": "Nonna"})
+
+    at = datetime(2026, 8, 25, 6, 9, tzinfo=timezone.utc)
+    cache = _cache([_entity("dev-nonna", "Nonna's iPhone", last_seen=at, at_home=False)])
+    cfg = PA.GuardianHomeConfig(names=("Nonna",), stale_after_s=86400)
+
+    assert PA._resolve_guardian_home(cache, cfg, at=at) is None
+
+
+def test_resolve_guardian_home_no_names_configured_is_a_noop(monkeypatch) -> None:
+    at = datetime(2026, 8, 25, 6, 9, tzinfo=timezone.utc)
+    cache = _cache([_entity("dev-nonna", "Nonna", last_seen=at, at_home=True)])
+    cfg = PA.GuardianHomeConfig(names=(), stale_after_s=86400)
+
+    assert PA._resolve_guardian_home(cache, cfg, at=at) is None
+
+
+def test_presence_tick_holds_arm_and_notifies_on_guardian_home(monkeypatch) -> None:
+    """Issue #693: tick() must route a guardian_hold decision to a direct
+    Telegram notification, never through confirm_alarm_action/RISCO, and mark
+    it applied so it doesn't re-notify on the very next poll."""
+
+    _wire_common(monkeypatch)
+    hold_decision = PresenceDecision(
+        kind="guardian_hold",
+        action="hold",
+        key="guardian_hold:Nonna:2026-08-25T06:08:42+00:00",
+        reason="everyone tracked away, but Nonna is home",
+        transition_at=datetime(2026, 8, 25, 6, 8, 42, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: hold_decision)
+    monkeypatch.setattr(PA, "_resolve_guardian_home", lambda cache, cfg, at: "Nonna")
+
+    applied: list[tuple] = []
+    notified: list[str] = []
+    monkeypatch.setattr(PA, "mark_decision_applied", lambda d, o: applied.append((d, o)))
+
+    async def fake_notify(name: str) -> None:
+        notified.append(name)
+
+    monkeypatch.setattr(PA, "_notify_guardian_hold", fake_notify)
+
+    def boom_confirm(action: str):
+        raise AssertionError("guardian_hold must never call confirm_alarm_action")
+
+    monkeypatch.setattr(PA, "confirm_alarm_action", boom_confirm)
+
+    asyncio.run(PA.tick())
+
+    assert applied == [(hold_decision, "held")]
+    assert notified == ["Nonna"]
 
 
 def test_consume_satisfied_disarm_marks_and_is_idempotent(monkeypatch, tmp_path) -> None:
