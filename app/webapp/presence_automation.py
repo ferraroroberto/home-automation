@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
@@ -27,6 +28,8 @@ from app.webapp.security_override_automation import (
     consider_security_read as consider_security_override,
 )
 from src._schedule_store import StoreUnreadableError
+from src.notify import NotifierError
+from src.notify_config import build_alarm_notifier
 from src.presence_display_names import load_presence_display_names
 from src.presence_engine import (
     PresenceCorroboration,
@@ -55,6 +58,62 @@ from src.risco_client import fetch_security_state
 
 logger = logging.getLogger(__name__)
 
+# Default staleness bound for the guardian-home read (issue #693): the same
+# 24h reasoning as the "don't trust a stale sighting" rule the webhook side
+# already applies via ``stale_after_s``, just as its own knob since a guardian
+# read comes from iCloud, not a webhook heartbeat.
+_GUARDIAN_HOME_STALE_AFTER_S_DEFAULT = 24 * 60 * 60
+
+
+@dataclass(frozen=True)
+class GuardianHomeConfig:
+    """Which untracked household member(s) can hold the arm when home (#693).
+
+    Config-driven rather than a hardcoded name in source — the repo is public.
+    ``names`` are matched against each iCloud entity's *effective* display
+    name (the same ``presence_display_names`` override, or raw device name,
+    the corroboration matching below already uses), case-insensitively.
+    """
+
+    names: tuple[str, ...] = ()
+    stale_after_s: int = _GUARDIAN_HOME_STALE_AFTER_S_DEFAULT
+
+
+def _load_guardian_home_config() -> GuardianHomeConfig:
+    import os
+
+    raw = os.getenv("PRESENCE_GUARDIAN_HOME_NAMES", "")
+    names = tuple(name.strip() for name in raw.split(",") if name.strip())
+    return GuardianHomeConfig(
+        names=names,
+        stale_after_s=max(
+            60,
+            _env_int(
+                "PRESENCE_GUARDIAN_HOME_STALE_AFTER_S",
+                _GUARDIAN_HOME_STALE_AFTER_S_DEFAULT,
+            ),
+        ),
+    )
+
+
+def _entities_by_effective_label(cache: PresenceDiagnosticsCache) -> Dict[str, list]:
+    """Index ``cache.entities`` by effective display name (lowercased).
+
+    "Effective" = the ``presence_display_names`` override, falling back to the
+    raw Find My device name — shared by :func:`_build_icloud_corroboration`
+    (matches webhook person ids) and :func:`_resolve_guardian_home` (matches
+    configured guardian names, issue #693) so the two never drift apart on
+    what "the same name" means.
+    """
+
+    names = load_presence_display_names()
+    by_name: Dict[str, list] = {}
+    for entity in cache.entities:
+        label = (names.get(entity.entity_id) or entity.name or "").strip().lower()
+        if label:
+            by_name.setdefault(label, []).append(entity)
+    return by_name
+
 
 def _build_icloud_corroboration(
     cache: PresenceDiagnosticsCache,
@@ -71,13 +130,7 @@ def _build_icloud_corroboration(
     corroboration available" and falls back to today's behavior for them.
     """
 
-    names = load_presence_display_names()
-    by_name: Dict[str, list] = {}
-    for entity in cache.entities:
-        label = (names.get(entity.entity_id) or entity.name or "").strip().lower()
-        if label:
-            by_name.setdefault(label, []).append(entity)
-
+    by_name = _entities_by_effective_label(cache)
     corroboration: Dict[str, PresenceCorroboration] = {}
     for person_id in load_people():
         matches = by_name.get(person_id.strip().lower())
@@ -92,10 +145,44 @@ def _build_icloud_corroboration(
     return corroboration
 
 
+def _resolve_guardian_home(
+    cache: PresenceDiagnosticsCache,
+    guardian_config: GuardianHomeConfig,
+    *,
+    at: datetime,
+) -> Optional[str]:
+    """Name of the first configured guardian whose iCloud read is home+fresh (#693).
+
+    Unlike :func:`_build_icloud_corroboration`, this is not keyed off a
+    webhook person id — a guardian like "Nonna" has no webhook Shortcut at
+    all, only an iCloud/Find My family-sharing entity. ``None`` when no
+    guardian is configured, no entity matches, the match isn't reporting
+    ``at_home``, or the read is older than ``guardian_config.stale_after_s``
+    (default 24h) — an unestablished/stale read must never be trusted as
+    "home", the same "don't trust it" bound the webhook side already applies.
+    """
+
+    if not guardian_config.names:
+        return None
+    by_name = _entities_by_effective_label(cache)
+    for name in guardian_config.names:
+        matches = by_name.get(name.strip().lower())
+        if not matches or len(matches) != 1:
+            continue
+        entity = matches[0]
+        if entity.at_home is not True or entity.last_seen is None:
+            continue
+        age_s = (at - entity.last_seen.astimezone(timezone.utc)).total_seconds()
+        if age_s < guardian_config.stale_after_s:
+            return name
+    return None
+
+
 def _evaluate_current_decision(
     security_mode: str,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: tuple[str, ...] = (),
+    guardian_home_name: Optional[str] = None,
 ) -> Optional[PresenceDecision]:
     """Load current presence inputs and evaluate one alarm decision."""
 
@@ -119,6 +206,7 @@ def _evaluate_current_decision(
         override_perimeter=load_kids_home_override(),
         corroboration=corroboration,
         known_person_ids=known_person_ids,
+        guardian_home_name=guardian_home_name,
     )
 
 
@@ -273,6 +361,30 @@ def _consume_satisfied_disarm(
     logger.info("ℹ️ Retired already-satisfied disarm arrival %s", key)
 
 
+async def _notify_guardian_hold(guardian_name: str) -> None:
+    """Best-effort Telegram message for a guardian-home arm hold (issue #693).
+
+    Bypasses ``record_alarm_action``'s composer on purpose: this isn't an
+    alarm-command outcome (no command was ever attempted), and unlike
+    ``OUTCOME_BLOCKED`` it must always reach Telegram — the stuck-presence
+    block's "never notify, it's frequent noise" rule (#626) doesn't apply
+    here, this is a one-off-per-departure explanation the household asked
+    for. Same direct-send pattern as ``presence_refresher._notify``.
+    """
+
+    notifier = build_alarm_notifier()
+    if notifier is None:
+        return
+    text = (
+        f"🏠 Mom and dad are away, {guardian_name} is home — not arming, "
+        "since someone is home."
+    )
+    try:
+        await asyncio.to_thread(notifier.send_text, text)
+    except NotifierError as exc:
+        logger.warning("⚠️ Guardian-hold Telegram notification failed: %s", exc)
+
+
 async def tick() -> None:
     """Alert on panel events, then evaluate one presence transition."""
 
@@ -309,6 +421,13 @@ async def tick() -> None:
     # fresher, agreeing Find My read instead of silently blocking every
     # decision below.
     corroboration = _build_icloud_corroboration(get_cache())
+    # Issue #693: an untracked household member (e.g. "Nonna") who has no
+    # webhook Shortcut but is resolvable via the same iCloud diagnostics cache
+    # — computed once per tick like ``corroboration`` above, snapshot reused
+    # (not re-fetched) for the coordinated re-check inside the lock below.
+    guardian_home_name = _resolve_guardian_home(
+        get_cache(), _load_guardian_home_config(), at=datetime.now(timezone.utc)
+    )
 
     # The roster is a union of everyone ever seen (issue #689) — refreshed here
     # so a person who reports in for the first time is known from that tick on,
@@ -321,8 +440,29 @@ async def tick() -> None:
     await _sync_staleness_block_diagnostic(corroboration, known_person_ids)
     _consume_satisfied_disarm(security.mode, corroboration, known_person_ids)
 
-    decision = _evaluate_current_decision(security.mode, corroboration, known_person_ids)
+    decision = _evaluate_current_decision(
+        security.mode, corroboration, known_person_ids, guardian_home_name
+    )
     if decision is None:
+        return
+
+    if decision.kind == "guardian_hold":
+        # No RISCO command was ever considered here — mark applied directly
+        # and notify, skipping the confirm/lock machinery below entirely.
+        mark_decision_applied(decision, "held")
+        logger.info("🏠 Presence automation holding arm — %s", decision.reason)
+        await _notify_guardian_hold(guardian_home_name)
+        append_trigger_log(
+            {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "consumer": "alarm",
+                "event": decision.kind,
+                "action": decision.action,
+                "reason": decision.reason,
+                "transition_at": decision.transition_at.isoformat(),
+                "outcome": "held",
+            }
+        )
         return
 
     outcome = "started"
@@ -333,7 +473,7 @@ async def tick() -> None:
         # acting so a decision is never applied from a stale snapshot.
         security = await fetch_security_state()
         refreshed_decision = _evaluate_current_decision(
-            security.mode, corroboration, known_person_ids
+            security.mode, corroboration, known_person_ids, guardian_home_name
         )
         if refreshed_decision is None:
             logger.info(
