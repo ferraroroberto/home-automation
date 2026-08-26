@@ -65,6 +65,7 @@ from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
 from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
+from src.automation_owner import AutomationOwnership
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
 from app.webapp.presence_automation import start_presence_automation
@@ -199,20 +200,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # pool avoids constructing a new client/socket pool for every chunk.
     app.state.outbound_http = aiohttp.ClientSession()
 
-    tasks = [
-        t for t in (
-            start_sampler(),
-            start_telemetry_sampler(),
-            start_automation(),
-            start_presence_refresher(),
-            start_presence_automation(),
-            start_security_schedules(),
-            start_wake_alarms(),
-            start_power_monitor(),
-            start_ha_trace_collector(),
+    # Only one process may run the write-side automation loops against the
+    # shared config/logs/physical devices (#690) — a second instance (any
+    # port) still serves the API/PWA, just with none of these loops started.
+    ownership = AutomationOwnership(port=app.state.webapp_config.port)
+    app.state.automation_owned = ownership.held
+    if ownership.held:
+        logger.info("ℹ️  automation ownership acquired (pid=%s) — write-side loops enabled", os.getpid())
+        tasks = [
+            t for t in (
+                start_sampler(),
+                start_telemetry_sampler(),
+                start_automation(),
+                start_presence_refresher(),
+                start_presence_automation(),
+                start_security_schedules(),
+                start_wake_alarms(),
+                start_power_monitor(),
+                start_ha_trace_collector(),
+            )
+            if t is not None
+        ]
+    else:
+        logger.warning(
+            "⚠️  automation ownership held by another process (%s) — serving read-only, no write-side loops",
+            ownership.owner_info or "info unavailable",
         )
-        if t is not None
-    ]
+        tasks = []
     try:
         yield
     finally:
@@ -221,6 +235,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         for task in tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+        ownership.release()
         await app.state.outbound_http.close()
 
 
