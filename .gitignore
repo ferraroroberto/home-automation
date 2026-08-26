@@ -10,6 +10,7 @@ snapshot.json
 # Wildcard covers every real config file; negation keeps the committed samples.
 config/*.json
 !config/*.sample.json
+config/.automation-owner.lock
 webapp/certificates/
 webapp/icloud_session/
 webapp/icloud_session_2/

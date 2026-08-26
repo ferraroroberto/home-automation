@@ -97,10 +97,11 @@ The exhaustive module-by-module inventory of the repository. The [README](../REA
 - `telemetry_adapters.py` — per-domain reading adapters (#290) that map each domain's live reading object(s) into the flat `(entity, metric, value)` rows `src/telemetry.py`'s store records; pure and UI-free, so they unit-test directly against the device clients' own dataclasses.
 - `_mac.py` — single home for MAC-address key normalisation (upper-case, separators as reported, whitespace-trimmed), deduping what used to be copy-pasted `normalize_mac` helpers in `dhcp_plan` / `network_oui` / `network_display_names` / `dhcp_overrides` (and, until issue #571, local `_norm`/`_norm_mac` copies in `network_history` / `network_survey`).
 - `camera_token.py` — short-lived HMAC-signed scoped tokens (60 s TTL, stateless) for camera stream/snapshot URLs, so the long-lived bearer token never has to appear in an `<img src>` URL.
+- `automation_owner.py` — cross-process, stale-safe advisory lock (`config/.automation-owner.lock`, gitignored) deciding which webapp process runs the write-side automation loops when two instances share the same `config/`/`logs/`/physical devices (#690); OS-level file lock (`msvcrt.locking` / `fcntl.flock`) held open for the owning process's life, released automatically by the OS on any exit — clean or an unclean kill — so there is no PID-liveness bookkeeping. Fails open on any locking-primitive glitch.
 
 ## `app/webapp/` — the FastAPI + PWA product
 
-- `server.py` — `create_app()`, middleware, caching static mount, routers, background-task lifespan.
+- `server.py` — `create_app()`, middleware, caching static mount, routers, background-task lifespan. Lifespan startup acquires `src.automation_owner.AutomationOwnership` and only starts the write-side automation-loop tasks below when it wins ownership (#690) — a second instance still mounts every router and serves read-only.
 - `middleware.py` — bearer-token / loopback auth gate.
 - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
 - `sampler.py` — background energy sampler owned by the webapp lifecycle.
