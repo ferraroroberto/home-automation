@@ -986,6 +986,87 @@ def test_evaluate_staleness_block_does_not_fire_when_corroborated(monkeypatch, t
     ) is None
 
 
+# issue #696 - a webhook record that is FRESH by raw age is still trusted
+# outright today, even when a strictly newer iCloud/Find My read disagrees
+# with it: #653's corroboration only ever rescues an already-stale record
+# when iCloud agrees, it never revokes trust from a fresh-but-wrong one. Live
+# case: a stuck iOS Shortcut "Arrive" automation leaves someone's webhook
+# state "away" long after they're actually home, but well inside a generous
+# stale_after_s - the house must not treat that as "confirmed away".
+
+
+def test_fresh_webhook_still_blocks_when_newer_icloud_disagrees(monkeypatch, tmp_path):
+    """roberto's webhook ping is fresh by the clock (well under stale_after_s),
+    but a strictly newer iCloud read says he's actually home - the engine must
+    refuse to arm on his stale-but-clock-fresh "away", not trust it outright."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 25, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(
+        auto_arm_enabled=True, arm_away_after_s=60, stale_after_s=216000,
+        icloud_corroboration_window_s=21600,
+    )
+    roberto_stuck_away = _person("roberto", "away", t0)
+    ana_left = _person("ana", "away", t0 + timedelta(days=1))
+    corroboration = {
+        # Newer than roberto's webhook ping, and disagrees: iCloud says home.
+        "roberto": P.PresenceCorroboration(last_seen=t0 + timedelta(hours=22), at_home=True),
+    }
+    assert P.evaluate_alarm_decision(
+        [roberto_stuck_away, ana_left],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(days=1, minutes=5),
+        corroboration=corroboration,
+    ) is None
+
+
+def test_fresh_webhook_unaffected_when_disagreeing_icloud_read_is_older(monkeypatch, tmp_path):
+    """A disagreeing iCloud read that predates the webhook ping has nothing to
+    say - the webhook is the more recent information and stays authoritative."""
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 25, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(
+        auto_arm_enabled=True, arm_away_after_s=60, stale_after_s=216000,
+        icloud_corroboration_window_s=21600,
+    )
+    roberto_left = _person("roberto", "away", t0)
+    ana_left = _person("ana", "away", t0 + timedelta(seconds=30))
+    corroboration = {
+        # Older than roberto's webhook ping - stale news, must not override it.
+        "roberto": P.PresenceCorroboration(last_seen=t0 - timedelta(hours=1), at_home=True),
+    }
+    decision = P.evaluate_alarm_decision(
+        [roberto_left, ana_left],
+        security_mode="disarmed",
+        config=cfg,
+        at=t0 + timedelta(minutes=5),
+        corroboration=corroboration,
+    )
+    assert decision is not None
+    assert decision.kind == "arm"
+
+
+def test_evaluate_staleness_block_surfaces_contradicted_person_ids(monkeypatch, tmp_path):
+    monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
+    t0 = datetime(2026, 8, 25, 6, 0, tzinfo=timezone.utc)
+    cfg = P.PresenceAutomationConfig(
+        auto_arm_enabled=True, stale_after_s=216000, icloud_corroboration_window_s=21600,
+    )
+    corroboration = {
+        "roberto": P.PresenceCorroboration(last_seen=t0 + timedelta(hours=22), at_home=True),
+    }
+    block = P.evaluate_staleness_block(
+        [_person("roberto", "away", t0), _person("ana", "away", t0 + timedelta(days=1))],
+        config=cfg,
+        at=t0 + timedelta(days=1, minutes=5),
+        corroboration=corroboration,
+    )
+    assert block is not None
+    assert block.contradicted_person_ids == ("roberto",)
+    assert block.stale_person_ids == ()
+    assert block.all_person_ids == ("roberto",)
+
+
 def test_evaluate_staleness_block_does_not_fire_when_everyone_fresh(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     t0 = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)

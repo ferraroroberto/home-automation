@@ -400,6 +400,30 @@ def _older_than(transition_at: datetime, stamp: datetime, max_age_s: int) -> boo
     return (stamp - transition_at).total_seconds() > max_age_s
 
 
+def _corroboration_verdict(
+    person: PersonPresence,
+    *,
+    config: PresenceAutomationConfig,
+    at: datetime,
+    corroboration: Dict[str, PresenceCorroboration],
+) -> Optional[bool]:
+    """Whether a usable iCloud/Find My signal agrees (``True``), disagrees
+    (``False``), or has nothing to say (``None``) about ``person``'s stored
+    state — a signal counts only within ``icloud_corroboration_window_s`` of
+    ``at``. Shared by :func:`_corroborated` (extends trust to a stale record)
+    and :func:`_contradicted` (revokes trust from a fresh one) so the two
+    can never disagree on what "the iCloud read says" means."""
+
+    signal = corroboration.get(person.person_id)
+    if signal is None or signal.at_home is None:
+        return None
+    age_s = (at - signal.last_seen.astimezone(timezone.utc)).total_seconds()
+    if age_s > config.icloud_corroboration_window_s:
+        return None
+    expected_at_home = person.state == "home"
+    return bool(signal.at_home) == expected_at_home
+
+
 def _corroborated(
     person: PersonPresence,
     *,
@@ -410,14 +434,38 @@ def _corroborated(
     """True when a stale person's last known state is vouched for by a fresh,
     agreeing iCloud/Find My signal (issue #653)."""
 
+    return (
+        _corroboration_verdict(person, config=config, at=at, corroboration=corroboration)
+        is True
+    )
+
+
+def _contradicted(
+    person: PersonPresence,
+    *,
+    config: PresenceAutomationConfig,
+    at: datetime,
+    corroboration: Dict[str, PresenceCorroboration],
+) -> bool:
+    """True when a fresher iCloud/Find My read disagrees with ``person``'s
+    stored webhook state (issue #696) — the mirror image of
+    :func:`_corroborated`: that function only ever *extends* trust to an
+    already-stale record, it has no path to *revoke* trust from a record
+    that is still fresh by the clock but simply wrong (the webhook's edge-
+    triggered ping never landed). Requires the iCloud signal to be strictly
+    newer than the webhook's own ``updated_at`` — an older, disagreeing
+    signal has nothing to say; the webhook stays authoritative when it's the
+    more recent read."""
+
     signal = corroboration.get(person.person_id)
     if signal is None:
         return False
-    age_s = (at - signal.last_seen.astimezone(timezone.utc)).total_seconds()
-    if age_s > config.icloud_corroboration_window_s:
+    if signal.last_seen.astimezone(timezone.utc) <= person.updated_at.astimezone(timezone.utc):
         return False
-    expected_at_home = person.state == "home"
-    return signal.at_home is not None and bool(signal.at_home) == expected_at_home
+    return (
+        _corroboration_verdict(person, config=config, at=at, corroboration=corroboration)
+        is False
+    )
 
 
 def missing_people(
@@ -447,6 +495,8 @@ def _fresh_people(
     corroboration = corroboration or {}
     fresh: list[PersonPresence] = []
     for p in people:
+        if _contradicted(p, config=config, at=at, corroboration=corroboration):
+            continue
         age_s = (at - p.updated_at.astimezone(timezone.utc)).total_seconds()
         if age_s <= config.stale_after_s or _corroborated(
             p, config=config, at=at, corroboration=corroboration
@@ -472,7 +522,11 @@ def evaluate_alarm_decision(
     full on the everyone-away trigger; the disarm path is unaffected.
     ``corroboration`` (issue #653) lets a stale person's last known state
     stand in as fresh when a fresher, agreeing iCloud/Find My read vouches for
-    it — see :func:`_corroborated`.
+    it — see :func:`_corroborated`. The reverse also holds (issue #696): a
+    person's webhook state is excluded from "fresh" — regardless of its own
+    raw age — when a strictly newer iCloud/Find My read disagrees with it,
+    since a fresh-by-clock ping can still simply be wrong (a stuck Shortcut
+    automation) — see :func:`_contradicted`.
     ``known_person_ids`` (issue #689) is the roster this household is supposed
     to be tracking; a member with no record at all refuses every decision, the
     same way a stale one does.
@@ -687,6 +741,14 @@ class StalePresenceBlock:
     while a vanished person used to be invisible to every gate, which is how
     the house armed itself on a household of two with one person asleep inside.
 
+    ``contradicted_person_ids`` — their webhook data is still fresh by the
+    clock, but a strictly newer iCloud/Find My read actively disagrees with
+    it (issue #696) — e.g. a Shortcut ping stuck "away" from a stale Arrive
+    automation while Find My has since seen them home. Reported separately
+    from ``stale_person_ids`` because the cause (and the fix — check the
+    phone's Shortcut, not "wait for it to age out") is different: this
+    record was never going to self-correct just by getting older.
+
     The companion to :class:`PresenceBlock`, which diagnoses the benign "someone
     fresh is still home".
     """
@@ -694,12 +756,19 @@ class StalePresenceBlock:
     key: str
     stale_person_ids: tuple[str, ...]
     missing_person_ids: tuple[str, ...] = ()
+    contradicted_person_ids: tuple[str, ...] = ()
 
     @property
     def all_person_ids(self) -> tuple[str, ...]:
         """Everyone this block is about, however they went dark."""
 
-        return tuple(sorted(set(self.stale_person_ids) | set(self.missing_person_ids)))
+        return tuple(
+            sorted(
+                set(self.stale_person_ids)
+                | set(self.missing_person_ids)
+                | set(self.contradicted_person_ids)
+            )
+        )
 
 
 def evaluate_staleness_block(
@@ -727,14 +796,35 @@ def evaluate_staleness_block(
     # is — the whole household's records are gone — and it must reach Telegram
     # rather than be filed as "nobody is configured".
     missing_ids = missing_people(current, known_person_ids)
+    corroboration = corroboration or {}
     fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
     fresh_ids = {p.person_id for p in fresh}
-    stale_ids = tuple(sorted(p.person_id for p in current if p.person_id not in fresh_ids))
-    if not stale_ids and not missing_ids:
+    contradicted_ids = tuple(
+        sorted(
+            p.person_id
+            for p in current
+            if p.person_id not in fresh_ids
+            and _contradicted(p, config=config, at=stamp, corroboration=corroboration)
+        )
+    )
+    stale_ids = tuple(
+        sorted(
+            p.person_id
+            for p in current
+            if p.person_id not in fresh_ids and p.person_id not in contradicted_ids
+        )
+    )
+    if not stale_ids and not missing_ids and not contradicted_ids:
         return None
-    key = f"stale:{','.join(stale_ids)}|missing:{','.join(missing_ids)}"
+    key = (
+        f"stale:{','.join(stale_ids)}|missing:{','.join(missing_ids)}"
+        f"|contradicted:{','.join(contradicted_ids)}"
+    )
     return StalePresenceBlock(
-        key=key, stale_person_ids=stale_ids, missing_person_ids=missing_ids
+        key=key,
+        stale_person_ids=stale_ids,
+        missing_person_ids=missing_ids,
+        contradicted_person_ids=contradicted_ids,
     )
 
 
