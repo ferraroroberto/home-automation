@@ -273,13 +273,18 @@ async def _sync_arm_block_diagnostic(
 
 
 def _unaccounted_for_reason(block) -> str:
-    """One human sentence naming who went dark and how (issues #653, #689)."""
+    """One human sentence naming who went dark and how (issues #653, #689, #696)."""
 
     parts = []
     if block.stale_person_ids:
         parts.append(
             f"{', '.join(block.stale_person_ids)} presence data is stale "
             "with no iCloud corroboration"
+        )
+    if block.contradicted_person_ids:
+        parts.append(
+            f"{', '.join(block.contradicted_person_ids)} presence data conflicts with "
+            "a fresher iCloud reading — check their Shortcut"
         )
     if block.missing_person_ids:
         parts.append(
