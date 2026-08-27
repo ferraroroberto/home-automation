@@ -15,7 +15,7 @@ Writes into ``app/webapp/static/``: ``icon-512.png``, ``icon-512-maskable.png``,
 ``home-automation.ico``. Into ``assets/stream-deck/``: ``home-automation-144.png``.
 
 Usage:
-    python scripts/gen_icons.py
+    & .\\.venv\\Scripts\\python.exe scripts\\gen_icons.py
 
 The ``project-scaffolding`` checkout is located via the ``PROJECT_SCAFFOLDING_ROOT``
 environment variable, defaulting to ``E:\\automation\\project-scaffolding``.

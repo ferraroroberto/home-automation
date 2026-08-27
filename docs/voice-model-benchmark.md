@@ -7,7 +7,7 @@ optimised for *constrained structured-output reliability and latency*, not
 agentic cleverness.
 
 **Run date:** 2026-06-30 · **Box:** RTX 5060 Ti 16 GB, Ryzen 7 7800X3D · **Harness:**
-[`scripts/voice_bench/`](../scripts/voice_bench) (`python -m scripts.voice_bench`).
+[`scripts/voice_bench/`](../scripts/voice_bench) (`& .\.venv\Scripts\python.exe -m scripts.voice_bench`).
 
 ## TL;DR
 

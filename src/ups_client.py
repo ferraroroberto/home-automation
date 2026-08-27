@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from src._console_encoding import console_encoding
 from src._no_window import NO_WINDOW
 
 logger = logging.getLogger("ups")
@@ -427,6 +428,8 @@ def _read_windows_battery() -> UpsState:
         check=False,
         capture_output=True,
         text=True,
+        encoding=console_encoding(),
+        errors="replace",
         timeout=8,
         creationflags=NO_WINDOW,
     )

@@ -27,9 +27,9 @@ immediately.
 
 Usage
 -----
-    python scripts/gen_token.py            # generate iff none set
-    python scripts/gen_token.py --force    # rotate even if one exists
-    python scripts/gen_token.py --clear    # disable the gate
+    & .\\.venv\\Scripts\\python.exe scripts\\gen_token.py            # generate iff none set
+    & .\\.venv\\Scripts\\python.exe scripts\\gen_token.py --force    # rotate even if one exists
+    & .\\.venv\\Scripts\\python.exe scripts\\gen_token.py --clear    # disable the gate
 """
 
 from __future__ import annotations

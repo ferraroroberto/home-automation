@@ -84,6 +84,18 @@ prefix = "config/"
 tier   = "none"
 prefix = "docs/"
 
+# The throwaway Streamlit POC spike -- a separate manual :8501 launch, not
+# exercised by tests/e2e at all.
+[[e2e.rule]]
+tier   = "none"
+prefix = "spike/"
+
+# Static icon/image assets (tray icon, Stream Deck art) -- not served by the
+# webapp's PWA static tree, no browser impact.
+[[e2e.rule]]
+tier   = "none"
+prefix = "assets/"
+
 # Non-e2e tests (tests/e2e/ already matched full above).
 [[e2e.rule]]
 tier       = "none"
