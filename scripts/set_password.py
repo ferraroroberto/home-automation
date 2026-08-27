@@ -19,8 +19,8 @@ IP to ``webapp/auth.log``.
 
 Usage
 -----
-    python scripts/set_password.py <password>   # set or rotate
-    python scripts/set_password.py --clear      # disable password gate
+    & .\\.venv\\Scripts\\python.exe scripts\\set_password.py <password>   # set or rotate
+    & .\\.venv\\Scripts\\python.exe scripts\\set_password.py --clear      # disable password gate
 """
 
 from __future__ import annotations

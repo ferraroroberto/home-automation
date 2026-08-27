@@ -68,7 +68,7 @@ A **separate** feature from Reminders above — every phrase says "calendar" so 
 
 The sentence list is in `custom_sentences/en/calendar.yaml`. Reuses the existing `!secret app_api_authorization` — **no new HA secret** (this hits the app's own API, never Google directly from HA). **English only for now**.
 
-**One-time setup (outside `ha_config_sync.py` — this isn't HA config):** run `python -m scripts.auth_calendar_write` once after setting `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` (see `.env.example`) — opens a browser for a one-time Google consent, then persists the refresh token to `config/calendar_write_token.json` (gitignored). See the top-level README's "Calendar" section for the full Google Cloud Console setup.
+**One-time setup (outside `ha_config_sync.py` — this isn't HA config):** run `& .\.venv\Scripts\python.exe -m scripts.auth_calendar_write` once after setting `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` (see `.env.example`) — opens a browser for a one-time Google consent, then persists the refresh token to `config/calendar_write_token.json` (gitignored). See the top-level README's "Calendar" section for the full Google Cloud Console setup.
 
 ### Family locator (issue #438) — "where's mom/dad" + same-turn ETA (#470, #485)
 

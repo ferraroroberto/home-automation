@@ -1375,7 +1375,7 @@ Voice-only, **create-only** Google Calendar integration (issue #313) — "Okay N
 **One-time Google Cloud setup:**
 1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create (or reuse whatsapp-radar's existing) OAuth client of type **Desktop app** — OAuth *clients* aren't tied to one codebase, so reusing one is fine. Download its JSON.
 2. Set `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` to that downloaded file's path.
-3. Run `python -m scripts.auth_calendar_write` once — opens a browser for consent, writes the **independent** write token to `config/calendar_write_token.json` (gitignored). The token is per-app even when the OAuth client is shared, so this app's calendar access can be revoked/rotated without touching whatsapp-radar's.
+3. Run `& .\.venv\Scripts\python.exe -m scripts.auth_calendar_write` once — opens a browser for consent, writes the **independent** write token to `config/calendar_write_token.json` (gitignored). The token is per-app even when the OAuth client is shared, so this app's calendar access can be revoked/rotated without touching whatsapp-radar's.
 
 Optional `.env` knobs:
 

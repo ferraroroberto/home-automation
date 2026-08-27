@@ -33,6 +33,7 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
+from src._console_encoding import console_encoding
 from src._no_window import NO_WINDOW
 
 logger = logging.getLogger("hyperv")
@@ -306,6 +307,8 @@ def _run(script: str, name: str, timeout: int = 15) -> "subprocess.CompletedProc
         check=False,
         capture_output=True,
         text=True,
+        encoding=console_encoding(),
+        errors="replace",
         timeout=timeout,
         creationflags=NO_WINDOW,
         env=env,
