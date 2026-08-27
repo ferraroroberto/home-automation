@@ -1,13 +1,24 @@
 # Network view — spike findings (issue #125)
 
-Proof-of-concept results for a future **Network** tab: internet/WiFi/LAN health,
+Proof-of-concept results for the **Network** tab: internet/WiFi/LAN health,
 the attached-device inventory named by MAC, network-quality alerts, and
 router/AP reboot — so the network can be watched and managed without logging
 into the vendor web UIs by hand.
 
-This documents what the spike **proved against the live hardware**, what to
-**adopt**, and what is **left for the follow-up implementation issue**. The
-prototype core lives in `src/network_client.py` with the CLI `src/list_network.py`.
+**Shipped.** Every proof below has since landed in the product: the tab spans
+`network.js` / `network-devices.js` / `network-wifi.js` / `network-survey.js` /
+`network-dhcp.js` in `app/webapp/static/`, backed by `GET /api/network`
+(`app/webapp/routers/network.py`); the prototype `src/network_client.py` is
+now the orchestrator over the split `src/network_ap.py` /
+`src/network_router.py` / `src/network_host.py` (#197). See the README's
+"Home-network / Network tab" section for the current product surface — this
+doc stays as the decision record for *why* each piece works the way it does.
+The two "(follow-up)" headings below are historical: both items shipped (see
+the Follow-up checklist at the bottom).
+
+This documents what the spike **proved against the live hardware** and what
+it recommended adopting. The prototype core lived in `src/network_client.py`
+with the CLI `src/list_network.py`.
 
 ## TL;DR
 
@@ -150,21 +161,23 @@ never the lease table. The read is best-effort, so a router failure leaves the
 AP inventory intact. The `source` attribution surfaces in the device detail
 modal (`Seen by`), not the list.
 
-## Naming devices by MAC (follow-up)
+## Naming devices by MAC (shipped, #129 Phase 2)
 
-The user wants devices recognizable by MAC. Reuse the existing display-name
+The user wants devices recognizable by MAC. Reused the existing display-name
 module verbatim, as `tuya_display_names.py` / `security_display_names.py` do:
-a new `src/network_display_names.py` over `config/network_display_names.json`
+`src/network_display_names.py` over `config/network_display_names.json`
 (gitignored, with a committed sample), keyed by **MAC**. Deferred out of the
-spike to keep it to the three proofs.
+spike to keep it to the three proofs, then built as planned.
 
-## Eventual tab (follow-up)
+## The tab itself (shipped, #129 Phase 1)
 
-A `GET /api/network` router under `app/webapp/routers/` returning `NetworkState`,
-and a Network card view: an internet-health tile (up/down, latency, speed), an
-AP/router health row with reboot buttons, and the device list (MAC → friendly
-name, signal, band) with the weak-signal/offline alerts surfaced. Reboot is a
-deliberate user action with a confirm — never automatic.
+Planned as a `GET /api/network` router under `app/webapp/routers/` returning
+`NetworkState`, and a Network card view: an internet-health tile (up/down,
+latency, speed), an AP/router health row with reboot buttons, and the device
+list (MAC → friendly name, signal, band) with the weak-signal/offline alerts
+surfaced. Reboot is a deliberate user action with a confirm — never automatic.
+Built as planned, then reshaped by real usage — see the "Later correction"
+note below.
 
 > **Later correction (#632).** The alert strip did ship, then was removed again
 > in `cce000a` to tighten the tab's mobile layout, and `GET /api/network` no

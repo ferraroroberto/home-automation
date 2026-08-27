@@ -19,7 +19,7 @@ Claude Code reads this file directly as project memory; other agents reach it vi
 ## End-to-end UI testing
 *Apply only if this project serves a browser UI (Streamlit, FastAPI, Flask, etc.).*
 
-Two loops, kept deliberately separate — don't conflate them. Full reasoning, setup, and bootstrap recipe in [`docs/playwright-ui-testing.md`](docs/playwright-ui-testing.md).
+Two loops, kept deliberately separate — don't conflate them. Full reasoning, setup, and bootstrap recipe in `project-scaffolding`'s [`docs/playwright-ui-testing.md`](https://github.com/ferraroroberto/project-scaffolding/blob/main/docs/playwright-ui-testing.md) — the fleet's canonical copy; this repo's own [`docs/playwright-ui-testing.md`](docs/playwright-ui-testing.md) is a short pointer plus what's specific here.
 
 ### Iterative verification (headed, agent-driven)
 Active development, to watch the agent verify a change live.
