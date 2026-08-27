@@ -47,15 +47,15 @@ def _wire_common(monkeypatch: pytest.MonkeyPatch, tmp_path, *, entities, people=
     monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
     pr.set_presence_role("roberto-phone", "dad")
 
-    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: people or {})
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: people or {})
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(
             entities=entities, refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
     monkeypatch.setattr(
-        "app.webapp.routers.presence.load_location_config",
+        "app.webapp.routers.presence_locate.load_location_config",
         lambda: LocationConfig(lat=41.4, lon=2.15, label="home"),
     )
 
@@ -67,7 +67,7 @@ def _patch_travel(monkeypatch: pytest.MonkeyPatch, result: TravelTime) -> list:
         calls.append((origin_lat, origin_lon, dest_lat, dest_lon))
         return result
 
-    monkeypatch.setattr("app.webapp.routers.presence.fetch_travel_time", fake_fetch)
+    monkeypatch.setattr("app.webapp.routers.presence_locate.fetch_travel_time", fake_fetch)
     return calls
 
 
@@ -116,7 +116,7 @@ def test_eta_speaks_spanish(
     ],
 )
 def test_eta_speech_formats_hours_and_minutes(seconds: int, lang: str, expected: str) -> None:
-    from app.webapp.routers.presence import _eta_speech
+    from app.webapp.routers.presence_locate import _eta_speech
 
     assert _eta_speech("X", seconds, lang=lang) == expected
 
@@ -152,7 +152,7 @@ def test_eta_home_not_configured(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     _wire_common(monkeypatch, tmp_path, entities=[_away_entity()])
-    monkeypatch.setattr("app.webapp.routers.presence.load_location_config", lambda: None)
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_location_config", lambda: None)
     calls = _patch_travel(monkeypatch, TravelTime(available=True, duration_s=600))
 
     body = client.get("/api/presence/eta", params={"who": "dad"}).json()

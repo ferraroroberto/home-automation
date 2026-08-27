@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
 from src.presence_client import PresenceConfig, PresenceConfigError, TrustRenewalState
 
-ROUTER = "app.webapp.routers.presence"
+ROUTER = "app.webapp.routers.presence_trust"
 
 
 def _configs() -> List[PresenceConfig]:
