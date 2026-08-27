@@ -123,15 +123,15 @@ def test_presence_locate_resolves_role_to_named_place(
         distance_from_home_m=5000.0,
         at_home=False,
     )
-    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: {})
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(
             entities=[entity], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
     monkeypatch.setattr(
-        "app.webapp.routers.presence.now_utc",
+        "app.webapp.routers.presence_locate.now_utc",
         lambda: datetime(2026, 6, 22, 10, 3, tzinfo=timezone.utc),
     )
 
@@ -166,17 +166,17 @@ def test_presence_locate_reports_home_and_unknown_person(
     pr.set_presence_role("ana", "mom")
 
     monkeypatch.setattr(
-        "app.webapp.routers.presence.load_people",
+        "app.webapp.routers.presence_locate.load_people",
         lambda: {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))},
     )
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(
             entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
     monkeypatch.setattr(
-        "app.webapp.routers.presence.now_utc",
+        "app.webapp.routers.presence_locate.now_utc",
         lambda: datetime(2026, 6, 22, 10, 1, tzinfo=timezone.utc),
     )
 
@@ -212,17 +212,17 @@ def test_presence_locate_accepts_variants_and_speaks_spanish(
     pr.set_presence_role("ana", "mom")
 
     monkeypatch.setattr(
-        "app.webapp.routers.presence.load_people",
+        "app.webapp.routers.presence_locate.load_people",
         lambda: {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))},
     )
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(
             entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
     monkeypatch.setattr(
-        "app.webapp.routers.presence.now_utc",
+        "app.webapp.routers.presence_locate.now_utc",
         lambda: datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc),
     )
 
@@ -274,10 +274,10 @@ def test_presence_locate_refreshes_stale_cache_on_demand(
         entities=[fresh_entity], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
     )
 
-    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: {})
     # Never refreshed — the endpoint must call refresh_once() before resolving.
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(entities=[], available=False, reason="not_refreshed"),
     )
 
@@ -287,7 +287,7 @@ def test_presence_locate_refreshes_stale_cache_on_demand(
         calls.append(1)
         return fresh_cache
 
-    monkeypatch.setattr("app.webapp.routers.presence.refresh_once", fake_refresh_once)
+    monkeypatch.setattr("app.webapp.routers.presence_locate.refresh_once", fake_refresh_once)
 
     resp = client.get("/api/presence/locate", params={"who": "dad"})
     assert resp.status_code == 200
@@ -312,11 +312,11 @@ def test_presence_locate_falls_back_to_cache_on_refresh_timeout(
     monkeypatch.setenv("PRESENCE_LOCATE_REFRESH_TIMEOUT_S", "1")
 
     monkeypatch.setattr(
-        "app.webapp.routers.presence.load_people",
+        "app.webapp.routers.presence_locate.load_people",
         lambda: {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))},
     )
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(entities=[], available=False, reason="not_refreshed"),
     )
 
@@ -324,7 +324,7 @@ def test_presence_locate_falls_back_to_cache_on_refresh_timeout(
         await asyncio.sleep(5)
         raise AssertionError("should have timed out before completing")
 
-    monkeypatch.setattr("app.webapp.routers.presence.refresh_once", hung_refresh_once)
+    monkeypatch.setattr("app.webapp.routers.presence_locate.refresh_once", hung_refresh_once)
 
     resp = client.get("/api/presence/locate", params={"who": "ana"})
     assert resp.status_code == 200
@@ -351,8 +351,8 @@ def test_presence_locate_reports_broken_source_for_icloud_only_alias(
     broken_cache = PresenceDiagnosticsCache(
         entities=[], refreshed_at=datetime.now(timezone.utc), available=False, reason="2fa_required"
     )
-    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
-    monkeypatch.setattr("app.webapp.routers.presence.get_cache", lambda: broken_cache)
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.presence_locate.get_cache", lambda: broken_cache)
 
     resp = client.get("/api/presence/locate", params={"who": "dad"})
     assert resp.status_code == 200
@@ -399,9 +399,9 @@ def test_presence_locate_reverse_geocodes_unmatched_away_location(
     pr.set_presence_role("ana-phone", "mom")
 
     entity = _icloud_entity("ana-phone", lat=41.48, lon=2.06)
-    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: {})
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(
             entities=[entity], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
@@ -444,9 +444,9 @@ def test_presence_locate_falls_back_to_generic_away_when_geocode_unavailable(
     pr.set_presence_role("ana-phone", "mom")
 
     entity = _icloud_entity("ana-phone", lat=41.48, lon=2.06)
-    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: {})
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(
             entities=[entity], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
@@ -485,9 +485,9 @@ def test_presence_locate_states_recency_fresh_and_stale_both_languages(
     # diagnostics cache itself never reads as stale (a separate staleness
     # check, unrelated to the entity's own last-seen recency under test).
     frozen_refreshed_at = entity.last_seen + timedelta(minutes=20)
-    monkeypatch.setattr("app.webapp.routers.presence.load_people", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: {})
     monkeypatch.setattr(
-        "app.webapp.routers.presence.get_cache",
+        "app.webapp.routers.presence_locate.get_cache",
         lambda: PresenceDiagnosticsCache(
             entities=[entity], refreshed_at=frozen_refreshed_at, available=True, reason="ok"
         ),
@@ -498,7 +498,7 @@ def test_presence_locate_states_recency_fresh_and_stale_both_languages(
     monkeypatch.setattr("app.webapp.routers.presence._reverse_geocode", fake_reverse_geocode)
 
     # Fresh: entity.last_seen is effectively "now" — reads as "just now".
-    monkeypatch.setattr("app.webapp.routers.presence.now_utc", lambda: entity.last_seen)
+    monkeypatch.setattr("app.webapp.routers.presence_locate.now_utc", lambda: entity.last_seen)
     body = client.get("/api/presence/locate", params={"who": "mom"}).json()
     assert body["last_seen"] == entity.last_seen.isoformat()
     assert body["speech"].endswith("last seen just now.")
@@ -508,7 +508,7 @@ def test_presence_locate_states_recency_fresh_and_stale_both_languages(
 
     # Stale: 15 minutes after the fix — a distinct, non-"just now" recency.
     monkeypatch.setattr(
-        "app.webapp.routers.presence.now_utc", lambda: entity.last_seen + timedelta(minutes=15)
+        "app.webapp.routers.presence_locate.now_utc", lambda: entity.last_seen + timedelta(minutes=15)
     )
     body = client.get("/api/presence/locate", params={"who": "mom"}).json()
     assert body["speech"].endswith("last seen 15 minutes ago.")

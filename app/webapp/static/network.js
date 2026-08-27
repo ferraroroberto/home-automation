@@ -4,9 +4,10 @@
  * test), AP/router health with the confirm-gated reboots, the tab poll
  * lifecycle, and the renderNetwork orchestrator. The confirm dialog itself is
  * the neutral `./confirm.js` primitive (issue #574) — it used to live here,
- * which made unrelated modules import this feature tab to get it. The three
+ * which made unrelated modules import this feature tab to get it. The
  * feature panels live in sibling modules and are wired in here (issue #197):
  *   ./network-devices.js — attached-device inventory + detail/rename modal
+ *   ./network-groups.js  — device-group rename/delete dialog (#702)
  *   ./network-wifi.js    — Wi-Fi diagnostics + channel charts + Wi-Fi modal
  *   ./network-survey.js  — Wi-Fi walk test: per-room coverage samples (#547)
  *   ./network-dhcp.js    — DHCP reservation planner + apply flow
@@ -38,7 +39,6 @@ import {
   renderStats,
   renderDevices,
   wireNetDeviceDetail,
-  wireNetGroupDialog,
   toggleShowOffline,
   toggleShowHiddenDevices,
   setDeviceSort,
@@ -48,6 +48,7 @@ import {
   initDeviceSortPref,
   initDeviceGroupingPref,
 } from './network-devices.js';
+import { wireNetGroupDialog } from './network-groups.js';
 import {
   renderWifi,
   wireNetWifiDetail,

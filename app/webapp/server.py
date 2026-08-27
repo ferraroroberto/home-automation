@@ -24,7 +24,9 @@ with the router set the way the old exhaustive table did (#453).
     security_notify    → /api/security/notify-prefs
     network            → /api/network*                    (LAN health, AP/router reboot, device/wifi hide, wifi rename)
     dhcp_plan          → /api/network/dhcp-plan*, /dhcp-bindings*, /dhcp-overrides*, /dhcp-reservations*
-    presence           → /api/presence*, /api/location*
+    presence           → /api/presence*, /api/location*                (webhook/CRUD state + iCloud diagnostics)
+    presence_locate    → /api/presence/locate, /api/presence/eta        (locate/ETA voice bridge)
+    presence_trust     → /api/presence/icloud/{account}/trust/*         (iCloud browser-trust renewal)
     push               → /api/push*                       (browser Web Push)
     hyperv             → /api/hyperv*                      (Home Assistant VM status/start/stop)
     searxng            → /api/searxng*                      (Tier-3 voice search backend status/start)
@@ -63,7 +65,7 @@ from starlette.types import Scope
 
 from app.webapp.middleware import BearerTokenMiddleware
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
+from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from src.automation_owner import AutomationOwnership
 from app.webapp.automation import start_automation
@@ -284,6 +286,8 @@ def create_app() -> FastAPI:
     app.include_router(network.router)
     app.include_router(dhcp_plan.router)
     app.include_router(presence.router)
+    app.include_router(presence_locate.router)
+    app.include_router(presence_trust.router)
     app.include_router(push.router)
     app.include_router(hyperv.router)
     app.include_router(searxng.router)

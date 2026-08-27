@@ -22,6 +22,12 @@
  * that left hours ago still holds its lease. Visibility and the group counts
  * therefore key off hasLiveLink() below, not the raw online flag, and those
  * no-link rows ride the same Offline toggle as the genuinely absent ones.
+ *
+ * Issue #702 splits the group rename/delete dialog itself into a
+ * ./network-groups.js sibling — this module keeps the group *list* (groupsOf /
+ * membersOf, the latter exported for network-groups.js) and the edit-pencil
+ * that opens it, following the boot-orchestrator-plus-feature-modules split
+ * security.js and network.js already use.
  */
 
 'use strict';
@@ -41,9 +47,9 @@ import { jsonApi, reportActionFailure } from './api.js';
 import { renderSignalBar } from './format.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
 import { renderNetwork } from './network.js';
-import { confirmAction } from './confirm.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { openGroupDialog } from './network-groups.js';
 
 // Mirrors src.network_client._WEAK_SIGNAL_PCT — a wireless client below this is
 // counted in the "Weak" chip and dimmed in the list.
@@ -450,7 +456,9 @@ function groupsOf(list) {
   return names;
 }
 
-function membersOf(list, name) {
+// Exported for network-groups.js's rename/delete dialog, which resolves a
+// group's current member count against the live device list the same way.
+export function membersOf(list, name) {
   return list.filter(function (d) { return (d.group || '').trim() === name; });
 }
 
@@ -778,102 +786,9 @@ export function wireNetDeviceDetail() {
   }
 }
 
-// -------------------------------------------------- group rename / delete
-// The dialog only ever edits a real (persisted) group; Unclassified has no
-// pencil, so there is no path here for it.
-let selectedGroup = null;
-
-function openGroupDialog(name) {
-  if (!els.netGroupDialog) return;
-  selectedGroup = name;
-  const members = membersOf((state.network && state.network.devices) || [], name);
-  els.netGroupDialogTitle.textContent = name;
-  els.netGroupMembers.textContent = members.length +
-    (members.length === 1 ? ' device' : ' devices');
-  els.netGroupName.value = name;
-  if (els.netGroupSave) els.netGroupSave.disabled = true;
-  openDialog(els.netGroupDialog);
-  els.netGroupName.focus();
-}
-
-function closeGroupDialog() {
-  selectedGroup = null;
-  closeDialog(els.netGroupDialog);
-}
-
-// Rewrite the group on every local device row so the list re-renders without
-// waiting for the next poll — the same optimistic pattern as the device modal.
-function patchGroupLocally(from, to) {
-  if (!(state.network && Array.isArray(state.network.devices))) return;
-  state.network.devices = state.network.devices.map(function (d) {
-    return (d.group || '') === from ? Object.assign({}, d, { group: to || null }) : d;
-  });
-}
-
-async function saveGroupName() {
-  const name = selectedGroup;
-  if (!name) return;
-  const next = els.netGroupName.value.trim();
-  if (!next || next === name) { closeGroupDialog(); return; }
-  if (els.netGroupSave) els.netGroupSave.disabled = true;
-  try {
-    await jsonApi('/api/network/groups/rename', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, new_name: next }),
-    });
-    patchGroupLocally(name, next);
-    closeGroupDialog();
-    renderNetwork();
-    toast('Group renamed', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to rename group');
-    if (els.netGroupSave) els.netGroupSave.disabled = false;
-  }
-}
-
-async function deleteGroup() {
-  const name = selectedGroup;
-  if (!name) return;
-  const members = membersOf((state.network && state.network.devices) || [], name);
-  const ok = await confirmAction({
-    title: 'Delete group?',
-    message: '"' + name + '" is removed. Its ' + members.length +
-      (members.length === 1 ? ' device moves' : ' devices move') +
-      ' to Unclassified — nothing is deleted from the network.',
-    okLabel: 'Delete',
-    danger: true,
-  });
-  if (!ok) return;
-  try {
-    await jsonApi('/api/network/groups/delete', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name }),
-    });
-    patchGroupLocally(name, '');
-    closeGroupDialog();
-    renderNetwork();
-    toast('Group deleted', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to delete group');
-  }
-}
-
-export function wireNetGroupDialog() {
-  if (!els.netGroupDialog) return;
-  els.netGroupDialogClose.addEventListener('click', closeGroupDialog);
-  els.netGroupDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.netGroupDialog) closeGroupDialog();  // backdrop
-  });
-  els.netGroupName.addEventListener('input', function () {
-    const next = els.netGroupName.value.trim();
-    if (els.netGroupSave) els.netGroupSave.disabled = !next || next === selectedGroup;
-  });
-  els.netGroupName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); saveGroupName(); }
-  });
-  if (els.netGroupSave) els.netGroupSave.addEventListener('click', saveGroupName);
-  if (els.netGroupDelete) els.netGroupDelete.addEventListener('click', deleteGroup);
-}
+// Group rename/delete dialog: ./network-groups.js (issue #702). openGroupDialog
+// is imported above for the edit-pencil click handler in appendCustomGroup;
+// wireNetGroupDialog is wired directly from network.js.
 
 // ------------------------------------------------- prefs + toggles
 // Persisted list preferences (localStorage), like plugs/security toggles. The
