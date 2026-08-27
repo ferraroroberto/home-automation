@@ -3,7 +3,6 @@ from __future__ import annotations
 from src.security_override import (
     OverrideEntry,
     load_overrides,
-    override_for_zone,
     set_overrides,
 )
 
@@ -30,21 +29,6 @@ def test_override_store_normalizes_clamps_and_persists(tmp_path) -> None:
     assert entries[1].max_retries == 3  # clamped down from 9
     assert entries[2].enabled is False
     assert load_overrides(path=path) == entries
-
-
-def test_override_for_zone_filters_by_zone_and_enabled(tmp_path) -> None:
-    path = tmp_path / "security_override.json"
-    set_overrides(
-        [
-            {"id": "a", "zone_id": 12, "max_retries": 1},
-            {"id": "b", "zone_id": 21, "max_retries": 2, "enabled": False},
-        ],
-        path=path,
-    )
-
-    assert override_for_zone(12, path=path).max_retries == 1
-    assert override_for_zone(21, path=path) is None  # disabled
-    assert override_for_zone(99, path=path) is None  # not configured
 
 
 def test_load_missing_file_is_empty(tmp_path) -> None:

@@ -109,12 +109,3 @@ def set_overrides(
     entries = _clean_list(raw_entries)
     save_overrides(entries, path)
     return entries
-
-
-def override_for_zone(zone_id: int, path: Optional[Path] = None) -> Optional[OverrideEntry]:
-    """Return the enabled override entry for ``zone_id``, if any."""
-
-    for entry in load_overrides(path):
-        if entry.enabled and entry.zone_id == zone_id:
-            return entry
-    return None
