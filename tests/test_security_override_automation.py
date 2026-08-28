@@ -39,6 +39,24 @@ def _async_return(value):
     return _f
 
 
+def test_spawn_background_task_holds_strong_ref_until_done() -> None:
+    """Issue #703: same shape as ``alarm_scene_automation``'s fix — the
+    detached event-scan task must be tracked (a strong ref) while in
+    flight, or it's eligible for GC before its ``finally`` clears
+    ``_state["scan_running"]``, wedging the auto-bypass gate closed."""
+
+    async def _slow() -> None:
+        await asyncio.sleep(0)
+
+    async def _run() -> None:
+        task = engine._spawn_background_task(_slow(), name="test-task")
+        assert task in engine._background_tasks
+        await task
+        assert task not in engine._background_tasks
+
+    asyncio.run(_run())
+
+
 def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(override_cfg, "OVERRIDES_PATH", tmp_path / "security_override.json")
     monkeypatch.setattr(session_cfg, "SESSION_PATH", tmp_path / "security_override_session.json")

@@ -174,7 +174,7 @@ def _read_nut() -> UpsState:
     if not upsc:
         raise RuntimeError("upsc not found")
 
-    device = os.getenv("UPS_NUT_DEVICE", "").strip() or "pc-ups@127.0.0.1"
+    device = os.getenv("UPS_NUT_DEVICE", "").strip()
     if not device:
         listed = subprocess.run(
             [upsc, "-l"],
@@ -184,12 +184,12 @@ def _read_nut() -> UpsState:
             timeout=5,
             creationflags=NO_WINDOW,
         )
-        if listed.returncode != 0:
-            raise RuntimeError((listed.stderr or listed.stdout or "upsc -l failed").strip())
-        devices = [line.strip() for line in listed.stdout.splitlines() if line.strip()]
-        if not devices:
-            raise RuntimeError("upsc listed no UPS devices")
-        device = devices[0]
+        if listed.returncode == 0:
+            devices = [line.strip() for line in listed.stdout.splitlines() if line.strip()]
+            if devices:
+                device = devices[0]
+        if not device:
+            device = "pc-ups@127.0.0.1"
 
     result = subprocess.run(
         [upsc, device],

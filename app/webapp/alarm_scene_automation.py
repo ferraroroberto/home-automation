@@ -62,7 +62,7 @@ import urllib.error
 import urllib.request
 import uuid
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Coroutine, Dict, List, Optional, Tuple
 
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._zone_lookup import _zone_name_for
@@ -152,6 +152,22 @@ def load_alarm_scene_config() -> AlarmSceneConfig:
 # cursor in ``src.alarm_scene_cursor`` — not this dict — precisely so a
 # process restart doesn't lose track of which alarms were already captured.
 _state: Dict[str, object] = {"last_baseline": None, "last_event_scan": None, "event_scan_running": False}
+
+# Strong references to the detached scan/refresh tasks below — without this,
+# asyncio only holds a weak reference to a task once its `create_task()`
+# return value is discarded, so the task is eligible for GC mid-flight and can
+# vanish before its `finally` clears `_state["event_scan_running"]`, wedging
+# the gate in `consider_security_read()` closed forever (issue #703).
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background_task(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task:
+    """``asyncio.create_task`` that can't be silently GC'd before it finishes."""
+
+    task = asyncio.create_task(coro, name=name)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 
 def _resolve_pairings(
@@ -448,6 +464,6 @@ def consider_security_read(security: object) -> None:
     intrusion = bool(ongoing or memory)
     if intrusion:
         if _event_scan_due(config):
-            asyncio.create_task(_run_event_scan(security, config), name="alarm-scene-event-scan")
+            _spawn_background_task(_run_event_scan(security, config), name="alarm-scene-event-scan")
     elif _baseline_due(config):
-        asyncio.create_task(_run_baseline_refresh(config), name="alarm-scene-baseline")
+        _spawn_background_task(_run_baseline_refresh(config), name="alarm-scene-baseline")

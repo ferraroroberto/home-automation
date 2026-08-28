@@ -101,6 +101,25 @@ def test_onset_captures_analyses_delivers_and_logs(monkeypatch) -> None:
     assert rec["captures"][0]["camera_id"] == "garden"
 
 
+def test_spawn_background_task_holds_strong_ref_until_done() -> None:
+    """Issue #703: ``asyncio.create_task``'s return value used to be
+    discarded outright, leaving only a weak reference — eligible for GC
+    mid-flight, which would leave ``_state["event_scan_running"]`` wedged
+    ``True`` forever since the task's ``finally`` never runs. The task must
+    be tracked (a strong ref) while in flight and untracked once done."""
+
+    async def _slow() -> None:
+        await asyncio.sleep(0)
+
+    async def _run() -> None:
+        task = auto._spawn_background_task(_slow(), name="test-task")
+        assert task in auto._background_tasks
+        await task
+        assert task not in auto._background_tasks
+
+    asyncio.run(_run())
+
+
 def test_consider_security_read_disabled_is_noop(monkeypatch) -> None:
     monkeypatch.setattr(auto, "load_alarm_scene_config",
                         lambda: auto.AlarmSceneConfig(enabled=False))
@@ -119,7 +138,7 @@ def test_consider_security_read_skips_scan_on_unreadable_flags(monkeypatch) -> N
                         lambda: auto.AlarmSceneConfig(enabled=True))
     scheduled: list = []
     monkeypatch.setattr(
-        auto.asyncio, "create_task",
+        auto, "_spawn_background_task",
         lambda coro, name=None: (scheduled.append(name), coro.close())[0],
     )
     security = SecurityState(
@@ -136,7 +155,7 @@ def test_consider_security_read_schedules_event_scan_when_intruding(monkeypatch)
     auto._state["last_event_scan"] = None
     scheduled: list = []
     monkeypatch.setattr(
-        auto.asyncio, "create_task",
+        auto, "_spawn_background_task",
         lambda coro, name=None: (scheduled.append(name), coro.close())[0],
     )
     security = _security(ongoing=True, zones=[(3, "Garden")])
