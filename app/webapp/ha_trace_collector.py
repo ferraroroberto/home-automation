@@ -6,10 +6,12 @@ import asyncio
 import logging
 import os
 from collections import deque
+from dataclasses import dataclass
 from typing import Deque, Optional, Set
 
 import aiohttp
 
+from app.webapp._task_loop import run_loop
 from src import telemetry
 from src.ha_client import (
     HaClientError,
@@ -85,32 +87,52 @@ async def _record_new_runs(client: HomeAssistantClient, seen: _SeenRuns) -> int:
     return recorded
 
 
+@dataclass
+class _CollectorState:
+    """Last logged failure text, so repeat failures don't spam the log."""
+
+    last_error: Optional[str] = None
+
+
+async def _tick(client: HomeAssistantClient, seen: _SeenRuns, state: _CollectorState) -> None:
+    """One poll: record any newly-completed runs, de-duping repeat failures.
+
+    Isolates its own failures (never raises) so :func:`run_loop` is called
+    with ``tick_fail_msg=None`` — a background task must survive a flaky HA.
+    """
+    try:
+        count = await _record_new_runs(client, seen)
+        if state.last_error is not None:
+            logger.info("ℹ️  Home Assistant trace collection recovered")
+            state.last_error = None
+        if count:
+            logger.info("ℹ️  Recorded %s Home Assistant voice interaction(s)", count)
+    except HaClientError as exc:
+        message = str(exc)
+        if message != state.last_error:
+            logger.info("ℹ️  Home Assistant trace collection unavailable: %s", exc)
+            state.last_error = message
+    except Exception as exc:  # noqa: BLE001 — background task must survive
+        message = str(exc)
+        if message != state.last_error:
+            logger.warning("⚠️  Home Assistant trace collection failed: %s", exc)
+            state.last_error = message
+
+
 async def _collector_loop() -> None:
     seen = _SeenRuns()
     await asyncio.to_thread(_seed_seen, seen)
     timeout = aiohttp.ClientTimeout(total=30)
-    last_error: Optional[str] = None
+    state = _CollectorState()
     async with aiohttp.ClientSession(timeout=timeout) as session:
         client = HomeAssistantClient(session)
-        while True:
-            try:
-                count = await _record_new_runs(client, seen)
-                if last_error is not None:
-                    logger.info("ℹ️  Home Assistant trace collection recovered")
-                    last_error = None
-                if count:
-                    logger.info("ℹ️  Recorded %s Home Assistant voice interaction(s)", count)
-            except HaClientError as exc:
-                message = str(exc)
-                if message != last_error:
-                    logger.info("ℹ️  Home Assistant trace collection unavailable: %s", exc)
-                    last_error = message
-            except Exception as exc:  # noqa: BLE001 — background task must survive
-                message = str(exc)
-                if message != last_error:
-                    logger.warning("⚠️  Home Assistant trace collection failed: %s", exc)
-                    last_error = message
-            await asyncio.sleep(POLL_SECONDS)
+        await run_loop(
+            lambda: _tick(client, seen, state),
+            POLL_SECONDS,
+            logger=logger,
+            name="HA trace collector",
+            start_msg="🎙️ HA trace collector started (poll %ds)" % POLL_SECONDS,
+        )
 
 
 def start_ha_trace_collector() -> Optional[asyncio.Task]:

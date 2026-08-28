@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src._schedule_store import clean_days, clean_time, read_json, safe_id, save_json
+from src._schedule_store import clean_date, clean_days, clean_time, read_json, safe_id, save_json
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,6 @@ _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 WAKE_ALARMS_PATH = _CONFIG_DIR / "wake_alarms.json"
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri")
 _WEEKEND = ("sat", "sun")
@@ -53,17 +52,6 @@ class WakeAlarmEntry:
         object.__setattr__(self, "days", list(self.days or DAYS))
 
 
-def _clean_date(value: Any) -> Optional[str]:
-    raw = str(value or "").strip()
-    if not raw or not _DATE_RE.match(raw):
-        return None
-    try:
-        datetime.strptime(raw, "%Y-%m-%d")
-    except ValueError:
-        return None
-    return raw
-
-
 def clean_entry(raw: dict, fallback_id: str) -> WakeAlarmEntry:
     """Coerce untrusted JSON/API data into a wake-alarm entry."""
 
@@ -73,7 +61,7 @@ def clean_entry(raw: dict, fallback_id: str) -> WakeAlarmEntry:
         enabled=raw.get("enabled") is not False,
         time=clean_time(raw.get("time"), "07:00"),
         days=clean_days(raw.get("days")),
-        date=_clean_date(raw.get("date")),
+        date=clean_date(raw.get("date")),
     )
 
 

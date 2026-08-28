@@ -19,7 +19,7 @@ import { fmtTime } from './presence.js';
 import { renderSecurity } from './security.js';
 import { toggleMarkup } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
-import { closeDialog, openDialog } from './dialog.js';
+import { detailModal } from './detail-modal.js';
 
 // The "show hidden detectors" filter, on the shared localStorage wrapper.
 const showHiddenPref = persistedFlag(SECURITY_SHOW_HIDDEN_KEY, false);
@@ -396,27 +396,9 @@ function zoneById(zoneId) {
 }
 
 function openZoneDetail(zoneId) {
-  const zone = zoneById(zoneId);
-  if (!zone) return;
+  if (!zoneById(zoneId)) return;
   state.selectedZoneId = zoneId;
-  els.zoneDetailName.textContent = zoneLabel(zone);
-  els.zoneDetailType.textContent = zone.type === null || zone.type === undefined
-    ? '—' : ('Type ' + zone.type);
-  els.zoneDetailStatus.textContent = zone.triggered
-    ? 'Triggered' : (zone.bypassed ? 'Bypassed' : 'Active');
-  els.zoneDetailTrouble.innerHTML = zone.trouble ? icon('triangle-alert') + ' Yes' : 'No';
-  els.zoneDisplayName.value = zone.display_name || '';
-  els.zoneDisplayName.placeholder = zone.name || 'Custom label…';
-  // Original RISCO name, so the custom label maps back to the physical detector.
-  if (els.zoneOriginalName) {
-    els.zoneOriginalName.textContent = 'System name: ' + (zone.name || ('Zone ' + zone.id));
-  }
-  renderZoneHiddenToggle(zone);
-  renderZoneTroubleIgnoreToggle(zone);
-  zoneStaged = { hidden: !!zone.hidden, trouble_ignored: !!zone.trouble_ignored };
-  clearZoneDirty();
-  openDialog(els.zoneDialog);
-  els.zoneDisplayName.focus();
+  zoneModal.open(zoneId);
 }
 
 function renderZoneHiddenToggle(zone) {
@@ -437,21 +419,9 @@ function renderZoneTroubleIgnoreToggle(zone) {
   btn.innerHTML = toggleMarkup(ignored);
 }
 
-// Detail-modal staging (#203): name + Hidden commit on Save. zoneStaged holds the
-// working Hidden state captured when the modal opens; closing discards it.
-let zoneStaged = null;
-let zoneDirty = false;
-
-function markZoneDirty() {
-  zoneDirty = true;
-  if (els.zoneSave) els.zoneSave.disabled = false;
-}
-
-function clearZoneDirty() {
-  zoneDirty = false;
-  if (els.zoneSave) els.zoneSave.disabled = true;
-}
-
+// Detail-modal staging (#203, shared shell #699): name + Hidden commit on
+// Save. zoneModal.staged holds the working Hidden/Ignore-trouble state
+// captured when the modal opens; closing discards it.
 function patchZone(id, patch) {
   if (state.security && Array.isArray(state.security.zones)) {
     state.security.zones = state.security.zones.map(function (z) {
@@ -460,70 +430,80 @@ function patchZone(id, patch) {
   }
 }
 
+const zoneModal = detailModal({
+  dialog: els.zoneDialog,
+  saveButton: els.zoneSave,
+  focusEl: els.zoneDisplayName,
+  getEntity: zoneById,
+  stage: function (zone) {
+    return { hidden: !!zone.hidden, trouble_ignored: !!zone.trouble_ignored };
+  },
+  populate: function (staged, zone) {
+    els.zoneDetailName.textContent = zoneLabel(zone);
+    els.zoneDetailType.textContent = zone.type === null || zone.type === undefined
+      ? '—' : ('Type ' + zone.type);
+    els.zoneDetailStatus.textContent = zone.triggered
+      ? 'Triggered' : (zone.bypassed ? 'Bypassed' : 'Active');
+    els.zoneDetailTrouble.innerHTML = zone.trouble ? icon('triangle-alert') + ' Yes' : 'No';
+    els.zoneDisplayName.value = zone.display_name || '';
+    els.zoneDisplayName.placeholder = zone.name || 'Custom label…';
+    // Original RISCO name, so the custom label maps back to the physical detector.
+    if (els.zoneOriginalName) {
+      els.zoneOriginalName.textContent = 'System name: ' + (zone.name || ('Zone ' + zone.id));
+    }
+    renderZoneHiddenToggle(staged);
+    renderZoneTroubleIgnoreToggle(staged);
+  },
+  buildOps: function (id, staged, zone) {
+    const ops = [];
+    const newName = els.zoneDisplayName.value.trim();
+    if ((zone.display_name || '') !== newName) {
+      ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/display_name', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: newName }),
+      }).then(function () { patchZone(id, { display_name: newName || null }); }));
+    }
+    if (!!zone.hidden !== staged.hidden) {
+      ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/hidden', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden: staged.hidden }),
+      }).then(function () { patchZone(id, { hidden: staged.hidden }); }));
+    }
+    if (!!zone.trouble_ignored !== staged.trouble_ignored) {
+      ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/trouble_ignored', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ignored: staged.trouble_ignored }),
+      }).then(function () { patchZone(id, { trouble_ignored: staged.trouble_ignored }); }));
+    }
+    return ops;
+  },
+  afterSave: function (id) {
+    const z = zoneById(id);
+    if (z) els.zoneDetailName.textContent = zoneLabel(z);
+    renderState();  // refresh the main-card trouble count after an ignore change (#225)
+  },
+  render: renderZones,
+});
+
 // Stage the Hidden toggle visually only — the PUT happens on Save.
 function toggleZoneHidden() {
-  const zone = zoneById(state.selectedZoneId);
-  if (!zone || !zoneStaged) return;
-  zoneStaged.hidden = !zoneStaged.hidden;
-  renderZoneHiddenToggle(Object.assign({}, zone, { hidden: zoneStaged.hidden }));
-  markZoneDirty();
+  if (!zoneModal.staged) return;
+  zoneModal.staged.hidden = !zoneModal.staged.hidden;
+  renderZoneHiddenToggle(zoneModal.staged);
+  zoneModal.markDirty();
 }
 
 // Stage the Ignore-trouble toggle visually only — the PUT happens on Save (#225).
 function toggleZoneTroubleIgnored() {
-  const zone = zoneById(state.selectedZoneId);
-  if (!zone || !zoneStaged) return;
-  zoneStaged.trouble_ignored = !zoneStaged.trouble_ignored;
-  renderZoneTroubleIgnoreToggle(Object.assign({}, zone, { trouble_ignored: zoneStaged.trouble_ignored }));
-  markZoneDirty();
+  if (!zoneModal.staged) return;
+  zoneModal.staged.trouble_ignored = !zoneModal.staged.trouble_ignored;
+  renderZoneTroubleIgnoreToggle(zoneModal.staged);
+  zoneModal.markDirty();
 }
 
 function closeZoneDetail() {
   state.selectedZoneId = null;
-  zoneStaged = null;
-  clearZoneDirty();
-  closeDialog(els.zoneDialog);
-}
-
-// Commit the staged name + Hidden; only fields that actually changed are sent.
-async function saveZone() {
-  const id = state.selectedZoneId;
-  if (id === null || id === undefined || !zoneStaged) return;
-  const zone = zoneById(id);
-  if (!zone) return;
-  if (els.zoneSave) els.zoneSave.disabled = true;
-  const newName = els.zoneDisplayName.value.trim();
-  const ops = [];
-  if ((zone.display_name || '') !== newName) {
-    ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/display_name', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: newName }),
-    }).then(function () { patchZone(id, { display_name: newName || null }); }));
-  }
-  if (!!zone.hidden !== zoneStaged.hidden) {
-    ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/hidden', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hidden: zoneStaged.hidden }),
-    }).then(function () { patchZone(id, { hidden: zoneStaged.hidden }); }));
-  }
-  if (!!zone.trouble_ignored !== zoneStaged.trouble_ignored) {
-    ops.push(jsonApi('/api/security/zones/' + encodeURIComponent(id) + '/trouble_ignored', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ignored: zoneStaged.trouble_ignored }),
-    }).then(function () { patchZone(id, { trouble_ignored: zoneStaged.trouble_ignored }); }));
-  }
-  try {
-    await Promise.all(ops);
-    const z = zoneById(id);
-    if (z) els.zoneDetailName.textContent = zoneLabel(z);
-    renderZones();
-    renderState();  // refresh the main-card trouble count after an ignore change (#225)
-    clearZoneDirty();
-    toast('Saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to save');
-    if (els.zoneSave) els.zoneSave.disabled = false;
-  }
+  zoneModal.close();
 }
 
 async function loadSecurityEvents() {
@@ -538,9 +518,9 @@ export function wireZoneDetail() {
   els.zoneDialog.addEventListener('click', function (ev) {
     if (ev.target === els.zoneDialog) closeZoneDetail();  // backdrop click
   });
-  els.zoneDisplayName.addEventListener('input', markZoneDirty);
+  els.zoneDisplayName.addEventListener('input', zoneModal.markDirty);
   els.zoneDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); saveZone(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); zoneModal.save(); }
   });
   if (els.zoneHiddenToggle) {
     els.zoneHiddenToggle.addEventListener('click', toggleZoneHidden);
@@ -548,7 +528,7 @@ export function wireZoneDetail() {
   if (els.zoneTroubleIgnoreToggle) {
     els.zoneTroubleIgnoreToggle.addEventListener('click', toggleZoneTroubleIgnored);
   }
-  if (els.zoneSave) els.zoneSave.addEventListener('click', saveZone);
+  if (els.zoneSave) els.zoneSave.addEventListener('click', zoneModal.save);
 }
 
 // Wire the "show hidden" detectors toggle in the Detectors header (issue #104).
