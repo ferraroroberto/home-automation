@@ -15,8 +15,9 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
 from src._atomic_json import write_json_atomic
 
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _DAY_SET = frozenset(DAYS)
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # A store that exists but momentarily can't be opened is nearly always another
 # process's `os.replace` window — on Windows that surfaces as a sharing
@@ -109,6 +111,19 @@ def clean_time(value: Any, default: str) -> str:
     if 0 <= hour <= 23 and 0 <= minute <= 59:
         return f"{hour:02d}:{minute:02d}"
     return default
+
+
+def clean_date(value: Any) -> Optional[str]:
+    """Coerce an untrusted value into a valid ``YYYY-MM-DD`` string, or ``None``."""
+
+    raw = str(value or "").strip()
+    if not raw or not _DATE_RE.match(raw):
+        return None
+    try:
+        datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError:
+        return None
+    return raw
 
 
 def clean_days(value: Any) -> List[str]:

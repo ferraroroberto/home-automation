@@ -35,7 +35,6 @@
 import {
   state,
   els,
-  toast,
   NETWORK_SHOW_OFFLINE_KEY,
   NETWORK_DEVICE_SORT_KEY,
   NETWORK_DEVICE_GROUPING_KEY,
@@ -48,8 +47,8 @@ import { renderSignalBar } from './format.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
 import { renderNetwork } from './network.js';
 import { toggleMarkup } from './toggle.js';
-import { closeDialog, openDialog } from './dialog.js';
 import { openGroupDialog } from './network-groups.js';
+import { detailModal } from './detail-modal.js';
 
 // Mirrors src.network_client._WEAK_SIGNAL_PCT — a wireless client below this is
 // counted in the "Weak" chip and dimmed in the list.
@@ -611,80 +610,13 @@ function renderNetDeviceHiddenToggle(d) {
   btn.innerHTML = toggleMarkup(on);
 }
 
-function openNetDeviceDetail(mac) {
-  const d = deviceByMac(mac);
-  if (!d) return;
-  state.selectedNetDeviceMac = mac;
-  els.netDeviceDetailName.textContent = deviceLabel(d);
-  // Status: online, offline with how long since it was last on the network,
-  // or "no live link" for a row the router still leases but nothing can
-  // vouch for (#550) — deliberately not called Offline, which would claim a
-  // fact the read never established.
-  const live = hasLiveLink(d);
-  if (d.online === false) {
-    els.netDeviceStatus.textContent = 'Offline · last seen ' + fmtAgo(d.last_seen);
-  } else if (!live) {
-    els.netDeviceStatus.textContent = 'No live link · leased, but not seen on any radio';
-  } else {
-    els.netDeviceStatus.textContent = 'Online';
-  }
-  els.netDeviceStatus.classList.toggle('is-offline', !live);
-  els.netDeviceVendor.textContent = d.vendor || '—';
-  els.netDeviceIp.textContent = d.ip || '—';
-  els.netDeviceConn.textContent = connText(d);
-  els.netDeviceSignal.textContent = signalText(d);
-  els.netDeviceSsid.textContent = d.ssid || '—';
-  els.netDeviceSource.textContent = SOURCE_LABELS[d.source] || d.source || '—';
-  // Reported hostname stays visible even when a custom display name is set.
-  els.netDeviceHostname.textContent = d.name || '—';
-  // First-seen + times-seen history (Phase 4); hidden for untracked randomised MACs.
-  if (els.netDeviceSeenRow) {
-    const tracked = !d.randomized && d.first_seen != null;
-    els.netDeviceSeenRow.hidden = !tracked;
-    if (tracked) {
-      const times = d.times_seen != null ? d.times_seen + '×' : '';
-      els.netDeviceSeen.textContent = 'since ' + fmtDate(d.first_seen) +
-        (times ? ' · ' + times : '');
-    }
-  }
-  els.netDeviceDisplayName.value = d.display_name || '';
-  els.netDeviceDisplayName.placeholder = d.vendor || d.name || 'Custom label…';
-  renderGroupPicker(d);
-  renderImportantToggle(d);
-  renderNetDeviceHiddenToggle(d);
-  netStaged = { important: !!d.important, hidden: !!d.hidden };
-  clearNetDirty();
-  // The MAC is the stable key the label maps back to; flag randomised ones so a
-  // missing vendor / churning row is explained rather than mysterious.
-  els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
-    (d.randomized ? ' · randomised address' : '');
-  openDialog(els.netDeviceDialog);
-  els.netDeviceDisplayName.focus();
-}
-
-function closeNetDeviceDetail() {
-  state.selectedNetDeviceMac = null;
-  netStaged = null;
-  clearNetDirty();
-  closeDialog(els.netDeviceDialog);
-}
-
-// Detail-modal staging (#203): the display name, Important and Hidden edits are
-// held locally and written only on Save. netStaged holds the working toggle
-// state captured when the modal opens; closing discards it.
-let netStaged = null;
-let netDirty = false;
-
-function markNetDirty() {
-  netDirty = true;
-  if (els.netDeviceSave) els.netDeviceSave.disabled = false;
-}
-
-function clearNetDirty() {
-  netDirty = false;
-  if (els.netDeviceSave) els.netDeviceSave.disabled = true;
-}
-
+// Detail-modal staging (#203, shared shell #699): the display name, Important
+// and Hidden edits are held locally and written only on Save. netDeviceModal
+// .staged holds the working toggle state captured when the modal opens;
+// closing discards it. Important/Hidden go through PUT ops keyed off the
+// staged clone; the group picker is read live from the DOM at save time
+// (like display name), since it's driven by its own <select> + new-group text
+// input rather than a togglable field.
 function patchNetDevice(mac, patch) {
   if (state.network && Array.isArray(state.network.devices)) {
     const target = String(mac || '').toUpperCase();
@@ -694,69 +626,118 @@ function patchNetDevice(mac, patch) {
   }
 }
 
+const netDeviceModal = detailModal({
+  dialog: els.netDeviceDialog,
+  saveButton: els.netDeviceSave,
+  focusEl: els.netDeviceDisplayName,
+  getEntity: deviceByMac,
+  stage: function (d) { return { important: !!d.important, hidden: !!d.hidden }; },
+  populate: function (staged, d) {
+    els.netDeviceDetailName.textContent = deviceLabel(d);
+    // Status: online, offline with how long since it was last on the network,
+    // or "no live link" for a row the router still leases but nothing can
+    // vouch for (#550) — deliberately not called Offline, which would claim a
+    // fact the read never established.
+    const live = hasLiveLink(d);
+    if (d.online === false) {
+      els.netDeviceStatus.textContent = 'Offline · last seen ' + fmtAgo(d.last_seen);
+    } else if (!live) {
+      els.netDeviceStatus.textContent = 'No live link · leased, but not seen on any radio';
+    } else {
+      els.netDeviceStatus.textContent = 'Online';
+    }
+    els.netDeviceStatus.classList.toggle('is-offline', !live);
+    els.netDeviceVendor.textContent = d.vendor || '—';
+    els.netDeviceIp.textContent = d.ip || '—';
+    els.netDeviceConn.textContent = connText(d);
+    els.netDeviceSignal.textContent = signalText(d);
+    els.netDeviceSsid.textContent = d.ssid || '—';
+    els.netDeviceSource.textContent = SOURCE_LABELS[d.source] || d.source || '—';
+    // Reported hostname stays visible even when a custom display name is set.
+    els.netDeviceHostname.textContent = d.name || '—';
+    // First-seen + times-seen history (Phase 4); hidden for untracked randomised MACs.
+    if (els.netDeviceSeenRow) {
+      const tracked = !d.randomized && d.first_seen != null;
+      els.netDeviceSeenRow.hidden = !tracked;
+      if (tracked) {
+        const times = d.times_seen != null ? d.times_seen + '×' : '';
+        els.netDeviceSeen.textContent = 'since ' + fmtDate(d.first_seen) +
+          (times ? ' · ' + times : '');
+      }
+    }
+    els.netDeviceDisplayName.value = d.display_name || '';
+    els.netDeviceDisplayName.placeholder = d.vendor || d.name || 'Custom label…';
+    renderGroupPicker(d);
+    renderImportantToggle(d);
+    renderNetDeviceHiddenToggle(d);
+    // The MAC is the stable key the label maps back to; flag randomised ones so
+    // a missing vendor / churning row is explained rather than mysterious.
+    els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
+      (d.randomized ? ' · randomised address' : '');
+  },
+  buildOps: function (mac, staged, d) {
+    const ops = [];
+    const newName = els.netDeviceDisplayName.value.trim();
+    if ((d.display_name || '') !== newName) {
+      ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/display_name', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: newName }),
+      }).then(function () { patchNetDevice(mac, { display_name: newName || null }); }));
+    }
+    if (!d.randomized && !!d.important !== staged.important) {
+      ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/important', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ important: staged.important }),
+      }).then(function () { patchNetDevice(mac, { important: staged.important }); }));
+    }
+    if (!!d.hidden !== staged.hidden) {
+      ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/hidden', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden: staged.hidden }),
+      }).then(function () { patchNetDevice(mac, { hidden: staged.hidden }); }));
+    }
+    const newGroup = stagedGroup();
+    if ((d.group || '') !== newGroup) {
+      ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/group', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group: newGroup }),
+      }).then(function () { patchNetDevice(mac, { group: newGroup || null }); }));
+    }
+    return ops;
+  },
+  afterSave: function (mac) {
+    const upd = deviceByMac(mac);
+    if (upd) els.netDeviceDetailName.textContent = deviceLabel(upd);
+  },
+  render: renderNetwork,
+});
+
+function openNetDeviceDetail(mac) {
+  if (!deviceByMac(mac)) return;
+  state.selectedNetDeviceMac = mac;
+  netDeviceModal.open(mac);
+}
+
+function closeNetDeviceDetail() {
+  state.selectedNetDeviceMac = null;
+  netDeviceModal.close();
+}
+
 // Toggles now only stage visually — the POST happens on Save.
 function toggleImportant() {
-  const d = deviceByMac(state.selectedNetDeviceMac);
-  if (!d || d.randomized || !netStaged) return;
-  netStaged.important = !netStaged.important;
-  renderImportantToggle(Object.assign({}, d, { important: netStaged.important }));
-  markNetDirty();
+  const d = deviceByMac(netDeviceModal.id);
+  if (!d || d.randomized || !netDeviceModal.staged) return;
+  netDeviceModal.staged.important = !netDeviceModal.staged.important;
+  renderImportantToggle(Object.assign({}, d, { important: netDeviceModal.staged.important }));
+  netDeviceModal.markDirty();
 }
 
 function toggleDeviceHidden() {
-  const d = deviceByMac(state.selectedNetDeviceMac);
-  if (!d || !netStaged) return;
-  netStaged.hidden = !netStaged.hidden;
-  renderNetDeviceHiddenToggle(Object.assign({}, d, { hidden: netStaged.hidden }));
-  markNetDirty();
-}
-
-// Commit the staged edits; only fields that actually changed are sent. Optimistic
-// local update mirrors what the next poll would re-merge server-side anyway.
-async function saveNetDevice() {
-  const mac = state.selectedNetDeviceMac;
-  if (!mac || !netStaged) return;
-  const d = deviceByMac(mac);
-  if (!d) return;
-  if (els.netDeviceSave) els.netDeviceSave.disabled = true;
-  const newName = els.netDeviceDisplayName.value.trim();
-  const ops = [];
-  if ((d.display_name || '') !== newName) {
-    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/display_name', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: newName }),
-    }).then(function () { patchNetDevice(mac, { display_name: newName || null }); }));
-  }
-  if (!d.randomized && !!d.important !== netStaged.important) {
-    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/important', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ important: netStaged.important }),
-    }).then(function () { patchNetDevice(mac, { important: netStaged.important }); }));
-  }
-  if (!!d.hidden !== netStaged.hidden) {
-    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/hidden', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hidden: netStaged.hidden }),
-    }).then(function () { patchNetDevice(mac, { hidden: netStaged.hidden }); }));
-  }
-  const newGroup = stagedGroup();
-  if ((d.group || '') !== newGroup) {
-    ops.push(jsonApi('/api/network/devices/' + encodeURIComponent(mac) + '/group', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ group: newGroup }),
-    }).then(function () { patchNetDevice(mac, { group: newGroup || null }); }));
-  }
-  try {
-    await Promise.all(ops);
-    const upd = deviceByMac(mac);
-    if (upd) els.netDeviceDetailName.textContent = deviceLabel(upd);
-    renderNetwork();
-    clearNetDirty();
-    toast('Saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to save');
-    if (els.netDeviceSave) els.netDeviceSave.disabled = false;
-  }
+  const d = deviceByMac(netDeviceModal.id);
+  if (!d || !netDeviceModal.staged) return;
+  netDeviceModal.staged.hidden = !netDeviceModal.staged.hidden;
+  renderNetDeviceHiddenToggle(Object.assign({}, d, { hidden: netDeviceModal.staged.hidden }));
+  netDeviceModal.markDirty();
 }
 
 export function wireNetDeviceDetail() {
@@ -765,23 +746,23 @@ export function wireNetDeviceDetail() {
   els.netDeviceDialog.addEventListener('click', function (ev) {
     if (ev.target === els.netDeviceDialog) closeNetDeviceDetail();  // backdrop
   });
-  els.netDeviceDisplayName.addEventListener('input', markNetDirty);
+  els.netDeviceDisplayName.addEventListener('input', netDeviceModal.markDirty);
   els.netDeviceDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); saveNetDevice(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); netDeviceModal.save(); }
   });
   if (els.netDeviceImportant) els.netDeviceImportant.addEventListener('click', toggleImportant);
   if (els.netDeviceHiddenToggle) els.netDeviceHiddenToggle.addEventListener('click', toggleDeviceHidden);
-  if (els.netDeviceSave) els.netDeviceSave.addEventListener('click', saveNetDevice);
+  if (els.netDeviceSave) els.netDeviceSave.addEventListener('click', netDeviceModal.save);
   if (els.netDeviceGroup) {
     els.netDeviceGroup.addEventListener('change', function () {
       if (syncGroupNewRow() && els.netDeviceGroupNew) els.netDeviceGroupNew.focus();
-      markNetDirty();
+      netDeviceModal.markDirty();
     });
   }
   if (els.netDeviceGroupNew) {
-    els.netDeviceGroupNew.addEventListener('input', markNetDirty);
+    els.netDeviceGroupNew.addEventListener('input', netDeviceModal.markDirty);
     els.netDeviceGroupNew.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Enter') { ev.preventDefault(); saveNetDevice(); }
+      if (ev.key === 'Enter') { ev.preventDefault(); netDeviceModal.save(); }
     });
   }
 }

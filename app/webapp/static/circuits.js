@@ -21,15 +21,15 @@
 'use strict';
 
 import {
-  state, els, toast, reportFetchOk, persistedFlag,
+  state, els, reportFetchOk, persistedFlag,
   CIRCUITS_COLLAPSED_KEY, CIRCUITS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW } from './format.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
-import { closeDialog, openDialog } from './dialog.js';
 import { icon } from './_vendored/icons/icons.js';
+import { detailModal } from './detail-modal.js';
 
 const POLL_MS = 15_000;
 
@@ -222,14 +222,15 @@ function buildChannelRow(meter, channel) {
 // --------------------------------------------------------- rename modal
 // Staged like the plug modal (#203 pattern): the label and the sign flip are
 // held locally and written only on Save.
-let circuitStaged = null;
-
-function markCircuitDirty() {
-  if (els.circuitSave) els.circuitSave.disabled = false;
-}
-
-function clearCircuitDirty() {
-  if (els.circuitSave) els.circuitSave.disabled = true;
+// One dialog key resolves to either a channel entry ({meter, channel}) or a
+// whole meter — the shared detailModal() shell (issue #699) treats both as
+// "the entity", tagged by kind so populate/buildOps below can branch.
+function circuitEntity(key) {
+  const entry = channelByKey(key);
+  if (entry) return { kind: 'channel', entry: entry };
+  const meter = meterByKey(key);
+  if (meter) return { kind: 'meter', meter: meter };
+  return null;
 }
 
 function renderToggle(btn, on, label) {
@@ -244,87 +245,6 @@ function renderToggle(btn, on, label) {
 function setReading(el, value, unit, digits) {
   if (!el) return;
   el.textContent = value == null ? '—' : value.toFixed(digits) + ' ' + unit;
-}
-
-// One dialog serves both a channel and a whole meter: the key tells them apart
-// (a channel key is its meter's id plus ":<channel>"). A meter has no clamp
-// direction to correct, and hiding one would hide every circuit under it, so
-// both toggle sections are for a channel only — and each gets the read-only
-// block that suits it.
-function openCircuitDetail(key) {
-  const entry = channelByKey(key);
-  const meter = entry ? null : meterByKey(key);
-  if (!entry && !meter) return;
-  state.selectedCircuitKey = key;
-
-  if (els.circuitInvertSection) els.circuitInvertSection.hidden = !entry;
-  if (els.circuitHiddenSection) els.circuitHiddenSection.hidden = !entry;
-  if (els.circuitReadings) els.circuitReadings.hidden = !entry;
-  if (els.circuitMeterInfo) els.circuitMeterInfo.hidden = !meter;
-
-  if (meter) {
-    els.circuitDetailName.textContent = meterLabel(meter);
-    els.circuitDisplayName.value = meter.display_name || '';
-    els.circuitDisplayName.placeholder = meter.name || 'Custom label…';
-    if (els.circuitOriginalName) {
-      els.circuitOriginalName.textContent =
-        (meter.name || meter.meter_id) + (meter.host ? ' · ' + meter.host : '');
-    }
-    setReading(els.circuitMeterVoltage, meter.voltage_v, 'V', 0);
-    // fmtW already renders a missing value as the same em dash setReading uses.
-    if (els.circuitMeterTotal) els.circuitMeterTotal.textContent = fmtW(meter.total_power_w);
-    setReading(els.circuitMeterSignal, meter.wifi_rssi_dbm, 'dBm', 0);
-    if (els.circuitMeterMac) {
-      // Statically-configured meters have no MAC until read — the server sends
-      // null rather than dressing "host:<ip>" up as one.
-      els.circuitMeterMac.textContent = meter.mac || '—';
-    }
-    circuitStaged = { invert: false, hidden: false };
-  } else {
-    els.circuitDetailName.textContent = channelLabel(entry.channel);
-    els.circuitDisplayName.value = entry.channel.display_name || '';
-    els.circuitDisplayName.placeholder = 'Clamp ' + entry.channel.channel;
-    if (els.circuitOriginalName) {
-      // Which physical terminal this is, so an unlabelled clamp stays traceable.
-      els.circuitOriginalName.textContent =
-        meterLabel(entry.meter) + ' · channel ' + entry.channel.channel;
-    }
-    if (els.circuitReadingPower) {
-      els.circuitReadingPower.textContent = fmtW(entry.channel.power_w);
-    }
-    setReading(els.circuitReadingCurrent, entry.channel.current_a, 'A', 2);
-    setReading(els.circuitReadingEnergy, entry.channel.energy_kwh, 'kWh', 2);
-    circuitStaged = {
-      invert: !!entry.channel.inverted,
-      hidden: !!entry.channel.hidden,
-    };
-    renderToggle(els.circuitInvertToggle, circuitStaged.invert);
-    renderToggle(els.circuitHiddenToggle, circuitStaged.hidden);
-  }
-  clearCircuitDirty();
-  openDialog(els.circuitDialog);
-  els.circuitDisplayName.focus();
-}
-
-function closeCircuitDetail() {
-  state.selectedCircuitKey = null;
-  circuitStaged = null;
-  clearCircuitDirty();
-  closeDialog(els.circuitDialog);
-}
-
-function toggleCircuitInvert() {
-  if (!circuitStaged) return;
-  circuitStaged.invert = !circuitStaged.invert;
-  renderToggle(els.circuitInvertToggle, circuitStaged.invert);
-  markCircuitDirty();
-}
-
-function toggleCircuitHidden() {
-  if (!circuitStaged) return;
-  circuitStaged.hidden = !circuitStaged.hidden;
-  renderToggle(els.circuitHiddenToggle, circuitStaged.hidden);
-  markCircuitDirty();
 }
 
 function patchChannel(key, patch) {
@@ -343,56 +263,132 @@ function patchMeter(key, patch) {
   });
 }
 
-async function saveCircuitDetail() {
-  const key = state.selectedCircuitKey;
-  if (!key || !circuitStaged) return;
-  const entry = channelByKey(key);
-  const meter = entry ? null : meterByKey(key);
-  if (!entry && !meter) return;
-  if (els.circuitSave) els.circuitSave.disabled = true;
-  const newName = els.circuitDisplayName.value.trim();
-  const currentName = (entry ? entry.channel.display_name : meter.display_name) || '';
-  const ops = [];
-  if (currentName !== newName) {
-    ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/display_name', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: newName }),
-    }).then(function () {
-      const patch = { display_name: newName || null };
-      if (entry) patchChannel(key, patch); else patchMeter(key, patch);
-    }));
-  }
-  // Only a channel has a clamp direction or a hidden flag; a meter never sends
-  // either of these.
-  const signChanged = !!entry && !!entry.channel.inverted !== circuitStaged.invert;
-  if (signChanged) {
-    ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/invert', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invert: circuitStaged.invert }),
-    }).then(function () { patchChannel(key, { inverted: circuitStaged.invert }); }));
-  }
-  if (!!entry && !!entry.channel.hidden !== circuitStaged.hidden) {
-    ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/hidden', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hidden: circuitStaged.hidden }),
-    }).then(function () { patchChannel(key, { hidden: circuitStaged.hidden }); }));
-  }
-  try {
-    await Promise.all(ops);
+// One dialog serves both a channel and a whole meter: the key tells them apart
+// (a channel key is its meter's id plus ":<channel>"). A meter has no clamp
+// direction to correct, and hiding one would hide every circuit under it, so
+// both toggle sections are for a channel only — and each gets the read-only
+// block that suits it.
+const circuitModal = detailModal({
+  dialog: els.circuitDialog,
+  saveButton: els.circuitSave,
+  focusEl: els.circuitDisplayName,
+  getEntity: circuitEntity,
+  stage: function (entity) {
+    if (entity.kind === 'meter') return { invert: false, hidden: false };
+    return { invert: !!entity.entry.channel.inverted, hidden: !!entity.entry.channel.hidden };
+  },
+  populate: function (staged, entity) {
+    const entry = entity.kind === 'channel' ? entity.entry : null;
+    const meter = entity.kind === 'meter' ? entity.meter : null;
+
+    if (els.circuitInvertSection) els.circuitInvertSection.hidden = !entry;
+    if (els.circuitHiddenSection) els.circuitHiddenSection.hidden = !entry;
+    if (els.circuitReadings) els.circuitReadings.hidden = !entry;
+    if (els.circuitMeterInfo) els.circuitMeterInfo.hidden = !meter;
+
+    if (meter) {
+      els.circuitDetailName.textContent = meterLabel(meter);
+      els.circuitDisplayName.value = meter.display_name || '';
+      els.circuitDisplayName.placeholder = meter.name || 'Custom label…';
+      if (els.circuitOriginalName) {
+        els.circuitOriginalName.textContent =
+          (meter.name || meter.meter_id) + (meter.host ? ' · ' + meter.host : '');
+      }
+      setReading(els.circuitMeterVoltage, meter.voltage_v, 'V', 0);
+      // fmtW already renders a missing value as the same em dash setReading uses.
+      if (els.circuitMeterTotal) els.circuitMeterTotal.textContent = fmtW(meter.total_power_w);
+      setReading(els.circuitMeterSignal, meter.wifi_rssi_dbm, 'dBm', 0);
+      if (els.circuitMeterMac) {
+        // Statically-configured meters have no MAC until read — the server sends
+        // null rather than dressing "host:<ip>" up as one.
+        els.circuitMeterMac.textContent = meter.mac || '—';
+      }
+    } else {
+      els.circuitDetailName.textContent = channelLabel(entry.channel);
+      els.circuitDisplayName.value = entry.channel.display_name || '';
+      els.circuitDisplayName.placeholder = 'Clamp ' + entry.channel.channel;
+      if (els.circuitOriginalName) {
+        // Which physical terminal this is, so an unlabelled clamp stays traceable.
+        els.circuitOriginalName.textContent =
+          meterLabel(entry.meter) + ' · channel ' + entry.channel.channel;
+      }
+      if (els.circuitReadingPower) {
+        els.circuitReadingPower.textContent = fmtW(entry.channel.power_w);
+      }
+      setReading(els.circuitReadingCurrent, entry.channel.current_a, 'A', 2);
+      setReading(els.circuitReadingEnergy, entry.channel.energy_kwh, 'kWh', 2);
+      renderToggle(els.circuitInvertToggle, staged.invert);
+      renderToggle(els.circuitHiddenToggle, staged.hidden);
+    }
+  },
+  buildOps: function (key, staged, entity) {
+    const entry = entity.kind === 'channel' ? entity.entry : null;
+    const meter = entity.kind === 'meter' ? entity.meter : null;
+    const ops = [];
+    const newName = els.circuitDisplayName.value.trim();
+    const currentName = (entry ? entry.channel.display_name : meter.display_name) || '';
+    if (currentName !== newName) {
+      ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/display_name', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: newName }),
+      }).then(function () {
+        const patch = { display_name: newName || null };
+        if (entry) patchChannel(key, patch); else patchMeter(key, patch);
+      }));
+    }
+    // Only a channel has a clamp direction or a hidden flag; a meter never
+    // sends either of these.
+    if (!!entry && !!entry.channel.inverted !== staged.invert) {
+      ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/invert', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invert: staged.invert }),
+      }).then(function () { patchChannel(key, { inverted: staged.invert }); }));
+    }
+    if (!!entry && !!entry.channel.hidden !== staged.hidden) {
+      ops.push(jsonApi('/api/circuits/' + encodeURIComponent(key) + '/hidden', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden: staged.hidden }),
+      }).then(function () { patchChannel(key, { hidden: staged.hidden }); }));
+    }
+    return ops;
+  },
+  afterSave: function (key, staged, entity) {
     const updatedChannel = channelByKey(key);
     const updatedMeter = meterByKey(key);
     if (updatedChannel) els.circuitDetailName.textContent = channelLabel(updatedChannel.channel);
     else if (updatedMeter) els.circuitDetailName.textContent = meterLabel(updatedMeter);
-    renderCircuits();
-    clearCircuitDirty();
-    toast('Saved', 'success');
-    // A sign flip changes what the server reports, so pull a fresh read rather
-    // than leaving the old sign on screen until the next poll.
+    // A sign flip changes what the server reports, so pull a fresh read
+    // rather than leaving the old sign on screen until the next poll.
+    const entry = entity.kind === 'channel' ? entity.entry : null;
+    const signChanged = !!entry && !!entry.channel.inverted !== staged.invert;
     if (signChanged) loadCircuits();
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to save');
-    if (els.circuitSave) els.circuitSave.disabled = false;
-  }
+  },
+  render: renderCircuits,
+});
+
+function openCircuitDetail(key) {
+  if (!circuitEntity(key)) return;
+  state.selectedCircuitKey = key;
+  circuitModal.open(key);
+}
+
+function closeCircuitDetail() {
+  state.selectedCircuitKey = null;
+  circuitModal.close();
+}
+
+function toggleCircuitInvert() {
+  if (!circuitModal.staged) return;
+  circuitModal.staged.invert = !circuitModal.staged.invert;
+  renderToggle(els.circuitInvertToggle, circuitModal.staged.invert);
+  circuitModal.markDirty();
+}
+
+function toggleCircuitHidden() {
+  if (!circuitModal.staged) return;
+  circuitModal.staged.hidden = !circuitModal.staged.hidden;
+  renderToggle(els.circuitHiddenToggle, circuitModal.staged.hidden);
+  circuitModal.markDirty();
 }
 
 // ------------------------------------------------------------- render
@@ -497,9 +493,9 @@ export function wireCircuitDetail() {
   els.circuitDialog.addEventListener('click', function (ev) {
     if (ev.target === els.circuitDialog) closeCircuitDetail();  // backdrop click
   });
-  els.circuitDisplayName.addEventListener('input', markCircuitDirty);
+  els.circuitDisplayName.addEventListener('input', circuitModal.markDirty);
   els.circuitDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); saveCircuitDetail(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); circuitModal.save(); }
   });
   if (els.circuitInvertToggle) {
     els.circuitInvertToggle.addEventListener('click', toggleCircuitInvert);
@@ -507,7 +503,7 @@ export function wireCircuitDetail() {
   if (els.circuitHiddenToggle) {
     els.circuitHiddenToggle.addEventListener('click', toggleCircuitHidden);
   }
-  if (els.circuitSave) els.circuitSave.addEventListener('click', saveCircuitDetail);
+  if (els.circuitSave) els.circuitSave.addEventListener('click', circuitModal.save);
 }
 
 // --------------------------------------------------------- cadence + tabs

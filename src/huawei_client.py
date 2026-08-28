@@ -70,6 +70,8 @@ from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
+from src._backoff import compute_delay
+
 logger = logging.getLogger("huawei")
 
 _DEFAULT_SUBDOMAIN = "uni005eu5"
@@ -208,7 +210,9 @@ def _backoff_for(streak: int) -> int:
     """Seconds to stay quiet after ``streak`` consecutive failures."""
     if streak < 1:
         return 0
-    return min(_FAILURE_BACKOFF_MAX_S, _FAILURE_BACKOFF_BASE_S * 2 ** (streak - 1))
+    return int(
+        compute_delay(streak, base_s=_FAILURE_BACKOFF_BASE_S, max_s=_FAILURE_BACKOFF_MAX_S)
+    )
 
 
 def _note_failure(now: float) -> None:

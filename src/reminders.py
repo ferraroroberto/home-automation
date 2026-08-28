@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src._schedule_store import read_json, safe_id, save_json
+from src._schedule_store import clean_date, read_json, safe_id, save_json
 from src._spoken_time import extract_date, extract_time
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 REMINDERS_PATH = _CONFIG_DIR / "reminders.json"
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
 
@@ -44,17 +43,6 @@ class ReminderEntry:
     created_at: str = ""
 
 
-def _clean_date(value: Any) -> Optional[str]:
-    raw = str(value or "").strip()
-    if not raw or not _DATE_RE.match(raw):
-        return None
-    try:
-        datetime.strptime(raw, "%Y-%m-%d")
-    except ValueError:
-        return None
-    return raw
-
-
 def _clean_optional_time(value: Any) -> Optional[str]:
     raw = str(value or "").strip()
     if not raw or not _TIME_RE.match(raw):
@@ -68,7 +56,7 @@ def _clean_optional_time(value: Any) -> Optional[str]:
 def clean_entry(raw: dict, fallback_id: str) -> ReminderEntry:
     """Coerce untrusted JSON/API data into a reminder entry."""
 
-    date = _clean_date(raw.get("date"))
+    date = clean_date(raw.get("date"))
     return ReminderEntry(
         id=safe_id(raw.get("id"), fallback_id),
         text=str(raw.get("text") or "").strip()[:200],

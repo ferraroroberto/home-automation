@@ -28,7 +28,7 @@ def _clear_backoff_state() -> None:
 
 
 def test_source_backoff_escalates_and_caps() -> None:
-    backoff = U._SourceBackoff()
+    backoff = U.BackoffTracker()
     delays = [backoff.record_failure() for _ in range(8)]
 
     assert delays[0] == pytest.approx(U._BACKOFF_BASE_S)
@@ -37,7 +37,7 @@ def test_source_backoff_escalates_and_caps() -> None:
 
 
 def test_source_backoff_success_clears_state() -> None:
-    backoff = U._SourceBackoff()
+    backoff = U.BackoffTracker()
     backoff.record_failure()
     assert backoff.seconds_remaining() is not None
 

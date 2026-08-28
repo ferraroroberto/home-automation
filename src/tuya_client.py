@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -26,6 +25,7 @@ import tinytuya
 from tinytuya import scanner as tuya_scanner
 
 from src._atomic_json import write_json_atomic
+from src._backoff import BackoffTracker
 
 logger = logging.getLogger("tuya")
 
@@ -51,14 +51,17 @@ _BACKOFF_FACTOR = 2.0
 _BACKOFF_MAX_EXPONENT = 10  # 15 * 2**10 already far exceeds _BACKOFF_MAX_S
 
 
-@dataclass
-class _DeviceBackoff:
-    consecutive_failures: int = 0
-    next_retry_at: float = 0.0  # monotonic seconds; 0 == no backoff active
+def _new_backoff() -> BackoffTracker:
+    return BackoffTracker(
+        base_s=_BACKOFF_BASE_S,
+        max_s=_BACKOFF_MAX_S,
+        factor=_BACKOFF_FACTOR,
+        max_exponent=_BACKOFF_MAX_EXPONENT,
+    )
 
 
 _backoff_lock = threading.Lock()
-_backoff_state: dict[str, _DeviceBackoff] = {}
+_backoff_state: dict[str, BackoffTracker] = {}
 
 
 def _seconds_until_retry(device_id: str) -> Optional[float]:
@@ -67,18 +70,14 @@ def _seconds_until_retry(device_id: str) -> Optional[float]:
         state = _backoff_state.get(device_id)
         if state is None:
             return None
-        remaining = state.next_retry_at - time.monotonic()
-    return remaining if remaining > 0 else None
+        return state.seconds_remaining()
 
 
 def _record_backoff_failure(device_id: str) -> None:
     """Escalate this device's backoff after a failed passive-poll attempt."""
     with _backoff_lock:
-        state = _backoff_state.setdefault(device_id, _DeviceBackoff())
-        state.consecutive_failures += 1
-        exponent = min(state.consecutive_failures - 1, _BACKOFF_MAX_EXPONENT)
-        delay = min(_BACKOFF_MAX_S, _BACKOFF_BASE_S * (_BACKOFF_FACTOR ** exponent))
-        state.next_retry_at = time.monotonic() + delay
+        state = _backoff_state.setdefault(device_id, _new_backoff())
+        delay = state.record_failure()
         failures = state.consecutive_failures
     logger.info(
         "⚠️ Tuya device %s unreachable (failure #%d) — backing off %.0fs before next background poll",

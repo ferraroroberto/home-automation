@@ -8,12 +8,12 @@ import os
 import shutil
 import subprocess
 import threading
-import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from src._backoff import BackoffTracker
 from src._console_encoding import console_encoding
 from src._no_window import NO_WINDOW
 
@@ -30,30 +30,18 @@ _BACKOFF_FACTOR = 2.0
 _BACKOFF_MAX_EXPONENT = 10  # 15 * 2**10 already far exceeds _BACKOFF_MAX_S
 
 
-@dataclass
-class _SourceBackoff:
-    consecutive_failures: int = 0
-    next_retry_at: float = 0.0  # monotonic seconds; 0 == no backoff active
-
-    def seconds_remaining(self) -> Optional[float]:
-        remaining = self.next_retry_at - time.monotonic()
-        return remaining if remaining > 0 else None
-
-    def record_failure(self) -> float:
-        self.consecutive_failures += 1
-        exponent = min(self.consecutive_failures - 1, _BACKOFF_MAX_EXPONENT)
-        delay = min(_BACKOFF_MAX_S, _BACKOFF_BASE_S * (_BACKOFF_FACTOR ** exponent))
-        self.next_retry_at = time.monotonic() + delay
-        return delay
-
-    def record_success(self) -> None:
-        self.consecutive_failures = 0
-        self.next_retry_at = 0.0
+def _new_backoff() -> BackoffTracker:
+    return BackoffTracker(
+        base_s=_BACKOFF_BASE_S,
+        max_s=_BACKOFF_MAX_S,
+        factor=_BACKOFF_FACTOR,
+        max_exponent=_BACKOFF_MAX_EXPONENT,
+    )
 
 
 _backoff_lock = threading.Lock()
-_nut_backoff = _SourceBackoff()
-_nut_direct_backoff = _SourceBackoff()
+_nut_backoff = _new_backoff()
+_nut_direct_backoff = _new_backoff()
 
 _UNKNOWN_RUNTIME_MINUTES = {71582788, 4294967295}
 # Portable NUT-for-Windows lives inside the repo under the gitignored
@@ -100,7 +88,7 @@ class UpsState:
         return asdict(self)
 
 
-def _try_nut_source(backoff: _SourceBackoff, label: str, read_fn) -> Optional[UpsState]:
+def _try_nut_source(backoff: BackoffTracker, label: str, read_fn) -> Optional[UpsState]:
     """Attempt one NUT read path, gated by its own backoff (issue #537).
 
     Returns the state on success, or ``None`` to fall through — either because

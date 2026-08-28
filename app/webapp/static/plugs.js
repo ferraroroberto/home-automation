@@ -20,8 +20,8 @@ import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { toggleMarkup } from './toggle.js';
-import { closeDialog, openDialog } from './dialog.js';
 import { confirmAction } from './confirm.js';
+import { detailModal } from './detail-modal.js';
 
 // The two list filters, on the shared localStorage wrapper. `showAll`
 // falls back to the in-memory default (true) when nothing is stored.
@@ -227,18 +227,9 @@ function setListCard(card, countEl, n) {
 
 // --------------------------------------------------------- rename modal
 // Detail-modal staging (#203 pattern): the display name and Hidden edits are
-// held locally and written only on Save. plugStaged holds the working toggle
-// state captured when the modal opens; closing discards it.
-let plugStaged = null;
-
-function markPlugDirty() {
-  if (els.plugSave) els.plugSave.disabled = false;
-}
-
-function clearPlugDirty() {
-  if (els.plugSave) els.plugSave.disabled = true;
-}
-
+// held locally and written only on Save, via the shared detailModal() shell
+// (issue #699) — plugModal.staged holds the working toggle state captured
+// when the modal opens; closing discards it.
 function renderPlugHiddenToggle(hidden) {
   const btn = els.plugHiddenToggle;
   if (!btn) return;
@@ -247,71 +238,63 @@ function renderPlugHiddenToggle(hidden) {
   btn.innerHTML = toggleMarkup(hidden);
 }
 
+const plugModal = detailModal({
+  dialog: els.plugDialog,
+  saveButton: els.plugSave,
+  focusEl: els.plugDisplayName,
+  getEntity: deviceById,
+  stage: function (device) { return { hidden: !!device.hidden }; },
+  populate: function (staged, device) {
+    els.plugDetailName.textContent = plugLabel(device) || 'Device';
+    els.plugDisplayName.value = device.display_name || '';
+    els.plugDisplayName.placeholder = device.name || 'Custom label…';
+    // Original Smart Life name stays visible even with a custom label set, so
+    // the device can be matched back to the Smart Life app.
+    if (els.plugOriginalName) {
+      els.plugOriginalName.textContent = device.name ? 'Original name: ' + device.name : '';
+    }
+    renderPlugHiddenToggle(staged.hidden);
+  },
+  buildOps: function (id, staged, device) {
+    const ops = [];
+    const newName = els.plugDisplayName.value.trim();
+    if ((device.display_name || '') !== newName) {
+      ops.push(jsonApi('/api/tuya/' + encodeURIComponent(id) + '/display_name', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: newName }),
+      }).then(function () { patchPlug(id, { display_name: newName || null }); }));
+    }
+    if (!!device.hidden !== staged.hidden) {
+      ops.push(jsonApi('/api/tuya/' + encodeURIComponent(id) + '/hidden', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hidden: staged.hidden }),
+      }).then(function () { patchPlug(id, { hidden: staged.hidden }); }));
+    }
+    return ops;
+  },
+  afterSave: function (id) {
+    const upd = deviceById(id);
+    if (upd) els.plugDetailName.textContent = plugLabel(upd) || 'Device';
+  },
+  render: renderPlugs,
+});
+
 function openPlugDetail(deviceId) {
-  const device = deviceById(deviceId);
-  if (!device) return;
+  if (!deviceById(deviceId)) return;
   state.selectedPlugId = deviceId;
-  els.plugDetailName.textContent = plugLabel(device) || 'Device';
-  els.plugDisplayName.value = device.display_name || '';
-  els.plugDisplayName.placeholder = device.name || 'Custom label…';
-  // Original Smart Life name stays visible even with a custom label set, so the
-  // device can be matched back to the Smart Life app.
-  if (els.plugOriginalName) {
-    els.plugOriginalName.textContent = device.name ? 'Original name: ' + device.name : '';
-  }
-  plugStaged = { hidden: !!device.hidden };
-  renderPlugHiddenToggle(plugStaged.hidden);
-  clearPlugDirty();
-  openDialog(els.plugDialog);
-  els.plugDisplayName.focus();
+  plugModal.open(deviceId);
 }
 
 function closePlugDetail() {
   state.selectedPlugId = null;
-  plugStaged = null;
-  clearPlugDirty();
-  closeDialog(els.plugDialog);
+  plugModal.close();
 }
 
 function togglePlugHidden() {
-  if (!plugStaged) return;
-  plugStaged.hidden = !plugStaged.hidden;
-  renderPlugHiddenToggle(plugStaged.hidden);
-  markPlugDirty();
-}
-
-// Commit the staged edits; only fields that actually changed are sent.
-async function savePlugDetail() {
-  const id = state.selectedPlugId;
-  if (!id || !plugStaged) return;
-  const device = deviceById(id);
-  if (!device) return;
-  if (els.plugSave) els.plugSave.disabled = true;
-  const newName = els.plugDisplayName.value.trim();
-  const ops = [];
-  if ((device.display_name || '') !== newName) {
-    ops.push(jsonApi('/api/tuya/' + encodeURIComponent(id) + '/display_name', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: newName }),
-    }).then(function () { patchPlug(id, { display_name: newName || null }); }));
-  }
-  if (!!device.hidden !== plugStaged.hidden) {
-    ops.push(jsonApi('/api/tuya/' + encodeURIComponent(id) + '/hidden', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hidden: plugStaged.hidden }),
-    }).then(function () { patchPlug(id, { hidden: plugStaged.hidden }); }));
-  }
-  try {
-    await Promise.all(ops);
-    const upd = deviceById(id);
-    if (upd) els.plugDetailName.textContent = plugLabel(upd) || 'Device';
-    renderPlugs();
-    clearPlugDirty();
-    toast('Saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to save');
-    if (els.plugSave) els.plugSave.disabled = false;
-  }
+  if (!plugModal.staged) return;
+  plugModal.staged.hidden = !plugModal.staged.hidden;
+  renderPlugHiddenToggle(plugModal.staged.hidden);
+  plugModal.markDirty();
 }
 
 function patchPlug(id, patch) {
@@ -505,12 +488,12 @@ export function wirePlugDetail() {
     if (ev.target === els.plugDialog) closePlugDetail();  // backdrop click
   });
   // #203: the name + Hidden edits commit on Save, not on blur/toggle.
-  els.plugDisplayName.addEventListener('input', markPlugDirty);
+  els.plugDisplayName.addEventListener('input', plugModal.markDirty);
   els.plugDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); savePlugDetail(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); plugModal.save(); }
   });
   if (els.plugHiddenToggle) els.plugHiddenToggle.addEventListener('click', togglePlugHidden);
-  if (els.plugSave) els.plugSave.addEventListener('click', savePlugDetail);
+  if (els.plugSave) els.plugSave.addEventListener('click', plugModal.save);
 }
 
 export async function loadPlugs() {
