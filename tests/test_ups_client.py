@@ -108,3 +108,79 @@ def test_fetch_ups_state_success_clears_backoff_and_short_circuits(
 
     assert result is nut_state
     assert U._nut_backoff.seconds_remaining() is None
+
+
+class _FakeCompletedProcess:
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def test_read_nut_discovers_device_when_env_var_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #703: an always-truthy ``device`` used to make the ``upsc -l``
+    auto-discovery block dead code. With no ``UPS_NUT_DEVICE`` set, discovery
+    must run and its first listed device must be queried and used as the
+    reported name."""
+
+    monkeypatch.delenv("UPS_NUT_DEVICE", raising=False)
+    monkeypatch.setattr(U, "_find_upsc", lambda: "upsc")
+
+    calls = []
+
+    def _fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[1:] == ["-l"]:
+            return _FakeCompletedProcess(0, stdout="ups@localhost\n")
+        assert cmd[1] == "ups@localhost"
+        return _FakeCompletedProcess(0, stdout="battery.charge: 90\nbattery.runtime: 3600\n")
+
+    monkeypatch.setattr(U.subprocess, "run", _fake_run)
+
+    state = U._read_nut()
+
+    assert state.name == "ups@localhost"
+    assert len(calls) == 2
+    assert calls[0][1:] == ["-l"]
+
+
+def test_read_nut_respects_explicit_env_var_device_and_skips_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("UPS_NUT_DEVICE", "custom@host")
+    monkeypatch.setattr(U, "_find_upsc", lambda: "upsc")
+
+    calls = []
+
+    def _fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        assert cmd[1] == "custom@host"
+        return _FakeCompletedProcess(0, stdout="battery.charge: 50\n")
+
+    monkeypatch.setattr(U.subprocess, "run", _fake_run)
+
+    state = U._read_nut()
+
+    assert state.name == "custom@host"
+    assert len(calls) == 1  # no "-l" discovery call
+
+
+def test_read_nut_falls_back_to_hardcoded_name_when_discovery_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("UPS_NUT_DEVICE", raising=False)
+    monkeypatch.setattr(U, "_find_upsc", lambda: "upsc")
+
+    def _fake_run(cmd, **kwargs):
+        if cmd[1:] == ["-l"]:
+            return _FakeCompletedProcess(0, stdout="")
+        assert cmd[1] == "pc-ups@127.0.0.1"
+        return _FakeCompletedProcess(0, stdout="battery.charge: 10\n")
+
+    monkeypatch.setattr(U.subprocess, "run", _fake_run)
+
+    state = U._read_nut()
+
+    assert state.name == "pc-ups@127.0.0.1"
