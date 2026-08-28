@@ -30,7 +30,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Coroutine, Dict, Optional
 
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._zone_lookup import _zone_name_for
@@ -80,6 +80,22 @@ def load_override_automation_config() -> OverrideAutomationConfig:
 # disk via ``src.security_override_session``, precisely so a restart doesn't
 # lose track mid-session (same reasoning as issue #325's cursor).
 _state: Dict[str, object] = {"last_scan": None, "scan_running": False}
+
+# Strong references to the detached scan task below — without this, asyncio
+# only holds a weak reference to a task once its `create_task()` return value
+# is discarded, so the task is eligible for GC mid-flight and can vanish
+# before its `finally` clears `_state["scan_running"]`, wedging the gate
+# closed forever (issue #703, same shape as `alarm_scene_automation.py`).
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background_task(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task:
+    """``asyncio.create_task`` that can't be silently GC'd before it finishes."""
+
+    task = asyncio.create_task(coro, name=name)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 
 async def _auto_bypass(zone_id: int, max_retries: int, trigger_count: int) -> None:
@@ -242,4 +258,4 @@ def consider_security_read(security: object) -> None:
     if not config.enabled:
         return
     if _scan_due(config):
-        asyncio.create_task(_run_event_scan(config), name="security-override-event-scan")
+        _spawn_background_task(_run_event_scan(config), name="security-override-event-scan")
