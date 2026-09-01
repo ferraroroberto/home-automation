@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -123,7 +123,7 @@ def restart_searxng() -> SearxngState:
     return _compose(["restart"], "docker compose restart failed", "restart")
 
 
-def _compose(args: list, fallback_err: str, label: str) -> SearxngState:
+def _compose(args: List[str], fallback_err: str, label: str) -> SearxngState:
     """Run one ``docker compose`` subcommand against the stack, then read state back."""
     path = compose_path()  # SearxngConfigError propagates → router maps to 503
     result = subprocess.run(
