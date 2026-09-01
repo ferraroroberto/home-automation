@@ -77,6 +77,7 @@ from app.webapp.wake_alarm_automation import start_wake_alarms
 from app.webapp.sampler import start_sampler
 from app.webapp.telemetry_sampler import start_telemetry_sampler
 from app.webapp.ha_trace_collector import start_ha_trace_collector
+from app.webapp.searxng_watchdog import start_searxng_watchdog
 from src import telemetry
 from src.push_notifications import validate_push_config
 from src.webapp_config import load_webapp_config
@@ -220,6 +221,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 start_wake_alarms(),
                 start_power_monitor(),
                 start_ha_trace_collector(),
+                start_searxng_watchdog(),
             )
             if t is not None
         ]

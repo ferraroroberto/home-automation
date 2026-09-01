@@ -269,6 +269,43 @@ Start button when it's down — `src/searxng_client.py` mirrors `src/hyperv_clie
 shape (shell out, flatten, "partial data stays 200"), probing `/healthz` to distinguish
 "container up" from "actually answering queries".
 
+### Backend supervision (issue #716)
+
+On 2026-09-01 the puck answered "what's the latest large language model from OpenAI" with
+**"GPT-4.0"** — twice, confidently, with no caveat. Nothing was wrong with the tool-calling
+path or the prompt: the SearXNG container had exited cleanly (exit 0) on 2026-08-24 06:00
+UTC and had been **down for eight days**, so `web_search` simply failed and the 4B brain
+answered from its training cutoff instead.
+
+Two things made an eight-day outage possible. Docker's `restart: unless-stopped` — correct
+for most containers — deliberately honours a graceful stop *forever*, so the one clean
+`docker stop` was permanent; the sibling Langfuse stack in the same daemon was `Up 5 days`
+throughout, which is what ruled out a Docker-wide fault. And the Search-engine card, while
+it rendered the down state correctly, is buried inside the Home Assistant disclosure, so
+nothing surfaced it anywhere a human would trip over it.
+
+The durable fix is that the webapp now **supervises the container it already knows how to
+read and start**: `app/webapp/searxng_watchdog.py`, a 120-second lifespan loop reusing the
+exact `start_searxng()` path the card's Start button has always exposed — no new privilege,
+just no longer requiring someone to be looking. A stopped container is brought back on the
+next poll. A container that is *running but not answering `/healthz`* — the shape no
+`restart:` policy catches — is `docker compose restart`ed, but only after a ~6-minute grace
+window, since a healthy container looks exactly like that while it boots. Attempts back off
+exponentially (2-minute base, 30-minute cap) so a genuinely broken stack does not thrash
+`docker`, logging fires only on state changes, and a `docker compose` command that exits 0
+without restoring `/healthz` is recorded as a **failure, not a recovery** — "the command
+worked" and "search works" are different facts.
+
+The sister `local-llm-hub` repo carries the complementary half (`restart: unless-stopped` →
+`restart: always`, so the policy stops treating a manual stop as permanent). The two are
+independent: only the watchdog covers the wedged-but-running case.
+
+**Still open — the deeper half.** When `web_search` is unavailable the model answers from
+its cutoff rather than saying it cannot search, so the failure mode is a *wrong* answer
+rather than a missing one. Hardening that is a live `.storage/core.config_entries` prompt
+edit (not repo-managed code) and is tracked separately; self-healing the backend removes
+the common trigger, not the underlying behaviour.
+
 **To revert:** remove the `web_search` entry from the `functions` YAML in the Hub Haiku
 subentry (restore from `/config/backups/voice-web-search/` for the original rollout, or
 `/config/backups/voice-web-search-topn/` for just the #648 top-8/temperature tuning) and
@@ -476,6 +513,7 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
   [`voice-model-benchmark.md`](voice-model-benchmark.md).
 - Hardware: external powered speaker (3.5 mm) + stronger kitchen 2.4 GHz Wi-Fi.
 - Tier-3 web search: **done + wired live** (#321) — self-hosted SearXNG backs a new
-  `web_search` function, English only for now. See "Web search (Tier 3)" above. Spanish
+  `web_search` function, English only for now, supervised by the webapp since #716. See
+  "Web search (Tier 3)" above. Spanish
   LLM fallback (to make Spanish search actually work) is a real architecture change and
   a candidate follow-up issue, not scoped here.

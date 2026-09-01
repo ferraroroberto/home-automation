@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -107,9 +107,27 @@ def fetch_searxng_state() -> SearxngState:
 
 def start_searxng() -> SearxngState:
     """``docker compose up -d`` the stack (idempotent) and return the read-back state."""
+    return _compose(["up", "-d"], "docker compose up failed", "start")
+
+
+def restart_searxng() -> SearxngState:
+    """``docker compose restart`` the stack and return the read-back state.
+
+    ``up -d`` is a no-op against a container Docker already considers running,
+    so it cannot recover the one failure shape no restart policy catches
+    either: up but wedged, not answering ``/healthz`` (issue #716). Only the
+    watchdog calls this, and only after the unreachable state has persisted
+    past its grace window — a freshly-booting container must never be
+    recreated out from under itself.
+    """
+    return _compose(["restart"], "docker compose restart failed", "restart")
+
+
+def _compose(args: List[str], fallback_err: str, label: str) -> SearxngState:
+    """Run one ``docker compose`` subcommand against the stack, then read state back."""
     path = compose_path()  # SearxngConfigError propagates → router maps to 503
     result = subprocess.run(
-        ["docker", "compose", "-f", path, "up", "-d"],
+        ["docker", "compose", "-f", path, *args],
         check=False,
         capture_output=True,
         text=True,
@@ -117,8 +135,8 @@ def start_searxng() -> SearxngState:
         creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
-        err = (result.stderr or result.stdout or "docker compose up failed").strip()
-        logger.warning("⚠️  SearXNG start failed: %s", err)
+        err = (result.stderr or result.stdout or fallback_err).strip()
+        logger.warning("⚠️  SearXNG %s failed: %s", label, err)
         raise SearxngCommandError(_short(err))
     return fetch_searxng_state()
 
