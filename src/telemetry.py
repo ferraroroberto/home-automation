@@ -2,8 +2,8 @@
 
 This module is the recorder/reader core for the home-automation telemetry model
 (design: issue #283). It owns a single WAL-mode SQLite file in the fleet
-runtime-data root (``C:\sqlite\home-automation\telemetry.sqlite3`` on Windows —
-see :mod:`src.runtime_data`) holding two narrow, append-mostly tables:
+runtime-data root (``<root>/home-automation/telemetry.sqlite3`` — see
+:mod:`src.runtime_data`) holding two narrow, append-mostly tables:
 
 * ``readings`` — one row per ``(entity, metric)`` observation. Adding a new
   device type or metric is a new *row*, never a new *column* — so the schema
