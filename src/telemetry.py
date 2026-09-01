@@ -1,9 +1,9 @@
 """Unified telemetry store (SQLite) — the standard event + reading substrate.
 
 This module is the recorder/reader core for the home-automation telemetry model
-(design: issue #283). It owns a single WAL-mode SQLite file under the gitignored
-runtime area (``webapp/telemetry.sqlite3``) holding two narrow, append-mostly
-tables:
+(design: issue #283). It owns a single WAL-mode SQLite file in the fleet
+runtime-data root (``C:\sqlite\home-automation\telemetry.sqlite3`` on Windows —
+see :mod:`src.runtime_data`) holding two narrow, append-mostly tables:
 
 * ``readings`` — one row per ``(entity, metric)`` observation. Adding a new
   device type or metric is a new *row*, never a new *column* — so the schema
@@ -38,15 +38,18 @@ from typing import Any, ContextManager, Dict, List, Optional
 from dotenv import load_dotenv
 
 from src._sqlite import connect as _sqlite_connect
+from src.runtime_data import runtime_db_path
 
 logger = logging.getLogger("telemetry")
 
-# Default DB location: the repo's gitignored runtime area, next to the other
-# SQLite stores (energy_history, network_history). ``TELEMETRY_DB_PATH`` (env)
-# overrides it — used by the e2e subprocess to keep a test boot off the real DB.
-DEFAULT_DB_PATH = Path(
-    os.getenv("TELEMETRY_DB_PATH")
-    or (Path(__file__).resolve().parent.parent / "webapp" / "telemetry.sqlite3")
+# Default DB location: the fleet runtime-data root (``C:\sqlite\home-automation\``
+# on Windows), not this repo's ``webapp/`` — this store's 20s-interval writes were
+# a confirmed contributor to the constant clicking on tower's spinning E: drive
+# (project-scaffolding#243). ``TELEMETRY_DB_PATH`` (env) still overrides it, and
+# still outranks everything — the e2e subprocess sets it to keep a test boot off
+# the real DB.
+DEFAULT_DB_PATH = runtime_db_path(
+    "home-automation", "telemetry.sqlite3", env_var="TELEMETRY_DB_PATH"
 )
 
 _HOUR = 3600

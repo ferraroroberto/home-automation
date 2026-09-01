@@ -37,13 +37,16 @@ from typing import Any, ContextManager, Dict, Iterable, List, Optional, Tuple
 
 from src._mac import normalize_mac
 from src._sqlite import connect as _sqlite_connect
+from src.runtime_data import runtime_db_path
 
 logger = logging.getLogger("network_history")
 
-# Default DB location: the repo's gitignored runtime area, next to the energy
-# history DB / logs / certs (covered by ``webapp/*.sqlite3`` in .gitignore).
-DEFAULT_DB_PATH = (
-    Path(__file__).resolve().parent.parent / "webapp" / "network_history.sqlite3"
+# Default DB location: the fleet runtime-data root (``C:\sqlite\home-automation\``
+# on Windows), next to the energy-history / telemetry stores — see
+# :mod:`src.runtime_data` and project-scaffolding#243.
+# ``NETWORK_HISTORY_DB_PATH`` (env) overrides it.
+DEFAULT_DB_PATH = runtime_db_path(
+    "home-automation", "network_history.sqlite3", env_var="NETWORK_HISTORY_DB_PATH"
 )
 
 # A device whose first_seen is within this window is flagged ``is_new`` for the

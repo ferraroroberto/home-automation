@@ -48,13 +48,18 @@ from typing import Any, ContextManager, Dict, List, Optional
 from dotenv import load_dotenv
 
 from src._sqlite import connect as _sqlite_connect
+from src.runtime_data import runtime_db_path
 from src.huawei_client import EnergyState
 
 logger = logging.getLogger("energy_history")
 
-# Default DB location: the repo's gitignored runtime area, next to logs/certs.
-DEFAULT_DB_PATH = (
-    Path(__file__).resolve().parent.parent / "webapp" / "energy_history.sqlite3"
+# Default DB location: the fleet runtime-data root (``C:\sqlite\home-automation\``
+# on Windows), not this repo's ``webapp/`` — see :mod:`src.runtime_data` and
+# project-scaffolding#243. ``ENERGY_HISTORY_DB_PATH`` (env) overrides it, matching
+# the shape :mod:`src.telemetry` has always had; the three sibling stores here
+# lacked an override entirely until then.
+DEFAULT_DB_PATH = runtime_db_path(
+    "home-automation", "energy_history.sqlite3", env_var="ENERGY_HISTORY_DB_PATH"
 )
 
 # Any gap between consecutive samples longer than this is clamped during energy
