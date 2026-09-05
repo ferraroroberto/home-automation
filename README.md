@@ -678,10 +678,13 @@ a per-machine tariff file:
 - **What it computes:** per-period consumption / grid-import / solar-covered kWh,
   grid cost €, and savings € (avoided cost of self-consumed PV), plus a summary
   with the prorated fixed standing charge, an estimated bill, and the "without
-  solar" cost. Export is credited at `export_eur_kwh` and surfaced as its own
-  **Export income** stat, already netted into the estimated bill (0 = no feed-in
-  payment, rendered as €0.00 rather than hidden, so the field stays
-  discoverable).
+  solar" cost. Export is credited per hour using the latest dated `export_rates`
+  entry effective at that time, surfaced with grid cost and avoided cost in the
+  **Money** report, and already netted into the estimated bill. Dated rates can
+  be added, edited, or deleted in the Energy tab without restarting; an optional
+  24-value hourly schedule overrides the dated default, and legacy
+  `export_eur_kwh` files still load. The matching **Energy** report shows
+  production, consumption, solar consumed, grid imported, and solar exported.
 
 How the period prices and the model are derived from a real PVPC 2.0TD invoice —
 including the PVPC hourly-market approximation and the bono-social handling — is

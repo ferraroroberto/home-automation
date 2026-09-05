@@ -192,11 +192,23 @@ function timeLabel(tsSeconds) {
 // one case — see there.
 export function createAggChart(canvas) {
   const pal = palette();
+  const solarUsed = envelope('Solar consumed', pal.accent);
+  solarUsed.borderDash = [6, 3];
+  solarUsed.pointStyle = 'rectRot';
+  const exported = envelope('Solar exported', pal.attention);
+  exported.borderDash = [2, 3];
+  exported.pointStyle = 'triangle';
   return new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: {
       labels: [],
-      datasets: energyDatasets(pal),
+      datasets: [
+        area('Production', pal.gen),
+        envelope('Consumption', pal.muted),
+        envelope('Grid imported', pal.grid),
+        solarUsed,
+        exported,
+      ],
     },
     options: commonOptions(pal, 'kWh', true),
   });
@@ -245,8 +257,12 @@ function markInProgress(ds, indices) {
 export function setAggData(chart, buckets) {
   chart.data.labels = buckets.map(function (b) { return b.label; });
   chart.data.datasets[0].data = buckets.map(function (b) { return kwh(b.pv_wh); });
-  chart.data.datasets[1].data = buckets.map(function (b) { return kwh(b.import_wh); });
-  chart.data.datasets[2].data = buckets.map(function (b) { return kwh(b.house_wh); });
+  chart.data.datasets[1].data = buckets.map(function (b) { return kwh(b.house_wh); });
+  chart.data.datasets[2].data = buckets.map(function (b) { return kwh(b.import_wh); });
+  chart.data.datasets[3].data = buckets.map(function (b) {
+    return Math.max(0, kwh(b.house_wh) - kwh(b.import_wh));
+  });
+  chart.data.datasets[4].data = buckets.map(function (b) { return kwh(b.export_wh); });
   // A line through a single point is invisible (pointRadius is 0 everywhere
   // else), so the Σ Total — and any range that resolves to one bucket — would
   // read as empty. Show the markers only in that case so the value is visible.
@@ -261,6 +277,50 @@ export function setAggData(chart, buckets) {
     const idx = buckets.findIndex(function (b) { return b && b.partial; });
     chart.data.datasets.forEach(function (d) { markInProgress(d, [idx]); });
   }
+  chart.update('none');
+}
+
+// Export compensation is money, not energy, so it gets its own small chart
+// rather than a misleading second unit on the generation chart.
+export function createExportCreditChart(canvas) {
+  const pal = palette();
+  const cost = envelope('Grid cost', pal.grid);
+  cost.pointStyle = 'circle';
+  const saved = envelope('Avoided cost', pal.gen);
+  saved.borderDash = [8, 4];
+  saved.pointStyle = 'rectRot';
+  const credit = envelope('Export income', pal.accent);
+  credit.borderDash = [2, 4];
+  credit.pointStyle = 'triangle';
+  return new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels: [], datasets: [cost, saved, credit] },
+    options: commonOptions(pal, '€', true),
+  });
+}
+
+export function setExportCreditData(chart, points) {
+  chart.data.labels = (points || []).map(function (point) { return point.label; });
+  chart.data.datasets[0].data = (points || []).map(function (point) { return Number(point.grid_cost) || 0; });
+  chart.data.datasets[1].data = (points || []).map(function (point) { return Number(point.savings) || 0; });
+  chart.data.datasets[2].data = (points || []).map(function (point) { return Number(point.export_credit) || 0; });
+  chart.data.datasets.forEach(function (dataset) {
+    dataset.pointRadius = points && points.length <= 1 ? 4 : 0;
+  });
+  chart.update('none');
+}
+
+export function restyleExportCredit(chart) {
+  if (!chart) return;
+  const pal = palette();
+  chart.options.plugins.legend.labels.color = pal.ink;
+  chart.data.datasets[0].borderColor = pal.grid;
+  chart.data.datasets[0].backgroundColor = pal.grid;
+  chart.data.datasets[1].borderColor = pal.gen;
+  chart.data.datasets[1].backgroundColor = pal.gen;
+  chart.data.datasets[2].borderColor = pal.accent;
+  chart.data.datasets[2].backgroundColor = pal.accent;
+  Object.assign(chart.options.scales, baseScales(pal, '€'));
   chart.update('none');
 }
 
@@ -600,12 +660,15 @@ export function restyle(chart, unit) {
   // Series colours track the theme's status tokens (--on / --deficit / --muted).
   // Both history and live charts are areas (translucent fills) + a solid
   // Consumption line.
-  chart.data.datasets[0].borderColor = pal.gen;
-  chart.data.datasets[0].backgroundColor = alphaFill(pal.gen, 0.18);
-  chart.data.datasets[1].borderColor = pal.grid;
-  chart.data.datasets[1].backgroundColor = alphaFill(pal.grid, 0.18);
-  chart.data.datasets[2].borderColor = pal.muted;
-  chart.data.datasets[2].backgroundColor = pal.muted;
+  const colors = chart.data.datasets.length === 5
+    ? [pal.gen, pal.muted, pal.grid, pal.accent, pal.attention]
+    : [pal.gen, pal.grid, pal.muted];
+  chart.data.datasets.forEach(function (dataset, index) {
+    dataset.borderColor = colors[index];
+    dataset.backgroundColor = index === 0 && chart.data.datasets.length === 5
+      ? alphaFill(colors[index], 0.18)
+      : colors[index];
+  });
   Object.assign(chart.options.scales, baseScales(pal, unit));
   chart.update('none');
 }

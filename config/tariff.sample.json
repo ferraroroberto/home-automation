@@ -11,8 +11,10 @@
     "P2": { "label": "Standard", "price_eur_kwh": 0.13 },
     "P3": { "label": "Off-peak", "price_eur_kwh": 0.11 }
   },
-  "_doc_export_eur_kwh": "EUR/kWh your surplus-compensation product pays for exported energy. Regulated market (PVPC): compensacion simplificada de excedentes, roughly 0.04, netted monthly. Free market: a monedero virtual / bateria virtual tariff, roughly 0.06-0.07, banked across months. Leave at 0.0 with no compensation contracted - the Energy tab then shows Export income as 0.00 rather than hiding it. See docs/tariff-model.md.",
-  "export_eur_kwh": 0.0,
+  "_doc_export_rates": "Dated EUR/kWh surplus-compensation rates. Add, edit, or delete entries in the Energy tab; the latest entry on or before each sampled hour applies. hourly_eur_kwh is optional: 24 values for hours 00-23, with null falling back to the entry's default. Use 0.0 when no compensation is contracted. Legacy files with one export_eur_kwh scalar remain loadable.",
+  "export_rates": [
+    { "effective_from": "2026-01-01", "export_eur_kwh": 0.0 }
+  ],
   "fixed": {
     "contracted_power_kw": 4.6,
     "power_term_p1_eur_kw_year": 27.0,

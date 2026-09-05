@@ -849,24 +849,24 @@
         <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
       </section>
 
-      <nav class="range-tabs" id="aggRange" aria-label="History range">
-        <button id="rangeDay" type="button" class="range-tab active" data-range="day">Day</button>
-        <button id="rangeWeek" type="button" class="range-tab" data-range="week">Week</button>
-        <button id="rangeMonth" type="button" class="range-tab" data-range="month">Month</button>
-        <button id="rangeYear" type="button" class="range-tab" data-range="year">Year</button>
-        <button id="rangeTotal" type="button" class="range-tab" data-range="total">Σ</button>
-      </nav>
-
       <section class="card chart-card">
-        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-zap"></use></svg>Generation &amp; consumption</h3>
+        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-zap"></use></svg>Energy</h3>
+        <nav class="range-tabs" id="aggRange" aria-label="Energy range">
+          <button id="rangeDay" type="button" class="range-tab active" data-range="day">Day</button>
+          <button id="rangeWeek" type="button" class="range-tab" data-range="week">Week</button>
+          <button id="rangeMonth" type="button" class="range-tab" data-range="month">Month</button>
+          <button id="rangeYear" type="button" class="range-tab" data-range="year">Year</button>
+          <button id="rangeTotal" type="button" class="range-tab" data-range="total">Σ</button>
+        </nav>
         <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
+        <div class="energy-summary" id="energySummary"></div>
         <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
       </section>
 
       <!-- Cost & savings breakdown — grid energy priced per tariff period, with
            self-consumed PV valued at the avoided rate, across the five windows. -->
       <section class="card cost-card" aria-label="Cost and savings breakdown">
-        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-euro"></use></svg>Cost &amp; savings <span id="costMeta" class="muted small"></span></h3>
+        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-euro"></use></svg>Money <span id="costMeta" class="muted small"></span></h3>
         <nav class="range-tabs" id="costRange" aria-label="Cost range">
           <button type="button" class="range-tab active" data-crange="day">Day</button>
           <button type="button" class="range-tab" data-crange="week">Week</button>
@@ -880,10 +880,11 @@
               <tr>
                 <th scope="col">Period</th>
                 <th scope="col">Rate</th>
-                <th scope="col">Grid</th>
-                <th scope="col">Solar</th>
-                <th scope="col">Cost</th>
+                <th scope="col">Grid kWh</th>
+                <th scope="col">Solar kWh</th>
+                <th scope="col">Spent</th>
                 <th scope="col">Saved</th>
+                <th scope="col">Earned</th>
               </tr>
             </thead>
             <tbody id="costBody"></tbody>
@@ -891,9 +892,36 @@
           </table>
         </div>
         <div class="cost-summary" id="costSummary"></div>
+        <div class="chart-wrap chart-wrap-export"><canvas id="exportCreditChart"></canvas></div>
         <p id="costEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
         <p class="muted small cost-note" id="costNote"></p>
       </section>
+
+      <details class="card card--collapsible export-rate-card" id="exportRateCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-euro"></use></svg>
+            <h3 class="collapse-title">Export compensation</h3>
+            <span id="exportRateCurrent" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="export-rate-body">
+          <p class="muted small">Add the rate from the date it takes effect. Earlier entries stay in the history.</p>
+          <div id="exportRateList" class="alarm-schedule-list"></div>
+          <div class="export-rate-form">
+            <input id="exportRateOriginalDate" type="hidden">
+            <label><span>Effective from</span><input id="exportRateDate" type="date" class="input-native"></label>
+            <label><span>EUR / kWh</span><input id="exportRateValue" type="number" min="0" max="10" step="0.00001" inputmode="decimal" class="input-native" placeholder="0.00000"></label>
+            <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
+            <div class="export-rate-actions">
+              <button id="exportRateDelete" type="button" class="button-ghost" hidden>Delete</button>
+              <button id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
+            </div>
+          </div>
+          <p id="exportRateError" class="field-error" role="alert" hidden></p>
+        </div>
+      </details>
 
       <!-- Solar forecast — expected generation (Open-Meteo tilted irradiance,
            scaled by the configured PV array) as a dashed curve, with the day's

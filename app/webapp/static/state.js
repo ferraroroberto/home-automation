@@ -126,6 +126,8 @@ export const state = {
   // theme toggle can restyle and the live poller can push points.
   liveChart: null,
   aggChart: null,
+  exportCreditChart: null,
+  exportRates: [],
   forecastChart: null,
   // Sun-position diagnostic (#590): the day on screen (ISO, local) and its
   // chart. The card is folded away by default and loads on first open, so both
@@ -680,6 +682,7 @@ export const els = {
   liveChart: document.getElementById('liveChart'),
   aggChart: document.getElementById('aggChart'),
   aggEmpty: document.getElementById('aggEmpty'),
+  energySummary: document.getElementById('energySummary'),
   // History range buttons (Day / Week / Month / Year / Σ) — driven by data-range.
   rangeBtns: Array.from(document.querySelectorAll('#aggRange .range-tab')),
   // Energy tab: cost & savings breakdown
@@ -690,6 +693,16 @@ export const els = {
   costEmpty: document.getElementById('costEmpty'),
   costNote: document.getElementById('costNote'),
   costRangeBtns: Array.from(document.querySelectorAll('#costRange .range-tab')),
+  exportCreditChart: document.getElementById('exportCreditChart'),
+  exportRateCurrent: document.getElementById('exportRateCurrent'),
+  exportRateList: document.getElementById('exportRateList'),
+  exportRateDate: document.getElementById('exportRateDate'),
+  exportRateOriginalDate: document.getElementById('exportRateOriginalDate'),
+  exportRateValue: document.getElementById('exportRateValue'),
+  exportRateHourly: document.getElementById('exportRateHourly'),
+  exportRateAdd: document.getElementById('exportRateAdd'),
+  exportRateDelete: document.getElementById('exportRateDelete'),
+  exportRateError: document.getElementById('exportRateError'),
   // Energy tab: solar-forecast card
   forecastMeta: document.getElementById('forecastMeta'),
   forecastHeadline: document.getElementById('forecastHeadline'),

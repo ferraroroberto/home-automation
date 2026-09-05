@@ -44,7 +44,9 @@ def test_load_tariff_round_trip_from_sample_shape(tmp_path: Path) -> None:
             "P2": {"label": "Standard", "price_eur_kwh": 0.13},
             "P3": {"label": "Off-peak", "price_eur_kwh": 0.11},
         },
-        "export_eur_kwh": 0.05,
+        "export_rates": [
+            {"effective_from": "2026-01-01", "export_eur_kwh": 0.05},
+        ],
     }
     path = tmp_path / "tariff.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
@@ -57,6 +59,83 @@ def test_load_tariff_round_trip_from_sample_shape(tmp_path: Path) -> None:
     assert "2026-01-06" in t.holidays
     # marginal_all_in = (price + electricity_tax) * (1 + vat/100).
     assert t.marginal_all_in("P1") == (0.20 + 0.001) * 1.10
+    assert T.rate_for(datetime(2026, 6, 1), t) == 0.05
+
+
+def test_load_tariff_legacy_export_scalar_applies_to_all_history(tmp_path: Path) -> None:
+    cfg = _tariff_config()
+    cfg["export_eur_kwh"] = 0.047
+    path = tmp_path / "tariff.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+
+    loaded = T.load_tariff(path)
+
+    assert T.rate_for(datetime(1999, 1, 1), loaded) == 0.047
+
+
+def test_save_export_rate_migrates_legacy_scalar_and_preserves_tariff(tmp_path: Path) -> None:
+    cfg = _tariff_config()
+    cfg["export_eur_kwh"] = 0.04
+    cfg["custom_note"] = "keep me"
+    path = tmp_path / "tariff.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+
+    loaded = T.save_export_rate("2026-09-05", 0.16774, path)
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+
+    assert "export_eur_kwh" not in persisted
+    assert persisted["custom_note"] == "keep me"
+    assert T.rate_for(datetime(2026, 9, 4, 23), loaded) == 0.04
+    assert T.rate_for(datetime(2026, 9, 5), loaded) == 0.16774
+
+
+def test_cost_breakdown_prices_export_per_hour_at_effective_rate() -> None:
+    tariff = _two_0td(export_rates=[
+        T.ExportRate(datetime(2026, 9, 4).date(), 0.10),
+        T.ExportRate(datetime(2026, 9, 5).date(), 0.20),
+    ])
+    buckets = [
+        {"hour_start": datetime(2026, 9, 4, 23).timestamp(), "house_wh": 0,
+         "import_wh": 0, "export_wh": 1000, "pv_wh": 1000},
+        {"hour_start": datetime(2026, 9, 5, 0).timestamp(), "house_wh": 0,
+         "import_wh": 0, "export_wh": 2000, "pv_wh": 2000},
+    ]
+
+    out = T.cost_breakdown(buckets, tariff)
+
+    assert out["summary"]["export_credit"] == 0.50
+    assert [point["export_credit"] for point in out["money_series"]] == [0.1, 0.4]
+
+
+def test_rate_for_uses_hourly_override_then_dated_default() -> None:
+    hourly = [None] * 24
+    hourly[12] = 0.25
+    tariff = _two_0td(export_rates=[
+        T.ExportRate(datetime(2026, 9, 5).date(), 0.15, tuple(hourly)),
+    ])
+
+    assert T.rate_for(datetime(2026, 9, 5, 12), tariff) == 0.25
+    assert T.rate_for(datetime(2026, 9, 5, 13), tariff) == 0.15
+
+
+def test_group_money_series_matches_selected_range() -> None:
+    points = [
+        {"hour_start": datetime(2026, 1, 2, 10).timestamp(), "grid_cost": 1,
+         "savings": 2, "export_credit": 3},
+        {"hour_start": datetime(2026, 1, 2, 11).timestamp(), "grid_cost": 4,
+         "savings": 5, "export_credit": 6},
+        {"hour_start": datetime(2026, 2, 1, 10).timestamp(), "grid_cost": 7,
+         "savings": 8, "export_credit": 9},
+    ]
+
+    daily = T.group_money_series(points, "month")
+    monthly = T.group_money_series(points, "year")
+    total = T.group_money_series(points, "total")
+
+    assert daily[0]["grid_cost"] == 5
+    assert [point["label"] for point in monthly] == ["Jan", "Feb"]
+    assert total == [{"label": "Total", "grid_cost": 12.0,
+                      "savings": 15.0, "export_credit": 18.0}]
 
 
 # --------------------------------------------------------------- period_for
@@ -136,7 +215,14 @@ def test_cost_breakdown_pv_missing_excluded_from_generation() -> None:
 
 
 # --------------------------------------------------------------- helpers
-def _two_0td(holidays=None) -> T.Tariff:
+def _tariff_config() -> dict:
+    return {
+        "currency": "EUR", "tariff_name": "Test", "calendar": "2.0TD",
+        "periods": {"P1": {"price_eur_kwh": 0.2}},
+    }
+
+
+def _two_0td(holidays=None, export_rates=None) -> T.Tariff:
     """Build a 2.0TD tariff in-memory (avoids depending on a config file)."""
     periods = {
         "P1": T.Period("P1", "Peak", 0.20),
@@ -149,7 +235,7 @@ def _two_0td(holidays=None) -> T.Tariff:
         calendar="2.0TD",
         vat_pct=10.0,
         electricity_tax_eur_kwh=0.001,
-        export_eur_kwh=0.0,
+        export_rates=list(export_rates or []),
         periods=periods,
         period_order=["P1", "P2", "P3"],
         holidays=frozenset(holidays or []),

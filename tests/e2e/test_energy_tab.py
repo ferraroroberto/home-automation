@@ -42,12 +42,41 @@ def test_energy_tab_renders_flow_and_charts(
     # Both chart canvases render once the pane is shown.
     expect(page.locator("#liveChart")).to_be_visible()
     expect(page.locator("#aggChart")).to_be_visible()
+    expect(page.locator("#exportCreditChart")).to_be_visible()
+    expect(page.locator("#energySummary")).to_contain_text("Solar consumed")
+    expect(page.locator("#costSummary")).to_contain_text("Total solar benefit")
+    assert page.locator("#aggChart").evaluate(
+        "canvas => Chart.getChart(canvas).data.datasets.map(dataset => dataset.label)"
+    ) == ["Production", "Consumption", "Grid imported", "Solar consumed", "Solar exported"]
+    assert page.locator("#exportCreditChart").evaluate(
+        "canvas => Chart.getChart(canvas).data.datasets.map(dataset => dataset.label)"
+    ) == ["Grid cost", "Avoided cost", "Export income"]
 
     # Cost & savings breakdown table: a row per tariff period + a Total row,
     # fed by the /api/energy/cost stub.
     expect(page.locator("#costBody tr")).to_have_count(3)
     expect(page.locator("#costFoot")).to_contain_text("Total")
     expect(page.locator("#costFoot")).to_contain_text("€0.37")
+
+    page.locator("#exportRateCard summary").click()
+    expect(page.locator("#exportRateCurrent")).to_have_text("€0.05000/kWh")
+    page.locator("#exportRateDate").fill("2026-09-05")
+    page.locator("#exportRateValue").fill("0.16774")
+    page.locator("#exportRateAdd").click()
+    expect(page.locator("#exportRateList")).to_contain_text("2026-09-05")
+    expect(page.locator("#exportRateCurrent")).to_have_text("€0.16774/kWh")
+
+    page.locator(".export-rate-edit[data-rate-date='2026-09-05']").click()
+    expect(page.locator("#exportRateAdd")).to_have_text("Save changes")
+    page.locator("#exportRateValue").fill("0.18000")
+    page.locator("#exportRateAdd").click()
+    expect(page.locator("#exportRateList")).to_contain_text("€0.18000 / kWh")
+
+    page.locator(".export-rate-edit[data-rate-date='2026-09-05']").click()
+    page.locator("#exportRateDelete").click()
+    expect(page.locator("#confirmDialog")).to_be_visible()
+    page.locator("#confirmOk").click()
+    expect(page.locator("#exportRateList")).not_to_contain_text("2026-09-05")
 
 
 def test_energy_tab_shows_loading_before_first_live_result(

@@ -835,11 +835,45 @@ def mock_energy(page: Page) -> Callable[..., None]:
             ],
             "totals": {"consumption_kwh": 4.5, "grid_kwh": 2.4, "solar_kwh": 2.1,
                        "generation_kwh": 2.5, "export_kwh": 0.3, "grid_cost": 0.35, "savings": 0.37},
-            "summary": {"fixed_cost": 0.58, "export_credit": 0.0,
+            "summary": {"fixed_cost": 0.58, "export_credit": 0.0, "total_solar_benefit": 0.37,
                         "cost_without_solar": 0.72, "estimated_bill": 0.93, "days": 1.0},
+            "money_series": [
+                {"label": "10:00", "hour_start": 1_718_788_400,
+                 "grid_cost": 0.08, "savings": 0.04, "export_credit": 0.02},
+            ],
         }
         page.route("**/api/energy/cost*", lambda r: r.fulfill(
             status=200, content_type="application/json", body=_json(cost_body)))
+
+        export_rates = {
+            "configured": True, "currency": "EUR", "current_export_eur_kwh": 0.05,
+            "rates": [{"effective_from": "2026-01-01", "export_eur_kwh": 0.05}],
+        }
+
+        def handle_export_rates(route: Route) -> None:
+            method = route.request.method.upper()
+            if method == "PUT":
+                sent = route.request.post_data_json or {}
+                original = sent.pop("replace_effective_from", None)
+                export_rates["rates"] = [
+                    rate for rate in export_rates["rates"]
+                    if rate["effective_from"] != original
+                ]
+                export_rates["rates"].append({
+                    key: value for key, value in sent.items() if value is not None
+                })
+                export_rates["rates"].sort(key=lambda rate: rate["effective_from"])
+                export_rates["current_export_eur_kwh"] = sent["export_eur_kwh"]
+            elif method == "DELETE":
+                from urllib.parse import parse_qs, urlparse
+                effective = parse_qs(urlparse(route.request.url).query)["effective_from"][0]
+                export_rates["rates"] = [
+                    rate for rate in export_rates["rates"]
+                    if rate["effective_from"] != effective
+                ]
+            route.fulfill(status=200, content_type="application/json", body=_json(export_rates))
+
+        page.route("**/api/energy/export-rates*", handle_export_rates)
 
         pv = {
             "arrays": list(pv_arrays) if pv_arrays is not None else [
