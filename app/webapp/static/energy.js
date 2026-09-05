@@ -474,13 +474,20 @@ async function loadExportRates() {
 
 async function addExportRate() {
   const effectiveFrom = els.exportRateDate.value;
-  const value = Number(els.exportRateValue.value);
+  const rawValue = els.exportRateValue.value.trim();
+  const value = Number(rawValue);
   const hourly = parseHourlyRates();
   els.exportRateError.hidden = true;
   if (!effectiveFrom) {
     els.exportRateError.textContent = 'Choose the date this rate takes effect.';
     els.exportRateError.hidden = false;
     els.exportRateDate.focus();
+    return;
+  }
+  if (!rawValue) {
+    els.exportRateError.textContent = 'Enter an export rate.';
+    els.exportRateError.hidden = false;
+    els.exportRateValue.focus();
     return;
   }
   if (!Number.isFinite(value) || value < 0 || value > 10) {

@@ -61,6 +61,11 @@ def test_energy_tab_renders_flow_and_charts(
     page.locator("#exportRateCard summary").click()
     expect(page.locator("#exportRateCurrent")).to_have_text("€0.05000/kWh")
     page.locator("#exportRateDate").fill("2026-09-05")
+    page.locator("#exportRateAdd").click()
+    expect(page.locator("#exportRateError")).to_have_text("Enter an export rate.")
+    expect(page.locator("#exportRateValue")).to_be_focused()
+    expect(page.locator("#exportRateList")).not_to_contain_text("2026-09-05")
+
     page.locator("#exportRateValue").fill("0.16774")
     page.locator("#exportRateAdd").click()
     expect(page.locator("#exportRateList")).to_contain_text("2026-09-05")
