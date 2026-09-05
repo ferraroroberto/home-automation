@@ -32,9 +32,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from src._schedule_store import read_json, save_json
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +86,15 @@ class Period:
     price_eur_kwh: float
 
 
+@dataclass(frozen=True, order=True)
+class ExportRate:
+    """One surplus-compensation rate effective from a local calendar date."""
+
+    effective_from: date
+    export_eur_kwh: float
+    hourly_eur_kwh: tuple[Optional[float], ...] = ()
+
+
 @dataclass(frozen=True)
 class Tariff:
     """A loaded tariff: periods, taxes, fixed charges and the TOU calendar."""
@@ -93,7 +104,7 @@ class Tariff:
     calendar: str  # "2.0TD" | "flat"
     vat_pct: float
     electricity_tax_eur_kwh: float
-    export_eur_kwh: float
+    export_rates: List[ExportRate]
     periods: Dict[str, Period]
     period_order: List[str]
     holidays: frozenset
@@ -143,7 +154,7 @@ def _flat_tariff() -> Tariff:
         calendar="flat",
         vat_pct=0.0,
         electricity_tax_eur_kwh=0.0,
-        export_eur_kwh=0.0,
+        export_rates=[],
         periods={"FLAT": period},
         period_order=["FLAT"],
         holidays=frozenset(),
@@ -193,13 +204,22 @@ def load_tariff(path: Optional[Path] = None) -> Tariff:
         holidays_raw = raw.get("holidays") or []
         holidays = frozenset(str(d) for d in holidays_raw) if isinstance(holidays_raw, list) else frozenset()
 
+        export_rates_raw = raw.get("export_rates")
+        if export_rates_raw is None:
+            legacy_rate = float(raw.get("export_eur_kwh", 0.0))
+            export_rates = [ExportRate(date.min, legacy_rate)]
+        else:
+            if not isinstance(export_rates_raw, list):
+                raise ValueError("export_rates must be a list")
+            export_rates = _parse_export_rates(export_rates_raw)
+
         return Tariff(
             currency=str(raw.get("currency", "EUR")),
             name=str(raw.get("tariff_name", "Tariff")),
             calendar=str(raw.get("calendar", "2.0TD")),
             vat_pct=float(raw.get("vat_pct", 0.0)),
             electricity_tax_eur_kwh=float(raw.get("electricity_tax_eur_kwh", 0.0)),
-            export_eur_kwh=float(raw.get("export_eur_kwh", 0.0)),
+            export_rates=export_rates,
             periods=periods,
             period_order=order,
             holidays=holidays,
@@ -209,6 +229,158 @@ def load_tariff(path: Optional[Path] = None) -> Tariff:
     except (TypeError, ValueError) as exc:
         logger.warning("⚠️ %s is malformed (%s); using flat estimate", target, exc)
         return _flat_tariff()
+
+
+def _parse_export_rates(raw_rates: List[Any]) -> List[ExportRate]:
+    """Validate and order the persisted export-rate history."""
+    rates: List[ExportRate] = []
+    seen = set()
+    for index, item in enumerate(raw_rates):
+        if not isinstance(item, dict):
+            raise ValueError(f"export_rates[{index}] must be an object")
+        try:
+            effective_from = date.fromisoformat(str(item["effective_from"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"export_rates[{index}].effective_from must be YYYY-MM-DD"
+            ) from exc
+        try:
+            value = float(item["export_eur_kwh"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"export_rates[{index}].export_eur_kwh must be a number"
+            ) from exc
+        if not 0.0 <= value <= 10.0:
+            raise ValueError(
+                f"export_rates[{index}].export_eur_kwh must be between 0 and 10"
+            )
+        if effective_from in seen:
+            raise ValueError(f"export_rates has duplicate date {effective_from.isoformat()}")
+        seen.add(effective_from)
+        hourly_raw = item.get("hourly_eur_kwh")
+        hourly: tuple[Optional[float], ...] = ()
+        if hourly_raw is not None:
+            if not isinstance(hourly_raw, list) or len(hourly_raw) != 24:
+                raise ValueError(f"export_rates[{index}].hourly_eur_kwh must contain 24 values")
+            parsed_hourly: List[Optional[float]] = []
+            for hour, hourly_value in enumerate(hourly_raw):
+                if hourly_value is None:
+                    parsed_hourly.append(None)
+                    continue
+                try:
+                    number = float(hourly_value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"export_rates[{index}].hourly_eur_kwh[{hour}] must be a number or null"
+                    ) from exc
+                if not 0.0 <= number <= 10.0:
+                    raise ValueError(
+                        f"export_rates[{index}].hourly_eur_kwh[{hour}] must be between 0 and 10"
+                    )
+                parsed_hourly.append(number)
+            hourly = tuple(parsed_hourly)
+        rates.append(ExportRate(effective_from, value, hourly))
+    return sorted(rates)
+
+
+def rate_for(dt: datetime, tariff: Tariff) -> float:
+    """Return the latest export rate effective on or before local ``dt``."""
+    for rate in reversed(tariff.export_rates):
+        if rate.effective_from <= dt.date():
+            if len(rate.hourly_eur_kwh) == 24 and rate.hourly_eur_kwh[dt.hour] is not None:
+                return float(rate.hourly_eur_kwh[dt.hour])
+            return rate.export_eur_kwh
+    return 0.0
+
+
+def export_rates_payload(tariff: Tariff) -> List[Dict[str, Any]]:
+    """Return the public JSON shape for a tariff's dated export rates."""
+    payload = []
+    for rate in tariff.export_rates:
+        entry: Dict[str, Any] = {
+            "effective_from": rate.effective_from.isoformat(),
+            "export_eur_kwh": rate.export_eur_kwh,
+        }
+        if rate.hourly_eur_kwh:
+            entry["hourly_eur_kwh"] = list(rate.hourly_eur_kwh)
+        payload.append(entry)
+    return payload
+
+
+def save_export_rate(
+    effective_from: str,
+    export_eur_kwh: float,
+    path: Optional[Path] = None,
+    hourly_eur_kwh: Optional[List[Optional[float]]] = None,
+    replace_effective_from: Optional[str] = None,
+) -> Tariff:
+    """Atomically upsert one dated export rate while preserving the tariff file."""
+    target = Path(path) if path is not None else DEFAULT_PATH
+    raw = read_json(target, None)
+    if not isinstance(raw, dict):
+        raise ValueError("tariff is not configured")
+    try:
+        rate_date = date.fromisoformat(effective_from)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("effective_from must be YYYY-MM-DD") from exc
+    try:
+        value = float(export_eur_kwh)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("export_eur_kwh must be a number") from exc
+    if not 0.0 <= value <= 10.0:
+        raise ValueError("export_eur_kwh must be between 0 and 10")
+
+    existing = raw.get("export_rates")
+    if existing is None:
+        rates = [ExportRate(date.min, float(raw.get("export_eur_kwh", 0.0)))]
+    elif isinstance(existing, list):
+        rates = _parse_export_rates(existing)
+    else:
+        raise ValueError("export_rates must be a list")
+    by_date = {rate.effective_from: rate for rate in rates}
+    hourly = _parse_export_rates([{
+        "effective_from": effective_from,
+        "export_eur_kwh": value,
+        "hourly_eur_kwh": hourly_eur_kwh,
+    }])[0].hourly_eur_kwh
+    if replace_effective_from:
+        try:
+            by_date.pop(date.fromisoformat(replace_effective_from), None)
+        except ValueError as exc:
+            raise ValueError("replace_effective_from must be YYYY-MM-DD") from exc
+    by_date[rate_date] = ExportRate(rate_date, value, hourly)
+    raw.pop("export_eur_kwh", None)
+    raw["export_rates"] = export_rates_payload(Tariff(
+        "EUR", "", "flat", 0, 0, sorted(by_date.values()), {}, [], frozenset(), {}, True
+    ))
+    save_json(target, raw)
+    logger.info("💶 Saved export rate %.6f EUR/kWh from %s", value, effective_from)
+    return load_tariff(target)
+
+
+def delete_export_rate(effective_from: str, path: Optional[Path] = None) -> Tariff:
+    """Delete one dated rate while preserving every other tariff field."""
+    target = Path(path) if path is not None else DEFAULT_PATH
+    raw = read_json(target, None)
+    if not isinstance(raw, dict):
+        raise ValueError("tariff is not configured")
+    try:
+        target_date = date.fromisoformat(effective_from)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("effective_from must be YYYY-MM-DD") from exc
+    rates_raw = raw.get("export_rates")
+    if rates_raw is None:
+        raise ValueError("legacy rate cannot be deleted; add a dated rate first")
+    rates = _parse_export_rates(rates_raw)
+    remaining = [rate for rate in rates if rate.effective_from != target_date]
+    if len(remaining) == len(rates):
+        raise ValueError(f"no export rate exists for {effective_from}")
+    raw["export_rates"] = export_rates_payload(Tariff(
+        "EUR", "", "flat", 0, 0, remaining, {}, [], frozenset(), {}, True
+    ))
+    save_json(target, raw)
+    logger.info("🗑️ Deleted export rate effective %s", effective_from)
+    return load_tariff(target)
 
 
 # --------------------------------------------------------------- calendar
@@ -239,6 +411,7 @@ def _empty_row(period: Period, rate_eur_kwh: float, hours: str) -> Dict[str, Any
         "solar_kwh": 0.0,
         "generation_kwh": 0.0,
         "export_kwh": 0.0,
+        "export_credit": 0.0,
         "grid_cost": 0.0,
         "savings": 0.0,
     }
@@ -262,6 +435,7 @@ def cost_breakdown(
         key: _empty_row(tariff.periods[key], tariff.marginal_all_in(key), tariff.hours_label(key))
         for key in tariff.period_order
     }
+    money_series: List[Dict[str, Any]] = []
 
     for b in hourly_buckets:
         dt = datetime.fromtimestamp(int(b["hour_start"]))
@@ -281,6 +455,15 @@ def cost_breakdown(
         row["solar_kwh"] += solar_kwh
         row["generation_kwh"] += pv_kwh
         row["export_kwh"] += export_kwh
+        bucket_credit = export_kwh * rate_for(dt, tariff)
+        row["export_credit"] += bucket_credit
+        money_series.append({
+            "hour_start": int(b["hour_start"]),
+            "label": dt.strftime("%d %b %H:%M"),
+            "grid_cost": round(import_kwh * rate, 6),
+            "savings": round(solar_kwh * rate, 6),
+            "export_credit": round(bucket_credit, 6),
+        })
         row["grid_cost"] += import_kwh * rate
         row["savings"] += solar_kwh * rate
 
@@ -294,7 +477,7 @@ def cost_breakdown(
         for k in totals:
             totals[k] += row[k]
 
-    export_credit = totals["export_kwh"] * tariff.export_eur_kwh
+    export_credit = sum(row["export_credit"] for row in period_rows)
     fixed_cost = tariff.daily_fixed_eur() * max(0.0, days) * (1.0 + tariff.vat_pct / 100.0)
     # What the grid bill would have been buying every consumed kWh from the grid.
     cost_without_solar = totals["grid_cost"] + totals["savings"]
@@ -303,6 +486,7 @@ def cost_breakdown(
     summary = {
         "fixed_cost": fixed_cost,
         "export_credit": export_credit,
+        "total_solar_benefit": totals["savings"] + export_credit,
         "cost_without_solar": cost_without_solar,
         "estimated_bill": estimated_bill,
         "days": round(days, 2),
@@ -316,13 +500,51 @@ def cost_breakdown(
         "periods": [_round_row(r) for r in period_rows],
         "totals": _round_money(totals),
         "summary": _round_money(summary),
+        "money_series": money_series,
     }
+
+
+def group_money_series(
+    hourly_points: List[Dict[str, Any]], range_: str
+) -> List[Dict[str, Any]]:
+    """Group hourly money points to the Energy tab's selected chart range."""
+    formats = {
+        "day": ("%Y-%m-%d-%H", "%H:00"),
+        "week": ("%Y-%m-%d", "%a %d"),
+        "month": ("%Y-%m-%d", "%d %b"),
+        "year": ("%Y-%m", "%b"),
+        "total": ("total", "Total"),
+    }
+    if range_ not in formats:
+        raise ValueError(f"unsupported range: {range_}")
+    key_format, label_format = formats[range_]
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for point in hourly_points:
+        dt = datetime.fromtimestamp(int(point["hour_start"]))
+        key = "total" if range_ == "total" else dt.strftime(key_format)
+        bucket = grouped.setdefault(key, {
+            "label": "Total" if range_ == "total" else dt.strftime(label_format),
+            "grid_cost": 0.0,
+            "savings": 0.0,
+            "export_credit": 0.0,
+        })
+        for field in ("grid_cost", "savings", "export_credit"):
+            bucket[field] += float(point.get(field) or 0.0)
+    return [
+        {
+            **bucket,
+            "grid_cost": round(bucket["grid_cost"], 6),
+            "savings": round(bucket["savings"], 6),
+            "export_credit": round(bucket["export_credit"], 6),
+        }
+        for bucket in grouped.values()
+    ]
 
 
 def _round_row(row: Dict[str, Any]) -> Dict[str, Any]:
     for k in ("consumption_kwh", "grid_kwh", "solar_kwh", "generation_kwh", "export_kwh"):
         row[k] = round(row[k], 2)
-    for k in ("grid_cost", "savings"):
+    for k in ("grid_cost", "savings", "export_credit"):
         row[k] = round(row[k], 2)
     return row
 

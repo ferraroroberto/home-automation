@@ -489,7 +489,8 @@ button, input, select, textarea {
   .cost-table th,
   .cost-table td { padding: 6px 3px; }
 }
-.cost-summary {
+.cost-summary,
+.energy-summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-sm);
@@ -525,6 +526,7 @@ button, input, select, textarea {
    .presence-settings > .row, .schedule-editor-delete) — only the hairline
    between the system-level rows and the field-validation lines are new. */
 .pv-system-card,
+.export-rate-card,
 .sun-overlay-card,
 .boost-coord-card { margin-bottom: var(--gap); }
 /* The presence settings card separates its rows with grid gap; this body is a
@@ -540,6 +542,13 @@ button, input, select, textarea {
 .boost-coord-body > .row > span { font-weight: 600; }
 .pv-system-note,
 .boost-coord-note { margin: 10px 0 0; }
+.chart-wrap-export { height: 180px; margin-top: var(--gap); }
+.export-rate-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); margin-top: var(--gap); }
+.export-rate-form label { display: grid; gap: 6px; color: var(--muted); font-size: .78rem; font-weight: 600; }
+.export-rate-form .schedule-add-btn { min-height: 44px; }
+.export-rate-hourly { height: auto; min-height: 76px; resize: vertical; padding: 10px 12px; }
+.export-rate-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.export-rate-actions > button { min-height: 44px; }
 /* Azimuth convention reminder + the live compass reading of what was typed —
    a hint only: the stored value stays degrees in the one Open-Meteo convention. */
 .pv-field-hint {
@@ -1910,6 +1919,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .wake-alarms-body,
 .reminders-body,
 .pv-system-body,
+.export-rate-body,
 .sun-overlay-body,
 .boost-coord-body {
   padding: 12px 14px 14px;

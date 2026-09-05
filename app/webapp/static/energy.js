@@ -12,18 +12,20 @@
 
 'use strict';
 
-import { state, els, reportFetchOk } from './state.js';
+import { state, els, reportFetchOk, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { esc, group, fmtW, fmtPct } from './format.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
   createLiveChart, setLiveData, pushLivePoint,
   createAggChart, setAggData, restyle,
+  createExportCreditChart, setExportCreditData, restyleExportCredit,
   createForecastChart, setForecastData, restyleForecast,
   createSunOverlayChart, setSunOverlayData, restyleSunOverlay,
 } from './charts.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
+import { confirmAction } from './confirm.js';
 import {
   arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
 } from './pv-system.js';
@@ -325,7 +327,7 @@ function num2(v) {
   return Number(v || 0).toFixed(2);
 }
 
-function costRow(label, hours, rate, grid, solar, cost, saved, sym, cls) {
+function costRow(label, hours, rate, grid, solar, cost, saved, earned, sym, cls) {
   const name = '<th scope="row"><span class="cost-period">' + esc(label) + '</span>'
     + (hours ? '<span class="cost-hours">' + esc(hours) + '</span>' : '') + '</th>';
   const rateCell = '<td class="cost-rate">' + (rate != null ? sym + Number(rate).toFixed(3) : '') + '</td>';
@@ -336,6 +338,7 @@ function costRow(label, hours, rate, grid, solar, cost, saved, sym, cls) {
     + '<td>' + num2(solar) + '</td>'
     + '<td>' + sym + num2(cost) + '</td>'
     + '<td class="cost-saved">' + sym + num2(saved) + '</td>'
+    + '<td class="cost-saved">' + sym + num2(earned) + '</td>'
     + '</tr>';
 }
 
@@ -349,7 +352,13 @@ function renderCost(body) {
   const totals = body && body.totals;
   const summary = body && body.summary;
   const sym = currencySymbol(body && body.currency);
-  const hasData = !!(totals && totals.consumption_kwh > 0);
+  const hasData = !!(totals && (
+    totals.consumption_kwh > 0 || totals.generation_kwh > 0 || totals.export_kwh > 0
+  ));
+
+  if (state.exportCreditChart) {
+    setExportCreditData(state.exportCreditChart, (body && body.money_series) || []);
+  }
 
   els.costEmpty.hidden = hasData;
   if (!hasData) {
@@ -362,11 +371,11 @@ function renderCost(body) {
 
   els.costBody.innerHTML = periods.map(function (p) {
     return costRow(p.label, p.hours, p.rate_eur_kwh, p.grid_kwh,
-      p.solar_kwh, p.grid_cost, p.savings, sym, '');
+      p.solar_kwh, p.grid_cost, p.savings, p.export_credit, sym, '');
   }).join('');
   els.costFoot.innerHTML = totals
     ? costRow('Total', '', null, totals.grid_kwh, totals.solar_kwh,
-        totals.grid_cost, totals.savings, sym, 'cost-total')
+        totals.grid_cost, totals.savings, summary.export_credit, sym, 'cost-total')
     : '';
 
   els.costSummary.innerHTML = (summary && totals) ? [
@@ -375,6 +384,7 @@ function renderCost(body) {
     // Surplus-compensation credit already netted into Est. bill; shown so the
     // figure is visible (renders €0.00 when export_eur_kwh is unconfigured).
     costStat('Export income', sym + num2(summary.export_credit), 'cost-pos'),
+    costStat('Total solar benefit', sym + num2(summary.total_solar_benefit), 'cost-pos'),
     costStat('Grid cost', sym + num2(totals.grid_cost)),
     costStat('Fixed', sym + num2(summary.fixed_cost)),
     costStat('Est. bill', sym + num2(summary.estimated_bill)),
@@ -396,6 +406,141 @@ async function loadCost(range) {
     renderCost(body);
   } catch (_) {
     els.costEmpty.hidden = false;
+  }
+}
+
+function renderExportRates(body) {
+  state.exportRates = (body && body.rates) || [];
+  const current = body && body.current_export_eur_kwh;
+  els.exportRateCurrent.textContent = current == null ? '—' : '€' + Number(current).toFixed(5) + '/kWh';
+  els.exportRateList.innerHTML = state.exportRates.length ? state.exportRates.slice().reverse().map(function (rate) {
+    const date = rate.effective_from === '0001-01-01' ? 'Legacy rate' : rate.effective_from;
+    const hourly = Array.isArray(rate.hourly_eur_kwh) ? ' · hourly overrides' : '';
+    return '<div class="list-row automation-summary-row"><button type="button" class="automation-summary-main export-rate-edit" data-rate-date="'
+      + esc(rate.effective_from) + '"><span class="automation-summary-copy">'
+      + '<span class="automation-summary-title">' + esc(date) + '</span>'
+      + '<span class="automation-summary-meta">€' + Number(rate.export_eur_kwh).toFixed(5) + ' / kWh' + hourly + '</span>'
+      + '</span><svg class="icon automation-summary-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></div>';
+  }).join('') : '<p class="muted small">No export-compensation rate yet.</p>';
+  els.exportRateList.querySelectorAll('.export-rate-edit').forEach(function (button) {
+    button.addEventListener('click', function () { editExportRate(button.dataset.rateDate); });
+  });
+}
+
+function resetExportRateForm() {
+  els.exportRateOriginalDate.value = '';
+  els.exportRateDate.value = localIsoDate();
+  els.exportRateValue.value = '';
+  els.exportRateHourly.value = '';
+  els.exportRateAdd.textContent = 'Add rate';
+  els.exportRateDelete.hidden = true;
+}
+
+function editExportRate(effectiveFrom) {
+  const rate = state.exportRates.find(function (entry) { return entry.effective_from === effectiveFrom; });
+  if (!rate || effectiveFrom === '0001-01-01') return;
+  els.exportRateOriginalDate.value = effectiveFrom;
+  els.exportRateDate.value = effectiveFrom;
+  els.exportRateValue.value = rate.export_eur_kwh;
+  els.exportRateHourly.value = Array.isArray(rate.hourly_eur_kwh)
+    ? rate.hourly_eur_kwh.map(function (value) { return value == null ? '' : value; }).join(', ')
+    : '';
+  els.exportRateAdd.textContent = 'Save changes';
+  els.exportRateDelete.hidden = false;
+  els.exportRateDate.focus();
+}
+
+function parseHourlyRates() {
+  const raw = els.exportRateHourly.value.trim();
+  if (!raw) return null;
+  const values = raw.split(',').map(function (part) {
+    const value = part.trim();
+    return value === '' ? null : Number(value);
+  });
+  if (values.length !== 24 || values.some(function (value) {
+    return value != null && (!Number.isFinite(value) || value < 0 || value > 10);
+  })) return false;
+  return values;
+}
+
+async function loadExportRates() {
+  if (!els.exportRateList) return;
+  try {
+    renderExportRates(await jsonApi('/api/energy/export-rates'));
+  } catch (exc) {
+    if (!isAuthRequired(exc)) els.exportRateList.innerHTML = '<p class="muted small">Rates unavailable.</p>';
+  }
+}
+
+async function addExportRate() {
+  const effectiveFrom = els.exportRateDate.value;
+  const rawValue = els.exportRateValue.value.trim();
+  const value = Number(rawValue);
+  const hourly = parseHourlyRates();
+  els.exportRateError.hidden = true;
+  if (!effectiveFrom) {
+    els.exportRateError.textContent = 'Choose the date this rate takes effect.';
+    els.exportRateError.hidden = false;
+    els.exportRateDate.focus();
+    return;
+  }
+  if (!rawValue) {
+    els.exportRateError.textContent = 'Enter an export rate.';
+    els.exportRateError.hidden = false;
+    els.exportRateValue.focus();
+    return;
+  }
+  if (!Number.isFinite(value) || value < 0 || value > 10) {
+    els.exportRateError.textContent = 'Rate must be between 0 and 10 EUR/kWh.';
+    els.exportRateError.hidden = false;
+    els.exportRateValue.focus();
+    return;
+  }
+  if (hourly === false) {
+    els.exportRateError.textContent = 'Hourly overrides must contain exactly 24 comma-separated rates (blank hours use the default).';
+    els.exportRateError.hidden = false;
+    els.exportRateHourly.focus();
+    return;
+  }
+  try {
+    const body = await jsonApi('/api/energy/export-rates', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        effective_from: effectiveFrom,
+        export_eur_kwh: value,
+        hourly_eur_kwh: hourly,
+        replace_effective_from: els.exportRateOriginalDate.value || null,
+      }),
+    });
+    renderExportRates(body);
+    resetExportRateForm();
+    await loadCost(state.costRange);
+    toast('Export rate saved', 'success');
+  } catch (exc) {
+    if (!isAuthRequired(exc)) toast("Couldn't save the export rate", 'error');
+  }
+}
+
+async function deleteExportRate() {
+  const effectiveFrom = els.exportRateOriginalDate.value;
+  if (!effectiveFrom) return;
+  const confirmed = await confirmAction({
+    title: 'Delete this export rate?',
+    message: 'Historical export on and after this date may be repriced using an earlier entry.',
+    okLabel: 'Delete rate',
+    danger: true,
+  });
+  if (!confirmed) return;
+  try {
+    const body = await jsonApi('/api/energy/export-rates?effective_from=' + encodeURIComponent(effectiveFrom), {
+      method: 'DELETE',
+    });
+    renderExportRates(body);
+    resetExportRateForm();
+    await loadCost(state.costRange);
+    toast('Export rate deleted', 'success');
+  } catch (exc) {
+    if (!isAuthRequired(exc)) toast("Couldn't delete the export rate", 'error');
   }
 }
 
@@ -594,6 +739,7 @@ function wireSunOverlay() {
 function ensureCharts() {
   if (!state.liveChart) state.liveChart = createLiveChart(els.liveChart);
   if (!state.aggChart) state.aggChart = createAggChart(els.aggChart);
+  if (!state.exportCreditChart) state.exportCreditChart = createExportCreditChart(els.exportCreditChart);
   if (!state.forecastChart) state.forecastChart = createForecastChart(els.forecastChart);
 }
 
@@ -610,6 +756,21 @@ async function loadAggregate(range) {
     const body = await jsonApi('/api/energy/aggregate?range=' + encodeURIComponent(range));
     const buckets = (body && body.buckets) || [];
     setAggData(state.aggChart, buckets);
+    const sums = buckets.reduce(function (out, bucket) {
+      out.production += Number(bucket.pv_wh) || 0;
+      out.consumption += Number(bucket.house_wh) || 0;
+      out.grid += Number(bucket.import_wh) || 0;
+      out.exported += Number(bucket.export_wh) || 0;
+      return out;
+    }, { production: 0, consumption: 0, grid: 0, exported: 0 });
+    sums.solar = Math.max(0, sums.consumption - sums.grid);
+    els.energySummary.innerHTML = [
+      costStat('Production', num2(sums.production / 1000) + ' kWh'),
+      costStat('Consumption', num2(sums.consumption / 1000) + ' kWh'),
+      costStat('Solar consumed', num2(sums.solar / 1000) + ' kWh', 'cost-pos'),
+      costStat('Grid imported', num2(sums.grid / 1000) + ' kWh'),
+      costStat('Solar exported', num2(sums.exported / 1000) + ' kWh', 'cost-pos'),
+    ].join('');
     els.aggEmpty.hidden = buckets.length > 0;
   } catch (_) {
     els.aggEmpty.hidden = false;
@@ -634,6 +795,11 @@ export function wireEnergyControls() {
   els.forecastDayBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setForecastDay(btn.dataset.day); });
   });
+  if (els.exportRateAdd) {
+    els.exportRateDate.value = localIsoDate();
+    els.exportRateAdd.addEventListener('click', addExportRate);
+    els.exportRateDelete.addEventListener('click', deleteExportRate);
+  }
   // Editing the array/coordinates changes what the forecast is computed from,
   // so every successful save re-reads the curve for the day on screen — and
   // the resolved estimate feeds the save toast (issue #564).
@@ -658,6 +824,7 @@ export function onEnergyTab(tab) {
     loadLiveHistory();
     loadAggregate(state.range);
     loadCost(state.costRange);  // cost & savings breakdown table
+    loadExportRates();
     loadForecast(state.forecastDay);  // solar expected-generation forecast
     loadPvSystem();        // the array config that forecast is computed from
     // The sun-position diagnostic refreshes only while it is open (#590) —
@@ -678,6 +845,7 @@ export function onEnergyTab(tab) {
 export function restyleEnergyCharts() {
   restyle(state.liveChart, 'W');
   restyle(state.aggChart, 'kWh');
+  restyleExportCredit(state.exportCreditChart);
   restyleForecast(state.forecastChart);
   restyleSunOverlay(state.sunOverlayChart);
 }

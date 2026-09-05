@@ -77,11 +77,11 @@ prorated by the window's day count and grossed up by VAT. It feeds the summary's
 
 ## Export income (surplus compensation)
 
-`export_credit = export_kwh × export_eur_kwh`, surfaced as the summary's "Export income" stat and subtracted from "Estimated bill". Set `export_eur_kwh` to whatever €/kWh your surplus-compensation product pays: the regulated-market *compensación simplificada de excedentes* on PVPC (~€0.04/kWh, netted monthly, surplus beyond the month's bill is lost), or a free-market *monedero virtual* / batería virtual tariff (~€0.06–0.07/kWh, banked across months). With no compensation contracted, leave it at `0.0` — the stat then reads €0.00 rather than disappearing, so the field stays discoverable.
+Export credit is priced hour by hour: `hourly export kWh × the latest export_rates entry effective on or before that local date`. The Energy tab's collapsible Export compensation editor can add, edit, and delete dated rates. Each entry may also carry 24 hourly overrides (00–23); a blank hour falls back to that entry's default. The open Money report plots grid cost, avoided-import savings, and export income, while its summary shows their totals and total solar benefit. Use the rate your surplus-compensation product pays; with no compensation contracted, enter `0.0`. Existing files with one `export_eur_kwh` scalar remain readable and that legacy value applies to all dates until the first UI save migrates it to the dated list.
 
 ## Limitations
 
 - Flat-average commodity price (see above) — replace per-invoice for accuracy.
 - Holidays must be listed manually in `config/tariff.json` (`holidays: ["YYYY-MM-DD", …]`); unlisted national/local holidays are billed as their weekday period instead of valle.
 - Long windows (Year, Σ Total) only fill as the local history DB accrues data — see the data-retention note in the README.
-- Export is a single flat `export_eur_kwh` credit applied per window; the real schemes' banking/expiry rules (monthly netting cap on PVPC, multi-year rollover on a monedero virtual) are not modelled, and no running monedero balance is persisted.
+- Export rates are user-entered rather than downloaded from PVPC/ESIOS; the real schemes' banking/expiry rules (monthly netting cap on PVPC, multi-year rollover on a monedero virtual) are not modelled, and no running monedero balance is persisted.

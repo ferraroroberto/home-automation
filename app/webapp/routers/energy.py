@@ -39,11 +39,28 @@ from src.pv_system_config import (
 )
 from src.sun_position import sun_position
 from src.huawei_client import EnergyState, fetch_energy_state
-from src.tariff import cost_breakdown, load_tariff
+from src.tariff import (
+    cost_breakdown,
+    delete_export_rate,
+    export_rates_payload,
+    group_money_series,
+    load_tariff,
+    rate_for,
+    save_export_rate,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class ExportRatePayload(BaseModel):
+    """One dated surplus-compensation rate entered in the Energy tab."""
+
+    effective_from: str
+    export_eur_kwh: float
+    hourly_eur_kwh: Optional[List[Optional[float]]] = None
+    replace_effective_from: Optional[str] = None
 
 
 def _energy_dict(s: EnergyState) -> Dict[str, Any]:
@@ -171,6 +188,7 @@ async def get_energy_cost(
         buckets = hourly_range(range)
         tariff = load_tariff()
         result = cost_breakdown(buckets, tariff, _window_days(range, buckets))
+        result["money_series"] = group_money_series(result["money_series"], range)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -178,6 +196,58 @@ async def get_energy_cost(
         raise HTTPException(status_code=502, detail=f"failed to build cost: {exc}")
     result["range"] = range
     return result
+
+
+@router.get("/api/energy/export-rates")
+async def get_export_rates() -> Dict[str, Any]:
+    """Dated surplus-compensation rates for the Energy-tab editor."""
+    tariff = load_tariff()
+    now = datetime.now()
+    return {
+        "configured": tariff.configured,
+        "currency": tariff.currency,
+        "current_export_eur_kwh": rate_for(now, tariff),
+        "rates": export_rates_payload(tariff),
+    }
+
+
+@router.put("/api/energy/export-rates")
+async def update_export_rate(payload: ExportRatePayload) -> Dict[str, Any]:
+    """Upsert one effective-dated rate without replacing the tariff document."""
+    try:
+        tariff = save_export_rate(
+            payload.effective_from,
+            payload.export_eur_kwh,
+            hourly_eur_kwh=payload.hourly_eur_kwh,
+            replace_effective_from=payload.replace_effective_from,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    now = datetime.now()
+    return {
+        "configured": tariff.configured,
+        "currency": tariff.currency,
+        "current_export_eur_kwh": rate_for(now, tariff),
+        "rates": export_rates_payload(tariff),
+    }
+
+
+@router.delete("/api/energy/export-rates")
+async def remove_export_rate(
+    effective_from: str = Query(...),
+) -> Dict[str, Any]:
+    """Delete one dated compensation rate from the editable history."""
+    try:
+        tariff = delete_export_rate(effective_from)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    now = datetime.now()
+    return {
+        "configured": tariff.configured,
+        "currency": tariff.currency,
+        "current_export_eur_kwh": rate_for(now, tariff),
+        "rates": export_rates_payload(tariff),
+    }
 
 
 # Day selector → offset from today, for reading that day's measured generation.
