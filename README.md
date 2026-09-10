@@ -36,12 +36,15 @@ The PWA does **not** poll everything continuously. Each tab's data is fetched on
 | AC units | 30 s | Home, AC | One boot fetch on load; otherwise gated to these tabs (#209). |
 | Energy | 5 s active / 30 s slow | Energy (fast), Home (slow) | Served from one cached cloud read. |
 | Plugs | 15 s | IoT | Tuya LAN reads. |
+| Circuits | 15 s | IoT | Per-circuit Athom CT-clamp reads. |
 | UPS | 15 s | IoT, Home | Local NUT/USB-HID read. |
 | PC fleet | 15 s | IoT | Machine roster via the local hub proxy (#498). |
 | Lights | 15 s | IoT | Elgato LAN reads. |
 | Network | 15 s | Network | AP SOAP + router reads; speed test is button-only. |
 | Security | 10 s | Security, Home | RISCO cloud. |
 | HA VM | 30 s | Home | Hyper-V `Get-VM` on the host (#240). |
+| HA / Voice PE | 15 s | Home (card open) | Satellite state + recent interactions (#239). |
+| SearXNG status | 30 s | Home | Container status sub-card of the HA card (#321). |
 | Weather | ~10 min | (always) | Barely moves. |
 | Build version | 5 min | (always) | Cheap; drives the build-identity footer. |
 
