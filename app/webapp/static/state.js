@@ -370,6 +370,12 @@ export const els = {
   cameraZoomName: document.getElementById('cameraZoomName'),
   cameraZoomClose: document.getElementById('cameraZoomClose'),
   cameraZoomImg: document.getElementById('cameraZoomImg'),
+  // PTZ preset name prompt (issue #722) — shared by savePreset/renamePreset.
+  cameraPresetNameDialog: document.getElementById('cameraPresetNameDialog'),
+  cameraPresetNameTitle: document.getElementById('cameraPresetNameTitle'),
+  cameraPresetNameClose: document.getElementById('cameraPresetNameClose'),
+  cameraPresetNameInput: document.getElementById('cameraPresetNameInput'),
+  cameraPresetNameSave: document.getElementById('cameraPresetNameSave'),
   // IoT tab — Plugs / Lights / Blinds, each a collapsible row-list card (#136).
   plugsFeedback: document.getElementById('plugsFeedback'),
   plugsCard: document.getElementById('plugsCard'),

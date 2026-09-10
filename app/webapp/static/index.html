@@ -2388,6 +2388,28 @@
     </div>
   </dialog>
 
+  <!-- PTZ preset name prompt (issue #722): save/rename share this one styled
+       dialog instead of a native window.prompt() — every other rename/create
+       flow in the PWA already goes through a styled <dialog>, this was the
+       one holdout. Title + initial value are set per-open in JS. -->
+  <dialog id="cameraPresetNameDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="cameraPresetNameTitle">Preset name</h2>
+        <button id="cameraPresetNameClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Name</span>
+        <input id="cameraPresetNameInput" type="text" class="input-native" placeholder="Preset name…">
+      </label>
+
+      <div class="detail-actions">
+        <button id="cameraPresetNameSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Presence entity/person detail + rename/hide modal. -->
   <dialog id="presenceDialog" class="detail-dialog">
     <div class="detail-card">

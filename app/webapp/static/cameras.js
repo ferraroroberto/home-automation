@@ -430,6 +430,34 @@ function renderPresets() {
   });
 }
 
+// Preset-name prompt (issue #722): a small styled <dialog>, same pattern as
+// confirm.js's Promise<boolean>, replacing the one native window.prompt()
+// this app otherwise had. Resolves the trimmed name, or null on cancel.
+let presetNameResolver = null;
+
+function closePresetNamePrompt(result) {
+  closeDialog(els.cameraPresetNameDialog);
+  const resolve = presetNameResolver;
+  presetNameResolver = null;
+  if (resolve) resolve(result);
+}
+
+function promptPresetName(title, initial) {
+  if (!els.cameraPresetNameDialog) return Promise.resolve(null);
+  els.cameraPresetNameTitle.textContent = title;
+  els.cameraPresetNameInput.value = initial || '';
+  return new Promise(function (resolve) {
+    presetNameResolver = resolve;
+    openDialog(els.cameraPresetNameDialog);
+    els.cameraPresetNameInput.focus();
+    els.cameraPresetNameInput.select();
+  });
+}
+
+function onPresetNameSave() {
+  closePresetNamePrompt(els.cameraPresetNameInput.value.trim());
+}
+
 async function loadPresets(cameraId) {
   try {
     const body = await jsonApi('/api/cameras/' + encodeURIComponent(cameraId) + '/presets');
@@ -449,9 +477,9 @@ async function savePreset() {
   // Let the user name the preset so the chip is recognisable instead of an
   // anonymous "Position N" (#212). Cancel aborts; blank falls back to Position N.
   const fallback = 'Position ' + ((state.cameraPresets || []).length + 1);
-  const entered = window.prompt('Name this preset:', fallback);
+  const entered = await promptPresetName('Name this preset', fallback);
   if (entered === null) return;
-  const name = entered.trim() || fallback;
+  const name = entered || fallback;
   try {
     await jsonApi('/api/cameras/' + encodeURIComponent(id) + '/presets', {
       method: 'POST',
@@ -469,13 +497,13 @@ async function savePreset() {
 async function renamePreset(token, current) {
   const id = state.selectedCameraId;
   if (!id) return;
-  const entered = window.prompt('Rename preset:', current || '');
+  const entered = await promptPresetName('Rename preset', current || '');
   if (entered === null) return;
   try {
     await jsonApi('/api/cameras/' + encodeURIComponent(id) + '/presets/' + encodeURIComponent(token) + '/name', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: entered.trim() }),
+      body: JSON.stringify({ name: entered }),
     });
     await loadPresets(id);
     toast('Renamed', 'success');
@@ -655,6 +683,17 @@ export function wireCameras() {
   bindPtzButton(els.cameraZoomOut, { zoom: 'out' });
   els.cameraPtzModeBtn.addEventListener('click', togglePtzMode);
   els.cameraPresetSave.addEventListener('click', savePreset);
+  if (els.cameraPresetNameDialog) {
+    els.cameraPresetNameClose.addEventListener('click', function () { closePresetNamePrompt(null); });
+    els.cameraPresetNameDialog.addEventListener('click', function (ev) {
+      if (ev.target === els.cameraPresetNameDialog) closePresetNamePrompt(null);
+    });
+    els.cameraPresetNameDialog.addEventListener('cancel', function () { closePresetNamePrompt(null); });
+    els.cameraPresetNameSave.addEventListener('click', onPresetNameSave);
+    els.cameraPresetNameInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); onPresetNameSave(); }
+    });
+  }
   els.cameraCoordsRefresh.addEventListener('click', refreshCoords);
   els.cameraCoordsGo.addEventListener('click', gotoCoords);
   els.cameraSnapBtn.addEventListener('click', downloadSnapshot);

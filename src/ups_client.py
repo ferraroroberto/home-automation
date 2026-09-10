@@ -181,6 +181,8 @@ def _read_nut() -> UpsState:
             check=False,
             capture_output=True,
             text=True,
+            encoding=console_encoding(),
+            errors="replace",
             timeout=5,
             creationflags=NO_WINDOW,
         )
@@ -196,6 +198,8 @@ def _read_nut() -> UpsState:
         check=False,
         capture_output=True,
         text=True,
+        encoding=console_encoding(),
+        errors="replace",
         timeout=5,
         creationflags=NO_WINDOW,
     )
@@ -253,6 +257,8 @@ def _read_nut_direct() -> UpsState:
         check=False,
         capture_output=True,
         text=True,
+        encoding=console_encoding(),
+        errors="replace",
         timeout=8,
         env=env,
         creationflags=NO_WINDOW,
