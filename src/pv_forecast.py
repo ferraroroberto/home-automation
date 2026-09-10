@@ -60,6 +60,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 
+from src._backoff import compute_delay
 from src.location_config import LocationConfig, load_location_config
 from src.pv_system_config import (
     PvArray,
@@ -216,7 +217,7 @@ def _backoff_for(streak: int) -> float:
     """Seconds to stay quiet after ``streak`` consecutive 429s."""
     if streak < 1:
         return 0.0
-    return min(_FAILURE_BACKOFF_MAX_S, _FAILURE_BACKOFF_BASE_S * 2 ** (streak - 1))
+    return compute_delay(streak, base_s=_FAILURE_BACKOFF_BASE_S, max_s=_FAILURE_BACKOFF_MAX_S)
 
 
 def _note_failure(now: float) -> None:
