@@ -13,6 +13,7 @@ import logging
 import subprocess
 import sys
 
+from src._console_encoding import console_encoding
 from src._no_window import NO_WINDOW
 
 logger = logging.getLogger("host_shutdown")
@@ -44,6 +45,8 @@ def initiate_shutdown(*, grace_seconds: int = 180, message: str = "") -> bool:
             check=False,
             capture_output=True,
             text=True,
+            encoding=console_encoding(),
+            errors="replace",
             timeout=10,
             creationflags=NO_WINDOW,
         )
@@ -76,6 +79,8 @@ def cancel_shutdown() -> bool:
             check=False,
             capture_output=True,
             text=True,
+            encoding=console_encoding(),
+            errors="replace",
             timeout=10,
             creationflags=NO_WINDOW,
         )
