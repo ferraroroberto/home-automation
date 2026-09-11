@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -198,3 +199,64 @@ def test_pair_surfaces_an_unexpected_failure_as_502(
 
     assert response.status_code == 502
     assert "connection reset" in response.json()["detail"]
+
+
+def test_tuya_route_surfaces_no_ip_identity_and_refresh(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """No-IP Tuya rows stay visible with stable non-secret identity metadata."""
+    import json
+
+    import src.tuya_client as tuya_client
+    from src.tuya_client import TuyaDeviceInfo
+
+    # ``POST /api/tuya/pair`` reads ``devices.json`` off disk (issue #621) —
+    # point it at a throwaway file so the test never depends on whether the
+    # real, gitignored one happens to exist in the checkout running it.
+    devices_file = tmp_path / "devices.json"
+    devices_file.write_text(
+        json.dumps([{"id": "plug-noip", "name": "Fixture Plug", "key": "k"}]),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tuya_client, "_DEVICE_FILE", devices_file)
+
+    info = TuyaDeviceInfo(
+        device_id="plug-noip",
+        name="Fixture Plug",
+        category="cz",
+        mac="AA:BB:CC:DD:EE:FF",
+        uuid="uuid-fixture",
+        sn="sn-fixture",
+        ip="Auto",
+        has_valid_ip=False,
+        has_local_key=True,
+        switch_dps="1",
+    )
+
+    monkeypatch.setattr("app.webapp.routers.tuya.list_devices", lambda: [info])
+    monkeypatch.setattr("app.webapp.routers.tuya.load_tuya_display_names", lambda: {})
+
+    body = client.get("/api/tuya").json()
+    card = body["devices"][0]
+    assert card["device_id"] == "plug-noip"
+    assert card["mac"] == "AA:BB:CC:DD:EE:FF"
+    assert card["uuid"] == "uuid-fixture"
+    assert card["sn"] == "sn-fixture"
+    assert card["ip"] == "Auto"
+    assert card["reachable"] is False
+    # A no-IP device with a key reports the LAN-scan reason, not the wizard one.
+    assert "No local IP" in card["error"]
+
+    # Add (the only remaining rediscovery path, #612) runs a LAN rescan
+    # server-side; fake both it and the cloud so the test never leaves the box.
+    monkeypatch.setattr(
+        "app.webapp.routers.tuya.rescan_addresses",
+        lambda: {"found": 2, "updated": ["plug-noip"], "addresses": {"plug-noip": "192.0.2.7"}},
+    )
+    monkeypatch.setattr("src.tuya_cloud._fetch_cloud_rows", lambda entries: [])
+    paired = client.post("/api/tuya/pair")
+    assert paired.status_code == 200
+    pair = paired.json()["pair"]
+    assert pair["found"] == 2
+    assert pair["recovered"] == ["plug-noip"]
+    assert "recovered 1 stale" in pair["detail"]
