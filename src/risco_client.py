@@ -591,29 +591,6 @@ async def fetch_events(count: int = 50, days: int = 30) -> List[SecurityEvent]:
 
 
 # --------------------------------------------------------------- controls
-async def _apply(
-    risco: RiscoCloud,
-    action: str,
-    partition_id: int,
-    perimeter_group: Optional[str],
-    partial_group: Optional[str],
-) -> None:
-    """Issue one arming action against one partition."""
-    if action == "disarm":
-        await risco.disarm(partition_id)
-    elif action == "arm":
-        await risco.arm(partition_id)
-    elif action == "partial":
-        await risco.group_arm(partition_id, partial_group)
-    elif action == "perimeter":
-        if perimeter_group:
-            await risco.group_arm(partition_id, perimeter_group)
-        else:
-            # Confirmed by the live probe: native "Perimeter Set" produces
-            # eventId 15 ("perimeter/part mode"), which is pyrisco's partial_arm.
-            await risco.partial_arm(partition_id)
-
-
 async def control_system(action: str, partition_id: Optional[int] = None) -> SecurityState:
     """Run an arming action and return the re-read state.
 
