@@ -1,4 +1,4 @@
-"""``_adopt_port()`` must fail loud, never guess, on a broken config (#593).
+"""The e2e harness's ``_adopt_port()`` must fail loud, never guess (#593).
 
 fleet-config#537 fixed the common case (a worktree's copied config is now
 rewritten to a non-colliding port), but the pre-existing bare ``except
@@ -6,9 +6,13 @@ Exception: return 8447`` fallback still silently guessed the primary's port
 whenever the config genuinely couldn't be resolved. From inside a worktree
 that guess is wrong -- it declares a false collision with the primary's live
 tray, the exact false positive this function exists to avoid. The fix
-removes the guess: a config that fails to parse cleanly (as opposed to one
-that's simply missing, which ``load_webapp_config()`` already treats as "use
-defaults") now propagates instead of being papered over.
+removes the guess: a config that fails to parse cleanly now propagates
+instead of being papered over. (A missing config is simply "use defaults",
+pinned by ``tests/test_webapp_config.py``.)
+
+A plain unit test rather than a browser test: nothing here touches a page,
+and under ``tests/e2e`` the autouse browser fixtures ran it once per
+projection (#732).
 """
 
 from __future__ import annotations
@@ -28,12 +32,3 @@ def test_adopt_port_raises_on_invalid_config(monkeypatch: pytest.MonkeyPatch, tm
 
     with pytest.raises(ValueError):
         _adopt_port()
-
-
-def test_adopt_port_falls_back_to_default_when_config_absent(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    missing = tmp_path / "does_not_exist.json"
-    monkeypatch.setattr(webapp_config, "DEFAULT_CONFIG_PATH", missing)
-
-    assert _adopt_port() == webapp_config.DEFAULT_PORT
