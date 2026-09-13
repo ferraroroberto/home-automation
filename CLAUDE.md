@@ -1,6 +1,6 @@
 # Project Instructions
 
-Claude Code reads this file directly as project memory; other agents reach it via the `AGENTS.md` pointer.
+Claude Code reads this file directly as project memory; other agents (Cursor, Codex, …) reach it via the `AGENTS.md` pointer.
 
 > Universal dev-workflow directives (plan mode, asking, editing, git, branch/PR, docs) live once in `~/.claude/CLAUDE.md` and are not restated here. This file owns only what is specific to this project's shape.
 
