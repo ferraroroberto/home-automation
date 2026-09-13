@@ -21,6 +21,14 @@ def test_save_load_round_trip(tmp_path: Path) -> None:
     assert cfg.host == "127.0.0.1" and cfg.port == 9000 and cfg.auth_token == "tok"
 
 
+def test_out_of_range_port_raises(tmp_path: Path) -> None:
+    """A config that parses but carries an invalid port fails loud (#593)."""
+    path = tmp_path / "webapp_config.json"
+    path.write_text('{"port": 99999}', encoding="utf-8")
+    with pytest.raises(ValueError, match="port out of range"):
+        load_webapp_config(path)
+
+
 def test_unreadable_file_raises_instead_of_returning_defaults(tmp_path: Path) -> None:
     """Issue #692: corrupt content must not look like "no config saved yet" —
     ``update_webapp_config`` would save the defaults back over a real

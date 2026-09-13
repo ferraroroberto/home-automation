@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, NamedTuple, Optional
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rects
@@ -51,65 +52,106 @@ def test_plugs_tab_renders_all_devices(
     expect(page.locator("#blindsList")).to_contain_text("Test Blind")
 
 
-def test_plugs_distinguish_loading_from_true_empty(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
-) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    mock_tuya([])
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/tuya' || url.endsWith('/api/tuya')) {
-            return new Promise(function(resolve, reject) {
-              setTimeout(function() {
-                originalFetch(input, init).then(resolve, reject);
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+class _FeedbackPanel(NamedTuple):
+    endpoint: str
+    empty_body: Dict
+    tab: Optional[str]  # tab to open after boot; None = the panel is on Home
+    feedback: str
+    loading_message: str
+    empty_message: str
+    error_message: str
+    leaked_host: str  # named in the 503 detail; must never reach a toast
+
+
+# The Plugs panel and the Home UPS tile render the same feedback contract, so
+# the loading and unavailable states run as one parametrized test each. The
+# stale-on-refresh case stays per panel: the refresh trigger and the last-good
+# content it must preserve differ between them.
+_FEEDBACK_PANELS = [
+    pytest.param(_FeedbackPanel(
+        "/api/tuya", {"devices": []}, "#tabIot", "#plugsFeedback",
+        "Reading plugs and blinds…", "No Smart Life devices configured",
+        "Plugs and blinds unavailable", "192.0.2.60",
+    ), id="plugs"),
+    pytest.param(_FeedbackPanel(
+        "/api/ups", {"ups": {"available": False, "source": "none", "error": None}}, None, "#homeUpsTile",
+        "Reading UPS status…", "No UPS detected",
+        "UPS status unavailable", "192.0.2.70",
+    ), id="ups"),
+]
+
+# Holds the panel's first read open for 750 ms so the loading state is observable.
+_DELAY_FETCH_SCRIPT = """
+    const delayedUrl = %s;
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = function(input, init) {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url === delayedUrl || url.endsWith(delayedUrl)) {
+        return new Promise(function(resolve, reject) {
+          setTimeout(function() {
+            originalFetch(input, init).then(resolve, reject);
+          }, 750);
+        });
+      }
+      return originalFetch(input, init);
+    };
+"""
+
+
+def _open_panel(page: Page, base_url: str, panel: _FeedbackPanel) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    page.locator("#tabIot").click()
-
-    expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "loading")
-    expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
-        "Reading plugs and blinds…"
-    )
-    expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "empty")
-    expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
-        "No Smart Life devices configured"
-    )
+    if panel.tab:
+        page.locator(panel.tab).click()
 
 
-def test_plugs_show_contextual_unavailable_state(
+@pytest.mark.parametrize("panel", _FEEDBACK_PANELS)
+def test_panel_distinguishes_loading_from_true_empty(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+    panel: _FeedbackPanel,
 ) -> None:
     mock_api(sample_units)
     mock_energy()
     mock_tuya([])
     page.route(
-        "**/api/tuya",
+        f"**{panel.endpoint}",
         lambda route: route.fulfill(
-            status=503,
-            content_type="application/json",
-            body='{"detail":"device 192.0.2.60 timed out after 10 seconds"}',
+            status=200, content_type="application/json", body=json.dumps(panel.empty_body),
         ),
     )
-    page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#paneHome", state="visible")
-    page.locator("#tabIot").click()
+    page.add_init_script(_DELAY_FETCH_SCRIPT % json.dumps(panel.endpoint))
+    _open_panel(page, base_url, panel)
 
-    expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "error")
-    expect(page.locator("#plugsFeedback .empty-state-message")).to_have_text(
-        "Plugs and blinds unavailable"
+    feedback = page.locator(panel.feedback)
+    message = page.locator(f"{panel.feedback} .empty-state-message")
+    expect(feedback).to_have_attribute("data-state", "loading")
+    expect(message).to_have_text(panel.loading_message)
+    expect(feedback).to_have_attribute("data-state", "empty")
+    expect(message).to_have_text(panel.empty_message)
+
+
+@pytest.mark.parametrize("panel", _FEEDBACK_PANELS)
+def test_panel_shows_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+    panel: _FeedbackPanel,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_tuya([])
+    page.route(
+        f"**{panel.endpoint}",
+        lambda route: route.fulfill(
+            status=503, content_type="application/json",
+            body=json.dumps({"detail": f"{panel.leaked_host} timed out after 10 seconds"}),
+        ),
     )
-    expect(page.locator("#toast")).not_to_contain_text("192.0.2.60")
+    _open_panel(page, base_url, panel)
+
+    expect(page.locator(panel.feedback)).to_have_attribute("data-state", "error")
+    expect(page.locator(f"{panel.feedback} .empty-state-message")).to_have_text(panel.error_message)
+    expect(page.locator("#toast")).not_to_contain_text(panel.leaked_host)
 
 
 def test_plug_refresh_failure_preserves_last_good_rows(
@@ -138,69 +180,6 @@ def test_plug_refresh_failure_preserves_last_good_rows(
     expect(page.locator("#plugsFeedback")).to_contain_text("Last updated")
     expect(page.locator("#plugsFeedback")).to_contain_text("live data unavailable")
     expect(page.locator("#plugsFeedback")).not_to_contain_text("192.0.2.60")
-
-
-def test_ups_distinguishes_loading_from_not_detected(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
-) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    mock_tuya([])
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/ups' || url.endsWith('/api/ups')) {
-            return new Promise(function(resolve) {
-              setTimeout(function() {
-                resolve(new Response(JSON.stringify({
-                  ups: {available: false, source: 'none', error: null}
-                }), {
-                  status: 200,
-                  headers: {'Content-Type': 'application/json'},
-                }));
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
-    page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#paneHome", state="visible")
-
-    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "loading")
-    expect(page.locator("#homeUpsTile .empty-state-message")).to_have_text(
-        "Reading UPS status…"
-    )
-    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "empty")
-    expect(page.locator("#homeUpsTile .empty-state-message")).to_have_text(
-        "No UPS detected"
-    )
-
-
-def test_ups_shows_contextual_unavailable_state(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable,
-) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    page.route(
-        "**/api/ups",
-        lambda route: route.fulfill(
-            status=503,
-            content_type="application/json",
-            body='{"detail":"nut host 192.0.2.70 timed out after 10 seconds"}',
-        ),
-    )
-    page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#paneHome", state="visible")
-
-    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "error")
-    expect(page.locator("#homeUpsTile .empty-state-message")).to_have_text(
-        "UPS status unavailable"
-    )
-    expect(page.locator("#toast")).not_to_contain_text("192.0.2.70")
 
 
 def test_ups_poll_failure_preserves_last_good_status(
