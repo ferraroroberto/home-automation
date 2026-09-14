@@ -307,3 +307,56 @@ def test_presence_icloud_account_rows_offer_trust_renewal(
     expect(page.get_by_test_id("presence-trust-code")).to_be_focused()
     expect(page.get_by_test_id("presence-trust-verify")).to_be_enabled()
     assert len(begins) == 1
+
+
+def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """Issue #736: an account Apple holds until updated terms are accepted shows
+    that state and the account holder's remedy, with no Renew trust button —
+    renewal would re-sign in and hit the same refusal. The healthy account's
+    row keeps its button. Fixture names only (public repo)."""
+
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    terms_detail = (
+        "Apple requires this Apple Account to accept updated iCloud terms. Sign in "
+        "at icloud.com or on one of the account's devices and accept them; Find My "
+        "recovers on the next background refresh."
+    )
+    mock_presence({
+        "available": True,
+        "total_count": 0, "located_count": 0, "home_count": 0, "away_count": 0,
+        "unknown_count": 0, "all_away": False, "home_radius_m": 200,
+        "entities": [],
+        "diagnostics": {
+            "available": True,
+            "reason": "partial",
+            "detail": "1 of 2 iCloud accounts need re-auth (account 1)",
+            "refreshed_at": "2026-06-22T10:00:00+00:00",
+            "accounts": [
+                {"label": "1", "available": False, "reason": "terms_required",
+                 "detail": terms_detail, "entity_count": 0,
+                 "display_name": "Fixture One", "trusted": None},
+                {"label": "2", "available": True, "reason": "ok", "detail": "",
+                 "entity_count": 1, "display_name": "two@example.com", "trusted": True},
+            ],
+        },
+        "automation": {"auto_arm_enabled": False, "arm_away_after_s": 900,
+                       "stale_after_s": 3600, "auto_disarm_enabled": False},
+    })
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("details.presence-card > summary").click()
+
+    rows = page.get_by_test_id("presence-account-row")
+    expect(rows).to_have_count(2)
+    expect(rows.nth(0)).to_have_class(re.compile(r"\bis-broken\b"))
+    expect(rows.nth(0)).to_contain_text("updated terms")
+    expect(rows.nth(0)).to_contain_text("icloud.com")
+    expect(rows.nth(0)).not_to_contain_text("broken: error")
+    expect(rows.nth(0).get_by_test_id("presence-account-renew")).to_have_count(0)
+    expect(rows.nth(1).get_by_test_id("presence-account-renew")).to_have_text("Renew trust")

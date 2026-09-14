@@ -164,7 +164,7 @@ function markPresenceFailure() {
 
 // Fail loud when the Find My diagnostics source itself is broken (#442) —
 // distinct from a person simply being "away, unknown exact location".
-const LOCATOR_BROKEN_SOURCE_REASONS = ['error', '2fa_required', 'not_configured'];
+const LOCATOR_BROKEN_SOURCE_REASONS = ['error', '2fa_required', 'terms_required', 'not_configured'];
 function renderLocatorSourceNote() {
   if (!els.locatorSourceNote) return;
   const diag = (state.presence && state.presence.diagnostics) || {};
@@ -176,7 +176,9 @@ function renderLocatorSourceNote() {
   }
   els.locatorSourceNote.textContent = diag.reason === '2fa_required'
     ? 'Find My needs iCloud re-authentication (2FA).'
-    : 'Find My location tracking is down — needs re-authentication.';
+    : diag.reason === 'terms_required'
+      ? 'Find My is down — an iCloud account must accept Apple’s updated terms.'
+      : 'Find My location tracking is down — needs re-authentication.';
   els.locatorSourceNote.hidden = false;
 }
 
@@ -288,7 +290,9 @@ export function renderPresence() {
     els.presenceNote.hidden = false;
     els.presenceNote.textContent = presence.reason === '2fa_required'
       ? 'iCloud needs re-authentication — use Renew trust on the account row below.'
-      : (presence.detail || 'Presence is not configured.');
+      : presence.reason === 'terms_required'
+        ? 'An iCloud account must accept Apple’s updated terms — see the account row below.'
+        : (presence.detail || 'Presence is not configured.');
     hidePresenceRefreshNote();
     return;
   }
@@ -415,7 +419,9 @@ function renderPresenceRefreshNote() {
 // pyicloud session server-side: begin (Apple pushes a 6-digit code) → the code
 // dialog → complete. Untrusted is not broken — Find My keeps serving; only
 // fresh sign-ins get expensive — so the row states it plainly rather than as
-// an error, and the button is merely emphasised.
+// an error, and the button is merely emphasised. An account Apple holds until
+// updated terms are accepted (#736) gets no button at all: renewal re-signs in
+// and hits the same refusal, and accepting is the account holder's own step.
 const accountNotes = {};   // label → inline result line, survives the 10 s re-render
 const accountBusy = {};    // label → true while begin is in flight
 let trustAccount = null;   // the account the code dialog is open for
@@ -425,6 +431,9 @@ function accountLabel(acct) {
 }
 
 function accountTrustState(acct) {
+  if (acct.available === false && acct.reason === 'terms_required') {
+    return { cls: 'is-broken', text: 'needs Apple’s updated terms accepted' };
+  }
   if (acct.available === false) {
     return { cls: 'is-broken', text: 'broken: ' + (acct.reason || 'error') };
   }
@@ -454,6 +463,7 @@ function renderPresenceAccounts(presence) {
     row.dataset.account = label;
     row.dataset.testid = 'presence-account-row';
 
+    const termsRequired = acct.available === false && acct.reason === 'terms_required';
     const main = document.createElement('div');
     main.className = 'presence-main';
     const name = document.createElement('span');
@@ -464,14 +474,19 @@ function renderPresenceAccounts(presence) {
     stateLine.className = 'presence-account-state';
     stateLine.textContent = trust.text;
     main.appendChild(stateLine);
-    if (accountNotes[label]) {
+    const noteText = termsRequired ? (acct.detail || accountNotes[label]) : accountNotes[label];
+    if (noteText) {
       const note = document.createElement('span');
       note.className = 'presence-account-note';
       note.setAttribute('role', 'status');
-      note.textContent = accountNotes[label];
+      note.textContent = noteText;
       main.appendChild(note);
     }
     row.appendChild(main);
+    if (termsRequired) {
+      els.presenceAccountsList.appendChild(row);
+      return;
+    }
 
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -508,6 +523,10 @@ async function renewAccountTrust(acct) {
     const res = await jsonApi(trustUrl(label, 'begin'), { method: 'POST', timeoutMs: 60000 });
     if (res && res.status === 'code_sent') {
       openTrustCodeDialog(acct, res.detail);
+    } else if (res && res.status === 'terms_required') {
+      accountNotes[label] = res.detail || 'Apple requires this account to accept updated iCloud terms first.';
+      toast('Accept Apple’s updated terms first', 'error');
+      loadPresence();
     } else if (res && res.status === 'already_trusted') {
       accountNotes[label] = res.detail || 'Already trusted.';
       toast('Already trusted', 'success');

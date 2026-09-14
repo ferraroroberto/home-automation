@@ -119,11 +119,21 @@ def _broken_source_speech(
     if lang == "es":
         if cache.reason == "2fa_required":
             return f"El localizador de {display_name} necesita re-autenticación de iCloud."
+        if cache.reason == "terms_required":
+            return (
+                f"El localizador de {display_name} no funciona — una cuenta de iCloud "
+                "tiene que aceptar las nuevas condiciones de Apple."
+            )
         if cache.reason in ("error", "not_configured"):
             return f"El localizador de {display_name} no funciona — necesita re-autenticación."
         return f"No encuentro la ubicación de {display_name} ahora mismo."
     if cache.reason == "2fa_required":
         return f"{display_name}'s location tracking needs iCloud re-authentication."
+    if cache.reason == "terms_required":
+        return (
+            f"{display_name}'s location tracking is down — an iCloud account "
+            "must accept Apple's updated terms."
+        )
     if cache.reason in ("error", "not_configured"):
         return f"{display_name}'s location tracking is down — needs re-authentication."
     return f"I can't find {display_name}'s location right now."

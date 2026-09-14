@@ -42,6 +42,7 @@ from src.presence_client import (
     PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
+    PresenceTermsError,
     begin_trust_renewal,
     complete_trust_renewal,
     fetch_presence,
@@ -218,7 +219,7 @@ def main() -> None:
                 verification_code=code,
                 trust_session=not args.no_trust,
             )
-        except PresenceAuthError as exc:
+        except (PresenceAuthError, PresenceTermsError) as exc:
             # Degrade this account only, so a healthy account still prints (#478).
             print(f"⚠️ {exc}")
             continue
@@ -229,5 +230,5 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     try:
         main()
-    except (PresenceConfigError, PresenceAuthError) as exc:
+    except (PresenceConfigError, PresenceAuthError, PresenceTermsError) as exc:
         raise SystemExit(f"❌ {exc}")

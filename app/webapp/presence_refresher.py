@@ -23,6 +23,8 @@ from src.presence_client import (
     PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
+    PresenceTermsError,
+    TERMS_REQUIRED_DETAIL,
     fetch_presence,
     invalidate_session,
     load_presence_configs,
@@ -105,7 +107,7 @@ def _aggregate_status(
             f"{len(failed)} of {len(statuses)} iCloud accounts need re-auth "
             f"(account {broken}): {combined}",
         )
-    for reason in ("2fa_required", "error", "not_configured"):
+    for reason in ("2fa_required", "terms_required", "error", "not_configured"):
         if any(s.reason == reason for s in failed):
             return reason, combined
     return "error", combined
@@ -243,10 +245,15 @@ def _stuck_alert_text(
     unattended refresher fetches with ``request_2fa_push=False``, so it can
     never make Apple push a prompt to the household's phones. What it names
     instead is the remedy that does exist — the in-app trust renewal (#659) or
-    the credential the account is missing.
+    the credential the account is missing. ``terms_required`` (#736) gets its
+    own remedy: neither a trust renewal nor a password change can clear it, and
+    accepting Apple's terms is the account holder's consent to give.
     """
 
-    detail = " ".join(status.detail.split())[:200]
+    # A terms_required detail is the remedy line below verbatim — don't say it twice.
+    detail = (
+        "" if status.reason == "terms_required" else " ".join(status.detail.split())[:200]
+    )
     reason = f"[{status.reason}] {detail}".strip()
     age = _failing_for(status, now=now)
     span = f"for ~{age} " if age else ""
@@ -254,6 +261,8 @@ def _stuck_alert_text(
         remedy = (
             "Set this account's ICLOUD_EMAIL/ICLOUD_PASSWORD in .env and restart the tray."
         )
+    elif status.reason == "terms_required":
+        remedy = TERMS_REQUIRED_DETAIL
     else:
         tried = (
             "A fresh sign-in did not fix it. "
@@ -401,6 +410,20 @@ def _fetch_account(
             config,
             False,
             "2fa_required",
+            str(exc),
+            consecutive_failures=failures,
+            failing_since=since,
+        )
+    except PresenceTermsError as exc:
+        logger.warning(
+            "⚠️ iCloud account %s needs updated Apple terms accepted (terms_required)",
+            config.label,
+        )
+        entities = []
+        status = _account_status(
+            config,
+            False,
+            "terms_required",
             str(exc),
             consecutive_failures=failures,
             failing_since=since,
