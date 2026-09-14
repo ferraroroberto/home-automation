@@ -18,6 +18,8 @@ from src.presence_client import (
     PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
+    PresenceTermsError,
+    TERMS_REQUIRED_DETAIL,
 )
 
 
@@ -682,3 +684,59 @@ def test_account_status_carries_display_name_and_session_trust(
     assert by_label["2"].trusted is False
     assert by_label["2"].available is False  # broken and untrusted are separate facts
     assert by_label["3"].trusted is None
+
+
+# ---------------------------------------------- Apple "accept updated terms" (#736)
+def test_terms_refusal_is_its_own_status_not_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Apple holding an account until updated terms are accepted is neither an
+    auth failure nor a generic error: its own reason, which also outranks
+    ``error`` when every account is down."""
+
+    cache = _run_refresh(
+        monkeypatch,
+        [_config("1"), _config("2")],
+        {
+            "1": PresenceTermsError(TERMS_REQUIRED_DETAIL),
+            "2": RuntimeError("boom"),
+        },
+    )
+
+    statuses = {a.label: a for a in cache.accounts}
+    assert statuses["1"].available is False
+    assert statuses["1"].reason == "terms_required"
+    assert statuses["1"].detail == TERMS_REQUIRED_DETAIL
+    assert statuses["1"].consecutive_failures == 1
+    assert cache.reason == "terms_required"
+
+
+def test_terms_alert_names_accepting_terms_not_renew_trust_or_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stuck-account Telegram alert must prescribe the one remedy that
+    works. Renew trust re-signs in and hits the same refusal; the password is
+    fine. Driven through the real poll loop up to the alert threshold."""
+
+    configs = [_config("1", friendly_name="Fixture")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+
+    def refuse(*, config: PresenceConfig) -> list[PresenceEntity]:
+        raise PresenceTermsError(TERMS_REQUIRED_DETAIL)
+
+    monkeypatch.setattr(R, "fetch_presence", refuse)
+    monkeypatch.setattr(R, "invalidate_session", lambda config: None)
+    notifier = _FakeNotifier()
+
+    for _ in range(R._alert_after_failures()):
+        asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert len(notifier.sent) == 1
+    text = notifier.sent[0]
+    assert "[terms_required]" in text
+    assert "accept updated iCloud terms" in text
+    assert "icloud.com" in text
+    assert "Renew trust" not in text
+    assert "PASSWORD" not in text.upper()
+    # The remedy is stated once, not echoed again from the status detail.
+    assert text.count("icloud.com") == 1

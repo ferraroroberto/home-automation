@@ -62,7 +62,9 @@ def _trust_payload(config: PresenceConfig, state: TrustRenewalState) -> Dict[str
 @router.post("/api/presence/icloud/{account}/trust/begin")
 async def post_icloud_trust_begin(account: str) -> Dict[str, Any]:
     """Ask Apple to push a 2FA code for this account (``code_sent`` /
-    ``already_trusted`` / ``failed``); the code is entered via ``…/complete``."""
+    ``already_trusted`` / ``terms_required`` / ``failed``); the code is entered
+    via ``…/complete``. ``terms_required`` (#736) is Apple refusing the sign-in
+    until the account holder accepts updated terms — renewal can't fix that."""
 
     config = _icloud_account(account)
     state = await asyncio.to_thread(begin_trust_renewal, config)
@@ -79,7 +81,7 @@ class TrustCodePayload(BaseModel):
 @router.post("/api/presence/icloud/{account}/trust/complete")
 async def post_icloud_trust_complete(account: str, payload: TrustCodePayload) -> Dict[str, Any]:
     """Verify the pushed 6-digit code (``trusted`` / ``invalid_code`` /
-    ``expired`` / ``failed``). Never logs the code."""
+    ``expired`` / ``terms_required`` / ``failed``). Never logs the code."""
 
     config = _icloud_account(account)
     code = payload.code.replace(" ", "").strip()

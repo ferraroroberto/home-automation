@@ -875,3 +875,118 @@ def test_complete_trust_renewal_rejected_and_apple_confirms_no_trust_stays_inval
     assert P._PENDING_TRUST[str(tmp_path)].attempts == 1
     assert P._SERVICE_CACHE == {}
     P._discard_pending(str(tmp_path))
+
+
+# ---------------------------------------------- Apple "accept updated terms" (#736)
+def _terms_exc() -> Exception:
+    from pyicloud.exceptions import PyiCloudAcceptTermsException
+
+    # pyicloud's own wording, which prescribes the CLI flag this app must never use.
+    return PyiCloudAcceptTermsException(
+        "You must accept the updated terms of service to continue. "
+        "Set --accept-terms to accept them."
+    )
+
+
+def test_fetch_presence_maps_terms_refusal_at_sign_in_to_terms_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Apple flags ``termsUpdateNeeded`` during the sign-in handshake: that is
+    its own condition, not an auth failure or a generic error, and the message
+    names the account holder's remedy instead of pyicloud's ``--accept-terms``."""
+
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+
+    def refuse_build(config: P.PresenceConfig) -> object:
+        raise _terms_exc()
+
+    monkeypatch.setattr(P, "_build_service", refuse_build)
+    monkeypatch.setattr(P, "load_location_config", lambda: None)
+
+    with pytest.raises(P.PresenceTermsError) as info:
+        P.fetch_presence(config=cfg)
+
+    assert not isinstance(info.value, P.PresenceAuthError)
+    assert "icloud.com" in str(info.value)
+    assert "--accept-terms" not in str(info.value)
+    assert str(cfg.session_dir) not in P._SERVICE_CACHE
+
+
+def test_fetch_presence_maps_terms_refusal_inside_find_my_reauth(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """On an already-cached session the flag surfaces from Find My's internal
+    re-auth, i.e. from the fetch itself - same distinct error there."""
+
+    cfg = P.PresenceConfig(email="a@example.com", password="x", session_dir=tmp_path)
+    monkeypatch.setattr(P, "_build_service", lambda config: _FakeApi())
+    monkeypatch.setattr(P, "load_location_config", lambda: None)
+
+    def refuse(devices: object) -> list[object]:
+        raise _terms_exc()
+
+    monkeypatch.setattr(P, "_iter_devices", refuse)
+
+    with pytest.raises(P.PresenceTermsError):
+        P.fetch_presence(config=cfg)
+
+
+def test_terms_refusal_is_not_an_auth_failure() -> None:
+    assert P._is_terms_failure(_terms_exc())
+    assert not P._is_auth_failure(_terms_exc())
+    assert not P._is_terms_failure(RuntimeError("network down"))
+
+
+def test_begin_trust_renewal_reports_terms_required_not_failed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A trust renewal re-signs in and hits the same refusal: say so plainly
+    rather than a generic failure that implies retrying might help."""
+
+    def refuse_build(config: P.PresenceConfig) -> object:
+        raise _terms_exc()
+
+    monkeypatch.setattr(P, "_build_service", refuse_build)
+
+    state = P.begin_trust_renewal(_trust_cfg(tmp_path))
+
+    assert state.status == "terms_required"
+    assert state.detail == P.TERMS_REQUIRED_DETAIL
+    assert str(tmp_path) not in P._PENDING_TRUST
+
+
+def test_complete_trust_renewal_reports_terms_required(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    api = _FakeTrustApi()
+
+    def refuse_code(code: str) -> bool:
+        raise _terms_exc()
+
+    api.validate_2fa_code = refuse_code  # type: ignore[method-assign]
+    monkeypatch.setattr(P, "_build_service", lambda config: api)
+    cfg = _trust_cfg(tmp_path)
+    assert P.begin_trust_renewal(cfg).status == "code_sent"
+
+    state = P.complete_trust_renewal(cfg, "123456")
+
+    assert state.status == "terms_required"
+    assert "--accept-terms" not in state.detail
+
+
+def test_no_code_path_accepts_apple_terms_on_the_account_holders_behalf() -> None:
+    """Consent line (#736): accepting Apple's terms is the account holder's call.
+    Nothing in the app may build pyicloud with ``accept_terms=True`` or shell out
+    to its ``--accept-terms`` CLI flag."""
+
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    offenders = []
+    for folder in ("src", "app", "scripts", "custom_components"):
+        for path in (root / folder).rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            if re.search(r"accept_terms\s*=\s*True|--accept-terms", text):
+                offenders.append(str(path.relative_to(root)))
+    assert offenders == []

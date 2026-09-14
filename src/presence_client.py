@@ -81,6 +81,23 @@ class PresenceAuthError(RuntimeError):
     """Raised when iCloud needs an interactive auth step before reads work."""
 
 
+class PresenceTermsError(RuntimeError):
+    """Raised when Apple requires the account holder to accept updated terms (#736).
+
+    Not an auth failure: the credentials and trust are fine, and neither a
+    fresh sign-in nor a trust renewal can clear it. Only the account holder
+    accepting Apple's terms can — which this app must never do on their behalf,
+    so no code path enables pyicloud's ``accept_terms`` option.
+    """
+
+
+TERMS_REQUIRED_DETAIL = (
+    "Apple requires this Apple Account to accept updated iCloud terms. Sign in "
+    "at icloud.com or on one of the account's devices and accept them; Find My "
+    "recovers on the next background refresh."
+)
+
+
 @dataclass(frozen=True)
 class PresenceConfig:
     """Runtime iCloud presence config for a single Apple Account, from ``.env``."""
@@ -247,7 +264,11 @@ def fetch_presence(
 
     cfg = config or load_presence_config()
     cfg.session_dir.mkdir(parents=True, exist_ok=True)
-    api = _connect(cfg)
+    try:
+        api = _connect(cfg)
+    except Exception as exc:  # noqa: BLE001 - re-raised or mapped, never swallowed
+        _raise_if_terms_failure(exc)
+        raise
 
     # Issue #658: the fetch itself is the health check. ``requires_2fa`` is
     # consulted only to *apply* an explicitly supplied code (the CLI's
@@ -267,6 +288,9 @@ def fetch_presence(
     try:
         devices = _iter_devices(api.devices)
     except Exception as exc:  # noqa: BLE001 - re-raised or mapped, never swallowed
+        # Find My's internal re-auth (450 → accountLogin) is where Apple's
+        # termsUpdateNeeded flag surfaces on an already-cached session.
+        _raise_if_terms_failure(exc)
         if _is_auth_failure(exc):
             raise PresenceAuthError(
                 f"iCloud Find My refused the session ({type(exc).__name__}: {exc}). "
@@ -342,6 +366,30 @@ def _is_auth_failure(exc: BaseException) -> bool:
             PyiCloudFailedLoginException,
         ),
     )
+
+
+def _is_terms_failure(exc: BaseException) -> bool:
+    """Whether Apple refused the sign-in until updated terms are accepted (#736).
+
+    Lazy import for the same reason as :func:`_is_auth_failure`.
+    """
+
+    try:
+        from pyicloud.exceptions import PyiCloudAcceptTermsException
+    except ImportError:  # pragma: no cover - covered by requirements
+        return False
+    return isinstance(exc, PyiCloudAcceptTermsException)
+
+
+def _raise_if_terms_failure(exc: BaseException) -> None:
+    """Re-raise a terms refusal as :class:`PresenceTermsError`, else do nothing.
+
+    Replaces pyicloud's own message, which tells a CLI user to pass its
+    accept-terms flag — the one remedy this app must never take or suggest.
+    """
+
+    if _is_terms_failure(exc):
+        raise PresenceTermsError(TERMS_REQUIRED_DETAIL) from exc
 
 
 # Authenticated pyicloud sessions, keyed by session dir (one per account).
@@ -472,8 +520,11 @@ class TrustRenewalState:
     """Outcome of one step of the attended browser-trust renewal (issue #659).
 
     ``status`` after :func:`begin_trust_renewal`: ``code_sent`` /
-    ``already_trusted`` / ``failed``; after :func:`complete_trust_renewal`:
-    ``trusted`` / ``invalid_code`` / ``expired`` / ``failed``. ``detail`` is a
+    ``already_trusted`` / ``terms_required`` / ``failed``; after
+    :func:`complete_trust_renewal`: ``trusted`` / ``invalid_code`` /
+    ``expired`` / ``terms_required`` / ``failed``. ``terms_required`` (#736)
+    means Apple wants updated terms accepted first — renewal cannot proceed
+    until the account holder does that themselves. ``detail`` is a
     human-readable line for the UI/CLI (Apple's own message on a failure).
     ``trusted`` is what the account's session holds after this step, when known.
     """
@@ -523,6 +574,8 @@ def begin_trust_renewal(config: PresenceConfig) -> TrustRenewalState:
             type(exc).__name__,
             exc,
         )
+        if _is_terms_failure(exc):
+            return TrustRenewalState("terms_required", detail=TERMS_REQUIRED_DETAIL)
         return TrustRenewalState("failed", detail=_apple_detail(exc))
 
     if bool(getattr(api, "requires_2fa", False)):
@@ -607,6 +660,10 @@ def complete_trust_renewal(config: PresenceConfig, code: str) -> TrustRenewalSta
             type(exc).__name__,
             exc,
         )
+        if _is_terms_failure(exc):
+            return TrustRenewalState(
+                "terms_required", detail=TERMS_REQUIRED_DETAIL, trusted=False
+            )
         return TrustRenewalState("failed", detail=_apple_detail(exc), trusted=False)
 
     if not accepted and _apple_granted_trust_anyway(api):

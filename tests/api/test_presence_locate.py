@@ -515,3 +515,23 @@ def test_presence_locate_states_recency_fresh_and_stale_both_languages(
 
     body_es = client.get("/api/presence/locate", params={"who": "mom", "lang": "es"}).json()
     assert body_es["speech"].endswith("visto por última vez hace unos 15 minutos.")
+
+
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [
+        ("en", "Ana's location tracking is down — an iCloud account must accept Apple's updated terms."),
+        (
+            "es",
+            "El localizador de Ana no funciona — una cuenta de iCloud tiene que "
+            "aceptar las nuevas condiciones de Apple.",
+        ),
+    ],
+)
+def test_broken_source_speech_names_terms_not_reauth(lang: str, expected: str) -> None:
+    """#736: Apple holding an account for updated terms is not a re-auth problem,
+    so the voice answer must not send anyone off to re-authenticate."""
+    from app.webapp.routers.presence_locate import _broken_source_speech
+
+    cache = PresenceDiagnosticsCache(entities=[], available=False, reason="terms_required")
+    assert _broken_source_speech("Ana", cache, lang=lang) == expected
