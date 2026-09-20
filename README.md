@@ -719,7 +719,7 @@ The store lives at `webapp/telemetry.sqlite3` (gitignored, per-machine runtime, 
 | --- | --- | --- |
 | `TELEMETRY_SAMPLER_ENABLED` | `true` | Master switch for the reading sampler. `false`/`0` serves events + existing readings but captures no new readings (used by the e2e suite and dev runs). |
 | `TELEMETRY_SAMPLE_INTERVAL_S` | `300` | Seconds between reading snapshots. |
-| `TELEMETRY_SAMPLE_HVAC` / `_PLUGS` / `_UPS` / `_LIGHTS` | `true` | Per-domain gates — turn a flaky/slow domain off without disabling the rest. |
+| `TELEMETRY_SAMPLE_HVAC` / `_PLUGS` / `_UPS` / `_LIGHTS` / `_CIRCUITS` | `true` | Per-domain gates — turn a flaky/slow domain off without disabling the rest. `_CIRCUITS` samples per-channel power from the Athom CT clamps, keyed `"<meter_id>:<channel>"`. |
 | `TELEMETRY_SAMPLE_PRESENCE` | `false` | Presence is captured as events; off by default to avoid redundant rows. |
 | `TELEMETRY_READINGS_RETENTION_DAYS` | `7` | How long **raw** device readings are kept. Short by design — the history behind them lives in the hourly rollups below. |
 | `TELEMETRY_EVENTS_RETENTION_DAYS` | `400` | How long discrete events are kept — far longer than readings, since events are rare and human-meaningful. |
