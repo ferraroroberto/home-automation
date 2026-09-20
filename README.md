@@ -721,8 +721,17 @@ The store lives at `webapp/telemetry.sqlite3` (gitignored, per-machine runtime, 
 | `TELEMETRY_SAMPLE_INTERVAL_S` | `300` | Seconds between reading snapshots. |
 | `TELEMETRY_SAMPLE_HVAC` / `_PLUGS` / `_UPS` / `_LIGHTS` | `true` | Per-domain gates — turn a flaky/slow domain off without disabling the rest. |
 | `TELEMETRY_SAMPLE_PRESENCE` | `false` | Presence is captured as events; off by default to avoid redundant rows. |
-| `TELEMETRY_READINGS_RETENTION_DAYS` | `7` | How long raw device readings are kept. |
+| `TELEMETRY_READINGS_RETENTION_DAYS` | `7` | How long **raw** device readings are kept. Short by design — the history behind them lives in the hourly rollups below. |
 | `TELEMETRY_EVENTS_RETENTION_DAYS` | `400` | How long discrete events are kept — far longer than readings, since events are rare and human-meaningful. |
+| `TELEMETRY_ROLLUP_RETENTION_DAYS` | `400` | How long hourly reading rollups are kept, matching the events window. |
+
+**Hourly rollups (#739).** Raw readings are kept for a week, but they are no longer the limit of what the house remembers: before each prune, every *completed* hour is folded into a `rollup_hourly` row per `(hour, domain, entity, metric)` carrying the hour's `avg`/`min`/`max` and kept ~400 days. Raw stays the live view; the rollups are the history. Three things the aggregation is deliberate about:
+
+- **Asleep is still not zero.** An hour whose series never produced a number stores `NULL` averages, never `0`.
+- **Coverage, not just counts.** Each row records `covered_s` — how much of the hour its aggregate actually rests on — so a dead sampler is distinguishable from an idle device. Below 75% the hour is an *under-measurement*, not a low reading. Measured over a real 168-hour fold of the live store, 93% of series-hours land at ≥0.9 coverage, and the flagged ones are genuinely short (mostly Elgato lamps, which leave the LAN when switched off at the wall).
+- **Categorical metrics are decided, not averaged.** `operation_mode`, `fan_speed`, `switch_on` and `status` have no mean, so a rollup records the hour's **last** value plus how many times it changed (`txt_changes`) — one integer that keeps a settled hour distinguishable from a thrashing one.
+
+Cost, measured rather than estimated: ~78 bytes/row, ~108 KB/day, ~43 MB at the 400-day steady state — against 18.3 MB for a single week of raw. The store is write-side only for now; nothing reads the rollups yet.
 
 > **Extensible by design (#283):** the `readings`/`events` tables are narrow (one row per observation/event) with a JSON sidecar column, so a new device type or field becomes new *rows*, never an `ALTER TABLE`. A new domain just needs a small pure adapter in `src/telemetry_adapters.py` (mapping its reading object → rows) wired into the sampler.
 
