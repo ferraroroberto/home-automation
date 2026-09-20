@@ -2,8 +2,9 @@
 
 A sibling of :mod:`app.webapp.sampler` (which owns the solar energy series). This
 one snapshots the *other* device domains — HVAC temps, plug watts, UPS load,
-Elgato lights — into the unified :mod:`src.telemetry` ``readings`` table on a
-gentle cadence, so the Activity log's readings view has history to draw.
+Elgato lights, per-circuit CT-clamp power — into the unified
+:mod:`src.telemetry` ``readings`` table on a gentle cadence, so the Activity
+log's readings view has history to draw.
 
 Design mirrors the energy sampler: one asyncio task started in the FastAPI
 lifespan, blocking fetches/writes off the event loop via ``asyncio.to_thread``,
@@ -45,6 +46,7 @@ class TelemetrySamplerConfig:
     plugs: bool = True
     ups: bool = True
     lights: bool = True
+    circuits: bool = True
     presence: bool = False  # presence is event-driven (#289); readings off by default
 
 
@@ -58,6 +60,7 @@ def load_sampler_config() -> TelemetrySamplerConfig:
         plugs=_env_bool("TELEMETRY_SAMPLE_PLUGS", True),
         ups=_env_bool("TELEMETRY_SAMPLE_UPS", True),
         lights=_env_bool("TELEMETRY_SAMPLE_LIGHTS", True),
+        circuits=_env_bool("TELEMETRY_SAMPLE_CIRCUITS", True),
         presence=_env_bool("TELEMETRY_SAMPLE_PRESENCE", False),
     )
 
@@ -102,11 +105,21 @@ async def _collect_lights() -> list:
     return adapters.light_readings(await fetch_lights())
 
 
+async def _collect_circuits() -> list:
+    from src.athom_client import fetch_circuits_state
+
+    # ``fetch_circuits_state`` never raises by contract: no meters, a meter
+    # off Wi-Fi, and mDNS being unable to run all come back as a normal state
+    # whose channels carry ``None``, which the adapter stores as NULL.
+    return adapters.circuit_readings((await fetch_circuits_state()).meters)
+
+
 _COLLECTORS = {
     "hvac": _collect_hvac,
     "plugs": _collect_plugs,
     "ups": _collect_ups,
     "lights": _collect_lights,
+    "circuits": _collect_circuits,
 }
 
 

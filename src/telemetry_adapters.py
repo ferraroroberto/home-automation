@@ -116,3 +116,42 @@ def presence_readings(people: Iterable[Dict[str, Any]]) -> List[Reading]:
             )
         )
     return rows
+
+
+def circuit_readings(meters: Iterable[Any]) -> List[Reading]:
+    """Map Athom ``MeterState`` objects → per-CT-clamp circuit readings (#740).
+
+    The BL0906 clamps are the only per-load truth in the house — MELCloud Home
+    exposes no watts and the Tuya plugs cover a handful of appliances — so
+    these are the rows that answer *"which circuit consumed what, when"*.
+
+    Entity is the stable ``"<meter_id>:<channel>"`` key :mod:`src.circuit_prefs`
+    already uses. The meter id is its MAC, so a series survives a DHCP move and
+    a re-discovery instead of forking into a new entity and orphaning history.
+
+    Both ``power_w`` (sign-corrected) and ``power_raw_w`` (what the meter
+    actually said) are stored, because ``invert`` is a user setting that can be
+    flipped later: with only the corrected value persisted a flip would
+    silently invalidate every prior row, whereas keeping the raw value makes
+    the correction re-derivable. ``energy_kwh`` is the meter's own cumulative
+    per-channel counter — the one figure that cannot be reconstructed from
+    5-minute power samples — and folds up the same way the plug domain's
+    already does (an hour's consumption is ``max_num - min_num``).
+
+    Every channel is recorded whether or not a clamp is fitted — one added
+    later must just start reading — and whether or not it is ``hidden``: this
+    module never consults :mod:`src.circuit_prefs`, so hiding stays
+    presentation-only by construction rather than by discipline. The *meter* is
+    what answers on the LAN, so its reachability is every one of its channels'
+    ``quality``; an unreachable meter still carries its channels, each with
+    ``None`` values that store as ``NULL`` — "could not read the clamp" must
+    never be conflated with "the clamp read zero watts".
+    """
+    rows: List[Reading] = []
+    for meter in meters:
+        quality = "ok" if meter.reachable else "unreachable"
+        for channel in meter.channels:
+            rows.append(Reading("circuit", channel.key, "power_w", value_num=channel.power_w, unit="W", quality=quality))
+            rows.append(Reading("circuit", channel.key, "power_raw_w", value_num=channel.power_raw_w, unit="W", quality=quality))
+            rows.append(Reading("circuit", channel.key, "energy_kwh", value_num=channel.energy_kwh, unit="kWh", quality=quality))
+    return rows

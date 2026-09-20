@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 
 from src import telemetry
+from src.circuit_prefs import load_circuit_display_names
 from src.display_names import load_display_names
 from src.elgato_display_names import load_elgato_display_names
 from src.presence_display_names import load_presence_display_names
@@ -38,6 +39,10 @@ _LABEL_LOADERS = {
     "security": load_security_display_names,
     "light": load_elgato_display_names,
     "presence": load_presence_display_names,
+    # Circuit rows are keyed "<meter_id>:<channel>" (#740) — without this
+    # the readings view renders a bare MAC-and-index for the one domain
+    # whose entity id is least readable.
+    "circuit": load_circuit_display_names,
 }
 
 
