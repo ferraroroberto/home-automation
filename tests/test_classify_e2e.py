@@ -161,7 +161,8 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("app/webapp/presence_automation.py") == "full"
     assert tier("app/tray/tray.py") == "full"
     assert tier("tests/e2e/conftest.py") == "full"  # #593 trap
-    assert tier("tests/e2e/test_smoke.py") == "full"
+    assert tier("tests/e2e/test_smoke.py") == "surface"
+    assert tier("tests/e2e/conftest.py") == "full"
 
     # Inert static assets -> static.
     assert tier("app/webapp/static/favicon.ico") == "static"
