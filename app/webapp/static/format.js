@@ -12,8 +12,7 @@
  * fmtTemp (units.js one-decimal AC setpoints vs weather.js rounded degrees),
  * fmtTime (activity.js epoch + same-day short form vs presence.js ISO locale
  * form), fmtUptime (network.js compact router style vs vm.js "just now" VM
- * style), and the notify modules' applyPrefs/renderConfiguredNote (parallel
- * closures over their own els/FIELDS maps).
+ * style).
  */
 
 'use strict';
