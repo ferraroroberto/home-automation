@@ -93,31 +93,6 @@ def light_readings(lights: Iterable[Any]) -> List[Reading]:
     return rows
 
 
-def presence_readings(people: Iterable[Dict[str, Any]]) -> List[Reading]:
-    """Map person presence dicts → a minimal ``at_home`` reading per person.
-
-    Presence is primarily captured as *events* (transitions, #289); this logs a
-    coarse periodic 1/0 state for trend context. Each dict needs ``entity_id``
-    and ``at_home`` (bool); other keys are ignored.
-    """
-    rows: List[Reading] = []
-    for p in people:
-        entity = p.get("entity_id")
-        if not entity:
-            continue
-        at_home = p.get("at_home")
-        rows.append(
-            Reading(
-                "presence",
-                entity,
-                "at_home",
-                value_num=(1.0 if at_home else 0.0) if at_home is not None else None,
-                quality="ok",
-            )
-        )
-    return rows
-
-
 def circuit_readings(meters: Iterable[Any]) -> List[Reading]:
     """Map Athom ``MeterState`` objects → per-CT-clamp circuit readings (#740).
 

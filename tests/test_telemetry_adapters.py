@@ -83,18 +83,6 @@ def test_light_readings_includes_temperature_only_when_supported() -> None:
     assert _by_metric([r for r in rows if r.entity_id == "l1"])["on"].value_txt == "on"
 
 
-def test_presence_readings_one_to_zero() -> None:
-    rows = A.presence_readings([
-        {"entity_id": "alice", "at_home": True},
-        {"entity_id": "bob", "at_home": False},
-        {"no_id": True},
-    ])
-    m = {r.entity_id: r for r in rows}
-    assert len(rows) == 2  # the id-less entry is skipped
-    assert m["alice"].value_num == 1.0
-    assert m["bob"].value_num == 0.0
-
-
 def _channel(channel, key, power_w=None, power_raw_w=None, energy_kwh=None):
     """A stand-in for :class:`src.athom_client.CircuitReading`."""
     return SimpleNamespace(

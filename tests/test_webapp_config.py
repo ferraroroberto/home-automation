@@ -31,8 +31,8 @@ def test_out_of_range_port_raises(tmp_path: Path) -> None:
 
 def test_unreadable_file_raises_instead_of_returning_defaults(tmp_path: Path) -> None:
     """Issue #692: corrupt content must not look like "no config saved yet" —
-    ``update_webapp_config`` would save the defaults back over a real
-    ``auth_token``/``auth_password``."""
+    a caller that patches and saves this return value whole would otherwise
+    save the defaults back over a real ``auth_token``/``auth_password``."""
     path = tmp_path / "webapp_config.json"
     path.write_text("{ not json", encoding="utf-8")
     with pytest.raises(StoreUnreadableError):

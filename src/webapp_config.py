@@ -14,7 +14,7 @@ template. A missing file is not an error — first run uses the defaults.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -52,9 +52,10 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
     """Load the webapp config, falling back to defaults if the file is missing.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    exists but can't be read (issue #692) — ``update_webapp_config`` mutates
-    this return value and saves it whole, so a transient failure here would
-    otherwise get saved back over a real ``auth_token``/``auth_password``.
+    exists but can't be read (issue #692) — `scripts/gen_token.py` and
+    `scripts/set_password.py` both patch and save this return value whole,
+    so a transient failure here would otherwise get saved back over a real
+    ``auth_token``/``auth_password``.
     """
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     raw = read_json(target, None)
@@ -90,15 +91,6 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
     write_json_atomic(target, payload, ensure_ascii=True)
     logger.info("💾 Saved webapp_config to %s", target)
     return target
-
-
-def update_webapp_config(**fields) -> WebappConfig:
-    """Read, patch, save — convenience for the helper scripts."""
-    current = load_webapp_config()
-    patched = replace(current, **fields)
-    _validate(patched)
-    save_webapp_config(patched)
-    return patched
 
 
 def append_auth_token(url: str, token: Optional[str]) -> str:
