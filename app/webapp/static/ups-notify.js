@@ -3,69 +3,26 @@
  * A folded-by-default card mirroring the alarm Notifications card. Switches
  * map 1:1 to the backend PowerNotifyPrefs; each persists on click via
  * PUT /api/ups/notify-prefs. A hint shows when Telegram isn't configured.
+ * The load/save/render flow is shared with the alarm card via toggle-prefs.js.
  */
 
 'use strict';
 
-import { els, toast } from './state.js';
-import { jsonApi, reportActionFailure } from './api.js';
-import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
+import { createTogglePrefs } from './toggle-prefs.js';
 
-const FIELDS = [
-  ['notifyPowerLost', 'power_lost'],
-  ['notifyPowerRestored', 'power_restored'],
-];
+const prefs = createTogglePrefs({
+  fields: [
+    ['notifyPowerLost', 'power_lost'],
+    ['notifyPowerRestored', 'power_restored'],
+  ],
+  url: '/api/ups/notify-prefs',
+  noteEl: 'powerNotifyConfiguredNote',
+  labels: {
+    loadFailed: 'Power notification settings failed',
+    saveFailed: 'Notifications save failed',
+    saved: 'Notifications saved',
+  },
+});
 
-function renderConfiguredNote(configured) {
-  if (!els.powerNotifyConfiguredNote) return;
-  if (configured) {
-    els.powerNotifyConfiguredNote.hidden = true;
-    els.powerNotifyConfiguredNote.textContent = '';
-  } else {
-    els.powerNotifyConfiguredNote.hidden = false;
-    els.powerNotifyConfiguredNote.textContent =
-      'Telegram is not configured — set bot_token and chat_id in config/notify_config.json to receive alerts.';
-  }
-}
-
-function applyPrefs(payload) {
-  const prefs = (payload && payload.prefs) || {};
-  FIELDS.forEach(function ([elKey, prefKey]) {
-    if (els[elKey]) setToggleState(els[elKey], prefs[prefKey] === true);
-  });
-  renderConfiguredNote(!!(payload && payload.telegram_configured));
-}
-
-export async function loadPowerNotifyPrefs() {
-  if (!els.notifyPowerLost) return;
-  try {
-    applyPrefs(await jsonApi('/api/ups/notify-prefs'));
-  } catch (exc) {
-    reportActionFailure(exc, 'Power notification settings failed');
-  }
-}
-
-async function savePowerNotifyPrefs() {
-  const payload = {};
-  FIELDS.forEach(function ([elKey, prefKey]) {
-    if (els[elKey]) payload[prefKey] = isToggleOn(els[elKey]);
-  });
-  try {
-    applyPrefs(
-      await jsonApi('/api/ups/notify-prefs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-    );
-    toast('Notifications saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Notifications save failed');
-  }
-}
-
-export function wirePowerNotify() {
-  FIELDS.forEach(function ([elKey]) {
-    wireToggle(els[elKey], savePowerNotifyPrefs);
-  });
-}
+export const loadPowerNotifyPrefs = prefs.load;
+export const wirePowerNotify = prefs.wire;
