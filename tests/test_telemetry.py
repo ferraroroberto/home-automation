@@ -265,10 +265,10 @@ def test_rollup_keeps_asleep_as_null_never_zero(tmp_path: Path) -> None:
     assert roll["avg_num"] is None and roll["min_num"] is None and roll["max_num"] is None
     # ...and the hour is reported as fully covered, so this reads as "asleep",
     # not as "the sampler was down".
-    assert T.rollup_coverage(roll) == {"coverage": 1.0, "gap": False}
+    assert roll["covered_s"] == _H
 
 
-def test_rollup_coverage_flags_a_gappy_hour_but_not_a_healthy_one(tmp_path: Path) -> None:
+def test_rollup_covered_s_reflects_a_gappy_hour_vs_a_healthy_one(tmp_path: Path) -> None:
     db = tmp_path / "t.sqlite3"
     T.init_db(db)
     healthy = _hour_of(2_000_000_000) - 2 * _H
@@ -281,29 +281,15 @@ def test_rollup_coverage_flags_a_gappy_hour_but_not_a_healthy_one(tmp_path: Path
 
     rows = {int(r["hour_start"]): r for r in _rollup_rows(db)}
 
-    assert T.rollup_coverage(rows[healthy]) == {"coverage": 1.0, "gap": False}
+    assert rows[healthy]["covered_s"] == _H
     # Two 300 s gaps between the three readings, then the last one stands for
     # the rest of the hour only up to the 600 s cap: 300 + 300 + 600 = 1200 s.
     # The 40 uncovered minutes after the sampler died are exactly the point.
     assert rows[gappy]["covered_s"] == 1200.0
-    assert T.rollup_coverage(rows[gappy]) == {"coverage": 0.333, "gap": True}
     # The average is still honest about the minutes that arrived...
     assert rows[gappy]["avg_num"] == 20.5
-    # ...and only coverage separates the two hours' credibility.
+    # ...and only covered_s separates the two hours' credibility.
     assert rows[gappy]["n"] == 3 and rows[healthy]["n"] == 12
-
-
-def test_rollup_coverage_threshold_tracks_a_slower_cadence(tmp_path: Path) -> None:
-    """Halving the sample rate must not turn every hour into a phantom outage."""
-    db = tmp_path / "t.sqlite3"
-    T.init_db(db)
-    hour = _hour_of(2_000_000_000) - _H
-    _sample_hour(db, hour, [20.0] * 6, cadence=600)  # 10-minute cadence
-
-    T.compact_and_prune(_cfg(sample_interval_s=600), now=hour + _H + 60, path=db)
-
-    roll = _rollups(db)[("u1", "room_temperature")]
-    assert T.rollup_coverage(roll) == {"coverage": 1.0, "gap": False}
 
 
 def test_rollup_categorical_keeps_last_value_and_counts_changes(tmp_path: Path) -> None:

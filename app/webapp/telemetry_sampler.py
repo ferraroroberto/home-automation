@@ -15,7 +15,7 @@ switch turns the whole thing off (e2e/dev runs).
 Cadence defaults to 5 minutes (``TELEMETRY_SAMPLE_INTERVAL_S``): temperature and
 load trends don't need 60 s resolution, and the gentler cadence keeps cloud/LAN
 polling light. Energy stays in :mod:`src.energy_history`; presence is event-
-driven (#289) and so its reading gate defaults off.
+driven (#289) and has no reading collector here.
 """
 
 from __future__ import annotations
@@ -47,7 +47,6 @@ class TelemetrySamplerConfig:
     ups: bool = True
     lights: bool = True
     circuits: bool = True
-    presence: bool = False  # presence is event-driven (#289); readings off by default
 
 
 def load_sampler_config() -> TelemetrySamplerConfig:
@@ -61,7 +60,6 @@ def load_sampler_config() -> TelemetrySamplerConfig:
         ups=_env_bool("TELEMETRY_SAMPLE_UPS", True),
         lights=_env_bool("TELEMETRY_SAMPLE_LIGHTS", True),
         circuits=_env_bool("TELEMETRY_SAMPLE_CIRCUITS", True),
-        presence=_env_bool("TELEMETRY_SAMPLE_PRESENCE", False),
     )
 
 

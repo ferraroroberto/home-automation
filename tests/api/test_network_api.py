@@ -430,7 +430,6 @@ def test_network_history_store_seeds_then_flags_new_and_prunes(tmp_path) -> None
     """The MAC registry: silent cold-start seed, later-arrival ``new``, 180-day prune."""
     from src.network_history import (
         is_new,
-        load_network_history,
         record_and_snapshot,
         set_important,
     )
@@ -461,7 +460,6 @@ def test_network_history_store_seeds_then_flags_new_and_prunes(tmp_path) -> None
     _new, snap = record_and_snapshot([], now=far, path=db)
     assert one in snap and snap[one]["important"] is True
     assert two not in snap  # pruned after 180 days unseen
-    assert load_network_history(path=db) == snap
 
 
 def test_network_route_tracks_offline_and_important(

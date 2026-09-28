@@ -1097,18 +1097,18 @@ def test_set_staleness_block_notifies_once_after_dwell(monkeypatch, tmp_path):
 
     # Independent state namespace: the arm-block diagnostic must be unaffected.
     assert P.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
-    assert P.load_staleness_block() == {"blocked": True, "person_ids": ["ana"]}
+    assert P._STALE_BLOCK.load() == {"blocked": True, "person_ids": ["ana"]}
 
 
 def test_set_staleness_block_clears(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = P.StalePresenceBlock(key="stale:ana", stale_person_ids=("ana",))
     P.set_staleness_block(block, dwell_s=0)
-    assert P.load_staleness_block()["blocked"] is True
+    assert P._STALE_BLOCK.load()["blocked"] is True
 
     cleared = P.set_staleness_block(None)
     assert cleared.changed is True and cleared.notify is False
-    assert P.load_staleness_block() == {"blocked": False, "person_ids": []}
+    assert P._STALE_BLOCK.load() == {"blocked": False, "person_ids": []}
 
 
 # --- write churn on the shared state file (issue #689) ---

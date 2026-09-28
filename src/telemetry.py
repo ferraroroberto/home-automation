@@ -28,9 +28,8 @@ the same line: an hour whose series had no numeric reading at all stores
 An hour that was only *partly* sampled is neither present nor missing: its
 average is honest about the minutes that arrived and silent about the ones that
 did not. Rollups therefore record ``covered_s`` — how much of the hour the
-aggregate actually rests on — and :func:`rollup_coverage` turns that into a
-0–1 ratio plus a ``gap`` flag against :data:`MIN_TRUSTED_COVERAGE`, so a dead
-sampler is distinguishable from a genuinely idle device.
+aggregate actually rests on — for a future reader to turn into a coverage
+ratio, so a dead sampler is distinguishable from a genuinely idle device.
 
 Coverage is measured in *seconds*, not in sample counts, for the same reason
 #579 chose seconds: a count needs a denominator ("how many samples should this
@@ -92,17 +91,6 @@ DEFAULT_DB_PATH = runtime_db_path(
 )
 
 _HOUR = 3600
-
-# Fraction of an hour that must actually carry data before the hour's rollup
-# counts as a measurement rather than an under-measurement.
-#
-# Deliberately the same 0.75 as :data:`src.energy_history.MIN_TRUSTED_COVERAGE`:
-# one home draws one line between "measured" and "under-measured", and a second
-# threshold here would mean the Activity log and the Energy dashboard could
-# disagree about whether the same hour was trustworthy. The accrual rules
-# differ (see the module docstring) but both leave a healthy hour comfortably
-# clear of it, so the shared constant costs nothing and the divergence would.
-MIN_TRUSTED_COVERAGE = 0.75
 
 # Set True only once :func:`init_db` runs against the *default* DB (i.e. the live
 # webapp, not a test's tmp-path store). The central event mirror in
@@ -542,33 +530,6 @@ def _aggregate_series_hour(
         "covered_s": round(covered, 1),
         "unit": unit,
     }
-
-
-def rollup_coverage(row: Dict[str, Any]) -> Dict[str, Any]:
-    """Return ``{"coverage": 0–1, "gap": bool}`` for one ``rollup_hourly`` row.
-
-    ``coverage`` is the share of the hour the rollup's aggregates rest on;
-    ``gap`` is the actionable flag — enough of the hour is missing
-    (:data:`MIN_TRUSTED_COVERAGE`) that its average is an under-measurement
-    rather than a measurement. This is the one place that line is drawn, so a
-    caller never re-derives the threshold.
-
-    Two exclusions :func:`src.energy_history._mark_hourly_coverage` carries do
-    *not* apply here, and the difference is deliberate. That module skips hours
-    with no data at all and hours whose measured generation is 0, because a
-    sleeping inverter flapping between 0 W and asleep would otherwise flag
-    every night. Neither has an analogue here: a rollup row exists only because
-    readings existed, and a device that genuinely read 0 W for a fully-covered
-    hour is a measurement, not a shortfall. Coverage alone is the test.
-
-    Only completed hours are ever written (see :func:`compact_and_prune`), so
-    the in-progress hour's elapsed-window special case has no home here. A
-    future reader that integrates the current hour fresh from raw readings
-    would need it — that is where it belongs, not in the stored row.
-    """
-    covered = float(row.get("covered_s") or 0.0)
-    coverage = min(1.0, covered / _HOUR)
-    return {"coverage": round(coverage, 3), "gap": coverage < MIN_TRUSTED_COVERAGE}
 
 
 # --------------------------------------------------------------- retention

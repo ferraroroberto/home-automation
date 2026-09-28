@@ -119,14 +119,6 @@ def _row_to_record(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def load_network_history(path: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
-    """Return ``{mac: record}`` for every known device (empty if the DB is fresh)."""
-    init_db(path)
-    with _connect(path) as conn:
-        rows = conn.execute("SELECT * FROM devices").fetchall()
-    return {str(r["mac"]): _row_to_record(r) for r in rows}
-
-
 # --------------------------------------------------------------- writes
 def record_and_snapshot(
     seen: Iterable[Dict[str, Any]],

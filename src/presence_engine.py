@@ -1038,12 +1038,6 @@ def set_arm_block(
     return _ARM_BLOCK.set(block, dwell_s=dwell_s, at=at)
 
 
-def load_staleness_block() -> Dict[str, Any]:
-    """Return the persisted stale-presence-block diagnostic, or all-clear."""
-
-    return _STALE_BLOCK.load()
-
-
 def mark_staleness_block_notified(key: str) -> None:
     """Record that the due stale-block notification for ``key`` was delivered.
 
