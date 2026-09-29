@@ -176,14 +176,19 @@ def test_nav_at_rest_after_plug_modal_with_autofocus(
 
 
 def test_app_padding_owned_by_vendored_nav_on_mobile(
-    page: Page, base_url: str, sample_units: List[Dict],
+    page: Page, base_url: str, browser_name: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
     """#420: on the mobile-pill breakpoint the vendored nav-tabs.css owns
     .app's padding (safe-area top + nav-pill bottom clearance). It loads
     BEFORE styles.css, so an unconditioned ``padding`` shorthand on the base
     .app rule silently wins the cascade and flattens both — the PWA then
-    renders under the iOS status bar and behind the floating pill."""
+    renders under the iOS status bar and behind the floating pill. Chromium
+    pins the viewport below the wide-layout rail's 1100px breakpoint
+    (project-scaffolding#281/#968, home-automation#748) so this stays the
+    plain top-control desktop case rather than the rail's own padding rule."""
+    if browser_name != "webkit":
+        page.set_viewport_size({"width": 1099, "height": 800})
     mock_api(sample_units)
     mock_energy()
     boot_home(page, base_url)
@@ -194,11 +199,14 @@ def test_app_padding_owned_by_vendored_nav_on_mobile(
         " top: parseFloat(s.paddingTop), bottom: parseFloat(s.paddingBottom) }; }"
     )
     if metrics["mobilePill"]:
-        # env(safe-area-inset-*) is 0 under emulation, so the floors are
-        # --gap (12px) on top and margin+bar+margin+gap (≈115px) below.
-        assert metrics["top"] >= 12, metrics
+        # #288 (re-vendored home-automation#748): top is the safe-area inset
+        # alone now, no added --gap floor, so the first card sits directly
+        # under the status bar; env(safe-area-inset-*) is 0 under emulation.
+        # Bottom keeps its margin+bar+margin+gap (~115px) floor.
+        assert metrics["top"] == 0, metrics
         assert metrics["bottom"] >= 100, metrics
     else:
-        # Desktop keeps the styles.css padding: 0 var(--gap) 24px.
+        # Desktop (below the 1100px rail breakpoint) keeps the styles.css
+        # padding: 0 var(--gap) 24px.
         assert metrics["top"] == 0, metrics
         assert metrics["bottom"] == 24, metrics
