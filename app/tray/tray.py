@@ -37,12 +37,20 @@ from app.webapp.manager import (
     load_config,
 )
 from app.tray.single_instance import SingleInstance
+from app.tray.watchdog import BreadcrumbLog, DEFAULT_STARTUP_RETRY_DELAYS_S, retry_with_backoff
 from src._no_window import NO_WINDOW
 from src.webapp_config import append_auth_token, load_webapp_config
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# The breadcrumb file is the ONLY durable record of tray-boot events under
+# pythonw (issue #745 / photo-ocr#110): `logging.basicConfig()`'s default
+# stream handler writes into `sys.stderr`, which is `None` under `pythonw`, so
+# every start/retry/failure line was previously discarded. Gitignored (*.log).
+WATCHDOG_LOG = PROJECT_ROOT / "webapp" / "watchdog.log"
+wd_log = BreadcrumbLog(WATCHDOG_LOG)
 
 # Breadcrumbs for the Tailscale resolver. The tray runs under pythonw (no
 # console), so logger output is void — a gitignored file log is the only way
@@ -343,14 +351,47 @@ def run_tray() -> int:
     # quickly even if uvicorn takes a second to start.
     starter_error: dict = {"exc": None}
 
-    def _start():
+    # `WebappStartupPending` is not a failure — it means the process came up
+    # but is still slow to answer (#687) — so it must never be treated as a
+    # `retry_with_backoff` attempt failure (which would spawn a second
+    # process on top of the still-booting one). `_attempt_start` swallows it
+    # into `pending_exc` and returns normally, which reads as success to
+    # `retry_with_backoff` and stops the retry loop right there.
+    pending_exc: dict = {"exc": None}
+
+    def _attempt_start() -> None:
         try:
             manager.start(wait=True)
-            _notify(icon, "Home Automation webapp ready", manager.base_url)
         except WebappStartupPending as exc:
+            pending_exc["exc"] = exc
+
+    def _on_start_attempt_failed(attempt: int, exc: BaseException) -> None:
+        wd_log(f"webapp start attempt {attempt} failed: {exc}")
+        if attempt <= len(DEFAULT_STARTUP_RETRY_DELAYS_S):
+            delay = DEFAULT_STARTUP_RETRY_DELAYS_S[attempt - 1]
+            logger.warning(
+                f"⚠️  webapp start attempt {attempt} failed, "
+                f"retrying in {delay:.0f}s: {exc}"
+            )
+
+    def _start():
+        try:
+            retry_with_backoff(
+                _attempt_start, DEFAULT_STARTUP_RETRY_DELAYS_S, _on_start_attempt_failed
+            )
+        except Exception as exc:  # noqa: BLE001 — every attempt was exhausted
+            starter_error["exc"] = exc
+            wd_log(f"webapp start FAILED permanently: {exc}")
+            logger.error(f"❌ webapp start failed: {exc}")
+            _notify(icon, "Home Automation start failed", str(exc))
+            return
+
+        exc = pending_exc["exc"]
+        if exc is not None:
             # Process is still alive, just slow (a boot-storm cold start has
             # been observed taking ~20 minutes) — keep watching in the
             # background instead of reporting a permanent failure (#687).
+            wd_log(f"webapp startup pending: {exc}")
             logger.warning(f"⚠️  {exc} — still watching")
             _notify(
                 icon,
@@ -360,8 +401,10 @@ def run_tray() -> int:
 
             def _keep_watching():
                 if manager.watch_until_resolved():
+                    wd_log("webapp started")
                     _notify(icon, "Home Automation webapp ready", manager.base_url)
                 else:
+                    wd_log("webapp process exited before becoming ready")
                     logger.error("❌ webapp process exited before becoming ready")
                     _notify(
                         icon,
@@ -370,10 +413,10 @@ def run_tray() -> int:
                     )
 
             threading.Thread(target=_keep_watching, daemon=True).start()
-        except Exception as exc:  # noqa: BLE001
-            starter_error["exc"] = exc
-            logger.error(f"❌ webapp start failed: {exc}")
-            _notify(icon, "Home Automation start failed", str(exc))
+            return
+
+        wd_log("webapp started")
+        _notify(icon, "Home Automation webapp ready", manager.base_url)
 
     threading.Thread(target=_start, daemon=True).start()
 

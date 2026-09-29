@@ -129,6 +129,34 @@ def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, 
     assert session.session_counts == {}
 
 
+def test_restore_after_rearm_keeps_failed_zone_bypassed_for_retry(monkeypatch, tmp_path) -> None:
+    """Issue #745: a zone whose un-bypass call raises (e.g. a transient RISCO
+    Cloud error at the arm event) must stay in ``auto_bypassed_zones`` so the
+    next arm retries it — clearing it unconditionally would forget it forever
+    and leave it bypassed through every later armed session.
+    """
+
+    monkeypatch.setattr(session_cfg, "SESSION_PATH", tmp_path / "security_override_session.json")
+    session = session_cfg.load_override_session()
+    session.auto_bypassed_zones = [12, 34]
+    session.session_counts = {"12": 1, "34": 1}
+    session_cfg.save_override_session(session)
+
+    async def fake_bypass(zone_id: int, bypass: bool):
+        if zone_id == 12:
+            raise RuntimeError("transient RISCO Cloud error")
+        return _FakeState()
+
+    monkeypatch.setattr(engine, "set_zone_bypass", fake_bypass)
+    monkeypatch.setattr(engine.telemetry, "record_event", lambda *a, **kw: None)
+
+    asyncio.run(engine._restore_after_rearm())
+
+    session = session_cfg.load_override_session()
+    assert session.auto_bypassed_zones == [12]
+    assert session.session_counts == {}
+
+
 def test_unreadable_session_store_does_not_clear_auto_bypassed_zones(
     monkeypatch, tmp_path
 ) -> None:
