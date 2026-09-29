@@ -19,6 +19,7 @@
   /* colors — accent + status (status colors signal state only, never decoration) */
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
+  --accent-text: #0550ae;   /* accent-coloured text on an accent-soft tint (nav-tab-active) */
   --on: #1a7f37;            /* success */
   --deficit: #cf222e;       /* danger */
   --attention: #9a6700;     /* attention */
@@ -75,8 +76,8 @@
   --font-heading-xl: 2rem;
   --font-heading-lg: 1.5rem;
   --font-body: 1rem;
-  --font-label: 0.92rem;
-  --font-caption: 0.78rem;
+  --font-label: 0.875rem;
+  --font-caption: 0.75rem;
   /* elevation — cards lean on surface + hairline border; the floating nav and
      toasts are the only elements with a real shadow. */
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
@@ -108,14 +109,15 @@
   --line-muted: #21262d;    /* border-muted */
   --accent: #2f81f7;
   --accent-fg: #ffffff;
+  --accent-text: #58a6ff;
   --on: #3fb950;            /* success */
   --deficit: #f85149;       /* danger */
   --attention: #d29922;     /* attention */
-  --tile-green: #2ea043;
-  --tile-blue: #2f81f7;
-  --tile-purple: #a371f7;
-  --tile-orange: #db6d28;
-  --tile-yellow: #d29922;
+  --tile-green: #238636;
+  --tile-blue: #1f6feb;
+  --tile-purple: #8957e5;
+  --tile-orange: #bd561d;
+  --tile-yellow: #9e6a03;
   --input-bg: var(--bg);
   --toggle-track: var(--line);
   --toggle-knob: var(--ink);
