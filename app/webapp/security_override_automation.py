@@ -129,14 +129,22 @@ async def _auto_bypass(zone_id: int, max_retries: int, trigger_count: int) -> No
 
 
 async def _restore_after_rearm() -> None:
-    """Un-bypass every zone this automation bypassed and start a fresh session."""
+    """Un-bypass every zone this automation bypassed and start a fresh session.
+
+    A zone whose un-bypass call fails (e.g. a transient RISCO Cloud error at
+    the arm event) stays in ``auto_bypassed_zones`` so the next arm event
+    retries it — clearing it unconditionally would forget it forever and
+    leave it bypassed through every later armed session (issue #745).
+    """
 
     session = load_override_session()
+    still_bypassed = []
     for zone_id in list(session.auto_bypassed_zones):
         try:
             state = await set_zone_bypass(zone_id, False)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ Override un-bypass failed for zone %s: %s", zone_id, exc)
+            still_bypassed.append(zone_id)
             continue
         zone_name = _zone_name_for(zone_id, state)
         telemetry.record_event(
@@ -147,7 +155,7 @@ async def _restore_after_rearm() -> None:
             payload={"zone_name": zone_name},
         )
         logger.info("🔓 Restored zone %s (%s) for the new armed session", zone_id, zone_name)
-    session.auto_bypassed_zones = []
+    session.auto_bypassed_zones = still_bypassed
     session.session_counts = {}
     save_override_session(session)
 
@@ -174,8 +182,8 @@ async def _run_event_scan(config: OverrideAutomationConfig) -> None:
 
     Never raises. Guarded against overlapping runs the same way
     ``alarm_scene_automation._run_event_scan`` is; the on-disk cursor is
-    re-checked and claimed immediately before each event is handled (not
-    after) so two concurrently-running scans can't both act on the same event
+    re-checked immediately before each event is handled and claimed right
+    after, so two concurrently-running scans can't both act on the same event
     (mirrors the cross-process fix in issue #339).
     """
 

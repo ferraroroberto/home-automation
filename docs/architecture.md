@@ -142,6 +142,7 @@ The exhaustive module-by-module inventory of the repository. The [README](../REA
 
 - `tray.py` — pystray icon + menu; `__main__.py` — the `-m app.tray` entry.
 - `single_instance.py` — vendored verbatim from the scaffold. `tray_lifecycle.ps1` is never vendored per-app — `tray.bat` shells out to the one shared, machine-local copy fleet-config installs at `%USERPROFILE%\.claude\tray\tray_lifecycle.ps1`.
+- `watchdog.py` — vendored verbatim from the scaffold (issue #745, photo-ocr#110): `retry_with_backoff` (wraps the initial `manager.start()` at tray boot in an escalating retry so a lost transient race doesn't kill the webapp for the tray's lifetime) and `BreadcrumbLog` (a best-effort timestamped file writer at `webapp/watchdog.log`, gitignored — the only durable record of tray-boot events since a `pythonw`-hosted tray has no `sys.stderr` for `logging.basicConfig()` to write to). `HealthWatchdog` ships in the vendored file but is not wired in here — out of scope for #745.
 
 ## `custom_components/home_automation_app/` — Home Assistant custom integration (#235)
 
