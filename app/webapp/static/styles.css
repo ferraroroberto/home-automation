@@ -292,20 +292,12 @@ button, input, select, textarea {
    vendored file now shows .tab-icon at every width itself, with `.tab` as a
    centred flex row so the icon leads the label — re-adding a per-app
    width/margin rule here would double the icon-to-label gap by stacking on
-   top of the vendored `.tab`'s flex `gap`. See home-automation#414. */
+   top of the vendored `.tab`'s flex `gap`. See home-automation#414.
 
-/* Mobile-pill icon-size override: every nav icon carries both the shared
-   .icon utility class (width/height: 1em, used by every icon in this app)
-   and .tab-icon. The vendored file's own mobile rule sizes .tab-icon at 20px
-   via --bottom-tabs-icon, but it's a bare single-class selector — the same
-   specificity as .icon — and .icon sits later in this stylesheet (loaded
-   after nav-tabs.css), so without this it silently wins and shrinks the
-   floating pill's icons to ~11px (1em at the pill's 11px label font-size).
-   Apps without a shared .icon class (app-launcher, whatsapp-radar) don't hit
-   this; it's specific to this app's markup, not a vendored-file defect. */
-@media (pointer: coarse) and (max-width: 520px) {
-  .tab-icon { width: var(--bottom-tabs-icon); height: var(--bottom-tabs-icon); }
-}
+   Every nav icon also carries this app's .icon utility (1em). The vendored
+   file scopes its icon sizes as `.tabs .tab-icon`, so .icon below can't
+   shrink them at any width (project-scaffolding#303); no per-app icon-size
+   override is needed here. */
 
 /* Overlay-hide glue the vendored file anticipates (its README: "a non-<dialog>
    overlay -> add the class nav-hidden to <body>") — #loginOverlay is a
