@@ -180,14 +180,20 @@ export function renderEnergy(e) {
   // Two distinct causes, worth telling apart: solar still reading means the
   // inverter is fine and only the power sensor is bad, which is a hardware
   // fault to chase; nothing reading at all is just no data from the source.
-  const liveNote = e.meter_reachable === false
-    ? (e.inverter_reachable
-      ? '· Grid and home unavailable — the power sensor is reporting invalid readings'
-      : '· Live unavailable — no reading from the inverter')
-    : null;
+  // A third, distinct state (#771): the server is answering with its last good
+  // reading because the source stopped refreshing, so it isn't live and isn't
+  // plotted as if it were.
+  const stale = !!(e.snapshot && e.snapshot.stale);
+  const liveNote = stale
+    ? '· Last reading ' + Math.round(e.snapshot.age_seconds / 60) + ' min ago — source not refreshing'
+    : e.meter_reachable === false
+      ? (e.inverter_reachable
+        ? '· Grid and home unavailable — the power sensor is reporting invalid readings'
+        : '· Live unavailable — no reading from the inverter')
+      : null;
 
   // --- append to the live chart (Generation / Grid-supplied / Consumption) ---
-  if (state.liveChart) {
+  if (state.liveChart && !stale) {
     pushLivePoint(
       state.liveChart, Math.floor(Date.now() / 1000),
       solar, e.grid_import_w, e.house_consumption_w, LIVE_MAX_POINTS,
