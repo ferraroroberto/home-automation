@@ -25,6 +25,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+from app.webapp import read_snapshot
 from app.webapp._env import _env_int
 from app.webapp.presence_refresher import get_cache, refresh_once
 from src.location_config import LocationConfig, load_location_config, save_location_config
@@ -404,6 +405,7 @@ async def update_location(payload: LocationPayload) -> Dict[str, Any]:
         save_location_config(location)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    read_snapshot.invalidate("weather")  # the tile must show the new home, not the old one
     return {"configured": True, "lat": location.lat, "lon": location.lon, "label": location.label}
 
 

@@ -239,6 +239,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # second instance must not open one at boot (#769).
     if ownership.held:
         tasks.append(asyncio.create_task(energy.ENERGY_SNAPSHOT.warm()))
+    # Any instance: a plain HTTPS read, so the first tile load after a restart
+    # doesn't pay for a cold TLS handshake inside the request (#772).
+    tasks.append(asyncio.create_task(weather.WEATHER_SNAPSHOT.warm()))
     try:
         yield
     finally:
