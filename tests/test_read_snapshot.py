@@ -154,3 +154,119 @@ def test_warm_is_not_a_demand_and_survives_a_failing_fetch(clock: _Clock) -> Non
             await snap.read()
 
     asyncio.run(run())
+
+
+def _stale_snapshot(fetch, **kw) -> ReadSnapshot:
+    return ReadSnapshot("t-stale", fetch, max_age_s=10, tick_s=5, stale_after_s=120, **kw)
+
+
+def test_serve_stale_answers_past_the_bound_without_fetching_inline(clock: _Clock) -> None:
+    """#771: a read past ``max_age_s`` returns the held value and refreshes behind it."""
+    calls: List[int] = []
+
+    async def fetch() -> Dict[str, int]:
+        calls.append(1)
+        await asyncio.sleep(0)
+        return {"a": len(calls)}
+
+    snap = _stale_snapshot(fetch)
+
+    async def run() -> None:
+        await snap.read()  # nothing to serve yet: the one inline fetch
+        clock.now += 11
+        value, meta = await snap.read()
+        assert value == {"a": 1} and meta["age_seconds"] == 11.0 and meta["stale"] is False
+        await snap._background  # the refresh the read left behind
+        value, meta = await snap.read()
+        assert value == {"a": 2} and meta["age_seconds"] == 0.0
+
+    asyncio.run(run())
+    assert len(calls) == 2
+
+
+def test_serve_stale_readers_share_one_background_refresh(clock: _Clock) -> None:
+    calls: List[int] = []
+
+    async def fetch() -> Dict[str, int]:
+        calls.append(1)
+        await asyncio.sleep(0)
+        return {"a": len(calls)}
+
+    snap = _stale_snapshot(fetch)
+
+    async def run() -> None:
+        await snap.read()
+        clock.now += 11
+        await asyncio.gather(*(snap.read() for _ in range(5)))
+        await snap._background
+
+    asyncio.run(run())
+    assert len(calls) == 2
+
+
+def test_serve_stale_marks_a_dead_upstream_stale_with_its_error(clock: _Clock) -> None:
+    """Old data past the ceiling is its own state, not folded into "fine"."""
+    fail = {"on": False}
+
+    async def fetch() -> Dict[str, int]:
+        if fail["on"]:
+            raise RuntimeError("dongle moved")
+        return {"a": 1}
+
+    snap = _stale_snapshot(fetch)
+
+    async def run() -> None:
+        _, meta = await snap.read()
+        assert meta["stale"] is False and meta["error"] is None
+        fail["on"] = True
+        clock.now += 121
+        value, meta = await snap.read()  # still answers, with the last good reading
+        assert value == {"a": 1} and meta["stale"] is True
+        await snap._background
+        _, meta = await snap.read()
+        assert meta["stale"] is True and meta["error"] == "dongle moved"
+        fail["on"] = False
+        clock.now += 6
+        await snap.read()
+        await snap._background
+        _, meta = await snap.read()
+        assert meta["stale"] is False and meta["error"] is None
+
+    asyncio.run(run())
+
+
+def test_serve_stale_does_not_retry_a_failing_upstream_per_request(clock: _Clock) -> None:
+    calls: List[int] = []
+
+    async def fetch() -> Dict[str, int]:
+        calls.append(1)
+        if len(calls) > 1:
+            raise RuntimeError("down")
+        return {"a": 1}
+
+    snap = _stale_snapshot(fetch)
+
+    async def run() -> None:
+        await snap.read()
+        clock.now += 11
+        await snap.read()
+        await snap._background
+        for _ in range(10):  # a burst of reads inside tick_s
+            await snap.read()
+        assert snap._background.done()
+
+    asyncio.run(run())
+    assert len(calls) == 2
+
+
+def test_serve_stale_still_refetches_inline_after_a_write(clock: _Clock) -> None:
+    snap, calls = _counting_snapshot([{"a": 1}, {"a": 2}])
+    snap.stale_after_s = 120
+
+    async def run() -> None:
+        await snap.read()
+        snap.invalidate()
+        value, _ = await snap.read()
+        assert value == {"a": 2}
+
+    asyncio.run(run())

@@ -57,12 +57,16 @@ router = APIRouter()
 # The live flow, refreshed off the request path at the PWA's 5 s cadence
 # (#759): its slow tail was the Modbus/cloud refresh landing inside a request.
 # Same fetch_energy_state, same lock and 5 s/60 s caches, so it adds no second
-# reader of the single-client Modbus dongle.
+# reader of the single-client Modbus dongle. Serve-stale (#771): a read past the
+# 10 s bound used to answer inline (a Modbus rediscovery or the cloud fallback,
+# ~1 s+), so it now answers from memory and refreshes behind it; past 120 s the
+# snapshot block says ``stale`` instead of passing old data off as live.
 ENERGY_SNAPSHOT: ReadSnapshot[EnergyState] = ReadSnapshot(
     "energy",
     lambda: fetch_energy_state(),  # looked up per call, so tests can patch it
     max_age_s=10.0,
     tick_s=5.0,
+    stale_after_s=120.0,
 )
 
 

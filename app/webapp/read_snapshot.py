@@ -12,6 +12,16 @@ answering: old state is never served as current. Every answer carries its age
 (:meth:`ReadSnapshot.describe`), stamped from the moment the fetch *started*,
 so the age is that of the oldest data in it.
 
+**Serve-stale mode** (``stale_after_s``, #771) is for a read whose upstream is
+too slow or too fragile to ever sit in a request (the Modbus dongle: a cold
+rediscovery is seconds). Once a value exists a read never fetches inline: it
+answers with the last value, honestly aged, and one shared background task
+refreshes it. The age alone isn't left to say "upstream is down": past
+``stale_after_s`` the answer's snapshot block says ``stale: true``, and
+``error`` carries the last failed refresh's message, so "last good reading,
+source not refreshing" is its own state. A write's dirty mark still refetches
+inline, and so does the very first read (nothing to serve yet).
+
 **Writes.** A write in this process either applies its read-back as a patch
 (:meth:`ReadSnapshot.update`) or marks the snapshot dirty
 (:meth:`ReadSnapshot.invalidate`) so the next read refetches. Both are
@@ -67,12 +77,14 @@ class ReadSnapshot(Generic[T]):
         max_age_s: float,
         tick_s: float,
         demand_window_s: float = 60.0,
+        stale_after_s: Optional[float] = None,
     ) -> None:
         self.name = name
         self._fetch = fetch
         self.max_age_s = max_age_s
         self.tick_s = tick_s
         self.demand_window_s = demand_window_s
+        self.stale_after_s = stale_after_s
         self._lock = asyncio.Lock()
         self.reset()
         _REGISTRY[name] = self
@@ -86,6 +98,9 @@ class ReadSnapshot(Generic[T]):
         self._patches: List[Tuple[int, Callable[[T], T]]] = []
         self._dirty_seq = 0
         self._last_demand = float("-inf")
+        self._attempted = float("-inf")  # monotonic, at the last fetch start, ok or not
+        self._error: Optional[str] = None  # last refresh failure; cleared by a success
+        self._background: Optional["asyncio.Task[None]"] = None
 
     def _needs_fetch(self) -> bool:
         return (
@@ -97,22 +112,51 @@ class ReadSnapshot(Generic[T]):
     async def read(self) -> Tuple[T, Dict[str, Any]]:
         """The current value and its age, fetching inline when it is too old.
 
-        A fetch error propagates to the caller, exactly as an uncached read.
+        A serve-stale snapshot holding a value never fetches inline: it answers
+        at once and refreshes in the background. A fetch error otherwise
+        propagates to the caller, exactly as an uncached read.
         """
         self._last_demand = time.monotonic()
-        if self._needs_fetch():
+        if self.stale_after_s is not None and self._value is not None and self._dirty_seq == 0:
+            now = time.monotonic()
+            # Spaced by tick_s so a failing upstream isn't retried once per request.
+            if now - self._built > self.max_age_s and now - self._attempted >= self.tick_s:
+                self._refresh_in_background()
+        elif self._needs_fetch():
             async with self._lock:
                 if self._needs_fetch():  # another reader may have just fetched
                     await self._refresh("inline")
         assert self._value is not None
         return self._value, self.describe()
 
+    def _refresh_in_background(self) -> None:
+        """Start the one shared refresh a serve-stale read leaves behind."""
+        if self._background is None or self._background.done():
+            self._background = asyncio.get_running_loop().create_task(self._background_refresh())
+
+    async def _background_refresh(self) -> None:
+        try:
+            async with self._lock:
+                if self._needs_fetch():  # a tick may have refreshed while we waited
+                    await self._refresh("background")
+        except Exception as exc:  # noqa: BLE001 — recorded by _refresh; a read never sees it
+            logger.warning(
+                "⚠️ %s snapshot background refresh failed; still serving the last reading: %s",
+                self.name, exc,
+            )
+
     async def _refresh(self, reason: str) -> None:
         """Fetch and install. Caller holds ``self._lock``."""
         start_seq = self._seq
         start = time.monotonic()
+        self._attempted = start
         built_at = datetime.now().astimezone().isoformat(timespec="seconds")
-        value = await self._fetch()
+        try:
+            value = await self._fetch()
+        except Exception as exc:
+            self._error = str(exc) or type(exc).__name__
+            raise
+        self._error = None
         # Writes that landed while the fetch was in flight are newer than it.
         newer = [(s, p) for s, p in self._patches if s > start_seq]
         for _, patch in newer:
@@ -136,11 +180,16 @@ class ReadSnapshot(Generic[T]):
         self._dirty_seq = self._seq
 
     def describe(self) -> Dict[str, Any]:
-        """The additive ``snapshot`` key a wired endpoint returns."""
-        return {
-            "built_at": self._built_at,
-            "age_seconds": round(max(0.0, time.monotonic() - self._built), 1),
-        }
+        """The additive ``snapshot`` key a wired endpoint returns.
+
+        A serve-stale snapshot adds ``stale`` and ``error`` (see the module doc).
+        """
+        age = max(0.0, time.monotonic() - self._built)
+        meta: Dict[str, Any] = {"built_at": self._built_at, "age_seconds": round(age, 1)}
+        if self.stale_after_s is not None:
+            meta["stale"] = age > self.stale_after_s
+            meta["error"] = self._error
+        return meta
 
     async def tick_once(self) -> None:
         """Refetch if someone read recently and nobody just did."""
@@ -175,6 +224,7 @@ class ReadSnapshot(Generic[T]):
                 await self.tick_once()
             except Exception as exc:  # noqa: BLE001 — a failed tick must not end the loop
                 logger.warning(
-                    "⚠️ %s snapshot tick failed; reads past %.0fs fetch inline: %s",
-                    self.name, self.max_age_s, exc,
+                    "⚠️ %s snapshot tick failed; reads past %.0fs %s: %s",
+                    self.name, self.max_age_s,
+                    "keep the last reading" if self.stale_after_s is not None else "fetch inline", exc,
                 )

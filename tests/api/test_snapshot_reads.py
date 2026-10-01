@@ -141,7 +141,7 @@ def test_energy_reads_share_one_fetch_and_carry_their_age(
     client.get("/api/energy")
     body = client.get("/api/energy").json()
     assert len(fetches) == 1
-    assert set(body["snapshot"]) == {"built_at", "age_seconds"}
+    assert set(body["snapshot"]) == {"built_at", "age_seconds", "stale", "error"}
 
 
 def test_tuya_switch_is_visible_on_the_next_read_and_names_stay_live(
@@ -233,3 +233,51 @@ def test_a_slow_ups_tick_never_blocks_a_request(monkeypatch: pytest.MonkeyPatch)
         await tick
 
     asyncio.run(run())
+
+
+def test_a_slow_energy_refresh_never_blocks_a_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """#771: past its 10 s bound a read used to queue behind a slow Modbus/cloud
+    refresh (~1 s); it now answers from the last reading at once."""
+    from app.webapp.routers import energy
+
+    release = asyncio.Event()
+    slow = {"on": False}
+
+    async def fake_fetch() -> EnergyState:
+        if slow["on"]:
+            await asyncio.wait_for(release.wait(), 10)
+        return EnergyState(pv_power_w=1234.0)
+
+    monkeypatch.setattr("app.webapp.routers.energy.fetch_energy_state", fake_fetch)
+
+    async def run() -> None:
+        snap = energy.ENERGY_SNAPSHOT
+        await snap.read()  # seeds the value and marks demand
+        slow["on"] = True
+        snap._built -= snap.max_age_s + 1  # past the bound
+        tick = asyncio.create_task(snap.tick_once())
+        await asyncio.sleep(0.05)  # the refresh is parked inside the slow read
+        state, meta = await asyncio.wait_for(snap.read(), timeout=1.0)
+        assert state.pv_power_w == 1234.0 and meta["stale"] is False
+        release.set()
+        await tick
+
+    asyncio.run(run())
+
+
+def test_energy_says_stale_and_why_when_the_source_stops_refreshing(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.webapp.routers import energy
+
+    async def fake_fetch() -> EnergyState:
+        return EnergyState(pv_power_w=500.0)
+
+    monkeypatch.setattr("app.webapp.routers.energy.fetch_energy_state", fake_fetch)
+    fresh = client.get("/api/energy").json()["snapshot"]
+    assert fresh["stale"] is False and fresh["error"] is None
+
+    energy.ENERGY_SNAPSHOT._built -= energy.ENERGY_SNAPSHOT.stale_after_s + 1
+    body = client.get("/api/energy").json()
+    assert body["pv_power_w"] == 500.0  # the last good reading, still served
+    assert body["snapshot"]["stale"] is True
