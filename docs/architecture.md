@@ -105,7 +105,7 @@ The exhaustive module-by-module inventory of the repository. The [README](../REA
 ## `app/webapp/` — the FastAPI + PWA product
 
 - `server.py` — `create_app()`, middleware, caching static mount, routers, background-task lifespan. Lifespan startup acquires `src.automation_owner.AutomationOwnership` and only starts the write-side automation-loop tasks below when it wins ownership (#690) — a second instance still mounts every router and serves read-only.
-- `middleware.py` — bearer-token / loopback auth gate.
+- `middleware.py` — bearer-token / loopback auth gate, and the gzip response compression that leaves the camera stream/snapshot paths alone (#756).
 - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
 - `sampler.py` — background energy sampler owned by the webapp lifecycle.
 - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.

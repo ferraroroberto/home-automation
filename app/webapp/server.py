@@ -63,7 +63,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
-from app.webapp.middleware import BearerTokenMiddleware
+from app.webapp.middleware import BearerTokenMiddleware, StreamSafeGZipMiddleware
 from src.camera_token import verify as _verify_camera_token
 from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
@@ -260,6 +260,8 @@ def create_app() -> FastAPI:
             tok, getattr(app.state.webapp_config, "auth_token", "")
         ),
     )
+
+    app.add_middleware(StreamSafeGZipMiddleware, minimum_size=1000)
 
     app.state.webapp_config = webapp_cfg
 

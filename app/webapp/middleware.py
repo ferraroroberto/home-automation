@@ -11,6 +11,9 @@ Mirrors the sibling fleet apps (photo-ocr, app-launcher):
 - For camera stream/snapshot paths only: also accept ``?camera_token=…``
   (a short-lived HMAC-signed scoped token) so ``<img src>`` URLs never
   carry the long-lived bearer token (issue #261).
+
+Also holds ``StreamSafeGZipMiddleware`` — response compression that leaves
+the camera paths alone (#756).
 """
 
 from __future__ import annotations
@@ -21,6 +24,8 @@ from typing import Callable, Optional
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.types import Receive, Scope, Send
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
@@ -90,3 +95,19 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
             content={"detail": "missing or invalid bearer token"},
             headers={"WWW-Authenticate": 'Bearer realm="home-automation"'},
         )
+
+
+class StreamSafeGZipMiddleware(GZipMiddleware):
+    """Gzip responses, except the camera stream and snapshot paths (#756).
+
+    Starlette already skips ``text/event-stream`` (the dictation SSE), but it
+    would gzip the ``multipart/x-mixed-replace`` MJPEG stream — its compressor
+    holds small writes back, so frames would arrive late — and the JPEGs are
+    already compressed. Those paths bypass the compressor entirely.
+    """
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and _is_camera_stream_path(scope["path"]):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
