@@ -127,3 +127,30 @@ def test_invalidate_refetches_on_the_next_read(clock: _Clock) -> None:
 
     asyncio.run(run())
     assert len(calls) == 2
+
+
+def test_warm_fetches_once_and_a_later_read_reuses_it(clock: _Clock) -> None:
+    snap, calls = _counting_snapshot([{"a": 1}])
+
+    async def run() -> None:
+        await snap.warm()
+        await snap.warm()  # already holding a value: no second cold fetch
+        value, _ = await snap.read()
+        assert value == {"a": 1}
+
+    asyncio.run(run())
+    assert len(calls) == 1
+
+
+def test_warm_is_not_a_demand_and_survives_a_failing_fetch(clock: _Clock) -> None:
+    async def boom() -> Dict[str, int]:
+        raise RuntimeError("dongle moved")
+
+    snap = ReadSnapshot("t-warm", boom, max_age_s=60, tick_s=30, demand_window_s=60)
+
+    async def run() -> None:
+        await snap.warm()  # swallowed: the first read will fetch inline and raise
+        with pytest.raises(RuntimeError):
+            await snap.read()
+
+    asyncio.run(run())
