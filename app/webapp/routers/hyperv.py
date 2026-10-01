@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict
 
 from fastapi import APIRouter, HTTPException
 
+from app.webapp.read_snapshot import ReadSnapshot
 from src.hyperv_client import (
     HyperVCommandError,
     HyperVConfigError,
@@ -36,15 +37,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# A ``Get-VM`` PowerShell spawn per read (~0.7 s) runs off the request path
+# instead (#759). The PWA polls every 30 s, the issue's staleness bound.
+HYPERV_SNAPSHOT: ReadSnapshot[HyperVState] = ReadSnapshot(
+    "hyperv",
+    lambda: asyncio.to_thread(fetch_hyperv_state),  # looked up per call, so tests can patch it
+    max_age_s=30.0,
+    tick_s=20.0,
+)
+
 
 @router.get("/api/hyperv")
 async def get_hyperv() -> Dict[str, Any]:
     """Return the Home Assistant VM's live status."""
     try:
-        state = await asyncio.to_thread(fetch_hyperv_state)
+        state, snapshot = await HYPERV_SNAPSHOT.read()
     except HyperVConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    return {"hyperv": state.to_dict()}
+    return {"hyperv": state.to_dict(), "snapshot": snapshot}
 
 
 _ACTIONS: Dict[str, Callable[[], HyperVState]] = {"start": start_vm, "stop": stop_vm}
@@ -67,6 +77,9 @@ async def control_hyperv(action: str) -> Dict[str, Any]:
     except HyperVStateError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except HyperVCommandError as exc:
+        # The command may have moved the VM before failing: refetch next read.
+        HYPERV_SNAPSHOT.invalidate()
         logger.warning("⚠️  Hyper-V %s failed: %s", action, exc)
         raise HTTPException(status_code=502, detail=str(exc))
+    HYPERV_SNAPSHOT.update(lambda _old: state)
     return {"hyperv": state.to_dict()}

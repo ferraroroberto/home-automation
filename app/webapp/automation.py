@@ -39,6 +39,7 @@ from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
+from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src import telemetry
@@ -68,12 +69,10 @@ async def _write_unit(unit_id: str, **kwargs: Any) -> DeviceInfo:
     Marked even when the write raises, since it may have half-applied; the
     next read refetches rather than serving the pre-write state.
     """
-    from app.webapp.routers.units import UNITS_SNAPSHOT  # lazy: units imports this module
-
     try:
         return await set_device_state(unit_id, **kwargs)
     finally:
-        UNITS_SNAPSHOT.invalidate()
+        read_snapshot.invalidate("units")
 
 
 @dataclass(frozen=True)

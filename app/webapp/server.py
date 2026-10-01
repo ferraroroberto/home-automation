@@ -63,6 +63,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
+from app.webapp import read_snapshot
 from app.webapp.middleware import BearerTokenMiddleware, StreamSafeGZipMiddleware
 from src.camera_token import verify as _verify_camera_token
 from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
@@ -231,8 +232,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             ownership.owner_info or "info unavailable",
         )
         tasks = []
-    # Read-side, so every instance runs it; it fetches only while read (#758).
-    tasks.append(asyncio.create_task(units.UNITS_SNAPSHOT.tick_forever()))
+    # Read-side, so every instance runs them; each fetches only while read (#758).
+    tasks.extend(asyncio.create_task(s.tick_forever()) for s in read_snapshot.registered())
     try:
         yield
     finally:

@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from app.webapp.read_snapshot import ReadSnapshot
 from src.energy_history import (
     MIN_TRUSTED_COVERAGE,
     aggregate,
@@ -53,6 +54,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# The live flow, refreshed off the request path at the PWA's 5 s cadence
+# (#759): its slow tail was the Modbus/cloud refresh landing inside a request.
+# Same fetch_energy_state, same lock and 5 s/60 s caches, so it adds no second
+# reader of the single-client Modbus dongle.
+ENERGY_SNAPSHOT: ReadSnapshot[EnergyState] = ReadSnapshot(
+    "energy",
+    lambda: fetch_energy_state(),  # looked up per call, so tests can patch it
+    max_age_s=10.0,
+    tick_s=5.0,
+)
+
 
 class ExportRatePayload(BaseModel):
     """One dated surplus-compensation rate entered in the Energy tab."""
@@ -82,11 +94,11 @@ def _energy_dict(s: EnergyState) -> Dict[str, Any]:
 @router.get("/api/energy")
 async def get_energy() -> Dict[str, Any]:
     try:
-        state = await fetch_energy_state()
+        state, snapshot = await ENERGY_SNAPSHOT.read()
     except Exception as exc:  # noqa: BLE001 — surface any unexpected error
         logger.warning("⚠️  Failed to read energy flow: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to read energy: {exc}")
-    return _energy_dict(state)
+    return {**_energy_dict(state), "snapshot": snapshot}
 
 
 @router.get("/api/energy/history")
