@@ -3,6 +3,11 @@
 ``GET /api/units`` returns every air-to-air unit's live state; ``POST
 /api/units/{id}`` writes the changed controls and returns the read-back
 snapshot so the client can re-render just that card.
+
+The device list is served from :data:`UNITS_SNAPSHOT` (#758): a MELCloud
+fetch is a full login (~1.6 s), so it runs off the request path. Only the raw
+device list is cached; display names, rules, schedules and boost state are
+still layered on per request.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ValidationError, field_validator
 
 from app.webapp import automation
+from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import make_display_name_endpoint
 from src._schedule_store import StoreUnreadableError
 from src.display_names import load_display_names, set_display_name
@@ -46,6 +52,16 @@ from src.melcloud_client import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Ticked while read within its demand window: the PWA polls every 30 s and
+# Home Assistant every 30 s, so a tick per 30 s is no more MELCloud traffic
+# than those polls each logging in, as they did before (#758).
+UNITS_SNAPSHOT: ReadSnapshot[List[DeviceInfo]] = ReadSnapshot(
+    "units",
+    lambda: fetch_devices(),  # looked up per call, so tests can patch it
+    max_age_s=60.0,
+    tick_s=30.0,
+)
 
 
 def _entry_dict(entry: ScheduleEntry) -> Dict[str, Any]:
@@ -172,7 +188,7 @@ def _decoration(load, label: str, empty):
 @router.get("/api/units")
 async def list_units() -> Dict[str, Any]:
     try:
-        devices = await fetch_devices()
+        devices, snapshot = await UNITS_SNAPSHOT.read()
     except MelCloudConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:  # noqa: BLE001 — surface any API/network error
@@ -181,7 +197,10 @@ async def list_units() -> Dict[str, Any]:
     display_names = load_display_names()
     rules = _decoration(load_rules, "config/hvac_rules.json", {})
     schedules = _decoration(load_schedules, "config/hvac_schedules.json", {})
-    return {"units": [_unit_dict(d, display_names, rules, schedules) for d in devices]}
+    return {
+        "units": [_unit_dict(d, display_names, rules, schedules) for d in devices],
+        "snapshot": snapshot,
+    }
 
 
 # ── valid enum values for the control body validator ──────────────────────────
@@ -260,8 +279,13 @@ async def control_unit(unit_id: str, payload: ControlPayload) -> Dict[str, Any]:
     except DeviceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:  # noqa: BLE001 — surface any API/network error
+        # The write may have half-applied: don't serve the pre-write state.
+        UNITS_SNAPSHOT.invalidate()
         logger.warning("⚠️  Failed to control unit %s: %s", unit_id, exc)
         raise HTTPException(status_code=502, detail=f"failed to apply: {exc}")
+    UNITS_SNAPSHOT.update(
+        lambda devices: [updated if d.unit_id == unit_id else d for d in devices]
+    )
     display_names = load_display_names()
     rules = _decoration(load_rules, "config/hvac_rules.json", {})
     schedules = _decoration(load_schedules, "config/hvac_schedules.json", {})

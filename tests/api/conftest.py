@@ -46,6 +46,18 @@ def _isolate_network_history(tmp_path, monkeypatch) -> None:
     # covers the alarm/power/presence unit tests too (the #296 pollution fix).
 
 
+@pytest.fixture(autouse=True)
+def _fresh_read_snapshots() -> None:
+    """Start every test with an empty ``/api/units`` snapshot (#758).
+
+    It is module state on the session-wide app, so a device list cached by
+    one test's fake fetcher would otherwise answer the next test's read.
+    """
+    from app.webapp.routers.units import UNITS_SNAPSHOT
+
+    UNITS_SNAPSHOT.reset()
+
+
 @pytest.fixture(scope="session")
 def client() -> TestClient:
     """A ``TestClient`` over the real app, with lifespan intentionally not run.
