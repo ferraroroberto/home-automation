@@ -18,9 +18,16 @@
  * P3 oklch layer in styles.css feeds --on/--deficit straight through — any CSS
  * color syntax (hex, oklch, rgb, named) works.
  *
- * Chart.js is loaded as a vendored UMD global (window.Chart) by index.html. */
+ * Chart.js is a vendored UMD global (window.Chart), loaded on first use: call
+ * loadChartJs() before any create*() (#760). */
 
 'use strict';
+
+import { loadScript } from './lazy-script.js';
+
+export function loadChartJs() {
+  return loadScript('/static/vendor/chart.umd.min.js');
+}
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();

@@ -19,6 +19,7 @@ import {
 import { jsonApi, reportActionFailure } from './api.js';
 import {
   createWifiChannelChart,
+  loadChartJs,
   setWifiChannelData,
 } from './charts.js';
 import { renderSignalBar } from './format.js';
@@ -57,8 +58,9 @@ function wifiSummary(wifi) {
   return parts.join(' · ');
 }
 
-function ensureWifiCharts() {
+async function ensureWifiCharts() {
   if (!els.netWifiChart24 || !els.netWifiChart5) return;
+  await loadChartJs();  // first use loads Chart.js (#760)
   if (!state.wifiChart24) state.wifiChart24 = createWifiChannelChart(els.netWifiChart24, '2.4GHz');
   if (!state.wifiChart5) state.wifiChart5 = createWifiChannelChart(els.netWifiChart5, '5GHz');
 }
@@ -196,23 +198,24 @@ export function renderWifi(wifi) {
     return;
   }
 
-  ensureWifiCharts();
   const bssids = wifi.bssids || [];
   const chartBssids = bssids.filter(function (b) {
     return state.networkShowHiddenWifi || !b.hidden;
   });
-  if (state.wifiChart24) {
-    setWifiChannelData(
-      state.wifiChart24,
-      chartBssids.filter(function (b) { return b.band === '2.4GHz'; })
-    );
-  }
-  if (state.wifiChart5) {
-    setWifiChannelData(
-      state.wifiChart5,
-      chartBssids.filter(function (b) { return b.band === '5GHz'; })
-    );
-  }
+  ensureWifiCharts().then(function () {
+    if (state.wifiChart24) {
+      setWifiChannelData(
+        state.wifiChart24,
+        chartBssids.filter(function (b) { return b.band === '2.4GHz'; })
+      );
+    }
+    if (state.wifiChart5) {
+      setWifiChannelData(
+        state.wifiChart5,
+        chartBssids.filter(function (b) { return b.band === '5GHz'; })
+      );
+    }
+  }).catch(function () { /* offline: the list below still renders */ });
   renderWifiRecommendations(wifi.recommendations || []);
   renderWifiList(bssids);
 }
