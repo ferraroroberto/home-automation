@@ -20,6 +20,11 @@ from before it, so on install the patches newer than the fetch's start are
 re-applied on top, and a dirty mark newer than it survives. That is the
 lost-update case app-launcher#1345 hit between overlapping reads and marks.
 
+Every snapshot registers under its name, so a writer outside the endpoint's
+router (an automation loop) marks it dirty with :func:`invalidate` without
+importing the router, and the lifespan starts every tick from
+:func:`registered`.
+
 Everything runs on the webapp's one event loop, so the state needs no thread
 lock; the asyncio lock only makes concurrent readers share one fetch.
 """
@@ -35,6 +40,20 @@ from typing import Any, Awaitable, Callable, Dict, Generic, List, Optional, Tupl
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+_REGISTRY: Dict[str, "ReadSnapshot[Any]"] = {}
+
+
+def registered() -> List["ReadSnapshot[Any]"]:
+    """Every snapshot constructed so far (each wired router declares one)."""
+    return list(_REGISTRY.values())
+
+
+def invalidate(name: str) -> None:
+    """Mark the named snapshot dirty; a no-op if its router isn't loaded."""
+    snap = _REGISTRY.get(name)
+    if snap is not None:
+        snap.invalidate()
 
 
 class ReadSnapshot(Generic[T]):
@@ -56,6 +75,7 @@ class ReadSnapshot(Generic[T]):
         self.demand_window_s = demand_window_s
         self._lock = asyncio.Lock()
         self.reset()
+        _REGISTRY[name] = self
 
     def reset(self) -> None:
         """Drop all state (tests, and construction)."""

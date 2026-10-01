@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
@@ -63,6 +64,16 @@ from src import telemetry
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# The raw panel state, refreshed off the request path at the PWA's 10 s poll
+# (#759) instead of a RISCO Cloud round trip (~1 s) per read. Names, hidden
+# and trouble-ignore flags are still layered on per request.
+SECURITY_SNAPSHOT: ReadSnapshot[Any] = ReadSnapshot(
+    "security",
+    lambda: fetch_security_state(),  # looked up per call, so tests can patch it
+    max_age_s=20.0,
+    tick_s=10.0,
+)
 
 
 def _event_ts(raw: Any) -> Optional[int]:
@@ -147,12 +158,12 @@ _http_error = make_http_error_mapper(RiscoConfigError, RiscoCommandError, noun="
 @router.get("/api/security")
 async def get_security() -> Dict[str, Any]:
     try:
-        payload = _state_payload(await fetch_security_state())
+        state, snapshot = await SECURITY_SNAPSHOT.read()
     except (RiscoConfigError, RiscoCommandError) as exc:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
-    return payload
+    return {**_state_payload(state), "snapshot": snapshot}
 
 
 @router.get("/api/security/events")
@@ -188,7 +199,13 @@ async def post_security_action(action: str, request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"unknown action '{action}'")
     actor = _actor_from_request(request)
     try:
-        state = await control_system(action)
+        try:
+            state = await control_system(action)
+        except Exception:
+            # The panel may have taken the command before the error: refetch.
+            SECURITY_SNAPSHOT.invalidate()
+            raise
+        SECURITY_SNAPSHOT.update(lambda _old: state)
         note_manual_alarm_action(action)
         # Manual actions are logged for the local activity record but never push
         # a notification — the user is already at the app.
@@ -220,7 +237,13 @@ async def post_security_action(action: str, request: Request) -> Dict[str, Any]:
 async def post_zone_bypass(zone_id: int, request: Request) -> Dict[str, Any]:
     bypass = await _bool_field(request, "bypass")
     try:
-        return _state_payload(await set_zone_bypass(zone_id, bypass))
+        try:
+            state = await set_zone_bypass(zone_id, bypass)
+        except Exception:
+            SECURITY_SNAPSHOT.invalidate()
+            raise
+        SECURITY_SNAPSHOT.update(lambda _old: state)
+        return _state_payload(state)
     except (RiscoConfigError, RiscoCommandError) as exc:
         raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001

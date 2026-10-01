@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from weakref import WeakKeyDictionary
 
+from app.webapp import read_snapshot
 from src.activity_log import append_activity
 from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
@@ -163,6 +164,17 @@ def alarm_action_already_satisfied(action: str, state: SecurityState) -> bool:
     return action in ("partial", "perimeter") and state.mode == "armed"
 
 
+async def _send(action: str) -> SecurityState:
+    """``control_system``, then mark the ``/api/security`` snapshot dirty (#759).
+
+    Marked even when it raises: the panel may have taken the command.
+    """
+    try:
+        return await control_system(action)
+    finally:
+        read_snapshot.invalidate("security")
+
+
 async def confirm_alarm_action(action: str) -> SecurityState:
     """Issue ``action``, retrying with backoff until confirmed or exhausted.
 
@@ -201,7 +213,7 @@ async def confirm_alarm_action(action: str) -> SecurityState:
         error = f"panel read back '{state.mode}' after {action}, not the expected state"
         return None
 
-    confirmed = await _check(control_system(action))
+    confirmed = await _check(_send(action))
     if confirmed is not None:
         return confirmed
 
@@ -213,7 +225,7 @@ async def confirm_alarm_action(action: str) -> SecurityState:
         if confirmed is not None:
             return confirmed
         if i < len(delays) - 1:
-            confirmed = await _check(control_system(action))
+            confirmed = await _check(_send(action))
             if confirmed is not None:
                 return confirmed
 

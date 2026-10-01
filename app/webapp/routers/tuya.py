@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, make_display_name_endpoint
 from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
@@ -142,10 +143,29 @@ def _read_one(
     return card
 
 
+async def _read_all() -> List[Dict[str, Any]]:
+    """LAN-read every device; cards carry no display name or hidden flag yet."""
+    infos = _unique_devices(list_devices())
+    semaphore = asyncio.Semaphore(_READ_CONCURRENCY)
+
+    async def _bounded(info: TuyaDeviceInfo) -> Dict[str, Any]:
+        async with semaphore:
+            return await asyncio.to_thread(_read_one, info)
+
+    return list(await asyncio.gather(*(_bounded(info) for info in infos)))
+
+
+# The LAN reads, refreshed off the request path (#759): an offline plug's read
+# timeout used to land inside the request. The PWA polls every 15 s.
+TUYA_SNAPSHOT: ReadSnapshot[List[Dict[str, Any]]] = ReadSnapshot(
+    "tuya", _read_all, max_age_s=20.0, tick_s=10.0
+)
+
+
 @router.get("/api/tuya")
 async def list_tuya() -> Dict[str, Any]:
     try:
-        infos = _unique_devices(list_devices())
+        cards, snapshot = await TUYA_SNAPSHOT.read()
     except TuyaConfigError as exc:
         # Missing/empty devices.json — surface the guidance, don't 500.
         raise HTTPException(status_code=503, detail=str(exc))
@@ -155,14 +175,17 @@ async def list_tuya() -> Dict[str, Any]:
 
     overrides = load_tuya_display_names()
     hidden_ids = load_hidden_tuya_ids()
-    semaphore = asyncio.Semaphore(_READ_CONCURRENCY)
-
-    async def _bounded(info: TuyaDeviceInfo) -> Dict[str, Any]:
-        async with semaphore:
-            return await asyncio.to_thread(_read_one, info, overrides, hidden_ids)
-
-    cards = await asyncio.gather(*(_bounded(info) for info in infos))
-    return {"devices": list(cards)}
+    return {
+        "devices": [
+            {
+                **card,
+                "display_name": overrides.get(card["device_id"]) or None,
+                "hidden": card["device_id"] in hidden_ids,
+            }
+            for card in cards
+        ],
+        "snapshot": snapshot,
+    }
 
 
 def _pair_detail(added: List[str], recovered: List[str], found: int, scan_error: str) -> str:
@@ -230,6 +253,7 @@ async def pair_tuya() -> Dict[str, Any]:
         logger.warning("⚠️  Tuya LAN rescan after cloud sync failed: %s", exc)
         scan_error = str(exc)
 
+    TUYA_SNAPSHOT.invalidate()  # new devices and addresses: read them now
     body = await list_tuya()
     body["pair"] = {
         "added": added,
@@ -250,6 +274,7 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
     except TuyaDeviceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except (TuyaCommandError, TuyaConfigError) as exc:
+        TUYA_SNAPSHOT.invalidate()  # the plug may have switched before the error
         raise HTTPException(status_code=502, detail=str(exc))
 
     # Record the toggle into the unified telemetry event log (#289). Best-effort:
@@ -280,7 +305,11 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 — read-back is best-effort
         card = None
     if card is None:
+        TUYA_SNAPSHOT.invalidate()
         return {"device_id": device_id, "reachable": False, "switch_on": on}
+    TUYA_SNAPSHOT.update(
+        lambda cards: [card if c["device_id"] == device_id else c for c in cards]
+    )
     return card
 
 
@@ -294,7 +323,9 @@ async def control_cover(device_id: str, request: Request) -> Dict[str, Any]:
     except TuyaDeviceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except (TuyaCommandError, TuyaConfigError) as exc:
+        TUYA_SNAPSHOT.invalidate()
         raise HTTPException(status_code=502, detail=str(exc))
+    TUYA_SNAPSHOT.invalidate()  # no read-back for a cover: refetch next read
     return {"device_id": device_id, "reachable": True, "action": action, "ok": True}
 
 

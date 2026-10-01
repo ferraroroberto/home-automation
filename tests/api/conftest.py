@@ -48,14 +48,16 @@ def _isolate_network_history(tmp_path, monkeypatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _fresh_read_snapshots() -> None:
-    """Start every test with an empty ``/api/units`` snapshot (#758).
+    """Start every test with empty read snapshots (#758, #759).
 
-    It is module state on the session-wide app, so a device list cached by
-    one test's fake fetcher would otherwise answer the next test's read.
+    They are module state on the session-wide app, so a value cached by one
+    test's fake fetcher would otherwise answer the next test's read.
     """
-    from app.webapp.routers.units import UNITS_SNAPSHOT
+    import app.webapp.server  # noqa: F401 — imports every router, registering its snapshot
+    from app.webapp import read_snapshot
 
-    UNITS_SNAPSHOT.reset()
+    for snap in read_snapshot.registered():
+        snap.reset()
 
 
 @pytest.fixture(scope="session")

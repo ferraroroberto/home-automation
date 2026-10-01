@@ -32,10 +32,11 @@ import time
 from dataclasses import dataclass
 from typing import Any, Coroutine, Dict, Optional
 
+from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._zone_lookup import _zone_name_for
 from src import telemetry
-from src.risco_client import fetch_events, set_zone_bypass
+from src.risco_client import SecurityState, fetch_events, set_zone_bypass
 from src.security_override import load_overrides
 from src.security_override_session import load_override_session, save_override_session
 
@@ -98,9 +99,20 @@ def _spawn_background_task(coro: Coroutine[Any, Any, Any], *, name: str) -> asyn
     return task
 
 
+async def _set_bypass(zone_id: int, bypass: bool) -> SecurityState:
+    """``set_zone_bypass``, then mark the ``/api/security`` snapshot dirty (#759).
+
+    Marked even when it raises: the panel may have taken the command.
+    """
+    try:
+        return await set_zone_bypass(zone_id, bypass)
+    finally:
+        read_snapshot.invalidate("security")
+
+
 async def _auto_bypass(zone_id: int, max_retries: int, trigger_count: int) -> None:
     try:
-        state = await set_zone_bypass(zone_id, True)
+        state = await _set_bypass(zone_id, True)
     except Exception as exc:  # noqa: BLE001 — a detached task must never crash silently
         logger.warning("⚠️ Override auto-bypass failed for zone %s: %s", zone_id, exc)
         return
@@ -141,7 +153,7 @@ async def _restore_after_rearm() -> None:
     still_bypassed = []
     for zone_id in list(session.auto_bypassed_zones):
         try:
-            state = await set_zone_bypass(zone_id, False)
+            state = await _set_bypass(zone_id, False)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ Override un-bypass failed for zone %s: %s", zone_id, exc)
             still_bypassed.append(zone_id)

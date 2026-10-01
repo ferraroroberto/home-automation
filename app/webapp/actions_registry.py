@@ -23,6 +23,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 
 import aiohttp
 
+from app.webapp import read_snapshot
 from app.webapp.alarm_notify import (
     OUTCOME_ERROR,
     OUTCOME_OK,
@@ -56,7 +57,10 @@ Handler = Callable[[str, Optional[aiohttp.ClientSession]], Awaitable[Dict[str, A
 
 
 async def _plug_action(device_id: str, on: bool) -> Dict[str, Any]:
-    await asyncio.to_thread(set_switch, device_id, on)
+    try:
+        await asyncio.to_thread(set_switch, device_id, on)
+    finally:
+        read_snapshot.invalidate("tuya")  # /api/tuya refetches on its next read (#759)
     return {"device_id": device_id, "switch_on": on}
 
 
@@ -72,11 +76,13 @@ def _make_alarm_handler(action: str) -> Handler:
         try:
             state = await control_system(action)
         except Exception as exc:  # noqa: BLE001 — re-raised after logging, router maps it
+            read_snapshot.invalidate("security")  # the panel may have taken it anyway
             await record_alarm_action(
                 source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR,
                 error=str(exc), actor=actor,
             )
             raise
+        read_snapshot.invalidate("security")  # /api/security refetches on its next read (#759)
         note_manual_alarm_action(action)
         await record_alarm_action(
             source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK, actor=actor
