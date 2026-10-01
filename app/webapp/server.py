@@ -231,6 +231,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             ownership.owner_info or "info unavailable",
         )
         tasks = []
+    # Read-side, so every instance runs it; it fetches only while read (#758).
+    tasks.append(asyncio.create_task(units.UNITS_SNAPSHOT.tick_forever()))
     try:
         yield
     finally:

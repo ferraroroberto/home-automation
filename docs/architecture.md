@@ -108,6 +108,7 @@ The exhaustive module-by-module inventory of the repository. The [README](../REA
 - `middleware.py` — bearer-token / loopback auth gate, and the gzip response compression that leaves the camera stream/snapshot paths alone (#756).
 - `manager.py` — adopt-or-spawn / restart / stop for the uvicorn webapp (used by the tray).
 - `sampler.py` — background energy sampler owned by the webapp lifecycle.
+- `read_snapshot.py` — `ReadSnapshot`, the in-memory snapshot of a slow read (#758): a demand-gated background refresh, a staleness bound past which a read fetches inline, the snapshot's age in every answer, and sequence-numbered write patches/dirty marks a fetch already in flight can't overwrite. `/api/units` is served from it (`routers/units.py` `UNITS_SNAPSHOT`); the automation loop's unit writes mark it dirty.
 - `automation.py` — background HVAC automation evaluator (dynamic setpoint rules + schedules) owned by the webapp lifecycle.
 - `security_automation.py` — background weekly alarm-schedule evaluator owned by the webapp lifecycle.
 - `wake_alarm_automation.py` — background wake-alarm + timer evaluator owned by the webapp lifecycle: fires due alarms (marks "ringing", best-effort Telegram notify, rearms weekly / auto-disables one-shot) and expires due timers.

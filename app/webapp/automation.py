@@ -35,7 +35,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -60,6 +60,20 @@ from src.melcloud_client import DeviceInfo, fetch_devices, set_device_state
 logger = logging.getLogger(__name__)
 
 _DEFAULT_RANGE = (16.0, 31.0)
+
+
+async def _write_unit(unit_id: str, **kwargs: Any) -> DeviceInfo:
+    """Write one unit, then mark the ``/api/units`` snapshot dirty (#758).
+
+    Marked even when the write raises, since it may have half-applied; the
+    next read refetches rather than serving the pre-write state.
+    """
+    from app.webapp.routers.units import UNITS_SNAPSHOT  # lazy: units imports this module
+
+    try:
+        return await set_device_state(unit_id, **kwargs)
+    finally:
+        UNITS_SNAPSHOT.invalidate()
 
 
 @dataclass(frozen=True)
@@ -124,9 +138,9 @@ async def _apply_schedule(unit: DeviceInfo, sched) -> None:
     """Write one schedule entry to one unit."""
     logger.info("⏰ Applying schedule to '%s' (%s, %s)", unit.name, sched.time, sched.id)
     if sched.power is False:
-        await set_device_state(unit.unit_id, power=False)
+        await _write_unit(unit.unit_id, power=False)
         return
-    await set_device_state(
+    await _write_unit(
         unit.unit_id,
         power=True,
         operation_mode=sched.operation_mode,
@@ -286,7 +300,7 @@ async def _write_transition_setpoint(
             unit.name, "boost admitted" if boosted else "boost shed",
             unit.set_temperature, new, target,
         )
-        await set_device_state(unit.unit_id, set_temperature=new)
+        await _write_unit(unit.unit_id, set_temperature=new)
     except Exception as exc:  # noqa: BLE001 — never kill the loop
         logger.warning("⚠️ Boost transition write failed for %s: %s", unit.unit_id, exc)
 
@@ -489,7 +503,7 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
                 unit.name, unit.room_temperature, effective_target,
                 " (boosted)" if is_boosting else "", unit.set_temperature, new,
             )
-            await set_device_state(uid, set_temperature=new)
+            await _write_unit(uid, set_temperature=new)
         except Exception as exc:  # noqa: BLE001 — never kill the loop
             logger.warning("⚠️ Setpoint nudge failed for %s: %s", uid, exc)
 
