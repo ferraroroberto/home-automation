@@ -65,6 +65,7 @@ from starlette.types import Scope
 
 from app.webapp import read_snapshot
 from app.webapp.middleware import BearerTokenMiddleware, StreamSafeGZipMiddleware
+from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
 from src.camera_token import verify as _verify_camera_token
 from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
@@ -251,6 +252,7 @@ def create_app() -> FastAPI:
     webapp_cfg = load_webapp_config()
     ensure_webapp_log_handler()
     auth.ensure_auth_log_handler()
+    ensure_slow_log_handler()
 
     app = FastAPI(title="Home Automation", version="0.1.0", lifespan=lifespan)
 
@@ -265,6 +267,8 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(StreamSafeGZipMiddleware, minimum_size=1000)
+    # Added last, so outermost: it times the whole request, gzip and auth included (#761).
+    app.add_middleware(SlowRequestLogMiddleware)
 
     app.state.webapp_config = webapp_cfg
 
