@@ -21,7 +21,7 @@ import {
   createAggChart, setAggData, restyle,
   createExportCreditChart, setExportCreditData, restyleExportCredit,
   createForecastChart, setForecastData, restyleForecast,
-  createSunOverlayChart, setSunOverlayData, restyleSunOverlay,
+  createSunOverlayChart, setSunOverlayData, restyleSunOverlay, loadChartJs,
 } from './charts.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
@@ -704,12 +704,13 @@ async function loadSunOverlay(day) {
   }
 }
 
-function ensureSunOverlay() {
+async function ensureSunOverlay() {
   if (!els.sunOverlayChart) return;
   // Created on first open, not on tab entry: a canvas inside a closed
   // <details> has no layout box, so Chart.js would size it to zero.
   if (!state.sunOverlayChart) {
-    state.sunOverlayChart = createSunOverlayChart(els.sunOverlayChart);
+    try { await loadChartJs(); } catch (_) { return; }
+    if (!state.sunOverlayChart) state.sunOverlayChart = createSunOverlayChart(els.sunOverlayChart);
   }
   if (!state.sunOverlayDate) {
     state.sunOverlayDate = localIsoDate();
@@ -736,7 +737,10 @@ function wireSunOverlay() {
 }
 
 // --------------------------------------------------------------- charts
-function ensureCharts() {
+// Resolves once Chart.js is loaded and the charts exist; offline, it resolves
+// with the charts still absent and every loader below skips them.
+async function ensureCharts() {
+  try { await loadChartJs(); } catch (_) { return; }
   if (!state.liveChart) state.liveChart = createLiveChart(els.liveChart);
   if (!state.aggChart) state.aggChart = createAggChart(els.aggChart);
   if (!state.exportCreditChart) state.exportCreditChart = createExportCreditChart(els.exportCreditChart);
@@ -820,12 +824,14 @@ function scheduleToday(on) {
 // Called by the tab switcher whenever the active tab changes.
 export function onEnergyTab(tab) {
   if (tab === 'energy') {
-    ensureCharts();
-    loadLiveHistory();
-    loadAggregate(state.range);
-    loadCost(state.costRange);  // cost & savings breakdown table
+    // The chart-fed loaders wait for Chart.js, loaded on the first visit (#760).
+    ensureCharts().then(function () {
+      loadLiveHistory();
+      loadAggregate(state.range);
+      loadCost(state.costRange);  // cost & savings breakdown table
+      loadForecast(state.forecastDay);  // solar expected-generation forecast
+    });
     loadExportRates();
-    loadForecast(state.forecastDay);  // solar expected-generation forecast
     loadPvSystem();        // the array config that forecast is computed from
     // The sun-position diagnostic refreshes only while it is open (#590) —
     // closed, it costs nothing.

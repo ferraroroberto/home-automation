@@ -45,6 +45,10 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#exportCreditChart")).to_be_visible()
     expect(page.locator("#energySummary")).to_contain_text("Solar consumed")
     expect(page.locator("#costSummary")).to_contain_text("Total solar benefit")
+    # Chart.js loads on the first Energy visit (#760), so wait for the charts.
+    page.wait_for_function(
+        "() => window.Chart?.getChart(document.querySelector('#exportCreditChart'))"
+    )
     assert page.locator("#aggChart").evaluate(
         "canvas => Chart.getChart(canvas).data.datasets.map(dataset => dataset.label)"
     ) == ["Production", "Consumption", "Grid imported", "Solar consumed", "Solar exported"]
@@ -203,13 +207,13 @@ def test_energy_chart_tick_budget_updates_with_viewport(
     page.locator("#tabEnergy").click()
 
     page.wait_for_function(
-        "() => Chart.getChart(document.querySelector('#liveChart'))?.data.labels.length >= 24"
+        "() => window.Chart?.getChart(document.querySelector('#liveChart'))?.data.labels.length >= 24"
     )
     assert chart_tick_budget(page, "#liveChart").max_ticks_limit == 4
 
     page.set_viewport_size({"width": 772, "height": 844})
     page.wait_for_function(
-        "() => Chart.getChart(document.querySelector('#liveChart'))"
+        "() => window.Chart?.getChart(document.querySelector('#liveChart'))"
         ".options.scales.x.ticks.maxTicksLimit === 8"
     )
 
@@ -223,7 +227,7 @@ def test_energy_series_have_non_colour_visual_cues(
     boot_home(page, base_url)
     page.locator("#tabEnergy").click()
     page.wait_for_function(
-        "() => Chart.getChart(document.querySelector('#liveChart'))?.data.datasets.length === 3"
+        "() => window.Chart?.getChart(document.querySelector('#liveChart'))?.data.datasets.length === 3"
     )
 
     cues = chart_dataset_cues(page, "#liveChart")
@@ -270,7 +274,7 @@ def test_a_feed_outage_is_visible_as_an_outage_not_a_collapse(
     expect(page.locator("#forecastMeta")).to_contain_text("feed offline")
 
     page.wait_for_function(
-        "() => Chart.getChart(document.querySelector('#forecastChart'))"
+        "() => window.Chart?.getChart(document.querySelector('#forecastChart'))"
         "?.data.datasets[1].data.filter(v => v != null).length === 24"
     )
     marks = page.evaluate(
@@ -330,12 +334,12 @@ def test_sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
     # Folded away by default — nothing is fetched or drawn until asked for.
     expect(card).not_to_have_attribute("open", "")
     assert page.evaluate(
-        "() => !Chart.getChart(document.querySelector('#sunOverlayChart'))"
+        "() => !window.Chart?.getChart(document.querySelector('#sunOverlayChart'))"
     )
 
     card.locator("summary").click()
     page.wait_for_function(
-        "() => Chart.getChart(document.querySelector('#sunOverlayChart'))"
+        "() => window.Chart?.getChart(document.querySelector('#sunOverlayChart'))"
         "?.data.datasets[0].data.length === 3"
     )
 
