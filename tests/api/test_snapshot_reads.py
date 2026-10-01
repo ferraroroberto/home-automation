@@ -182,3 +182,54 @@ def test_tuya_switch_is_visible_on_the_next_read_and_names_stay_live(
     monkeypatch.setattr(actions_registry, "set_switch", fake_switch)
     asyncio.run(actions_registry._plug_action("plug-1", False))
     assert client.get("/api/tuya").json()["devices"][0]["switch_on"] is False
+
+
+def test_ups_reads_share_one_fetch_and_a_failed_read_shows_as_error_not_latency(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#769: ``upsc`` ran inside every request and its 5 s timeout hit one a minute."""
+    from src.ups_client import UpsState
+
+    fetches: List[int] = []
+    failed = UpsState(available=False, source="none", error="upsc timed out")
+
+    def fake_fetch() -> UpsState:
+        fetches.append(1)
+        return failed
+
+    monkeypatch.setattr("app.webapp.routers.ups.fetch_ups_state", fake_fetch)
+    client.get("/api/ups")
+    body = client.get("/api/ups").json()
+    assert len(fetches) == 1
+    assert body["ups"]["error"] == "upsc timed out"
+    assert set(body["snapshot"]) == {"built_at", "age_seconds"}
+
+
+def test_a_slow_ups_tick_never_blocks_a_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The background refresh can sit in a 5 s ``upsc`` timeout; a read still answers at once."""
+    import threading
+
+    from app.webapp.routers import ups
+    from src.ups_client import UpsState
+
+    release = threading.Event()
+    slow = {"on": False}
+
+    def fake_fetch() -> UpsState:
+        if slow["on"]:
+            release.wait(10)
+        return UpsState(available=True, source="nut", status="online")
+
+    monkeypatch.setattr("app.webapp.routers.ups.fetch_ups_state", fake_fetch)
+
+    async def run() -> None:
+        await ups.UPS_SNAPSHOT.read()  # seeds the value and marks demand
+        slow["on"] = True
+        tick = asyncio.create_task(ups.UPS_SNAPSHOT.tick_once())
+        await asyncio.sleep(0.05)  # the tick is now parked inside the slow read
+        state, meta = await asyncio.wait_for(ups.UPS_SNAPSHOT.read(), timeout=1.0)
+        assert state.status == "online" and meta["age_seconds"] < ups.UPS_SNAPSHOT.max_age_s
+        release.set()
+        await tick
+
+    asyncio.run(run())

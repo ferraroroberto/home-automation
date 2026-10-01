@@ -235,6 +235,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         tasks = []
     # Read-side, so every instance runs them; each fetches only while read (#758).
     tasks.extend(asyncio.create_task(s.tick_forever()) for s in read_snapshot.registered())
+    # The owner only: it holds the single-client Modbus session, so a read-only
+    # second instance must not open one at boot (#769).
+    if ownership.held:
+        tasks.append(asyncio.create_task(energy.ENERGY_SNAPSHOT.warm()))
     try:
         yield
     finally:

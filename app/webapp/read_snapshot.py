@@ -153,6 +153,21 @@ class ReadSnapshot(Generic[T]):
                 return  # a read just fetched inline
             await self._refresh("tick")
 
+    async def warm(self) -> None:
+        """Fetch once at startup if nothing has yet, so a first reader doesn't pay
+        for a cold upstream (the Modbus address rediscovery, 15-20 s).
+
+        A concurrent first reader waits on the lock instead of starting a second
+        cold fetch. Not a demand: ticks stay idle until something reads.
+        """
+        async with self._lock:
+            if self._value is not None:
+                return
+            try:
+                await self._refresh("warm")
+            except Exception as exc:  # noqa: BLE001 — a failed warm-up leaves the first read to fetch
+                logger.warning("⚠️ %s snapshot warm-up failed; the first read fetches inline: %s", self.name, exc)
+
     async def tick_forever(self) -> None:
         while True:
             await asyncio.sleep(self.tick_s)
