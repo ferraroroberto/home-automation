@@ -7,6 +7,8 @@ Home Assistant VM card) and `test_home_assistant.py` (its voice satellites).
 from __future__ import annotations
 
 import json
+import tomllib
+from pathlib import Path
 from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
@@ -72,3 +74,21 @@ def test_home_shows_ac_summary_line_per_unit(
     # One scannable line per unit: name + an actionable power toggle (issue #72).
     expect(page.locator("#acSummary")).to_contain_text("Office")
     expect(page.locator("#acSummary .ac-line-toggle")).to_have_count(len(sample_units))
+
+
+def test_perf_review_ready_selector_is_visible_on_home(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """/perf-review scores a cold launch as ready when `.fleet.toml`'s selector
+    shows; one that never shows on Home leaves the check unmeasured (#777)."""
+    mock_api(sample_units)
+    mock_energy()
+    boot_home(page, base_url)
+    selector = _perf_review_ready_selector()
+    expect(page.locator(selector).first).to_be_visible()
+
+
+def _perf_review_ready_selector() -> str:
+    fleet = Path(__file__).resolve().parents[2] / ".fleet.toml"
+    return tomllib.loads(fleet.read_text(encoding="utf-8"))["perf"]["review"]["ready_selector"]

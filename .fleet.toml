@@ -15,11 +15,12 @@ classify_e2e = { src = "scripts/classify_e2e.py", sha = "bede95f00aee0b17d500724
 runtime_data = { src = "src/runtime_data.py", sha = "346765f7c14af0ec61e960333c055974e4e9e1db", dest = "src/runtime_data.py" }
 nav = { src = "app/webapp/static/_vendored/nav", sha = "2fb269418af5998020ef949d001a3c3cc2918152", dest = "app/webapp/static/_vendored/nav" }
 
-# /perf-review (fleet-config skills/perf-review): "ready" is the first unit card
-# visible, not first contentful paint, which goes green on a painted shell
-# before any card has data (home-automation#777).
+# /perf-review (fleet-config skills/perf-review): "ready" is the energy-flow tile
+# visible (the first Home card that needs live data), not first contentful paint,
+# which goes green on a painted shell before any card has data (#777). It must
+# show on Home: the AC unit cards sit on another tab, so it never would there.
 [perf.review]
-ready_selector = "#unitsGrid .unit-card"
+ready_selector = "#homeEnergyFlow"
 
 # Diff-proportionate e2e routing (ferraroroberto/home-automation#603,
 # project-scaffolding#180, schema: project-scaffolding/docs/e2e-routing.md).
