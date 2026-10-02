@@ -130,11 +130,15 @@ def test_security_poll_failure_preserves_state_and_disables_actions(
     )
 
 
-def test_security_tab_adds_alarm_schedule(
+def test_security_schedule_editor_cancels_then_adds(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
 ) -> None:
+    """Escape discards an unsaved add (at phone width, where the editor is a
+    compact modal), then a real add saves, lists, and reopens with its values."""
+    projection_viewport = page.viewport_size
+    page.set_viewport_size({"width": 390, "height": 844})
     mock_api(sample_units)
     mock_energy()
     mock_security()
@@ -143,11 +147,20 @@ def test_security_tab_adds_alarm_schedule(
 
     page.locator("#tabSecurity").click()
     page.locator("#paneSecurity .security-schedules-card > summary").click()
-    page.locator("#securityScheduleAdd").click()
-
     dialog = page.locator("#securityScheduleDialog")
+    rows = page.locator("#securitySchedules .automation-summary-row")
+
+    page.locator("#securityScheduleAdd").click()
+    page.locator("#securityScheduleTime").fill("05:45")
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+    expect(rows).to_have_count(0)
+    expect(page.locator("#securityScheduleAdd")).to_be_focused()
+
+    page.set_viewport_size(projection_viewport)
+    page.locator("#securityScheduleAdd").click()
     expect(dialog).to_be_visible()
-    expect(page.locator("#securitySchedules .automation-summary-row")).to_have_count(0)
+    expect(rows).to_have_count(0)
     page.locator("#securityScheduleTime").fill("22:30")
     page.locator("#securityScheduleAction").select_option("perimeter")
     dialog.locator(".alarm-schedule-day", has_text="Sat").click()
@@ -155,46 +168,25 @@ def test_security_tab_adds_alarm_schedule(
     page.locator("#securityScheduleSave").click()
 
     expect(dialog).to_be_hidden()
-    row = page.locator("#securitySchedules .automation-summary-row")
-    expect(row).to_have_count(1)
-    expect(row).to_contain_text("22:30")
-    expect(row).to_contain_text("Perimeter · Every day")
+    expect(rows).to_have_count(1)
+    expect(rows).to_contain_text("22:30")
+    expect(rows).to_contain_text("Perimeter · Every day")
     expect(page.locator("#securitySchedulesCount")).to_contain_text("1 active")
     expect(page.locator("#securityScheduleAdd")).to_be_focused()
 
-    row.locator(".automation-summary-main").click()
+    rows.locator(".automation-summary-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#securityScheduleTime")).to_have_value("22:30")
     expect(page.locator("#securityScheduleAction")).to_have_value("perimeter")
 
 
-def test_security_schedule_cancel_discards_unsaved_add(
+def test_scene_pairing_editor_cancels_then_adds(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
 ) -> None:
-    page.set_viewport_size({"width": 390, "height": 844})
-    mock_api(sample_units)
-    mock_energy()
-    mock_security()
-    mock_presence()
-    boot_home(page, base_url)
-    page.locator("#tabSecurity").click()
-    page.locator("#paneSecurity .security-schedules-card > summary").click()
-    page.locator("#securityScheduleAdd").click()
-    page.locator("#securityScheduleTime").fill("05:45")
-    page.keyboard.press("Escape")
-
-    expect(page.locator("#securityScheduleDialog")).to_be_hidden()
-    expect(page.locator("#securitySchedules .automation-summary-row")).to_have_count(0)
-    expect(page.locator("#securityScheduleAdd")).to_be_focused()
-
-
-def test_security_tab_adds_scene_pairing_in_editor(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
-    mock_presence: Callable,
-) -> None:
+    """Escape discards an unsaved pairing, then a real add saves (camera and
+    preset pickers fed by the stubs), lists, and reopens with its values."""
     mock_api(sample_units)
     mock_energy()
     mock_security()
@@ -229,11 +221,19 @@ def test_security_tab_adds_scene_pairing_in_editor(
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
     page.locator("#paneSecurity .scene-pairings-card > summary").click()
-    page.locator("#scenePairingAdd").click()
-
     dialog = page.locator("#scenePairingDialog")
+    rows = page.locator("#scenePairings .automation-summary-row")
+
+    page.locator("#scenePairingAdd").click()
+    page.locator("#scenePairingZone").select_option("1")
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+    expect(rows).to_have_count(0)
+    expect(page.locator("#scenePairingAdd")).to_be_focused()
+
+    page.locator("#scenePairingAdd").click()
     expect(dialog).to_be_visible()
-    expect(page.locator("#scenePairings .automation-summary-row")).to_have_count(0)
+    expect(rows).to_have_count(0)
     page.locator("#scenePairingZone").select_option("1")
     page.locator("#scenePairingCamera").select_option("front-camera")
     expect(page.locator("#scenePairingPreset option", has_text="Garden")).to_have_count(1)
@@ -241,59 +241,26 @@ def test_security_tab_adds_scene_pairing_in_editor(
     page.locator("#scenePairingSave").click()
 
     expect(dialog).to_be_hidden()
-    row = page.locator("#scenePairings .automation-summary-row")
-    expect(row).to_have_count(1)
-    expect(row).to_contain_text("Front Door")
-    expect(row).to_contain_text("Front camera · Garden")
+    expect(rows).to_have_count(1)
+    expect(rows).to_contain_text("Front Door")
+    expect(rows).to_contain_text("Front camera · Garden")
     expect(page.locator("#scenePairingsCount")).to_contain_text("1 active")
     expect(page.locator("#scenePairingAdd")).to_be_focused()
 
-    row.locator(".automation-summary-main").click()
+    rows.locator(".automation-summary-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#scenePairingZone")).to_have_value("1")
     expect(page.locator("#scenePairingCamera")).to_have_value("front-camera")
     expect(page.locator("#scenePairingPreset")).to_have_value("garden")
 
 
-def test_scene_pairing_cancel_discards_unsaved_add(
+def test_security_override_editor_cancels_then_adds(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
 ) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    mock_security()
-    mock_presence()
-    page.route(
-        "**/api/security/scene-pairings",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json", body='{"entries":[]}'
-        ),
-    )
-    page.route(
-        "**/api/cameras**",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json",
-            body='{"cameras":[{"id":"front-camera","display_name":"Front camera"}]}'
-        ),
-    )
-    boot_home(page, base_url)
-    page.locator("#tabSecurity").click()
-    page.locator("#paneSecurity .scene-pairings-card > summary").click()
-    page.locator("#scenePairingAdd").click()
-    page.locator("#scenePairingZone").select_option("1")
-    page.keyboard.press("Escape")
-
-    expect(page.locator("#scenePairingDialog")).to_be_hidden()
-    expect(page.locator("#scenePairings .automation-summary-row")).to_have_count(0)
-    expect(page.locator("#scenePairingAdd")).to_be_focused()
-
-
-def test_security_tab_adds_override_in_editor(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
-    mock_presence: Callable,
-) -> None:
+    """Escape discards an unsaved override, then a real add saves, lists, and
+    reopens with its values."""
     mock_api(sample_units)
     mock_energy()
     mock_security()
@@ -313,54 +280,34 @@ def test_security_tab_adds_override_in_editor(
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
     page.locator("#paneSecurity .security-override-card > summary").click()
-    page.locator("#securityOverrideAdd").click()
-
     dialog = page.locator("#securityOverrideDialog")
+    rows = page.locator("#securityOverrides .automation-summary-row")
+
+    page.locator("#securityOverrideAdd").click()
+    page.locator("#securityOverrideZone").select_option("1")
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+    expect(rows).to_have_count(0)
+    expect(page.locator("#securityOverrideAdd")).to_be_focused()
+
+    page.locator("#securityOverrideAdd").click()
     expect(dialog).to_be_visible()
-    expect(page.locator("#securityOverrides .automation-summary-row")).to_have_count(0)
+    expect(rows).to_have_count(0)
     page.locator("#securityOverrideZone").select_option("1")
     page.locator("#securityOverrideRetries").select_option("2")
     page.locator("#securityOverrideSave").click()
 
     expect(dialog).to_be_hidden()
-    row = page.locator("#securityOverrides .automation-summary-row")
-    expect(row).to_have_count(1)
-    expect(row).to_contain_text("Front Door")
-    expect(row).to_contain_text("Bypass after 2 triggers")
+    expect(rows).to_have_count(1)
+    expect(rows).to_contain_text("Front Door")
+    expect(rows).to_contain_text("Bypass after 2 triggers")
     expect(page.locator("#securityOverridesCount")).to_contain_text("1 active")
     expect(page.locator("#securityOverrideAdd")).to_be_focused()
 
-    row.locator(".automation-summary-main").click()
+    rows.locator(".automation-summary-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#securityOverrideZone")).to_have_value("1")
     expect(page.locator("#securityOverrideRetries")).to_have_value("2")
-
-
-def test_security_override_cancel_discards_unsaved_add(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
-    mock_presence: Callable,
-) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    mock_security()
-    mock_presence()
-    page.route(
-        "**/api/security/overrides",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json", body='{"entries":[]}'
-        ),
-    )
-    boot_home(page, base_url)
-    page.locator("#tabSecurity").click()
-    page.locator("#paneSecurity .security-override-card > summary").click()
-    page.locator("#securityOverrideAdd").click()
-    page.locator("#securityOverrideZone").select_option("1")
-    page.keyboard.press("Escape")
-
-    expect(page.locator("#securityOverrideDialog")).to_be_hidden()
-    expect(page.locator("#securityOverrides .automation-summary-row")).to_have_count(0)
-    expect(page.locator("#securityOverrideAdd")).to_be_focused()
 
 
 def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
