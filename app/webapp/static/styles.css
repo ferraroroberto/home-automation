@@ -62,6 +62,12 @@
   /* shared height for inline controls (toggle / select / input) so they line
      up on one row — the canonical on-off toggle size across the app. */
   --control-h: 36px;
+  /* hit-target.min (design.md) — the 44px effective pointer-target floor. A
+     native input/select is a replaced element that can't carry the .hit-target
+     ::before expansion, so it gets the real 44px box and paints its 36px
+     control inside a transparent --control-inset band (#779). */
+  --hit-min: 44px;
+  --control-inset: calc((var(--hit-min) - var(--control-h)) / 2);
   /* repeating-row heights — the design system's 3-step rows scale (rows.sm /
      rows.md / rows.lg, consolidated in app-launcher#365). list-row and other
      repeating-row selectors draw from these, never ad hoc literals (#500 —
@@ -249,6 +255,42 @@ button, input, select, textarea {
    34px controls so these 5px extensions never overlap. */
 .hit-target { position: relative; }
 .hit-target::before { content: ""; position: absolute; inset: -5px; }
+
+/* Native inputs/selects reach the 44px floor with real geometry (#779): the
+   element box is --hit-min tall, the visible 36px control is its padding box
+   inside a transparent vertical --control-inset border, and the 1px boundary
+   is an inset shadow on that padding box. The radius pair keeps the visible
+   corners at rounded.md, and the focus ring hugs the visible box. */
+.input-native,
+.select-native,
+.net-dhcp-input {
+  height: var(--hit-min);
+  border-style: solid;
+  border-color: transparent;
+  border-width: var(--control-inset) 0;
+  border-radius: var(--radius-md) / calc(var(--radius-md) + var(--control-inset));
+  background: var(--input-bg) padding-box;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.input-native:focus-visible,
+.select-native:focus-visible,
+.net-dhcp-input:focus-visible { outline-offset: calc(2px - var(--control-inset)); }
+
+/* Text-styled row buttons (tap the name to rename/open) render 24px tall; the
+   rows they sit in are rows.sm, so a vertical-only expansion reaches 44px
+   inside their own row and never meets a neighbour's (#779). */
+button.device-row-name,
+button.security-zone-name,
+button.presence-name,
+button.net-wifi-row-name,
+button.net-device-name,
+.camera-row-name { position: relative; }
+button.device-row-name::before,
+button.security-zone-name::before,
+button.presence-name::before,
+button.net-wifi-row-name::before,
+button.net-device-name::before,
+.camera-row-name::before { content: ""; position: absolute; inset: -10px 0; }
 
 /* Page header (#779): the vendored home-head (_vendored/home-head/) opens every
    pane. Its title is this app's pane heading, so the h2 drops its UA margin;
@@ -930,11 +972,11 @@ button, input, select, textarea {
    identically in both themes instead of fading unevenly. */
 .stepper .step:disabled,
 .select-native:disabled {
-  background: var(--card-off);
-  border-color: var(--line);
+  background-color: var(--card-off);
   color: var(--muted);
   cursor: default;
 }
+.stepper .step:disabled { border-color: var(--line); }
 .target-value {
   font-size: var(--font-body);
   font-weight: 700;
@@ -960,12 +1002,8 @@ button, input, select, textarea {
   white-space: nowrap;
 }
 .select-native {
-  height: var(--control-h);
   font-size: var(--font-label);
   padding: 0 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: var(--input-bg);
   color: var(--ink);
 }
 
@@ -1276,7 +1314,7 @@ button, input, select, textarea {
    size to read as a level below the "What can I say?" card it nests inside. */
 .voice-group { border-top: 1px solid var(--line); }
 .voice-group:first-child { border-top: 0; }
-.voice-group > .collapse-summary { padding: 12px 0; }
+.voice-group > .collapse-summary { padding: 12px 0; min-height: var(--row-sm); }
 .voice-group:first-child > .collapse-summary { padding-top: var(--space-xs); }
 .voice-group .collapse-title { font-size: var(--font-label); }
 .voice-group .collapse-icon { color: var(--accent); }
@@ -1330,46 +1368,9 @@ button, input, select, textarea {
 .voice-reply .icon { width: 16px; height: 16px; vertical-align: -3px; }
 .voice-group-notes { margin: var(--space-sm) 0 0 26px; padding-left: 18px; line-height: 1.45; }
 .voice-group-notes li + li { margin-top: var(--space-xs); }
-/* Language filter for the cheat sheet (#466): the alarm, wake-alarm and locator
-   commands answer on both pipelines, so an EN/ES/All segmented toggle narrows the
-   list to one language. A single-language build would just show "All" pressed.
-   Sits inline in the "What can I say?" summary row — .collapse-main's
-   own baseline alignment would sink a pill this short, so it's recentred here. */
-.voice-lang-toggle {
-  display: inline-flex;
-  align-self: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line-muted);
-  border-radius: var(--radius-pill);
-  background: var(--input-bg);
-}
-/* The toggle above is taller than the icon/title and re-centred on its own,
-   which stretches this row's cross-axis beyond every other .collapse-summary
-   — but .collapse-title still defaults to .collapse-main's baseline
-   alignment, so once the row is taller than icon+title alone, the title no
-   longer lands on the row's visual center (issue #541). Center it here too,
-   scoped to this one summary so every other .collapse-summary (which has no
-   such taller sibling) is untouched. */
-#voiceCommandsCard > .collapse-summary .collapse-title { align-self: center; }
-.voice-lang-toggle button {
-  appearance: none;
-  border: 1px solid transparent;
-  cursor: pointer;
-  padding: 2px var(--space-md);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--font-caption);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-.voice-lang-toggle button[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent-border-soft);
-  color: var(--accent);
-}
+/* Voice-command language filter (#466): a segmented .range-tabs row at the
+   top of the "What can I say?" body — out of the summary since #779. */
+.voice-lang-toggle { margin-bottom: var(--space-sm); }
 @media (max-width: 720px) {
   .plugs-summary-row {
     grid-template-columns: 1fr;
@@ -1792,6 +1793,10 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   padding: var(--space-sm) 0;
   border-top: 1px solid var(--line);
 }
+/* 10px, not 8 (#779): the row must contain its controls' 44px tap zones —
+   the bypass switch's (26 + 2x9) and the name's (24 + 2x10, a 2-line name
+   too) — or each spills into the next row's. At 8px a row was 42px tall. */
+.security-zone { padding-block: 10px; }
 .security-event:first-child,
 .security-zone:first-child { border-top: 0; }
 .security-event-time {
@@ -2009,7 +2014,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 .alarm-schedule-fields .alarm-schedule-time {
   -webkit-appearance: none;
   appearance: none;
-  height: var(--control-h);
+  height: var(--hit-min);
   text-align: center;
 }
 .security-schedules-body .schedule-add-btn,
@@ -2170,7 +2175,8 @@ button.security-zone-name:hover { text-decoration: underline; }
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-sm);
   align-items: center;
-  padding: var(--space-sm) 0;
+  /* 10px holds the name's 44px tap zone (24 + 2x10) inside the row (#779). */
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 .presence-row:first-child { border-top: 0; }
@@ -2399,14 +2405,17 @@ button.presence-name:hover { text-decoration: underline; }
    convention (issue #360). */
 .notify-toggles {
   display: grid;
-  gap: 10px;
   padding: 4px 14px 8px;
 }
+/* One rows.sm (44px) row per toggle, no gap (#779): the switch's ::before
+   reaches exactly 44px, so stacked rows meet edge to edge instead of the old
+   36px pitch overlapping each neighbour's tap zone. */
 .notify-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-height: var(--row-sm);
 }
 .notify-toggle span {
   min-width: 0;
@@ -2502,7 +2511,7 @@ button.presence-name:hover { text-decoration: underline; }
 }
 .place-coord-btns .big-btn {
   flex: 1;
-  min-height: var(--control-h);
+  min-height: var(--hit-min);
   padding: 0 12px;
   font: inherit;
   font-weight: 700;
@@ -2656,12 +2665,8 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .detail-card .row .select-native,
 .detail-card .row .input-native { min-width: 55%; }
 .input-native {
-  height: var(--control-h);
   font-size: var(--font-label);
   padding: 0 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: var(--input-bg);
   color: var(--ink);
   font-family: inherit;
 }
@@ -3085,7 +3090,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   grid-template-areas: "main signal" "mac mac";
   align-items: center;
   column-gap: 10px;
-  padding: 9px 0;
+  /* 10px holds the name's 44px tap zone (24 + 2x10) inside the row (#779). */
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 .net-wifi-row-main {
@@ -3667,15 +3673,16 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .net-dhcp-manual-summary {
   font-size: var(--font-caption); color: var(--muted); cursor: pointer;
   list-style: none; padding: var(--space-xs) 0;
+  display: flex; align-items: center; min-height: var(--row-sm);
 }
 .net-dhcp-manual-summary::-webkit-details-marker { display: none; }
 .net-dhcp-manual-form {
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center;
 }
 .net-dhcp-input {
+  /* Box, border and fill come from the native-control hit recipe (#779). */
   flex: 1 1 130px; min-width: 0;
-  font-size: var(--font-caption); padding: 6px 8px; border-radius: var(--radius-md);
-  border: 1px solid var(--line); background: var(--input-bg); color: var(--ink);
+  font-size: var(--font-caption); padding: 0 8px; color: var(--ink);
 }
 .net-dhcp-manual-add { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
 .net-dhcp-manual-add .icon { width: 16px; height: 16px; }
@@ -3798,7 +3805,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .camera-thumb-glyph { width: 18px; height: 18px; color: var(--muted); }
 .camera-row-live {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 40px; padding: 6px 10px;
+  min-width: var(--hit-min); padding: 6px 10px;
 }
 .camera-row-live .icon { width: 18px; height: 18px; }
 
@@ -3965,7 +3972,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
    pattern (chevron-only, no native triangle marker — issue #363) — just a
    compact, unpadded variant since this sits inside a dialog, not a card. */
 .activity-legend { margin-bottom: var(--space-sm); }
-.activity-legend > .collapse-summary { padding: var(--space-xs) 0; }
+.activity-legend > .collapse-summary { padding: var(--space-xs) 0; min-height: var(--row-sm); }
 .activity-legend > .collapse-summary .collapse-main { color: var(--accent); font-weight: 600; }
 .activity-legend-body { padding: var(--space-xs) 0 var(--space-sm); font-size: var(--font-caption); }
 .activity-legend-body dl { margin: 2px 0 14px; }
