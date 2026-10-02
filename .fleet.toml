@@ -39,12 +39,20 @@ tier       = "static"
 prefix     = "app/webapp/static/"
 extensions = ["svg", "png", "jpg", "jpeg", "gif", "ico", "webp", "woff", "woff2", "ttf", "webmanifest"]
 
+# Vendored component READMEs are documentation the PWA never loads. They need
+# their own rule: the app/webapp/ "full" rule below would take them before
+# the repo-wide md -> none rule at the bottom is reached (home-automation#778).
+[[e2e.rule]]
+tier       = "none"
+prefix     = "app/webapp/static/_vendored/"
+extensions = ["md"]
+
 # Vendored HTML fragments are pure markup; their .css/.js siblings are NOT
 # covered here and fall through to "full" below (real nav/icon behaviour).
 [[e2e.rule]]
 tier       = "static"
 prefix     = "app/webapp/static/_vendored/"
-extensions = ["html", "md"]
+extensions = ["html"]
 
 # The e2e suite itself, and its shared conftest/helpers -- a harness change
 # must be exercised by running the harness (home-automation#593).
@@ -118,6 +126,11 @@ path = ".fleet.toml"
 [[e2e.rule]]
 tier = "none"
 path = ".gitignore"
+# The .env template: documentation of the keys, never read at runtime (the
+# app reads .env itself) -- unclassified, it failed safe to full (#778).
+[[e2e.rule]]
+tier = "none"
+path = ".env.example"
 [[e2e.rule]]
 tier = "none"
 path = "LICENSE"
