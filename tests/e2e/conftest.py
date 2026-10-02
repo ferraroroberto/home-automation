@@ -40,7 +40,8 @@ plugs run through):
 Dual projection: when ``--browser`` isn't passed the suite runs in two
 projections — **Chromium desktop** and **WebKit projected onto an iPhone
 14** (the iOS Mobile Safari engine family), so phone regressions surface
-on Windows. A test marked ``desktop_only`` opts out of the WebKit run.
+on Windows. A test marked ``desktop_only`` opts out of the WebKit run, and
+so does every module listed in ``CHROMIUM_ONLY_MODULES`` (#796) — see there.
 
 ``pytest_sessionfinish`` runs the vendor-verbatim leaked-browser-helper
 sweep (``tests/e2e/_browser_sweep.py``, project-scaffolding #203/#204)
@@ -323,12 +324,58 @@ def _reap_orphaned_webkit_zombies() -> None:
         )
 
 
+#: Modules whose tests assert DOM state, request wiring or copy only — no
+#: layout, touch target, bottom nav, safe area, iPhone width or engine-specific
+#: behaviour — so the WebKit/iPhone projection re-proves nothing the Chromium
+#: one did not (#796, from the #778 audit: ~46 nodes, a fifth of the suite's
+#: wall time). Add a module only when that holds for every test in it; **when in doubt it stays on
+#: both**. A module that carries even one layout/44px/390px test, or that
+#: pins per-projection behaviour (``test_driver_isolation``,
+#: ``test_helper_cwd_isolation``), does not belong here — and neither do the
+#: boot canary (``test_smoke``) and the auth boundary (``test_login``), whose
+#: whole point is that every engine gets through them. Deselected, never
+#: deleted: ``--browser webkit`` still shows them as deselected, and removing
+#: a name from this set restores the WebKit nodes with no other change.
+CHROMIUM_ONLY_MODULES = frozenset({
+    "test_ac_tab",            # pane states (loading/empty/unavailable/stale) + snapshot paint
+    "test_boost_coordinator", # settings form: persistence, range refusal, summary text
+    "test_cameras",           # list states: loading/empty/unavailable/stale
+    "test_circuits",          # CT-clamp card: rows, rename dialog, fold/hide state — text and class only
+    "test_lazy_libraries",    # which scripts/styles the page requests, and when — network wiring
+    "test_lights",            # light rows, bulk buttons, rename — POST round-trips and states
+    "test_pc_fleet",          # roster chips, toggles, wake PUT/POST wiring
+    "test_pv_system",         # PV config rows, validation, forecast toast
+    "test_vm_tile",           # VM tile states and start/stop command errors
+    "test_voice_commands",    # language filter and bilingual card text
+})
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "desktop_only: skip on the WebKit/iPhone projection")
     selected: List[str] = config.option.browser
     if not selected:
         selected.extend(["chromium", "webkit"])
     _reap_orphaned_webkit_zombies()
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]) -> None:
+    """Drop the WebKit projection of every ``CHROMIUM_ONLY_MODULES`` module (#796).
+
+    Deselected rather than skipped: a skip still builds the WebKit context and
+    page fixtures first, which is most of what these tests cost.
+    """
+    kept: List[pytest.Item] = []
+    dropped: List[pytest.Item] = []
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        browser = callspec.params.get("browser_name") if callspec else None
+        if browser == "webkit" and item.module.__name__.rsplit(".", 1)[-1] in CHROMIUM_ONLY_MODULES:
+            dropped.append(item)
+        else:
+            kept.append(item)
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = kept
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

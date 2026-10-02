@@ -1597,7 +1597,8 @@ includes the Home/AC/Energy/IoT tab navigation, the Home AC summary, an
 Energy-tab render (hero numbers + charts), and the IoT tab (metered-plug
 watts, a switch round-trip, cover controls, light controls, and an offline
 device). Runs in two
-projections — Chromium desktop + WebKit on an iPhone 14.
+projections — Chromium desktop + WebKit on an iPhone 14 (except the Chromium-only
+modules below).
 
 Test modules are scoped **one per feature area** — `test_tabs.py` is pure nav
 and tab switching, with the tab content it used to carry now in
@@ -1606,12 +1607,18 @@ and tab switching, with the tab content it used to carry now in
 new case to the module named after what it exercises; `tests/e2e/_app.py` holds
 the shared `boot_home()` opener the feature modules use.
 
-As of 2026-10-02 (#778), the suite is 126 test functions / 270 executions,
-measured at ~3.5 min (3m30s), down from 304 executions in 4m46s the same day
-before #778 trimmed it. It is more than the flat ×2 the dual projection
-implies because `test_design_matrix.py` additionally fans one function across
+As of 2026-10-02 (#796), a full run executes 226 nodes in ~3.2 min (3m09s):
+272 are collected and 46 WebKit nodes are deselected (#778 had trimmed 304
+executions in 4m46s to 270 in 3m30s; the same-state run just before #796 was
+272 in 3m58s). `test_design_matrix.py` additionally fans one function across
 the viewport × theme matrix below. CLAUDE.md tracks this as a runtime budget,
 not a fixed test-count cap.
+
+Modules named in `CHROMIUM_ONLY_MODULES` (`tests/e2e/conftest.py`) run on
+Chromium only: they assert DOM state, request wiring or copy, with no layout,
+touch-target, nav, safe-area or phone-width check. Add a module there only when
+that holds for every test in it; a module with even one layout test, and the
+boot canary and login, stay on both projections.
 
 To make a panel's loading state observable, hold its read with
 `tests/e2e/_app.py`'s `hold_reads()` and release it once the loading state is
