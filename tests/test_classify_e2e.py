@@ -181,6 +181,11 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("assets/tray/home-automation.ico") == "skip"  # #701 trap
     assert tier("assets/stream-deck/home-automation-144.png") == "skip"  # #701 trap
     assert tier("README.md") == "skip"
+    assert tier(".env.example") == "skip"  # #778: was unclassified -> full
+    # #778: a vendored component's README is docs the PWA never loads; the
+    # app/webapp/ full rule must not reach it before the md -> none rule.
+    assert tier("app/webapp/static/_vendored/nav/README.md") == "skip"
+    assert tier("app/webapp/static/_vendored/icons/README.md") == "skip"
     assert tier("CLAUDE.md") == "skip"
     assert tier(".fleet.toml") == "skip"
     assert tier("tray.bat") == "skip"
