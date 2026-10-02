@@ -1547,6 +1547,17 @@ change to the e2e harness itself) gets the full Chromium + WebKit run. Any
 mixed, unmatched, or ambiguous diff fails safe to the full suite — routing
 never narrows coverage on uncertainty. On CI the full suite always runs.
 
+Every gate run writes a per-test progress log: phase markers from the script,
+plus a `START`/`DONE (<s>)` line per browser test and a traceback excerpt under
+each `FAILED` line from the `tests/_progress_log.py` pytest plugin. The live
+run goes to `webapp/verify-progress.run.log` in the checkout running the gate
+(it names the active test if a run wedges). Every run that reached the browser
+phase is then appended to the **primary** checkout's
+`webapp/verify-progress.log`, keeping the last 20, whichever worktree it ran
+in. That history is the timing source `.fleet.toml` `[e2e] progress_log`
+declares for fleet-config's `/e2e-audit`, which ranks the suite by seconds and
+reads its red history from it. Both files are gitignored.
+
 ### Backend suite — fast, no network or browser
 
 A Python-level layer under `tests/` (excluding `tests/e2e/`) exercises the real
