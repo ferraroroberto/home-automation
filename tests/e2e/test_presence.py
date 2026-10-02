@@ -352,6 +352,6 @@ def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
     expect(rows.nth(0)).to_have_class(re.compile(r"\bis-broken\b"))
     expect(rows.nth(0)).to_contain_text("updated terms")
     expect(rows.nth(0)).to_contain_text("icloud.com")
-    expect(rows.nth(0)).not_to_contain_text("broken: error")
+    expect(rows.nth(0)).not_to_contain_text("broken:")
     expect(rows.nth(0).get_by_test_id("presence-account-renew")).to_have_count(0)
     expect(rows.nth(1).get_by_test_id("presence-account-renew")).to_have_text("Renew trust")

@@ -1615,7 +1615,7 @@ and tab switching, with the tab content it used to carry now in
 new case to the module named after what it exercises; `tests/e2e/_app.py` holds
 the shared `boot_home()` opener the feature modules use.
 
-As of 2026-10-02 (#798), a full run executes 220 nodes in ~2.9 min (2m55s):
+As of 2026-10-02 (#798), a full run executes 220 nodes in ~3.1 min (3m06s, run-to-run spread 2m55s–3m20s):
 282 are collected and 62 WebKit nodes are deselected (#778 had trimmed 304
 executions in 4m46s to 270 in 3m30s; the same-state run just before #798 was
 236 in 3m27s). `test_design_matrix.py` additionally fans one function across

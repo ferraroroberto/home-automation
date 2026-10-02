@@ -549,7 +549,6 @@ def test_network_wifi_header_stays_quiet_when_scan_unavailable(
     expect(page.locator("#netWifiSummary")).to_have_text("")
     header_text = page.locator("details.net-wifi-card > summary").inner_text()
     assert "Scan" not in header_text
-    assert "Scan available" not in header_text
     assert "Unavailable" not in header_text
 
     page.locator("details.net-wifi-card > summary").click()
