@@ -14,7 +14,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home
 
-_LAZY_LIBRARIES = ("chart.umd.min.js", "leaflet.js")
+_LAZY_LIBRARIES = ("chart.umd.min.js", "leaflet.js", "leaflet.css")
 
 
 def test_home_cold_load_requests_no_chart_or_map_library(
@@ -54,3 +54,5 @@ def test_place_map_picker_loads_leaflet_on_first_open(
     expect(page.locator("#presenceMapPickerDialog")).to_be_visible()
     expect(page.locator("#presenceMapPicker.leaflet-container")).to_be_attached()
     assert page.evaluate("typeof window.L") == "object"
+    # The stylesheet came with the script: Leaflet's CSS makes the container positioned.
+    assert page.locator("#presenceMapPicker").evaluate("el => getComputedStyle(el).position") == "relative"
