@@ -15,6 +15,14 @@ from tests.e2e._app import boot_home
 from tests.e2e._geometry import chart_dataset_cues, chart_tick_budget
 
 
+# A 503's raw backend detail. The UI shows its own copy ("live data
+# unavailable") and must never surface this text (#778: the leak checks had
+# asserted on an IP the detail stopped carrying when SMA became FusionSolar,
+# so they could not fail).
+_RAW_503_DETAIL = "FusionSolar portal timed out after 10 seconds"
+_RAW_503_BODY = '{"detail":"%s"}' % _RAW_503_DETAIL
+
+
 def test_energy_tab_renders_flow_and_charts(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
@@ -129,7 +137,7 @@ def test_energy_tab_shows_contextual_unavailable_state(
         lambda route: route.fulfill(
             status=503,
             content_type="application/json",
-            body='{"detail":"FusionSolar portal timed out after 10 seconds"}',
+            body=_RAW_503_BODY,
         ),
     )
     boot_home(page, base_url)
@@ -139,7 +147,9 @@ def test_energy_tab_shows_contextual_unavailable_state(
     expect(page.locator("#energyFeedback .empty-state-message")).to_have_text(
         "Live energy unavailable"
     )
-    expect(page.locator("#toast")).not_to_contain_text("192.0.2.90")
+    expect(page.locator("#toast")).to_contain_text("Couldn't load live energy")
+    expect(page.locator("#toast")).not_to_contain_text(_RAW_503_DETAIL)
+    expect(page.locator("#energyFeedback")).not_to_contain_text(_RAW_503_DETAIL)
 
 
 def test_energy_poll_failure_preserves_and_labels_last_good_flow(
@@ -157,7 +167,7 @@ def test_energy_poll_failure_preserves_and_labels_last_good_flow(
         lambda route: route.fulfill(
             status=503,
             content_type="application/json",
-            body='{"detail":"FusionSolar portal timed out after 10 seconds"}',
+            body=_RAW_503_BODY,
         ),
     )
     page.locator("#tabAc").click()
@@ -167,7 +177,9 @@ def test_energy_poll_failure_preserves_and_labels_last_good_flow(
     expect(page.locator("#flowPv")).to_have_text("2,500 W")
     expect(page.locator("#energyFeedback")).to_contain_text("Last updated")
     expect(page.locator("#energyFeedback")).to_contain_text("live data unavailable")
-    expect(page.locator("#energyFeedback")).not_to_contain_text("192.0.2.90")
+    expect(page.locator("#energyFeedback")).not_to_contain_text(_RAW_503_DETAIL)
+    expect(page.locator("#toast")).to_contain_text("Couldn't load live energy")
+    expect(page.locator("#toast")).not_to_contain_text(_RAW_503_DETAIL)
 
 
 def test_energy_chart_tick_budget_updates_with_viewport(
