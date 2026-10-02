@@ -11,11 +11,13 @@ import json
 import re
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings
 
 
+@pytest.mark.chromium_only
 def test_presence_distinguishes_loading_from_true_empty(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -56,6 +58,7 @@ def test_presence_distinguishes_loading_from_true_empty(
     )
 
 
+@pytest.mark.chromium_only
 def test_presence_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -83,6 +86,7 @@ def test_presence_shows_contextual_unavailable_state(
     expect(page.locator("#toast")).not_to_contain_text("icloud.example.internal")
 
 
+@pytest.mark.chromium_only
 def test_presence_refresh_failure_preserves_last_good_rows(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -168,6 +172,7 @@ def test_presence_settings_use_compact_right_aligned_controls(
         assert label_box["x"] + label_box["width"] <= control_box["x"] - 8
 
 
+@pytest.mark.chromium_only
 def test_security_tab_renders_presence_spike(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -189,6 +194,7 @@ def test_security_tab_renders_presence_spike(
     expect(page.locator(".presence-row.is-unknown")).to_contain_text("Keys")
 
 
+@pytest.mark.chromium_only
 def test_this_device_presence_is_diagnostic_only(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -218,6 +224,7 @@ def test_this_device_presence_is_diagnostic_only(
     expect(page.locator("#presenceRefreshNote")).to_contain_text("not used for alarm automation")
 
 
+@pytest.mark.chromium_only
 def test_presence_icloud_account_rows_offer_trust_renewal(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -296,6 +303,7 @@ def test_presence_icloud_account_rows_offer_trust_renewal(
     assert len(begins) == 1
 
 
+@pytest.mark.chromium_only
 def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,

@@ -41,7 +41,8 @@ Dual projection: when ``--browser`` isn't passed the suite runs in two
 projections — **Chromium desktop** and **WebKit projected onto an iPhone
 14** (the iOS Mobile Safari engine family), so phone regressions surface
 on Windows. A test marked ``desktop_only`` opts out of the WebKit run, and
-so does every module listed in ``CHROMIUM_ONLY_MODULES`` (#796) — see there.
+so does every module listed in ``CHROMIUM_ONLY_MODULES`` (#796) and every test
+marked ``chromium_only`` (#798) — see there.
 
 ``pytest_sessionfinish`` runs the vendor-verbatim leaked-browser-helper
 sweep (``tests/e2e/_browser_sweep.py``, project-scaffolding #203/#204)
@@ -336,6 +337,10 @@ def _reap_orphaned_webkit_zombies() -> None:
 #: whole point is that every engine gets through them. Deselected, never
 #: deleted: ``--browser webkit`` still shows them as deselected, and removing
 #: a name from this set restores the WebKit nodes with no other change.
+#:
+#: A module that mixes DOM-state tests with a layout test marks the DOM-state
+#: ones individually with ``@pytest.mark.chromium_only`` instead (#798) — the same
+#: deselection, same rule, applied per test.
 CHROMIUM_ONLY_MODULES = frozenset({
     "test_ac_tab",            # pane states (loading/empty/unavailable/stale) + snapshot paint
     "test_boost_coordinator", # settings form: persistence, range refusal, summary text
@@ -352,6 +357,12 @@ CHROMIUM_ONLY_MODULES = frozenset({
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "desktop_only: skip on the WebKit/iPhone projection")
+    config.addinivalue_line(
+        "markers",
+        "chromium_only: deselect the WebKit projection of this one test (#798) — the "
+        "per-test form of CHROMIUM_ONLY_MODULES, for a DOM-state test that lives in a "
+        "module that also holds a layout test",
+    )
     selected: List[str] = config.option.browser
     if not selected:
         selected.extend(["chromium", "webkit"])
@@ -359,7 +370,8 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]) -> None:
-    """Drop the WebKit projection of every ``CHROMIUM_ONLY_MODULES`` module (#796).
+    """Drop the WebKit projection of every ``CHROMIUM_ONLY_MODULES`` module (#796)
+    and of every test marked ``@pytest.mark.chromium_only`` (#798).
 
     Deselected rather than skipped: a skip still builds the WebKit context and
     page fixtures first, which is most of what these tests cost.
@@ -369,7 +381,11 @@ def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item
     for item in items:
         callspec = getattr(item, "callspec", None)
         browser = callspec.params.get("browser_name") if callspec else None
-        if browser == "webkit" and item.module.__name__.rsplit(".", 1)[-1] in CHROMIUM_ONLY_MODULES:
+        chromium_only = (
+            item.module.__name__.rsplit(".", 1)[-1] in CHROMIUM_ONLY_MODULES
+            or item.get_closest_marker("chromium_only") is not None
+        )
+        if browser == "webkit" and chromium_only:
             dropped.append(item)
         else:
             kept.append(item)

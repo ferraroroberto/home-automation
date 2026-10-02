@@ -6,11 +6,13 @@ from __future__ import annotations
 import re
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings
 
 
+@pytest.mark.chromium_only
 def test_network_tab_groups_devices_and_switches_sort(
     page: Page,
     base_url: str,
@@ -72,6 +74,7 @@ def test_network_tab_groups_devices_and_switches_sort(
     expect(page.locator("#netDevices")).to_be_hidden()
 
 
+@pytest.mark.chromium_only
 def test_network_tab_shows_contextual_unavailable_state(
     page: Page,
     base_url: str,
@@ -100,6 +103,7 @@ def test_network_tab_shows_contextual_unavailable_state(
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.1")
 
 
+@pytest.mark.chromium_only
 def test_network_tab_loads_then_keeps_and_labels_last_good_data_on_poll_failure(
     page: Page,
     base_url: str,
@@ -248,6 +252,7 @@ def _lease_only_device() -> Dict:
     }
 
 
+@pytest.mark.chromium_only
 def test_network_offline_toggle_hides_devices_with_no_live_link(
     page: Page,
     base_url: str,
@@ -319,6 +324,7 @@ def test_network_offline_toggle_hides_devices_with_no_live_link(
     expect(ghost).to_have_count(1)
 
 
+@pytest.mark.chromium_only
 def test_network_rename_and_hide_wifi_and_attached_device(
     page: Page,
     base_url: str,
@@ -376,6 +382,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     expect(hidden_device).to_have_class(re.compile(".*is-hidden.*"))
 
 
+@pytest.mark.chromium_only
 def test_network_device_groups_create_move_rename_and_delete(
     page: Page,
     base_url: str,
@@ -508,6 +515,7 @@ def _assign_group(page: Page, device: str, existing: str = None, new_name: str =
     expect(page.locator("#netDeviceDialog")).to_be_hidden()
 
 
+@pytest.mark.chromium_only
 def test_network_wifi_header_stays_quiet_when_scan_unavailable(
     page: Page,
     base_url: str,
@@ -550,6 +558,7 @@ def test_network_wifi_header_stays_quiet_when_scan_unavailable(
     )
 
 
+@pytest.mark.chromium_only
 def test_network_tab_retries_after_first_load_failure(
     page: Page,
     base_url: str,
@@ -579,6 +588,7 @@ def test_network_tab_retries_after_first_load_failure(
     expect(page.locator("#netDevices .net-device-name-text").first).to_have_text("Alpha Laptop")
 
 
+@pytest.mark.chromium_only
 def test_network_walk_test_picks_a_device_and_records_a_room(
     page: Page,
     base_url: str,
