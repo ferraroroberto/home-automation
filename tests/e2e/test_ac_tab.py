@@ -13,30 +13,20 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, hold_reads
 
 
 def test_ac_tab_distinguishes_loading_from_true_empty(
     page: Page, base_url: str, mock_energy: Callable,
 ) -> None:
     mock_energy()
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/units' || url.endsWith('/api/units')) {
-            return new Promise(function(resolve) {
-              setTimeout(function() {
-                resolve(new Response(JSON.stringify({units: []}), {
-                  status: 200,
-                  headers: {'Content-Type': 'application/json'},
-                }));
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    page.route(
+        "**/api/units",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body='{"units": []}',
+        ),
+    )
+    release = hold_reads(page, "/api/units")
     boot_home(page, base_url)
     page.locator("#tabAc").click()
 
@@ -44,6 +34,7 @@ def test_ac_tab_distinguishes_loading_from_true_empty(
     expect(page.locator("#acFeedback .empty-state-message")).to_have_text(
         "Reading AC units…"
     )
+    release()
     expect(page.locator("#paneAc")).to_have_attribute("data-state", "empty")
     expect(page.locator("#acFeedback .empty-state-message")).to_have_text(
         "No AC units configured"

@@ -7,7 +7,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, hold_reads
 
 
 def test_network_tab_groups_devices_and_switches_sort(
@@ -82,20 +82,7 @@ def test_network_tab_shows_loading_before_first_result(
     mock_api(sample_units)
     mock_energy()
     mock_network()
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/network' || url.endsWith('/api/network')) {
-            return new Promise(function(resolve, reject) {
-              setTimeout(function() {
-                originalFetch(input, init).then(resolve, reject);
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    release = hold_reads(page, "/api/network")
     boot_home(page, base_url)
     page.locator("#tabNetwork").click()
 
@@ -103,6 +90,7 @@ def test_network_tab_shows_loading_before_first_result(
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Reading network status…"
     )
+    release()
     expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "ready")
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
 

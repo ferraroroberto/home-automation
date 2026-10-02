@@ -7,6 +7,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
+from tests.e2e._app import hold_reads
+
 
 def _open_lights(page: Page) -> None:
     """IoT tab → expand the Lights card.
@@ -71,23 +73,13 @@ def test_lights_tab_distinguishes_loading_from_true_empty(
 ) -> None:
     mock_api(sample_units)
     mock_energy()
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/lights' || url.endsWith('/api/lights')) {
-            return new Promise(function(resolve) {
-              setTimeout(function() {
-                resolve(new Response(JSON.stringify({lights: []}), {
-                  status: 200,
-                  headers: {'Content-Type': 'application/json'},
-                }));
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    page.route(
+        "**/api/lights",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body='{"lights": []}',
+        ),
+    )
+    release = hold_reads(page, "/api/lights")
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
     _open_lights(page)
@@ -96,6 +88,7 @@ def test_lights_tab_distinguishes_loading_from_true_empty(
     expect(page.locator("#lightsList .empty-state-message")).to_have_text(
         "Reading Elgato lights…"
     )
+    release()
     expect(page.locator("#lightsList")).to_have_attribute("data-state", "empty")
     expect(page.locator("#lightsList .empty-state-message")).to_have_text(
         "No lights configured or discovered"

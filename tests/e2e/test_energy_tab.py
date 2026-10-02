@@ -11,7 +11,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, hold_reads
 from tests.e2e._geometry import chart_dataset_cues, chart_tick_budget
 
 
@@ -102,20 +102,7 @@ def test_energy_tab_shows_loading_before_first_live_result(
 ) -> None:
     mock_api(sample_units)
     mock_energy()
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/energy' || url.endsWith('/api/energy')) {
-            return new Promise(function(resolve, reject) {
-              setTimeout(function() {
-                originalFetch(input, init).then(resolve, reject);
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    release = hold_reads(page, "/api/energy")
     boot_home(page, base_url)
     page.locator("#tabEnergy").click()
 
@@ -123,6 +110,7 @@ def test_energy_tab_shows_loading_before_first_live_result(
     expect(page.locator("#energyFeedback .empty-state-message")).to_have_text(
         "Reading live energy…"
     )
+    release()
     expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "ready")
     expect(page.locator("#energyFeedback")).to_be_hidden()
 

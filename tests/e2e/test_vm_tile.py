@@ -14,7 +14,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, hold_reads
 
 
 def test_vm_tile_distinguishes_loading_from_not_found(
@@ -23,31 +23,20 @@ def test_vm_tile_distinguishes_loading_from_not_found(
 ) -> None:
     mock_api(sample_units)
     mock_energy()
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/hyperv' || url.endsWith('/api/hyperv')) {
-            return new Promise(function(resolve) {
-              setTimeout(function() {
-                resolve(new Response(JSON.stringify({
-                  hyperv: {available: false, state: 'not_found'}
-                }), {
-                  status: 200,
-                  headers: {'Content-Type': 'application/json'},
-                }));
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"hyperv": {"available": False, "state": "not_found"}}),
+        ),
+    )
+    release = hold_reads(page, "/api/hyperv")
     boot_home(page, base_url)
 
     # #461: the summary row is the whole VM surface — status text + switch.
     expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "loading")
     expect(page.locator("#homeAssistantSummaryState")).to_have_text("Reading status…")
     expect(page.locator("#homeVmToggle")).to_be_disabled()
+    release()
     expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "empty")
     expect(page.locator("#homeAssistantSummaryState")).to_have_text("VM not found")
     expect(page.locator("#homeVmToggle")).to_be_disabled()

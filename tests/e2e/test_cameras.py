@@ -7,7 +7,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, hold_reads
 
 
 def test_cameras_distinguish_loading_from_true_empty(
@@ -27,20 +27,7 @@ def test_cameras_distinguish_loading_from_true_empty(
             body='{"cameras":[]}',
         ),
     )
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/cameras' || url.endsWith('/api/cameras')) {
-            return new Promise(function(resolve, reject) {
-              setTimeout(function() {
-                originalFetch(input, init).then(resolve, reject);
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    release = hold_reads(page, "/api/cameras")
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
 
@@ -48,6 +35,7 @@ def test_cameras_distinguish_loading_from_true_empty(
     expect(page.locator("#camerasList .empty-state-message")).to_have_text(
         "Reading cameras…"
     )
+    release()
     expect(page.locator("#camerasList")).to_have_attribute("data-state", "empty")
     expect(page.locator("#camerasList .empty-state-message")).to_have_text(
         "No cameras configured"
