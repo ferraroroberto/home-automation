@@ -45,24 +45,23 @@ function filterGroupsByLang(groups, lang) {
   return out;
 }
 
-// Rendered inline into the "What can I say?" summary row (els.voiceLangToggle,
-// a fixed host in index.html) rather than as its own block in the body, so the
-// language filter reads as part of the card's header line. It lives inside a
-// <summary>, so its buttons must stop the click from bubbling to the disclosure
-// toggle — otherwise picking a language would also fold/unfold the card.
+// Rendered as a segmented control at the top of the "What can I say?" card
+// body (els.voiceLangToggle, a fixed host in index.html). It sat in the card's
+// <summary> until #779: a control inside a summary is an ambiguous tap (a
+// near-miss folds the card), and its 18px pills were under the 44px floor.
 function renderLangToggle() {
   const toggle = els.voiceLangToggle;
   if (!toggle) return;
   toggle.innerHTML = '';
   LANG_FILTERS.forEach(function (filter) {
     const btn = document.createElement('button');
+    const pressed = (state.voiceLang || 'all') === filter.id;
     btn.type = 'button';
+    btn.className = 'range-tab' + (pressed ? ' active' : '');
     btn.textContent = filter.label;
     btn.dataset.testid = 'voice-lang-' + filter.id;
-    btn.setAttribute('aria-pressed', String((state.voiceLang || 'all') === filter.id));
-    btn.addEventListener('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
+    btn.setAttribute('aria-pressed', String(pressed));
+    btn.addEventListener('click', function () {
       if (state.voiceLang === filter.id) return;
       state.voiceLang = filter.id;
       renderVoiceCommands();
