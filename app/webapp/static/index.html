@@ -217,6 +217,27 @@
       <path d="M17 13a6 6 0 0 0-6-6" />
       <path d="M21 13A10 10 0 0 0 11 3" />
     </symbol>
+    <!-- Direction glyphs (#779): Lucide arrows/dot replace the ▶ ◀ · → ↓ ↑
+         characters that stood in for icons (COMP-01). -->
+    <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none">
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24" fill="none">
+      <path d="m12 19-7-7 7-7" />
+      <path d="M19 12H5" />
+    </symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none">
+      <path d="M12 5v14" />
+      <path d="m19 12-7 7-7-7" />
+    </symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none">
+      <path d="m5 12 7-7 7 7" />
+      <path d="M12 19V5" />
+    </symbol>
+    <symbol id="i-dot" viewBox="0 0 24 24" fill="none">
+      <circle cx="12.1" cy="12.1" r="1" />
+    </symbol>
     <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none">
       <path d="m9 18 6-6-6-6" />
     </symbol>
@@ -495,13 +516,13 @@
             <span class="flow-value" id="homeFlowPv">—</span>
             <span class="flow-name">Solar</span>
           </div>
-          <span class="flow-arrow" id="homeWirePv" aria-hidden="true">·</span>
+          <span class="flow-arrow" id="homeWirePv" aria-hidden="true"></span>
           <div class="flow-node">
             <svg class="icon flow-icon" aria-hidden="true"><use href="#i-house"></use></svg>
             <span class="flow-value" id="homeFlowHouse">—</span>
             <span class="flow-name">Home</span>
           </div>
-          <span class="flow-arrow" id="homeWireGrid" aria-hidden="true">·</span>
+          <span class="flow-arrow" id="homeWireGrid" aria-hidden="true"></span>
           <div class="flow-node">
             <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
             <span class="flow-value" id="homeFlowGrid">—</span>
@@ -740,13 +761,13 @@
             <span class="flow-value" id="flowPv">—</span>
             <span class="flow-name">Solar</span>
           </div>
-          <span class="flow-arrow" id="wirePv" aria-hidden="true">·</span>
+          <span class="flow-arrow" id="wirePv" aria-hidden="true"></span>
           <div class="flow-node" id="flowNodeHouse">
             <svg class="icon flow-icon" aria-hidden="true"><use href="#i-house"></use></svg>
             <span class="flow-value" id="flowHouse">—</span>
             <span class="flow-name">Home</span>
           </div>
-          <span class="flow-arrow" id="wireGrid" aria-hidden="true">·</span>
+          <span class="flow-arrow" id="wireGrid" aria-hidden="true"></span>
           <div class="flow-node" id="flowNodeGrid">
             <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
             <span class="flow-value" id="flowGrid">—</span>
@@ -2471,7 +2492,7 @@
         <label class="camera-coord"><span>Pan</span><input id="cameraPanInput" type="number" step="0.01" class="input-native"></label>
         <label class="camera-coord"><span>Tilt</span><input id="cameraTiltInput" type="number" step="0.01" class="input-native"></label>
         <label class="camera-coord camera-coord-zoom"><span>Zoom</span><input id="cameraZoomInput" type="number" step="0.01" class="input-native"></label>
-        <button id="cameraCoordsRefresh" type="button" class="range-tab" aria-label="Read current position">↻</button>
+        <button id="cameraCoordsRefresh" type="button" class="range-tab" aria-label="Read current position"><svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg></button>
         <button id="cameraCoordsGo" type="button" class="range-tab camera-coords-go">Go</button>
       </div>
     </div>
@@ -2691,9 +2712,9 @@
         <button id="netSurveyDialogClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p class="muted small net-survey-picker-hint">
-        Pick the phone or tablet you’re holding. On iPhone: Settings → Wi-Fi → ⓘ next to your
-        network → Wi-Fi Address. iOS rotates its private Wi-Fi address, so you may have to pick
-        again later.
+        Pick the phone or tablet you’re holding. On iPhone, open Settings, then Wi-Fi, tap the
+        info button next to your network, and read Wi-Fi Address. iOS rotates its private Wi-Fi
+        address, so you may have to pick again later.
       </p>
       <div id="netSurveyDialogList" class="net-survey-picker"></div>
     </div>

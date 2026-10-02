@@ -67,7 +67,7 @@ function cameraById(id) {
 function cameraStatus(cam) {
   if (!cam.reachable) return 'Offline';
   const parts = [cam.model || 'Camera'];
-  if (cam.recording) parts.push('● Recording');
+  if (cam.recording) parts.push('Recording');
   return parts.join(' · ');
 }
 
@@ -421,7 +421,7 @@ function renderPresets() {
     del.type = 'button';
     del.className = 'camera-preset-del';
     del.setAttribute('aria-label', 'Delete ' + (p.name || p.token));
-    del.textContent = '×';
+    del.innerHTML = icon('x');
     del.addEventListener('click', function () { removePreset(p.token, p.name || p.token); });
     chip.appendChild(go);
     chip.appendChild(rename);
@@ -628,7 +628,7 @@ async function toggleRecord() {
       return c.id === id ? Object.assign({}, c, { recording: next }) : c;
     });
     renderCameras();
-    toast(next ? ('Recording → ' + (body.file || 'started')) : 'Recording saved', 'success');
+    toast(next ? ('Recording to ' + (body.file || 'a new file')) : 'Recording saved', 'success');
   } catch (exc) {
     reportActionFailure(exc, 'Recording failed');
   }

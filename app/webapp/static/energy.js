@@ -15,6 +15,7 @@
 import { state, els, reportFetchOk, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { esc, group, fmtW, fmtPct } from './format.js';
+import { icon } from './_vendored/icons/icons.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
   createLiveChart, setLiveData, pushLivePoint,
@@ -140,23 +141,24 @@ function renderFlowCard(r, e, solar) {
   r.house.textContent = fmtW(e.house_consumption_w);
   r.nodePv.classList.toggle('is-idle', !e.inverter_reachable);
 
-  // Solar → Home arrow: green ▶ while producing, dim · when asleep/zero.
+  // Solar → Home wire: a green Lucide arrow while producing, a dim dot when
+  // asleep/zero (Lucide glyphs since #779 — no ▶ ◀ · characters as icons).
   const producing = solar != null && solar > 0;
   r.wirePv.classList.toggle('is-active', producing);
-  r.wirePv.textContent = producing ? '▶' : '·';
+  r.wirePv.innerHTML = icon(producing ? 'arrow-right' : 'dot');
 
-  // Home ↔ Grid arrow (Grid sits on the right): ◀ importing (grid feeds home),
-  // ▶ exporting (home feeds grid back), · when balanced.
+  // Home ↔ Grid wire (Grid sits on the right): left while importing (grid
+  // feeds home), right while exporting (home feeds grid back), a dot balanced.
   const surplus = e.pv_surplus_w;
   r.wireGrid.classList.remove('is-import', 'is-export');
   if (surplus != null && surplus > 1) {
     r.wireGrid.classList.add('is-export');
-    r.wireGrid.textContent = '▶';
+    r.wireGrid.innerHTML = icon('arrow-right');
   } else if (surplus != null && surplus < -1) {
     r.wireGrid.classList.add('is-import');
-    r.wireGrid.textContent = '◀';
+    r.wireGrid.innerHTML = icon('arrow-left');
   } else {
-    r.wireGrid.textContent = '·';
+    r.wireGrid.innerHTML = icon('dot');
   }
 }
 

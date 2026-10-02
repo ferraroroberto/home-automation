@@ -483,7 +483,7 @@ function renderScheduleList(unit) {
       '  <label class="schedule-enabled"><span>Enabled</span>' + toggleHtml('sched-entry-enabled', entry.enabled) + '</label>' +
       '  <input type="time" class="input-native sched-entry-time" value="' + (entry.time || '08:00') + '">' +
       '  <select class="select-native sched-entry-power"><option value="true"' + (entry.power === false ? '' : ' selected') + '>On</option><option value="false"' + (entry.power === false ? ' selected' : '') + '>Off</option></select>' +
-      '  <button type="button" class="schedule-delete" aria-label="Delete schedule">×</button>' +
+      '  <button type="button" class="schedule-delete" aria-label="Delete schedule">' + icon('x') + '</button>' +
       '</div>' +
       '<div class="schedule-profile"' + (entry.power === false ? ' hidden' : '') + '>' +
       '  <label class="row"><span>Mode</span><select class="select-native sched-entry-mode">' + optionHtml(unit.operation_modes || [], entry.operation_mode || unit.operation_mode) + '</select></label>' +
@@ -603,7 +603,7 @@ function renderAcSummary() {
     name.innerHTML = icon(modeIcon(u.operation_mode), 'ac-line-icon');
     name.insertAdjacentText('beforeend', ' ' + (displayLabel(u) || 'Unit'));
 
-    // Temperature column: room → target on a single line. The mode · fan caption
+    // Temperature column: room, an arrow, target on a single line. The mode · fan caption
     // was dropped (#211) to keep each Home row one line tall, matching the
     // Network "Attached devices" row density — mode/fan stay in the detail modal.
     const center = document.createElement('span');
@@ -614,7 +614,8 @@ function renderAcSummary() {
     // marker rides in the readings column rather than adding a fourth cell.
     center.innerHTML =
       (offline ? '<span class="ac-line-offline">Offline</span>' : '') +
-      '<span class="ac-temp">' + room + ' → ' + target + '</span>';
+      '<span class="ac-temp">' + room + icon('arrow-right', 'ac-temp-arrow') +
+      '<span class="visually-hidden"> to </span>' + target + '</span>';
 
     // Power toggle — the app's standard switch, actionable from Home (issue #72).
     const toggle = document.createElement('button');

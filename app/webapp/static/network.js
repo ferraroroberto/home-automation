@@ -27,7 +27,8 @@ import {
   reportFetchOk,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { fmtPct } from './format.js';
+import { esc, fmtPct } from './format.js';
+import { icon } from './_vendored/icons/icons.js';
 import {
   restoreSnapshot,
   saveSnapshot,
@@ -142,9 +143,13 @@ function renderInternet(net) {
     };
   }
   if (lastSpeed) {
-    const seg = ['↓ ' + fmtMbps(lastSpeed.down), '↑ ' + fmtMbps(lastSpeed.up)];
-    if (lastSpeed.server) seg.push('via ' + lastSpeed.server);
-    els.netSpeedResult.textContent = seg.join(' · ');
+    // Lucide arrows for down/up (#779), each with a hidden word for readers.
+    const seg = [
+      icon('arrow-down') + '<span class="visually-hidden">Download </span>' + esc(fmtMbps(lastSpeed.down)),
+      icon('arrow-up') + '<span class="visually-hidden">Upload </span>' + esc(fmtMbps(lastSpeed.up)),
+    ];
+    if (lastSpeed.server) seg.push('via ' + esc(lastSpeed.server));
+    els.netSpeedResult.innerHTML = seg.join(' · ');
     els.netSpeedResult.hidden = false;
   } else {
     els.netSpeedResult.hidden = true;

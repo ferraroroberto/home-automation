@@ -175,7 +175,7 @@ export function renderScenePairings() {
   if (!state.scenePairings.length) {
     els.scenePairingsNote.hidden = false;
     els.scenePairingsNote.textContent = cameras.length
-      ? 'No detector→camera pairings. Add one so a tripped detector captures its camera.'
+      ? 'No detector-to-camera pairings. Add one so a tripped detector captures its camera.'
       : 'No cameras configured — add cameras before pairing detectors.';
     return;
   }
