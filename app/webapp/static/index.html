@@ -653,7 +653,7 @@
               <button id="wakeTimerCustomAdd" type="button" class="detail-save-btn wake-timer-start-btn">Start timer</button>
             </div>
             <div id="wakeTimersList" class="wake-timers-list"></div>
-            <p id="wakeTimersNote" class="muted small security-note">No active timers.</p>
+            <p id="wakeTimersNote" class="muted small security-note">No active timers. Start one with a preset above.</p>
           </div>
 
           <p class="wake-voice-hint muted small">
@@ -1052,11 +1052,14 @@
             <span id="circuitsCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <span class="security-zones-tools">
-            <button id="circuitsHiddenToggle" type="button" class="range-tab" data-testid="circuits-show-hidden-toggle" hidden>Show hidden</button>
             <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </span>
         </summary>
         <div class="device-list-body">
+          <!-- Filters sit in the body, never the summary (#779, LAYOUT-05). -->
+          <div class="card-toolbar">
+            <button id="circuitsHiddenToggle" type="button" class="range-tab" data-testid="circuits-show-hidden-toggle" hidden>Show hidden</button>
+          </div>
           <section id="circuitsList" class="device-list" aria-label="Circuits" aria-live="polite"></section>
           <p id="circuitsNote" class="muted small lights-note" role="status" hidden></p>
         </div>
@@ -1209,11 +1212,13 @@
           <span class="net-wifi-summary">
             <span id="netWifiStatus" class="net-wifi-status">—</span>
             <span id="netWifiSummary" class="muted small">—</span>
-            <button id="netWifiHiddenToggle" type="button" class="range-tab" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
             <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </span>
         </summary>
         <div class="net-wifi-body">
+          <div class="card-toolbar">
+            <button id="netWifiHiddenToggle" type="button" class="range-tab" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
+          </div>
           <p id="netWifiMeta" class="muted small net-wifi-meta">—</p>
           <div id="netWifiRecommendations" class="net-wifi-recommendations" hidden></div>
           <div class="net-wifi-charts" aria-label="Wi-Fi channel charts">
@@ -1777,10 +1782,12 @@
             <span id="securityHiddenCount" class="muted small security-hidden-count" hidden></span>
           </span>
           <span class="security-zones-tools">
-            <button id="securityHiddenToggle" type="button" class="range-tab" data-testid="detectors-show-hidden-toggle" hidden>Show hidden</button>
             <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </span>
         </summary>
+        <div class="card-toolbar card-toolbar--inset">
+          <button id="securityHiddenToggle" type="button" class="range-tab" data-testid="detectors-show-hidden-toggle" hidden>Show hidden</button>
+        </div>
         <div id="securityZones" class="security-zones"></div>
         <p id="securityZonesNote" class="muted small security-note" hidden></p>
       </details>
@@ -1810,13 +1817,13 @@
           </span>
           <span class="security-zones-tools">
             <button id="presenceKidsHome" type="button" class="range-tab" aria-pressed="false" title="Kids home: arm perimeter only (not full) when everyone leaves; resets on the next disarm">Kids home</button>
-            <button id="presenceHiddenToggle" type="button" class="range-tab" data-testid="presence-show-hidden-toggle" hidden>Show hidden</button>
             <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </span>
         </summary>
         <p class="muted small presence-body-summary">
           <span id="presenceSummary">—</span>
           <span id="presenceHiddenCount" class="security-hidden-count" hidden></span>
+          <button id="presenceHiddenToggle" type="button" class="range-tab" data-testid="presence-show-hidden-toggle" hidden>Show hidden</button>
         </p>
         <div id="presenceList" class="presence-list" aria-live="polite"></div>
         <p id="presenceNote" class="muted small security-note" role="status" hidden></p>
@@ -2791,7 +2798,7 @@
         </label>
         <label class="row" id="activityTypeRow">
           <span>Type</span>
-          <input id="activityType" type="text" class="input-native" placeholder="Any (e.g. arm, plug_on)">
+          <input id="activityType" type="text" class="input-native" placeholder="Any type">
         </label>
         <label class="row" id="activityMetricRow" hidden>
           <span>Metric</span>

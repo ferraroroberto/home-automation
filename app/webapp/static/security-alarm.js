@@ -531,16 +531,13 @@ export function wireZoneDetail() {
   if (els.zoneSave) els.zoneSave.addEventListener('click', zoneModal.save);
 }
 
-// Wire the "show hidden" detectors toggle in the Detectors header (issue #104).
-// The button lives in the <summary>, so swallow the click so it flips the filter
-// instead of collapsing the card.
+// Wire the "show hidden" detectors toggle (issue #104) — in the card body's
+// toolbar since #779, so its click no longer needs keeping off the <summary>.
 export function wireSecurityHiddenToggle() {
   state.securityShowHidden = showHiddenPref.read();
 
   if (!els.securityHiddenToggle) return;
-  els.securityHiddenToggle.addEventListener('click', function (ev) {
-    ev.preventDefault();
-    ev.stopPropagation();
+  els.securityHiddenToggle.addEventListener('click', function () {
     state.securityShowHidden = !state.securityShowHidden;
     showHiddenPref.write(state.securityShowHidden);
     renderZones();

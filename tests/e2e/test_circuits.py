@@ -359,11 +359,10 @@ def test_the_hidden_toggle_filters_without_folding_the_card(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """It rides in the card's own <summary>, next to the chevron.
+    """It sits in the card body's toolbar, never the <summary> (#779).
 
-    That is the whole trap of the summary-embedded-control pattern: a click
-    lands on the disclosure unless it is explicitly stopped, so filtering the
-    list would otherwise fold the card shut on the very same tap.
+    A control in the summary is an ambiguous tap: a near-miss folds the card
+    (design.md, LAYOUT-05). Filtering the list must leave the card open.
     """
     channels = [
         _channel(1, display_name="water heater", power_w=291.5),
@@ -376,8 +375,9 @@ def test_the_hidden_toggle_filters_without_folding_the_card(
 
     card = page.locator("#circuitsCard")
     toggle = page.locator("#circuitsHiddenToggle")
-    # In the header, not in a toolbar of its own.
-    expect(page.locator("#circuitsCard > summary #circuitsHiddenToggle")).to_have_count(1)
+    # In the body's toolbar, not in the header.
+    expect(page.locator("#circuitsCard > summary #circuitsHiddenToggle")).to_have_count(0)
+    expect(page.locator("#circuitsCard .card-toolbar #circuitsHiddenToggle")).to_have_count(1)
     expect(card).to_have_js_property("open", True)
 
     toggle.click()

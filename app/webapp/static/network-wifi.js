@@ -326,11 +326,7 @@ export function wireNetWifiDetail() {
 // ------------------------------------------------- prefs + toggles
 const showHiddenWifiPref = persistedFlag(NETWORK_SHOW_HIDDEN_WIFI_KEY);
 
-export function toggleShowHiddenWifi(ev) {
-  if (ev) {
-    ev.preventDefault();
-    ev.stopPropagation();
-  }
+export function toggleShowHiddenWifi() {
   state.networkShowHiddenWifi = !state.networkShowHiddenWifi;
   showHiddenWifiPref.write(state.networkShowHiddenWifi);
   renderNetwork();

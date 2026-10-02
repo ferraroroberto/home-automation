@@ -124,7 +124,7 @@ export function renderWakeAlarms() {
   renderRingingBanner();
   if (!state.wakeAlarms.length) {
     els.wakeAlarmsNote.hidden = false;
-    els.wakeAlarmsNote.textContent = 'No wake alarms.';
+    els.wakeAlarmsNote.textContent = 'No wake alarms yet. Tap Add alarm below to set one.';
     return;
   }
   els.wakeAlarmsNote.hidden = true;

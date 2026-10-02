@@ -115,7 +115,7 @@ export function renderReminders() {
   renderRemindersCount();
   if (!state.reminders.length) {
     els.remindersNote.hidden = false;
-    els.remindersNote.textContent = 'No reminders.';
+    els.remindersNote.textContent = 'No reminders yet. Tap Add reminder below to add one.';
     return;
   }
   els.remindersNote.hidden = true;
