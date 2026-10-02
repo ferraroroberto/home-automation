@@ -16,7 +16,7 @@ import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { closeDialog, openDialog } from './dialog.js';
-import { loadScript } from './lazy-script.js';
+import { loadScript, loadStyle } from './lazy-script.js';
 
 const DEFAULT_RADIUS_M = 150;
 
@@ -193,10 +193,16 @@ function ensureMapPicker() {
 }
 
 async function openMapPicker() {
-  // Leaflet loads on the first open (#760); a failed load leaves window.L
-  // unset, so ensureMapPicker() below reports the map unavailable.
-  try { await loadScript('/static/vendor/leaflet/leaflet.js'); } catch (_) { /* handled below */ }
-  const picker = ensureMapPicker();
+  // Leaflet's script and stylesheet load on the first open (#760, #777); a
+  // failed load of either reports the map unavailable below.
+  let loaded = true;
+  try {
+    await Promise.all([
+      loadScript('/static/vendor/leaflet/leaflet.js'),
+      loadStyle('/static/vendor/leaflet/leaflet.css'),
+    ]);
+  } catch (_) { loaded = false; }
+  const picker = loaded ? ensureMapPicker() : null;
   if (!picker) {
     toast('Map unavailable', 'error');
     return;
