@@ -1606,11 +1606,18 @@ and tab switching, with the tab content it used to carry now in
 new case to the module named after what it exercises; `tests/e2e/_app.py` holds
 the shared `boot_home()` opener the feature modules use.
 
-As of 2026-08-06 (#636), the suite is 140 test functions / 296 executions,
-measured at ~5 min (4m59s). It is more than the flat ×2 the dual projection
+As of 2026-10-02 (#778), the suite is 126 test functions / 270 executions,
+measured at ~3.5 min (3m30s), down from 304 executions in 4m46s the same day
+before #778 trimmed it. It is more than the flat ×2 the dual projection
 implies because `test_design_matrix.py` additionally fans one function across
 the viewport × theme matrix below. CLAUDE.md tracks this as a runtime budget,
 not a fixed test-count cap.
+
+To make a panel's loading state observable, hold its read with
+`tests/e2e/_app.py`'s `hold_reads()` and release it once the loading state is
+asserted. Don't add a fixed delay: every test would sleep through it, and a
+loaded machine can outrun it. To test anything that waits on a poll interval,
+drive it with `page.clock` instead of waiting it out (#778).
 
 Rendered-geometry design checks (44px effective touch targets, non-overlap,
 horizontal overflow, live Chart.js tick/cue config) go through
