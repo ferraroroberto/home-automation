@@ -13,6 +13,7 @@
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/icon-512.png">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
+  <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/static/styles.css">
   <title>Home Automation</title>
   <script>
@@ -367,7 +368,9 @@
        descendants of momentum scrollers and anchors them to scrolled content, not
        the viewport. Keeping the nav outside the scroller is the load-bearing part
        of issue #232. Each tab carries a Lucide icon + label (issue #77); panes
-       toggle with [hidden]; the chosen tab is remembered in localStorage. -->
+       toggle with [hidden]; the chosen tab is remembered in localStorage.
+       Five tabs (#779): Settings is no tab — every page header's gear opens
+       its pane, the design.md five-destination ceiling. -->
   <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="home">
     <button id="tabHome" type="button" class="tab active" data-tab="home"
             role="tab" aria-selected="true" aria-controls="paneHome">
@@ -387,17 +390,12 @@
     <button id="tabIot" type="button" class="tab" data-tab="iot"
             role="tab" aria-selected="false" aria-controls="paneIot" tabindex="-1">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
-      <span class="tab-label">IoT</span>
-    </button>
-    <button id="tabNetwork" type="button" class="tab" data-tab="network"
-            role="tab" aria-selected="false" aria-controls="paneNetwork" tabindex="-1">
-      <svg class="icon tab-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
-      <span class="tab-label">Net</span>
+      <span class="tab-label">Devices</span>
     </button>
     <button id="tabSecurity" type="button" class="tab" data-tab="security"
             role="tab" aria-selected="false" aria-controls="paneSecurity" tabindex="-1">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
-      <span class="tab-label">Alarm</span>
+      <span class="tab-label">Security</span>
     </button>
   </nav>
 
@@ -409,8 +407,25 @@
     <h1 class="visually-hidden">Home automation</h1>
     <!-- ============================== HOME =============================== -->
     <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
+      <!-- Page header (#779): every pane opens with the vendored home-head —
+           the tab's title, the theme toggle and the Settings gear. -->
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>
+          Home
+        </h2>
+        <button type="button" class="home-toggle hit-target theme-toggle-btn"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="home-toggle hit-target settings-open-btn"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
       <!-- Weather strip (GET /api/weather): current weather · today's forecast
-           (min/max + code) on the left, a transparent theme toggle on the right.
+           (min/max + code). Its theme + nav-debug buttons moved out in #779:
+           the theme toggle to every page header, nav debug to Settings.
            Home-tab only. Hidden until the first successful read; fails quietly
            like the energy tile. -->
       <section id="weatherTile" class="card weather-tile" aria-label="Weather" hidden>
@@ -428,12 +443,6 @@
               <span class="weather-fc-max" id="wxFcMax">—</span>
             </span>
           </div>
-        </div>
-        <div class="weather-actions">
-          <button id="navDebugBtn" type="button" class="weather-icon-btn hit-target"
-                  title="Toggle nav debug overlay" aria-label="Toggle nav debug overlay" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg></button>
-          <button id="weatherThemeBtn" type="button" class="weather-icon-btn hit-target"
-                  title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         </div>
       </section>
 
@@ -552,26 +561,6 @@
           </div>
         </details>
 
-        <!-- Search-engine status for the voice assistant's Tier-3 web-search
-             function (issue #321): SearXNG runs as a Docker container on the
-             hub PC (GET /api/searxng). Read-only status + a Start button when
-             the container is down — mirrors the satellites subsection's
-             shape, minus the polling richness of the VM tile (this rarely
-             changes, so it is read on open and on a slow interval). -->
-        <details id="searxngCard" class="ha-subsection" aria-label="Search engine">
-          <summary class="collapse-summary">
-            <span class="collapse-main">
-              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
-              <h3 class="collapse-title">Search engine</h3>
-              <span id="searxngSummaryState" class="muted small">Reading status…</span>
-            </span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </summary>
-          <div class="ha-subsection-body">
-            <p id="searxngNote" class="muted small ha-note">Backs "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
-            <button id="searxngStartBtn" type="button" class="big-btn searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
-          </div>
-        </details>
 
         <!-- Home Assistant capabilities guide (#239, restructured in #461 from a
              modal into a subsection): static, user-facing help for the three
@@ -606,26 +595,6 @@
           </div>
         </details>
 
-        <!-- Voice cheat sheet (issue #437, folded into this card in #461) — the
-             companion to the push-to-talk mic above: "What can I do?" covers
-             what this webapp does with Home Assistant, this one covers what you
-             can *say* to the pucks. Content comes from GET /api/voice-commands
-             (curated in src/voice_commands.py), fetched on first open and never
-             polled. -->
-        <details id="voiceCommandsCard" class="ha-subsection" aria-label="What can I say?">
-          <summary class="collapse-summary">
-            <span class="collapse-main">
-              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
-              <h3 class="collapse-title">What can I say?</h3>
-              <span id="voiceLangToggle" class="voice-lang-toggle" role="group" aria-label="Filter voice commands by language" hidden></span>
-            </span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </summary>
-          <div class="ha-subsection-body">
-            <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
-            <p id="voiceCommandsNote" class="muted small ha-note">Open to load the voice commands.</p>
-          </div>
-        </details>
       </details>
 
       <!-- Wake alarms & timers (issue #304) — Alexa-style alarms/timers that
@@ -719,26 +688,44 @@
         <div id="locatorList" class="locator-list" aria-live="polite"></div>
       </details>
 
-      <!-- Activity log (#289): a button — not a tab — opening the admin/telemetry
-           overlay with the unified, filterable event history (arm/disarm, plug
-           toggles, power, presence, panel events). -->
-      <button id="activityOpen" type="button" class="card activity-open" aria-haspopup="dialog">
-        <span class="activity-open-identity">
-          <svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
-          <span>Activity log</span>
-        </span>
-        <span class="activity-open-hint muted small">events &amp; telemetry</span>
-      </button>
     </section>
 
     <!-- =============================== AC =============================== -->
     <section id="paneAc" class="pane" role="tabpanel" aria-labelledby="tabAc" aria-label="AC units" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-snowflake"></use></svg>
+          AC
+        </h2>
+        <button type="button" class="home-toggle hit-target theme-toggle-btn"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="home-toggle hit-target settings-open-btn"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
       <div id="acFeedback" class="ac-feedback" role="status" hidden></div>
       <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
     </section>
 
     <!-- ============================= ENERGY ============================= -->
     <section id="paneEnergy" class="pane" role="tabpanel" aria-labelledby="tabEnergy" aria-label="Energy monitoring" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+          Energy
+        </h2>
+        <button type="button" class="home-toggle hit-target theme-toggle-btn"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="home-toggle hit-target settings-open-btn"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
       <div id="energyFeedback" class="energy-feedback" role="status" hidden></div>
       <!-- Live energy-flow diagram: ☀️ Solar feeds 🏠 Home, the 🗼 Grid makes up
            the difference (or absorbs the surplus). Values + arrow directions
@@ -936,120 +923,11 @@
         <p class="forecast-headline" id="forecastHeadline">—</p>
         <p class="forecast-params muted small" id="forecastParams"></p>
         <div class="chart-wrap chart-wrap-forecast"><canvas id="forecastChart"></canvas></div>
-        <p id="forecastEmpty" class="muted small chart-empty" hidden>Add your panel rows in the PV system card below to enable the forecast.</p>
+        <p id="forecastEmpty" class="muted small chart-empty" hidden>Add your panel rows in the PV system card in Settings to enable the forecast.</p>
       </section>
 
-      <!-- Sun-position diagnostic — the day's measured performance ratio
-           plotted against where the sun actually was, beside the modelled
-           ratio (issue #590). Read-only and folded away by default: it
-           answers "is the afternoon drop-off shading or weather?", which is
-           an occasional question, not a glanceable one. Collapsed also means
-           its extra irradiance read only happens when someone opens it. -->
-      <details class="card card--collapsible sun-overlay-card" id="sunOverlayCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
-            <h3 class="collapse-title">Sun-position diagnostic</h3>
-            <span id="sunOverlayCount" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="sun-overlay-body">
-          <p class="muted small">Measured performance ratio per hour against the sun's azimuth. A dip that lands at the same azimuth every day is fixed shading; one that moves with the clock is weather. Hours the feed only partly reached are left out — a gap would read as shade.</p>
-          <label class="row">
-            <span>Day</span>
-            <input id="sunOverlayDate" type="date" class="input-native">
-          </label>
-          <div class="chart-wrap chart-wrap-forecast"><canvas id="sunOverlayChart"></canvas></div>
-          <p class="muted small" id="sunOverlayNote"></p>
-          <p id="sunOverlayEmpty" class="muted small chart-empty" hidden>No measured hours for this day.</p>
-        </div>
-      </details>
 
-      <!-- PV system — the array the forecast above is computed from (issue
-           #561). Dense-collection editor: one summary row per physically-
-           uniform panel row, edited in a staged dialog; the system-level
-           fields (shared derate + the home coordinates) are inline and save on
-           blur. Writes config/pv_system.json, which stays hand-editable. -->
-      <details class="card card--collapsible pv-system-card" id="pvSystemCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
-            <h3 class="collapse-title">PV system</h3>
-            <span id="pvSystemTotal" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="pv-system-body">
-          <p class="muted small">Panel rows the forecast is computed from — one row per orientation.</p>
-          <div id="pvArrayList" class="alarm-schedule-list"></div>
-          <button id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
 
-          <label class="row">
-            <span>Performance ratio</span>
-            <input id="pvPerformanceRatio" type="number" min="0.05" max="1" step="0.01" inputmode="decimal" class="input-native" placeholder="0.80">
-          </label>
-          <label class="row">
-            <span>Latitude</span>
-            <input id="pvLat" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
-          </label>
-          <label class="row">
-            <span>Longitude</span>
-            <input id="pvLon" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
-          </label>
-          <p class="muted small pv-system-note">A rough estimate — the derate folds inverter, wiring, thermal and soiling losses into one factor (typically 0.75–0.85).</p>
-
-          <!-- Horizon / shading profile (issue #578 part b) — obstruction
-               elevation by compass azimuth, entered here so the geometry is
-               ready whenever it gets armed. Not applied to the forecast yet:
-               the switch has no control here, on purpose (see docs/pv-forecast.md). -->
-          <h4 class="net-group-head">Horizon / shading profile</h4>
-          <p class="muted small">Obstruction height by compass direction — not yet applied to the forecast.</p>
-          <div id="pvHorizonList" class="alarm-schedule-list"></div>
-          <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
-        </div>
-      </details>
-
-      <!-- Solar boost sequencing (issue #562) — the fleet-level knobs deciding
-           how A/C units enter and leave solar boost: one at a time, measuring
-           real surplus between steps, instead of every eligible unit reacting to
-           the same reading in the same tick. Global by design; the per-unit
-           opt-in stays in each unit's detail modal. Inline rows that save on
-           blur, the same shape as the PV-system card's system-level fields. -->
-      <details class="card card--collapsible boost-coord-card" id="boostCoordCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
-            <h3 class="collapse-title">Solar boost</h3>
-            <span id="boostCoordSummary" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="boost-coord-body">
-          <p class="muted small">Units enter and leave boost one at a time, so their combined draw never outruns the surplus they are all reacting to.</p>
-
-          <label class="row">
-            <span>Settle interval (min)</span>
-            <input id="boostSettleMin" type="number" min="5" max="60" step="1" inputmode="numeric" class="input-native" placeholder="5">
-          </label>
-          <label class="row">
-            <span>Admission margin (W)</span>
-            <input id="boostAdmissionMargin" type="number" min="0" step="50" inputmode="numeric" class="input-native" placeholder="0">
-          </label>
-          <label class="row">
-            <span>Fast-shed import (W)</span>
-            <input id="boostHardDeficit" type="number" min="0" step="100" inputmode="numeric" class="input-native" placeholder="1000">
-          </label>
-          <label class="row">
-            <span>Admission order</span>
-            <select id="boostOrderingPolicy" class="input-native">
-              <option value="stable">Stable</option>
-            </select>
-          </label>
-
-          <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. One deterministic order ships today — a fairness rotation may follow.</p>
-        </div>
-      </details>
     </section>
 
     <!-- =============================== IOT =============================== -->
@@ -1060,7 +938,21 @@
          weight than a phone PWA should carry. Cloud-free — driven by local
          devices.json and LAN reads only. The empty/error note guides toward
          refreshing devices.json (never the cloud). -->
-    <section id="paneIot" class="pane" role="tabpanel" aria-labelledby="tabIot" aria-label="IoT devices" hidden>
+    <section id="paneIot" class="pane" role="tabpanel" aria-labelledby="tabIot" aria-label="Devices" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
+          Devices
+        </h2>
+        <button type="button" class="home-toggle hit-target theme-toggle-btn"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="home-toggle hit-target settings-open-btn"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
       <section id="upsTile" class="card ups-tile ups-tile-compact" aria-label="UPS status" hidden></section>
 
       <!-- Summary: total devices · on · off · live consumption (reachable
@@ -1188,34 +1080,6 @@
       </details>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
 
-      <details class="card card--collapsible security-card security-notify-card" aria-label="Notifications">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
-            <h3 class="collapse-title">Notifications</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <p class="muted small security-note">
-          Telegram alerts when the PC &amp; Wi-Fi UPS loses or regains mains power, and a safety
-          auto-shutdown when the battery runs critically low.
-        </p>
-        <div class="notify-toggles">
-          <div class="notify-toggle">
-            <span>Mains power lost (on UPS battery)</span>
-            <button id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Power restored (back on mains)</span>
-            <button id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-        </div>
-        <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
-      </details>
 
       <!-- PC fleet: UPS-triggered graceful shutdown of the fleet PCs (issue
            #498). Collapsed by default, peer of the UPS Notifications card. The
@@ -1251,13 +1115,30 @@
       </details>
     </section>
 
-    <!-- ============================= NETWORK ============================ -->
-    <!-- Home-network (LAN) view: internet health + opt-in speed test, AP/router
+    <!-- ============================= SETTINGS =========================== -->
+    <!-- No tab since #779: every page header's gear opens this pane. It holds
+         the former Net tab (rarely-used, admin-shaped) and the configuration
+         cards that used to be spread across the other tabs.
+         Home-network (LAN) section: internet health + opt-in speed test, AP/router
          health with the confirm-gated AP reboot, and the attached-device
          inventory grouped by band (weakest signal first). Read-mostly; polls
          only while open (the AP SOAP read is comparatively expensive). The
          speed test never auto-runs — it is an explicit button (issue #129). -->
-    <section id="paneNetwork" class="pane" role="tabpanel" aria-labelledby="tabNetwork" aria-label="Network" hidden>
+    <section id="paneSettings" class="pane" aria-label="Settings" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+          Settings
+        </h2>
+        <button type="button" class="home-toggle hit-target theme-toggle-btn"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+      </div>
+      <!-- The network section carries its own data-state (#779): a network
+           read in flight or failed must hide only these cards, never the
+           configuration cards that share the Settings pane. -->
+      <div id="settingsNetwork" class="settings-network">
       <div id="netFeedback" class="network-feedback" role="status" hidden></div>
       <!-- Internet-health tile — big online/offline word, latency + loss
            caption, last speed-test result, and the opt-in "Run speed test". -->
@@ -1476,10 +1357,351 @@
           <p id="netDhcpNote" class="muted small net-dhcp-note">Open to compute the plan.</p>
         </div>
       </details>
+
+      </div>
+
+      <!-- ---------------- configuration moved here from the other tabs (#779) -->
+      <!-- Notifications (#779): the alarm and UPS Telegram preferences, once
+           two cards on two tabs, are one card here — two groups, same
+           element ids, so security-notify.js and ups-notify.js are untouched. -->
+      <details class="card card--collapsible security-card security-notify-card" aria-label="Notifications">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
+            <h3 class="collapse-title">Notifications</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <h4 class="net-group-head notify-group-head">Alarm</h4>
+        <p class="muted small security-note">
+          Telegram alerts for <strong>automatic</strong> alarm actions only. Manual arm/disarm from this app is never notified — you're already here.
+        </p>
+        <div class="notify-toggles">
+          <div class="notify-toggle">
+            <span>Automatic arm (schedule)</span>
+            <button id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
+            <span>Automatic disarm (schedule)</span>
+            <button id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
+            <span>Arm on everyone-away (presence)</span>
+            <button id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
+            <span>Disarm on arrival (presence)</span>
+            <button id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
+            <span>Error on any automatic arm/disarm</span>
+            <button id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
+            <span>Alarm triggered (intrusion)</span>
+            <button id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
+            <span>Panel mains power lost/restored</span>
+            <button id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+        </div>
+        <p id="notifyConfiguredNote" class="muted small security-note" hidden></p>
+        <h4 class="net-group-head notify-group-head">UPS power</h4>
+        <p class="muted small security-note">
+          Telegram alerts when the PC &amp; Wi-Fi UPS loses or regains mains power, and a safety
+          auto-shutdown when the battery runs critically low.
+        </p>
+        <div class="notify-toggles">
+          <div class="notify-toggle">
+            <span>Mains power lost (on UPS battery)</span>
+            <button id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <div class="notify-toggle">
+            <span>Power restored (back on mains)</span>
+            <button id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+        </div>
+        <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
+      </details>
+
+      <details class="card card--collapsible settings-card presence-settings-card" aria-label="Presence settings">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+            <h3 class="collapse-title">Presence settings</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="presence-settings">
+          <label class="row">
+            <span>Home label</span>
+            <input id="locationLabel" type="text" class="input-native" placeholder="Home">
+          </label>
+          <label class="row">
+            <span>Latitude</span>
+            <input id="locationLat" type="number" step="0.000001" class="input-native" placeholder="—">
+          </label>
+          <label class="row">
+            <span>Longitude</span>
+            <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
+          </label>
+          <button id="locationUseBrowser" type="button" class="big-btn">Use this device location</button>
+          <div class="row">
+            <span>Auto arm on departure</span>
+            <button id="presenceAutoEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto arm on departure">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <label class="row">
+            <span>Away minutes before arm</span>
+            <input id="presenceArmMinutes" type="number" min="0" step="1" class="input-native" value="15">
+          </label>
+          <label class="row">
+            <span>Stale after minutes</span>
+            <input id="presenceStaleMinutes" type="number" min="1" step="1" class="input-native" value="60">
+          </label>
+          <div class="row">
+            <span>Auto disarm on arrival</span>
+            <button id="presenceDisarmOnArrival" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto disarm on arrival">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <p id="presenceAutomationNote" class="muted small security-note" hidden></p>
+          <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
+        </div>
+      </details>
+
+      <!-- Named places for the "where's mom/dad" voice locator (issue #438).
+           Dense-collection editor — same summary-row + staged-dialog contract
+           as the alarm-schedules card above. -->
+      <details class="card card--collapsible settings-card presence-places-card" id="presencePlacesCard" aria-label="Places">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+            <h3 class="collapse-title">Places</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="presence-places-body">
+          <p class="muted small">Named places (e.g. "the gym", "Roberto's work") the voice locator can name instead of just a distance from home.</p>
+          <div id="presencePlacesList" class="alarm-schedule-list"></div>
+          <p id="presencePlacesNote" class="muted small security-note" hidden></p>
+          <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
+        </div>
+      </details>
+
+      <!-- PV system — the array the forecast above is computed from (issue
+           #561). Dense-collection editor: one summary row per physically-
+           uniform panel row, edited in a staged dialog; the system-level
+           fields (shared derate + the home coordinates) are inline and save on
+           blur. Writes config/pv_system.json, which stays hand-editable. -->
+      <details class="card card--collapsible pv-system-card" id="pvSystemCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+            <h3 class="collapse-title">PV system</h3>
+            <span id="pvSystemTotal" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="pv-system-body">
+          <p class="muted small">Panel rows the forecast is computed from — one row per orientation.</p>
+          <div id="pvArrayList" class="alarm-schedule-list"></div>
+          <button id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
+
+          <label class="row">
+            <span>Performance ratio</span>
+            <input id="pvPerformanceRatio" type="number" min="0.05" max="1" step="0.01" inputmode="decimal" class="input-native" placeholder="0.80">
+          </label>
+          <label class="row">
+            <span>Latitude</span>
+            <input id="pvLat" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+          </label>
+          <label class="row">
+            <span>Longitude</span>
+            <input id="pvLon" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+          </label>
+          <p class="muted small pv-system-note">A rough estimate — the derate folds inverter, wiring, thermal and soiling losses into one factor (typically 0.75–0.85).</p>
+
+          <!-- Horizon / shading profile (issue #578 part b) — obstruction
+               elevation by compass azimuth, entered here so the geometry is
+               ready whenever it gets armed. Not applied to the forecast yet:
+               the switch has no control here, on purpose (see docs/pv-forecast.md). -->
+          <h4 class="net-group-head">Horizon / shading profile</h4>
+          <p class="muted small">Obstruction height by compass direction — not yet applied to the forecast.</p>
+          <div id="pvHorizonList" class="alarm-schedule-list"></div>
+          <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
+        </div>
+      </details>
+
+      <!-- Solar boost sequencing (issue #562) — the fleet-level knobs deciding
+           how A/C units enter and leave solar boost: one at a time, measuring
+           real surplus between steps, instead of every eligible unit reacting to
+           the same reading in the same tick. Global by design; the per-unit
+           opt-in stays in each unit's detail modal. Inline rows that save on
+           blur, the same shape as the PV-system card's system-level fields. -->
+      <details class="card card--collapsible boost-coord-card" id="boostCoordCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+            <h3 class="collapse-title">Solar boost</h3>
+            <span id="boostCoordSummary" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="boost-coord-body">
+          <p class="muted small">Units enter and leave boost one at a time, so their combined draw never outruns the surplus they are all reacting to.</p>
+
+          <label class="row">
+            <span>Settle interval (min)</span>
+            <input id="boostSettleMin" type="number" min="5" max="60" step="1" inputmode="numeric" class="input-native" placeholder="5">
+          </label>
+          <label class="row">
+            <span>Admission margin (W)</span>
+            <input id="boostAdmissionMargin" type="number" min="0" step="50" inputmode="numeric" class="input-native" placeholder="0">
+          </label>
+          <label class="row">
+            <span>Fast-shed import (W)</span>
+            <input id="boostHardDeficit" type="number" min="0" step="100" inputmode="numeric" class="input-native" placeholder="1000">
+          </label>
+          <label class="row">
+            <span>Admission order</span>
+            <select id="boostOrderingPolicy" class="input-native">
+              <option value="stable">Stable</option>
+            </select>
+          </label>
+
+          <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. One deterministic order ships today — a fairness rotation may follow.</p>
+        </div>
+      </details>
+
+      <!-- Sun-position diagnostic — the day's measured performance ratio
+           plotted against where the sun actually was, beside the modelled
+           ratio (issue #590). Read-only and folded away by default: it
+           answers "is the afternoon drop-off shading or weather?", which is
+           an occasional question, not a glanceable one. Collapsed also means
+           its extra irradiance read only happens when someone opens it. -->
+      <details class="card card--collapsible sun-overlay-card" id="sunOverlayCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+            <h3 class="collapse-title">Sun-position diagnostic</h3>
+            <span id="sunOverlayCount" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="sun-overlay-body">
+          <p class="muted small">Measured performance ratio per hour against the sun's azimuth. A dip that lands at the same azimuth every day is fixed shading; one that moves with the clock is weather. Hours the feed only partly reached are left out — a gap would read as shade.</p>
+          <label class="row">
+            <span>Day</span>
+            <input id="sunOverlayDate" type="date" class="input-native">
+          </label>
+          <div class="chart-wrap chart-wrap-forecast"><canvas id="sunOverlayChart"></canvas></div>
+          <p class="muted small" id="sunOverlayNote"></p>
+          <p id="sunOverlayEmpty" class="muted small chart-empty" hidden>No measured hours for this day.</p>
+        </div>
+      </details>
+
+      <!-- Search-engine status for the voice assistant's Tier-3 web-search
+           function (issue #321): SearXNG runs as a Docker container on the
+           hub PC (GET /api/searxng). Read-only status + a Start button when
+           the container is down — mirrors the satellites subsection's
+           shape, minus the polling richness of the VM tile (this rarely
+           changes, so it is read on open and on a slow interval). -->
+      <details id="searxngCard" class="card card--collapsible settings-card" aria-label="Search engine">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
+            <h3 class="collapse-title">Search engine</h3>
+            <span id="searxngSummaryState" class="muted small">Reading status…</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="settings-card-body">
+          <p id="searxngNote" class="muted small ha-note">Backs "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
+          <button id="searxngStartBtn" type="button" class="big-btn searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
+        </div>
+      </details>
+
+      <!-- Voice cheat sheet (issue #437, folded into this card in #461) — the
+           companion to the push-to-talk mic above: "What can I do?" covers
+           what this webapp does with Home Assistant, this one covers what you
+           can *say* to the pucks. Content comes from GET /api/voice-commands
+           (curated in src/voice_commands.py), fetched on first open and never
+           polled. -->
+      <details id="voiceCommandsCard" class="card card--collapsible settings-card" aria-label="What can I say?">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
+            <h3 class="collapse-title">What can I say?</h3>
+            <span id="voiceLangToggle" class="voice-lang-toggle" role="group" aria-label="Filter voice commands by language" hidden></span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="settings-card-body">
+          <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
+          <p id="voiceCommandsNote" class="muted small ha-note">Open to load the voice commands.</p>
+        </div>
+      </details>
+
+      <!-- Activity log (#289): a button — not a tab — opening the admin/telemetry
+           overlay with the unified, filterable event history (arm/disarm, plug
+           toggles, power, presence, panel events). -->
+      <button id="activityOpen" type="button" class="card settings-card activity-open" aria-haspopup="dialog">
+        <span class="activity-open-identity">
+          <svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+          <span>Activity log</span>
+        </span>
+        <span class="activity-open-hint muted small">events &amp; telemetry</span>
+      </button>
+
+      <!-- Diagnostics (#779): the on-device nav forensics recorder (#300), moved
+           out of the Home header — a debug control, not an everyday action. -->
+      <section class="card settings-card settings-diagnostics" aria-label="Diagnostics">
+        <div class="notify-toggle">
+          <span>Record nav debug log</span>
+          <button id="navDebugBtn" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Record nav debug log">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+      </section>
     </section>
 
     <!-- ============================= SECURITY ============================ -->
     <section id="paneSecurity" class="pane" role="tabpanel" aria-labelledby="tabSecurity" aria-label="Security" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
+          Security
+        </h2>
+        <button type="button" class="home-toggle hit-target theme-toggle-btn"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="home-toggle hit-target settings-open-btn"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
       <div id="securityFeedback" class="security-feedback" role="status" hidden></div>
       <section class="card security-card" aria-label="Alarm controls">
         <h2 id="securityState" class="security-state">Alarm state: —</h2>
@@ -1584,130 +1806,9 @@
           <p class="muted small presence-accounts-title">iCloud accounts</p>
           <div id="presenceAccountsList" class="presence-accounts-list"></div>
         </div>
-        <details class="presence-settings-card">
-          <summary class="collapse-summary">
-            <span class="collapse-main">
-              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-settings"></use></svg>
-              <h3 class="collapse-title">Presence settings</h3>
-            </span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </summary>
-          <div class="presence-settings">
-            <label class="row">
-              <span>Home label</span>
-              <input id="locationLabel" type="text" class="input-native" placeholder="Home">
-            </label>
-            <label class="row">
-              <span>Latitude</span>
-              <input id="locationLat" type="number" step="0.000001" class="input-native" placeholder="—">
-            </label>
-            <label class="row">
-              <span>Longitude</span>
-              <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
-            </label>
-            <button id="locationUseBrowser" type="button" class="big-btn">Use this device location</button>
-            <div class="row">
-              <span>Auto arm on departure</span>
-              <button id="presenceAutoEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto arm on departure">
-                <span class="knob"></span><span class="toggle-label">OFF</span>
-              </button>
-            </div>
-            <label class="row">
-              <span>Away minutes before arm</span>
-              <input id="presenceArmMinutes" type="number" min="0" step="1" class="input-native" value="15">
-            </label>
-            <label class="row">
-              <span>Stale after minutes</span>
-              <input id="presenceStaleMinutes" type="number" min="1" step="1" class="input-native" value="60">
-            </label>
-            <div class="row">
-              <span>Auto disarm on arrival</span>
-              <button id="presenceDisarmOnArrival" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto disarm on arrival">
-                <span class="knob"></span><span class="toggle-label">OFF</span>
-              </button>
-            </div>
-            <p id="presenceAutomationNote" class="muted small security-note" hidden></p>
-            <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
-          </div>
-        </details>
 
-        <!-- Named places for the "where's mom/dad" voice locator (issue #438).
-             Dense-collection editor — same summary-row + staged-dialog contract
-             as the alarm-schedules card above. -->
-        <details class="presence-places-card" id="presencePlacesCard">
-          <summary class="collapse-summary">
-            <span class="collapse-main">
-              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
-              <h3 class="collapse-title">Places</h3>
-            </span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </summary>
-          <div class="presence-places-body">
-            <p class="muted small">Named places (e.g. "the gym", "Roberto's work") the voice locator can name instead of just a distance from home.</p>
-            <div id="presencePlacesList" class="alarm-schedule-list"></div>
-            <p id="presencePlacesNote" class="muted small security-note" hidden></p>
-            <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
-          </div>
-        </details>
       </details>
 
-      <details class="card card--collapsible security-card security-notify-card" aria-label="Notifications">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
-            <h3 class="collapse-title">Notifications</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <p class="muted small security-note">
-          Telegram alerts for <strong>automatic</strong> alarm actions only. Manual arm/disarm from this app is never notified — you're already here.
-        </p>
-        <div class="notify-toggles">
-          <div class="notify-toggle">
-            <span>Automatic arm (schedule)</span>
-            <button id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Automatic disarm (schedule)</span>
-            <button id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Arm on everyone-away (presence)</span>
-            <button id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Disarm on arrival (presence)</span>
-            <button id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Error on any automatic arm/disarm</span>
-            <button id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Alarm triggered (intrusion)</span>
-            <button id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Panel mains power lost/restored</span>
-            <button id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-        </div>
-        <p id="notifyConfiguredNote" class="muted small security-note" hidden></p>
-      </details>
 
       <details class="card card--collapsible security-card security-override-card" aria-label="Override">
         <summary class="collapse-summary">

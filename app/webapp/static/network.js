@@ -360,9 +360,10 @@ export function wireNetworkControls() {
 // --------------------------------------------------------- cadence + tabs
 const schedule = createPoller(loadNetwork);
 
-// The AP SOAP read is expensive, so only poll while the Network tab is open.
+// The AP SOAP read is expensive, so only poll while Settings — the network
+// section's home since #779 — is open.
 export function onNetworkTab(tab) {
-  if (tab === 'network') {
+  if (tab === 'settings') {
     loadNetwork();      // immediate refresh on entry (also the first load)
     schedule(POLL_MS);
   } else {

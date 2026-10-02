@@ -1,4 +1,5 @@
-"""Home tab surfaces — the weather tile and the read-only AC summary line.
+"""Home tab surfaces — the page header, the weather tile and the read-only AC
+summary line.
 
 The Home pane's other cards have their own modules: `test_vm_tile.py` (the
 Home Assistant VM card) and `test_home_assistant.py` (its voice satellites).
@@ -22,7 +23,7 @@ from tests.e2e._geometry import (
 )
 
 
-def test_weather_icon_controls_have_non_overlapping_44px_targets(
+def test_home_header_controls_have_non_overlapping_44px_targets(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -49,7 +50,9 @@ def test_weather_icon_controls_have_non_overlapping_44px_targets(
     boot_home(page, base_url)
     expect(page.locator("#weatherTile")).to_be_visible()
 
-    buttons = page.locator(".weather-icon-btn")
+    # The theme toggle + Settings gear moved from the weather tile into the
+    # page header in #779; they keep the compact 34px + .hit-target recipe.
+    buttons = page.locator("#paneHome .page-head .home-toggle")
     targets = effective_rects(buttons)
     assert len(targets) == 2
     for target in targets:

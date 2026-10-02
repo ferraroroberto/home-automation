@@ -70,6 +70,9 @@
   --row-sm: 44px;
   --row-md: 52px;
   --row-lg: 60px;
+  /* icon-size steps (design.md icons.size) — title is the vendored home-head's
+     leading glyph + toggle glyph (#779). */
+  --icon-title: 18px;
   /* typography roles — system stack, weight (not case) for hierarchy.
      The five roles cover every text need; no ad-hoc sizes. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -246,6 +249,22 @@ button, input, select, textarea {
    34px controls so these 5px extensions never overlap. */
 .hit-target { position: relative; }
 .hit-target::before { content: ""; position: absolute; inset: -5px; }
+
+/* Page header (#779): the vendored home-head (_vendored/home-head/) opens every
+   pane. Its title is this app's pane heading, so the h2 drops its UA margin;
+   the theme toggle and the Settings gear sit side by side on the right, the
+   gear following the toggle rather than taking its own auto margin. */
+.page-head { margin-bottom: var(--gap); }
+.home-head .home-title { margin: 0; }
+.home-head .home-toggle + .home-toggle { margin-left: 0; }
+
+/* Settings pane (#779): cards moved in from other tabs that had no
+   card-level spacing of their own (they were nested subsections). */
+.settings-card,
+.net-dhcp-card { margin-bottom: var(--gap); }
+.settings-card-body { padding: 12px 14px 14px; }
+.notify-group-head { margin: 14px 14px 0; }
+.settings-diagnostics { padding: 12px 14px; }
 
 .app {
   max-width: 772px;
@@ -687,35 +706,6 @@ button, input, select, textarea {
   white-space: nowrap;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
-}
-/* Groups the theme toggle with the nav-debug toggle (#300) so both sit
-   together on the right of the weather tile, per the same "left of the
-   sun/moon icon" placement the theme toggle already uses. */
-.weather-actions { display: flex; align-items: center; gap: 12px; flex: none; }
-/* Standard icon-only button for a control nested inside a card (same recipe
-   as .detail-close's dialog-header close button): a subtle contrast
-   background instead of the tile's own bg, not a bare floating icon. */
-.weather-icon-btn {
-  flex: none;
-  background: var(--close-bg);
-  border: none;
-  border-radius: var(--radius-md);
-  width: 34px;
-  height: 34px;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.weather-icon-btn .icon { width: 1.05rem; height: 1.05rem; }
-.weather-icon-btn:active { transform: scale(0.92); }
-/* Nav-debug toggle (#300): a temporary on-device diagnostic for the iOS
-   modal/nav-pin bugs — lit up in the accent color while recording so it's
-   obvious debug mode is on, unlike the theme toggle it sits next to. */
-#navDebugBtn[aria-pressed="true"] {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .weather-fc-icon { font-size: var(--font-heading-lg); line-height: 1; color: var(--ink); }
 .weather-fc-range {
@@ -1693,8 +1683,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 /* -------------------------------------------------------- security tab */
 .security-feedback { margin: 0 0 var(--gap); }
 .security-live-feedback { margin: var(--space-sm) 4px 0; color: var(--attention); }
-#paneSecurity[data-state="loading"] > :not(.security-feedback),
-#paneSecurity[data-state="error"] > :not(.security-feedback) { display: none; }
+#paneSecurity[data-state="loading"] > :not(.security-feedback):not(.page-head),
+#paneSecurity[data-state="error"] > :not(.security-feedback):not(.page-head) { display: none; }
 
 .security-card {
   padding: 12px;
@@ -2321,19 +2311,13 @@ button.presence-name:hover { text-decoration: underline; }
 .locator-meta {
   white-space: nowrap;
 }
-.presence-settings-card,
-.presence-places-card,
 .ha-subsection {
   border-top: 1px solid var(--line);
 }
-.presence-settings-card > .collapse-summary,
-.presence-places-card > .collapse-summary,
 .ha-subsection > .collapse-summary {
   height: 48px;
   padding: 0 14px;
 }
-.presence-settings-card[open] > .collapse-summary,
-.presence-places-card[open] > .collapse-summary,
 .ha-subsection[open] > .collapse-summary {
   border-bottom: 1px solid var(--line);
 }
@@ -2963,8 +2947,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 /* Initial/unavailable feedback replaces the placeholder-filled Network shell;
    stale feedback stays compact above the preserved last-good content. */
 .network-feedback { margin: 0 0 var(--gap); }
-#paneNetwork[data-state="loading"] > :not(.network-feedback),
-#paneNetwork[data-state="error"] > :not(.network-feedback) { display: none; }
+#settingsNetwork[data-state="loading"] > :not(.network-feedback),
+#settingsNetwork[data-state="error"] > :not(.network-feedback) { display: none; }
 
 /* Internet-health tile — modelled on the energy flow-card: a big status word,
    a quiet latency/loss caption, the sticky last speed-test result, and the

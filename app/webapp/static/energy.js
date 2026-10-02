@@ -573,11 +573,11 @@ function setCostRange(range) {
 
 // --------------------------------------------------- solar forecast card
 // A clearer note per reason; the default HTML note covers the common case.
-// Both now point at the PV-system card below rather than at a file on disk —
+// Both now point at the PV-system card (in Settings since #779) rather than at a file on disk —
 // the config is editable in the app since issue #561.
 const FORECAST_NOTES = {
-  not_configured: 'Add your panel rows in the PV system card below to enable the forecast.',
-  no_location: 'Set the home coordinates in the PV system card below to enable the forecast.',
+  not_configured: 'Add your panel rows in the PV system card in Settings to enable the forecast.',
+  no_location: 'Set the home coordinates in the PV system card in Settings to enable the forecast.',
   // Distinct from the generic fallback below (#597): Open-Meteo is answering,
   // just refusing this request rate — not the same as a network failure. Only
   // reached when there's no cached curve recent enough to show instead.
@@ -645,8 +645,8 @@ function setForecastDay(day) {
 // loaded once opened — it costs an extra irradiance read, and it answers an
 // occasional question rather than a glanceable one.
 const SUN_OVERLAY_NOTES = {
-  not_configured: 'Add your panel rows in the PV system card below.',
-  no_location: 'Set the home coordinates in the PV system card below.',
+  not_configured: 'Add your panel rows in the PV system card in Settings.',
+  no_location: 'Set the home coordinates in the PV system card in Settings.',
   too_old: 'Irradiance history only reaches back about three months.',
   rate_limited: 'Weather provider is rate-limiting us right now — retrying shortly.',
 };
@@ -839,10 +839,6 @@ export function onEnergyTab(tab) {
     });
     loadExportRates();
     loadPvSystem();        // the array config that forecast is computed from
-    // The sun-position diagnostic refreshes only while it is open (#590) —
-    // closed, it costs nothing.
-    if (els.sunOverlayCard && els.sunOverlayCard.open) ensureSunOverlay();
-    loadBoostCoordinator();  // fleet solar-boost sequencing knobs (#562)
     loadEnergy();          // immediate refresh on entry
     loadToday();           // today's split cards + savings
     schedule(LIVE_MS);
@@ -850,6 +846,14 @@ export function onEnergyTab(tab) {
   } else {
     schedule(SLOW_MS);
     scheduleToday(false);
+  }
+  // The PV system, Solar boost and sun-position cards live in Settings since
+  // #779. The sun-position diagnostic refreshes only while it is open (#590) —
+  // closed, it costs nothing.
+  if (tab === 'settings') {
+    loadPvSystem();
+    loadBoostCoordinator();  // fleet solar-boost sequencing knobs (#562)
+    if (els.sunOverlayCard && els.sunOverlayCard.open) ensureSunOverlay();
   }
 }
 

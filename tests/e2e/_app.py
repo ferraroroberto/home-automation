@@ -40,6 +40,16 @@ def boot_home(page: Page, base_url: str) -> None:
     page.wait_for_selector("#paneHome", state="visible")
 
 
+def open_settings(page: Page) -> None:
+    """Open Settings from the visible pane's header gear (#779: no tab).
+
+    Settings replaced the Net tab and holds the configuration cards that used
+    to sit on the other tabs; every pane's page header carries the gear.
+    """
+    page.locator("main.app > section.pane:not([hidden]) .settings-open-btn").click()
+    page.wait_for_selector("#paneSettings", state="visible")
+
+
 def hold_reads(page: Page, endpoint: str) -> Callable[[], None]:
     """Hold the page's reads of ``endpoint`` until the returned ``release()``.
 

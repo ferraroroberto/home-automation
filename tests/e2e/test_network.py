@@ -1,4 +1,5 @@
-"""Network tab mobile layout and attached-device sorting."""
+"""Settings' network section (the former Net tab, #779): mobile layout and
+attached-device sorting."""
 
 from __future__ import annotations
 
@@ -7,7 +8,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._app import boot_home, hold_reads, open_settings
 
 
 def test_network_tab_groups_devices_and_switches_sort(
@@ -23,7 +24,7 @@ def test_network_tab_groups_devices_and_switches_sort(
     mock_network()
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
 
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
     # Attached devices is collapsed by default now; open it for the inventory.
@@ -89,9 +90,9 @@ def test_network_tab_shows_contextual_unavailable_state(
         ),
     )
     boot_home(page, base_url)
-    page.locator("#tabNetwork").click()
+    open_settings(page)
 
-    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "error")
+    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "error")
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Network unavailable"
     )
@@ -112,14 +113,14 @@ def test_network_tab_loads_then_keeps_and_labels_last_good_data_on_poll_failure(
     mock_network()
     release = hold_reads(page, "/api/network")
     boot_home(page, base_url)
-    page.locator("#tabNetwork").click()
+    open_settings(page)
 
-    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "loading")
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Reading network status…"
     )
     release()
-    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "ready")
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
 
     page.unroute("**/api/network**")
@@ -132,9 +133,9 @@ def test_network_tab_loads_then_keeps_and_labels_last_good_data_on_poll_failure(
         ),
     )
     page.locator("#tabHome").click()
-    page.locator("#tabNetwork").click()
+    open_settings(page)
 
-    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "stale")
     expect(page.locator("#netFeedback")).to_contain_text("Last updated")
     expect(page.locator("#netFeedback")).to_contain_text("live data unavailable")
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
@@ -177,7 +178,7 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
     })
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
     page.locator("details.net-devices-card > summary").click()  # collapsed by default now
 
     chips = page.locator("#netStats .net-stat-chip")
@@ -268,7 +269,7 @@ def test_network_offline_toggle_hides_devices_with_no_live_link(
     snapshot["devices"].append(_lease_only_device())
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
     page.locator("details.net-devices-card > summary").click()
 
     rows = page.locator("#netDevices .net-device")
@@ -331,7 +332,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     mock_network()
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
     page.locator("details.net-wifi-card > summary").click()
 
     wifi_row = page.locator("#netWifiList .net-wifi-row").filter(has_text="TestNet-IoT")
@@ -417,7 +418,7 @@ def test_network_device_groups_create_move_rename_and_delete(
     })
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
     page.locator("details.net-devices-card > summary").click()
 
     # "My groups" is the default/first grouping now (#519) — no click needed.
@@ -485,7 +486,7 @@ def test_network_device_groups_create_move_rename_and_delete(
     # The choice persists across a reload, and so do the assignments.
     _assign_group(page, "Alpha Laptop", new_name="Elgato lights")
     page.reload(wait_until="domcontentloaded")
-    page.locator("#tabNetwork").click()
+    open_settings(page)
     page.locator("details.net-devices-card > summary").click()
     expect(page.locator("#netGroupByGroup")).to_have_class("net-sort-btn active")
     expect(
@@ -534,7 +535,7 @@ def test_network_wifi_header_stays_quiet_when_scan_unavailable(
     }
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
 
     expect(page.locator("#netWifiStatus")).to_have_text("")
     expect(page.locator("#netWifiSummary")).to_have_text("")
@@ -566,7 +567,7 @@ def test_network_tab_retries_after_first_load_failure(
     page.clock.install()
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
 
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Network unavailable"
@@ -597,7 +598,7 @@ def test_network_walk_test_picks_a_device_and_records_a_room(
     mock_network()
     boot_home(page, base_url)
 
-    page.locator("#tabNetwork").click()
+    open_settings(page)
     page.locator("details.net-survey-card > summary").click()
     expect(page.locator("details.net-survey-card")).to_have_attribute("open", "")
 

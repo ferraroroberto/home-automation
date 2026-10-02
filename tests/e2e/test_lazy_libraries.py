@@ -12,7 +12,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, open_settings
 
 _LAZY_LIBRARIES = ("chart.umd.min.js", "leaflet.js", "leaflet.css")
 
@@ -45,8 +45,7 @@ def test_place_map_picker_loads_leaflet_on_first_open(
     page.route("**/*.tile.openstreetmap.org/**", lambda route: route.abort())
     boot_home(page, base_url)
 
-    page.locator("#tabSecurity").click()
-    page.locator(".presence-card > summary").click()
+    open_settings(page)  # Places live in Settings since #779
     page.locator("#presencePlacesCard > summary").click()
     page.locator("#presencePlaceAdd").click()
     page.locator("#presencePlacePickMap").click()
