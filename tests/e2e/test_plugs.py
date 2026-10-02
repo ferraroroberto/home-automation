@@ -246,32 +246,25 @@ def test_ups_snapshot_paints_before_live_refresh(
         },
     }
     page.add_init_script("""
-        const snapshotStore = %s;
-        const liveUps = %s;
-        localStorage.setItem('home-automation.apiSnapshots.v1', JSON.stringify(snapshotStore));
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/ups' || url.endsWith('/api/ups')) {
-            return new Promise(function(resolve) {
-              setTimeout(function() {
-                resolve(new Response(JSON.stringify({ups: liveUps}), {
-                  status: 200,
-                  headers: {'Content-Type': 'application/json'},
-                }));
-              }, 1000);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """ % (json.dumps(snapshot_store), json.dumps(live_ups)))
+        localStorage.setItem('home-automation.apiSnapshots.v1', JSON.stringify(%s));
+    """ % json.dumps(snapshot_store))
+    # The live read is held until released, so the cached-snapshot window is
+    # observable without a timer (#798, as #789 did for the loading tests).
+    page.route(
+        "**/api/ups",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"ups": live_ups}),
+        ),
+    )
+    release = hold_reads(page, "/api/ups")
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
 
     expect(page.locator("#homeUpsTile")).to_contain_text("77%")
     expect(page.locator("#homeUpsTile .ups-stale-note")).to_contain_text("Last saved")
 
-    expect(page.locator("#homeUpsTile")).to_contain_text("90%", timeout=4000)
+    release()
+    expect(page.locator("#homeUpsTile")).to_contain_text("90%")
     expect(page.locator("#homeUpsTile .ups-stale-note")).to_have_count(0)
 
 
