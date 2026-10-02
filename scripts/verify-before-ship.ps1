@@ -152,7 +152,9 @@ try {
         Write-Host ""
         Write-Host ">> e2e routing: $tier" -ForegroundColor Cyan
         Write-Host "   reason: $routeReason" -ForegroundColor DarkGray
-        $e2eArgs = @($e2eTarget, "-p", "tests._progress_log")
+        # A surface slice over several modules arrives space-joined; pytest
+        # needs each as its own argument (#784).
+        $e2eArgs = @($e2eTarget -split '\s+' | Where-Object { $_ }) + @("-p", "tests._progress_log")
         foreach ($b in ($e2eBrowsers -split ',' | Where-Object { $_ })) {
             $e2eArgs += @("--browser", $b)
         }
