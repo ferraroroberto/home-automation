@@ -1,4 +1,4 @@
-"""Energy tab: the PV-system editor that feeds the solar forecast (issue #561).
+"""Settings: the PV-system editor (on the Energy tab until #779) that feeds the solar forecast (issue #561).
 
 The array config used to be file-only — these cover the browser half of making
 it editable: the card renders the stored panel rows, the staged dialog rejects a
@@ -20,6 +20,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._app import open_settings
+
 
 def _boot_pv_system(
     page: Page, base_url: str, sample_units: List[Dict],
@@ -29,8 +31,12 @@ def _boot_pv_system(
     mock_energy(**energy_kwargs)
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
+    # Visit Energy first: its entry loads the forecast card whose params line
+    # the editor's saves are checked against. The editor itself moved off the
+    # Energy tab into Settings in #779.
     page.locator("#tabEnergy").click()
     page.wait_for_selector("#paneEnergy", state="visible")
+    open_settings(page)
     # Collapsed by default, like every other settings card on the app.
     page.eval_on_selector("#pvSystemCard", "el => { el.open = true; }")
 

@@ -13,7 +13,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._app import boot_home, hold_reads, open_settings
 
 
 def test_presence_distinguishes_loading_from_true_empty(
@@ -129,8 +129,7 @@ def test_presence_settings_use_compact_right_aligned_controls(
     mock_security()
     mock_presence()
     boot_home(page, base_url)
-    page.locator("#tabSecurity").click()
-    page.locator("details.presence-card > summary").click()
+    open_settings(page)  # Presence settings live in Settings since #779
     page.locator("details.presence-settings-card > summary").click()
 
     control_ids = [

@@ -50,11 +50,12 @@ def test_lights_tab_renders_reachable_and_offline_lights(
 ) -> None:
     _boot_lights(page, base_url, sample_units, sample_lights, mock_api, mock_energy, mock_lights)
 
-    # Six tabs after the fold-in (#136): Light is gone, Plugs is now IoT.
-    expect(page.locator("#tabIot .tab-label")).to_have_text("IoT")
-    expect(page.locator("#tabNetwork .tab-label")).to_have_text("Net")
-    expect(page.locator("#tabSecurity .tab-label")).to_have_text("Alarm")
-    expect(page.locator(".tabs .tab")).to_have_count(6)
+    # Five tabs (#779): Light folded into IoT (#136), shown as "Devices"; Net
+    # became the header gear's Settings pane.
+    expect(page.locator("#tabIot .tab-label")).to_have_text("Devices")
+    expect(page.locator("#tabSecurity .tab-label")).to_have_text("Security")
+    expect(page.locator(".tabs .tab")).to_have_count(5)
+    expect(page.locator("#tabNetwork")).to_have_count(0)
     expect(page.locator("#tabLights")).to_have_count(0)
     expect(page.locator(".light-row")).to_have_count(2)
     expect(page.locator("#lightsList")).to_contain_text("Fixture Key Light")

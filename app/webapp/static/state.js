@@ -114,7 +114,8 @@ export const state = {
   // Wi-Fi diagnostics channel charts on the Network tab.
   wifiChart24: null,
   wifiChart5: null,
-  // Active top-level tab: 'home' | 'ac' | 'energy' | 'iot' | 'network' | 'security'.
+  // Active top-level tab: 'home' | 'ac' | 'energy' | 'iot' | 'security', or
+  // 'settings' while the header gear's Settings pane is open (#779).
   tab: 'home',
   // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
   range: 'day',
@@ -480,8 +481,8 @@ export const els = {
   lightFirmware: document.getElementById('lightFirmware'),
   lightTemperatureMeta: document.getElementById('lightTemperatureMeta'),
   lightIdentifier: document.getElementById('lightIdentifier'),
-  // Network (LAN) tab
-  paneNetwork: document.getElementById('paneNetwork'),
+  // Network (LAN) section of the Settings pane (#779) — its own data-state host
+  paneNetwork: document.getElementById('settingsNetwork'),
   netFeedback: document.getElementById('netFeedback'),
   netInternetStatus: document.getElementById('netInternetStatus'),
   netInternetMeta: document.getElementById('netInternetMeta'),
@@ -642,9 +643,10 @@ export const els = {
   homeFlowNodePv: document.getElementById('homeFlowNodePv'),
   homeWirePv: document.getElementById('homeWirePv'),
   homeWireGrid: document.getElementById('homeWireGrid'),
-  // Home-tab weather tile (GET /api/weather) + its inline theme toggle
+  // Home-tab weather tile (GET /api/weather)
   weatherTile: document.getElementById('weatherTile'),
-  weatherThemeBtn: document.getElementById('weatherThemeBtn'),
+  // Every page header's theme toggle (#779), and the Settings nav-debug switch
+  themeToggleBtns: Array.from(document.querySelectorAll('.theme-toggle-btn')),
   navDebugBtn: document.getElementById('navDebugBtn'),
   wxLocation: document.getElementById('wxLocation'),
   wxLocationLabel: document.getElementById('wxLocationLabel'),

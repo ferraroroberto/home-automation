@@ -5,7 +5,8 @@
  * the first on-screen panel that replaced it grew tall enough during a real
  * test session to cover the whole viewport and block interaction. This
  * version instead:
- *   - toggles via a UI button (the gauge icon next to the theme toggle) and
+ *   - toggles via a switch in Settings (#779; was a gauge icon in the Home
+ *     header) and
  *     persists the on/off state to localStorage, exactly like the theme and
  *     tab selection, so it survives a PWA relaunch from the home screen.
  *   - posts each event straight to the server (POST /api/nav-debug, which

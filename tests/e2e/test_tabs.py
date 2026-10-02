@@ -1,7 +1,8 @@
 """Tab navigation — the bottom-tab switcher and the floating nav pill.
 
-Pure navigation: pane switching, the retired-tab migration, the saved-tab
-restore, and the nav-at-rest watchdog (#229/#232/#420). Per-feature tab
+Pure navigation: pane switching, the page header + Settings gear (#779), the
+retired-tab migrations, the saved-tab restore, and the nav-at-rest watchdog
+(#229/#232/#420). Per-feature tab
 content lives in its own module — `test_home_tab.py`, `test_vm_tile.py`,
 `test_ac_tab.py`, `test_energy_tab.py`, `test_security_tab.py`,
 `test_cameras.py`, `test_presence.py`.
@@ -13,7 +14,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, open_settings
 
 
 def test_tab_navigation_switches_panes(
@@ -118,7 +119,7 @@ def test_nav_returns_to_rest_after_a_strand_and_after_each_modal_close(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
-def test_saved_tab_restores_on_iot_with_retired_tabs_migrated(
+def test_saved_tab_restores_with_retired_tabs_migrated(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -149,6 +150,52 @@ def test_saved_tab_restores_on_iot_with_retired_tabs_migrated(
         assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "iot"
         expect(page.locator("body > .tabs")).to_have_count(1)
         page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+    # #779: Net became the header gear's Settings pane. Settings is no tab, so
+    # a PWA parked on Net reopens once on Settings and the key falls to Home.
+    page.evaluate("() => localStorage.setItem('home-automation.tab', 'network')")
+    page.reload(wait_until="domcontentloaded")
+    page.wait_for_selector("#paneSettings", state="visible")
+    expect(page.locator("#settingsNetwork")).to_be_visible()
+    expect(page.locator(".tabs .tab[aria-selected='true']")).to_have_count(0)
+    assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "home"
+
+
+def test_every_pane_opens_with_a_page_header_and_the_gear_opens_settings(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """#779: five tabs, each pane headed by the vendored home-head (title, theme
+    toggle, Settings gear). The gear shows Settings with no tab selected; any
+    tab tap leaves it, and Settings is never the remembered tab."""
+    mock_api(sample_units)
+    mock_energy()
+    boot_home(page, base_url)
+
+    expect(page.locator(".tabs .tab")).to_have_count(5)
+    titles = {"tabHome": "Home", "tabAc": "AC", "tabEnergy": "Energy",
+              "tabIot": "Devices", "tabSecurity": "Security"}
+    for tab_id, title in titles.items():
+        page.locator("#" + tab_id).click()
+        pane = page.locator("main.app > section.pane:not([hidden])")
+        head = pane.locator(":scope > .page-head")
+        expect(head).to_be_visible()
+        expect(pane.locator(":scope > :first-child")).to_have_class(
+            "card home-head page-head"
+        )
+        expect(head.locator(".home-title")).to_have_text(title)
+        expect(head.locator(".theme-toggle-btn")).to_have_count(1)
+        expect(head.locator(".settings-open-btn")).to_have_count(1)
+
+    open_settings(page)
+    expect(page.locator("#paneSecurity")).to_be_hidden()
+    expect(page.locator(".tabs .tab[aria-selected='true']")).to_have_count(0)
+    expect(page.locator("#paneSettings .page-head .home-title")).to_have_text("Settings")
+    assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "security"
+
+    page.locator("#tabAc").click()
+    expect(page.locator("#paneSettings")).to_be_hidden()
+    expect(page.locator("#paneAc")).to_be_visible()
 
 
 def test_app_padding_owned_by_vendored_nav_on_mobile(

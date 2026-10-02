@@ -11,7 +11,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._app import boot_home, hold_reads, open_settings
 from tests.e2e._geometry import chart_dataset_cues, chart_tick_budget
 
 
@@ -318,7 +318,7 @@ def test_sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
         "modelled_pr": 0.8,
     })
     boot_home(page, base_url)
-    page.locator("#tabEnergy").click()
+    open_settings(page)  # the diagnostic moved off the Energy tab in #779
 
     card = page.locator("#sunOverlayCard")
     # Folded away by default — nothing is fetched or drawn until asked for.
@@ -366,7 +366,7 @@ def test_sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
     mock_api(sample_units)
     mock_energy(sun_overlay={"points": [], "excluded": [], "excluded_coverage": 0})
     boot_home(page, base_url)
-    page.locator("#tabEnergy").click()
+    open_settings(page)
     page.locator("#sunOverlayCard summary").click()
 
     empty = page.locator("#sunOverlayEmpty")

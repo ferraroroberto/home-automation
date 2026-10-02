@@ -109,8 +109,9 @@ export async function loadSearxng() {
 
 const schedule = createPoller(loadSearxng);
 
+// The Search engine card lives in Settings since #779 (was a Home HA subsection).
 export function onSearxngTab(tab) {
-  if (tab === 'home') {
+  if (tab === 'settings') {
     loadSearxng();
     schedule(POLL_MS);
   } else {

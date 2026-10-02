@@ -149,16 +149,22 @@ export function onSecurityTab(tab) {
     loadSecurity();
     loadPresence();
     if (tab === 'security') {
-      loadLocation();
+      // The Kids-home pill on the Presence card reads the automation prefs.
       loadPresenceAutomation();
-      loadPresencePlaces();
       loadSecuritySchedules();
       loadScenePairings();
       loadSecurityOverrides();
-      loadNotifyPrefs();
     }
     schedule(POLL_MS);
   } else {
     schedule(0);
+  }
+  // Presence settings, Places and the alarm notification toggles live in
+  // Settings since #779 — one read on entry, no polling.
+  if (tab === 'settings') {
+    loadLocation();
+    loadPresenceAutomation();
+    loadPresencePlaces();
+    loadNotifyPrefs();
   }
 }

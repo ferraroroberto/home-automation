@@ -155,7 +155,7 @@ def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
 
     # #461: everything but the uptime tile lives in Presence-style nested
     # subsections, all folded by default, each with a hit-target summary.
-    for section_id in ("haSatellitesCard", "haInteractionsCard", "haHelpCard", "voiceCommandsCard"):
+    for section_id in ("haSatellitesCard", "haInteractionsCard", "haHelpCard"):
         section = page.locator("#" + section_id)
         expect(section).not_to_have_attribute("open", "")
         box = section.locator("summary").bounding_box()

@@ -21,6 +21,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { jsonApi, hideLogin } from './api.js';
 import { wireTabs } from './tabs.js';
 import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';
+import { setToggleState, wireToggle } from './toggle.js';
 import {
   loadUnits,
   restoreUnitsSnapshot,
@@ -101,9 +102,8 @@ function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   // Show the glyph for the action: sun to switch to light, moon to switch to dark.
   const mark = icon(dark ? 'sun' : 'moon');
-  // The theme toggle lives only on the Home weather tile now (#186) — the
-  // redundant Settings-card duplicate was removed.
-  if (els.weatherThemeBtn) els.weatherThemeBtn.innerHTML = mark;
+  // One toggle per page header (#779), so the glyph is the same on every tab.
+  els.themeToggleBtns.forEach(function (btn) { btn.innerHTML = mark; });
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   restyleEnergyCharts();
   restyleNetworkCharts();
@@ -119,18 +119,15 @@ function toggleTheme() {
   applyTheme(stored ? stored === 'dark' : prefersDark);
 })();
 
-els.weatherThemeBtn.addEventListener('click', toggleTheme);
+els.themeToggleBtns.forEach(function (btn) { btn.addEventListener('click', toggleTheme); });
 
 // ----------------------------------------------------------- nav debug (#300)
 (function initNavDebug() {
   installNavDebug();
   if (!els.navDebugBtn) return;
-  els.navDebugBtn.setAttribute('aria-pressed', isNavDebugEnabled() ? 'true' : 'false');
-  els.navDebugBtn.addEventListener('click', function () {
-    const next = !isNavDebugEnabled();
-    setNavDebugEnabled(next);
-    els.navDebugBtn.setAttribute('aria-pressed', next ? 'true' : 'false');
-  });
+  // A Settings switch since #779 (was an icon button in the Home header).
+  setToggleState(els.navDebugBtn, isNavDebugEnabled());
+  wireToggle(els.navDebugBtn, setNavDebugEnabled);
 })();
 
 els.loginForm.addEventListener('submit', async function (ev) {

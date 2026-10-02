@@ -152,8 +152,8 @@ retried on the next poll. The entries live in gitignored
 `config/security_schedules.json`; copy `config/security_schedules.sample.json`
 for the persisted shape if editing by hand.
 
-**Automatic-alarm notifications (Telegram) — issue #231.** The Alarm tab has a
-collapsible **Notifications** card (folded by default, just below Presence) that
+**Automatic-alarm notifications (Telegram) — issue #231.** Settings has a
+collapsible **Notifications** card (folded by default; its Alarm group) that
 pushes a short Telegram message when the home **automatically** arms or disarms —
 and, by default, whenever an automatic attempt **fails** (e.g. the panel is
 offline during a power cut, the incident that motivated this), plus the two
@@ -357,11 +357,11 @@ Generate local VAPID keys:
 & .\.venv\Scripts\python.exe scripts\gen_web_push_keys.py mailto:you@example.com
 ```
 
-Restart the webapp, open the installed PWA over HTTPS, go to Security → Presence, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`; the private key is stored as the base64url-encoded raw VAPID scalar (not a PEM string — a PEM-armored key fails ASN.1 parsing in `pywebpush`/`py_vapid`, see #284), and an unreadable key logs a single `Web Push private key unreadable — pushes disabled` warning at startup instead of a per-send error. Push delivery is best-effort; a failed notification never blocks arm/disarm. Re-running `gen_web_push_keys.py` rotates the keypair, so any existing browser subscriptions will need to re-subscribe (tap **Enable notifications** again) to pick up the new public key.
+Restart the webapp, open the installed PWA over HTTPS, open Settings → Presence settings, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`; the private key is stored as the base64url-encoded raw VAPID scalar (not a PEM string — a PEM-armored key fails ASN.1 parsing in `pywebpush`/`py_vapid`, see #284), and an unreadable key logs a single `Web Push private key unreadable — pushes disabled` warning at startup instead of a per-send error. Push delivery is best-effort; a failed notification never blocks arm/disarm. Re-running `gen_web_push_keys.py` rotates the keypair, so any existing browser subscriptions will need to re-subscribe (tap **Enable notifications** again) to pick up the new public key.
 
-## Home-network / Network tab
+## Home-network / Network (in Settings)
 
-The **📶 Network** tab sits between Plugs and Security and gives the home network one read-only view plus two confirm-gated reboots, so it can be watched and managed without logging into the vendor web UIs by hand.
+The network section of **Settings** (the former Net tab, moved behind the header gear in #779) gives the home network one read-only view plus two confirm-gated reboots, so it can be watched and managed without logging into the vendor web UIs by hand.
 
 - **Health cards** — internet (ping latency / packet loss, plus an opt-in speed test), access point, and router (WAN up/down, public IP, default gateway, DNS, connection name, link uptime). Each carries its own confirm-gated **Reboot**: the AP drops all clients for ~1–2 min, the router is a ~5-min full outage.
 - **Device list**, in one of two grouping modes chosen with a segmented **My groups / Band** control (persisted per browser; **My groups** is the default). *Band* groups by radio band, weakest signal first. *My groups* puts each device in exactly one user-named group ("Elgato lights", "Cámaras", "Garaje") with an **online/total** header count, and a synthetic **Unclassified** group — always last, never renamed or deleted — holds the rest. A group is only the set of its assignments: you create one from the detail modal's **New group…** option, moving the last device out makes it disappear, and the header pencil renames it (members follow) or deletes it (members fall back to Unclassified).
@@ -595,7 +595,8 @@ The solar/energy read above answers *how much* the house is importing or exporti
 
 ## Energy monitoring & history
 
-The PWA splits into six tabs: **Home** (a consolidated dashboard — weather strip,
+The PWA splits into five tabs (#779), each opening with the same page header —
+the tab's title, the theme toggle, and a **Settings** gear: **Home** (a consolidated dashboard — weather strip,
 the actionable alarm tile, a one-line-per-unit AC summary with inline power
 toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
 card as the Energy tab; alarm + AC act, the rest inform),
@@ -607,12 +608,19 @@ cards, a savings estimate (€ saved on self-consumed PV at the configured tiere
 rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Consumption
 live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
 breakdown** table (grid energy priced per time-of-use period, self-consumed PV
-valued at the avoided rate — see *Electricity tariff* below), **🔌 IoT** (every local
-device on one surface — Smart Life plugs, Elgato lights, and blinds, each a
-collapsible row list, plus the UPS tile and power notifications — see below),
-**📶 Net** (LAN health, the attached-device inventory, and the AP reboot —
-see below), and **🛡️ Alarm** (RISCO alarm controls, event log, and
-detector bypass).
+valued at the avoided rate — see *Electricity tariff* below), **🔌 Devices** (the
+former IoT tab: every local device on one surface — Smart Life plugs, Elgato
+lights, and blinds, each a collapsible row list, plus the UPS tile and the PC
+fleet — see below), and **🛡️ Security** (RISCO alarm controls, schedules, event
+log, cameras, detectors, and presence).
+
+**Settings** is not a tab: the gear in any page header opens it. It holds the
+former **Net** tab (LAN health, the attached-device inventory, the AP reboot —
+see below) and the configuration that used to be spread across tabs: the one
+**Notifications** card (alarm and UPS Telegram toggles), presence settings and
+places, the PV system, solar boost and sun-position cards, the search engine,
+the voice "What can I say?" reference, the activity log, and the nav debug
+switch. A PWA last left on Net reopens once on Settings.
 
 On desktop the tabs are a top segmented control; on a phone / installed PWA they
 become a floating bottom tab bar with stroke icons (mirroring the `app-launcher`
@@ -904,9 +912,9 @@ Lights lived on their own top-level tab until #136: they are local device contro
 
 The tab also shows the local **UPS** above the Tuya device summary, rendered as the **same compact one-line tile as the Home tab** (identity · charge% · runtime · status pill). `GET /api/ups` reads the USB-connected APC Smart-UPS through NUT when the local `upsc` server is available, falls back to a one-shot NUT USB-HID probe, then falls back to Windows battery telemetry. The current APC SMT1000IC USB-HID path reliably exposes status, charge, runtime, battery voltage, model, manufacturer, and serial; it does **not** expose `ups.load`, `input.voltage`, or `output.voltage` through NUT on this machine.
 
-**Power notifications (Telegram).** The IoT tab has a folded-by-default **Notifications** card (same structure as the Alarm tab's) with two toggles — **Mains power lost** and **Power restored** — both default **on**; they push a Telegram message when the UPS crosses between mains and battery. Persisted to gitignored `config/power_notify_prefs.json` (`…sample.json` committed) via `GET`/`PUT /api/ups/notify-prefs`. (The former third toggle, *Auto-shutdown PC*, was superseded by the PC-fleet master switch below — issue #498.) Because the browser tile only polls while the IoT tab is open, reliable alerts need a server-side watcher: a background **power monitor** (`app/webapp/power_monitor.py`, started in the webapp lifespan) reads the UPS every `POWER_MONITOR_POLL_INTERVAL_S` (default 60 s) in a worker thread and fires edge-triggered on the `mains_online` transition. Set `POWER_MONITOR_ENABLED=0` to disable it. Uses the same `src/notify/` Telegram credentials as the alarm alerts; transitions are recorded to gitignored `logs/power.jsonl` via the shared activity log.
+**Power notifications (Telegram).** The **UPS power** group of Settings' folded-by-default **Notifications** card (merged with the alarm toggles in #779) has two toggles — **Mains power lost** and **Power restored** — both default **on**; they push a Telegram message when the UPS crosses between mains and battery. Persisted to gitignored `config/power_notify_prefs.json` (`…sample.json` committed) via `GET`/`PUT /api/ups/notify-prefs`. (The former third toggle, *Auto-shutdown PC*, was superseded by the PC-fleet master switch below — issue #498.) Because the browser tile only polls while the Devices tab is open, reliable alerts need a server-side watcher: a background **power monitor** (`app/webapp/power_monitor.py`, started in the webapp lifespan) reads the UPS every `POWER_MONITOR_POLL_INTERVAL_S` (default 60 s) in a worker thread and fires edge-triggered on the `mains_online` transition. Set `POWER_MONITOR_ENABLED=0` to disable it. Uses the same `src/notify/` Telegram credentials as the alarm alerts; transitions are recorded to gitignored `logs/power.jsonl` via the shared activity log.
 
-**PC-fleet shutdown on low UPS runtime (issue #498).** A **PC fleet** card sits next to the Notifications card in the IoT tab: a master switch ("Shut down fleet on low UPS runtime", default on), a configurable trigger threshold (runtime-remaining ≤ X minutes, default 15, clamped 1–240 — replaces the old hardcoded value), and a live machine roster pulled from the local-llm-hub's machine API (`GET /api/pc-fleet/machines` proxies the hub's `GET /admin/api/machines/status` on loopback `127.0.0.1:8000`, overridable via `PC_FLEET_HUB_BASE`) — a machine enrolled in the hub registry appears here automatically, with a per-machine include toggle and a **Wake** button (proxying the hub's Wake-on-LAN endpoint, local-llm-hub#356) on down machines. Prefs persist to gitignored `config/pc_fleet.json` (`…sample.json` committed; `enabled` seeds once from the legacy `auto_shutdown_low_battery` value on first load) via `GET`/`PUT /api/pc-fleet/prefs`.
+**PC-fleet shutdown on low UPS runtime (issue #498).** A **PC fleet** card sits on the Devices tab: a master switch ("Shut down fleet on low UPS runtime", default on), a configurable trigger threshold (runtime-remaining ≤ X minutes, default 15, clamped 1–240 — replaces the old hardcoded value), and a live machine roster pulled from the local-llm-hub's machine API (`GET /api/pc-fleet/machines` proxies the hub's `GET /admin/api/machines/status` on loopback `127.0.0.1:8000`, overridable via `PC_FLEET_HUB_BASE`) — a machine enrolled in the hub registry appears here automatically, with a per-machine include toggle and a **Wake** button (proxying the hub's Wake-on-LAN endpoint, local-llm-hub#356) on down machines. Prefs persist to gitignored `config/pc_fleet.json` (`…sample.json` committed; `enabled` seeds once from the legacy `auto_shutdown_low_battery` value on first load) via `GET`/`PUT /api/pc-fleet/prefs`.
 
 When the UPS is on battery and its reported runtime drops to the configured threshold, the orchestration — if the master switch is on — shuts down every **included, currently-up satellite** first via the hub's `POST /admin/api/machines/{id}/shutdown` (fire-and-forget SSH under the hood; one short best-effort confirmation re-poll, ≈ ≤9 s total), sends a Telegram alert listing each machine's outcome (`shutdown sent` / `confirmed down` / `excluded` / `already down, skipped` — a normal outcome for satellites on raw grid power / `failed: …`), then schedules the tower's own graceful Windows shutdown **last** via `src/host_shutdown.py` (`shutdown /s /t 180 /c "…"`, the 180-second grace window). The tower's shutdown is never blocked by satellite failures: hub unreachable → tower-only shutdown, and the Telegram message says so. Master off means **no automatic shutdowns at all** — satellites and tower stay up until the end. The trigger fires once per outage (edge-triggered in `power_monitor.py`'s process-memory state) and is **not** suppressed on the monitor's first observation — if the webapp restarts while the UPS is already critically low, it still triggers. If mains power returns before the tower's grace period ends, the pending tower shutdown is cancelled (`shutdown /a`) and the trigger resets — already-dispatched satellite shutdowns cannot be recalled. The shutdown call is hard-blocked under `pytest` (mirrors the Telegram notifier's pytest guard in `src/notify_config.py`) so the test suite can never trigger a real shutdown.
 

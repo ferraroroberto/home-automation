@@ -1,4 +1,4 @@
-"""Energy tab: the fleet solar-boost sequencing card (issue #562).
+"""Settings: the fleet solar-boost sequencing card (issue #562).
 
 The knobs deciding how A/C units enter and leave solar boost used to be `.env`
 -only and needed a tray restart to change. These cover the browser half of making
@@ -15,6 +15,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
+from tests.e2e._app import open_settings
+
 
 def _boot_boost_card(
     page: Page, base_url: str, sample_units: List[Dict],
@@ -24,8 +26,7 @@ def _boot_boost_card(
     mock_energy(**energy_kwargs)
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    page.locator("#tabEnergy").click()
-    page.wait_for_selector("#paneEnergy", state="visible")
+    open_settings(page)  # moved off the Energy tab in #779
     # Collapsed by default, like every other settings card on the app.
     page.eval_on_selector("#boostCoordCard", "el => { el.open = true; }")
 

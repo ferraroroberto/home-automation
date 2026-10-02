@@ -195,9 +195,10 @@ const schedule = createPoller(loadUps);
 export function onUpsTab(tab) {
   if (tab === 'iot' || tab === 'home') {
     loadUps();
-    if (tab === 'iot') loadPowerNotifyPrefs();
     schedule(tab === 'iot' ? POLL_MS : 0);
   } else {
     schedule(0);
   }
+  // The UPS notification toggles live in Settings' Notifications card (#779).
+  if (tab === 'settings') loadPowerNotifyPrefs();
 }
