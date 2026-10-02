@@ -1615,10 +1615,10 @@ and tab switching, with the tab content it used to carry now in
 new case to the module named after what it exercises; `tests/e2e/_app.py` holds
 the shared `boot_home()` opener the feature modules use.
 
-As of 2026-10-02 (#796), a full run executes 226 nodes in ~3.2 min (3m09s):
-272 are collected and 46 WebKit nodes are deselected (#778 had trimmed 304
-executions in 4m46s to 270 in 3m30s; the same-state run just before #796 was
-272 in 3m58s). `test_design_matrix.py` additionally fans one function across
+As of 2026-10-02 (#798), a full run executes 220 nodes in ~2.9 min (2m55s):
+282 are collected and 62 WebKit nodes are deselected (#778 had trimmed 304
+executions in 4m46s to 270 in 3m30s; the same-state run just before #798 was
+236 in 3m27s). `test_design_matrix.py` additionally fans one function across
 the viewport × theme matrix below. CLAUDE.md tracks this as a runtime budget,
 not a fixed test-count cap.
 
@@ -1627,6 +1627,12 @@ Chromium only: they assert DOM state, request wiring or copy, with no layout,
 touch-target, nav, safe-area or phone-width check. Add a module there only when
 that holds for every test in it; a module with even one layout test, and the
 boot canary and login, stay on both projections.
+
+A module that mixes DOM-state tests with a layout test (`test_network.py`,
+`test_presence.py`) marks the DOM-state ones with `@pytest.mark.chromium_only`
+instead (#798): the same deselection, applied per test. A test that checks
+geometry, touch targets, overflow, phone width or engine-specific behaviour
+(the streamed voice recorder in `test_home_assistant.py`) keeps WebKit.
 
 To make a panel's loading state observable, hold its read with
 `tests/e2e/_app.py`'s `hold_reads()` and release it once the loading state is
