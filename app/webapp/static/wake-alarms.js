@@ -152,7 +152,7 @@ export function renderWakeAlarms() {
     del.type = 'button';
     del.className = 'schedule-delete';
     del.setAttribute('aria-label', 'Delete wake alarm');
-    del.textContent = '×';
+    del.innerHTML = icon('x');
     del.addEventListener('click', function () {
       state.wakeAlarms.splice(idx, 1);
       saveWakeAlarms();
@@ -323,7 +323,7 @@ export function renderWakeTimers() {
     cancel.type = 'button';
     cancel.className = 'schedule-delete';
     cancel.setAttribute('aria-label', 'Cancel timer');
-    cancel.textContent = '×';
+    cancel.innerHTML = icon('x');
     cancel.addEventListener('click', function () { cancelWakeTimer(timer.id); });
     row.appendChild(cancel);
 

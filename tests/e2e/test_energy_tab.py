@@ -36,10 +36,12 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#flowPv")).to_have_text("2,500 W")
     expect(page.locator("#flowHouse")).to_have_text("1,300 W")
     expect(page.locator("#flowGrid")).to_have_text("1,200 W")
-    # Exporting (surplus > 0) → the grid arrow points out (▶) and reads as export.
+    # Exporting (surplus > 0) → the grid arrow points out and reads as export.
+    # A Lucide glyph, not a ▶ character standing in for an icon (#779).
     grid_arrow = page.locator("#wireGrid")
     expect(grid_arrow).to_have_class("flow-arrow is-export")
-    expect(grid_arrow).to_have_text("▶")
+    expect(grid_arrow.locator("svg.icon use")).to_have_attribute("href", "#i-arrow-right")
+    expect(grid_arrow).to_have_text("")
 
     # Today's generation card is populated from /api/energy/today.
     expect(page.locator("#genTotal")).to_have_text("9.00 kWh")

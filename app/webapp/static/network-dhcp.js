@@ -15,6 +15,7 @@ import { els, toast } from './state.js';
 import { jsonApi, reportActionFailure } from './api.js';
 import { confirmAction } from './confirm.js';
 import { buildToggle } from './toggle.js';
+import { esc } from './format.js';
 import { icon } from './_vendored/icons/icons.js';
 
 let dhcpPlanLoading = false;
@@ -137,9 +138,17 @@ function dhcpRowBase(a, opts) {
 
   const trailing = document.createElement('span');
   trailing.className = 'net-dhcp-move' + (opts.trailingClass ? ' ' + opts.trailingClass : '');
-  trailing.textContent = opts.trailingText;
+  if (opts.moveFrom != null) trailing.innerHTML = moveHtml(opts.moveFrom, opts.moveTo);
+  else trailing.textContent = opts.trailingText;
   row.appendChild(trailing);
   return row;
+}
+
+// "from → to" as a Lucide arrow between the two addresses (#779 — no arrow
+// characters standing in for icons), with a hidden word for screen readers.
+function moveHtml(from, to) {
+  return esc(from) + icon('arrow-right', 'net-dhcp-arrow') +
+    '<span class="visually-hidden"> to </span>' + esc(to);
 }
 
 // The inert placeholder that keeps a non-selectable row's cells aligned with
@@ -163,7 +172,9 @@ function suggestedRow(a) {
   const row = dhcpRowBase(a, {
     lead: cb,
     trailingClass: stable ? 'net-dhcp-stable' : 'net-dhcp-change',
-    trailingText: stable ? a.planned_ip : (a.current_ip || '—') + ' → ' + a.planned_ip,
+    trailingText: a.planned_ip,
+    moveFrom: stable ? null : (a.current_ip || '—'),
+    moveTo: a.planned_ip,
   });
 
   const tag = a.status === 'change'
@@ -180,7 +191,8 @@ function unassignedRow(a) {
   const row = dhcpRowBase(a, {
     lead: dhcpCheckSpacer(),
     trailingClass: 'net-dhcp-unplaced',
-    trailingText: (a.current_ip || '—') + ' → —',
+    moveFrom: a.current_ip || '—',
+    moveTo: '—',
   });
   row.appendChild(dhcpGroupSelect(a));
   return row;
@@ -267,8 +279,9 @@ function renderManualStaged() {
   manualAdds.forEach(function (m, i) {
     const chip = document.createElement('span');
     chip.className = 'net-dhcp-chip';
-    chip.appendChild(document.createTextNode(
-      (m.name ? m.name + ' · ' : '') + m.mac + ' → ' + m.ip + ' '));
+    const label = document.createElement('span');
+    label.innerHTML = esc(m.name ? m.name + ' · ' : '') + moveHtml(m.mac, m.ip);
+    chip.appendChild(label);
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'net-dhcp-chip-x';

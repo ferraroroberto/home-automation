@@ -426,7 +426,14 @@ button.net-device-name::before,
 }
 /* Single-line temperature reading: room → target (#211). */
 .ac-line-center { text-align: right; }
-.ac-temp { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ac-temp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ac-temp-arrow { width: 16px; height: 16px; color: var(--muted); }
 
 /* ------------------------------------------------- energy flow diagram */
 .energy-feedback { margin: 0 0 var(--gap); }
@@ -456,14 +463,13 @@ button.net-device-name::before,
 .flow-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 .flow-name { font-size: var(--font-caption); font-weight: 600; color: var(--muted); }
 
-/* Arrows carry a glyph; colour + direction are set in JS. */
+/* Wires carry a Lucide arrow/dot (#779); colour + direction are set in JS. */
 .flow-arrow {
   flex: none;
-  font-size: var(--font-body);
-  font-weight: 700;
-  line-height: 1;
+  display: inline-flex;
   color: var(--muted);
 }
+.flow-arrow .icon { width: var(--icon-title); height: var(--icon-title); }
 .flow-arrow.is-active { color: var(--on); }
 .flow-arrow.is-import { color: var(--accent); }
 .flow-arrow.is-export { color: var(--on); }
@@ -2724,10 +2730,12 @@ body:has(dialog[open]) .app { overflow: hidden; }
   border-radius: var(--radius-md);
   background: var(--input-bg);
   color: var(--muted);
-  font-size: var(--font-heading-lg);
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
+.schedule-delete .icon { width: var(--icon-title); height: var(--icon-title); }
 /* One destructive-× idiom app-wide (issue #367): same hover color as
    .camera-preset-del, so schedule/pairing/override/wake-alarm deletes read
    consistently with the camera preset delete rather than staying plain grey. */
@@ -2994,6 +3002,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   margin: 6px 0 0; font-weight: 700; font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
+.net-speed-result .icon { margin-right: 0.2em; color: var(--muted); }
 .net-speed-btn {
   margin-top: 12px; width: 100%;
   display: inline-flex; align-items: center; justify-content: center; gap: 0.45em;
@@ -3624,6 +3633,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
 }
 .net-dhcp-move.net-dhcp-stable { color: var(--muted); }
+.net-dhcp-arrow { margin: 0 0.25em; vertical-align: -0.15em; }
 .net-dhcp-move.net-dhcp-change { color: var(--accent); font-weight: 700; }
 .net-dhcp-move.net-dhcp-unplaced { color: var(--attention); font-weight: 700; }
 /* Per-row reservation status against the router (#176). */
@@ -3939,6 +3949,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   font-size: var(--font-body); line-height: 1; padding: 0 8px;
 }
 .camera-preset-del:hover { color: var(--deficit); }
+.camera-preset-del .icon { display: block; width: 16px; height: 16px; }
 /* Destructive control with no fixed box (issue #361 review). The ::before
    extends the tap target to >=44px on both axes without growing the visual
    button or the parent .camera-preset group's silhouette. */
