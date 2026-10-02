@@ -35,28 +35,6 @@ def _stable_effective_rects(locator: Locator) -> List[EffectiveRect]:
     return rects
 
 
-def test_security_tab_shows_loading_before_first_result(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
-    mock_presence: Callable,
-) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    mock_security()
-    mock_presence()
-    release = hold_reads(page, "/api/security")
-    boot_home(page, base_url)
-    page.locator("#tabSecurity").click()
-
-    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "loading")
-    expect(page.locator("#securityFeedback .empty-state-message")).to_have_text(
-        "Reading security status…"
-    )
-    release()
-    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "ready")
-    expect(page.locator("#securityState")).to_contain_text("Not armed")
-
-
 def test_security_tab_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
@@ -85,7 +63,7 @@ def test_security_tab_shows_contextual_unavailable_state(
     expect(page.locator("#toast")).not_to_contain_text("risco.example.internal")
 
 
-def test_security_poll_failure_preserves_state_and_disables_actions(
+def test_security_tab_loads_then_keeps_state_and_disables_actions_on_poll_failure(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -94,7 +72,17 @@ def test_security_poll_failure_preserves_state_and_disables_actions(
     mock_energy()
     mock_security()
     mock_presence()
+    release = hold_reads(page, "/api/security")
     boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#securityFeedback .empty-state-message")).to_have_text(
+        "Reading security status…"
+    )
+    release()
+    expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#securityState")).to_contain_text("Not armed")
     expect(page.locator("#homeSecurityState")).to_contain_text("Not armed")
 
     page.route(
@@ -105,6 +93,8 @@ def test_security_poll_failure_preserves_state_and_disables_actions(
             body='{"detail":"risco.example.internal timed out after 10 seconds"}',
         ),
     )
+    # Re-entering the tab is what re-reads it, as the first visit did.
+    page.locator("#tabHome").click()
     page.locator("#tabSecurity").click()
 
     expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "stale")

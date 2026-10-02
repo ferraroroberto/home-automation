@@ -71,30 +71,6 @@ def test_network_tab_groups_devices_and_switches_sort(
     expect(page.locator("#netDevices")).to_be_hidden()
 
 
-def test_network_tab_shows_loading_before_first_result(
-    page: Page,
-    base_url: str,
-    sample_units: List[Dict],
-    mock_api: Callable,
-    mock_energy: Callable,
-    mock_network: Callable,
-) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    mock_network()
-    release = hold_reads(page, "/api/network")
-    boot_home(page, base_url)
-    page.locator("#tabNetwork").click()
-
-    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "loading")
-    expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
-        "Reading network status…"
-    )
-    release()
-    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "ready")
-    expect(page.locator("#netInternetStatus")).to_have_text("Online")
-
-
 def test_network_tab_shows_contextual_unavailable_state(
     page: Page,
     base_url: str,
@@ -123,7 +99,7 @@ def test_network_tab_shows_contextual_unavailable_state(
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.1")
 
 
-def test_network_poll_failure_preserves_and_labels_last_good_data(
+def test_network_tab_loads_then_keeps_and_labels_last_good_data_on_poll_failure(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -134,8 +110,16 @@ def test_network_poll_failure_preserves_and_labels_last_good_data(
     mock_api(sample_units)
     mock_energy()
     mock_network()
+    release = hold_reads(page, "/api/network")
     boot_home(page, base_url)
     page.locator("#tabNetwork").click()
+
+    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
+        "Reading network status…"
+    )
+    release()
+    expect(page.locator("#paneNetwork")).to_have_attribute("data-state", "ready")
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
 
     page.unroute("**/api/network**")

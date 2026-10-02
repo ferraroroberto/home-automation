@@ -96,25 +96,6 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#exportRateList")).not_to_contain_text("2026-09-05")
 
 
-def test_energy_tab_shows_loading_before_first_live_result(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable,
-) -> None:
-    mock_api(sample_units)
-    mock_energy()
-    release = hold_reads(page, "/api/energy")
-    boot_home(page, base_url)
-    page.locator("#tabEnergy").click()
-
-    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "loading")
-    expect(page.locator("#energyFeedback .empty-state-message")).to_have_text(
-        "Reading live energy…"
-    )
-    release()
-    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "ready")
-    expect(page.locator("#energyFeedback")).to_be_hidden()
-
-
 def test_energy_tab_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable,
@@ -140,14 +121,23 @@ def test_energy_tab_shows_contextual_unavailable_state(
     expect(page.locator("#energyFeedback")).not_to_contain_text(_RAW_503_DETAIL)
 
 
-def test_energy_poll_failure_preserves_and_labels_last_good_flow(
+def test_energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
     mock_api(sample_units)
     mock_energy()
+    release = hold_reads(page, "/api/energy")
     boot_home(page, base_url)
     page.locator("#tabEnergy").click()
+
+    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#energyFeedback .empty-state-message")).to_have_text(
+        "Reading live energy…"
+    )
+    release()
+    expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#energyFeedback")).to_be_hidden()
     expect(page.locator("#flowPv")).to_have_text("2,500 W")
 
     page.route(
