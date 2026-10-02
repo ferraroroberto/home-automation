@@ -126,3 +126,25 @@ def test_mode_change_posts(
     ) as info:
         page.locator("#detailSave").click()
     assert info.value.post_data_json["operation_mode"] == "Heat"
+
+
+def test_detail_modal_adds_multiple_schedule_entries(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    mock_api(sample_units)
+    _open_detail(page, base_url, "unit-1")
+    page.locator("#detailScheduleSection > summary").click()
+
+    add = page.get_by_role("button", name="+ Add schedule")
+    add.click()
+    add.click()
+
+    entries = page.locator(".schedule-entry")
+    expect(entries).to_have_count(2)
+    entries.nth(1).locator(".sched-entry-power").select_option("false")
+    expect(entries.nth(1).locator(".schedule-profile")).to_be_hidden()
+
+    # Schedules now persist only on Save (#202); the card badge updates after.
+    page.locator("#detailSave").click()
+    badge = page.locator('[data-unit-id="unit-1"] .unit-schedule-badge')
+    expect(badge).to_contain_text("2")
