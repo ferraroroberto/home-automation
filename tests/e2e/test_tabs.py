@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
-import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home
@@ -56,16 +55,27 @@ _NAV_AT_REST = (
 )
 
 
-def test_nav_self_heals_when_stranded(
+def test_nav_returns_to_rest_after_a_strand_and_after_each_modal_close(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+    sample_plugs: List[Dict], mock_tuya: Callable,
 ) -> None:
-    """#229: a latched upward transform on the floating bottom-tab pill must be
-    repainted back to its locked bottom position by the self-healing watchdog,
-    with no app restart. Playwright's WebKit doesn't reproduce iOS Safari's
-    collapsing toolbar, so we inject the exact failure mode — a stale
-    ``translateY(-Npx)`` — directly, then assert the controller re-derives the
-    resting position and clears it."""
+    """#229: every path that has stranded the floating bottom-tab pill must end
+    with it at its locked rest position, with no app restart. Run in sequence
+    on one page load:
+
+    1. A latched upward transform. Playwright's WebKit doesn't reproduce iOS
+       Safari's collapsing toolbar, so the exact failure mode — a stale
+       ``translateY(-Npx)`` — is injected directly; the self-healing watchdog
+       must re-derive the rest position and clear it.
+    2. A detail modal closed via the X button and via Esc (the path that never
+       routed through the app's close handlers and historically left the bar
+       stuck up).
+    3. The plugs rename modal, which auto-focuses its Display-name input
+       (plugs.js) — raising the iOS keyboard and shrinking the visual viewport,
+       the one path that still stranded the nav after the first fix.
+    """
     mock_api(sample_units)
+    mock_tuya(sample_plugs)
     boot_home(page, base_url)
 
     nav = page.locator(".tabs")
@@ -75,30 +85,17 @@ def test_nav_self_heals_when_stranded(
         " return getComputedStyle(el).transform; }"
     )
     assert "120" in strand_transform
-
     # The ~400ms watchdog re-derives the rest position and clears the strand.
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
-
-def test_nav_not_left_translated_after_modal(
-    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
-) -> None:
-    """#229: opening then closing a detail modal must leave the nav at rest —
-    no stranded transform — via both the X button and the Esc key (the path
-    that never routed through the app's close handlers and historically left
-    the bar stuck up)."""
-    mock_api(sample_units)
-    boot_home(page, base_url)
     page.locator("#tabAc").click()
     page.wait_for_selector(".unit-card", state="visible")
-
     # Close via the X button.
     page.locator('[data-unit-id="unit-1"] .unit-header').click()
     expect(page.locator("#detailDialog")).to_be_visible()
     page.locator("#detailClose").click()
     expect(page.locator("#detailDialog")).to_be_hidden()
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
-
     # Close via Esc.
     page.locator('[data-unit-id="unit-1"] .unit-header').click()
     expect(page.locator("#detailDialog")).to_be_visible()
@@ -106,66 +103,12 @@ def test_nav_not_left_translated_after_modal(
     expect(page.locator("#detailDialog")).to_be_hidden()
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
-
-def test_app_restores_saved_short_tab_with_nav_at_rest(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable,
-) -> None:
-    """#232: the nav is a body-level sibling of the inner scroller, so the PWA
-    can safely restore a short saved tab without floating the fixed bar up."""
-    page.add_init_script(
-        "localStorage.setItem('home-automation.tab', 'iot');"
-    )
-    mock_api(sample_units)
-    mock_energy()
-    page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#paneIot", state="visible")
-
-    expect(page.locator("body > .tabs")).to_have_count(1)
-    expect(page.locator("#paneHome")).to_be_hidden()
-    expect(page.locator("#tabIot")).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(_NAV_AT_REST, timeout=3000)
-
-
-@pytest.mark.parametrize("retired_tab", ["plugs", "lights"])
-def test_retired_tab_selection_migrates_to_iot(
-    page: Page, base_url: str, retired_tab: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable,
-) -> None:
-    """#136: Plugs and Light folded into IoT. The vendored switcher drops a tab
-    name it doesn't recognise and silently falls back to the first tab, so an
-    installed PWA parked on either one would reopen on Home. tabs.js rewrites
-    the stored key before the switcher reads it."""
-    page.add_init_script(
-        f"localStorage.setItem('home-automation.tab', '{retired_tab}');"
-    )
-    mock_api(sample_units)
-    mock_energy()
-    page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#paneIot", state="visible")
-
-    expect(page.locator("#paneHome")).to_be_hidden()
-    expect(page.locator("#tabIot")).to_have_attribute("aria-selected", "true")
-    # The rewrite is persisted, not just mapped at read time.
-    assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "iot"
-
-
-def test_nav_at_rest_after_plug_modal_with_autofocus(
-    page: Page, base_url: str, sample_plugs: List[Dict], mock_tuya: Callable,
-) -> None:
-    """#229 follow-up: the plugs rename modal auto-focuses its Display-name input
-    (plugs.js), which raises the iOS keyboard and shrinks the visual viewport —
-    the one path that still stranded the nav. Opening it (input focused) then
-    closing must leave the bar at its locked rest position."""
-    mock_tuya(sample_plugs)
-    boot_home(page, base_url)
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
     # Rows live inside collapsed <details> cards — expand so they're interactable.
     page.eval_on_selector_all(
         "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
     )
-
     page.locator('[data-device-id="plug-1"] .device-row-name').click()
     expect(page.locator("#plugDialog")).to_be_visible()
     # The modal auto-focuses the text input — assert that, then close.
@@ -173,6 +116,39 @@ def test_nav_at_rest_after_plug_modal_with_autofocus(
     page.locator("#plugDetailClose").click()
     expect(page.locator("#plugDialog")).to_be_hidden()
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
+
+
+def test_saved_tab_restores_on_iot_with_retired_tabs_migrated(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """Each stored tab key is a fresh app start (a reload):
+
+    - #136: Plugs and Light folded into IoT. The vendored switcher drops a tab
+      name it doesn't recognise and silently falls back to the first tab, so an
+      installed PWA parked on either one would reopen on Home. tabs.js rewrites
+      the stored key before the switcher reads it — and persists the rewrite.
+    - #232: the nav is a body-level sibling of the inner scroller, so the PWA
+      can safely restore a short saved tab without floating the fixed bar up.
+    """
+    mock_api(sample_units)
+    mock_energy()
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+
+    for stored_tab in ("plugs", "lights", "iot"):
+        page.evaluate(
+            "tab => localStorage.setItem('home-automation.tab', tab)", stored_tab
+        )
+        page.reload(wait_until="domcontentloaded")
+        page.wait_for_selector("#paneIot", state="visible")
+
+        expect(page.locator("#paneHome")).to_be_hidden()
+        expect(page.locator("#tabIot")).to_have_attribute("aria-selected", "true")
+        # The rewrite is persisted, not just mapped at read time.
+        assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "iot"
+        expect(page.locator("body > .tabs")).to_have_count(1)
+        page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
 def test_app_padding_owned_by_vendored_nav_on_mobile(
