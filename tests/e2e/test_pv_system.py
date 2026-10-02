@@ -67,77 +67,26 @@ def test_empty_config_shows_the_empty_state_not_a_blank_list(
     expect(page.locator("#pvArrayAdd")).to_be_visible()
 
 
-def test_adding_a_row_updates_the_forecast_params_line(
+def test_adding_a_row_validates_then_updates_the_forecast_and_its_toast(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
+    """One editor session: an invalid tilt is refused against its field, the
+    corrected row saves and reaches the forecast, and a later save with no
+    estimate available degrades the toast instead of reading undefined/NaN."""
     _boot_pv_system(
         page, base_url, sample_units, mock_api, mock_energy,
         pv_arrays=[{"kwp": 7.9, "tilt_deg": 15.0, "azimuth_deg": 0.0}],
     )
+    rows = page.locator("#pvArrayList .automation-summary-row")
+    dialog = page.locator("#pvArrayDialog")
+    toast = page.locator("#toast")
     expect(page.locator("#forecastParams")).to_have_text("7.9 kWp · 15° · S · PR 0.80")
 
+    # A negative tilt is the mistake the azimuth convention invites, so it
+    # must explain itself rather than be silently clamped to 0.
     page.locator("#pvArrayAdd").click()
-    expect(page.locator("#pvArrayDialog")).to_be_visible()
-    page.locator("#pvArrayKwp").fill("0.9")
-    page.locator("#pvArrayTilt").fill("15")
-    page.locator("#pvArrayAzimuth").fill("180")
-    # The convention hint echoes what was typed, in words.
-    expect(page.locator("#pvArrayAzimuthEcho")).to_have_text("facing north")
-    page.locator("#pvArraySave").click()
-
-    expect(page.locator("#pvArrayDialog")).to_be_hidden()
-    expect(page.locator("#pvArrayList .automation-summary-row")).to_have_count(2)
-    # The whole point: the forecast is now computed from the edited array.
-    expect(page.locator("#forecastParams")).to_have_text(
-        "7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80"
-    )
-    # Issue #564: the save toast carries that same recomputed estimate rather
-    # than firing before the forecast refetch lands (mock_energy's forecast
-    # fixture fixes expected_total_kwh at 12.3, so this is deterministic).
-    expect(page.locator("#toast")).to_have_text("PV system saved · today's estimate 12.3 kWh")
-
-
-def test_toast_degrades_to_plain_text_when_no_estimate_is_available(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable,
-) -> None:
-    """The save must never fire a toast reading undefined/NaN — a forecast that
-    comes back unavailable just drops the suffix (issue #564)."""
-    _boot_pv_system(
-        page, base_url, sample_units, mock_api, mock_energy,
-        pv_arrays=[{"kwp": 7.9, "tilt_deg": 15.0, "azimuth_deg": 0.0}],
-    )
-    page.route(
-        "**/api/energy/forecast*",
-        lambda route: route.fulfill(
-            status=200, content_type="application/json",
-            body='{"available": false, "reason": "no_config"}',
-        ),
-    )
-
-    page.locator("#pvArrayAdd").click()
-    page.locator("#pvArrayKwp").fill("0.9")
-    page.locator("#pvArrayTilt").fill("15")
-    page.locator("#pvArrayAzimuth").fill("180")
-    page.locator("#pvArraySave").click()
-
-    expect(page.locator("#pvArrayDialog")).to_be_hidden()
-    expect(page.locator("#toast")).to_have_text("PV system saved")
-
-
-def test_an_invalid_tilt_is_reported_against_its_field_not_saved(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable,
-) -> None:
-    """A negative tilt is the mistake the azimuth convention invites, so it must
-    explain itself rather than be silently clamped to 0."""
-    _boot_pv_system(
-        page, base_url, sample_units, mock_api, mock_energy,
-        pv_arrays=[{"kwp": 7.9, "tilt_deg": 15.0, "azimuth_deg": 0.0}],
-    )
-
-    page.locator("#pvArrayAdd").click()
+    expect(dialog).to_be_visible()
     page.locator("#pvArrayKwp").fill("1")
     page.locator("#pvArrayTilt").fill("-15")
     page.locator("#pvArraySave").click()
@@ -147,5 +96,40 @@ def test_an_invalid_tilt_is_reported_against_its_field_not_saved(
     expect(error).to_contain_text("between 0 and 90")
     expect(page.locator("#pvArrayTilt")).to_have_attribute("aria-invalid", "true")
     # Still open, still one row — nothing was persisted.
-    expect(page.locator("#pvArrayDialog")).to_be_visible()
-    expect(page.locator("#pvArrayList .automation-summary-row")).to_have_count(1)
+    expect(dialog).to_be_visible()
+    expect(rows).to_have_count(1)
+
+    page.locator("#pvArrayKwp").fill("0.9")
+    page.locator("#pvArrayTilt").fill("15")
+    page.locator("#pvArrayAzimuth").fill("180")
+    # The convention hint echoes what was typed, in words.
+    expect(page.locator("#pvArrayAzimuthEcho")).to_have_text("facing north")
+    page.locator("#pvArraySave").click()
+
+    expect(dialog).to_be_hidden()
+    expect(rows).to_have_count(2)
+    # The whole point: the forecast is now computed from the edited array.
+    expect(page.locator("#forecastParams")).to_have_text(
+        "7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80"
+    )
+    # Issue #564: the save toast carries that same recomputed estimate rather
+    # than firing before the forecast refetch lands (mock_energy's forecast
+    # fixture fixes expected_total_kwh at 12.3, so this is deterministic).
+    expect(toast).to_have_text("PV system saved · today's estimate 12.3 kWh")
+
+    # Issue #564: a forecast that comes back unavailable just drops the suffix.
+    page.route(
+        "**/api/energy/forecast*",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body='{"available": false, "reason": "no_config"}',
+        ),
+    )
+    page.locator("#pvArrayAdd").click()
+    page.locator("#pvArrayKwp").fill("0.9")
+    page.locator("#pvArrayTilt").fill("15")
+    page.locator("#pvArrayAzimuth").fill("180")
+    page.locator("#pvArraySave").click()
+
+    expect(dialog).to_be_hidden()
+    expect(toast).to_have_text("PV system saved")
