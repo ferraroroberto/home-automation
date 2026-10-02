@@ -475,11 +475,7 @@ export function wireCircuitsToggle() {
   loadCollapsedMeters();
 
   if (!els.circuitsHiddenToggle) return;
-  els.circuitsHiddenToggle.addEventListener('click', function (ev) {
-    // It sits inside the card's <summary>: filtering the list must never be
-    // read as a request to fold the card away.
-    ev.preventDefault();
-    ev.stopPropagation();
+  els.circuitsHiddenToggle.addEventListener('click', function () {
     state.circuitsShowHidden = !state.circuitsShowHidden;
     showHiddenPref.write(state.circuitsShowHidden);
     renderCircuits();

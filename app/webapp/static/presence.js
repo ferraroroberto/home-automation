@@ -799,9 +799,7 @@ export function wirePresenceControls() {
   refreshThisDeviceLocation();
 
   if (els.presenceHiddenToggle) {
-    els.presenceHiddenToggle.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
+    els.presenceHiddenToggle.addEventListener('click', function () {
       state.presenceShowHidden = !state.presenceShowHidden;
       showHiddenPref.write(state.presenceShowHidden);
       renderPresence();

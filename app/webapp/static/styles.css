@@ -305,6 +305,21 @@ button.net-wifi-row-name::before,
 button.net-device-name::before,
 .camera-row-name::before { content: ""; position: absolute; inset: -10px 0; }
 
+/* A card's filter/toolbar row (#779): controls that used to sit in the
+   disclosure summary, where a near-miss folds the card (LAYOUT-05). Hidden
+   while every control in it is hidden (the "Show hidden" filters render
+   only once something is hidden). --inset pads it for a padding-less card. */
+.card-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+}
+.card-toolbar:not(:has(> :not([hidden]))) { display: none; }
+.card-toolbar--inset { padding-inline: 14px; }
+.card-toolbar .range-tab { flex: none; }
+.net-wifi-body > .card-toolbar { padding-top: 0; margin-bottom: var(--space-sm); }
+
 /* Page header (#779): the vendored home-head (_vendored/home-head/) opens every
    pane. Its title is this app's pane heading, so the h2 drops its UA margin;
    the theme toggle and the Settings gear sit side by side on the right, the
@@ -2063,11 +2078,11 @@ button.security-zone-name:hover { text-decoration: underline; }
   font-size: var(--font-caption);
 }
 .wake-section-head {
+  /* Sentence case, weight for hierarchy (#779): caps are the overline
+     role's alone, and this is a section label, not a list group header. */
   color: var(--muted);
-  font-size: var(--font-caption);
+  font-size: var(--font-label);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   margin-bottom: var(--space-sm);
 }
 .wake-alarm-once {
@@ -2181,6 +2196,7 @@ button.security-zone-name:hover { text-decoration: underline; }
 }
 .scene-pairings-body .schedule-add-btn { margin-top: 10px; }
 .security-override-body .schedule-add-btn { margin-top: 10px; }
+.presence-body-summary .range-tab { margin-left: auto; flex: none; }
 .presence-body-summary {
   display: flex;
   align-items: center;
@@ -2365,7 +2381,9 @@ button.presence-name:hover { text-decoration: underline; }
   margin-top: var(--space-sm);
   border: 1px solid color-mix(in srgb, var(--deficit) 30%, var(--line));
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--deficit) 10%, transparent);
+  /* Ghost, not tinted (#779): a destructive action is the least prominent
+     control in its dialog — red text on a hairline, never a filled button. */
+  background: transparent;
   color: var(--danger-text);
   font-weight: 700;
   cursor: pointer;
@@ -3014,6 +3032,12 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-health-row {
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
   margin-bottom: var(--gap);
+}
+/* One column at phone width (#779, J-04): a phone reads top to bottom, so
+   peer cards stack rather than sit side by side. */
+@media (max-width: 520px) {
+  .metric-tiles,
+  .net-health-row { grid-template-columns: minmax(0, 1fr); }
 }
 .net-health-card { padding: var(--space-md); display: flex; flex-direction: column; gap: 7px; }
 .net-health-title {
