@@ -13,7 +13,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Locator, Page, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, hold_reads
 from tests.e2e._geometry import (
     EffectiveRect,
     assert_min_target,
@@ -44,20 +44,7 @@ def test_security_tab_shows_loading_before_first_result(
     mock_energy()
     mock_security()
     mock_presence()
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/security' || url.endsWith('/api/security')) {
-            return new Promise(function(resolve, reject) {
-              setTimeout(function() {
-                originalFetch(input, init).then(resolve, reject);
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    release = hold_reads(page, "/api/security")
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
 
@@ -65,6 +52,7 @@ def test_security_tab_shows_loading_before_first_result(
     expect(page.locator("#securityFeedback .empty-state-message")).to_have_text(
         "Reading security status…"
     )
+    release()
     expect(page.locator("#paneSecurity")).to_have_attribute("data-state", "ready")
     expect(page.locator("#securityState")).to_contain_text("Not armed")
 

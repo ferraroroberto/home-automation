@@ -13,7 +13,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import boot_home, hold_reads
 
 
 def test_presence_distinguishes_loading_from_true_empty(
@@ -41,20 +41,7 @@ def test_presence_distinguishes_loading_from_true_empty(
             "refreshed_at": "2026-06-22T10:00:00+00:00",
         },
     })
-    page.add_init_script("""
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = function(input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url === '/api/presence' || url.endsWith('/api/presence')) {
-            return new Promise(function(resolve, reject) {
-              setTimeout(function() {
-                originalFetch(input, init).then(resolve, reject);
-              }, 750);
-            });
-          }
-          return originalFetch(input, init);
-        };
-    """)
+    release = hold_reads(page, "/api/presence")
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
 
@@ -62,6 +49,7 @@ def test_presence_distinguishes_loading_from_true_empty(
     expect(page.locator("#presenceList .empty-state-message")).to_have_text(
         "Reading presence…"
     )
+    release()
     expect(page.locator("#presenceList")).to_have_attribute("data-state", "empty")
     expect(page.locator("#presenceList .empty-state-message")).to_have_text(
         "No presence entities configured"

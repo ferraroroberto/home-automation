@@ -17,6 +17,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e._app import hold_reads
 from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rects
 
 
@@ -80,24 +81,6 @@ _FEEDBACK_PANELS = [
     ), id="ups"),
 ]
 
-# Holds the panel's first read open for 750 ms so the loading state is observable.
-_DELAY_FETCH_SCRIPT = """
-    const delayedUrl = %s;
-    const originalFetch = window.fetch.bind(window);
-    window.fetch = function(input, init) {
-      const url = typeof input === 'string' ? input : input.url;
-      if (url === delayedUrl || url.endsWith(delayedUrl)) {
-        return new Promise(function(resolve, reject) {
-          setTimeout(function() {
-            originalFetch(input, init).then(resolve, reject);
-          }, 750);
-        });
-      }
-      return originalFetch(input, init);
-    };
-"""
-
-
 def _open_panel(page: Page, base_url: str, panel: _FeedbackPanel) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
@@ -120,13 +103,14 @@ def test_panel_distinguishes_loading_from_true_empty(
             status=200, content_type="application/json", body=json.dumps(panel.empty_body),
         ),
     )
-    page.add_init_script(_DELAY_FETCH_SCRIPT % json.dumps(panel.endpoint))
+    release = hold_reads(page, panel.endpoint)
     _open_panel(page, base_url, panel)
 
     feedback = page.locator(panel.feedback)
     message = page.locator(f"{panel.feedback} .empty-state-message")
     expect(feedback).to_have_attribute("data-state", "loading")
     expect(message).to_have_text(panel.loading_message)
+    release()
     expect(feedback).to_have_attribute("data-state", "empty")
     expect(message).to_have_text(panel.empty_message)
 
