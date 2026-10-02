@@ -289,21 +289,29 @@ button, input, select, textarea {
 .select-native:focus-visible,
 .net-dhcp-input:focus-visible { outline-offset: calc(2px - var(--control-inset)); }
 
-/* Text-styled row buttons (tap the name to rename/open) render 24px tall; the
-   rows they sit in are rows.sm, so a vertical-only expansion reaches 44px
-   inside their own row and never meets a neighbour's (#779). */
+/* Text-styled row buttons (tap the name to rename/open) render 19-24px tall;
+   the rows they sit in are rows.sm, so a vertical-only expansion centred on
+   the button reaches exactly 44px inside its own row and never meets a
+   neighbour's (#779). The inset is derived from the button's own height, so a
+   taller (2-line) name simply needs none. */
 button.device-row-name,
 button.security-zone-name,
 button.presence-name,
 button.net-wifi-row-name,
 button.net-device-name,
+button.circuit-meter-name,
 .camera-row-name { position: relative; }
 button.device-row-name::before,
 button.security-zone-name::before,
 button.presence-name::before,
 button.net-wifi-row-name::before,
 button.net-device-name::before,
-.camera-row-name::before { content: ""; position: absolute; inset: -10px 0; }
+button.circuit-meter-name::before,
+.camera-row-name::before {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((100% - var(--hit-min)) / 2)) 0;
+}
 
 /* A card's filter/toolbar row (#779): controls that used to sit in the
    disclosure summary, where a near-miss folds the card (LAYOUT-05). Hidden
@@ -313,7 +321,9 @@ button.net-device-name::before,
   display: flex;
   justify-content: flex-end;
   gap: var(--space-sm);
-  padding-top: var(--space-sm);
+  /* The bottom 4px holds the range-tab's own 44px expansion (36 + 2x4), so it
+     never reaches into the first row's tap zone below. */
+  padding-block: var(--space-sm) var(--space-xs);
 }
 .card-toolbar:not(:has(> :not([hidden]))) { display: none; }
 .card-toolbar--inset { padding-inline: 14px; }
@@ -1628,7 +1638,9 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   appearance: none;
   width: 100%;
   min-width: 0;
-  height: 24px;
+  /* The 44px floor (#779): the visible 5px track and the thumb are centred
+     in the box, so only the tappable band grows. */
+  height: var(--hit-min);
   accent-color: var(--accent);
   background: linear-gradient(
     to right,
@@ -1662,7 +1674,12 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 .light-value-edit .light-number {
   width: 100%;
-  height: 100%;
+  /* The wrapper draws the 36px field; the input itself overhangs it by
+     --control-inset above and below so its tap box is the 44px floor
+     (#779). Transparent, with no boundary of its own — the native-control
+     recipe's inset shadow would draw a second box inside the wrapper. */
+  height: var(--hit-min);
+  margin-block: calc(-1 * var(--control-inset));
   min-width: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1670,6 +1687,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   border: 0;
   border-radius: 0;
   background: transparent;
+  box-shadow: none;
 }
 .light-value-edit:focus-within {
   outline: 2px solid var(--accent);
@@ -2202,7 +2220,8 @@ button.security-zone-name:hover { text-decoration: underline; }
   align-items: center;
   gap: var(--space-sm);
   white-space: nowrap;
-  margin: 10px 14px 0;
+  /* 4px below holds the "Show hidden" tab's expansion off the first row. */
+  margin: 10px 14px var(--space-xs);
   line-height: 1.2;
 }
 .presence-row {
