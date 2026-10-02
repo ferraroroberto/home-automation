@@ -588,6 +588,10 @@ def test_network_tab_retries_after_first_load_failure(
     mock_api(sample_units)
     mock_energy()
     mock_network(failures_before_success=1)
+    # The recovery comes from the tab's own 15 s poll (network.js POLL_MS).
+    # A controlled clock fires that tick at once instead of waiting it out in
+    # real time, which made this the suite's slowest test (#778).
+    page.clock.install()
     boot_home(page, base_url)
 
     page.locator("#tabNetwork").click()
@@ -595,7 +599,9 @@ def test_network_tab_retries_after_first_load_failure(
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Network unavailable"
     )
-    expect(page.locator("#netInternetStatus")).to_have_text("Online", timeout=20_000)
+    expect(page.locator("#netInternetStatus")).not_to_have_text("Online")
+    page.clock.run_for(15_000)
+    expect(page.locator("#netInternetStatus")).to_have_text("Online")
     expect(page.locator("#netFeedback")).to_be_hidden()
     expect(page.locator("#netDevices .net-device-name-text").first).to_have_text("Alpha Laptop")
 
