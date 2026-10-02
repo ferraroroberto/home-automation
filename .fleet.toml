@@ -26,6 +26,12 @@ nav = { src = "app/webapp/static/_vendored/nav", sha = "2fb269418af5998020ef949d
 static_pytest_target = "tests/e2e/test_smoke.py"
 static_browsers       = ["chromium"]
 full_pytest_target    = "tests/e2e"
+# The gate's per-test START/DONE/FAILED history (gitignored; written by
+# scripts/verify-before-ship.ps1 via tests/_progress_log.py). Every gate run
+# that reached the browser phase, from any checkout, is appended to the primary
+# checkout's copy (last 20 kept). /e2e-audit reads it for where the browser
+# leg's time goes and for its red history (home-automation#778, fleet-config#1018).
+progress_log          = "webapp/verify-progress.log"
 
 # Inert image/font/manifest assets under the static tree -> smoke is enough.
 [[e2e.rule]]
