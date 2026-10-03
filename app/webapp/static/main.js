@@ -18,6 +18,7 @@ import {
   THEME_KEY,
 } from './state.js';
 import { icon } from './_vendored/icons/icons.js';
+import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { jsonApi, hideLogin } from './api.js';
 import { wireTabs } from './tabs.js';
 import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';
@@ -120,6 +121,11 @@ function toggleTheme() {
 })();
 
 els.themeToggleBtns.forEach(function (btn) { btn.addEventListener('click', toggleTheme); });
+
+// ------------------------------------------------------- text size (#820)
+// The pre-paint stamp is the inline boot script in index.html; this wires the
+// Settings control (vendored, prefix = the same one the theme key uses).
+bindTextSize(document.getElementById('textSizeControl'), 'home-automation');
 
 // ----------------------------------------------------------- nav debug (#300)
 (function initNavDebug() {

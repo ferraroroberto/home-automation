@@ -622,6 +622,15 @@ places, the PV system, solar boost and sun-position cards, the search engine,
 the voice "What can I say?" reference, the activity log, and the nav debug
 switch. A PWA last left on Net reopens once on Settings.
 
+**Text size** (#820) is the first card in Settings: Small / Default / Large, kept
+per device in `localStorage` under `home-automation.textsize` and applied to the
+root font-size (93.75% / 100% / 112.5%) before first paint by the same inline
+`<head>` script that stamps the theme. The viewport is zoom-locked, so this is
+the app's own way to enlarge text (WCAG 1.4.4). Type is rem-based and scales;
+geometry (nav, rows, hit targets, control height, icons) stays in px. The
+control is the vendored `_vendored/text-size/` component from
+`project-scaffolding`, byte-identical; never edit it per-app.
+
 On desktop the tabs are a top segmented control; on a phone / installed PWA they
 become a floating bottom tab bar with stroke icons (mirroring the `app-launcher`
 nav). Collapsible sections (Settings, Security's event log + detectors) share one

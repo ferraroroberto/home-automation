@@ -345,6 +345,17 @@ button.circuit-meter-name::before,
 .settings-card-body { padding: 12px 14px 14px; }
 .notify-group-head { margin: 14px 14px 0; }
 .settings-diagnostics { padding: 12px 14px; }
+/* Text size (#820): label, the vendored range-tab row, one hint line. A single
+   minmax(0, 1fr) track so Large can never widen the card past the column. */
+.settings-text-size {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px 14px;
+}
+.settings-text-size .range-tabs { margin-bottom: 0; }
+.settings-text-size-label { font-weight: 600; }
+.settings-text-size-hint { margin: 0; }
 
 .app {
   max-width: 772px;

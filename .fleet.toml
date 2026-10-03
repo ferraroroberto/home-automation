@@ -15,6 +15,7 @@ classify_e2e = { src = "scripts/classify_e2e.py", sha = "bede95f00aee0b17d500724
 runtime_data = { src = "src/runtime_data.py", sha = "346765f7c14af0ec61e960333c055974e4e9e1db", dest = "src/runtime_data.py" }
 nav = { src = "app/webapp/static/_vendored/nav", sha = "2fb269418af5998020ef949d001a3c3cc2918152", dest = "app/webapp/static/_vendored/nav" }
 home_head = { src = "app/webapp/static/_vendored/home-head", sha = "f23a32ea8d24cf5291df482f988dee334617409c", dest = "app/webapp/static/_vendored/home-head" }
+text_size = { src = "app/webapp/static/_vendored/text-size", sha = "f23a32ea8d24cf5291df482f988dee334617409c", dest = "app/webapp/static/_vendored/text-size" }
 
 # /perf-review (fleet-config skills/perf-review): "ready" is the energy-flow tile
 # visible (the first Home card that needs live data), not first contentful paint,
