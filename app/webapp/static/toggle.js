@@ -1,7 +1,7 @@
 /* Shared switch-button helpers (issue #360).
  *
  * The app's one canonical boolean control is the `.toggle` button — a
- * shadcn-style track + knob, `role="switch"`, green when on (see
+ * shadcn-style track + knob, `role="switch"`, accent when on (see
  * units.js's original power-toggle markup, styles.css's `.toggle` rules).
  * Every native checkbox-type boolean setting (alarm schedules, scene-capture
  * pairings, notification-preference lists, the temperature-rule/presence

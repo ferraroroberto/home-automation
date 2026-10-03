@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import Callable, Dict, List, Optional
 
+import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e._geometry import assert_no_horizontal_overflow
@@ -159,3 +160,40 @@ def test_target_clamped_at_min(
     page.wait_for_timeout(300)
     assert posted["hit"] is False, "minus at the floor must not POST a sub-range value"
     expect(card.locator(".target-value")).to_contain_text("16.0")
+
+
+@pytest.mark.chromium_only
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_on_switch_track_is_the_accent_not_green(
+    theme: str, page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    """An on switch is the app's accent fill, never the success green (#818,
+    fleet-config#1200). The expected colour is resolved from the live
+    ``--accent-fill`` token so a P3 display (oklch) compares like for like."""
+    mock_api(sample_units)
+    page.emulate_media(color_scheme=theme)  # type: ignore[arg-type]
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    page.evaluate("t => localStorage.setItem('home-automation.theme', t)", theme)
+    page.reload(wait_until="domcontentloaded")
+    page.locator("#tabAc").click()
+    page.wait_for_selector(".unit-card", state="visible")
+    assert page.evaluate("document.documentElement.dataset.theme") == theme
+
+    track = page.locator('[data-unit-id="unit-1"] .toggle[aria-checked="true"]')
+    expect(track).to_be_visible()
+    got, accent, green = page.evaluate(
+        """el => {
+            const resolve = token => {
+                const probe = document.createElement('i');
+                probe.style.background = 'var(' + token + ')';
+                document.body.appendChild(probe);
+                const c = getComputedStyle(probe).backgroundColor;
+                probe.remove();
+                return c;
+            };
+            return [getComputedStyle(el).backgroundColor, resolve('--accent-fill'), resolve('--on')];
+        }""",
+        track.element_handle(),
+    )
+    assert got == accent, f"{theme}: on switch track {got} is not accent-fill {accent}"
+    assert got != green, f"{theme}: on switch track is still the success green {green}"

@@ -76,7 +76,7 @@ state/events and the native RISCO WebUI command path for arm/disarm actions.
 It shows the current alarm state as a single centered `Alarm state: <Word>`
 line (colour-coded with the three-colour scheme below), one row of rounded
 action pills (`Disarm` / `Partial` / `Perimeter` / `Full`), the recent event
-log, and a collapsible detector list with per-zone toggles (active = green,
+log, and a collapsible detector list with per-zone toggles (active = the accent blue,
 bypassed = red). The same alarm state + action pills are mirrored, actionable,
 on the **Home** tab.
 
