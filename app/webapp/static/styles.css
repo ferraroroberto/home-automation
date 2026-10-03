@@ -974,7 +974,10 @@ button.circuit-meter-name::before,
 /* Label is removed from the visual switch; role="switch" + aria-checked carry
    the state for assistive tech. */
 .toggle-label { display: none; }
-.toggle.on { background: var(--on); }
+/* On = the app's accent, never green (fleet-config#1200, home-automation#818).
+   --on stays the success green for status uses (flow arrows, online dots), so
+   the track reads --accent-fill directly, which already has a P3 twin. */
+.toggle.on { background: var(--accent-fill); }
 .toggle.on .knob { transform: translateX(18px); }
 .toggle:disabled {
   cursor: default;
@@ -1979,9 +1982,9 @@ button.security-zone-name:hover { text-decoration: underline; }
 .security-bypass {
   justify-self: end;
 }
-.security-bypass.on {
-  background: var(--on);
-}
+/* Bypass is a state toggle: bypassed (off) keeps the danger fill; monitored
+   (on) takes the shared accent from .toggle.on, since success is never a
+   switch's on-colour (#818). */
 .security-bypass.off {
   background: var(--deficit);
 }
