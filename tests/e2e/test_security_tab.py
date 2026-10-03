@@ -318,3 +318,42 @@ def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
     assert_min_target(days)
     assert_no_overlap(days)
     assert_no_horizontal_overflow(page)
+
+
+def test_event_log_rows_lead_with_the_event_not_the_time(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+) -> None:
+    """J-10 (#805): each row reads event · (actor) · time, never time first."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    page.route(
+        "**/api/security/events**",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"events": [
+                {"time": "2026-06-22T10:00:00+00:00", "name": "System armed", "user_id": 3},
+                {"time": "2026-06-22T09:00:00+00:00", "name": "Zone opened", "user_id": 0},
+            ]}),
+        ),
+    )
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator(".security-events-card > summary").click()
+
+    rows = page.locator("#securityEvents .security-event")
+    expect(rows).to_have_count(2)
+    expect(rows.first.locator("> span").first).to_have_text("System armed")
+    expect(rows.first.locator("> span").last).to_have_class("security-event-time")
+    expect(rows.nth(1).locator("> span").first).to_have_text("Zone opened")
+    for index in range(2):
+        row = rows.nth(index)
+        body_box = row.locator(".security-event-body").bounding_box()
+        time_box = row.locator(".security-event-time").bounding_box()
+        assert body_box is not None and time_box is not None
+        # Event first: it starts no further right than the time, and on a phone
+        # (time on its own line) sits above it.
+        assert body_box["x"] <= time_box["x"] or body_box["y"] < time_box["y"]
+    assert_no_horizontal_overflow(page)

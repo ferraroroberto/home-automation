@@ -252,11 +252,7 @@ export function renderEvents() {
     const row = document.createElement('div');
     row.className = 'security-event';
 
-    const time = document.createElement('span');
-    time.className = 'security-event-time';
-    time.textContent = fmtTime(event.time);
-    row.appendChild(time);
-
+    // Lead with what happened, then when (#805, J-10): event · actor · time.
     const body = document.createElement('span');
     body.className = 'security-event-body';
     body.textContent = event.name || event.type || event.category || event.text || 'Event';
@@ -270,6 +266,11 @@ export function renderEvents() {
       actor.textContent = 'U' + event.user_id;
       row.appendChild(actor);
     }
+
+    const time = document.createElement('span');
+    time.className = 'security-event-time';
+    time.textContent = fmtTime(event.time);
+    row.appendChild(time);
 
     els.securityEvents.appendChild(row);
   });
