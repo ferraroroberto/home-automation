@@ -265,7 +265,7 @@ function renderDhcpSuggestions(plan) {
     assignable.forEach(function (a) { els.netDhcpPlan.appendChild(unassignedRow(a)); });
   }
   if (randomised.length) {
-    dhcpHead('Randomised — private MAC, not reservable · ' + randomised.length);
+    dhcpHead('Randomised — private hardware address, not reservable · ' + randomised.length);
     randomised.forEach(function (a) { els.netDhcpPlan.appendChild(randomisedRow(a)); });
   }
 }
@@ -434,11 +434,11 @@ function stageManualBinding() {
   const ip = (els.netDhcpManualIp.value || '').trim();
   const name = (els.netDhcpManualName.value || '').trim();
   if (!/^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(mac)) {
-    toast('Enter a valid MAC (AA:BB:CC:DD:EE:FF)', 'error');
+    toast('Enter a valid hardware address (AA:BB:CC:DD:EE:FF)', 'error');
     return;
   }
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
-    toast('Enter a valid IP (192.168.0.x)', 'error');
+    toast('Enter a valid network address (192.168.0.x)', 'error');
     return;
   }
   manualAdds.push({ mac: mac, ip: ip, name: name });

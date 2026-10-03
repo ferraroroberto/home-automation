@@ -1360,8 +1360,8 @@
           <details class="net-dhcp-manual" id="netDhcpManual">
             <summary class="net-dhcp-manual-summary">Add a reservation manually</summary>
             <div class="net-dhcp-manual-form">
-              <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="MAC (AA:BB:CC:DD:EE:FF)" aria-label="MAC address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
-              <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="IP (192.168.0.x)" aria-label="IP address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
+              <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="Hardware address (AA:BB:CC:DD:EE:FF)" aria-label="Hardware address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
+              <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="Network address (192.168.0.x)" aria-label="Network address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
               <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" aria-label="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
               <button id="netDhcpManualAdd" type="button" class="range-tab net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
                 <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> Stage
@@ -2282,9 +2282,9 @@
       </label>
       <div class="row"><span>Original name</span><span id="lightOriginalName" class="muted">—</span></div>
       <div class="row"><span>Product</span><span id="lightProduct" class="muted">—</span></div>
-      <div class="row"><span>IP / host</span><span id="lightHost" class="muted">—</span></div>
+      <div class="row"><span>Network address</span><span id="lightHost" class="muted">—</span></div>
       <div class="row"><span>Port</span><span id="lightPort" class="muted">—</span></div>
-      <div class="row"><span>MAC</span><span id="lightMac" class="muted">—</span></div>
+      <div class="row"><span>Hardware address</span><span id="lightMac" class="muted">—</span></div>
       <div class="row"><span>Firmware</span><span id="lightFirmware" class="muted">—</span></div>
       <div class="row"><span>Color temperature</span><span id="lightTemperatureMeta" class="muted">—</span></div>
       <p id="lightIdentifier" class="muted small zone-original-name"></p>
@@ -2357,7 +2357,7 @@
         <div class="row"><span>Voltage</span><span id="circuitMeterVoltage" class="muted">—</span></div>
         <div class="row"><span>Total power</span><span id="circuitMeterTotal" class="muted">—</span></div>
         <div class="row"><span>Wi-Fi signal</span><span id="circuitMeterSignal" class="muted">—</span></div>
-        <div class="row"><span>MAC</span><span id="circuitMeterMac" class="muted">—</span></div>
+        <div class="row"><span>Hardware address</span><span id="circuitMeterMac" class="muted">—</span></div>
       </div>
 
       <label class="row">
@@ -2598,10 +2598,10 @@
 
       <div class="row"><span>Status</span><span id="netDeviceStatus" class="muted">—</span></div>
       <div class="row"><span>Vendor</span><span id="netDeviceVendor" class="muted">—</span></div>
-      <div class="row"><span>IP address</span><span id="netDeviceIp" class="muted">—</span></div>
+      <div class="row"><span>Network address</span><span id="netDeviceIp" class="muted">—</span></div>
       <div class="row"><span>Connection</span><span id="netDeviceConn" class="muted">—</span></div>
       <div class="row"><span>Signal</span><span id="netDeviceSignal" class="muted">—</span></div>
-      <div class="row"><span>SSID</span><span id="netDeviceSsid" class="muted">—</span></div>
+      <div class="row"><span>Wi-Fi network</span><span id="netDeviceSsid" class="muted">—</span></div>
       <!-- Which source reported the device: the access point, the router DHCP
            table, or both (issue #169). -->
       <div class="row"><span>Seen by</span><span id="netDeviceSource" class="muted">—</span></div>

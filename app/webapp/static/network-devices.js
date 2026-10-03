@@ -672,7 +672,7 @@ const netDeviceModal = detailModal({
     renderNetDeviceHiddenToggle(d);
     // The MAC is the stable key the label maps back to; flag randomised ones so
     // a missing vendor / churning row is explained rather than mysterious.
-    els.netDeviceMac.textContent = 'MAC: ' + (d.mac || '—') +
+    els.netDeviceMac.textContent = 'Hardware address: ' + (d.mac || '—') +
       (d.randomized ? ' · randomised address' : '');
   },
   buildOps: function (mac, staged, d) {
