@@ -245,8 +245,11 @@ def test_streamed_partial_finishes_and_announces_to_selected_room(
 
     row = page.locator('.ha-satellite-row[data-entity="assist_satellite.kitchen"]')
     mic = row.locator(".ha-mic-btn")
+    # #805: push-to-talk is the row's main action — a visible word, not just an icon.
+    expect(mic).to_have_text("Talk")
     mic.click()
     expect(mic).to_have_class(re.compile(r"\brecording\b"))
+    expect(mic).to_have_text("Stop")
     expect(row.locator(".ha-live-transcript")).to_have_text("live partial")
 
     mic.click()
