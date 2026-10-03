@@ -7,9 +7,10 @@
  * drops Home Assistant); Start is not. Polled only while the Home tab is
  * active.
  *
- * The whole surface is the HA card's summary row: the status text
- * (#homeAssistantSummaryState) and the power switch (#homeVmToggle) — there is
- * no body tile any more. The card element carries data-vm-state as the
+ * The surface is the HA card's read-only summary status text
+ * (#homeAssistantSummaryState) plus the power switch (#homeVmToggle), the first
+ * row of the card body (#805 — nothing tappable lives in a summary, so
+ * switching the VM is open-then-tap). The card element carries data-vm-state as the
  * machine-readable state hook (tests); IP·MAC and the stale-snapshot detail
  * live in the status text's hover tooltip.
  */
@@ -171,12 +172,7 @@ async function onToggle() {
 
 export function wireVm() {
   if (!els.homeVmToggle) return;
-  els.homeVmToggle.addEventListener('click', function (ev) {
-    // The switch lives inside the card's <summary> — never fold the card.
-    ev.preventDefault();
-    ev.stopPropagation();
-    onToggle();
-  });
+  els.homeVmToggle.addEventListener('click', onToggle);
 }
 
 export function renderVm() {

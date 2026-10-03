@@ -195,6 +195,38 @@ def test_security_tab_renders_presence_spike(
 
 
 @pytest.mark.chromium_only
+def test_kids_home_is_a_body_control_not_a_summary_control(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """LAYOUT-05 (#805): "Kids home" lives in the card body — two taps."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    puts: List[Dict] = []
+
+    def handle_kids(route: Route) -> None:
+        puts.append(json.loads(route.request.post_data or "{}"))
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    page.route("**/api/presence/kids_home_override", handle_kids)
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    card = page.locator(".presence-card")
+    expect(card.locator("> summary button, > summary input, > summary a")).to_have_count(0)
+    card.locator("> summary").click()
+    expect(card).to_have_attribute("open", "")
+    page.locator("#presenceKidsHome").click()
+
+    expect(page.locator("#toast")).to_contain_text("Kids home on")
+    assert puts == [{"active": True}]
+    expect(card).to_have_attribute("open", "")
+
+
+@pytest.mark.chromium_only
 def test_this_device_presence_is_diagnostic_only(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
