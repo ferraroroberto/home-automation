@@ -3897,7 +3897,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .camera-thumb-glyph { width: 18px; height: 18px; color: var(--muted); }
 .camera-row-live {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: var(--hit-min); padding: 6px 10px;
+  gap: 6px; min-width: var(--hit-min); padding: 6px 10px;
 }
 .camera-row-live .icon { width: 18px; height: 18px; }
 
@@ -3974,7 +3974,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   min-width: 44px;
 }
 .camera-live-actions .icon { width: 20px; height: 20px; }
-.camera-zoom { font-size: var(--font-heading-lg); font-weight: 700; line-height: 1; }
+.camera-live-actions .camera-action { display: inline-flex; align-items: center; gap: 6px; }
 .camera-rec.active {
   background: color-mix(in srgb, var(--deficit) 18%, transparent);
   border-color: color-mix(in srgb, var(--deficit) 30%, transparent);

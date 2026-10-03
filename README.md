@@ -997,8 +997,8 @@ field, plus an **Open live view** button. The full-screen live view streams
 MJPEG, with a **PTZ d-pad** that toggles between **Step** (one click = one fixed
 nudge — precise, the default) and **Hold** (press-and-hold continuous move),
 **saved position presets** (Position 1, 2, … — recall/save/delete), **manual
-pan/tilt/zoom coordinate** entry, a **screenshot** button (downloads a still),
-and a **record** toggle (server-side mp4). The precise-PTZ controls are
+pan/tilt/zoom coordinate** entry, **Zoom out / Zoom in** buttons, a **Screenshot** button (downloads a still),
+and a **Record** toggle (server-side mp4) — every action carries a visible word, never a bare glyph (#805); each row also has a labelled **Live** button. The precise-PTZ controls are
 **capability-gated**: presets and absolute-coordinate entry appear only on
 cameras whose ONVIF stack supports them; the universal step-nudge works on any
 PTZ camera. Cameras are accessed the same vendor-neutral way the rest of the
