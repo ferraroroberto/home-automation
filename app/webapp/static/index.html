@@ -12,17 +12,31 @@
   <link rel="apple-touch-icon" href="/static/icon-180.png">
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/icon-512.png">
-  <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
-  <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
-  <link rel="stylesheet" href="/static/styles.css">
-  <title>Home Automation</title>
+  <!-- Pre-paint boot (vendored text-size-boot.html, #820): stamps html[data-theme]
+       from home-automation.theme and html[data-textsize] from
+       home-automation.textsize before first paint. The `app` prefix is the one
+       per-app edit. Keep it inline and before the stylesheets. -->
   <script>
-    (function(){
-      var t = localStorage.getItem('home-automation.theme');
-      var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    (function () {
+      var app = 'home-automation';
+      var root = document.documentElement;
+      var theme = null;
+      var size = null;
+      try {
+        theme = localStorage.getItem(app + '.theme');
+        size = localStorage.getItem(app + '.textsize');
+      } catch (e) {}
+      var dark = theme ? theme === 'dark'
+        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.dataset.theme = dark ? 'dark' : 'light';
+      root.dataset.textsize = size === 'small' || size === 'large' ? size : 'default';
     })();
   </script>
+  <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
+  <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
+  <link rel="stylesheet" href="/static/_vendored/text-size/text-size.css">
+  <link rel="stylesheet" href="/static/styles.css">
+  <title>Home Automation</title>
 </head>
 <body>
   <!-- Lucide icon sprite — the single source for every app icon (issue #77).
@@ -1162,6 +1176,18 @@
       <!-- The network section carries its own data-state (#779): a network
            read in flight or failed must hide only these cards, never the
            configuration cards that share the Settings pane. -->
+      <!-- Text size (#820): the vendored text-size control (text-size.html). The
+           zoom lock fails WCAG 1.4.4 without it; main.js binds it with the
+           home-automation prefix, the boot script stamps it before first paint. -->
+      <section class="card settings-card settings-text-size" aria-label="Text size">
+        <span class="settings-text-size-label">Text size</span>
+        <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
+          <button type="button" class="range-tab" data-textsize="small">Small</button>
+          <button type="button" class="range-tab" data-textsize="default">Default</button>
+          <button type="button" class="range-tab" data-textsize="large">Large</button>
+        </nav>
+        <p class="muted small settings-text-size-hint">Applies to this device only. Buttons and spacing stay the same size.</p>
+      </section>
       <div id="settingsNetwork" class="settings-network">
       <div id="netFeedback" class="network-feedback" role="status" hidden></div>
       <!-- Internet-health tile — big online/offline word, latency + loss
