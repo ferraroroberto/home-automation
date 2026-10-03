@@ -157,6 +157,8 @@ def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
     # subsections, all folded by default, each with a hit-target summary.
     for section_id in ("haSatellitesCard", "haInteractionsCard", "haHelpCard"):
         section = page.locator("#" + section_id)
+        # Recent interactions appears only once there is one (#805).
+        expect(section).to_be_visible()
         expect(section).not_to_have_attribute("open", "")
         box = section.locator("summary").bounding_box()
         assert box is not None and box["height"] >= 44, section_id
@@ -256,3 +258,27 @@ def test_streamed_partial_finishes_and_announces_to_selected_room(
     expect(row.locator(".ha-live-transcript")).to_contain_text("final message · Announced")
     assert chunks == ["POST"]
     assert announced == [{"text": "final message"}]
+
+
+def test_recent_interactions_is_hidden_until_there_is_one(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    """#805: an empty Recent interactions box offers nothing, so it stays hidden."""
+    body = {**_HA_BODY, "interactions": []}
+    page.route(
+        "**/api/ha",
+        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(body)),
+    )
+    _boot(page, base_url, sample_units, mock_api, mock_energy)
+
+    page.locator("#homeAssistantCard > summary").click()
+    page.locator("#haSatellitesCard summary").click()
+    # The satellites rendered, so the HA read has landed — the empty box is not shown.
+    expect(page.locator(".ha-satellite-row")).to_have_count(2)
+    expect(page.locator("#haInteractionsCard")).to_be_hidden()
+    expect(page.locator("#haHelpCard")).to_be_visible()
+
