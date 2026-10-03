@@ -1876,6 +1876,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .security-zone { padding-block: 10px; }
 .security-event:first-child,
 .security-zone:first-child { border-top: 0; }
+/* Event rows read event · actor · time (#805): the time is the trailing cell. */
+.security-event { grid-template-columns: minmax(0, 1fr) auto auto; }
 .security-event-time {
   color: var(--muted);
   font-size: var(--font-caption);
