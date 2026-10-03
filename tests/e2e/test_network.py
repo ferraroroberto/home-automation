@@ -344,7 +344,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     wifi_row = page.locator("#netWifiList .net-wifi-row").filter(has_text="TestNet-IoT")
     wifi_row.locator(".net-wifi-row-name").click()
     expect(page.locator("#netWifiDialog")).to_be_visible()
-    expect(page.locator("#netWifiOriginalName")).to_contain_text("Original SSID: TestNet-IoT")
+    expect(page.locator("#netWifiOriginalName")).to_contain_text("Original network name: TestNet-IoT")
     page.locator("#netWifiDisplayName").fill("Neighbour AP")
     page.locator("#netWifiDisplayName").press("Enter")
     expect(page.locator("#netWifiList .net-wifi-row").filter(has_text="Neighbour AP")).to_have_count(1)
@@ -364,6 +364,13 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     device_button = page.locator("#netDevices .net-device-name").filter(has_text="Alpha Laptop")
     device_button.click()
     expect(page.locator("#netDeviceDialog")).to_be_visible()
+    # #805 (J-07): plain words in the row labels and the identifier line, no
+    # SSID / MAC / IP jargon.
+    dialog_text = page.locator("#netDeviceDialog").inner_text()
+    assert "Wi-Fi network" in dialog_text and "Network address" in dialog_text
+    assert "Hardware address" in page.locator("#netDeviceMac").inner_text()
+    for jargon in ("SSID", "MAC", "IP address"):
+        assert jargon not in dialog_text, jargon
     page.locator("#netDeviceDisplayName").fill("Office Laptop")
     page.locator("#netDeviceDisplayName").press("Enter")
     expect(page.locator("#netDevices .net-device-name-text").filter(has_text="Office Laptop")).to_have_count(1)

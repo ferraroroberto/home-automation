@@ -247,8 +247,8 @@ function openNetWifiDetail(wifiId) {
   els.netWifiDetailSecurity.textContent = [b.authentication, b.encryption].filter(Boolean).join(' · ') || '—';
   els.netWifiDisplayName.value = b.display_name || '';
   els.netWifiDisplayName.placeholder = b.ssid || 'Custom label…';
-  els.netWifiOriginalName.textContent = 'Original SSID: ' + (b.original_name || b.ssid || '—') +
-    ' · BSSID: ' + (b.bssid || '—') + (b.bssid ? '' : ' · key ' + (b.wifi_id || '—'));
+  els.netWifiOriginalName.textContent = 'Original network name: ' + (b.original_name || b.ssid || '—') +
+    ' · Access point address: ' + (b.bssid || '—') + (b.bssid ? '' : ' · key ' + (b.wifi_id || '—'));
   renderNetWifiHiddenToggle(b);
   openDialog(els.netWifiDialog);
   els.netWifiDisplayName.focus();
