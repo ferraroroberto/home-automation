@@ -426,7 +426,7 @@ export const els = {
   haSatellitesList: document.getElementById('haSatellitesList'),
   haSatellitesNote: document.getElementById('haSatellitesNote'),
   haInteractionsList: document.getElementById('haInteractionsList'),
-  haInteractionsNote: document.getElementById('haInteractionsNote'),
+  haInteractionsCard: document.getElementById('haInteractionsCard'),
   // Search-engine (SearXNG) status sub-card (issue #321).
   searxngCard: document.getElementById('searxngCard'),
   searxngSummaryState: document.getElementById('searxngSummaryState'),

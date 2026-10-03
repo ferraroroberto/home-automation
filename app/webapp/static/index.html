@@ -569,7 +569,9 @@
           </div>
         </details>
 
-        <details id="haInteractionsCard" class="ha-subsection" aria-label="Recent interactions">
+        <!-- Hidden until the first interaction arrives (#805): an always-empty box
+             with no control in it offered nothing to do. -->
+        <details id="haInteractionsCard" class="ha-subsection" aria-label="Recent interactions" hidden>
           <summary class="collapse-summary">
             <span class="collapse-main">
               <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
@@ -579,7 +581,6 @@
           </summary>
           <div class="ha-subsection-body">
             <div id="haInteractionsList" class="ha-interaction-list"></div>
-            <p id="haInteractionsNote" class="muted small ha-note">No interactions recorded while this web app was running.</p>
           </div>
         </details>
 

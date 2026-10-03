@@ -49,7 +49,7 @@ function fmtInteractionTime(value) {
 
 function renderInteractions(rows) {
   els.haInteractionsList.innerHTML = '';
-  els.haInteractionsNote.hidden = rows.length > 0;
+  els.haInteractionsCard.hidden = rows.length === 0;
   for (const interaction of rows) {
     const item = document.createElement('div');
     item.className = 'ha-interaction-row';
