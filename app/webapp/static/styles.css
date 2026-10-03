@@ -1595,15 +1595,25 @@ button.circuit-meter-name:hover { text-decoration: underline; }
    attention (a thing to fix), not danger (a thing that failed). */
 .circuit-row .plug-watts.circuit-watts-negative { color: var(--attention); }
 
-/* Blind controls: up / stop / down icon buttons. */
-.blind-controls { flex: none; display: inline-flex; gap: 6px; }
+/* Blind controls: up / stop / down buttons, icon + visible word (#805). Like a
+   light row, a blind row wraps: name on the summary line, the three equal
+   buttons on their own full-width line beneath. */
+.blind-row { flex-wrap: wrap; }
+.blind-controls {
+  flex: 1 0 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
 .blind-btn {
   appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  gap: 6px;
+  min-height: 44px;
+  font: inherit;
+  font-size: var(--font-caption);
   background: var(--card-off);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
