@@ -184,8 +184,8 @@ function renderCameras() {
       const live = document.createElement('button');
       live.type = 'button';
       live.className = 'range-tab camera-row-live';
-      live.setAttribute('aria-label', 'Open live view ' + cameraLabel(cam));
-      live.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-maximize"></use></svg>';
+      live.setAttribute('aria-label', 'Live view ' + cameraLabel(cam));
+      live.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-maximize"></use></svg>Live';
       live.addEventListener('click', function () {
         state.selectedCameraId = cam.id;
         openLiveView(cam.id);

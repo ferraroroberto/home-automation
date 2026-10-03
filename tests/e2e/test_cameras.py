@@ -117,3 +117,45 @@ def test_camera_refresh_failure_preserves_last_good_rows(
     expect(page.locator("#camerasNote")).to_contain_text("Last updated")
     expect(page.locator("#camerasNote")).to_contain_text("live data unavailable")
     expect(page.locator("#camerasNote")).not_to_contain_text("192.0.2.50")
+
+
+def test_camera_buttons_carry_a_visible_label(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """#805: no icon-only camera button — the row's Live and every live-view action."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    camera = {
+        "id": "front-door",
+        "display_name": "Front door",
+        "reachable": True,
+        "model": "Fixture camera",
+        "recording": False,
+        "ptz_presets": False,
+        "ptz_absolute": False,
+    }
+    page.route(
+        "**/api/cameras",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"cameras": [camera]}),
+        ),
+    )
+    # The MJPEG stream is an <img>; answer it so no request reaches a camera.
+    page.route("**/api/cameras/*/stream**", lambda route: route.fulfill(status=204))
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator(".cameras-card > summary").click()
+
+    live = page.locator("#camerasList .camera-row-live")
+    expect(live).to_have_text("Live")
+    live.click()
+    expect(page.locator("#cameraLiveDialog")).to_be_visible()
+
+    actions = page.locator("#cameraLiveDialog .camera-live-actions button")
+    expect(actions).to_have_text(["Step", "Zoom out", "Zoom in", "Screenshot", "Record"])

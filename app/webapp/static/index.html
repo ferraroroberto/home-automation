@@ -2485,10 +2485,12 @@
         </div>
         <div class="camera-live-actions">
           <button id="cameraPtzModeBtn" type="button" class="range-tab camera-mode-toggle" aria-pressed="true" title="One click = one step (precise) vs press-and-hold">Step</button>
-          <button id="cameraZoomOut" type="button" class="range-tab camera-zoom" aria-label="Zoom out">−</button>
-          <button id="cameraZoomIn" type="button" class="range-tab camera-zoom" aria-label="Zoom in">+</button>
-          <button id="cameraSnapBtn" type="button" class="range-tab" aria-label="Take screenshot"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg></button>
-          <button id="cameraRecBtn" type="button" class="range-tab camera-rec" aria-label="Record video"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg></button>
+          <!-- Every action carries a visible word (#805): the bare −/+ and glyph-only
+               screenshot/record buttons named nothing on screen. -->
+          <button id="cameraZoomOut" type="button" class="range-tab camera-zoom">Zoom out</button>
+          <button id="cameraZoomIn" type="button" class="range-tab camera-zoom">Zoom in</button>
+          <button id="cameraSnapBtn" type="button" class="range-tab camera-action"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>Screenshot</button>
+          <button id="cameraRecBtn" type="button" class="range-tab camera-rec camera-action"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg>Record</button>
         </div>
       </div>
       <!-- Saved position presets (issue #190). Hidden when the camera has no preset support. -->
