@@ -1042,11 +1042,9 @@
            There is no Refresh button — the card re-polls on its own, and a
            newly-joined meter appears when the mDNS discovery TTL lapses. -->
       <details class="card card--collapsible device-list-card" id="circuitsCard">
-        <!-- "Show hidden" rides in the summary beside the chevron (the
-             summary-embedded-control pattern the HA card's VM switch uses), not
-             in a toolbar row of its own: it is a card-level filter, and a lone
-             pill above the first meter read as a floating orphan. Its click
-             never folds the card. Only rendered once something is hidden. -->
+        <!-- "Show hidden" lives in the body toolbar, not the summary (#779,
+             #805: nothing tappable lives in a summary). It is a card-level
+             filter, only rendered once something is hidden. -->
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-gauge"></use></svg>

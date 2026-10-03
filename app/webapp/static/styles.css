@@ -1273,7 +1273,9 @@ button.circuit-meter-name::before,
   align-items: center;
   gap: var(--space-sm);
   min-height: var(--row-sm);
-  padding: 8px 14px;
+  /* 10px, not 8: the switch's tap zone reaches 9px past its 26px body, so the
+     row must hold it inside or it overlaps the summary above (TOUCH-02, #816). */
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
 }
 .card-control-row > .toggle,

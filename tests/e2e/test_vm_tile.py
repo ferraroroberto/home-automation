@@ -15,6 +15,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._geometry import assert_no_overlap
 
 
 def test_vm_tile_distinguishes_loading_from_not_found(
@@ -207,3 +208,29 @@ def test_vm_poll_failure_preserves_status_and_disables_power(
         "title", re.compile("Last updated .+ · live data unavailable")
     )
     expect(page.locator("#homeAssistantSummaryState")).not_to_contain_text("192.0.2.80")
+
+
+def test_vm_switch_tap_zone_stays_out_of_the_card_summary(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """TOUCH-02 (#816): the body-row switch's tap zone must not reach the summary."""
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"hyperv": {
+                "available": True, "name": "Fixture HA", "state": "running", "uptime_seconds": 60,
+            }}),
+        ),
+    )
+    boot_home(page, base_url)
+    card = page.locator("#homeAssistantCard")
+    card.locator("> summary").click()
+    expect(page.locator("#homeVmToggle")).to_be_enabled()
+
+    assert_no_overlap([card.locator("> summary"), page.locator("#homeVmToggle")])
+
