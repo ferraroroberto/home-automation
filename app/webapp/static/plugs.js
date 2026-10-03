@@ -177,8 +177,9 @@ function buildPlugRow(device) {
   return row;
 }
 
-// Up · Stop · Down icon buttons. Covers expose only open/stop/close on the LAN
-// (no native position), so these are the full control surface.
+// Up · Stop · Down buttons, each an icon plus a visible word (#805, J-01: a
+// row's main action is never icon-only). Covers expose only open/stop/close on
+// the LAN (no native position), so these are the full control surface.
 const BLIND_CONTROLS = [
   ['open', 'Open', 'i-chevron-up'],
   ['stop', 'Stop', 'i-square'],
@@ -205,9 +206,9 @@ function buildBlindRow(device) {
     btn.type = 'button';
     btn.className = 'blind-btn';
     btn.dataset.action = spec[0];
-    btn.title = spec[1];
     btn.setAttribute('aria-label', spec[1] + ' ' + (plugLabel(device) || 'blind'));
-    btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#' + spec[2] + '"></use></svg>';
+    btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#' + spec[2] + '"></use></svg>' +
+      '<span class="blind-btn-label">' + spec[1] + '</span>';
     btn.addEventListener('click', function () { coverAction(device, spec[0]); });
     controls.appendChild(btn);
   });

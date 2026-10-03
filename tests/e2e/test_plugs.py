@@ -325,19 +325,21 @@ def test_switch_toggle_round_trips(
     )
 
 
-def test_blind_has_icon_controls(
+def test_blind_has_labelled_controls(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
     page.set_viewport_size({"width": 390, "height": 844})
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # The blind lives in the Blinds card with three up/stop/down icon buttons.
+    # The blind lives in the Blinds card with three up/stop/down buttons, each
+    # an icon plus a visible word (#805, J-01 — never icon-only).
     buttons = page.locator('[data-device-id="cover-1"] .blind-btn')
     expect(buttons).to_have_count(3)
+    expect(buttons.locator(".blind-btn-label")).to_have_text(["Open", "Stop", "Close"])
     boxes = effective_rects(buttons)
-    assert all((box.visual.width, box.visual.height) == (44, 44) for box in boxes)
-    # The three icon buttons sit left-to-right with no shared tap zone.
+    assert all(box.visual.height >= 44 and box.visual.width >= 44 for box in boxes)
+    # The three buttons sit left-to-right with no shared tap zone.
     assert all(
         boxes[index].effective.right <= boxes[index + 1].effective.left
         for index in range(2)
