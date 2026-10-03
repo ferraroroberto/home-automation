@@ -149,7 +149,7 @@ def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
 
     card.locator("> summary").click()
     expect(card).to_have_attribute("open", "")
-    # #461: the VM surface is the summary itself — status text + power switch.
+    # #461/#805: status text in the summary, power switch in the card body.
     expect(page.locator("#homeAssistantSummaryState")).to_contain_text("online")
     expect(page.locator("#homeVmToggle")).to_have_attribute("aria-checked", "true")
 

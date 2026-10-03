@@ -104,15 +104,7 @@ async function savePresenceAutomation() {
 }
 
 export function wirePresenceAutomationControls() {
-  if (els.presenceKidsHome) {
-    // The button lives in the <summary>, so swallow the click to toggle the
-    // override instead of collapsing the card.
-    els.presenceKidsHome.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      toggleKidsHome();
-    });
-  }
+  if (els.presenceKidsHome) els.presenceKidsHome.addEventListener('click', toggleKidsHome);
   [els.presenceArmMinutes, els.presenceStaleMinutes].forEach(function (el) {
     if (el) el.addEventListener('change', savePresenceAutomation);
   });

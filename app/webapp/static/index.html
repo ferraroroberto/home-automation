@@ -535,24 +535,25 @@
            expands it into Voice PE rooms + push-to-talk (issue #239). Closed by
            default; detailed HA polling runs only while this disclosure is open. -->
       <details id="homeAssistantCard" class="card card--collapsible ha-card" aria-label="Home Assistant">
-        <!-- The summary is the whole VM surface (#461): live status text plus
-             the power switch (same summary-embedded-control pattern as the
-             Presence card's "Kids home" pill — its click never folds the card).
-             Body content is only the folded-by-default subsections, so every
-             row reads equidistant. -->
+        <!-- The summary is read-only status (#461, #805): live status text plus
+             the chevron, nothing tappable inside it (design rule LAYOUT-05).
+             The VM power switch is the first row of the body, so switching the
+             VM is open-the-card then tap — two taps by design. -->
         <summary class="collapse-summary">
           <span class="collapse-main">
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-house"></use></svg>
             <h3 class="collapse-title">Home Assistant</h3>
             <span id="homeAssistantSummaryState" class="muted small">Reading status…</span>
           </span>
-          <span class="security-zones-tools">
-            <button id="homeVmToggle" type="button" class="toggle vm-toggle" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
+
+        <div class="card-control-row">
+          <span>VM power</span>
+          <button id="homeVmToggle" type="button" class="toggle vm-toggle" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
 
         <details id="haSatellitesCard" class="ha-subsection" aria-label="Voice satellites">
           <summary class="collapse-summary">
@@ -1815,11 +1816,14 @@
             <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
             <h3 class="collapse-title">Presence</h3>
           </span>
-          <span class="security-zones-tools">
-            <button id="presenceKidsHome" type="button" class="range-tab" aria-pressed="false" title="Kids home: arm perimeter only (not full) when everyone leaves; resets on the next disarm">Kids home</button>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
+        <!-- Not in the summary (#805, design rule LAYOUT-05): open the card,
+             then tap — two taps by design. -->
+        <div class="card-control-row">
+          <span id="presenceKidsHomeHint" class="muted small">Arm perimeter only (not full) when everyone leaves; resets on the next disarm.</span>
+          <button id="presenceKidsHome" type="button" class="range-tab" aria-pressed="false" aria-describedby="presenceKidsHomeHint">Kids home</button>
+        </div>
         <p class="muted small presence-body-summary">
           <span id="presenceSummary">—</span>
           <span id="presenceHiddenCount" class="security-hidden-count" hidden></span>

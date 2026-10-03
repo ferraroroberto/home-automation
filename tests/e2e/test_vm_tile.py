@@ -32,7 +32,7 @@ def test_vm_tile_distinguishes_loading_from_not_found(
     release = hold_reads(page, "/api/hyperv")
     boot_home(page, base_url)
 
-    # #461: the summary row is the whole VM surface — status text + switch.
+    # #461/#805: status text in the read-only summary, switch in the body.
     expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "loading")
     expect(page.locator("#homeAssistantSummaryState")).to_have_text("Reading status…")
     expect(page.locator("#homeVmToggle")).to_be_disabled()
@@ -102,8 +102,12 @@ def test_vm_status_error_keeps_start_action_when_vm_is_identified(
     boot_home(page, base_url)
 
     expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "error")
-    # An unreachable-but-identified VM keeps the summary switch usable for
-    # start (#461: the switch replaced the old tile's "Start Home Assistant").
+    # An unreachable-but-identified VM keeps the switch usable for start
+    # (#461: the switch replaced the old tile's "Start Home Assistant").
+    # #805: it is a body row, so the card is opened first (two taps).
+    card = page.locator("#homeAssistantCard")
+    card.locator("> summary").click()
+    expect(card).to_have_attribute("open", "")
     toggle = page.locator("#homeVmToggle")
     expect(toggle).to_be_enabled()
     expect(toggle).to_have_attribute("aria-checked", "false")
@@ -113,9 +117,10 @@ def test_vm_status_error_keeps_start_action_when_vm_is_identified(
     expect(page.locator("#homeAssistantSummaryState")).to_contain_text("online")
     expect(toggle).to_be_enabled()
     expect(toggle).to_have_attribute("aria-checked", "true")
-    # The switch lives inside the card's <summary>: clicking it must never
-    # fold or unfold the card.
-    expect(page.locator("#homeAssistantCard")).not_to_have_attribute("open", "")
+    # LAYOUT-05 (#805): the summary is read-only — no control inside it — and
+    # switching the VM does not fold the card.
+    expect(card.locator("> summary button, > summary input, > summary a")).to_have_count(0)
+    expect(card).to_have_attribute("open", "")
 
 
 def test_vm_command_failure_uses_concise_toast(
@@ -147,6 +152,7 @@ def test_vm_command_failure_uses_concise_toast(
         ),
     )
     boot_home(page, base_url)
+    page.locator("#homeAssistantCard > summary").click()
     page.locator("#homeVmToggle").click()
 
     expect(page.locator("#toast")).to_have_text("Couldn't start Home Assistant")

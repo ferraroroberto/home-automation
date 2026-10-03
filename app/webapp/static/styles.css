@@ -1260,10 +1260,25 @@ button.circuit-meter-name::before,
 }
 
 /* Home Assistant disclosure (#239; #461 folded the old VM body tile away):
-   the summary row is the whole VM surface — live status text + the canonical
-   .toggle power switch (on = running, same as AC power and plugs) — and the
-   body is nothing but the equidistant folded subsections. */
+   the summary row is read-only status text; the canonical .toggle power
+   switch (on = running, same as AC power and plugs) is the first body row
+   (#805), followed by the equidistant folded subsections. */
 .ha-card { margin-bottom: var(--gap); }
+/* A labelled control as the first row of a card body (#805): nothing tappable
+   lives in a <summary>, so the switch/pill sits here — hint on the left,
+   control on the right, closed by the same hairline the subsections use. */
+.card-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--row-sm);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.card-control-row > .toggle,
+.card-control-row > .range-tab { justify-self: end; }
+.ha-card > .card-control-row + .ha-subsection { border-top: 0; }
 .ha-summary-state { margin-left: auto; white-space: nowrap; }
 .ha-summary-running { color: var(--on); }
 .ha-summary-unavailable { color: var(--deficit); }
@@ -2614,12 +2629,6 @@ button.presence-name:hover { text-decoration: underline; }
     justify-self: start;
     align-items: flex-start;
     text-align: left;
-  }
-  .presence-card .security-zones-tools {
-    gap: 6px;
-  }
-  .presence-card .security-zones-tools .range-tab {
-    padding-inline: 7px;
   }
 }
 
