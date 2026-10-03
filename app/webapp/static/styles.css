@@ -1330,11 +1330,16 @@ button.circuit-meter-name::before,
 .ha-live-transcript { margin: 4px 0 0; color: var(--accent); }
 .ha-live-transcript:empty { display: none; }
 .ha-mic-btn {
-  width: 44px;
+  min-width: 44px;
   height: 44px;
+  padding-inline: 12px;
+  gap: 6px;
   flex: none;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: var(--font-caption);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--card);

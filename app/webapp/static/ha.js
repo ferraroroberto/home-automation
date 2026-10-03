@@ -73,17 +73,26 @@ function renderInteractions(rows) {
   }
 }
 
+// The button's face: icon plus a visible word (#805 — push-to-talk is the
+// row's main action, so it is never icon-only).
+function micFace(iconName, word) {
+  return icon(iconName) + '<span class="ha-mic-label">' + word + '</span>';
+}
+
 function micButtonHtml(satellite) {
   const transcriberReady = !!(state.ha && state.ha.voice_transcriber);
   const disabled = !satellite.online || !window.MediaRecorder || !transcriberReady;
-  const label = !satellite.online
+  const reason = !satellite.online
     ? 'Satellite offline'
     : (!transcriberReady
         ? 'Voice Transcriber is not configured'
-        : (!window.MediaRecorder ? 'Microphone unsupported' : 'Start microphone in ' + satellite.room));
+        : (!window.MediaRecorder ? 'Microphone unsupported' : ''));
+  // The accessible name starts with the visible word ("Talk"), and the reason
+  // a disabled button cannot be used rides along after it.
+  const label = 'Talk in ' + satellite.room + (reason ? ' (' + reason + ')' : '');
   return '<button type="button" class="ha-mic-btn" data-entity="' + esc(satellite.entity_id) + '"' +
     (disabled ? ' disabled' : '') + ' aria-pressed="false" aria-label="' + esc(label) +
-    '" title="' + esc(label) + '">' + icon('mic') + '</button>';
+    '" title="' + esc(label) + '">' + micFace('mic', 'Talk') + '</button>';
 }
 
 function renderSatellites(rows) {
@@ -266,8 +275,8 @@ async function transcribeFinal(chunks, buffered, mimeType) {
 function showMicRecording(button, satellite) {
   button.classList.add('recording');
   button.setAttribute('aria-pressed', 'true');
-  button.setAttribute('aria-label', 'Stop microphone in ' + satellite.room);
-  button.innerHTML = icon('square');
+  button.setAttribute('aria-label', 'Stop talking in ' + satellite.room);
+  button.innerHTML = micFace('square', 'Stop');
 }
 
 // Recording has ended but the transcript is still in flight — the button goes
@@ -275,7 +284,7 @@ function showMicRecording(button, satellite) {
 function showMicTranscribing(button) {
   button.classList.remove('recording');
   button.setAttribute('aria-pressed', 'false');
-  button.innerHTML = icon('mic');
+  button.innerHTML = micFace('mic', 'Talk');
   button.disabled = true;
 }
 
