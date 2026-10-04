@@ -42,6 +42,8 @@
   padding: 9px 10px;
   border-radius: var(--radius-pill);
   color: var(--muted);
+  font: inherit;
+  line-height: normal;
   font-size: var(--font-label);
   font-weight: 600;
   cursor: pointer;
