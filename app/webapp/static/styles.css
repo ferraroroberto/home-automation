@@ -41,7 +41,7 @@
   --toggle-track: var(--line);
   --toggle-knob: #ffffff;
   --toggle-label: var(--muted);
-  --close-bg: var(--card-off);
+  --close-bg: transparent; /* glyph-only controls draw nothing at rest (fleet-config#1259) */
   /* theme-invariant surfaces (issue #383): the modal/login scrim and the
      camera letterbox matte are intentionally identical in light and dark —
      a scrim dims content, a matte frames video; neither is a themed surface. */
@@ -142,7 +142,7 @@
   --toggle-track: var(--line);
   --toggle-knob: var(--ink);
   --toggle-label: var(--muted);
-  --close-bg: var(--line);
+  --close-bg: transparent;
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
   --tabbar-bg: rgba(22, 27, 34, 0.86);
