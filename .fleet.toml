@@ -5,7 +5,7 @@
 layer       = "working-web"
 icon        = "🌡️"
 port        = 8447
-description = "Home automation suite: AC, solar, per-circuit energy, alarm, network health, and native Home Assistant entities."
+description = "Home automation: AC, solar, per-circuit energy, alarm, network health, Home Assistant."
 chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "Tuya", "HA", "Telegram"]
 
 [vendored]
