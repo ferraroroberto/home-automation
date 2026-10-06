@@ -315,9 +315,9 @@ function renderCardInto(card, unit) {
   target.innerHTML =
     '<span class="label">Set to</span>' +
     '<div class="stepper">' +
-    '  <button type="button" class="step minus" aria-label="Lower">−</button>' +
+    '  <button type="button" class="icon-button step minus" aria-label="Lower" title="Lower">' + icon('minus') + '</button>' +
     '  <span class="target-value">' + fmtTemp(cur) + '</span>' +
-    '  <button type="button" class="step plus" aria-label="Raise">+</button>' +
+    '  <button type="button" class="icon-button step plus" aria-label="Raise" title="Raise">' + icon('plus') + '</button>' +
     '</div>';
   const setTo = function (v) {
     const clamped = Math.min(Math.max(v, tmin), tmax);
@@ -483,7 +483,7 @@ function renderScheduleList(unit) {
       '  <label class="schedule-enabled"><span>Enabled</span>' + toggleHtml('sched-entry-enabled', entry.enabled) + '</label>' +
       '  <input type="time" class="input-native sched-entry-time" value="' + (entry.time || '08:00') + '">' +
       '  <select class="select-native sched-entry-power"><option value="true"' + (entry.power === false ? '' : ' selected') + '>On</option><option value="false"' + (entry.power === false ? ' selected' : '') + '>Off</option></select>' +
-      '  <button type="button" class="schedule-delete" aria-label="Delete schedule">' + icon('x') + '</button>' +
+      '  <button type="button" class="icon-button danger schedule-delete" aria-label="Delete schedule">' + icon('x') + '</button>' +
       '</div>' +
       '<div class="schedule-profile"' + (entry.power === false ? ' hidden' : '') + '>' +
       '  <label class="row"><span>Mode</span><select class="select-native sched-entry-mode">' + optionHtml(unit.operation_modes || [], entry.operation_mode || unit.operation_mode) + '</select></label>' +

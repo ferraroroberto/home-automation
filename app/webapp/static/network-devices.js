@@ -511,7 +511,7 @@ function appendCustomGroup(name, members, editable, showOffline) {
   if (editable) {
     const edit = document.createElement('button');
     edit.type = 'button';
-    edit.className = 'net-group-edit';
+    edit.className = 'icon-button net-group-edit';
     edit.title = 'Rename or delete this group';
     edit.setAttribute('aria-label', 'Edit group ' + name);
     edit.dataset.group = name;

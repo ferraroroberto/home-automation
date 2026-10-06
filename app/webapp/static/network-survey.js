@@ -285,7 +285,7 @@ function roomRow(entry) {
 
   const del = document.createElement('button');
   del.type = 'button';
-  del.className = 'net-survey-row-delete hit-target';
+  del.className = 'icon-button danger net-survey-row-delete';
   del.title = 'Delete this room’s samples';
   del.setAttribute('aria-label', 'Delete samples for ' + entry.room);
   del.innerHTML = icon('trash-2');
