@@ -86,6 +86,7 @@
   /* icon-size steps (design.md icons.size) — title is the vendored home-head's
      leading glyph + toggle glyph (#779). */
   --icon-title: 18px;
+  --icon-inline: 16px;          /* icons.size.inline — the vendored icon-button glyph */
   /* typography roles — system stack, weight (not case) for hierarchy.
      The five roles cover every text need; no ad-hoc sizes. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -1003,38 +1004,16 @@ button.circuit-meter-name::before,
   align-items: flex-end;
   margin-left: auto;
 }
-.stepper { display: inline-flex; align-items: center; gap: 6px; }
-/* Snapped to the 36px control height (issue #361; was 28px). The ::before
-   extends the tap target to the full 44px floor on both axes (36 + 2x4 = 44)
-   without inflating the visual square. */
-.stepper .step {
-  position: relative;
-  width: var(--control-h); height: var(--control-h);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--line);
-  background: var(--input-bg);
-  font-size: var(--font-heading-lg);
-  line-height: 1;
-  cursor: pointer;
-  color: var(--accent);
-}
-.stepper .step::before { content: ""; position: absolute; inset: -4px; }
-.stepper .step:active:not(:disabled) { transform: scale(0.92); }
+.stepper { display: inline-flex; align-items: center; gap: 6px; --icon-btn-box: var(--control-h); }
 /* Used when the unit is unreachable (#520). The one disabled recipe from
    design.md — flat --card-off/--line/--muted, never opacity on a solid fill
    (issue #362) — so the accent-blue ± and the select's label grey out
    identically in both themes instead of fading unevenly. */
-.stepper .step:disabled,
 .select-native:disabled {
   background-color: var(--card-off);
   color: var(--muted);
   cursor: default;
 }
-.stepper .step:disabled { border-color: var(--line); }
 .target-value {
   font-size: var(--font-body);
   font-weight: 700;
@@ -2801,27 +2780,9 @@ body:has(dialog[open]) .app { overflow: hidden; }
 }
 .schedule-profile { margin-top: var(--space-sm); }
 .schedule-profile .row { padding: 9px 0; }
-.schedule-delete {
-  position: relative;
-  width: var(--control-h);
-  height: var(--control-h);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--input-bg);
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.schedule-delete .icon { width: var(--icon-title); height: var(--icon-title); }
-/* One destructive-× idiom app-wide (issue #367): same hover color as
-   .camera-preset-del, so schedule/pairing/override/wake-alarm deletes read
-   consistently with the camera preset delete rather than staying plain grey. */
-.schedule-delete:hover { color: var(--deficit); }
-/* Below the 44px tap-target floor on both axes (36 + 2x4 = 44) — the ::before
-   extends the clickable region without inflating the visual box (#361 pattern). */
-.schedule-delete::before { content: ""; position: absolute; inset: -4px; }
+/* One destructive-× idiom app-wide (issue #367): the vendored icon-button.danger
+   (quiet at rest, danger glyph on hover) at the control height. */
+.schedule-delete { --icon-btn-box: var(--control-h); }
 .schedule-add-btn {
   position: relative;
   width: 100%;
@@ -3389,28 +3350,9 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 /* Documented exception to the design.md 44/52/60 row scale (#570): this is a
    compact action-rail *button* inside .net-survey-row, not a row — a 44px box
    here would out-weigh the room name it sits beside and inflate every survey
-   row. The 44px floor that actually matters (design.md Touch targets, hit-
-   target.min) is met by the .hit-target utility JS puts on the element
-   (network-survey.js), which expands the effective target with a ::before
-   without growing the visual box. Do not "fix" the 34px away. */
-.net-survey-row-delete {
-  grid-area: actions;
-  appearance: none;
-  /* position: relative comes from the .hit-target utility on the element. */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card-off);
-  color: var(--muted);
-  cursor: pointer;
-}
-.net-survey-row-delete:hover { color: var(--deficit); }
-.net-survey-row-delete .icon { width: 16px; height: 16px; }
+   row. The vendored icon-button keeps the 34px box and its ::before supplies
+   the 44px effective target. Do not "fix" the 34px away. */
+.net-survey-row-delete { grid-area: actions; --icon-btn-box: 34px; }
 
 /* Device picker (inside the walk-test dialog) — one flat row per wireless
    client, strongest first. */
@@ -3492,17 +3434,9 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   display: flex; align-items: center; gap: 6px;
 }
 .net-group-head-count { font-weight: 600; }
-.net-group-edit {
-  position: relative;
-  appearance: none; border: 0; background: none; padding: 0; margin: 0;
-  display: inline-flex; align-items: center;
-  color: var(--muted); cursor: pointer;
-}
-/* -14px around the 16px glyph box = a 44px effective target, the design.md
-   hit-target.min floor, without growing the visible pencil (#570). */
-.net-group-edit::before { content: ""; position: absolute; inset: -14px; }
-/* icons.size.inline (16px), matching every other row affordance glyph (#570). */
-.net-group-edit .icon { width: 16px; height: 16px; }
+/* A 16px box: the vendored icon-button ::before grows it to the 44px target
+   without growing the visible pencil (#570). */
+.net-group-edit { --icon-btn-box: 16px; }
 .net-device {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -3761,20 +3695,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   grid-area: ip; font-size: var(--font-caption); color: var(--ink);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.net-dhcp-ex-del {
-  grid-area: del; display: inline-flex; align-items: center; justify-content: center;
-  position: relative;
-  width: 28px; height: 28px; padding: 0; border-radius: var(--radius-md);
-  border: 1px solid var(--line); background: var(--card-off); color: var(--muted);
-  cursor: pointer;
-}
-/* Destructive control below the 44px tap-target floor (issue #361 review) —
-   the ::before extends the clickable region without inflating the visual
-   28x28 box: 28 + 2x8 = 44. */
-.net-dhcp-ex-del::before { content: ""; position: absolute; inset: -8px; }
-.net-dhcp-ex-del .icon { width: 16px; height: 16px; }
-.net-dhcp-ex-del:hover:not(:disabled) { color: var(--attention); border-color: var(--attention); }
-.net-dhcp-ex-del:disabled { opacity: 0.4; cursor: default; }
+.net-dhcp-ex-del { grid-area: del; }
 
 /* Manual reservation form (#176 step 3). */
 .net-dhcp-manual { margin-top: 10px; }
@@ -3801,10 +3722,8 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .net-dhcp-existing-row.is-removing .net-dhcp-ex-mac {
   text-decoration: line-through; opacity: 0.6;
 }
-.net-dhcp-ex-del.is-active {
-  color: var(--attention-text); border-color: var(--attention);
-  background: color-mix(in srgb, var(--attention) 14%, transparent);
-}
+/* A reservation staged for removal: the glyph takes the attention tone (colour only). */
+.net-dhcp-ex-del.is-active { color: var(--attention-text); }
 
 /* Suggested-section header with its all/none toggle. */
 .net-dhcp-suggest-head { display: flex; align-items: center; gap: var(--space-sm); }
@@ -3826,18 +3745,9 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   background: var(--accent-soft); color: var(--accent-text);
   border: 1px solid var(--accent-border-strong);
 }
-.net-dhcp-chip-x {
-  position: relative;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0; border: 0; background: transparent;
-  color: var(--accent); cursor: pointer;
-}
-.net-dhcp-chip-x .icon { width: 16px; height: 16px; }
-/* Destructive control with no fixed box (issue #361 review — ~13-16px
-   effective target). The ::before is absolutely positioned so it extends the
-   tap target to >=44px on both axes without growing the chip's own layout
-   box (the parent .net-dhcp-chip pill stays visually unchanged). */
-.net-dhcp-chip-x::before { content: ""; position: absolute; inset: -16px; }
+/* No fixed box inside the pill: a 16px icon-button box leaves the chip's own
+   layout unchanged and its ::before reaches the 44px target. */
+.net-dhcp-chip-x { --icon-btn-box: 16px; }
 
 /* The single Apply-changes bar with a live slot budget (#176 redesign). */
 .net-dhcp-applybar {
@@ -3971,13 +3881,10 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
     ".    up    ."
     "left down right";
 }
-.camera-ptz-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--line); background: var(--card-off); color: var(--ink);
-  border-radius: var(--radius-md); cursor: pointer; touch-action: none;
-}
-.camera-ptz-btn:active { transform: scale(0.94); background: var(--accent-soft); }
-.camera-ptz-btn .icon { width: 20px; height: 20px; }
+/* The d-pad cells are 44px: the icon-button box fills them. */
+.camera-dpad { --icon-btn-box: 44px; }
+/* Hold-to-move needs the pointer stream undisturbed by pan/zoom gestures. */
+.camera-ptz-btn { touch-action: none; }
 .camera-ptz-btn.ptz-up { grid-area: up; }
 .camera-ptz-btn.ptz-down { grid-area: down; }
 .camera-ptz-btn.ptz-left { grid-area: left; }
@@ -4007,6 +3914,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   font-size: var(--font-caption); color: var(--muted); font-weight: 600;
   flex: none; align-self: center;
 }
+.camera-coords { --icon-btn-box: var(--control-h); }
 .camera-presets, .camera-coords {
   display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-top: 12px;
 }
@@ -4021,24 +3929,9 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   font: inherit; font-weight: 600; padding: 6px 10px; cursor: pointer;
 }
 .camera-preset-go:hover { background: var(--accent-soft); }
-.camera-preset-rename {
-  appearance: none; border: 0; border-left: 1px solid var(--line);
-  background: none; color: var(--muted); cursor: pointer;
-  font-size: var(--font-label); line-height: 1; padding: 0 8px;
-}
-.camera-preset-rename:hover { color: var(--accent); }
-.camera-preset-del {
-  position: relative;
-  appearance: none; border: 0; border-left: 1px solid var(--line);
-  background: none; color: var(--muted); cursor: pointer;
-  font-size: var(--font-body); line-height: 1; padding: 0 8px;
-}
-.camera-preset-del:hover { color: var(--deficit); }
-.camera-preset-del .icon { display: block; width: 16px; height: 16px; }
-/* Destructive control with no fixed box (issue #361 review). The ::before
-   extends the tap target to >=44px on both axes without growing the visual
-   button or the parent .camera-preset group's silhouette. */
-.camera-preset-del::before { content: ""; position: absolute; inset: -6px -12px; }
+/* The rename and delete glyphs ride the vendored icon-button inside the
+   preset pill; they centre on the Recall button's height. */
+.camera-preset .icon-button { align-self: center; --icon-btn-box: 32px; }
 /* One add-button affordance app-wide (issue #367): dashed border, matching
    the dominant .schedule-add-btn idiom used by every other "+ Add" control,
    rather than the solid range-tab outline this used to share with its

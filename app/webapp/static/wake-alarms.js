@@ -150,7 +150,7 @@ export function renderWakeAlarms() {
 
     const del = document.createElement('button');
     del.type = 'button';
-    del.className = 'schedule-delete';
+    del.className = 'icon-button danger schedule-delete';
     del.setAttribute('aria-label', 'Delete wake alarm');
     del.innerHTML = icon('x');
     del.addEventListener('click', function () {
@@ -321,7 +321,7 @@ export function renderWakeTimers() {
 
     const cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.className = 'schedule-delete';
+    cancel.className = 'icon-button danger schedule-delete';
     cancel.setAttribute('aria-label', 'Cancel timer');
     cancel.innerHTML = icon('x');
     cancel.addEventListener('click', function () { cancelWakeTimer(timer.id); });

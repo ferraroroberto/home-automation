@@ -413,13 +413,13 @@ function renderPresets() {
     go.addEventListener('click', function () { gotoPreset(p.token); });
     const rename = document.createElement('button');
     rename.type = 'button';
-    rename.className = 'camera-preset-rename';
+    rename.className = 'icon-button camera-preset-rename';
     rename.setAttribute('aria-label', 'Rename ' + (p.name || p.token));
     rename.innerHTML = icon('pencil');
     rename.addEventListener('click', function () { renamePreset(p.token, p.name || ''); });
     const del = document.createElement('button');
     del.type = 'button';
-    del.className = 'camera-preset-del';
+    del.className = 'icon-button danger camera-preset-del';
     del.setAttribute('aria-label', 'Delete ' + (p.name || p.token));
     del.innerHTML = icon('x');
     del.addEventListener('click', function () { removePreset(p.token, p.name || p.token); });

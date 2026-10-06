@@ -80,7 +80,7 @@ function existingRow(e) {
 
   const del = document.createElement('button');
   del.type = 'button';
-  del.className = 'net-dhcp-ex-del' + (staged ? ' is-active' : '');
+  del.className = 'icon-button danger net-dhcp-ex-del' + (staged ? ' is-active' : '');
   del.title = staged ? 'Keep this reservation' : 'Delete this reservation (frees a slot)';
   del.setAttribute('aria-label', staged ? 'Keep this reservation' : 'Delete this reservation');
   del.disabled = !e.inst_id;
@@ -284,7 +284,7 @@ function renderManualStaged() {
     chip.appendChild(label);
     const x = document.createElement('button');
     x.type = 'button';
-    x.className = 'net-dhcp-chip-x';
+    x.className = 'icon-button net-dhcp-chip-x';
     x.title = 'Delete this staged add';
     x.setAttribute('aria-label', 'Delete this staged add');
     x.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>';

@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
   <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/static/_vendored/text-size/text-size.css">
+  <link rel="stylesheet" href="/static/_vendored/icon-button/icon-button.css">
   <link rel="stylesheet" href="/static/styles.css">
   <title>Home Automation</title>
 </head>
@@ -283,6 +284,9 @@
     <symbol id="i-plus" viewBox="0 0 24 24" fill="none">
       <path d="M5 12h14" />
       <path d="M12 5v14" />
+    </symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24" fill="none">
+      <path d="M5 12h14" />
     </symbol>
     <symbol id="i-camera" viewBox="0 0 24 24" fill="none">
       <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
@@ -2503,10 +2507,10 @@
       </div>
       <div class="camera-live-controls">
         <div class="camera-dpad" role="group" aria-label="Pan and tilt">
-          <button id="cameraPtzUp" type="button" class="camera-ptz-btn ptz-up" aria-label="Tilt up"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-          <button id="cameraPtzLeft" type="button" class="camera-ptz-btn ptz-left" aria-label="Pan left"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-          <button id="cameraPtzRight" type="button" class="camera-ptz-btn ptz-right" aria-label="Pan right"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-          <button id="cameraPtzDown" type="button" class="camera-ptz-btn ptz-down" aria-label="Tilt down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="cameraPtzUp" type="button" class="icon-button camera-ptz-btn ptz-up" aria-label="Tilt up"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="cameraPtzLeft" type="button" class="icon-button camera-ptz-btn ptz-left" aria-label="Pan left"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="cameraPtzRight" type="button" class="icon-button camera-ptz-btn ptz-right" aria-label="Pan right"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="cameraPtzDown" type="button" class="icon-button camera-ptz-btn ptz-down" aria-label="Tilt down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
         </div>
         <div class="camera-live-actions">
           <button id="cameraPtzModeBtn" type="button" class="range-tab camera-mode-toggle" aria-pressed="true" title="One click = one step (precise) vs press-and-hold">Step</button>
@@ -2530,7 +2534,7 @@
         <label class="camera-coord"><span>Pan</span><input id="cameraPanInput" type="number" step="0.01" class="input-native"></label>
         <label class="camera-coord"><span>Tilt</span><input id="cameraTiltInput" type="number" step="0.01" class="input-native"></label>
         <label class="camera-coord camera-coord-zoom"><span>Zoom</span><input id="cameraZoomInput" type="number" step="0.01" class="input-native"></label>
-        <button id="cameraCoordsRefresh" type="button" class="range-tab" aria-label="Read current position"><svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg></button>
+        <button id="cameraCoordsRefresh" type="button" class="icon-button" aria-label="Read current position"><svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg></button>
         <button id="cameraCoordsGo" type="button" class="range-tab camera-coords-go">Go</button>
       </div>
     </div>
