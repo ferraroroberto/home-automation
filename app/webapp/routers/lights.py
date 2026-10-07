@@ -46,8 +46,6 @@ async def list_lights() -> Dict[str, Any]:
     try:
         display_names = load_elgato_display_names()
         return {"lights": [_light_dict(light, display_names) for light in await fetch_lights()]}
-    except (ElgatoConfigError, ElgatoDiscoveryError, ElgatoCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 
@@ -86,8 +84,6 @@ async def control_light(light_id: str, payload: LightControlPayload) -> Dict[str
             temperature_k=payload.temperature_k,
         )
         return _light_dict(light, load_elgato_display_names())
-    except (ElgatoConfigError, ElgatoDiscoveryError, ElgatoCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 

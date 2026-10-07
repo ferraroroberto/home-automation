@@ -44,20 +44,8 @@ _SCAN_TIME_SECONDS = 8.0
 # cadence (plugs.js POLL_MS); the exponent is capped so a device dead for
 # days can't grow consecutive_failures into an OverflowError. This never
 # gates set_switch/set_cover — a user-initiated command always goes out
-# immediately and its outcome updates the same backoff state.
-_BACKOFF_BASE_S = 15.0
-_BACKOFF_MAX_S = 300.0
-_BACKOFF_FACTOR = 2.0
-_BACKOFF_MAX_EXPONENT = 10  # 15 * 2**10 already far exceeds _BACKOFF_MAX_S
-
-
-def _new_backoff() -> BackoffTracker:
-    return BackoffTracker(
-        base_s=_BACKOFF_BASE_S,
-        max_s=_BACKOFF_MAX_S,
-        factor=_BACKOFF_FACTOR,
-        max_exponent=_BACKOFF_MAX_EXPONENT,
-    )
+# immediately and its outcome updates the same backoff state. The cadence is
+# ``BackoffTracker``'s own defaults (15 s base, 300 s cap).
 
 
 _backoff_lock = threading.Lock()
@@ -76,7 +64,7 @@ def _seconds_until_retry(device_id: str) -> Optional[float]:
 def _record_backoff_failure(device_id: str) -> None:
     """Escalate this device's backoff after a failed passive-poll attempt."""
     with _backoff_lock:
-        state = _backoff_state.setdefault(device_id, _new_backoff())
+        state = _backoff_state.setdefault(device_id, BackoffTracker())
         delay = state.record_failure()
         failures = state.consecutive_failures
     logger.info(

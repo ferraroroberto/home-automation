@@ -185,9 +185,9 @@ def test_record_failure_escalates_and_caps_at_max() -> None:
         delays.append(T._seconds_until_retry("dev-1"))
 
     # Strictly increasing until it hits the cap.
-    assert delays[0] <= T._BACKOFF_BASE_S
+    assert delays[0] <= T.BackoffTracker().base_s
     assert all(delays[i] <= delays[i + 1] + 0.01 for i in range(len(delays) - 1))
-    assert delays[-1] <= T._BACKOFF_MAX_S + 0.01
+    assert delays[-1] <= T.BackoffTracker().max_s + 0.01
 
 
 def test_record_success_clears_backoff() -> None:
