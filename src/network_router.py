@@ -156,21 +156,42 @@ class RouterClient:
             timeout=timeout,
         ).text
 
+    def _read_feed(
+        self,
+        feed: str,
+        page_tag: str,
+        label: str,
+        timeout: int,
+        *,
+        menu_view: bool = True,
+    ) -> list[dict]:
+        """Read one ``menuData`` feed and return its parsed instances.
+
+        Loads ``page_tag``'s menu page first (unless ``menu_view`` is False — the
+        homepage feed is only readable *without* one), then GETs the feed with
+        that page as Referer. Raises :class:`NetworkCommandError` naming ``label``
+        when the firmware answers ``SessionTimeout`` / ``404``.
+        """
+        if menu_view:
+            self._menu_view(page_tag, timeout)
+        body = self._session.get(
+            self._base + feed,
+            headers={"Referer": f"{self._base}/?_type=menuView&_tag={page_tag}"},
+            timeout=timeout,
+        ).text
+        if "SessionTimeout" in body or "404 Not Found" in body:
+            raise NetworkCommandError(f"router {label} read rejected (session/page)")
+        return _parse_instances(body)
+
     def read_wan(self, timeout: int = 10) -> dict:
         """Return the live internet WAN instance as a dict, or ``{}`` if none up.
 
         Requires an authenticated session (call :meth:`login` first). Raises
         :class:`NetworkCommandError` if the read itself is rejected.
         """
-        self._menu_view("ethWanStatus", timeout)
-        body = self._session.get(
-            self._base + self._WAN_FEED,
-            headers={"Referer": f"{self._base}/?_type=menuView&_tag=ethWanStatus"},
-            timeout=timeout,
-        ).text
-        if "SessionTimeout" in body or "404 Not Found" in body:
-            raise NetworkCommandError("router WAN read rejected (session/page)")
-        return _pick_internet_wan(_parse_instances(body))
+        return _pick_internet_wan(
+            self._read_feed(self._WAN_FEED, "ethWanStatus", "WAN", timeout)
+        )
 
     def read_dhcp_leases(self, timeout: int = 10) -> list[dict]:
         """Return the router's DHCP lease table — wired *and* wireless clients.
@@ -186,16 +207,11 @@ class RouterClient:
         (:meth:`read_accessdev_table` / :meth:`read_wlan_clients`), never from
         this table; this read is for IP/hostname enrichment only (issue #507).
         """
-        self._menu_view(self._DHCP_HOSTS_PAGE, timeout)
-        body = self._session.get(
-            self._base + self._DHCP_HOSTS_FEED,
-            headers={"Referer": f"{self._base}/?_type=menuView&_tag={self._DHCP_HOSTS_PAGE}"},
-            timeout=timeout,
-        ).text
-        if "SessionTimeout" in body or "404 Not Found" in body:
-            raise NetworkCommandError("router DHCP read rejected (session/page)")
+        instances = self._read_feed(
+            self._DHCP_HOSTS_FEED, self._DHCP_HOSTS_PAGE, "DHCP", timeout
+        )
         leases: list[dict] = []
-        for inst in _parse_instances(body):
+        for inst in instances:
             mac = inst.get("MACAddr")
             if not mac:
                 continue
@@ -222,16 +238,11 @@ class RouterClient:
         The feed interleaves per-VAP SSID descriptor rows (no ``MACAddress``) with
         the actual client rows; only the latter are returned.
         """
-        self._menu_view("localNetStatus", timeout)
-        body = self._session.get(
-            self._base + self._WLAN_CLIENTS_FEED,
-            headers={"Referer": f"{self._base}/?_type=menuView&_tag=localNetStatus"},
-            timeout=timeout,
-        ).text
-        if "SessionTimeout" in body or "404 Not Found" in body:
-            raise NetworkCommandError("router WLAN-client read rejected (session/page)")
+        instances = self._read_feed(
+            self._WLAN_CLIENTS_FEED, "localNetStatus", "WLAN-client", timeout
+        )
         clients: list[dict] = []
-        for inst in _parse_instances(body):
+        for inst in instances:
             mac = inst.get("MACAddress")
             if not mac:
                 continue  # per-VAP SSID descriptor row, not a client
@@ -260,17 +271,15 @@ class RouterClient:
         re-fetching ``/`` does not restore it (verified against the live unit
         across every candidate gate). So the fetch path reads it first.
         """
-        body = self._session.get(
-            self._base + self._ACCESSDEV_HOME_FEED,
-            headers={
-                "Referer": f"{self._base}/?_type=menuView&_tag=wlan_homepage_lua.lua"
-            },
-            timeout=timeout,
-        ).text
-        if "SessionTimeout" in body or "404 Not Found" in body:
-            raise NetworkCommandError("router access-device read rejected (session/page)")
+        instances = self._read_feed(
+            self._ACCESSDEV_HOME_FEED,
+            "wlan_homepage_lua.lua",
+            "access-device",
+            timeout,
+            menu_view=False,
+        )
         rows: list[dict] = []
-        for inst in _parse_instances(body):
+        for inst in instances:
             mac = inst.get("MACAddress")
             if not mac:
                 continue
@@ -307,16 +316,11 @@ class RouterClient:
         gated exactly like :meth:`read_dhcp_leases`. Raises
         :class:`NetworkCommandError` if the read itself is rejected.
         """
-        self._menu_view(self._DHCP_BIND_PAGE, timeout)
-        body = self._session.get(
-            self._base + self._DHCP_BIND_FEED,
-            headers={"Referer": f"{self._base}/?_type=menuView&_tag={self._DHCP_BIND_PAGE}"},
-            timeout=timeout,
-        ).text
-        if "SessionTimeout" in body or "404 Not Found" in body:
-            raise NetworkCommandError("router DHCP-binding read rejected (session/page)")
+        instances = self._read_feed(
+            self._DHCP_BIND_FEED, self._DHCP_BIND_PAGE, "DHCP-binding", timeout
+        )
         out: list[dict] = []
-        for inst in _parse_instances(body):
+        for inst in instances:
             mac, ip = inst.get("MACAddr"), inst.get("IPAddr")
             if not mac or not ip:
                 continue

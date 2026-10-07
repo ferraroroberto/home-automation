@@ -37,7 +37,6 @@ UI-free: shared by the webapp sampler and the energy API. Never imports the UI.
 from __future__ import annotations
 
 import logging
-import os
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -47,6 +46,7 @@ from typing import Any, ContextManager, Dict, List, Optional
 
 from dotenv import load_dotenv
 
+from src._env import _env_bool, _env_int
 from src._sqlite import connect as _sqlite_connect
 from src.runtime_data import runtime_db_path
 from src.huawei_client import EnergyState
@@ -112,24 +112,6 @@ class EnergyHistoryConfig:
     @property
     def hourly_retention_seconds(self) -> int:
         return self.hourly_retention_days * 24 * _HOUR
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    raw = (os.getenv(name) or "").strip().lower()
-    if not raw:
-        return default
-    return raw in {"1", "true", "yes", "on"}
 
 
 def load_history_config() -> EnergyHistoryConfig:
@@ -675,16 +657,7 @@ def framed_buckets(
     current = int(now if now is not None else time.time())
 
     if period == "day":
-        dt_now = datetime.fromtimestamp(current)
-        start = datetime(dt_now.year, dt_now.month, dt_now.day)
-        since = int(start.timestamp())
-        by_hour = {int(h["hour_start"]): h for h in _hourly_since(since, current, path)}
-        out = []
-        for i in range(24):
-            hs = since + i * _HOUR
-            hours = [by_hour[hs]] if hs in by_hour else []
-            out.append(_frame_bucket(str(hs), "%02d" % i, hours))
-        return _mark_hourly_coverage(_mark_hourly_partial(out, current), current)
+        return hourly_day(0, current, path)
 
     if period == "week":
         return aggregate("daily", 7, now, path)

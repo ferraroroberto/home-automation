@@ -101,6 +101,7 @@ from typing import List, Optional, Sequence, Tuple
 
 from dotenv import load_dotenv
 
+from src._env import _env_float
 from src.huawei_client import EnergyState, _derive
 
 logger = logging.getLogger("huawei.modbus")
@@ -207,14 +208,8 @@ def _get_lock() -> asyncio.Lock:
 
 
 def _env_number(name: str, default: float, minimum: float) -> float:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return max(minimum, float(raw))
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
+    """Float knob clamped up to ``minimum``."""
+    return max(minimum, _env_float(name, default))
 
 
 def _load_config() -> ModbusConfig:

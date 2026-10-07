@@ -313,6 +313,44 @@ button.circuit-meter-name::before,
   position: absolute;
   inset: min(0px, calc((100% - var(--hit-min)) / 2)) 0;
 }
+/* The same row names read as plain text: strip the native button chrome and
+   keep them left-aligned with a hover underline. Each rule below this block
+   keeps only its deltas (colour, weight, flex/grid placement, line clamp). */
+button.device-row-name,
+button.security-zone-name,
+button.presence-name,
+button.net-wifi-row-name,
+button.net-device-name,
+button.circuit-meter-name,
+.camera-row-name {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* One line, ellipsised (the zone name clamps to two lines and the device name
+   ellipsises its inner text span instead). */
+button.device-row-name,
+button.circuit-meter-name,
+button.net-wifi-row-name,
+.camera-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.device-row-name:hover,
+button.security-zone-name:hover,
+button.presence-name:hover,
+button.net-wifi-row-name:hover,
+button.circuit-meter-name:hover,
+.camera-row-name:hover { text-decoration: underline; }
 
 /* A card's filter/toolbar row (#779): controls that used to sit in the
    disclosure summary, where a near-miss folds the card (LAYOUT-05). Hidden
@@ -1494,22 +1532,8 @@ button.circuit-meter-name::before,
 /* Name is a button (tap to rename) but reads as plain text. */
 button.device-row-name {
   flex: 1 1 auto;
-  min-width: 0;
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  text-align: left;
   color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-button.device-row-name:hover { text-decoration: underline; }
 
 /* Offline / no-IP reason — a muted caption right of the name. The name keeps
    priority (grows); the note holds its content width and ellipsises, so device
@@ -1560,23 +1584,10 @@ button.device-row-name:hover { text-decoration: underline; }
    the chevron and the offline flag matter more than the tail of a long label. */
 button.circuit-meter-name {
   flex: 0 1 auto;
-  min-width: 0;
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  text-align: left;
-  font: inherit;
   font-size: var(--font-body);
   font-weight: 700;
   color: var(--ink);
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-button.circuit-meter-name:hover { text-decoration: underline; }
 .circuit-meter-detail {
   flex: none;
   font-size: var(--font-caption);
@@ -1855,7 +1866,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .security-events,
 .security-zones,
 .cameras-list,
-.presence-list {
+.presence-list,
+.locator-list {
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1906,21 +1918,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   -webkit-box-orient: vertical;
   font-weight: 600;
 }
-/* The detector name is a button (opens the detail/rename modal) but should read
-   as plain text — strip the native button chrome, keep it left-aligned. */
-button.security-zone-name {
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 0;
-  margin: 0;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-button.security-zone-name:hover { text-decoration: underline; }
 .security-event-actor {
   color: var(--muted);
   font-size: var(--font-caption);
@@ -2251,7 +2248,8 @@ button.security-zone-name:hover { text-decoration: underline; }
   margin: 10px 14px var(--space-xs);
   line-height: 1.2;
 }
-.presence-row {
+.presence-row,
+.locator-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-sm);
@@ -2260,13 +2258,16 @@ button.security-zone-name:hover { text-decoration: underline; }
   padding: 10px 0;
   border-top: 1px solid var(--line);
 }
-.presence-row:first-child { border-top: 0; }
-.presence-main {
+.presence-row:first-child,
+.locator-row:first-child { border-top: 0; }
+.presence-main,
+.locator-main {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
-.presence-name {
+.presence-name,
+.locator-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2280,7 +2281,8 @@ button.security-zone-name:hover { text-decoration: underline; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.presence-status {
+.presence-status,
+.locator-status {
   justify-self: end;
   display: flex;
   flex-direction: column;
@@ -2305,19 +2307,6 @@ button.security-zone-name:hover { text-decoration: underline; }
 .presence-row.is-unknown .presence-status-line { color: var(--muted); }
 .presence-row.is-hidden { opacity: 0.55; }
 .presence-row.is-stale .presence-meta { color: var(--attention); }
-button.presence-name {
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 0;
-  margin: 0;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-button.presence-name:hover { text-decoration: underline; }
 /* Per-account iCloud rows + Renew trust (issue #659) — the .presence-row grid
    (name + trust state left, one .range-tab action right), state as plain
    colour-coded caption text like .presence-status-line, no pill. Untrusted is
@@ -2349,45 +2338,12 @@ button.presence-name:hover { text-decoration: underline; }
 .presence-account-row.is-untrusted .presence-account-state { color: var(--attention); }
 .presence-account-row.is-broken .presence-account-state { color: var(--deficit); }
 .presence-account-renew { flex: none; white-space: nowrap; }
-/* Home-tab "Mom & Dad locator" card (issue #438) — mirrors .presence-list /
-   .presence-row's grid (name+role left, resolved place+last-seen right). */
-.locator-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0 14px 14px;
-}
-.locator-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-sm);
-  align-items: center;
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--line);
-}
-.locator-row:first-child { border-top: 0; }
-.locator-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.locator-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
+/* Home-tab "Mom & Dad locator" card (issue #438) — shares .presence-list /
+   .presence-row's grid (name+role left, resolved place+last-seen right); only
+   the deltas live here. */
+.locator-row { padding: var(--space-sm) 0; }
 .locator-role {
   text-transform: capitalize;
-}
-.locator-status {
-  justify-self: end;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  text-align: right;
 }
 .locator-place {
   font-size: var(--font-caption);
@@ -2624,19 +2580,12 @@ button.presence-name:hover { text-decoration: underline; }
   .security-event-time {
     grid-column: 1 / -1;
   }
-  .presence-row {
-    grid-template-columns: 1fr;
-    gap: 2px;
-  }
-  .presence-status {
-    justify-self: start;
-    align-items: flex-start;
-    text-align: left;
-  }
+  .presence-row,
   .locator-row {
     grid-template-columns: 1fr;
     gap: 2px;
   }
+  .presence-status,
   .locator-status {
     justify-self: start;
     align-items: flex-start;
@@ -3168,23 +3117,6 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   flex-direction: column;
   min-width: 0;
 }
-button.net-wifi-row-name {
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 0;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-  cursor: pointer;
-}
-button.net-wifi-row-name:hover { text-decoration: underline; }
 .net-wifi-row-meta,
 .net-wifi-row-mac {
   color: var(--muted);
@@ -3451,11 +3383,9 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
    presence name buttons. */
 button.net-device-name {
   grid-area: name;
-  appearance: none; border: 0; background: none; padding: 0; margin: 0;
   display: inline-flex; align-items: center; gap: 7px;
-  min-width: 0; max-width: 100%;
-  text-align: left; color: var(--ink); font: inherit; font-weight: 600;
-  cursor: pointer;
+  max-width: 100%;
+  color: var(--ink);
 }
 .net-device-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); }
 .net-device-name-text {
@@ -3788,23 +3718,6 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   min-width: 0;
   gap: var(--space-sm);
 }
-.camera-row-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-  appearance: none;
-  border: 0;
-  background: none;
-  padding: 0;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.camera-row-name:hover { text-decoration: underline; }
 .camera-row-flags { color: var(--muted); font-size: var(--font-caption); flex: none; }
 .camera-row.is-online .camera-row-flags { color: var(--on); }
 .camera-row.is-offline .camera-row-flags { color: var(--deficit); }

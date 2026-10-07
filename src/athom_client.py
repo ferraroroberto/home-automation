@@ -88,6 +88,8 @@ from typing import Any, Dict, List, Optional
 import aiohttp
 from dotenv import load_dotenv
 
+from src._env import _env_int
+
 logger = logging.getLogger("athom")
 
 _SERVICE_TYPE = "_esphomelib._tcp.local."
@@ -244,22 +246,6 @@ _discovery_cache: Optional[tuple[float, List[MeterEndpoint]]] = None
 _state_cache: Dict[str, tuple[float, MeterState]] = {}
 
 
-def _env_int(name: str, default: int) -> int:
-    """Read a positive int from ``.env``, falling back with a warning."""
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
-    if value < 0:
-        logger.warning("⚠️ %s must not be negative (%s); using %s", name, value, default)
-        return default
-    return value
-
-
 def _normalise_mac(raw: str) -> str:
     """``aabbccddee01`` / ``88-56-a6-…`` → ``AA:BB:CC:DD:EE:01``."""
     hex_only = re.sub(r"[^0-9A-Fa-f]", "", raw or "")
@@ -413,7 +399,7 @@ async def discover_meters(force: bool = False) -> tuple[List[MeterEndpoint], Opt
     global _discovery_cache
 
     load_dotenv(override=True)
-    ttl = _env_int("ATHOM_DISCOVERY_TTL_S", _DEFAULT_DISCOVERY_TTL_S)
+    ttl = _env_int("ATHOM_DISCOVERY_TTL_S", _DEFAULT_DISCOVERY_TTL_S, non_negative=True)
     now = time.monotonic()
 
     cached = _discovery_cache
@@ -672,7 +658,7 @@ async def fetch_circuits_state(force: bool = False) -> CircuitsState:
     possibly-partial sweep depends on.
     """
     load_dotenv(override=True)
-    cache_ttl_s = _env_int("ATHOM_CACHE_TTL_S", _DEFAULT_CACHE_TTL_S)
+    cache_ttl_s = _env_int("ATHOM_CACHE_TTL_S", _DEFAULT_CACHE_TTL_S, non_negative=True)
 
     endpoints, discovery_error = await discover_meters(force=force)
     if not endpoints:

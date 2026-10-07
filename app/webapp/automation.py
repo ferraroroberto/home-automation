@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -40,7 +39,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
 from app.webapp import read_snapshot
-from app.webapp._env import _env_bool, _env_int
+from app.webapp._env import _env_bool, _env_float, _env_int
 from app.webapp._task_loop import run_loop
 from src import telemetry
 from src.hvac_automation import (
@@ -98,17 +97,6 @@ class AutomationConfig:
         restart hours later does not replay a stale morning schedule.
         """
         return max(120, self.poll_interval_s * 2)
-
-
-def _env_float(name: str, default: float) -> float:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
 
 
 def load_automation_config() -> AutomationConfig:
