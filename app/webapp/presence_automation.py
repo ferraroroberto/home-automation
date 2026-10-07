@@ -396,9 +396,12 @@ async def tick() -> None:
     # Panel-event alerts (intrusion / AC-power lost-restored) ride on this loop's
     # one security read and fire regardless of the presence auto-arm toggle —
     # those alerts must not depend on auto-arm being enabled. This is the only
-    # interval reader of RISCO state, so adding a second poller would just risk
-    # the cloud's third-party rate limit; intrusion/AC alerts therefore require
-    # this task to be running (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
+    # *unconditional* interval reader of RISCO state: the ``/api/security``
+    # snapshot (#759) also refetches every 10 s, but only while that endpoint is
+    # being watched, so an unwatched app still polls RISCO from here alone.
+    # Adding a further poller would risk the cloud's third-party rate limit;
+    # intrusion/AC alerts therefore require this task to be running
+    # (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
     security = await fetch_security_state()
     ongoing, memory = security.ongoing_alarm, security.memory_alarm
     # None,None means the RISCO WebUI scrape that backs these two flags came

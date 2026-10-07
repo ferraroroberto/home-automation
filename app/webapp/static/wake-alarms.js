@@ -25,8 +25,6 @@ const DAYS = [
   ['sun', 'Sun'],
 ];
 
-const TIMER_PRESETS_S = [300, 600, 900, 1800];
-
 function alarmDefaults() {
   return {
     id: 'alarm-' + Date.now().toString(36),

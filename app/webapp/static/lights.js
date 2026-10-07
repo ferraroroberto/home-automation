@@ -1,7 +1,7 @@
-/* Elgato Lights tab controller.
+/* Elgato Lights controller (Devices tab).
  *
  * Reads GET /api/lights and writes POST /api/lights/{id}. Polling is tab-aware
- * like Plugs: the LAN read runs only while the Lights tab is open. */
+ * like Plugs: the LAN read runs only while the Devices tab is open. */
 
 'use strict';
 

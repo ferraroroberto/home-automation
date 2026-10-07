@@ -386,7 +386,6 @@ export const els = {
   blindsList: document.getElementById('blindsList'),
   blindsCount: document.getElementById('blindsCount'),
   // Circuits — per-breaker CT-clamp meters, the IoT card after Plugs (#25).
-  circuitsCard: document.getElementById('circuitsCard'),
   circuitsList: document.getElementById('circuitsList'),
   circuitsCount: document.getElementById('circuitsCount'),
   circuitsHiddenToggle: document.getElementById('circuitsHiddenToggle'),
@@ -428,7 +427,6 @@ export const els = {
   haInteractionsList: document.getElementById('haInteractionsList'),
   haInteractionsCard: document.getElementById('haInteractionsCard'),
   // Search-engine (SearXNG) status sub-card (issue #321).
-  searxngCard: document.getElementById('searxngCard'),
   searxngSummaryState: document.getElementById('searxngSummaryState'),
   searxngNote: document.getElementById('searxngNote'),
   searxngStartBtn: document.getElementById('searxngStartBtn'),
@@ -461,7 +459,6 @@ export const els = {
   circuitDetailClose: document.getElementById('circuitDetailClose'),
   circuitSave: document.getElementById('circuitSave'),
   // Elgato lights — the IoT tab's middle row-list card (#136).
-  lightsCard: document.getElementById('lightsCard'),
   lightsCount: document.getElementById('lightsCount'),
   lightsAllOn: document.getElementById('lightsAllOn'),
   lightsAllOff: document.getElementById('lightsAllOff'),
@@ -488,11 +485,9 @@ export const els = {
   netInternetMeta: document.getElementById('netInternetMeta'),
   netSpeedResult: document.getElementById('netSpeedResult'),
   netSpeedBtn: document.getElementById('netSpeedBtn'),
-  netApCard: document.getElementById('netApCard'),
   netApName: document.getElementById('netApName'),
   netApMeta: document.getElementById('netApMeta'),
   netApReboot: document.getElementById('netApReboot'),
-  netRouterCard: document.getElementById('netRouterCard'),
   netRouterName: document.getElementById('netRouterName'),
   netRouterMeta: document.getElementById('netRouterMeta'),
   netRouterReboot: document.getElementById('netRouterReboot'),
@@ -509,11 +504,8 @@ export const els = {
   // Wi-Fi walk test (issue #547) — per-room coverage survey card + device picker.
   netSurveyCard: document.getElementById('netSurveyCard'),
   netSurveyStatus: document.getElementById('netSurveyStatus'),
-  netSurveyBody: document.getElementById('netSurveyBody'),
-  netSurveyDeviceRow: document.getElementById('netSurveyDeviceRow'),
   netSurveyDeviceName: document.getElementById('netSurveyDeviceName'),
   netSurveyDevicePick: document.getElementById('netSurveyDevicePick'),
-  netSurveyForm: document.getElementById('netSurveyForm'),
   netSurveyRoom: document.getElementById('netSurveyRoom'),
   netSurveyRoomList: document.getElementById('netSurveyRoomList'),
   netSurveyRecord: document.getElementById('netSurveyRecord'),
@@ -544,7 +536,6 @@ export const els = {
   netDhcpExistingWrap: document.getElementById('netDhcpExistingWrap'),
   netDhcpExistingHead: document.getElementById('netDhcpExistingHead'),
   netDhcpExisting: document.getElementById('netDhcpExisting'),
-  netDhcpManual: document.getElementById('netDhcpManual'),
   netDhcpManualMac: document.getElementById('netDhcpManualMac'),
   netDhcpManualIp: document.getElementById('netDhcpManualIp'),
   netDhcpManualName: document.getElementById('netDhcpManualName'),
@@ -662,8 +653,6 @@ export const els = {
   flowGrid: document.getElementById('flowGrid'),
   flowHouse: document.getElementById('flowHouse'),
   flowNodePv: document.getElementById('flowNodePv'),
-  flowNodeGrid: document.getElementById('flowNodeGrid'),
-  flowNodeHouse: document.getElementById('flowNodeHouse'),
   wirePv: document.getElementById('wirePv'),
   wireGrid: document.getElementById('wireGrid'),
   // Energy tab: live efficiency tiles
@@ -694,7 +683,6 @@ export const els = {
   // History range buttons (Day / Week / Month / Year / Σ) — driven by data-range.
   rangeBtns: Array.from(document.querySelectorAll('#aggRange .range-tab')),
   // Energy tab: cost & savings breakdown
-  costMeta: document.getElementById('costMeta'),
   costBody: document.getElementById('costBody'),
   costFoot: document.getElementById('costFoot'),
   costSummary: document.getElementById('costSummary'),

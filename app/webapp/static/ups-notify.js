@@ -1,4 +1,4 @@
-/* UPS power-event notification toggles (Plugs tab).
+/* UPS power-event notification toggles (Devices tab).
  *
  * A folded-by-default card mirroring the alarm Notifications card. Switches
  * map 1:1 to the backend PowerNotifyPrefs; each persists on click via

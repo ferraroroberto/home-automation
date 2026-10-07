@@ -1,4 +1,4 @@
-/* Network tab — DHCP reservation planner + apply flow (#170/#176).
+/* Network (Settings) — DHCP reservation planner + apply flow (#170/#176).
  *
  * Split out of network.js (issue #197). Lazy-loads GET /api/network/dhcp-plan on
  * first open, then on demand via Refresh. The F6600P caps the static-binding table

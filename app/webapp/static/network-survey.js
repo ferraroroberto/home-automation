@@ -1,4 +1,4 @@
-/* Network tab — Wi-Fi walk test (site survey), issue #547.
+/* Network (Settings) — Wi-Fi walk test (site survey), issue #547.
  *
  * The Wi-Fi diagnostics card next door scans from the *server PC*, so it only
  * ever describes coverage where that PC sits. This card answers the question the
@@ -364,7 +364,7 @@ export function renderSurvey() {
   if (!els.netSurveyCard) return;
 
   // Lazy first load: the samples only change when the user records one, so this
-  // rides the Network tab's first render rather than its 15 s poll.
+  // rides the Network section's first render rather than its 15 s poll.
   if (!surveyLoaded) {
     surveyLoaded = true;
     loadSurvey().then(function () {
@@ -433,7 +433,7 @@ function openDevicePicker() {
   if (!devices.length) {
     els.netSurveyDialogList.appendChild(emptyStateEl(
       'smartphone',
-      'No wireless devices in the current read — open the Network tab and wait for a poll.'
+      'No wireless devices in the current read — open Settings → Network and wait for a poll.'
     ));
   } else {
     devices.forEach(function (d) { els.netSurveyDialogList.appendChild(pickerRow(d)); });

@@ -155,10 +155,6 @@ function scheduleCount(unit) {
   return sched.enabled === true ? 1 : 0;
 }
 
-function hasSchedule(unit) {
-  return scheduleCount(unit) > 0;
-}
-
 // A unit whose WiFi adapter has lost its cloud connection (`reachable: false`
 // from /api/units, issue #520). Commands sent to it are silently swallowed by
 // the cloud, so its controls are inerted rather than left looking live. Only an

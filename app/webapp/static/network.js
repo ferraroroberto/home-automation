@@ -14,7 +14,7 @@
  * Read-mostly — it reads GET /api/network and writes only the AP/router reboots.
  *
  * Cadence is tab-aware like plugs.js/energy.js: the AP SOAP read is comparatively
- * expensive, so it polls only while the Network tab is open and stops on leave.
+ * expensive, so it polls only while the Network section of Settings is open and stops on leave.
  * The speed test never auto-runs — it is an explicit button that adds ~13 s.
  */
 
