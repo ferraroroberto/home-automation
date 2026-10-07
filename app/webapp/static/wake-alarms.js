@@ -14,6 +14,7 @@ import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
+import { localIsoDate } from './format.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -201,8 +202,8 @@ export function renderWakeAlarms() {
     onceWrap.appendChild(onceText);
     onceWrap.appendChild(buildToggle('wake-alarm-once-toggle', !!entry.date, function (on) {
       if (on) {
-        const today = new Date();
-        state.wakeAlarms[idx].date = today.toISOString().slice(0, 10);
+        // The server fires a one-shot alarm on the local date.
+        state.wakeAlarms[idx].date = localIsoDate();
       } else {
         state.wakeAlarms[idx].date = null;
       }

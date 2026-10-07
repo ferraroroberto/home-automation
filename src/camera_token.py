@@ -15,6 +15,8 @@ import hmac
 import time
 from typing import Any, Dict
 
+from src.secret_compare import secrets_match
+
 _TOKEN_TTL = 60  # seconds
 
 
@@ -40,4 +42,4 @@ def verify(camera_token: str, bearer_token: str) -> bool:
     if int(time.time()) > expiry:
         return False
     expected = _sign(bearer_token, expiry)
-    return hmac.compare_digest(sig, expected)
+    return secrets_match(sig, expected)

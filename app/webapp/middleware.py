@@ -18,7 +18,6 @@ the camera paths alone (#756).
 
 from __future__ import annotations
 
-import hmac
 from typing import Callable, Optional
 
 from fastapi import Request
@@ -26,6 +25,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.types import Receive, Scope, Send
+
+from src.secret_compare import secrets_match
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
@@ -87,7 +88,7 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         if not presented:
             presented = request.query_params.get("token", "").strip()
 
-        if presented and hmac.compare_digest(presented, token):
+        if presented and secrets_match(presented, token):
             return await call_next(request)
 
         return JSONResponse(

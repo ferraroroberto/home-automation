@@ -46,6 +46,18 @@ export function fmtPct(v) {
   return v == null ? '—' : Math.round(Number(v)) + '%';
 }
 
+/** A date as the browser's own local "YYYY-MM-DD". `toISOString()` is UTC and
+ *  names yesterday for the first hours of a local day east of Greenwich, which
+ *  is not the day the server frames hourly rollups or fires one-shot alarms by. */
+export function localIsoDate(d) {
+  const dt = d || new Date();
+  return [
+    dt.getFullYear(),
+    ('0' + (dt.getMonth() + 1)).slice(-2),
+    ('0' + dt.getDate()).slice(-2),
+  ].join('-');
+}
+
 /** The bar + fill + "NN%" trio every Wi-Fi signal cell renders (issue #571 —
  *  built verbatim in network-devices.js, network-wifi.js and
  *  network-survey.js). Returns a DocumentFragment for the caller to append

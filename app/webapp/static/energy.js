@@ -14,7 +14,7 @@
 
 import { state, els, reportFetchOk, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
-import { esc, group, fmtW, fmtPct } from './format.js';
+import { esc, group, fmtW, fmtPct, localIsoDate } from './format.js';
 import { icon } from './_vendored/icons/icons.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
@@ -652,17 +652,6 @@ const SUN_OVERLAY_NOTES = {
   too_old: 'Irradiance history only reaches back about three months.',
   rate_limited: 'Weather provider is rate-limiting us right now — retrying shortly.',
 };
-
-// Today in the browser's own local date, which is the day the hourly rollups
-// are framed by. toISOString() would be UTC and could name yesterday.
-function localIsoDate(d) {
-  const dt = d || new Date();
-  return [
-    dt.getFullYear(),
-    ('0' + (dt.getMonth() + 1)).slice(-2),
-    ('0' + dt.getDate()).slice(-2),
-  ].join('-');
-}
 
 function plural(n, noun) {
   return n + ' ' + noun + (n === 1 ? '' : 's');
