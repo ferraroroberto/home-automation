@@ -253,3 +253,27 @@ def test_camera_preset_routes(
     removed = client.delete("/api/cameras/garden/presets/1")
     assert gone.status_code == 200 and removed.status_code == 200
     assert events == ["set:Position 2", "goto:1", "remove:1"]
+
+
+def test_camera_last_snapshot_only_serves_its_own_frame(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """``GET …/last_snapshot`` answers only from a camera's own persisted frame."""
+    from src import camera_ffmpeg
+
+    snaps = tmp_path / "last"
+    snaps.mkdir()
+    (snaps / "garden.jpg").write_bytes(b"\xff\xd8garden")
+    (tmp_path / "other.jpg").write_bytes(b"\xff\xd8other")
+    monkeypatch.setattr(camera_ffmpeg, "LAST_SNAPSHOT_DIR", snaps)
+
+    own = client.get("/api/cameras/garden/last_snapshot")
+    assert own.status_code == 200
+    assert own.content == b"\xff\xd8garden"
+
+    for camera_id in ("..%5Cother", "..%5Clast%5C..%5Cother", "C:%5Cother"):
+        resp = client.get(f"/api/cameras/{camera_id}/last_snapshot")
+        assert resp.status_code == 404, camera_id
+        assert resp.content != b"\xff\xd8other"
+    for camera_id in ("../other", "..\\other", "C:other", "", ".", ".."):
+        assert camera_ffmpeg.last_snapshot_path(camera_id) is None, camera_id
