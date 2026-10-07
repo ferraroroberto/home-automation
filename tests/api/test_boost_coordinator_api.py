@@ -34,10 +34,9 @@ def test_get_unconfigured_returns_the_defaults_not_a_500(client: TestClient) -> 
     assert body["settle_interval_s"] == 300
     assert body["admission_margin_w"] == 0.0
     assert body["hard_deficit_w"] == 1000.0
-    assert body["ordering_policy"] == "stable"
     # The editor renders its input bounds from the server, not a copied constant.
     assert body["min_settle_interval_s"] == 300
-    assert body["ordering_policies"] == ["stable"]
+    assert "ordering_policy" not in body and "ordering_policies" not in body
 
 
 def test_put_then_get_round_trips(client: TestClient) -> None:
@@ -47,7 +46,6 @@ def test_put_then_get_round_trips(client: TestClient) -> None:
             "settle_interval_s": 600,
             "admission_margin_w": 400,
             "hard_deficit_w": 1500,
-            "ordering_policy": "stable",
         },
     )
     assert resp.status_code == 200
@@ -78,7 +76,6 @@ def test_put_of_one_field_keeps_the_others(client: TestClient) -> None:
         ({"settle_interval_s": 7200}, "settle_interval_s"),
         ({"admission_margin_w": -1}, "admission_margin_w"),
         ({"hard_deficit_w": -250}, "hard_deficit_w"),
-        ({"ordering_policy": "round-robin"}, "ordering_policy"),
     ],
 )
 def test_put_rejects_invalid_values_with_a_400(
@@ -113,12 +110,35 @@ def test_a_hand_edited_file_below_the_floor_reads_back_clamped(
 ) -> None:
     """The read path never fails on a hand-broken file; it clamps and serves."""
     _isolate_boost_config.write_text(
-        json.dumps({"settle_interval_s": 45, "ordering_policy": "nonsense"}),
-        encoding="utf-8",
+        json.dumps({"settle_interval_s": 45}), encoding="utf-8"
     )
     body = client.get("/api/hvac/boost-coordinator").json()
     assert body["settle_interval_s"] == 300
-    assert body["ordering_policy"] == "stable"
+
+
+def test_a_config_from_before_the_ordering_knob_was_removed_still_loads_and_migrates(
+    client: TestClient, _isolate_boost_config
+) -> None:
+    """Existing ``hvac_boost.json`` files carry ``ordering_policy`` (and its
+    ``_doc_`` note). They must still load, and the next save from the app drops
+    the dead keys while keeping the user's own."""
+    _isolate_boost_config.write_text(
+        json.dumps({
+            "_doc": "mine",
+            "settle_interval_s": 600,
+            "ordering_policy": "stable",
+            "_doc_ordering_policy": "old note",
+        }),
+        encoding="utf-8",
+    )
+    body = client.get("/api/hvac/boost-coordinator").json()
+    assert body["settle_interval_s"] == 600
+    assert "ordering_policy" not in body
+
+    client.put("/api/hvac/boost-coordinator", json={"admission_margin_w": 100})
+    raw = json.loads(_isolate_boost_config.read_text(encoding="utf-8"))
+    assert raw["_doc"] == "mine"
+    assert "ordering_policy" not in raw and "_doc_ordering_policy" not in raw
 
 
 def test_saving_from_the_app_preserves_a_hand_written_doc_note(

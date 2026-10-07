@@ -750,7 +750,6 @@ export const els = {
   boostSettleMin: document.getElementById('boostSettleMin'),
   boostAdmissionMargin: document.getElementById('boostAdmissionMargin'),
   boostHardDeficit: document.getElementById('boostHardDeficit'),
-  boostOrderingPolicy: document.getElementById('boostOrderingPolicy'),
   // Detail modal
   detail: document.getElementById('detailDialog'),
   detailName: document.getElementById('detailName'),

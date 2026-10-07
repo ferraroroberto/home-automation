@@ -28,7 +28,6 @@ from src._schedule_store import StoreUnreadableError
 from src.display_names import load_display_names, set_display_name
 from src.hvac_automation import (
     MIN_SETTLE_INTERVAL_S,
-    ORDERING_POLICIES,
     BoostCoordinatorConfig,
     ScheduleEntry,
     TempRule,
@@ -420,7 +419,6 @@ class BoostCoordinatorPayload(BaseModel):
     settle_interval_s: Optional[int] = None
     admission_margin_w: Optional[float] = None
     hard_deficit_w: Optional[float] = None
-    ordering_policy: Optional[str] = None
 
 
 def _boost_coordinator_payload(config: BoostCoordinatorConfig) -> Dict[str, Any]:
@@ -429,12 +427,10 @@ def _boost_coordinator_payload(config: BoostCoordinatorConfig) -> Dict[str, Any]
         "settle_interval_s": config.settle_interval_s,
         "admission_margin_w": config.admission_margin_w,
         "hard_deficit_w": config.hard_deficit_w,
-        "ordering_policy": config.ordering_policy,
         # Served rather than duplicated in the frontend: the floor exists for a
         # physical reason (the solar meter's publish cadence), so the input's
         # `min` must track the backend's, not a hand-copied constant.
         "min_settle_interval_s": MIN_SETTLE_INTERVAL_S,
-        "ordering_policies": list(ORDERING_POLICIES),
     }
 
 
@@ -476,11 +472,6 @@ async def update_boost_coordinator(payload: BoostCoordinatorPayload) -> Dict[str
             stored.hard_deficit_w
             if payload.hard_deficit_w is None
             else payload.hard_deficit_w
-        ),
-        ordering_policy=(
-            stored.ordering_policy
-            if payload.ordering_policy is None
-            else payload.ordering_policy
         ),
     )
     try:

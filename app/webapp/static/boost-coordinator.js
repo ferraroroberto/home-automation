@@ -33,9 +33,7 @@ const DEFAULTS = {
   settle_interval_s: 300,
   admission_margin_w: 0,
   hard_deficit_w: 1000,
-  ordering_policy: 'stable',
   min_settle_interval_s: 300,
-  ordering_policies: ['stable'],
 };
 
 function coord() {
@@ -67,7 +65,6 @@ export function renderBoostCoordinator() {
   }
   if (els.boostAdmissionMargin) els.boostAdmissionMargin.value = trimNum(cfg.admission_margin_w);
   if (els.boostHardDeficit) els.boostHardDeficit.value = trimNum(cfg.hard_deficit_w);
-  if (els.boostOrderingPolicy) els.boostOrderingPolicy.value = cfg.ordering_policy;
 }
 
 // -------------------------------------------------------------------- load
@@ -139,13 +136,6 @@ function savePositiveWatts(el, key, label) {
   saveField(key, watts, 'the ' + label);
 }
 
-function saveOrderingPolicy() {
-  if (!els.boostOrderingPolicy) return;
-  const policy = els.boostOrderingPolicy.value;
-  if (policy === coord().ordering_policy) return;
-  saveField('ordering_policy', policy, 'the admission order');
-}
-
 // ------------------------------------------------------------------ wiring
 
 export function wireBoostCoordinator() {
@@ -157,6 +147,4 @@ export function wireBoostCoordinator() {
   els.boostHardDeficit.addEventListener('blur', function () {
     savePositiveWatts(els.boostHardDeficit, 'hard_deficit_w', 'fast-shed import');
   });
-  // A select commits on change, not on blur — there is no partially-typed state.
-  els.boostOrderingPolicy.addEventListener('change', saveOrderingPolicy);
 }

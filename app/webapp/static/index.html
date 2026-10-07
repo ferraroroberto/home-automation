@@ -1639,14 +1639,8 @@
             <span>Fast-shed import (W)</span>
             <input id="boostHardDeficit" type="number" min="0" step="100" inputmode="numeric" class="input-native" placeholder="1000">
           </label>
-          <label class="row">
-            <span>Admission order</span>
-            <select id="boostOrderingPolicy" class="input-native">
-              <option value="stable">Stable</option>
-            </select>
-          </label>
 
-          <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. One deterministic order ships today — a fairness rotation may follow.</p>
+          <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. Units are admitted in a fixed order by unit id.</p>
         </div>
       </details>
 

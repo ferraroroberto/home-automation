@@ -970,15 +970,13 @@ def mock_energy(page: Page) -> Callable[..., None]:
         # already calls this fixture keeps its network stubbed.
         boost = {
             "settle_interval_s": 300, "admission_margin_w": 0.0,
-            "hard_deficit_w": 1000.0, "ordering_policy": "stable",
+            "hard_deficit_w": 1000.0,
         }
         if boost_coord:
             boost.update(boost_coord)
 
         def _boost_body() -> Dict:
-            return dict(
-                boost, min_settle_interval_s=300, ordering_policies=["stable"]
-            )
+            return dict(boost, min_settle_interval_s=300)
 
         def handle_boost_coord(route: Route) -> None:
             if route.request.method.upper() == "PUT":
