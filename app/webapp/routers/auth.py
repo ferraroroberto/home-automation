@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hmac
 import logging
 from pathlib import Path
 from typing import Any, Dict
@@ -10,6 +9,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 
 from app.webapp.routers._helpers import PROJECT_ROOT
+from src.secret_compare import secrets_match
 from src.webapp_config import WebappConfig
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ async def login(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="bearer token not configured")
     body = await _maybe_json(request)
     presented = str(body.get("password") or "")
-    if not presented or not hmac.compare_digest(presented, cfg.auth_password):
+    if not presented or not secrets_match(presented, cfg.auth_password):
         auth_logger.warning(
             "🚨 Failed password attempt from %s (presented %d chars)",
             client_host, len(presented),

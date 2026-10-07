@@ -12,7 +12,6 @@ already use:
 
 from __future__ import annotations
 
-import hmac
 import logging
 from collections import OrderedDict
 from dataclasses import asdict, replace
@@ -52,6 +51,7 @@ from src.presence_places import (
     set_presence_places,
 )
 from src.presence_roles import load_presence_roles, set_presence_role
+from src.secret_compare import secrets_match
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,7 @@ def _check_webhook_auth(request: Request) -> None:
         or request.headers.get("x-presence-secret", "").strip()
         or request.query_params.get("secret", "").strip()
     )
-    if not hmac.compare_digest(supplied, expected):
+    if not secrets_match(supplied, expected):
         raise HTTPException(status_code=401, detail="invalid presence webhook secret")
 
 

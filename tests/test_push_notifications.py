@@ -130,3 +130,20 @@ def test_send_push_never_raises_on_unreadable_subscriptions(monkeypatch):
     monkeypatch.setattr(push, "validate_push_config", lambda cfg: True)
     monkeypatch.setattr(push, "load_subscriptions", unreadable)
     assert push.send_push("title", "body") == 0
+
+
+def test_send_push_bounds_every_send_with_a_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A push endpoint that accepts the connection and stalls must not block the
+    alarm/presence loops that await send_push (#833): pywebpush's default timeout
+    is None, i.e. wait forever."""
+    good_cfg = {"public_key": "pub", "private_key": _gen_raw_private_key(), "subject": "mailto:x@example.com"}
+    monkeypatch.setattr(push, "load_push_config", lambda *a, **k: good_cfg)
+    monkeypatch.setattr(
+        push, "load_subscriptions", lambda *a, **k: [{"endpoint": "https://push.example/sub"}]
+    )
+    seen: list = []
+    monkeypatch.setattr("pywebpush.webpush", lambda **kw: seen.append(kw.get("timeout")))
+
+    assert push.send_push("title", "body") == 1
+    assert seen == [push._PUSH_TIMEOUT_S]
+    assert push._PUSH_TIMEOUT_S is not None and push._PUSH_TIMEOUT_S > 0

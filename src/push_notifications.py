@@ -20,6 +20,12 @@ _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 PUSH_CONFIG_PATH = _CONFIG_DIR / "push_config.json"
 SUBSCRIPTIONS_PATH = _CONFIG_DIR / "push_subscriptions.json"
 
+# Seconds each Web Push POST may take (connect and read, each). pywebpush's
+# default is no timeout, and send_push is awaited by the alarm-scene and presence
+# loops before they send the Telegram alert / record the action, so one push
+# endpoint that accepts the connection and stalls would block both indefinitely.
+_PUSH_TIMEOUT_S = 10
+
 # Cache of the last-validated private key value, so a bad key logs its clear
 # "pushes disabled" warning once (not once per subscription per send) while
 # still re-validating automatically if the config value ever changes without
@@ -132,7 +138,7 @@ def send_push(title: str, body: str, *, url: str = "/") -> int:
         logger.info("ℹ️ No Web Push subscriptions; skipping transition notification")
         return 0
     try:
-        from pywebpush import WebPushException, webpush
+        from pywebpush import webpush
     except ImportError:
         logger.warning("⚠️ pywebpush is not installed; cannot send Web Push")
         return 0
@@ -146,10 +152,9 @@ def send_push(title: str, body: str, *, url: str = "/") -> int:
                 data=payload,
                 vapid_private_key=cfg["private_key"],
                 vapid_claims={"sub": cfg["subject"]},
+                timeout=_PUSH_TIMEOUT_S,
             )
             sent += 1
-        except WebPushException as exc:
-            logger.warning("⚠️ Web Push send failed: %s", exc)
         except Exception as exc:  # noqa: BLE001
             logger.warning("⚠️ Web Push send failed: %s", exc)
     return sent

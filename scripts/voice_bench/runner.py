@@ -307,6 +307,10 @@ def markdown_table(results: Dict[str, Dict[str, Any]]) -> str:
     lines = [hdr, sep]
     for model, modes in results.items():
         for mode, s in modes.items():
+            if not isinstance(s, dict):
+                # A model that never became ready is stored as {"_error": "..."}.
+                lines.append(f"| {model} | - | {s} |" + " |" * 8)
+                continue
             lines.append(
                 f"| {model} | {mode} | {s['validity_pct']} | {s['intent_acc_pct']} | "
                 f"{s['slot_acc_pct']} | {s['cot_leak_pct']} | "
@@ -373,8 +377,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             restore(hub, initial, log)
         hub.close()
 
-    log("\n" + markdown_table(results))
     if args.out:
         Path(args.out).write_text(json.dumps(results, indent=2), encoding="utf-8")
         log(f"\nwrote {args.out}")
+    log("\n" + markdown_table(results))
     return 0
