@@ -99,7 +99,7 @@ function wifiRow(b) {
   main.appendChild(name);
   if (b.connected) {
     const pill = document.createElement('span');
-    pill.className = 'net-wifi-current';
+    pill.className = 'pill pill--accent net-wifi-current';
     pill.textContent = 'Current';
     main.appendChild(pill);
   }

@@ -276,7 +276,7 @@ function buildDeviceRow(d, grouped) {
   // AP/router evidence, so it doesn't read as an ordinary live client.
   if (pingConfirmed(d)) {
     const pill = document.createElement('span');
-    pill.className = 'net-device-reachable';
+    pill.className = 'pill pill--success net-device-reachable';
     pill.textContent = 'Reachable';
     name.appendChild(pill);
   }
