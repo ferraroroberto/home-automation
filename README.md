@@ -35,12 +35,12 @@ The PWA does **not** poll everything continuously. Each tab's data is fetched on
 | --- | --- | --- | --- |
 | AC units | 30 s | Home, AC | One boot fetch on load; otherwise gated to these tabs (#209). |
 | Energy | 5 s active / 30 s slow | Energy (fast), Home (slow) | Served from one cached cloud read. |
-| Plugs | 15 s | IoT | Tuya LAN reads. |
-| Circuits | 15 s | IoT | Per-circuit Athom CT-clamp reads. |
-| UPS | 15 s | IoT, Home | Local NUT/USB-HID read. |
-| PC fleet | 15 s | IoT | Machine roster via the local hub proxy (#498). |
-| Lights | 15 s | IoT | Elgato LAN reads. |
-| Network | 15 s | Network | AP SOAP + router reads; speed test is button-only. |
+| Plugs | 15 s | Devices | Tuya LAN reads. |
+| Circuits | 15 s | Devices | Per-circuit Athom CT-clamp reads. |
+| UPS | 15 s | Devices, Home | Local NUT/USB-HID read. |
+| PC fleet | 15 s | Devices | Machine roster via the local hub proxy (#498). |
+| Lights | 15 s | Devices | Elgato LAN reads. |
+| Network | 15 s | Settings (Network) | AP SOAP + router reads; speed test is button-only. |
 | Security | 10 s | Security, Home | RISCO cloud. |
 | HA VM | 30 s | Home | Hyper-V `Get-VM` on the host (#240). |
 | HA / Voice PE | 15 s | Home (card open) | Satellite state + recent interactions (#239). |
@@ -423,7 +423,7 @@ The Wi-Fi diagnostics tile above scans from the **dashboard PC** (`netsh wlan`),
 
 **Why it doesn't scan from the phone.** It can't, and this is a platform limit rather than a gap to close later. There is no `navigator.wifi` in any browser on any platform; `navigator.connection` (the Network Information API) is unimplemented in WebKit, so an iPhone reports nothing at all — and Chrome on iOS is WebKit underneath, so the browser choice changes nothing. Even a **native** iOS app can't do it: `NEHotspotNetwork.fetchCurrent` returns only the *joined* network's SSID/BSSID, its `signalStrength` is populated only inside an `NEHotspotHelper` context (an entitlement Apple grants to hotspot vendors), and scanning *nearby* networks is unavailable to third-party apps outright. Wrapping the PWA in an app would not help. So the feature inverts the problem: **the phone is the probe and the AP/router is the meter.** Apple's own AirPort Utility app (Settings → AirPort Utility → Wi-Fi Scanner) remains the manual escape hatch if you ever need raw on-phone RSSI.
 
-**Using it.** Open the Network tab → **Walk test**, tap **Pick device** once and choose the phone you're holding from the current wireless clients, then walk the house: name a room and tap **Record here**. Each sample stores what the infrastructure measured for that client at that instant — signal %, link rate, band, SSID, and **which box heard it** (the R9000 access point or the ZTE router, the column an AP-placement decision actually turns on) — plus what the browser measured of its own round-trip to the server (median latency, jitter, failure ratio over ~10 probes, and throughput from a timed 2 MiB download). Rooms render weakest-first with best/worst history per room; a spot where the device is on **neither** radio records as *not seen* rather than a blank, because a dead zone is the strongest result a walk test can produce.
+**Using it.** Open the network section in Settings → **Walk test**, tap **Pick device** once and choose the phone you're holding from the current wireless clients, then walk the house: name a room and tap **Record here**. Each sample stores what the infrastructure measured for that client at that instant — signal %, link rate, band, SSID, and **which box heard it** (the R9000 access point or the ZTE router, the column an AP-placement decision actually turns on) — plus what the browser measured of its own round-trip to the server (median latency, jitter, failure ratio over ~10 probes, and throughput from a timed 2 MiB download). Rooms render weakest-first with best/worst history per room; a spot where the device is on **neither** radio records as *not seen* rather than a blank, because a dead zone is the strongest result a walk test can produce.
 
 **Picking the device is a one-time manual step by necessity.** Over Tailscale every client reaches the app from a `100.x` address, so the server has nothing to map back to a LAN MAC — the browser has to say who it is. The choice lives in that browser's `localStorage`, so each device that runs a walk test picks itself. On iPhone the MAC to look for is **Settings → Wi-Fi → ⓘ next to your network → Wi-Fi Address**; iOS rotates its private Wi-Fi address, so expect to re-pick occasionally (or set a fixed address for the home network).
 
@@ -435,9 +435,9 @@ The F6600P hands out pool addresses in arbitrary order, so a device drifts acros
 
 Configure it by copying `config/dhcp_plan.sample.json` → `config/dhcp_plan.json` (gitignored — it would expose your device inventory) and editing the `ranges` (ordered category windows), `rules` (keyword → category, matched against the device's display-name/hostname/vendor), and `overrides` (manual per-MAC escape hatch). Without the file the planner reports every device as *unassigned* with a warning rather than failing.
 
-Each device gets the **lowest free IP in its category range** — skipping any IP already reserved on the router, **including reservations held by offline devices** (so the planner never suggests an address that's already taken); a device already correctly placed keeps its IP (minimises churn); range overflow, unclassified devices, overlapping ranges, and randomised (un-reservable) MACs surface as explicit warnings. The plan folds in the router's **existing static bindings** and tags every row `reserved` (already bound to its planned IP), `create` (no binding yet), or `change` (bound to a different IP). Surfaced as the `src.list_dhcp_plan` CLI and the **DHCP reservation plan** section in the Network tab (`GET /api/network/dhcp-plan`, computed on open/refresh).
+Each device gets the **lowest free IP in its category range** — skipping any IP already reserved on the router, **including reservations held by offline devices** (so the planner never suggests an address that's already taken); a device already correctly placed keeps its IP (minimises churn); range overflow, unclassified devices, overlapping ranges, and randomised (un-reservable) MACs surface as explicit warnings. The plan folds in the router's **existing static bindings** and tags every row `reserved` (already bound to its planned IP), `create` (no binding yet), or `change` (bound to a different IP). Surfaced as the `src.list_dhcp_plan` CLI and the **DHCP reservation plan** section in Settings' network section (`GET /api/network/dhcp-plan`, computed on open/refresh).
 
-**Applying it to the router (#176).** Pushing the plan to the F6600P's static *DHCP Binding* table is an **opt-in, confirm-gated write to the live gateway** — never automatic, never on a poll. The Network tab's **Apply plan** button (and `src.list_dhcp_plan --apply`, and `POST /api/network/dhcp-plan/apply`) writes only the `create`/`change` rows, one at a time, leaving already-reserved rows untouched, and reports a per-row result so one rejected row never silently drops the rest. Devices pick up their reserved address on their next lease renewal. You can still apply rows by hand in the router UI instead — the plan is a copy-ready list either way.
+**Applying it to the router (#176).** Pushing the plan to the F6600P's static *DHCP Binding* table is an **opt-in, confirm-gated write to the live gateway** — never automatic, never on a poll. The network section's **Apply plan** button (and `src.list_dhcp_plan --apply`, and `POST /api/network/dhcp-plan/apply`) writes only the `create`/`change` rows, one at a time, leaving already-reserved rows untouched, and reports a per-row result so one rejected row never silently drops the rest. Devices pick up their reserved address on their next lease renewal. You can still apply rows by hand in the router UI instead — the plan is a copy-ready list either way.
 
 > **The F6600P caps its static binding table at 10 reservations.** This is a firmware limit (the 11th create returns *"the number of entries has reached the maximum limit"*), so a LAN with more than ten devices cannot reserve them all — you choose which ten matter. The plan reads the table once and shows the slot budget up front (`Router holds 10 reservations · N slot(s) free`) plus a warning when the planned reservations overflow the free slots; **Apply** writes only what fits, skips the rest with a clear *"table is full"* note (it does **not** keep hammering the router), and a *change* row — which re-writes a slot the device already owns — still applies even when the table is full.
 
@@ -578,7 +578,7 @@ The solar/energy read above answers *how much* the house is importing or exporti
 
 **A missed mDNS sweep never deletes a meter.** Measured on this network, one cold 3-second browse missed the live meter **1 time in 20** (2.4 GHz multicast drops packets) — and mDNS reports that as an empty result, not as an error. A sweep that finds nothing while meters were known is therefore treated as *unproven*: the previous list is kept and re-checked in 30 s instead of the full TTL, so circuits cannot blink out of the card at random. A meter that is genuinely gone then shows up as `reachable=false` on its own row, which is the honest answer.
 
-- **Card:** **IoT → Circuits**, immediately after Plugs — a plug measures an appliance, a clamp measures a whole breaker. Each meter is a **foldable group** whose header is just its name; under it, one row per channel showing **name · watts**. One number per row on purpose: this card answers *where* the power is going, so amps, cumulative kWh, mains voltage, Wi-Fi signal and the meter's MAC are reference figures and live in the dialogs instead.
+- **Card:** **Devices → Circuits**, immediately after Plugs — a plug measures an appliance, a clamp measures a whole breaker. Each meter is a **foldable group** whose header is just its name; under it, one row per channel showing **name · watts**. One number per row on purpose: this card answers *where* the power is going, so amps, cumulative kWh, mains voltage, Wi-Fi signal and the meter's MAC are reference figures and live in the dialogs instead.
 - **Fold a meter:** tap its header (or the chevron). Which groups are folded is remembered per browser, so the card reopens the way you left it — the list repaints on every poll and re-applies it.
 - **Order:** groups sort **A→Z by name**, numerically aware — rename meters `1 …`, `2 …`, `10 …` and they appear in that order, rather than in whatever order the mDNS sweep happened to see them.
 - **Rename a clamp:** tap a channel's name. The label saves via `PUT /api/circuits/{key}/display_name` to gitignored `config/circuit_prefs.json` (`…sample.json` committed), keyed `"<meter_id>:<channel>"` where the meter id is its **MAC** — so a DHCP move cannot orphan a label. The same dialog shows that channel's live power/current/energy and carries the **Clamp fitted backwards** and **Hidden** toggles; all commit only on **Save**.
@@ -586,12 +586,12 @@ The solar/energy read above answers *how much* the house is importing or exporti
 - **Rename a meter:** tap the meter's header name (it edits, it never folds the group). Same store and endpoint, keyed by the bare meter id — so `Athom Energy Monitor ddee01` can become `1 cuadro principal` once there is more than one. That dialog also shows its voltage, total power, Wi-Fi signal and **MAC**.
 - **No Refresh button:** readings re-poll on their own, and a meter that has just joined the Wi-Fi appears once the discovery TTL lapses. `POST /api/circuits/refresh` still forces a sweep from the command line if you don't want to wait.
 - **Endpoints:** `GET /api/circuits` (every meter with all channels, the `display_name` / `hidden` overrides, the meter's `mac`, and `discovery_ok` as its own flag — "mDNS could not run" and "mDNS ran and found nothing" are different facts), `POST /api/circuits/refresh`, `PUT /api/circuits/{key}/display_name`, `PUT /api/circuits/{key}/invert` (`{"invert": true|false}`), `PUT /api/circuits/{key}/hidden` (`{"hidden": true|false}`).
-- **Cadence:** every ~15 s **only while the IoT tab is open**, like Plugs. One meter read is shared by all callers for `ATHOM_CACHE_TTL_S` (default 5 s) so the PWA and the Home Assistant integration don't each open their own connection.
+- **Cadence:** every ~15 s **only while the Devices tab is open**, like Plugs. One meter read is shared by all callers for `ATHOM_CACHE_TTL_S` (default 5 s) so the PWA and the Home Assistant integration don't each open their own connection.
 - **Offline meter:** renders `reachable=false` with its channels still listed and `null` readings, so circuits never vanish mid-watch; other meters stay live.
 
 **Factory-resetting a meter (to change its Wi-Fi, e.g. moving it to a stronger AP).** Hold the board's **BOOT** button (silkscreened `BOOT`/`S2`, next to the USB-C port — not `RESET`/`S1`, which is just a reboot) for **at least 4 seconds**. This is a genuine ESPHome `factory_reset` action (confirmed against the shipping firmware source, [athom-tech/esp32-configs](https://github.com/athom-tech/esp32-configs/blob/main/athom-energy-monitor-x6.yaml)) — it erases the stored Wi-Fi credentials. No LED confirms it; the only sign is the meter's own setup AP reappearing within ~10-15s. Meter identity (`config/circuit_prefs.json` labels, invert flags, hidden channels) is keyed by **MAC**, not SSID or IP, so a reset and SSID change never touches it.
 
-**First-time setup / rejoining after a reset (once per meter).** A factory-reset Athom broadcasts an **open** Wi-Fi AP named `athom-em-6-<mac-suffix>`; join it, open `http://192.168.4.1/`, and submit the household SSID + password. It reboots onto the LAN and is discoverable from then on. Two things worth checking before committing it: the portal's `GET /config.json` lists **the networks the meter itself can see, with RSSI**, which is the only honest way to pick its SSID (the nearest-looking AP is often not the strongest from inside a consumer unit), and the meter is **2.4 GHz only**. Give it a name in the **Network** tab afterwards so it is identifiable there too.
+**First-time setup / rejoining after a reset (once per meter).** A factory-reset Athom broadcasts an **open** Wi-Fi AP named `athom-em-6-<mac-suffix>`; join it, open `http://192.168.4.1/`, and submit the household SSID + password. It reboots onto the LAN and is discoverable from then on. Two things worth checking before committing it: the portal's `GET /config.json` lists **the networks the meter itself can see, with RSSI**, which is the only honest way to pick its SSID (the nearest-looking AP is often not the strongest from inside a consumer unit), and the meter is **2.4 GHz only**. Give it a name in Settings' network section afterwards so it is identifiable there too.
 
 ## Energy monitoring & history
 
@@ -757,12 +757,13 @@ Cost, measured rather than estimated: ~78 bytes/row, ~108 KB/day, ~43 MB at the 
 ## Weather
 
 The **Home tab** shows a compact weather strip — current weather (icon +
-temperature) and today's forecast (min / max + a forecast icon) on the left, with
-a small transparent light/dark **theme toggle** on the right — for the home
+temperature) and today's forecast (min / max + a forecast icon) — for the home
 location, read from **Open-Meteo** (keyless — no account, no API key). The clock
 was dropped (it duplicated the phone's status bar) and the `label` is **not**
-rendered (it's obviously home), so the strip stays on a single line. Settings
-(incl. the other theme toggle) lives on the non-Home tabs to keep Home clean.
+rendered (it's obviously home), so the strip stays on a single line. The
+**theme toggle** and the **Settings** gear live in the shared page header above
+the strip — every tab's header carries both since #779 — not in the weather
+strip itself.
 
 - **Location config:** the home coordinates live in `config/location.json`
   (`lat` / `lon` / optional `label`). This file is **gitignored** — the repo is
@@ -888,7 +889,7 @@ fixed obstruction geometry; one that moves with the clock is not.
 
 Smart Life devices are Tuya devices. This project uses `tinytuya` as a local LAN control foundation. Runtime reads and commands use the local keys stored in gitignored `devices.json`; they do not require an active Tuya Cloud project once that file exists.
 
-**Adding a plug later needs no terminal** — pair it in the Smart Life app, then tap **Add** on the IoT tab (see below). The bootstrap here is only for the *very first* `devices.json` on a new machine.
+**Adding a plug later needs no terminal** — pair it in the Smart Life app, then tap **Add** on the Devices tab (see below). The bootstrap here is only for the *very first* `devices.json` on a new machine.
 
 One-time Tuya bootstrap, only needed when `devices.json` must be generated from scratch:
 
@@ -913,9 +914,9 @@ The wizard writes `devices.json` in the project root. That file contains device 
 
 Once that file exists, the three `.env` keys above stay in use for the in-app **Add** action only — `src/tuya_cloud.py` passes them to `tinytuya.Cloud` directly, so no wizard run and no QR scan is ever needed again. The QR scan in step 3 is a *one-time account link*, not a per-device step: every device paired in Smart Life afterwards is already visible to the cloud project. If **Add** reports no new devices, the plug is paired to a different Smart Life account than the one linked in step 3.
 
-### 🔌 IoT tab
+### 🔌 Devices tab
 
-The PWA's **IoT** tab is the single surface for every local device, split into **four collapsible cards — Plugs, Circuits, Lights, and Blinds — all collapsed by default** (issues #191, #136, #25). Each renders its devices as a compact divider-separated **row list** in the same low-chrome style as the Network tab's "Attached devices" list, not chunky sub-cards. A **plug row** is a single **name · wattage · on/off** line (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app); a **light row** is **name + power** with brightness/warmth sliders beneath (see *Elgato lights* below); a **blind row** is **name**, then a line of three equal **Open / Stop / Close** buttons (icon plus visible word, never icon-only — #805) wired to the cover open/stop/close path. A **summary block** above the cards totals Tuya devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json`, `/api/lights`, and local LAN status only.
+The PWA's **Devices** tab is the single surface for every local device, split into **four collapsible cards — Plugs, Circuits, Lights, and Blinds — all collapsed by default** (issues #191, #136, #25). Each renders its devices as a compact divider-separated **row list** in the same low-chrome style as the network section's "Attached devices" list in Settings, not chunky sub-cards. A **plug row** is a single **name · wattage · on/off** line (**live wattage on metered plugs**, so solar/load decisions are obvious without opening the vendor app); a **light row** is **name + power** with brightness/warmth sliders beneath (see *Elgato lights* below); a **blind row** is **name**, then a line of three equal **Open / Stop / Close** buttons (icon plus visible word, never icon-only — #805) wired to the cover open/stop/close path. A **summary block** above the cards totals Tuya devices, switches on, switches off, and live consumption (summed across reachable metered plugs). It is **cloud-free at runtime** — it reads `devices.json`, `/api/lights`, and local LAN status only.
 
 Lights lived on their own top-level tab until #136: they are local device controls like the plugs and blinds, and seven peer tabs was more navigation weight than a phone PWA should carry. Folding them in took the bar to six.
 
@@ -945,7 +946,7 @@ When the UPS is on battery and its reported runtime drops to the configured thre
 
 ## Elgato lights
 
-The **Lights** card on the **IoT** tab controls Elgato Key Light style devices
+The **Lights** card on the **Devices** tab controls Elgato Key Light style devices
 directly over the local LAN HTTP API. It is cloud-free at runtime: the backend
 tries Bonjour/mDNS discovery for `_elg._tcp.local.` and also supports an
 explicit host fallback for networks where discovery is blocked. Each light is a
@@ -1610,8 +1611,8 @@ adopting whatever is there, unless `E2E_LIVE=1` explicitly opts in (see
 `tests/e2e/_e2e_live_guard.py` and CLAUDE.md) — and drives the PWA, **stubbing
 `/api/units`, the `/api/energy*` endpoints, and `/api/tuya*` with fixtures** so
 it never touches the live cloud, the LAN, or actuates real HVAC. Coverage
-includes the Home/AC/Energy/IoT tab navigation, the Home AC summary, an
-Energy-tab render (hero numbers + charts), and the IoT tab (metered-plug
+includes the Home/AC/Energy/Devices tab navigation, the Home AC summary, an
+Energy-tab render (hero numbers + charts), and the Devices tab (metered-plug
 watts, a switch round-trip, cover controls, light controls, and an offline
 device). Runs in two
 projections — Chromium desktop + WebKit on an iPhone 14 (except the Chromium-only

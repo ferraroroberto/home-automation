@@ -1,20 +1,20 @@
 # Network view — spike findings (issue #125)
 
-Proof-of-concept results for the **Network** tab: internet/WiFi/LAN health,
+Proof-of-concept results for the **network view**: internet/WiFi/LAN health,
 the attached-device inventory named by MAC, network-quality alerts, and
 router/AP reboot — so the network can be watched and managed without logging
 into the vendor web UIs by hand.
 
-**Shipped.** Every proof below has since landed in the product: the tab spans
+**Shipped.** Every proof below has since landed in the product: the UI spans
 `network.js` / `network-devices.js` / `network-wifi.js` / `network-survey.js` /
 `network-dhcp.js` in `app/webapp/static/`, backed by `GET /api/network`
 (`app/webapp/routers/network.py`); the prototype `src/network_client.py` is
 now the orchestrator over the split `src/network_ap.py` /
 `src/network_router.py` / `src/network_host.py` (#197). See the README's
-"Home-network / Network tab" section for the current product surface — this
-doc stays as the decision record for *why* each piece works the way it does.
-The two "(follow-up)" headings below are historical: both items shipped (see
-the Follow-up checklist at the bottom).
+"Home-network / Network (in Settings)" section for the current product
+surface — this doc stays as the decision record for *why* each piece works
+the way it does. The two "(follow-up)" headings below are historical: both
+items shipped (#129 Phases 1–4, #169).
 
 This documents what the spike **proved against the live hardware** and what
 it recommended adopting. The prototype core lived in `src/network_client.py`
@@ -228,13 +228,3 @@ is how the reservation drift signal gets ruined.
 Devices behind the garage client bridge report an extender-translated
 `02:0F:B5:*` MAC, so they group under that derived identity; a device moved off
 the bridge simply reappears under Unclassified with its real address.
-
-## Follow-up checklist
-
-- [x] ZTE `menuData` session-token scheme → WAN/internet status read (#129 Phase 3)
-- [x] ZTE reboot POST → `reboot_router()` (#129 Phase 3)
-- [x] MAC history store + online/offline, last-seen, new-device / important-offline alerts, mark-important, show-offline toggle (`src/network_history.py`, #129 Phase 4)
-- [x] Optional router-DHCP merge for better device hostnames (#169)
-- [ ] Optional latency/throughput sparklines + scheduled nightly speed test (deferred from #129 Phase 4)
-- [x] `src/network_display_names.py` (MAC-keyed) + sample JSON (#129 Phase 2)
-- [x] `GET /api/network` router + the Network tab UI (#129 Phase 1)

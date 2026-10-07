@@ -501,19 +501,3 @@ them back with `GET $HA_URL/api/states/select.home_assistant_voice_<id>_wake_wor
 - Local hub models are text-only; OpenAI-shape tool-use on the local llama backends requires
   `--jinja`. The hub's `claude -p` path accepts a `tools` payload but its tool-call emission
   is unverified — prefer deterministic routing (Tier 1) for actions.
-
-## Roadmap (tracked as issues, not here)
-
-- Action bridge — voice → real device control (deterministic): **live** for the alarm
-  (#88 Phase 4; see above + [`voice-commands-howto.md`](voice-commands-howto.md)); native
-  HA integration: #235.
-- Local-model evaluation for the brain/classifier role: **done + wired live** (#234) —
-  Tier-2 pick `qwen3.5-4b` (thinking off), now serving the live brain via the hub's
-  `qwen3.5-4b-nothink` alias (`local-llm-hub#159` + `#161`); ~0.7–1.0 s end-to-end. See
-  [`voice-model-benchmark.md`](voice-model-benchmark.md).
-- Hardware: external powered speaker (3.5 mm) + stronger kitchen 2.4 GHz Wi-Fi.
-- Tier-3 web search: **done + wired live** (#321) — self-hosted SearXNG backs a new
-  `web_search` function, English only for now, supervised by the webapp since #716. See
-  "Web search (Tier 3)" above. Spanish
-  LLM fallback (to make Spanish search actually work) is a real architecture change and
-  a candidate follow-up issue, not scoped here.
