@@ -44,6 +44,10 @@ _nut_backoff = _new_backoff()
 _nut_direct_backoff = _new_backoff()
 
 _UNKNOWN_RUNTIME_MINUTES = {71582788, 4294967295}
+# Charge at or below this raises the "Charge below N%" alarm and is handed to
+# the NUT driver as ``lowbatt``; above it a battery alarm contradicting a
+# healthy charge + live runtime is dropped. One number so they cannot disagree.
+_LOW_CHARGE_PCT = 20
 # Portable NUT-for-Windows lives inside the repo under the gitignored
 # ``_local/`` umbrella (co-located so deps aren't scattered; never committed).
 _PORTABLE_NUT_ROOT = (
@@ -250,7 +254,7 @@ def _read_nut_direct() -> UpsState:
             "-x",
             "pollonly",
             "-x",
-            "lowbatt=20",
+            f"lowbatt={_LOW_CHARGE_PCT}",
             "-d",
             "1",
         ],
@@ -386,8 +390,8 @@ def _nut_alarms(
         alarms.append("Replace battery")
     if "LB" in flags and mains_online is False:
         alarms.append("Low battery")
-    if charge_pct is not None and charge_pct <= 20:
-        alarms.append("Charge below 20%")
+    if charge_pct is not None and charge_pct <= _LOW_CHARGE_PCT:
+        alarms.append(f"Charge below {_LOW_CHARGE_PCT}%")
     return tuple(dict.fromkeys(alarms))
 
 
@@ -401,7 +405,7 @@ def _is_contradictory_battery_alarm(
         return False
     return (
         charge_pct is not None
-        and charge_pct > 20
+        and charge_pct > _LOW_CHARGE_PCT
         and runtime_seconds is not None
         and runtime_seconds > 0
     )
@@ -520,6 +524,6 @@ def _windows_alarms(
         alarms.append("Low battery")
     if status_code in {5, 9}:
         alarms.append("Critical battery")
-    if charge_pct is not None and charge_pct <= 20:
-        alarms.append("Charge below 20%")
+    if charge_pct is not None and charge_pct <= _LOW_CHARGE_PCT:
+        alarms.append(f"Charge below {_LOW_CHARGE_PCT}%")
     return tuple(dict.fromkeys(alarms))
