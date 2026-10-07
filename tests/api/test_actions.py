@@ -7,7 +7,28 @@ from typing import Any, Dict, List
 import pytest
 from fastapi.testclient import TestClient
 
+from src.quick_action_config import QuickActionsConfig
 from src.risco_client import RiscoCommandError, SecurityState
+
+# Issue #831: the real plug device id / climate entity are household-
+# identifying and live only in gitignored config/quick_actions.json — tests
+# bind their own fake values instead of asserting against real ones.
+_TEST_PLUG_DEVICE_ID = "test-plug-device-id"
+_TEST_AC_CLIMATE_ENTITY = "climate.test_unit"
+
+
+@pytest.fixture(autouse=True)
+def _configured_quick_actions(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.webapp.actions_registry as registry
+
+    monkeypatch.setattr(
+        registry,
+        "_quick_actions_config",
+        QuickActionsConfig(
+            plug_device_id=_TEST_PLUG_DEVICE_ID,
+            ac_climate_entity=_TEST_AC_CLIMATE_ENTITY,
+        ),
+    )
 
 
 def test_unknown_action_id_is_404(client: TestClient) -> None:
@@ -95,7 +116,7 @@ def test_plug_action_wraps_set_switch_on_the_bound_device(
     body = resp.json()
     assert body["ok"] is True
     assert body["switch_on"] is expected_on
-    assert calls == [(registry._PLUG_DEVICE_ID, expected_on)]
+    assert calls == [(_TEST_PLUG_DEVICE_ID, expected_on)]
 
 
 @pytest.mark.parametrize("action_id,expected_mode", [("ac_on", "cool"), ("ac_off", "off")])
@@ -125,7 +146,7 @@ def test_ac_action_calls_set_hvac_mode(
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
     assert calls == [
-        ("climate", "set_hvac_mode", registry._AC_CLIMATE_ENTITY, {"hvac_mode": expected_mode})
+        ("climate", "set_hvac_mode", _TEST_AC_CLIMATE_ENTITY, {"hvac_mode": expected_mode})
     ]
 
 

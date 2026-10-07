@@ -32,7 +32,7 @@ router = APIRouter()
 _MAX_LIMIT = 500
 
 # Per-domain display-name override stores (the same the rename UIs write). Used
-# to label rows with "Office plug" / "hab. Luca" instead of a raw device id.
+# to label rows with a user-chosen name instead of a raw device id.
 _LABEL_LOADERS = {
     "hvac": load_display_names,
     "plug": load_tuya_display_names,
