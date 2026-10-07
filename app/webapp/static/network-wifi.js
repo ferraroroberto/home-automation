@@ -100,7 +100,7 @@ function wifiRow(b) {
   if (b.connected) {
     const pill = document.createElement('span');
     pill.className = 'net-wifi-current';
-    pill.textContent = 'current';
+    pill.textContent = 'Current';
     main.appendChild(pill);
   }
   const meta = document.createElement('span');

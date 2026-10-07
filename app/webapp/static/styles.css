@@ -51,9 +51,11 @@
   --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
   --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
   /* radii (rounded scale) — this app's adopted scale is {md, lg, nav, pill,
-     50%-circles} only (issue #361 census); no --radius-sm token — the 6/8px
-     strays it used to back were nested-card/icon-button strays, folded into
-     --radius-md below. */
+     50%-circles} only (issue #361 census); the 6/8px strays it used to back
+     were nested-card/icon-button strays, folded into --radius-md below. The one
+     --radius-sm is the vendored icon-button's own corner (its fallback value,
+     defined so the component reads a token, not a fallback; #838). */
+  --radius-sm: 8px;
   --radius-md: 12px;
   --radius: 16px;           /* rounded.lg — cards */
   --radius-pill: 9999px;
@@ -3147,8 +3149,6 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   padding: 1px 7px;
   font-size: var(--font-caption);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 .net-wifi-note { margin: 10px 0 0; }
 @media (max-width: 560px) {
@@ -3502,7 +3502,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   flex: 0 0 auto; margin-left: 2px;
   background: var(--accent-fill); color: var(--accent-fg);
   border-radius: var(--radius-pill); padding: 1px 7px;
-  font-size: var(--font-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  font-size: var(--font-caption); font-weight: 700;
 }
 button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* "Reachable" pill (#552) — success-colored, not the accent "new" pill's blue,
@@ -3512,7 +3512,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
   flex: 0 0 auto; margin-left: 2px;
   color: var(--success-text); background: color-mix(in srgb, var(--on) 14%, transparent);
   border-radius: var(--radius-pill); padding: 1px 7px;
-  font-size: var(--font-caption); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  font-size: var(--font-caption); font-weight: 700;
 }
 button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 /* Offline status line in the detail modal. */

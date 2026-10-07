@@ -433,7 +433,7 @@ function openDevicePicker() {
   if (!devices.length) {
     els.netSurveyDialogList.appendChild(emptyStateEl(
       'smartphone',
-      'No wireless devices in the current read — open Settings → Network and wait for a poll.'
+      'No wireless devices in the current read — open Network in Settings and wait for a poll.'
     ));
   } else {
     devices.forEach(function (d) { els.netSurveyDialogList.appendChild(pickerRow(d)); });
