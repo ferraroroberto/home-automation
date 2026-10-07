@@ -304,14 +304,6 @@ MIN_SETTLE_INTERVAL_S = 300
 #: Sanity ceiling — a typo'd interval must not park the coordinator for a day.
 MAX_SETTLE_INTERVAL_S = 3600
 
-#: Admission/shed ordering policies. v1 ships one deterministic order, keyed on
-#: unit id: with LIFO shedding, admission order *is* shed order, so it must not
-#: depend on MELCloud's device-fetch order, which is not guaranteed stable. A
-#: fairness rotation (so the same room is not always admitted first) is a later
-#: value of this same knob, not a second knob.
-ORDERING_POLICIES = ("stable",)
-DEFAULT_ORDERING_POLICY = "stable"
-
 
 @dataclass
 class BoostCoordinatorConfig:
@@ -335,7 +327,6 @@ class BoostCoordinatorConfig:
     #: the UI all speak the same number and the sign convention lives in exactly
     #: one comparison.
     hard_deficit_w: float = 1000.0
-    ordering_policy: str = DEFAULT_ORDERING_POLICY
 
 
 @dataclass(frozen=True)
@@ -349,11 +340,6 @@ class BoostDecision:
     reason: str = "idle"
     #: Candidates blocked this tick — still candidates, retried next interval.
     held: Tuple[str, ...] = ()
-
-
-def _order_candidates(candidates: Sequence[str], policy: str) -> List[str]:
-    """Candidates in admission order for ``policy`` (v1: deterministic by id)."""
-    return sorted(candidates)
 
 
 def next_boost_admission(
@@ -435,7 +421,10 @@ def next_boost_admission(
     if not candidates:
         return BoostDecision(reason="idle")
 
-    ordered = tuple(_order_candidates(candidates, config.ordering_policy))
+    # Admission order is deterministic by unit id: with LIFO shedding, admission
+    # order *is* shed order, so it must not depend on MELCloud's device-fetch
+    # order, which is not guaranteed stable.
+    ordered = tuple(sorted(candidates))
     if not settled:
         return BoostDecision(reason="held_settle", held=ordered)
     if last_change_as_of is not None and energy_as_of == last_change_as_of:
@@ -459,8 +448,12 @@ def next_boost_admission(
 # silently clamping a value the user just typed into the Energy tab is a bug,
 # not resilience. Don't route the writer through the reader's parsing.
 _OWNED_BOOST_KEYS = frozenset(
-    {"settle_interval_s", "admission_margin_w", "hard_deficit_w", "ordering_policy"}
+    {"settle_interval_s", "admission_margin_w", "hard_deficit_w"}
 )
+#: Keys an earlier version wrote. The loader already ignores them, so an old
+#: file still loads; the writer drops them so the next save migrates it instead
+#: of carrying a dead knob (and its ``_doc_`` note) forward as a "foreign" key.
+_RETIRED_BOOST_KEYS = frozenset({"ordering_policy", "_doc_ordering_policy"})
 
 
 def _coerce_float(value: Any, default: float, field_name: str) -> float:
@@ -507,11 +500,6 @@ def load_boost_config(path: Optional[Path] = None) -> BoostCoordinatorConfig:
             "publishes on a 5-minute grid)", settle, clamped,
         )
 
-    policy = str(raw.get("ordering_policy", defaults.ordering_policy))
-    if policy not in ORDERING_POLICIES:
-        logger.warning("⚠️ Unknown ordering_policy=%r; using %s", policy, defaults.ordering_policy)
-        policy = defaults.ordering_policy
-
     return BoostCoordinatorConfig(
         settle_interval_s=clamped,
         admission_margin_w=_coerce_float(
@@ -524,7 +512,6 @@ def load_boost_config(path: Optional[Path] = None) -> BoostCoordinatorConfig:
             defaults.hard_deficit_w,
             "hard_deficit_w",
         ),
-        ordering_policy=policy,
     )
 
 
@@ -563,11 +550,6 @@ def validate_boost_config(config: BoostCoordinatorConfig) -> None:
         if number < 0:
             raise ValueError(f"{field_name} must be zero or greater")
 
-    if config.ordering_policy not in ORDERING_POLICIES:
-        raise ValueError(
-            "ordering_policy must be one of: " + ", ".join(ORDERING_POLICIES)
-        )
-
 
 def save_boost_config(
     config: BoostCoordinatorConfig, path: Optional[Path] = None
@@ -584,12 +566,15 @@ def save_boost_config(
     payload: Dict[str, Any] = {}
     existing = read_json(target, None)
     if isinstance(existing, dict):
-        payload = {k: v for k, v in existing.items() if k not in _OWNED_BOOST_KEYS}
+        payload = {
+            k: v
+            for k, v in existing.items()
+            if k not in _OWNED_BOOST_KEYS and k not in _RETIRED_BOOST_KEYS
+        }
 
     payload["settle_interval_s"] = int(config.settle_interval_s)
     payload["admission_margin_w"] = float(config.admission_margin_w)
     payload["hard_deficit_w"] = float(config.hard_deficit_w)
-    payload["ordering_policy"] = config.ordering_policy
 
     write_json_atomic(target, payload)
     logger.info(

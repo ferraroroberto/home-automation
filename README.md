@@ -1364,7 +1364,6 @@ The coordinator knobs are **fleet-wide** and edited from the Energy tab's **Sola
 | `settle_interval_s` | `300` | Minimum seconds between two changes to the boosted set. **Floor 300**, ceiling 3600 — FusionSolar publishes on a 5-minute grid, so a shorter interval re-reads the same value and admits again before the last admission has shown up in it. The interval also has to cover the compressor's own ramp-up. |
 | `admission_margin_w` | `0` | Extra watts of measured surplus, on top of `HVAC_BOOST_SURPLUS_ON_W`, required to admit the *next* unit. `0` still means "the full entry threshold is measurably spare", which is a real test because the reading already contains what the boosted units draw. |
 | `hard_deficit_w` | `1000` | Sustained import (positive watts) at which every boosted unit is shed at once. |
-| `ordering_policy` | `"stable"` | Admission order — and therefore shed order reversed. `stable` is deterministic by unit id rather than MELCloud's fetch order, which is not guaranteed stable. A fairness rotation would be a later value of this same knob. |
 
 API: `GET`/`PUT /api/hvac/boost-coordinator`.
 

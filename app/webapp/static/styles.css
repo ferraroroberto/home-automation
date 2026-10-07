@@ -2405,8 +2405,7 @@ button.circuit-meter-name {
 #pvPerformanceRatio,
 #boostSettleMin,
 #boostAdmissionMargin,
-#boostHardDeficit,
-#boostOrderingPolicy {
+#boostHardDeficit {
   width: 8.5rem;
 }
 #locationLat,

@@ -474,7 +474,6 @@ def test_boost_config_defaults_when_the_file_is_absent(tmp_path):
     config = load_boost_config(tmp_path / "nope.json")
     assert config.settle_interval_s == MIN_SETTLE_INTERVAL_S
     assert config.admission_margin_w == 0.0
-    assert config.ordering_policy == "stable"
 
 
 def test_a_hand_edited_settle_interval_below_the_floor_is_clamped_up(tmp_path):
@@ -489,13 +488,12 @@ def test_malformed_values_fall_back_to_defaults_rather_than_failing(tmp_path):
     path = tmp_path / "hvac_boost.json"
     path.write_text(
         '{"admission_margin_w": "lots", "hard_deficit_w": -5, '
-        '"ordering_policy": "whatever"}',
+        '"ordering_policy": "whatever"}',  # a retired key: ignored, not an error
         encoding="utf-8",
     )
     config = load_boost_config(path)
     assert config.admission_margin_w == 0.0
     assert config.hard_deficit_w == 1000.0
-    assert config.ordering_policy == "stable"
 
 
 def test_validate_rejects_a_settle_interval_under_the_floor():
