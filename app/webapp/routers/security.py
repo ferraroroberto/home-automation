@@ -159,8 +159,6 @@ _http_error = make_http_error_mapper(RiscoConfigError, RiscoCommandError, noun="
 async def get_security() -> Dict[str, Any]:
     try:
         state, snapshot = await SECURITY_SNAPSHOT.read()
-    except (RiscoConfigError, RiscoCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
     return {**_state_payload(state), "snapshot": snapshot}
@@ -173,8 +171,6 @@ async def get_security_events(count: int = 50) -> Dict[str, Any]:
         events = await fetch_events(count=safe_count)
         await asyncio.to_thread(_persist_risco_events, events)
         return _events_payload(events)
-    except (RiscoConfigError, RiscoCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 
@@ -213,15 +209,6 @@ async def post_security_action(action: str, request: Request) -> Dict[str, Any]:
             source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK, actor=actor
         )
         return _state_payload(state)
-    except (RiscoConfigError, RiscoCommandError) as exc:
-        await record_alarm_action(
-            source=SOURCE_MANUAL,
-            action=action,
-            outcome=OUTCOME_ERROR,
-            error=str(exc),
-            actor=actor,
-        )
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         await record_alarm_action(
             source=SOURCE_MANUAL,
@@ -244,8 +231,6 @@ async def post_zone_bypass(zone_id: int, request: Request) -> Dict[str, Any]:
             raise
         SECURITY_SNAPSHOT.update(lambda _old: state)
         return _state_payload(state)
-    except (RiscoConfigError, RiscoCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 

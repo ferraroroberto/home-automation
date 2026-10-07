@@ -31,9 +31,9 @@ def test_source_backoff_escalates_and_caps() -> None:
     backoff = U.BackoffTracker()
     delays = [backoff.record_failure() for _ in range(8)]
 
-    assert delays[0] == pytest.approx(U._BACKOFF_BASE_S)
+    assert delays[0] == pytest.approx(U.BackoffTracker().base_s)
     assert all(delays[i] <= delays[i + 1] + 0.01 for i in range(len(delays) - 1))
-    assert delays[-1] <= U._BACKOFF_MAX_S + 0.01
+    assert delays[-1] <= U.BackoffTracker().max_s + 0.01
 
 
 def test_source_backoff_success_clears_state() -> None:

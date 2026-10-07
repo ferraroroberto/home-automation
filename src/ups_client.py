@@ -23,25 +23,13 @@ logger = logging.getLogger("ups")
 # server that isn't running gets its upsc.exe/usbhid-ups.exe subprocess
 # re-spawned (and timed out after 5-8s) on every ~15s poll tick otherwise.
 # Not per-device — there's exactly one local UPS — just one tracker per NUT
-# path, since either can be available independently of the other.
-_BACKOFF_BASE_S = 15.0
-_BACKOFF_MAX_S = 300.0
-_BACKOFF_FACTOR = 2.0
-_BACKOFF_MAX_EXPONENT = 10  # 15 * 2**10 already far exceeds _BACKOFF_MAX_S
-
-
-def _new_backoff() -> BackoffTracker:
-    return BackoffTracker(
-        base_s=_BACKOFF_BASE_S,
-        max_s=_BACKOFF_MAX_S,
-        factor=_BACKOFF_FACTOR,
-        max_exponent=_BACKOFF_MAX_EXPONENT,
-    )
+# path, since either can be available independently of the other. The cadence
+# is ``BackoffTracker``'s own defaults (15 s base, 300 s cap).
 
 
 _backoff_lock = threading.Lock()
-_nut_backoff = _new_backoff()
-_nut_direct_backoff = _new_backoff()
+_nut_backoff = BackoffTracker()
+_nut_direct_backoff = BackoffTracker()
 
 _UNKNOWN_RUNTIME_MINUTES = {71582788, 4294967295}
 # Charge at or below this raises the "Charge below N%" alarm and is handed to

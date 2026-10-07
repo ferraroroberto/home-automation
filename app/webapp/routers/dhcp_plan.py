@@ -247,8 +247,6 @@ async def get_dhcp_plan() -> Dict[str, Any]:
     """
     try:
         plan, existing_rows, online_macs = await _compute_dhcp_plan()
-    except (NetworkConfigError, NetworkCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001 — surface any unexpected error
         raise _http_error(exc)
     return _dhcp_plan_dict(plan, existing_rows, online_macs)
@@ -277,8 +275,6 @@ async def apply_dhcp_plan(payload: Optional[DhcpApplyPayload] = None) -> Dict[st
     """
     try:
         plan, _existing_rows, _online_macs = await _compute_dhcp_plan()
-    except (NetworkConfigError, NetworkCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 
@@ -301,8 +297,6 @@ async def apply_dhcp_plan(payload: Optional[DhcpApplyPayload] = None) -> Dict[st
 
     try:
         results = await apply_dhcp_bindings(rows)
-    except (NetworkConfigError, NetworkCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 
@@ -352,8 +346,6 @@ async def delete_dhcp_reservation(payload: DhcpDeletePayload) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="invalid reservation id")
     try:
         await delete_dhcp_binding(inst_id)
-    except (NetworkConfigError, NetworkCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
     return {"ok": True, "inst_id": inst_id}
@@ -436,8 +428,6 @@ async def add_dhcp_reservation(payload: DhcpManualBindingPayload) -> Dict[str, A
     name = binding_name((payload.name or "").strip() or mac, mac)
     try:
         results = await apply_dhcp_bindings([{"name": name, "mac": mac, "ip": ip}])
-    except (NetworkConfigError, NetworkCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
     row = results[0] if results else {"ok": False, "error": "no result"}
@@ -468,8 +458,6 @@ async def apply_dhcp_reservations(payload: DhcpReservationsApplyPayload) -> Dict
     """
     try:
         plan, _existing_rows, _online = await _compute_dhcp_plan()
-    except (NetworkConfigError, NetworkCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 
@@ -513,8 +501,6 @@ async def apply_dhcp_reservations(payload: DhcpReservationsApplyPayload) -> Dict
 
     try:
         results = await apply_dhcp_changes(removes, add_rows)
-    except (NetworkConfigError, NetworkCommandError) as exc:
-        raise _http_error(exc)
     except Exception as exc:  # noqa: BLE001
         raise _http_error(exc)
 
