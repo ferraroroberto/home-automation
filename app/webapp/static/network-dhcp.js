@@ -64,7 +64,7 @@ function existingRow(e) {
   name.textContent = e.display_name || e.name || '(unnamed)';
   if (!e.online) {
     const badge = document.createElement('span');
-    badge.className = 'net-dhcp-ex-offline';
+    badge.className = 'pill net-dhcp-ex-offline';
     badge.textContent = 'offline';
     name.appendChild(document.createTextNode(' '));
     name.appendChild(badge);
@@ -178,10 +178,10 @@ function suggestedRow(a) {
   });
 
   const tag = a.status === 'change'
-    ? ['Change', 'net-dhcp-pill-change']
-    : ['New', 'net-dhcp-pill-create'];
+    ? ['Change', 'pill--attention']
+    : ['New', 'pill--accent'];
   const pill = document.createElement('span');
-  pill.className = 'net-dhcp-pill ' + tag[1];
+  pill.className = 'pill net-dhcp-pill ' + tag[1];
   pill.textContent = tag[0];
   row.appendChild(pill);
   return row;
@@ -278,7 +278,7 @@ function renderManualStaged() {
   els.netDhcpManualStaged.hidden = false;
   manualAdds.forEach(function (m, i) {
     const chip = document.createElement('span');
-    chip.className = 'net-dhcp-chip';
+    chip.className = 'pill pill--accent net-dhcp-chip';
     const label = document.createElement('span');
     label.innerHTML = esc(m.name ? m.name + ' · ' : '') + moveHtml(m.mac, m.ip);
     chip.appendChild(label);

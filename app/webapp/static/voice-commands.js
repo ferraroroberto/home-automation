@@ -79,7 +79,7 @@ function renderPhrasing(phrasing, showLang) {
   example.className = 'voice-example';
   if (showLang) {
     const chip = document.createElement('span');
-    chip.className = 'voice-lang-chip';
+    chip.className = 'pill pill--accent voice-lang-chip';
     chip.textContent = LANG_LABELS[phrasing.lang] || String(phrasing.lang || '').toUpperCase();
     example.appendChild(chip);
   }

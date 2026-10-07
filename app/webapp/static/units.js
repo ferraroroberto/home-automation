@@ -220,7 +220,7 @@ function renderCardInto(card, unit) {
   header.innerHTML =
     '<span class="unit-mode-icon">' + icon(modeIcon(unit.operation_mode)) + '</span>' +
     '<span class="unit-name"></span>' +
-    (offline ? '<span class="unit-offline-badge" title="Not reachable — controls are disabled">Offline</span>' : '') +
+    (offline ? '<span class="pill pill--attention unit-offline-badge" title="Not reachable — controls are disabled">Offline</span>' : '') +
     (schedCount ? '<span class="unit-schedule-badge" title="' + schedCount + ' schedule' + (schedCount === 1 ? '' : 's') + '">' +
       icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '');
   header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
@@ -296,7 +296,7 @@ function renderCardInto(card, unit) {
   const boostRule = unit.temperature_rule || {};
   if (boostRule.boost_active) {
     const boost = document.createElement('div');
-    boost.className = 'unit-boost-badge';
+    boost.className = 'pill pill--accent unit-boost-badge';
     const label = boostRule.boost_delta_c == null
       ? 'Boost'
       : 'Boost ' + fmtBoostDelta(boostRule.boost_delta_c);

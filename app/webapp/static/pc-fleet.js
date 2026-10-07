@@ -37,6 +37,14 @@ const STATE_LABELS = {
   dormant: 'dormant',
 };
 
+// Shared `.pill` tone per state; an unknown state stays the neutral pill.
+const STATE_TONES = {
+  self: 'pill--success',
+  up: 'pill--success',
+  down: 'pill--danger',
+  dormant: 'pill--attention',
+};
+
 function clampThreshold(value) {
   const n = Math.round(Number(value));
   if (!Number.isFinite(n)) return prefs.threshold_minutes || 15;
@@ -79,7 +87,7 @@ function machineRow(machine) {
 
   const chip = document.createElement('span');
   const rawState = String(machine.state || '');
-  chip.className = 'pc-fleet-chip pc-fleet-chip--' + esc(rawState || 'unknown');
+  chip.className = 'pill ' + (STATE_TONES[rawState] || '') + ' pc-fleet-chip pc-fleet-chip--' + esc(rawState || 'unknown');
   chip.textContent = STATE_LABELS[rawState] || (rawState || 'unknown');
   rail.appendChild(chip);
 

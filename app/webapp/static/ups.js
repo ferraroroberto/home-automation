@@ -85,7 +85,7 @@ function renderUpsTile(tile, ups) {
     identity +
     '<span class="ups-line-stats"><span>' + esc(fmtPct(ups && ups.battery_charge_pct)) + '</span>' +
     '<span>' + esc(fmtRuntime(ups && ups.runtime_seconds)) + '</span></span>' +
-    '<span class="ups-status">' + esc(statusText(ups)) + '</span>' +
+    '<span class="pill pill--success ups-status">' + esc(statusText(ups)) + '</span>' +
     '</div>';
   // Shown whenever the tile is stale (a live fetch failed) OR a cached
   // snapshot painted before the first live fetch has resolved — the union

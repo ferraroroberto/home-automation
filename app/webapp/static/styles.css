@@ -412,6 +412,35 @@ button.circuit-meter-name:hover,
   .app { padding: 0 var(--gap) 24px; }
 }
 
+/* ------------------------------------------------------- status pill (#832)
+   The one small status chip (design.md `chip` geometry: pill radius, caption
+   type, 2px x spacing.sm padding). Every badge / state chip composes
+   `.pill` + one tone modifier, so the same semantic tone renders the same fill
+   on every card: status text (`--tone-text`) on its own 16% tint of `--tone`
+   (the spec's badge recipe), no border. `--tone`/`--tone-text` are the whole
+   interface — a component that switches tone on state (`.ups-status`) just
+   re-points the pair. Neutral sets its text in `--ink`: `--muted` drops under
+   AA on the 16% neutral-soft fill. A component keeps only what is genuinely
+   its own (layout, a larger size) in its own rule. */
+.pill {
+  --tone: var(--muted);
+  --tone-text: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  color: var(--tone-text);
+  font-size: var(--font-caption);
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.pill--success { --tone: var(--on); --tone-text: var(--success-text); }
+.pill--danger { --tone: var(--deficit); --tone-text: var(--danger-text); }
+.pill--attention { --tone: var(--attention); --tone-text: var(--attention-text); }
+.pill--accent { --tone: var(--accent); --tone-text: var(--accent-text); }
+
 /* ---------------------------------------------------- icons (Lucide) */
 /* Every app icon is <svg class="icon"><use href="#i-NAME"></use></svg>, drawn
    from the inline sprite at the top of index.html (issue #77). Stroke styling
@@ -904,22 +933,9 @@ button.circuit-meter-name:hover,
   flex: none;
 }
 /* "Offline" chip beside the unit name — says *why* the card's controls are
-   inert. Pill shape in the attention color so it stays readable through the
-   card's reduced opacity in both themes. */
-.unit-offline-badge {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  padding: 2px 7px;
-  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--attention) 12%, transparent);
-  color: var(--attention-text);
-  font-size: var(--font-caption);
-  font-weight: 700;
-  line-height: 1.15;
-  white-space: nowrap;
-}
+   inert. `.pill--attention` keeps it readable through the card's reduced
+   opacity in both themes. */
+.unit-offline-badge { flex: none; }
 .unit-schedule-icon {
   color: var(--muted);
   width: 16px;
@@ -975,20 +991,9 @@ button.circuit-meter-name:hover,
    lands at the same y as those value boxes, keeping the pill text centered
    on the same line as the Room/Rule temperature text instead of floating low. */
 .unit-boost-badge {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
   align-self: flex-end;
   min-height: 28px;
-  padding: 2px 7px;
-  border: 1px solid var(--accent-border-soft);
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font-size: var(--font-caption);
-  font-weight: 700;
-  line-height: 1.15;
-  white-space: nowrap;
 }
 /* icons.size.inline (16px) — the smallest step on the design.md icon scale (#570). */
 .unit-boost-icon { width: 16px; height: 16px; }
@@ -1207,21 +1212,16 @@ button.circuit-meter-name:hover,
   position: absolute;
   top: var(--space-md);
   right: var(--space-md);
-  font-size: var(--font-body);
-  font-weight: 700;
-  color: var(--success-text);
-  text-align: right;
   /* Prominent pill so mains/online state reads at a glance — green online,
-     red on battery / unavailable (#207). */
+     red on battery / unavailable (#207): a body-size `.pill`. */
+  font-size: var(--font-body);
   padding: 2px 10px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--on) 14%, transparent);
-  white-space: nowrap;
+  text-align: right;
 }
 .ups-tile.is-on-battery .ups-status,
 .ups-tile.is-unavailable .ups-status {
-  color: var(--danger-text);
-  background: color-mix(in srgb, var(--deficit) 16%, transparent);
+  --tone: var(--deficit);
+  --tone-text: var(--danger-text);
 }
 .ups-stats {
   display: grid;
@@ -1351,17 +1351,6 @@ button.circuit-meter-name:hover,
   gap: 8px;
   min-width: 0;
 }
-.ha-satellite-state {
-  border-radius: var(--radius-pill);
-  padding: 2px 8px;
-  font-size: var(--font-caption);
-  font-weight: 700;
-  background: color-mix(in srgb, var(--muted) 14%, transparent);
-}
-.ha-satellite-state.is-online {
-  color: var(--success-text);
-  background: color-mix(in srgb, var(--on) 14%, transparent);
-}
 .ha-live-transcript { margin: 4px 0 0; color: var(--accent); }
 .ha-live-transcript:empty { display: none; }
 .ha-mic-btn {
@@ -1454,12 +1443,6 @@ button.circuit-meter-name:hover,
 .voice-example-text { flex: 1; }
 .voice-lang-chip {
   flex: none;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font-size: var(--font-caption);
-  font-weight: 700;
   letter-spacing: 0.04em;
 }
 .voice-phrases { margin: var(--space-xs) 0 0; line-height: 1.45; }
@@ -2159,9 +2142,8 @@ button.circuit-meter-name {
   justify-content: space-between;
   gap: 10px;
   padding: var(--space-sm) 12px;
-  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  background: color-mix(in srgb, var(--attention) 16%, transparent);
   color: var(--attention-text);
   font-size: var(--font-label);
   font-weight: 700;
@@ -2491,34 +2473,6 @@ button.circuit-meter-name {
   gap: 12px;
 }
 .pc-fleet-host-note { white-space: nowrap; }
-.pc-fleet-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--line);
-  background: var(--card-off);
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 700;
-  white-space: nowrap;
-}
-.pc-fleet-chip--self,
-.pc-fleet-chip--up {
-  color: var(--success-text);
-  border-color: color-mix(in srgb, var(--on) 30%, var(--line));
-  background: color-mix(in srgb, var(--on) 8%, transparent);
-}
-.pc-fleet-chip--down {
-  color: var(--danger-text);
-  border-color: color-mix(in srgb, var(--deficit) 30%, var(--line));
-  background: color-mix(in srgb, var(--deficit) 8%, transparent);
-}
-.pc-fleet-chip--dormant {
-  color: var(--attention-text);
-  border-color: color-mix(in srgb, var(--attention) 30%, var(--line));
-  background: color-mix(in srgb, var(--attention) 8%, transparent);
-}
 /* Wake button: a compact utility button that must not stretch (range-tab's
    flex:1) and needs a >=44px effective tap target on its 36px visual box. */
 .pc-fleet-wake { flex: 0 0 auto; }
@@ -2673,14 +2627,13 @@ body:has(dialog[open]) .app { overflow: hidden; }
 }
 .detail-close .icon { width: 18px; height: 18px; }
 /* Banner explaining why the unit's mode/fan/vane selects are disabled (#520).
-   Attention-toned like the card's Offline chip, tinted rather than solid so it
-   reads the same in light and dark. */
+   Attention-toned like the card's Offline chip (same 16% tint), tinted rather
+   than solid so it reads the same in light and dark. */
 .detail-offline {
   margin: 0 0 10px;
   padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--attention) 28%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--attention) 12%, transparent);
+  background: color-mix(in srgb, var(--attention) 16%, transparent);
   color: var(--attention-text);
   font-size: var(--font-caption);
   font-weight: 600;
@@ -3142,13 +3095,6 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 .net-wifi-current {
   align-self: flex-start;
   margin-top: 3px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-border-soft);
-  color: var(--accent-text);
-  border-radius: var(--radius-pill);
-  padding: 1px 7px;
-  font-size: var(--font-caption);
-  font-weight: 700;
 }
 .net-wifi-note { margin: 10px 0 0; }
 @media (max-width: 560px) {
@@ -3508,12 +3454,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* "Reachable" pill (#552) — success-colored, not the accent "new" pill's blue,
    so a probe-confirmed device reads as a distinct positive state rather than
    "recently joined". */
-.net-device-reachable {
-  flex: 0 0 auto; margin-left: 2px;
-  color: var(--success-text); background: color-mix(in srgb, var(--on) 14%, transparent);
-  border-radius: var(--radius-pill); padding: 1px 7px;
-  font-size: var(--font-caption); font-weight: 700;
-}
+.net-device-reachable { flex: 0 0 auto; margin-left: 2px; }
 button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 /* Offline status line in the detail modal. */
 #netDeviceStatus.is-offline { color: var(--muted); }
@@ -3586,14 +3527,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .net-dhcp-move.net-dhcp-change { color: var(--accent); font-weight: 700; }
 .net-dhcp-move.net-dhcp-unplaced { color: var(--attention); font-weight: 700; }
 /* Per-row reservation status against the router (#176). */
-.net-dhcp-pill {
-  grid-area: pill; justify-self: end; align-self: center;
-  font-size: var(--font-caption); font-weight: 700; line-height: 1;
-  padding: 3px 7px; border-radius: var(--radius-pill); white-space: nowrap;
-}
-.net-dhcp-pill-reserved { color: var(--success-text); background: color-mix(in srgb, var(--on) 14%, transparent); }
-.net-dhcp-pill-create { color: var(--accent-text); background: var(--accent-soft); }
-.net-dhcp-pill-change { color: var(--attention-text); background: color-mix(in srgb, var(--attention) 16%, transparent); }
+.net-dhcp-pill { grid-area: pill; justify-self: end; align-self: center; }
 .net-dhcp-row-warn .net-dhcp-name { color: var(--attention); }
 .net-dhcp-warnings { margin: var(--space-sm) 0; display: flex; flex-direction: column; gap: var(--space-xs); }
 .net-dhcp-warning {
@@ -3615,10 +3549,6 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .net-dhcp-ex-name {
   grid-area: name; font-weight: 600; color: var(--ink);
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.net-dhcp-ex-offline {
-  font-size: var(--font-caption); font-weight: 700; color: var(--muted);
-  padding: 1px 5px; border-radius: var(--radius-pill); background: var(--card-off);
 }
 .net-dhcp-ex-mac { grid-area: mac; font-size: var(--font-caption); color: var(--muted); }
 .net-dhcp-ex-ip {
@@ -3669,12 +3599,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 
 /* Staged manual adds shown as removable chips. */
 .net-dhcp-manual-staged { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-sm) 0 0; }
-.net-dhcp-chip {
-  display: inline-flex; align-items: center; gap: var(--space-xs);
-  font-size: var(--font-caption); padding: 3px 6px 3px 10px; border-radius: var(--radius-pill);
-  background: var(--accent-soft); color: var(--accent-text);
-  border: 1px solid var(--accent-border-strong);
-}
+.net-dhcp-chip { gap: var(--space-xs); padding-right: 6px; }
 /* No fixed box inside the pill: a 16px icon-button box leaves the chip's own
    layout unchanged and its ::before reaches the 44px target. */
 .net-dhcp-chip-x { --icon-btn-box: 16px; }

@@ -111,7 +111,7 @@ function renderSatellites(rows) {
     row.innerHTML =
       '<div class="ha-satellite-copy">' +
       '  <div class="ha-satellite-title"><strong>' + esc(satellite.room) + '</strong>' +
-      '    <span class="ha-satellite-state ' + (satellite.online ? 'is-online' : 'is-offline') + '">' +
+      '    <span class="pill' + (satellite.online ? ' pill--success' : '') + ' ha-satellite-state ' + (satellite.online ? 'is-online' : 'is-offline') + '">' +
              esc(satellite.online ? satellite.state : 'offline') + '</span></div>' +
       '  <div class="muted small">' + esc(satellite.name) + ' · ' + esc(fmtVolume(satellite.volume)) + '</div>' +
       '  <p class="ha-live-transcript muted small" aria-live="polite"></p>' +
