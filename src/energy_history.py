@@ -358,7 +358,7 @@ def compact_and_prune(
         logger.info("🧮 Compacted %d hour(s) into rollup_hourly", rolled)
 
 
-def _hourly_since(since: int, now: int, path: Optional[Path]) -> List[Dict[str, Any]]:
+def _hourly_since(since: int, path: Optional[Path]) -> List[Dict[str, Any]]:
     """Hourly buckets with ``hour_start >= since``, oldest first.
 
     Reads never depend on compaction timing: recent hours (those that still
@@ -558,7 +558,7 @@ def aggregate(
     if period == "hourly":
         n = count or 48
         since = current - (current % _HOUR) - (n - 1) * _HOUR
-        hours = _hourly_since(since, current, path)
+        hours = _hourly_since(since, path)
         out = []
         for h in hours[-n:]:
             label = datetime.fromtimestamp(h["hour_start"]).strftime("%H:%M")
@@ -570,14 +570,14 @@ def aggregate(
     if period == "daily":
         n = count or 30
         since = current - (n + 1) * 24 * _HOUR
-        hours = _hourly_since(since, current, path)
+        hours = _hourly_since(since, path)
         grouped = _group(hours, n, fmt_key="%Y-%m-%d", fmt_label="%a %d")
         return _mark_calendar_partial(grouped, current, "%Y-%m-%d")
 
     if period == "monthly":
         n = count or 12
         since = current - (n + 1) * 31 * 24 * _HOUR
-        hours = _hourly_since(since, current, path)
+        hours = _hourly_since(since, path)
         grouped = _group(hours, n, fmt_key="%Y-%m", fmt_label="%b %Y")
         return _mark_calendar_partial(grouped, current, "%Y-%m")
 
@@ -608,7 +608,7 @@ def hourly_range(period: str = "month", now: Optional[int] = None, path: Optiona
         since = 0
     else:
         raise ValueError(f"unknown period: {period!r}")
-    return _hourly_since(since, current, path)
+    return _hourly_since(since, path)
 
 
 def _group(hours: List[Dict[str, Any]], n: int, fmt_key: str, fmt_label: str) -> List[Dict[str, Any]]:
@@ -672,7 +672,7 @@ def framed_buckets(
         ordered: List[str] = []
         groups: Dict[str, List[Dict[str, Any]]] = {}
         labels: Dict[str, str] = {}
-        for h in _hourly_since(0, current, path):
+        for h in _hourly_since(0, path):
             d = datetime.fromtimestamp(h["hour_start"])
             key = d.strftime("%Y-%m")
             if key not in groups:
@@ -703,11 +703,7 @@ def hourly_day(
     dt_now = datetime.fromtimestamp(current)
     start = datetime(dt_now.year, dt_now.month, dt_now.day) + timedelta(days=offset_days)
     since = int(start.timestamp())
-    end = since + 24 * _HOUR
-    by_hour = {
-        int(h["hour_start"]): h
-        for h in _hourly_since(since, min(current, end), path)
-    }
+    by_hour = {int(h["hour_start"]): h for h in _hourly_since(since, path)}
     out = []
     for i in range(24):
         hs = since + i * _HOUR
