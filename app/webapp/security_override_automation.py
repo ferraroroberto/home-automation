@@ -2,7 +2,7 @@
 
 RISCO's panel already auto-omits a repeatedly-triggered zone, but only after an
 uncontrolled, undocumented number of repeats — confirmed live in issue #325
-(zone 12 "PUERTA JARDIN" auto-bypassed itself after 5 alarms in one session).
+(a perimeter zone auto-bypassed itself after 5 alarms in one session).
 This module makes that behavior configurable per detector (1-3 repeats,
 ``src/security_override.py``) and proactive, so a windy garden or a roaming
 animal stops re-triggering the scene-capture/notify pipeline (issue #162) well

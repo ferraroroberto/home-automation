@@ -1,7 +1,7 @@
 """Persisted per-zone "auto-bypass after repeated alarms" overrides (issue #341).
 
 RISCO's own panel has an undocumented, uncontrolled anti-nuisance auto-omit —
-confirmed live in issue #325 (zone 12 "PUERTA JARDIN" auto-bypassed itself
+confirmed live in issue #325 (a perimeter zone auto-bypassed itself
 after 5 alarms in one armed session). This store lets the user configure a
 much tighter, per-zone threshold (1-3 repeats) so a windy garden or a roaming
 cat gets bypassed for the rest of the current armed session well before the

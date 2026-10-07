@@ -32,15 +32,24 @@ from app.webapp.alarm_notify import (
 )
 from src.ha_client import HomeAssistantClient
 from src.presence_engine import note_manual_alarm_action
+from src.quick_action_config import (
+    QuickActionsConfig,
+    load_quick_actions_config,
+    require_ac_climate_entity,
+    require_plug_device_id,
+)
 from src.risco_client import ACTIONS as _ALARM_ACTIONS
 from src.risco_client import control_system
 from src.tuya_client import set_switch
 
 logger = logging.getLogger(__name__)
 
-# Devices resolved with Roberto for issue #641. There is no UI for re-pointing
-# an action — change the id/entity here if the bound device changes.
-_PLUG_DEVICE_ID = "bfc158aece14a52035diwf"  # "luz despacho"
+# The bound plug device id + climate entity are household-identifying and
+# live in gitignored config/quick_actions.json instead (issue #831) — there
+# is still no UI for re-pointing an action, so edit that file directly if the
+# bound device/entity changes. Read fresh in each handler (not captured at
+# creation) so tests can monkeypatch this module attribute per-case.
+_quick_actions_config: QuickActionsConfig = load_quick_actions_config()
 
 # HA's own MELCloud integration exposes one climate.* entity per room
 # (independent of this repo's src/melcloud_client.py, which is a separate
@@ -49,7 +58,6 @@ _PLUG_DEVICE_ID = "bfc158aece14a52035diwf"  # "luz despacho"
 # ``climate.turn_on``/``turn_off`` 500 on this integration (live-tested
 # against the real device), so on/off is modelled as a fixed hvac_mode
 # target rather than the generic turn_on/turn_off service.
-_AC_CLIMATE_ENTITY = "climate.despacho"
 _AC_ON_MODE = "cool"  # this button's fixed "on" target; edit here to change it
 _AC_OFF_MODE = "off"
 
@@ -66,7 +74,8 @@ async def _plug_action(device_id: str, on: bool) -> Dict[str, Any]:
 
 def _make_plug_handler(on: bool) -> Handler:
     async def _handler(_actor: str, _session: Optional[aiohttp.ClientSession]) -> Dict[str, Any]:
-        return await _plug_action(_PLUG_DEVICE_ID, on)
+        device_id = require_plug_device_id(_quick_actions_config)
+        return await _plug_action(device_id, on)
 
     return _handler
 
@@ -92,8 +101,9 @@ def _make_alarm_handler(action: str) -> Handler:
     return _handler
 
 
-def _make_ac_handler(entity_id: str, hvac_mode: str) -> Handler:
+def _make_ac_handler(hvac_mode: str) -> Handler:
     async def _handler(_actor: str, session: aiohttp.ClientSession) -> Dict[str, Any]:
+        entity_id = require_ac_climate_entity(_quick_actions_config)
         await HomeAssistantClient(session).call_service(
             "climate", "set_hvac_mode", entity_id, hvac_mode=hvac_mode
         )
@@ -105,7 +115,7 @@ def _make_ac_handler(entity_id: str, hvac_mode: str) -> Handler:
 ACTIONS: Dict[str, Handler] = {
     "plug_on": _make_plug_handler(True),
     "plug_off": _make_plug_handler(False),
-    "ac_on": _make_ac_handler(_AC_CLIMATE_ENTITY, _AC_ON_MODE),
-    "ac_off": _make_ac_handler(_AC_CLIMATE_ENTITY, _AC_OFF_MODE),
+    "ac_on": _make_ac_handler(_AC_ON_MODE),
+    "ac_off": _make_ac_handler(_AC_OFF_MODE),
     **{f"alarm_{action}": _make_alarm_handler(action) for action in _ALARM_ACTIONS},
 }

@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Request
 from app.webapp.actions_registry import ACTIONS
 from src import telemetry
 from src.ha_client import HaClientError
+from src.quick_action_config import QuickActionConfigError
 from src.risco_client import RiscoCommandError, RiscoConfigError
 from src.tuya_client import TuyaCommandError, TuyaConfigError, TuyaDeviceNotFoundError
 
@@ -43,7 +44,7 @@ def _actor_from_request(request: Request) -> str:
 
 
 def _http_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, (RiscoConfigError, TuyaConfigError)):
+    if isinstance(exc, (RiscoConfigError, TuyaConfigError, QuickActionConfigError)):
         return HTTPException(status_code=503, detail=str(exc))
     if isinstance(exc, TuyaDeviceNotFoundError):
         return HTTPException(status_code=404, detail=str(exc))
