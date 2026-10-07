@@ -1253,7 +1253,7 @@ Registered actions today:
 | `action_id` | Effect |
 |-------------|--------|
 | `alarm_arm` / `alarm_disarm` / `alarm_partial` / `alarm_perimeter` | Same as `POST /api/security/{action}` — wraps `control_system()` with the same manual-action side effects (presence-engine `note_manual_alarm_action`, `alarm.jsonl` activity entry). |
-| `plug_on` / `plug_off` | Toggles a configured Tuya plug (**"<device rename>"**, `bfc158aece14a52035diwf`) via `set_switch()` — the one device confirmed with Roberto for issue #641; there is no UI for re-pointing it, edit `app/webapp/actions_registry.py` if the bound device changes. |
+| `plug_on` / `plug_off` | Toggles the Tuya plug bound in `config/quick_actions.json` (`plug_device_id`, gitignored — see `config/quick_actions.sample.json`) via `set_switch()`; there is no UI for re-pointing it, edit that file directly if the bound device changes (issue #831). |
 | `ac_on` / `ac_off` | Turns one room's MELCloud unit on/off via Home Assistant's own `climate.<room>` entity, using `climate.set_hvac_mode` (`hvac_mode: "cool"` / `"off"`) — `climate.turn_on`/`climate.turn_off` were tried first and 500 on this integration (found via a live test against the real device), see note below. |
 
 Each call also records one `domain="action"` telemetry event (`GET /api/activity?domain=action`) tagged with the caller's `X-Automation-Source` header (any short token — this endpoint accepts values beyond the security router's fixed `ha`/`voice-pe` set, since it's meant for arbitrary future external triggers; an absent header records as `external`). This is what makes an action-endpoint call distinguishable from the same device being driven through its own webapp-UI endpoint, which never writes this domain.
