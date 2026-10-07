@@ -1,4 +1,4 @@
-/* Network tab — Wi-Fi diagnostics + the channel charts + the Wi-Fi rename modal.
+/* Network (Settings) — Wi-Fi diagnostics + the channel charts + the Wi-Fi rename modal.
  *
  * Split out of network.js (issue #197): the visible-radio list (grouped by band,
  * strongest first), the 2.4/5 GHz channel-occupancy charts, the recommendations

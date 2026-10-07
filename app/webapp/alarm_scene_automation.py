@@ -2,8 +2,9 @@
 
 This is the glue between the RISCO alarm and the camera/vision core
 (:mod:`src.alarm_scene`). It does **not** poll RISCO itself — the presence loop
-(:mod:`app.webapp.presence_automation`) is the single interval reader of the
-alarm state (a second poller would risk the cloud's third-party rate limit), so
+(:mod:`app.webapp.presence_automation`) is the only unconditional interval
+reader of the alarm state (the watched ``/api/security`` snapshot also refetches,
+#759; any further poller would risk the cloud's third-party rate limit), so
 it hands its one ``SecurityState`` read to :func:`consider_security_read` every
 tick. We do the cheap work inline (checking whether a scan is due) and fire the
 expensive work (event-log read + camera capture + vision call) as a detached

@@ -1,4 +1,4 @@
-/* Network tab — attached-device inventory + the per-device detail/rename modal.
+/* Network (Settings) — attached-device inventory + the per-device detail/rename modal.
  *
  * Split out of network.js (issue #197): the device list grouped by band (weakest
  * signal first), the sort and show-offline/show-hidden toggles with their

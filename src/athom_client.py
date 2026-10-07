@@ -700,14 +700,3 @@ def clear_read_cache() -> None:
     card until the next sweep. Observed exactly that in testing.
     """
     _state_cache.clear()
-
-
-def clear_caches() -> None:
-    """Drop the discovery *and* read caches — an explicit "look again now".
-
-    Only for the refresh action, where re-running discovery is the entire point
-    (a meter joined a minute ago is invisible until the TTL lapses).
-    """
-    global _discovery_cache
-    _discovery_cache = None
-    _state_cache.clear()

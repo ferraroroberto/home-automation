@@ -19,8 +19,9 @@ while an alarm is active.
 
 Hooked into ``app/webapp/presence_automation.py``'s tick alongside
 ``alarm_scene_automation.consider_security_read`` — that loop is documented as
-the *only* interval reader of RISCO state specifically to avoid a second
-poller tripping the cloud's third-party rate limit, so this rides the same
+the only *unconditional* interval reader of RISCO state (the watched
+``/api/security`` snapshot also refetches, #759), kept that way to avoid more
+pollers tripping the cloud's third-party rate limit, so this rides the same
 read rather than starting a competing poll loop.
 """
 

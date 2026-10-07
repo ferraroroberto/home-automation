@@ -101,13 +101,6 @@ function ensurePlaceLabel(entity) {
   });
 }
 
-function presenceLocationText(entity) {
-  const place = placeLabel(entity);
-  const dist = fmtDistance(entity.distance_from_home_m);
-  if (place && dist !== 'unknown') return place + ' · ' + dist;
-  return place || dist;
-}
-
 function presenceLabel(entity) {
   if (entity.at_home === true) return 'Home';
   if (entity.at_home === false) return 'Away';

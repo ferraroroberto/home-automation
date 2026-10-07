@@ -399,9 +399,9 @@ def _raise_for_tinytuya_error(response: Any, action: str) -> None:
             raise TuyaCommandError(f"{action} failed: {response['Error']}")
 
 
-def _status(device_id: str, cls: type[tinytuya.Device] = tinytuya.Device) -> dict[str, Any]:
+def _status(device_id: str) -> dict[str, Any]:
     """Read local status and return its DPS payload wrapper."""
-    device = _connect(device_id, cls)
+    device = _connect(device_id, tinytuya.OutletDevice)
     response = device.status()
     _raise_for_tinytuya_error(response, f"Read Tuya status {device_id}")
     if not isinstance(response, dict) or not isinstance(response.get("dps"), dict):
@@ -554,7 +554,7 @@ def read_device_state(device_id: str) -> dict[str, Any]:
     energy = _energy_mappings(metadata.raw)
 
     try:
-        status = _status(device_id, tinytuya.OutletDevice)
+        status = _status(device_id)
     except TuyaCommandError:
         _record_backoff_failure(device_id)
         raise
@@ -637,35 +637,3 @@ def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[
     _record_backoff_success(device_id)
     logger.info("✅ Sent Tuya cover action %s to %s", action, device_id)
     return response if isinstance(response, dict) else {"response": response}
-
-
-def get_energy(device_id: str) -> dict[str, Any]:
-    """Read model-specific smart-plug energy values via local LAN status.
-
-    DPS indexes vary by model, so this uses the captured ``mapping`` block
-    instead of assuming fixed 18/19/20 indexes.  The returned ``raw`` block
-    includes the original DPS values and mapping scale for calibration.
-    """
-    metadata = _local_metadata(device_id)
-    mappings = _energy_mappings(metadata.raw)
-    if not mappings:
-        raise TuyaCommandError(f"Device {device_id} has no energy DPS mapping")
-
-    status = _status(device_id, tinytuya.OutletDevice)
-    dps = status["dps"]
-    result: dict[str, Any] = {
-        "device_id": device_id,
-        "raw": {},
-    }
-    for name, mapping in mappings.items():
-        raw_value = dps.get(mapping.dps)
-        result[name] = _scaled(raw_value, mapping)
-        result["raw"][name] = {
-            "dps": mapping.dps,
-            "code": mapping.code,
-            "value": raw_value,
-            "scale": mapping.scale,
-            "unit": mapping.unit,
-        }
-    logger.info("✅ Read Tuya energy from %s", device_id)
-    return result

@@ -171,13 +171,18 @@ class TestDiscoveryCache:
 
     @pytest.fixture(autouse=True)
     def _clean(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        ac.clear_caches()
+        self._reset_caches()
         monkeypatch.delenv("ATHOM_METER_HOSTS", raising=False)
         # discover_meters() reloads .env on every call; keep the developer's
         # real one out of the test.
         monkeypatch.setattr(ac, "load_dotenv", lambda **_kw: None)
         yield
-        ac.clear_caches()
+        self._reset_caches()
+
+    @staticmethod
+    def _reset_caches() -> None:
+        ac._discovery_cache = None
+        ac._state_cache.clear()
 
     def _browse(self, monkeypatch: pytest.MonkeyPatch, results: list) -> list:
         """Stub the browse; returns the list of timeout windows it was called with."""

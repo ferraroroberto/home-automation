@@ -1,4 +1,4 @@
-/* Network tab — device-group rename/delete dialog.
+/* Network (Settings) — device-group rename/delete dialog.
  *
  * Split out of network-devices.js (issue #702): the "My groups" view's rename
  * and delete dialog for a real (persisted) group, opened from the pencil icon
