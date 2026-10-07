@@ -108,14 +108,23 @@ _STREAM_DONE = object()
 # --------------------------------------------------------------------------- #
 # Snapshot persistence                                                        #
 # --------------------------------------------------------------------------- #
-def last_snapshot_path(camera_id: str) -> Path:
-    """On-disk path of a camera's most recent persisted snapshot."""
+def last_snapshot_path(camera_id: str) -> Optional[Path]:
+    """On-disk path of a camera's most recent persisted snapshot.
+
+    ``None`` unless ``camera_id`` is a single plain file-name component, so the
+    path always lands directly inside :data:`LAST_SNAPSHOT_DIR`.
+    """
+    if camera_id in {"", ".", ".."} or Path(camera_id).name != camera_id:
+        return None
     return LAST_SNAPSHOT_DIR / f"{camera_id}.jpg"
 
 
 def read_last_snapshot(camera_id: str) -> Optional[bytes]:
     """Return the persisted last snapshot for a camera, or None if there is none."""
     target = last_snapshot_path(camera_id)
+    if target is None:
+        logger.info("ℹ️ last snapshot requested for an unusable camera id %r", camera_id)
+        return None
     try:
         return target.read_bytes()
     except OSError:
@@ -125,6 +134,9 @@ def read_last_snapshot(camera_id: str) -> Optional[bytes]:
 def _save_last_snapshot(camera_id: str, data: bytes) -> None:
     """Atomically persist a camera's latest JPEG as its last-known frame."""
     target = last_snapshot_path(camera_id)
+    if target is None:
+        logger.warning("⚠️ camera %r: id is not usable as a file name; last snapshot not persisted", camera_id)
+        return
     try:
         atomic_write_bytes(target, data)
     except OSError as exc:  # noqa: BLE001 — persistence is best-effort, never fatal
