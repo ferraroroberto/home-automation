@@ -54,7 +54,7 @@ def test_network_tab_groups_devices_and_switches_sort(
     expect(page.locator("#netWifiRecommendations")).to_contain_text("strong")
     expect(page.locator("#netWifiList .net-wifi-row")).to_have_count(2)
     current_wifi = page.locator("#netWifiList .net-wifi-row").filter(has_text="TestNet-5")
-    expect(current_wifi).to_contain_text("current")
+    expect(current_wifi).to_contain_text("Current")
     wifi_canvas_sizes = page.locator(".net-wifi-chart canvas").evaluate_all(
         "(nodes) => nodes.map((node) => ({ width: node.width, height: node.height }))"
     )

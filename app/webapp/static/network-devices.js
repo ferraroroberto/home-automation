@@ -269,7 +269,7 @@ function buildDeviceRow(d, grouped) {
   if (d.is_new) {
     const pill = document.createElement('span');
     pill.className = 'net-device-new';
-    pill.textContent = 'new';
+    pill.textContent = 'New';
     name.appendChild(pill);
   }
   // Marks a row promoted purely by the ping probe (#552) — distinct from
@@ -277,7 +277,7 @@ function buildDeviceRow(d, grouped) {
   if (pingConfirmed(d)) {
     const pill = document.createElement('span');
     pill.className = 'net-device-reachable';
-    pill.textContent = 'reachable';
+    pill.textContent = 'Reachable';
     name.appendChild(pill);
   }
   name.addEventListener('click', function () { openNetDeviceDetail(d.mac); });
