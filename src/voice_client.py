@@ -25,6 +25,11 @@ def load_base_url() -> str:
     return os.getenv("VOICE_TRANSCRIBER_URL", DEFAULT_BASE_URL).strip().rstrip("/")
 
 
+def _language_query(language: Optional[str]) -> str:
+    """``?language=xx`` suffix for the session endpoints, or ``""`` when unset."""
+    return f"?{urlencode({'language': language})}" if language else ""
+
+
 class VoiceTranscriberError(RuntimeError):
     """A distinct Voice Transcriber transport/API failure."""
 
@@ -48,7 +53,7 @@ class VoiceTranscriberClient:
         path: str,
         *,
         json_body: Optional[Dict[str, Any]] = None,
-        body: Optional[bytes] = None,
+        body: Optional[bytes | aiohttp.FormData] = None,
         headers: Optional[Dict[str, str]] = None,
         timeout: float = 90,
     ) -> Dict[str, Any]:
@@ -92,8 +97,9 @@ class VoiceTranscriberClient:
         )
 
     async def finish(self, session_id: str, language: Optional[str] = None) -> Dict[str, Any]:
-        suffix = f"?{urlencode({'language': language})}" if language else ""
-        return await self._request("POST", f"/api/sessions/{session_id}/finish{suffix}")
+        return await self._request(
+            "POST", f"/api/sessions/{session_id}/finish{_language_query(language)}"
+        )
 
     async def upload(
         self,
@@ -108,28 +114,11 @@ class VoiceTranscriberClient:
             raise VoiceTranscriberError("Voice Transcriber returned no session_id")
         form = aiohttp.FormData()
         form.add_field("file", content, filename=filename, content_type=content_type)
-        suffix = f"?{urlencode({'language': language})}" if language else ""
-        try:
-            async with self.session.post(
-                f"{self.base_url}/api/sessions/{session_id}/upload{suffix}",
-                data=form,
-                ssl=False,
-                timeout=aiohttp.ClientTimeout(total=90),
-            ) as response:
-                payload = await response.json(content_type=None)
-                if response.status >= 400:
-                    detail = payload.get("detail") if isinstance(payload, dict) else None
-                    raise VoiceTranscriberError(
-                        str(detail or f"Voice Transcriber returned HTTP {response.status}"),
-                        status=502 if response.status >= 500 else response.status,
-                    )
-                return payload if isinstance(payload, dict) else {}
-        except VoiceTranscriberError:
-            raise
-        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
-            raise VoiceTranscriberError(
-                f"Voice Transcriber is offline or unreachable: {exc}", status=503
-            ) from exc
+        return await self._request(
+            "POST",
+            f"/api/sessions/{session_id}/upload{_language_query(language)}",
+            body=form,
+        )
 
     async def events(self, session_id: str) -> AsyncIterator[bytes]:
         """Yield the upstream SSE stream without buffering."""

@@ -66,7 +66,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -75,6 +74,7 @@ from typing import Any, ContextManager, Dict, List, Optional
 
 from dotenv import load_dotenv
 
+from src._env import _env_int
 from src._sqlite import connect as _sqlite_connect
 from src.runtime_data import runtime_db_path
 
@@ -141,17 +141,6 @@ class TelemetryConfig:
         has, and the reason coverage is measured in seconds at all.
         """
         return 2 * self.sample_interval_s
-
-
-def _env_int(name: str, default: int) -> int:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %s", name, raw, default)
-        return default
 
 
 def load_telemetry_config() -> TelemetryConfig:

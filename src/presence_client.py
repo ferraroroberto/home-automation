@@ -60,6 +60,7 @@ from typing import Any, Iterable, Optional
 
 from dotenv import load_dotenv
 
+from src._env import _env_float
 from src.location_config import LocationConfig, load_location_config
 
 logger = logging.getLogger("presence")
@@ -954,12 +955,3 @@ def _as_datetime(value: Any) -> Optional[datetime]:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
 
-def _env_float(name: str, default: float) -> float:
-    raw = (os.getenv(name) or "").strip()
-    if not raw:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        logger.warning("⚠️ Invalid %s=%s; using %.0f", name, raw, default)
-        return default
