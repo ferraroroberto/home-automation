@@ -16,7 +16,7 @@ runtime_data = { src = "src/runtime_data.py", sha = "346765f7c14af0ec61e960333c0
 nav = { src = "app/webapp/static/_vendored/nav", sha = "f70569640ebaf251ab0ed5f5daadd6055953a8c9", dest = "app/webapp/static/_vendored/nav" }
 home-head = { src = "app/webapp/static/_vendored/home-head", sha = "28c3e2c09a6bdc224a2188dfd2abcea2d99744f7", dest = "app/webapp/static/_vendored/home-head" }
 text-size = { src = "app/webapp/static/_vendored/text-size", sha = "f23a32ea8d24cf5291df482f988dee334617409c", dest = "app/webapp/static/_vendored/text-size" }
-icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "28c3e2c09a6bdc224a2188dfd2abcea2d99744f7", dest = "app/webapp/static/_vendored/icon-button" }
+icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app/webapp/static/_vendored/icon-button" }
 
 # /perf-review (fleet-config skills/perf-review): "ready" is the energy-flow tile
 # visible (the first Home card that needs live data), not first contentful paint,
