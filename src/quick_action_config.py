@@ -14,11 +14,14 @@ if the bound device/entity changes.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from src._schedule_store import read_json
+
+logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 QUICK_ACTIONS_PATH = _CONFIG_DIR / "quick_actions.json"
@@ -66,3 +69,32 @@ def require_ac_climate_entity(cfg: QuickActionsConfig) -> str:
             "(see config/quick_actions.sample.json)."
         )
     return cfg.ac_climate_entity
+
+
+def missing_quick_action_keys(cfg: QuickActionsConfig) -> List[str]:
+    """Names of the config keys that are unset (empty) in ``cfg``."""
+    return [
+        key
+        for key in ("plug_device_id", "ac_climate_entity")
+        if not getattr(cfg, key)
+    ]
+
+
+def warn_missing_quick_action_keys(
+    cfg: QuickActionsConfig, path: Optional[Path] = None
+) -> List[str]:
+    """Log one warning naming each unset key so a gap shows at boot, not on a button press.
+
+    Returns the missing key names (empty when fully configured). Never logs
+    the values — the repo is public and they are household-identifying.
+    """
+    target = Path(path) if path is not None else QUICK_ACTIONS_PATH
+    missing = missing_quick_action_keys(cfg)
+    if missing:
+        reason = "is absent" if not target.exists() else "has unset keys"
+        logger.warning(
+            "⚠️  config/%s %s — Stream Deck plug/AC actions will fail until "
+            "%s are set (see config/quick_actions.sample.json).",
+            target.name, reason, ", ".join(missing),
+        )
+    return missing
