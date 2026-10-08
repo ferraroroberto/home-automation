@@ -307,6 +307,23 @@ def record_internet_sample(
     return True
 
 
+def last_speed_sample_ts(path: Optional[Path] = None) -> Optional[int]:
+    """Timestamp of the newest stored speed-test result, or ``None`` if there is none.
+
+    The nightly scheduler's "has tonight's test already run?" memory: it lives
+    in the store, so a webapp restart can neither lose it nor repeat the test.
+    """
+    try:
+        with _connect(path) as conn:
+            row = conn.execute(
+                "SELECT MAX(ts) AS ts FROM internet_samples "
+                "WHERE download_mbps IS NOT NULL OR upload_mbps IS NOT NULL"
+            ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return int(row["ts"]) if row and row["ts"] is not None else None
+
+
 def _bucket_means(
     points: List[Tuple[int, float]], start: int, end: int, buckets: int
 ) -> List[List[float]]:

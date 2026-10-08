@@ -481,6 +481,9 @@ def base_url() -> Iterator[str]:
             # Assist trace ingestion is a production background read. Browser
             # tests stub /api/ha and must never inspect the live HA instance.
             "HA_TRACE_ENABLED": "0",
+            # The nightly speed-test loop spends real bandwidth; a test boot
+            # must never start it, whatever a copied config says (#840).
+            "SPEEDTEST_SCHEDULE_ENABLED": "0",
         },
     )
     if sys.platform == "win32":
@@ -1611,6 +1614,7 @@ def mock_network(page: Page) -> Callable[..., Dict]:
             ],
         }
         attempts = {"count": 0}
+        nightly = {"on": False}
         # Deterministic series for the internet tile's sparklines (#840): a day of
         # latency with a spike, and three speed tests. Fixture values, no real test.
         history = internet_history or {
@@ -1675,6 +1679,19 @@ def mock_network(page: Page) -> Callable[..., Dict]:
             if "/api/network/internet-history" in url:
                 route.fulfill(
                     status=200, content_type="application/json", body=_json(history),
+                )
+                return
+            # The opt-in nightly speed test (#840): off until a PUT turns it on.
+            if "/api/network/speedtest-prefs" in url:
+                if route.request.method.upper() == "PUT":
+                    nightly["on"] = bool((route.request.post_data_json or {}).get("nightly_enabled"))
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({
+                        "prefs": {"nightly_enabled": nightly["on"]},
+                        "telegram_configured": False,
+                    }),
                 )
                 return
             attempts["count"] += 1

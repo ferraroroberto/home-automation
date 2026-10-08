@@ -1207,6 +1207,17 @@
         <button id="netSpeedBtn" type="button" class="big-btn net-speed-btn" data-testid="net-speedtest">
           <svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg>Run speed test
         </button>
+        <!-- Opt-in nightly run (#840), off until switched on. The 03:00 here is
+             NIGHTLY_HOUR in src/speedtest_prefs.py. -->
+        <div class="notify-toggles net-nightly">
+          <div class="notify-toggle">
+            <span>Nightly speed test</span>
+            <button id="netNightlyToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Nightly speed test" data-testid="net-nightly">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </div>
+          <p class="muted small net-nightly-hint">Opt-in. Runs once around 03:00 and uses real bandwidth.</p>
+        </div>
       </section>
 
       <!-- Network-quality alerts are intentionally not surfaced as a separate

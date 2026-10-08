@@ -2952,6 +2952,10 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 }
 .net-speed-btn .icon { width: 1.15em; height: 1.15em; }
 .net-speed-btn.is-busy { opacity: 0.7; cursor: progress; }
+/* Nightly speed-test switch (#840): the notify-toggle row, inset by the tile's
+   own padding rather than the notification cards'. */
+.net-nightly { padding: 0; margin-top: 8px; }
+.net-nightly-hint { margin: 0; }
 
 /* Latency + speed sparklines (#840). One compact row each — a fixed text column
    beside the chart — so the tile grows by ~90px, not a stacked chart per metric,

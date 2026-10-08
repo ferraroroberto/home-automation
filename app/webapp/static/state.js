@@ -485,6 +485,7 @@ export const els = {
   netInternetMeta: document.getElementById('netInternetMeta'),
   netSpeedResult: document.getElementById('netSpeedResult'),
   netTrends: document.getElementById('netTrends'),
+  netNightlyToggle: document.getElementById('netNightlyToggle'),
   netSpeedBtn: document.getElementById('netSpeedBtn'),
   netApName: document.getElementById('netApName'),
   netApMeta: document.getElementById('netApMeta'),
