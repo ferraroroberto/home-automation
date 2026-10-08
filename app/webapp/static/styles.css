@@ -2498,18 +2498,22 @@ button.circuit-meter-name {
 /* Place editor's two lat/lon fill helpers share one full-width row (so
    "Pick on map…" ends flush right, aligned with Delete/Save below) and take
    .detail-save-btn as the size reference: same min-height and inherited font
-   instead of .big-btn's 48px / --font-body. */
+   instead of .big-btn's 48px / --font-body. flex-wrap + an auto basis lets
+   the pair stack, each full width, when both labels don't fit one line (the
+   old nowrap + flex: 1 pushed "Pick on map…" past the card at 390px, #861);
+   min-width: 0 + wrapping text keeps a lone button inside the card at 320px. */
 .place-coord-btns {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .place-coord-btns .big-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: var(--hit-min);
   padding: 0 12px;
   font: inherit;
   font-weight: 700;
-  white-space: nowrap;
 }
 /* Interactive location-picker map (issue #438) — vendored Leaflet over the
    presence-places editor. Taller than .presence-map-frame (a static embed):
