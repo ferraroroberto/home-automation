@@ -37,6 +37,7 @@ from src.quick_action_config import (
     load_quick_actions_config,
     require_ac_climate_entity,
     require_plug_device_id,
+    warn_missing_quick_action_keys,
 )
 from src.risco_client import ACTIONS as _ALARM_ACTIONS
 from src.risco_client import control_system
@@ -119,3 +120,8 @@ ACTIONS: Dict[str, Handler] = {
     "ac_off": _make_ac_handler(_AC_OFF_MODE),
     **{f"alarm_{action}": _make_alarm_handler(action) for action in _ALARM_ACTIONS},
 }
+
+
+def warn_unconfigured_quick_actions() -> None:
+    """Boot-time check of the bindings the handlers above will actually use."""
+    warn_missing_quick_action_keys(_quick_actions_config)
