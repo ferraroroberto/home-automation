@@ -1426,7 +1426,11 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
 @pytest.fixture
 def mock_network(page: Page) -> Callable[..., Dict]:
     """Stub the Network tab API with deterministic LAN health + devices."""
-    def _install(snapshot: Optional[Dict] = None, failures_before_success: int = 0) -> Dict:
+    def _install(
+        snapshot: Optional[Dict] = None,
+        failures_before_success: int = 0,
+        internet_history: Optional[Dict] = None,
+    ) -> Dict:
         body = snapshot or {
             "internet": {
                 "online": True,
@@ -1607,6 +1611,18 @@ def mock_network(page: Page) -> Callable[..., Dict]:
             ],
         }
         attempts = {"count": 0}
+        # Deterministic series for the internet tile's sparklines (#840): a day of
+        # latency with a spike, and three speed tests. Fixture values, no real test.
+        history = internet_history or {
+            "latency": [
+                [1_700_000_000 + i * 900, 12 + (i * 7) % 9 + (40 if i == 40 else 0)]
+                for i in range(96)
+            ],
+            "download": [[1_699_000_000, 310.0], [1_699_500_000, 280.0], [1_700_000_000, 325.0]],
+            "upload": [[1_699_000_000, 42.0], [1_699_500_000, 38.0], [1_700_000_000, 44.0]],
+            "latency_window_h": 24,
+            "speed_window_d": 30,
+        }
         # Wi-Fi walk test (issue #547). The route glob below is broad enough to
         # capture /api/network/survey*, so this fixture owns those responses too
         # — otherwise the survey card would be served the LAN snapshot and read
@@ -1652,6 +1668,15 @@ def mock_network(page: Page) -> Callable[..., Dict]:
             survey["known_rooms"] = sorted(rooms)
 
         def handle(route: Route) -> None:
+            url = route.request.url
+            # The tile's sparkline series (#840). Answered before the failure
+            # counter so it never eats into ``failures_before_success``, which
+            # counts reads of the LAN snapshot itself.
+            if "/api/network/internet-history" in url:
+                route.fulfill(
+                    status=200, content_type="application/json", body=_json(history),
+                )
+                return
             attempts["count"] += 1
             if attempts["count"] <= failures_before_success:
                 route.fulfill(
@@ -1661,7 +1686,6 @@ def mock_network(page: Page) -> Callable[..., Dict]:
                 )
                 return
             method = route.request.method.upper()
-            url = route.request.url
             if "/api/network/survey" in url:
                 if "/survey/payload" in url:
                     route.fulfill(

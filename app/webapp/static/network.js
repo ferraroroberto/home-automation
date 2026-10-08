@@ -50,6 +50,7 @@ import {
   initDeviceGroupingPref,
 } from './network-devices.js';
 import { wireNetGroupDialog } from './network-groups.js';
+import { loadInternetTrends } from './network-trends.js';
 import {
   renderWifi,
   wireNetWifiDetail,
@@ -256,6 +257,9 @@ async function loadNetwork(opts) {
       liveUnavailable: false,
     });
     renderNetwork();
+    // Trends are context under the live figures: fetched after the read that
+    // just recorded a sample, never blocking or failing the tile itself.
+    loadInternetTrends();
     return true;
   } catch (exc) {
     if (isAuthRequired(exc)) return;
