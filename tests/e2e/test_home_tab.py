@@ -57,6 +57,9 @@ def test_home_header_controls_have_non_overlapping_44px_targets(
     assert len(targets) == 2
     for target in targets:
         assert (target.visual.width, target.visual.height) == (34, 34)
+    # They are .icon-button's (project-scaffolding#339): a glyph on nothing at rest.
+    for paint in buttons.evaluate_all("els => els.map(el => { const s = getComputedStyle(el); return [s.backgroundColor, s.borderTopWidth]; })"):
+        assert paint == ["rgba(0, 0, 0, 0)", "0px"]
     assert_min_target(buttons)
     assert_no_overlap(buttons)
     # The two compact controls sit left-to-right with no shared tap zone.

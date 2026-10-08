@@ -1,6 +1,6 @@
 # `src/notify/` — vendored Telegram notifier
 
-A tiny, **stdlib-only** notifier primitive shared across fleet apps: deliver a short plain-text message to a Telegram chat (e.g. "🚨 alarm triggered", "⚠️ mains power lost"). This is the **Python** counterpart to the tray's vendored-verbatim primitives (`app/tray/single_instance.py`, `tray_lifecycle.ps1`) — the same "copy byte-for-byte, never fork per-app" channel, for a non-UI library module. (The web-UI `_vendored/` channel under `app/webapp/static/` is HTML/CSS/JS only.)
+A tiny, **stdlib-only** notifier primitive shared across fleet apps: deliver a short plain-text message to a Telegram chat (e.g. "🚨 alarm triggered", "⚠️ mains power lost"). This is the **Python** counterpart to the tray's vendored primitive (`app/tray/single_instance.py`) and the shared `tray_lifecycle.ps1` helper — the same "copy byte-for-byte, never fork per-app" channel, for a non-UI library module. (The web-UI `_vendored/` channel under `app/webapp/static/` is HTML/CSS/JS only.)
 
 ## Files
 
