@@ -344,7 +344,6 @@ def _reap_orphaned_webkit_zombies() -> None:
 CHROMIUM_ONLY_MODULES = frozenset({
     "test_ac_tab",            # pane states (loading/empty/unavailable/stale) + snapshot paint
     "test_boost_coordinator", # settings form: persistence, range refusal, summary text
-    "test_cameras",           # list states: loading/empty/unavailable/stale
     "test_circuits",          # CT-clamp card: rows, rename dialog, fold/hide state — text and class only
     "test_lazy_libraries",    # which scripts/styles the page requests, and when — network wiring
     "test_lights",            # light rows, bulk buttons, rename — POST round-trips and states
