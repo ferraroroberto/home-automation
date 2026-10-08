@@ -8,6 +8,8 @@ monkeypatched throughout — never a real LAN scan or router login.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -520,3 +522,51 @@ def test_network_route_tracks_offline_and_important(
     assert offline["important"] is True
     assert offline["source"] == "history"
     assert offline["ip"] == "192.168.0.10"  # last-known IP retained
+
+
+def test_network_read_feeds_internet_history_for_the_sparklines(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each ``GET /api/network`` leaves an internet sample; the history route serves it (#840).
+
+    The core read is faked — the "speed result" is a fixture on the fake
+    ``InternetHealth``, no speed test runs. The ping-only reads inside one
+    minute collapse to a single latency point; the result-bearing read is kept.
+    """
+    holder = {"internet": InternetHealth(online=True, gateway_ms=1.0, external_ms=14.0)}
+
+    async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
+        return NetworkState(
+            internet=holder["internet"],
+            devices=(),
+            access_point=AccessPointHealth(reachable=True),
+            router=RouterHealth(reachable=False),
+            wifi=WifiDiagnostics(available=False, error="No Wi-Fi adapter"),
+            alerts=(),
+        )
+
+    monkeypatch.setattr(
+        "app.webapp.routers.network.fetch_network_state", fake_fetch_network_state
+    )
+
+    empty = client.get("/api/network/internet-history").json()
+    assert empty["latency"] == [] and empty["download"] == []
+
+    clock = {"t": time.time() - 600}  # recent, so inside the 24 h window
+    monkeypatch.setattr(
+        "app.webapp.routers.network.time", type("T", (), {"time": staticmethod(lambda: clock["t"])})
+    )
+    assert client.get("/api/network").status_code == 200
+    clock["t"] += 15
+    assert client.get("/api/network").status_code == 200  # throttled: same minute
+    clock["t"] += 15
+    holder["internet"] = InternetHealth(
+        online=True, external_ms=15.0, download_mbps=300.0, upload_mbps=40.0
+    )
+    assert client.get("/api/network?speedtest=1").status_code == 200
+
+    body = client.get("/api/network/internet-history").json()
+    assert [v for _ts, v in body["latency"]] == [14.0, 15.0]
+    assert [v for _ts, v in body["download"]] == [300.0]
+    assert [v for _ts, v in body["upload"]] == [40.0]
+    assert body["latency_window_h"] == 24 and body["speed_window_d"] == 30

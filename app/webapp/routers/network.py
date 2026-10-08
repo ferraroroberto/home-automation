@@ -33,7 +33,9 @@ Partial data is normal and returned with 200: an unreachable AP or router is
 reported as ``reachable=false`` on its card, not a 500 — only an unexpected
 failure of the whole read surfaces as a 502. The opt-in throughput test
 (``?speedtest=1``) takes ~13 s and saturates the link, so it is a deliberate,
-separate call the 15 s poll never triggers.
+separate call the 15 s poll never triggers. Each read also leaves one throttled
+internet sample (:mod:`src.network_history`), and
+``GET /api/network/internet-history`` serves them as the tile's sparklines (#840).
 
 The DHCP reservation planner + staged reservation manager (issue #170/#176)
 used to live here too; it was split out to :mod:`app.webapp.routers.dhcp_plan`
@@ -90,8 +92,10 @@ from src.network_hidden import (
     set_wifi_hidden,
 )
 from src.network_history import (
+    internet_history,
     is_new,
     record_and_snapshot,
+    record_internet_sample,
     set_important,
 )
 from src.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
@@ -401,7 +405,7 @@ async def get_network(
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  network history update failed: %s", exc)
         known = {}
-    return _network_dict(
+    payload = _network_dict(
         state,
         overrides,
         hidden_macs,
@@ -411,6 +415,23 @@ async def get_network(
         known,
         now,
     )
+    # Feed the tile's latency/throughput sparklines (#840). Best-effort, like
+    # the device history above: a store failure must not break the live read.
+    try:
+        await asyncio.to_thread(record_internet_sample, payload["internet"], now)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  internet sample not recorded: %s", exc)
+    return payload
+
+
+@router.get("/api/network/internet-history")
+async def get_internet_history() -> Dict[str, Any]:
+    """Latency (24 h) and speed-test (30 d) series behind the tile's sparklines."""
+    try:
+        return await asyncio.to_thread(internet_history)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  internet history read failed: %s", exc)
+        raise HTTPException(status_code=502, detail="failed to read internet history")
 
 
 @router.post("/api/network/access-point/reboot")

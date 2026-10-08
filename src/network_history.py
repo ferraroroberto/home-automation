@@ -18,6 +18,13 @@ a device never reappearing; the history is observational and self-prunes). The
 ``important`` flag lives here rather than the rename JSON precisely so that store
 stays a plain string map shared verbatim with the unit/plug/detector renames.
 
+**Internet samples (issue #840).** The same file also keeps a small
+``internet_samples`` series — external/gateway latency, loss and any speed-test
+result — that feeds the sparklines on the internet-health tile. It follows the
+same no-sampler rule: a sample is taken from each ``GET /api/network`` read
+(throttled to one a minute, a speed-test result always kept), so the series
+fills while the tab is open and from any speed test run in the background.
+
 **Randomised MACs are never recorded.** A modern phone rotates a per-SSID
 locally-administered address, so it is not a stable device to track — the caller
 (:mod:`app.webapp.routers.network`) filters those out before recording, which
@@ -57,6 +64,14 @@ _NEW_DEVICE_WINDOW_S = 24 * 3600
 # can't grow without bound (guest devices, replaced hardware). Important devices
 # are never pruned — losing a user-set flag to a long absence would be wrong.
 _PRUNE_AFTER_S = 180 * 24 * 3600
+
+# Internet-sample series (#840): at most one ping-only sample per this many
+# seconds (the tab polls every ~15 s), kept this long, and bucketed to at most
+# _LATENCY_POINTS means when read so the payload stays small.
+_SAMPLE_MIN_GAP_S = 60
+_SAMPLE_RETENTION_S = 30 * 24 * 3600
+_LATENCY_POINTS = 96
+_SPEED_POINTS = 30
 
 
 # --------------------------------------------------------------- connection
@@ -223,3 +238,151 @@ def is_new(record: Dict[str, Any], now: Optional[int] = None) -> bool:
         return False
     when = int(now if now is not None else time.time())
     return when - int(record.get("first_seen", 0)) <= _NEW_DEVICE_WINDOW_S
+
+
+# --------------------------------------------------- internet samples (#840)
+def init_internet_samples(path: Optional[Path] = None) -> None:
+    """Create the ``internet_samples`` table if it does not exist (idempotent)."""
+    with _connect(path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS internet_samples (
+                ts              INTEGER PRIMARY KEY,
+                online          INTEGER NOT NULL,
+                external_ms     REAL,
+                gateway_ms      REAL,
+                packet_loss_pct REAL,
+                download_mbps   REAL,
+                upload_mbps     REAL
+            )
+            """
+        )
+        conn.commit()
+
+
+def record_internet_sample(
+    internet: Dict[str, Any],
+    now: Optional[int] = None,
+    path: Optional[Path] = None,
+) -> bool:
+    """Persist one internet-health reading; returns whether a row was written.
+
+    ``internet`` is the ``internet`` block of the network payload (``online``,
+    ``external_ms``, ``gateway_ms``, ``packet_loss_pct``, ``download_mbps``,
+    ``upload_mbps``). A reading carrying a speed-test result is always kept; a
+    ping-only one is skipped when the previous sample is under
+    ``_SAMPLE_MIN_GAP_S`` old, so a 15 s poll doesn't write four rows a minute.
+    """
+    when = int(now if now is not None else time.time())
+    has_speed = (
+        internet.get("download_mbps") is not None or internet.get("upload_mbps") is not None
+    )
+    init_internet_samples(path)
+    with _connect(path) as conn:
+        if not has_speed:
+            last = conn.execute("SELECT MAX(ts) AS ts FROM internet_samples").fetchone()["ts"]
+            if last is not None and when - int(last) < _SAMPLE_MIN_GAP_S:
+                return False
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO internet_samples (
+                ts, online, external_ms, gateway_ms, packet_loss_pct,
+                download_mbps, upload_mbps
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                when,
+                1 if internet.get("online") else 0,
+                internet.get("external_ms"),
+                internet.get("gateway_ms"),
+                internet.get("packet_loss_pct"),
+                internet.get("download_mbps"),
+                internet.get("upload_mbps"),
+            ),
+        )
+        conn.execute(
+            "DELETE FROM internet_samples WHERE ts < ?", (when - _SAMPLE_RETENTION_S,)
+        )
+        conn.commit()
+    return True
+
+
+def _bucket_means(
+    points: List[Tuple[int, float]], start: int, end: int, buckets: int
+) -> List[List[float]]:
+    """Mean of ``points`` per equal time bucket across ``[start, end]``, skipping empties."""
+    if len(points) <= buckets:
+        return [[ts, val] for ts, val in points]
+    width = max(1.0, (end - start) / buckets)
+    sums: Dict[int, List[float]] = {}
+    for ts, val in points:
+        idx = min(buckets - 1, max(0, int((ts - start) / width)))
+        bucket = sums.setdefault(idx, [0.0, 0.0, 0.0])
+        bucket[0] += ts
+        bucket[1] += val
+        bucket[2] += 1
+    return [
+        [round(b[0] / b[2]), round(b[1] / b[2], 2)] for _idx, b in sorted(sums.items())
+    ]
+
+
+def internet_history(
+    latency_hours: int = 24,
+    speed_days: int = 30,
+    now: Optional[int] = None,
+    path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Series for the tile's sparklines: ``latency`` plus ``download`` / ``upload``.
+
+    Each series is ``[[ts, value], ...]`` oldest first. Latency is the external
+    round-trip over the last ``latency_hours``, bucket-averaged to at most
+    ``_LATENCY_POINTS`` points; the speed series are the last ``_SPEED_POINTS``
+    results inside ``speed_days`` (a test is a rare, deliberate event, so they
+    are never averaged). A store with no table yet reads as empty.
+    """
+    when = int(now if now is not None else time.time())
+    lat_start = when - latency_hours * 3600
+    speed_start = when - speed_days * 86400
+    empty: Dict[str, Any] = {
+        "latency": [],
+        "download": [],
+        "upload": [],
+        "latency_window_h": latency_hours,
+        "speed_window_d": speed_days,
+    }
+    try:
+        with _connect(path) as conn:
+            lat_rows = conn.execute(
+                "SELECT ts, external_ms FROM internet_samples "
+                "WHERE ts >= ? AND external_ms IS NOT NULL ORDER BY ts",
+                (lat_start,),
+            ).fetchall()
+            speed_rows = conn.execute(
+                "SELECT ts, download_mbps, upload_mbps FROM internet_samples "
+                "WHERE ts >= ? AND (download_mbps IS NOT NULL OR upload_mbps IS NOT NULL) "
+                "ORDER BY ts DESC LIMIT ?",
+                (speed_start, _SPEED_POINTS),
+            ).fetchall()
+    except sqlite3.OperationalError:
+        # No table yet (nothing recorded on this install) — an empty history.
+        return empty
+    speed_rows = list(reversed(speed_rows))
+    return {
+        **empty,
+        "latency": _bucket_means(
+            [(int(r["ts"]), float(r["external_ms"])) for r in lat_rows],
+            lat_start,
+            when,
+            _LATENCY_POINTS,
+        ),
+        "download": [
+            [int(r["ts"]), float(r["download_mbps"])]
+            for r in speed_rows
+            if r["download_mbps"] is not None
+        ],
+        "upload": [
+            [int(r["ts"]), float(r["upload_mbps"])]
+            for r in speed_rows
+            if r["upload_mbps"] is not None
+        ],
+    }

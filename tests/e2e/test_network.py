@@ -10,6 +10,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings
+from tests.e2e._geometry import apply_matrix_leg, assert_no_horizontal_overflow
 
 
 @pytest.mark.chromium_only
@@ -641,3 +642,73 @@ def test_network_walk_test_picks_a_device_and_records_a_room(
     # Which radio heard it is the column an AP-placement decision turns on.
     expect(row).to_contain_text("via AP")
     expect(row).to_have_class(re.compile("is-weak"))
+
+
+def test_internet_tile_trends_fit_the_phone_widths_in_both_themes(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    """The latency + speed sparklines (#840) stay legible at 320/390px, light and dark."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    boot_home(page, base_url)
+    open_settings(page)
+
+    trends = page.get_by_test_id("net-trends")
+    expect(trends.locator(".net-trend")).to_have_count(2)
+    expect(trends.locator(".net-spark")).to_have_count(2)
+    expect(trends.locator(".net-trend-value").first).to_have_text("20 ms")
+    expect(trends.locator(".net-trend-value").nth(1)).to_have_text("3 tests")
+
+    strokes: Dict[str, str] = {}
+    for width in (320, 390):
+        for theme in ("light", "dark"):
+            apply_matrix_leg(page, width, theme)
+            tile = page.locator("section.net-internet")
+            tile_box = tile.bounding_box()
+            assert tile_box is not None
+            for chart in trends.locator(".net-spark").all():
+                box = chart.bounding_box()
+                assert box is not None
+                # Wide enough to read a trend, and inside the tile's right edge.
+                assert box["width"] >= 120, f"{width}px/{theme}: sparkline {box['width']}px"
+                assert box["x"] + box["width"] <= tile_box["x"] + tile_box["width"] + 0.5
+            for row in trends.locator(".net-trend").all():
+                row_box = row.bounding_box()
+                assert row_box is not None and row_box["height"] >= 44
+            assert_no_horizontal_overflow(page)
+            strokes[theme] = page.evaluate(
+                "getComputedStyle(document.querySelector('.net-spark .is-latency')).stroke"
+            )
+            assert strokes[theme] not in ("none", "")
+    # The line takes the theme's accent token — it changes with the theme, no redraw.
+    assert strokes["light"] != strokes["dark"]
+    # Upload is dashed so the two speed lines differ without relying on colour.
+    assert page.evaluate(
+        "getComputedStyle(document.querySelector('.net-spark .is-up')).strokeDasharray"
+    ) not in ("none", "")
+
+
+def test_internet_tile_trends_explain_themselves_when_empty(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    mock_network(internet_history={"latency": [], "download": [], "upload": []})
+    boot_home(page, base_url)
+    open_settings(page)
+
+    trends = page.get_by_test_id("net-trends")
+    expect(trends.locator(".net-trend-empty").first).to_contain_text("tab is open")
+    expect(trends.locator(".net-trend-empty").nth(1)).to_contain_text("Run a speed test")
+    expect(trends.locator(".net-spark")).to_have_count(0)
