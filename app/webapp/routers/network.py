@@ -58,7 +58,7 @@ from typing import Any, Dict, Mapping, Optional, Set
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
-from app.webapp.routers._helpers import make_display_name_endpoint
+from app.webapp.routers._helpers import make_bool_prefs_router, make_display_name_endpoint
 from src.network_client import (
     NetDevice,
     NetworkCommandError,
@@ -113,6 +113,7 @@ from src.network_wifi_display_names import (
     load_network_wifi_display_names,
     set_network_wifi_display_name,
 )
+from src.speedtest_prefs import SpeedtestPrefs, load_speedtest_prefs, save_speedtest_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -432,6 +433,21 @@ async def get_internet_history() -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  internet history read failed: %s", exc)
         raise HTTPException(status_code=502, detail="failed to read internet history")
+
+
+# The opt-in nightly speed test is a single bool pref — the shared GET/PUT
+# factory (#664), off until the user turns it on (#840).
+router.include_router(
+    make_bool_prefs_router(
+        load_speedtest_prefs,
+        save_speedtest_prefs,
+        SpeedtestPrefs,
+        path="/api/network/speedtest-prefs",
+        noun="speed-test prefs",
+        slug="speedtest_prefs",
+        get_doc="Return the nightly speed-test opt-in (off by default).",
+    )
+)
 
 
 @router.post("/api/network/access-point/reboot")

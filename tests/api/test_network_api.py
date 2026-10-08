@@ -570,3 +570,23 @@ def test_network_read_feeds_internet_history_for_the_sparklines(
     assert [v for _ts, v in body["download"]] == [300.0]
     assert [v for _ts, v in body["upload"]] == [40.0]
     assert body["latency_window_h"] == 24 and body["speed_window_d"] == 30
+
+
+def test_nightly_speedtest_pref_is_off_by_default_and_round_trips(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """The opt-in is a persisted bool, off until the user turns it on (#840)."""
+    import src.speedtest_prefs as prefs_mod
+
+    monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "speedtest_prefs.json")
+
+    assert client.get("/api/network/speedtest-prefs").json()["prefs"] == {
+        "nightly_enabled": False
+    }
+    on = client.put("/api/network/speedtest-prefs", json={"nightly_enabled": True})
+    assert on.status_code == 200 and on.json()["prefs"] == {"nightly_enabled": True}
+    assert client.get("/api/network/speedtest-prefs").json()["prefs"]["nightly_enabled"] is True
+    assert prefs_mod.load_speedtest_prefs().nightly_enabled is True
+
+    off = client.put("/api/network/speedtest-prefs", json={"nightly_enabled": False})
+    assert off.json()["prefs"] == {"nightly_enabled": False}

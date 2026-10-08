@@ -712,3 +712,48 @@ def test_internet_tile_trends_explain_themselves_when_empty(
     expect(trends.locator(".net-trend-empty").first).to_contain_text("tab is open")
     expect(trends.locator(".net-trend-empty").nth(1)).to_contain_text("Run a speed test")
     expect(trends.locator(".net-spark")).to_have_count(0)
+
+
+def test_nightly_speedtest_switch_is_off_by_default_persists_and_fits_the_phone(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    """The opt-in nightly speed test (#840): off until switched on, saved server-side."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    boot_home(page, base_url)
+    open_settings(page)
+
+    switch = page.get_by_test_id("net-nightly")
+    expect(switch).to_have_attribute("aria-checked", "false")
+    expect(switch.locator(".toggle-label")).to_have_text("OFF")
+    expect(page.locator(".net-nightly-hint")).to_contain_text("Opt-in")
+
+    with page.expect_request(
+        lambda r: r.method == "PUT" and r.url.endswith("/api/network/speedtest-prefs")
+    ) as sent:
+        switch.click()
+    assert sent.value.post_data_json == {"nightly_enabled": True}
+    expect(switch).to_have_attribute("aria-checked", "true")
+
+    # A fresh load reads the saved value back rather than assuming the default.
+    page.reload(wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    open_settings(page)
+    expect(page.get_by_test_id("net-nightly")).to_have_attribute("aria-checked", "true")
+
+    for width in (320, 390):
+        for theme in ("light", "dark"):
+            apply_matrix_leg(page, width, theme)
+            tile_box = page.locator("section.net-internet").bounding_box()
+            sw_box = page.get_by_test_id("net-nightly").bounding_box()
+            assert tile_box is not None and sw_box is not None
+            assert sw_box["x"] + sw_box["width"] <= tile_box["x"] + tile_box["width"] + 0.5
+            assert sw_box["x"] >= tile_box["x"]
+            expect(page.locator(".net-nightly-hint")).to_be_visible()
+            assert_no_horizontal_overflow(page)

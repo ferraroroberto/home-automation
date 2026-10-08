@@ -51,6 +51,7 @@ import {
 } from './network-devices.js';
 import { wireNetGroupDialog } from './network-groups.js';
 import { loadInternetTrends } from './network-trends.js';
+import { loadNightlyPref, wireNightlyToggle } from './network-speedtest.js';
 import {
   renderWifi,
   wireNetWifiDetail,
@@ -363,6 +364,7 @@ export function wireNetworkControls() {
   if (els.netGroupByGroup) {
     els.netGroupByGroup.addEventListener('click', function () { setDeviceGrouping('group'); });
   }
+  wireNightlyToggle();
   wireDhcpPlan();
 }
 
@@ -374,6 +376,7 @@ const schedule = createPoller(loadNetwork);
 export function onNetworkTab(tab) {
   if (tab === 'settings') {
     loadNetwork();      // immediate refresh on entry (also the first load)
+    loadNightlyPref();
     schedule(POLL_MS);
   } else {
     schedule(0);
