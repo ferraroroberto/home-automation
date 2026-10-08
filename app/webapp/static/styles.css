@@ -3703,25 +3703,41 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .camera-live-img {
   width: 100%; height: 100%; object-fit: contain; display: block; background: var(--video-matte);
 }
+/* Pad left, movement controls beside it, capture actions on their own row
+   (#859). The side column wraps under the pad when the dialog is too narrow
+   for both (320px), so no control ever shrinks below its label. */
 .camera-live-controls {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--space-md); margin-top: 14px; flex-wrap: wrap;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: var(--space-md); margin-top: 14px;
 }
 .camera-dpad {
-  /* Directional cluster — Up centered on top, Left/Down/Right below (issue
-     #367) — reads as a d-pad rather than a flat icon row, without the extra
-     footprint of a full 3x3 cross (#212). */
-  display: grid; gap: 6px;
-  grid-template-columns: repeat(3, 44px);
-  grid-template-rows: repeat(2, 44px);
+  /* A round pad plate on the button-surface recipe, the 3x3 cross inside it
+     (#859): the four arms stay vendored icon-buttons — glyphs on nothing —
+     so the plate is what gives the cluster its shape, and up/down share one
+     centre track. The 44px tracks touch with no gap, so the arms' effective
+     targets meet and never overlap (design.md Touch targets: adjacent
+     cluster). */
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, var(--hit-min));
+  grid-template-rows: repeat(3, var(--hit-min));
   grid-template-areas:
-    ".    up    ."
-    "left down right";
+    ".    up   ."
+    "left .    right"
+    ".    down .";
+  padding: var(--space-xs);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card-off);
+  /* The arm boxes fill their tracks; the glyph takes the icons.size nav-tab
+     step so a direction reads at a glance on the plate. */
+  --icon-btn-box: var(--hit-min);
+  --icon-inline: 20px;
 }
-/* The d-pad cells are 44px: the icon-button box fills them. */
-.camera-dpad { --icon-btn-box: 44px; }
 /* Hold-to-move needs the pointer stream undisturbed by pan/zoom gestures. */
 .camera-ptz-btn { touch-action: none; }
+/* Pressed is a state, not rest: the arm under the finger lights up. */
+.camera-ptz-btn:not(:disabled):active { background: var(--accent-soft); color: var(--accent-text); }
 .camera-ptz-btn.ptz-up { grid-area: up; }
 .camera-ptz-btn.ptz-down { grid-area: down; }
 .camera-ptz-btn.ptz-left { grid-area: left; }
@@ -3729,12 +3745,20 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .camera-ptz-btn.ptz-up .icon { transform: rotate(-90deg); }
 .camera-ptz-btn.ptz-down .icon { transform: rotate(90deg); }
 .camera-ptz-btn.ptz-left .icon { transform: rotate(180deg); }
-.camera-live-actions { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
-.camera-live-actions .range-tab {
-  min-width: 44px;
+/* Stacked range-tabs: the space-sm gap clears their 4px-each vertical
+   target expansion, so the mode toggle and zoom pair never overlap. */
+.camera-live-side {
+  flex: 1 1 170px; max-width: 280px;
+  display: flex; flex-direction: column; gap: var(--space-sm);
 }
-.camera-live-actions .icon { width: 20px; height: 20px; }
-.camera-live-actions .camera-action { display: inline-flex; align-items: center; gap: 6px; }
+/* In the column, .range-tab's flex: 1 would size the toggle's height, not
+   its width; it keeps the control height instead. */
+.camera-live-side > .range-tab { flex: none; }
+.camera-zoom-pair, .camera-live-actions { display: flex; gap: var(--space-sm); }
+.camera-live-actions { flex: 1 1 100%; justify-content: center; }
+.camera-live-controls .range-tab { white-space: nowrap; }
+.camera-live-actions .range-tab { flex: 1 1 0; max-width: 200px; gap: 6px; }
+.camera-live-actions .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .camera-rec.active {
   background: color-mix(in srgb, var(--deficit) 18%, transparent);
   border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
@@ -3742,8 +3766,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 }
 
 /* Precise-PTZ controls: mode toggle, presets, manual coordinates (issue #190).
-   No special min-width (issue #367) — sized like the icon buttons it sits
-   beside in .camera-live-actions instead of standing out as a wider pill. */
+   The mode toggle spans the side column above the zoom pair (#859). */
 .camera-mode-toggle[aria-pressed="true"] {
   background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text);
 }
@@ -3755,25 +3778,38 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .camera-presets, .camera-coords {
   display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-top: 12px;
 }
-.camera-presets-list { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* space-sm between wrapped rows clears the chips' 4px vertical target
+   expansion, so a second row of presets never overlaps the first. */
+.camera-presets-list { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 .camera-presets-empty { font-size: var(--font-caption); }
+/* A preset chip is one range-tab-height pill (#859): the Recall label, then
+   the rename and delete glyphs on the vendored icon-button. No overflow
+   clipping — it would cut the icon buttons' invisible 44px targets back to
+   their box. Their gap is hit-min minus box (the icon-button-group rule), so
+   neighbouring targets touch and never overlap; the end padding keeps the
+   last one's expansion inside the pill. */
 .camera-preset {
-  display: inline-flex; align-items: stretch; overflow: hidden;
+  --icon-btn-box: calc(var(--control-h) - 2px);
+  display: inline-flex; align-items: center; height: var(--control-h);
+  gap: calc(var(--hit-min) - var(--icon-btn-box));
+  padding-right: calc((var(--hit-min) - var(--icon-btn-box)) / 2);
   border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--card-off);
 }
+/* Fills the pill's inner height (the icon-button box, 34px), so its target
+   grows by half the difference to hit-min on top and bottom: 34 + 2x5 = 44. */
 .camera-preset-go {
+  position: relative; align-self: stretch;
   appearance: none; border: 0; background: none; color: var(--ink);
-  font: inherit; font-weight: 600; padding: 6px 10px; cursor: pointer;
+  font: inherit; font-size: var(--font-label); font-weight: 600; padding: 0 10px; cursor: pointer;
+  border-radius: calc(var(--radius-md) - 1px) 0 0 calc(var(--radius-md) - 1px);
 }
+.camera-preset-go::before { content: ""; position: absolute; inset: calc((var(--icon-btn-box) - var(--hit-min)) / 2) 0; }
 .camera-preset-go:hover { background: var(--accent-soft); }
-/* The rename and delete glyphs ride the vendored icon-button inside the
-   preset pill; they centre on the Recall button's height. */
-.camera-preset .icon-button { align-self: center; --icon-btn-box: 32px; }
 /* One add-button affordance app-wide (issue #367): dashed border, matching
    the dominant .schedule-add-btn idiom used by every other "+ Add" control,
    rather than the solid range-tab outline this used to share with its
    sibling icon buttons. */
-.camera-preset-save { font-weight: 600; border-style: dashed; }
+.camera-preset-save { flex: none; font-weight: 600; border-style: dashed; }
 .camera-coord {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--font-caption); color: var(--muted);

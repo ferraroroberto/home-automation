@@ -2506,12 +2506,18 @@
           <button id="cameraPtzRight" type="button" class="icon-button camera-ptz-btn ptz-right" aria-label="Pan right"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
           <button id="cameraPtzDown" type="button" class="icon-button camera-ptz-btn ptz-down" aria-label="Tilt down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
         </div>
-        <div class="camera-live-actions">
+        <!-- Every action carries a visible word (#805): the bare −/+ and glyph-only
+             screenshot/record buttons named nothing on screen. Movement controls sit
+             beside the pad; the capture actions get their own row so no label wraps
+             or clips at phone width (#859). -->
+        <div class="camera-live-side">
           <button id="cameraPtzModeBtn" type="button" class="range-tab camera-mode-toggle" aria-pressed="true" title="One click = one step (precise) vs press-and-hold">Step</button>
-          <!-- Every action carries a visible word (#805): the bare −/+ and glyph-only
-               screenshot/record buttons named nothing on screen. -->
-          <button id="cameraZoomOut" type="button" class="range-tab camera-zoom">Zoom out</button>
-          <button id="cameraZoomIn" type="button" class="range-tab camera-zoom">Zoom in</button>
+          <div class="camera-zoom-pair" role="group" aria-label="Zoom">
+            <button id="cameraZoomOut" type="button" class="range-tab camera-zoom">Zoom out</button>
+            <button id="cameraZoomIn" type="button" class="range-tab camera-zoom">Zoom in</button>
+          </div>
+        </div>
+        <div class="camera-live-actions">
           <button id="cameraSnapBtn" type="button" class="range-tab camera-action"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>Screenshot</button>
           <button id="cameraRecBtn" type="button" class="range-tab camera-rec camera-action"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg>Record</button>
         </div>
