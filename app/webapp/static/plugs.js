@@ -22,6 +22,7 @@ import { createViewState, markTabFailure, renderFeedback } from './view-state.js
 import { toggleMarkup } from './toggle.js';
 import { confirmAction } from './confirm.js';
 import { detailModal } from './detail-modal.js';
+import { setHeadPart } from './head-status.js';
 
 // The two list filters, on the shared localStorage wrapper. `showAll`
 // falls back to the in-memory default (true) when nothing is stored.
@@ -314,6 +315,8 @@ function renderPlugHiddenToggle(hidden) {
 
 const plugModal = detailModal({
   dialog: els.plugDialog,
+  closeButton: els.plugDetailClose,
+  onClose: function () { state.selectedPlugId = null; },
   saveButton: els.plugSave,
   focusEl: els.plugDisplayName,
   getEntity: deviceById,
@@ -359,11 +362,6 @@ function openPlugDetail(deviceId) {
   plugModal.open(deviceId);
 }
 
-function closePlugDetail() {
-  state.selectedPlugId = null;
-  plugModal.close();
-}
-
 function togglePlugHidden() {
   if (!plugModal.staged) return;
   plugModal.staged.hidden = !plugModal.staged.hidden;
@@ -388,6 +386,7 @@ function renderStats() {
   const devices = state.plugs.filter(function (d) { return !d.is_light; });
   if (!devices.length) {
     cards.forEach(function (c) { if (c) c.hidden = true; });
+    setHeadPart('iot', 'plugs', null);
     return;
   }
   let on = 0;
@@ -408,6 +407,11 @@ function renderStats() {
   set(els.plugStatOff, offStr); set(els.homePlugStatOff, offStr);
   set(els.plugStatWatts, wattStr); set(els.homePlugStatWatts, wattStr);
   cards.forEach(function (c) { if (c) c.hidden = false; });
+  // The Devices header's plain fact (head-status.js, #880): what is on and
+  // drawing power, from a live read only.
+  setHeadPart('iot', 'plugs', plugsView.state === 'ready'
+    ? { fact: on + ' on · ' + wattStr }
+    : null);
 }
 
 // The "Show hidden" toggle carries the count and only appears when at least one
@@ -572,10 +576,6 @@ export function wirePlugsPair() {
 
 // Wire the rename modal once at boot (mirrors the AC detail-modal wiring).
 export function wirePlugDetail() {
-  els.plugDetailClose.addEventListener('click', closePlugDetail);
-  els.plugDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.plugDialog) closePlugDetail();  // backdrop click
-  });
   // #203: the name + Hidden edits commit on Save, not on blur/toggle.
   els.plugDisplayName.addEventListener('input', plugModal.markDirty);
   els.plugDisplayName.addEventListener('keydown', function (ev) {

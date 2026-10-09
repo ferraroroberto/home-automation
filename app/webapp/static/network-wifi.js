@@ -26,7 +26,7 @@ import { renderSignalBar, friendlyError } from './format.js';
 import { chipEl } from './chip.js';
 import { renderNetwork } from './network.js';
 import { toggleMarkup } from './toggle.js';
-import { closeDialog, openDialog } from './dialog.js';
+import { sheet } from './sheet.js';
 
 const WIFI_BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
 
@@ -233,6 +233,15 @@ function renderNetWifiHiddenToggle(b) {
   btn.innerHTML = toggleMarkup(on);
 }
 
+// An instant sheet (sheet.js, #880): the name saves on blur and Hidden on
+// tap, each with its toast, so Done, ×, Esc and the backdrop only close.
+const wifiSheet = sheet(els.netWifiDialog, {
+  model: 'instant',
+  closeButton: els.netWifiDetailClose,
+  doneButton: els.netWifiDone,
+  onClose: function () { state.selectedNetWifiId = null; },
+});
+
 function openNetWifiDetail(wifiId) {
   const b = wifiById(wifiId);
   if (!b) return;
@@ -248,13 +257,8 @@ function openNetWifiDetail(wifiId) {
   els.netWifiOriginalName.textContent = 'Original network name: ' + (b.original_name || b.ssid || '—') +
     ' · Access point address: ' + (b.bssid || '—') + (b.bssid ? '' : ' · key ' + (b.wifi_id || '—'));
   renderNetWifiHiddenToggle(b);
-  openDialog(els.netWifiDialog);
+  wifiSheet.open();
   els.netWifiDisplayName.focus();
-}
-
-function closeNetWifiDetail() {
-  state.selectedNetWifiId = null;
-  closeDialog(els.netWifiDialog);
 }
 
 async function saveNetWifiName() {
@@ -308,10 +312,6 @@ async function toggleWifiHidden() {
 
 export function wireNetWifiDetail() {
   if (!els.netWifiDialog) return;
-  els.netWifiDetailClose.addEventListener('click', closeNetWifiDetail);
-  els.netWifiDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.netWifiDialog) closeNetWifiDetail();
-  });
   els.netWifiDisplayName.addEventListener('blur', saveNetWifiName);
   els.netWifiDisplayName.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); els.netWifiDisplayName.blur(); }

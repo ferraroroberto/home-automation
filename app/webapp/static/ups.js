@@ -11,6 +11,7 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { esc, fmtPct } from './format.js';
 import { chipHtml } from './chip.js';
+import { setHeadPart } from './head-status.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from './poll.js';
@@ -102,6 +103,21 @@ function renderUpsTile(tile, ups) {
 export function renderUps() {
   renderUpsTile(els.upsTile, state.ups);
   renderUpsTile(els.homeUpsTile, state.ups);
+  renderUpsHead();
+}
+
+// The UPS's part of the Devices header line (head-status.js, #880): only its
+// exceptions, the same ones the tile chips; a healthy UPS adds nothing.
+function renderUpsHead() {
+  const ups = state.ups;
+  const status = (ups && ups.status) || '';
+  let exception = null;
+  if (upsView.state === 'ready' && ups && ups.available === true) {
+    if (status.indexOf('critical') >= 0) exception = { text: 'UPS critical', tone: 'danger' };
+    else if (status.indexOf('low_battery') >= 0) exception = { text: 'UPS battery low', tone: 'danger' };
+    else if (ups.mains_online === false) exception = { text: 'On battery', tone: 'attention' };
+  }
+  setHeadPart('iot', 'ups', exception ? { exceptions: [exception] } : null);
 }
 
 function handleTransition(next) {

@@ -17,7 +17,7 @@
  * helper would be a UX behavior change, not a mechanical dedup, so they are
  * deliberately left as-is.
  *
- * Config — elements: `dialog`, `saveButton`, `focusEl` (optional); behavior:
+ * Config — elements: `dialog`, `saveButton`, `closeButton`, `focusEl` (optional); behavior:
  * `getEntity(id)` (returns the live entity, or a falsy value for an unknown
  * id), `stage(entity)` (optional custom staged clone — default shallow
  * spread), `populate(staged, entity)`, `buildOps(id, staged, entity)`
@@ -26,11 +26,11 @@
  * after the ops settle and before the final `render()`, with the same
  * pre-save `staged`/`entity` `buildOps` saw — e.g. a derived-value refetch
  * or updating the dialog's own title text), `savedToast` (default `'Saved'`),
- * `failedToast` (default `'Failed to save'`). Opening/closing the dialog
- * element itself (`openDialog`/`closeDialog`, backdrop click, the close
- * button) stays module-owned, since every caller also clears its own
- * `state.selectedXId` on close — not worth threading through this config
- * for what's a two-line wrapper either way.
+ * `failedToast` (default `'Failed to save'`). The dialog shell itself (the
+ * × `closeButton`, the backdrop, Esc, focus back to the opener) is the
+ * shared staged sheet (sheet.js, #880): every way of closing discards the
+ * staged copy and runs the caller's optional `onClose()` (where it clears
+ * its own `state.selectedXId`).
  *
  * Returns `{open, close, save, markDirty, clearDirty}` plus live `id` and
  * `staged` getters so a module's own field listeners (e.g. a toggle click)
@@ -41,7 +41,7 @@
 
 import { toast } from './state.js';
 import { reportActionFailure } from './api.js';
-import { closeDialog, openDialog } from './dialog.js';
+import { sheet } from './sheet.js';
 
 export function detailModal(config) {
   let entityId = null;
@@ -55,23 +55,31 @@ export function detailModal(config) {
     if (config.saveButton) config.saveButton.disabled = true;
   }
 
-  function open(id) {
+  const shell = sheet(config.dialog, {
+    model: 'staged',
+    closeButton: config.closeButton,
+    onClose: function () {
+      entityId = null;
+      staged = null;
+      clearDirty();
+      if (config.onClose) config.onClose();
+    },
+  });
+
+  function open(id, trigger) {
     const entity = config.getEntity(id);
     if (!entity) return null;
     entityId = id;
     staged = config.stage ? config.stage(entity) : Object.assign({}, entity);
     config.populate(staged, entity);
     clearDirty();
-    openDialog(config.dialog);
+    shell.open(trigger);
     if (config.focusEl) config.focusEl.focus();
     return staged;
   }
 
   function close() {
-    entityId = null;
-    staged = null;
-    clearDirty();
-    closeDialog(config.dialog);
+    shell.close();
   }
 
   async function save() {

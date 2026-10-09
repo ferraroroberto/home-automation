@@ -21,6 +21,8 @@ import { toggleMarkup } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { detailModal } from './detail-modal.js';
 import { chipEl } from './chip.js';
+import { setHeadPart } from './head-status.js';
+import { setTabBadge } from './tabs.js';
 
 // The "show hidden detectors" filter, on the shared localStorage wrapper.
 const showHiddenPref = persistedFlag(SECURITY_SHOW_HIDDEN_KEY, false);
@@ -251,6 +253,42 @@ function troubledNotIgnoredCount() {
 export function renderState() {
   renderStateInto(els.securityState);
   renderStateInto(els.homeSecurityState);
+  renderSecurityHead();
+}
+
+// The Security header's live line and the Security tab's count badge
+// (head-status.js, #880; decision 10 of #872): a triggered alarm in danger,
+// detector trouble the user hasn't ignored in attention, AC power lost in
+// attention; else the plain detector count. The badge carries the most
+// urgent of the first two, so it is seen from every other tab. An armed
+// mode is normal and adds nothing (decision 3).
+function renderSecurityHead() {
+  const security = state.security;
+  if (!security) {
+    setHeadPart('security', 'alarm', null);
+    setTabBadge('security', 0);
+    return;
+  }
+  if (security.reachable === false) {
+    setHeadPart('security', 'alarm', {
+      exceptions: [{ text: 'Panel unreachable', tone: 'attention' }],
+    });
+    setTabBadge('security', 0);
+    return;
+  }
+  const triggered = currentMode() === 'triggered';
+  const troubled = troubledNotIgnoredCount();
+  const exceptions = [];
+  if (triggered) exceptions.push({ text: 'Triggered', tone: 'danger' });
+  if (troubled) exceptions.push({ text: troubled + ' trouble', tone: 'attention' });
+  if (security.ac_lost) exceptions.push({ text: 'AC power lost', tone: 'attention' });
+  const detectors = (security.zones || []).filter(function (z) { return !z.hidden; }).length;
+  setHeadPart('security', 'alarm', {
+    exceptions: exceptions,
+    fact: detectors + (detectors === 1 ? ' detector' : ' detectors'),
+  });
+  if (triggered) setTabBadge('security', 1, 'triggered', 'danger');
+  else setTabBadge('security', troubled, 'trouble', 'attention');
 }
 
 export function renderEvents() {
@@ -443,6 +481,8 @@ function patchZone(id, patch) {
 
 const zoneModal = detailModal({
   dialog: els.zoneDialog,
+  closeButton: els.zoneDetailClose,
+  onClose: function () { state.selectedZoneId = null; },
   saveButton: els.zoneSave,
   focusEl: els.zoneDisplayName,
   getEntity: zoneById,
@@ -512,11 +552,6 @@ function toggleZoneTroubleIgnored() {
   zoneModal.markDirty();
 }
 
-function closeZoneDetail() {
-  state.selectedZoneId = null;
-  zoneModal.close();
-}
-
 async function loadSecurityEvents() {
   const body = await jsonApi('/api/security/events?count=50');
   state.securityEvents = (body && body.events) || [];
@@ -525,10 +560,6 @@ async function loadSecurityEvents() {
 
 // Wire the detector detail/rename modal once at boot (mirrors wirePlugDetail).
 export function wireZoneDetail() {
-  els.zoneDetailClose.addEventListener('click', closeZoneDetail);
-  els.zoneDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.zoneDialog) closeZoneDetail();  // backdrop click
-  });
   els.zoneDisplayName.addEventListener('input', zoneModal.markDirty);
   els.zoneDisplayName.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); zoneModal.save(); }

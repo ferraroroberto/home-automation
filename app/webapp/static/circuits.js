@@ -270,6 +270,8 @@ function patchMeter(key, patch) {
 // block that suits it.
 const circuitModal = detailModal({
   dialog: els.circuitDialog,
+  closeButton: els.circuitDetailClose,
+  onClose: function () { state.selectedCircuitKey = null; },
   saveButton: els.circuitSave,
   focusEl: els.circuitDisplayName,
   getEntity: circuitEntity,
@@ -370,11 +372,6 @@ function openCircuitDetail(key) {
   if (!circuitEntity(key)) return;
   state.selectedCircuitKey = key;
   circuitModal.open(key);
-}
-
-function closeCircuitDetail() {
-  state.selectedCircuitKey = null;
-  circuitModal.close();
 }
 
 function toggleCircuitInvert() {
@@ -485,10 +482,6 @@ export function wireCircuitsToggle() {
 // Wire the rename modal once at boot (mirrors the plug detail-modal wiring).
 export function wireCircuitDetail() {
   if (!els.circuitDialog) return;
-  els.circuitDetailClose.addEventListener('click', closeCircuitDetail);
-  els.circuitDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.circuitDialog) closeCircuitDetail();  // backdrop click
-  });
   els.circuitDisplayName.addEventListener('input', circuitModal.markDirty);
   els.circuitDisplayName.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); circuitModal.save(); }

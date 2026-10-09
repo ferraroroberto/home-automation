@@ -115,10 +115,12 @@ def test_offline_unit_row_marked_on_home_summary(
     mock_api(sample_units)
     mock_energy()
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.wait_for_selector("#acSummary .ac-line", state="visible")
+    page.wait_for_selector("#acSummary .ac-row", state="visible")
 
-    row = page.locator("#acSummary .ac-line", has_text="Studio")
-    expect(row).to_have_class(re.compile(r"\bis-unavailable\b"))
+    row = page.locator("#acSummary .ac-row", has_text="Studio")
+    # The shared row (#880): the avatar's badge says it should be connected
+    # and is not, and the meta line closes on the Offline chip.
+    expect(row.locator(".row-avatar")).to_have_attribute("data-badge", "down")
     expect(row.locator(".ac-line-offline")).to_have_text("Offline")
     expect(row.locator(".ac-line-toggle")).to_be_disabled()
     # Only the offline unit is marked.

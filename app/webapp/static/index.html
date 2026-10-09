@@ -36,6 +36,7 @@
   <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/static/_vendored/text-size/text-size.css">
   <link rel="stylesheet" href="/static/_vendored/icon-button/icon-button.css">
+  <link rel="stylesheet" href="/static/_vendored/action-row/action-row.css">
   <link rel="stylesheet" href="/static/styles.css">
   <title>Home Automation</title>
 </head>
@@ -447,7 +448,9 @@
     <!-- ============================== HOME =============================== -->
     <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
       <!-- Page header (#779): every pane opens with the vendored home-head —
-           the tab's title, the theme toggle and the Settings gear. -->
+           the tab's title, the theme toggle and the Settings gear. AC, Energy,
+           Devices and Security add the live line (head-status.js, #880); Home's
+           becomes the weather in Step 7/8 (#885). -->
       <div class="card home-head page-head">
         <h2 class="home-title">
           <svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>
@@ -495,7 +498,7 @@
 
       <!-- AC summary: one line per unit with an inline power toggle (issue #72).
            Mode + vanes still live in the AC tab's per-unit detail modal. -->
-      <section id="acSummary" class="card ac-summary" aria-label="AC summary"></section>
+      <section id="acSummary" class="card action-list ac-summary" aria-label="AC summary"></section>
 
       <!-- Plug summary (informative) — the same totals as the Plugs tab. Loaded
            once on Home entry; live control stays on the Plugs tab (issue #72).
@@ -738,6 +741,7 @@
           <svg class="icon" aria-hidden="true"><use href="#i-snowflake"></use></svg>
           AC
         </h2>
+        <span class="status" data-head="ac"></span>
         <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
@@ -758,6 +762,7 @@
           <svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>
           Energy
         </h2>
+        <span class="status" data-head="energy"></span>
         <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
@@ -985,6 +990,7 @@
           <svg class="icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
           Devices
         </h2>
+        <span class="status" data-head="iot"></span>
         <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
@@ -1786,6 +1792,7 @@
           <svg class="icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
           Security
         </h2>
+        <span class="status" data-head="security"></span>
         <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
@@ -2834,6 +2841,12 @@
         <button id="netWifiHiddenDetailToggle" type="button" class="toggle off" role="switch" aria-checked="false" aria-label="Hide Wi-Fi radio">
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
+      </div>
+
+      <!-- An instant sheet (#880): each field saves as it changes, so the one
+           primary is Done, which only closes. -->
+      <div class="detail-actions">
+        <button id="netWifiDone" type="button" class="detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>

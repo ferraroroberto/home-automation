@@ -26,6 +26,8 @@ import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from
 import { createViewState, markTabFailure, renderFeedback, staleText } from './view-state.js';
 import { createPoller } from './poll.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { rowEl } from './row.js';
+import { setHeadPart } from './head-status.js';
 
 const DEFAULT_RANGE = [16, 31];
 let currentScheduleEntries = [];
@@ -574,9 +576,49 @@ function closeDetail() {
   closeDialog(els.detail);
 }
 
-// ------------------------------------------------ read-only AC summary (Home)
+// ------------------------------------------------ AC rows on Home
+// The shared row (row.js, #880): the mode glyph in the avatar, badged while
+// the unit runs and when it is offline; the name; one meta line with the
+// room and set temperatures; the power switch as the one trailing item.
+// Tapping the row opens the unit's sheet, the same one the AC tab opens.
+function acRow(u) {
+  const on = u.power === true;
+  const offline = isOffline(u);
+  const label = displayLabel(u) || 'Unit';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'toggle ac-line-toggle' + (on ? ' on' : '');
+  toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-checked', on ? 'true' : 'false');
+  toggle.setAttribute('aria-label', 'Power ' + label);
+  toggle.innerHTML = toggleMarkup(on);
+  toggle.disabled = acView.state === 'stale' || offline;
+  toggle.addEventListener('click', function () {
+    applyControl(u.unit_id, { power: !on });
+  });
+  const room = fmtTemp(u.room_temperature);
+  let meta = 'Last read ' + room;
+  if (!offline) {
+    // Room → set, the arrow a Lucide glyph with words for a screen reader.
+    meta = document.createElement('span');
+    meta.innerHTML = 'Room ' + room + icon('arrow-right', 'row-meta-arrow') +
+      '<span class="visually-hidden"> to </span>' + fmtTemp(u.set_temperature);
+  }
+  return rowEl({
+    className: 'ac-row',
+    glyph: modeIcon(u.operation_mode),
+    badge: offline ? 'down' : (on ? 'up' : null),
+    title: label,
+    meta: meta,
+    chip: offline ? chipEl('Offline', 'attention', 'ac-line-offline') : null,
+    onOpen: function () { openDetail(u.unit_id); },
+    trail: toggle,
+  });
+}
+
 function renderAcSummary() {
   els.acSummary.innerHTML = '';
+  renderAcHead();
   if (!state.units.length) {
     const empty = document.createElement('p');
     empty.className = 'muted small ac-summary-empty';
@@ -589,55 +631,34 @@ function renderAcSummary() {
   const sorted = state.units.slice().sort(function (a, b) {
     return displayLabel(a).localeCompare(displayLabel(b));
   });
-  sorted.forEach(function (u) {
-    const on = u.power === true;
-    const offline = isOffline(u);
-    const row = document.createElement('div');
-    row.className = 'ac-line' + (on ? '' : ' is-off') + (offline ? ' is-unavailable' : '');
-
-    const name = document.createElement('span');
-    name.className = 'ac-line-name';
-    name.innerHTML = icon(modeIcon(u.operation_mode), 'ac-line-icon');
-    name.insertAdjacentText('beforeend', ' ' + (displayLabel(u) || 'Unit'));
-
-    // Temperature column: room, an arrow, target on a single line. The mode · fan caption
-    // was dropped (#211) to keep each Home row one line tall, matching the
-    // Network "Attached devices" row density — mode/fan stay in the detail modal.
-    const center = document.createElement('span');
-    center.className = 'ac-line-center';
-    const room = fmtTemp(u.room_temperature);
-    const target = fmtTemp(u.set_temperature);
-    // The row is a 3-column grid (name · readings · toggle), so the offline
-    // marker rides in the readings column rather than adding a fourth cell.
-    center.innerHTML =
-      (offline ? chipHtml('Offline', 'attention', 'ac-line-offline') : '') +
-      '<span class="ac-temp">' + room + icon('arrow-right', 'ac-temp-arrow') +
-      '<span class="visually-hidden"> to </span>' + target + '</span>';
-
-    // Power toggle — the app's standard switch, actionable from Home (issue #72).
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'toggle ac-line-toggle' + (on ? ' on' : '');
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', on ? 'true' : 'false');
-    toggle.setAttribute('aria-label', 'Power ' + (displayLabel(u) || 'unit'));
-    toggle.innerHTML = toggleMarkup(on);
-    toggle.disabled = acView.state === 'stale' || offline;
-    toggle.addEventListener('click', function () {
-      applyControl(u.unit_id, { power: !on });
-    });
-
-    row.appendChild(name);
-    row.appendChild(center);
-    row.appendChild(toggle);
-    els.acSummary.appendChild(row);
-  });
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
+  sorted.forEach(function (u) { list.appendChild(acRow(u)); });
+  els.acSummary.appendChild(list);
   if (acView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small snapshot-note ac-snapshot-note';
     note.textContent = staleText(acView, 'units');
     els.acSummary.appendChild(note);
   }
+}
+
+// The AC header's live line (head-status.js, #880): units offline in
+// attention, else how many are running. Only from a live read: a restored
+// snapshot or a failed poll says nothing rather than an old count.
+function renderAcHead() {
+  if (acView.state !== 'ready' && acView.state !== 'empty') {
+    setHeadPart('ac', 'units', null);
+    return;
+  }
+  const offline = state.units.filter(isOffline).length;
+  const running = state.units.filter(function (u) {
+    return u.power === true && !isOffline(u);
+  }).length;
+  setHeadPart('ac', 'units', {
+    exceptions: offline ? [{ text: offline + ' offline', tone: 'attention' }] : [],
+    fact: state.units.length ? running + ' running' : 'No units',
+  });
 }
 
 // --------------------------------------------------------------- boot

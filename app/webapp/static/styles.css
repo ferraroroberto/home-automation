@@ -99,6 +99,7 @@
   --font-heading-lg: 1.5rem;
   --font-body: 1rem;
   --font-label: 0.875rem;
+  --font-body-sm: 0.875rem;   /* typography.body-sm — the vendored action-row's meta line */
   --font-caption: 0.75rem;
   /* elevation — cards lean on surface + hairline border; the floating nav and
      toasts are the only elements with a real shadow. */
@@ -449,6 +450,18 @@ button.circuit-meter-name:hover,
 .chip[data-tone="attention"] { --tone: var(--attention); --tone-text: var(--attention-text); }
 .chip[data-tone="danger"] { --tone: var(--deficit); --tone-text: var(--danger-text); }
 
+/* The page header's live line (head-status.js, #880): the vendored home-head
+   draws the slot muted; an exception part takes its tone's text colour, the
+   same *-text the chips use. Moves upstream in project-scaffolding#343. */
+.home-head .status .head-exception[data-tone="attention"] { color: var(--attention-text); }
+.home-head .status .head-exception[data-tone="danger"] { color: var(--danger-text); }
+
+/* The tab count badge is the vendored nav's (attention, card text). A
+   triggered alarm repaints the Security badge in danger, card text still
+   clearing 4.5:1 (5.4:1 light, 5.2:1 dark), until the nav takes a tone
+   itself (project-scaffolding#342; decision 10 of #872). */
+.tabs .tab[data-badge-tone="danger"] .tab-badge { background: var(--deficit); }
+
 /* ----------------------------------------------- segmented control (#879, #888)
    One exclusive choice of 2-6 options: the alarm mode, the energy and money
    periods, the forecast day. The selected segment IS the state (never a
@@ -556,48 +569,75 @@ button.circuit-meter-name:hover,
 }
 
 /* ----------------------------------------------------------- AC summary */
-.ac-summary { padding: 6px 12px; margin-bottom: var(--gap); }
-.ac-summary-empty { margin: var(--space-sm) 0; }
+/* The Home AC rows are the shared row (row.js, #880) on the vendored
+   action-row, so the card holds full-bleed rows; only its notes need an inset. */
+.ac-summary { margin-bottom: var(--gap); }
+.ac-summary-empty { margin: 0; padding: var(--space-sm) 14px; }
 .snapshot-note { margin: 10px 0 0; }
-.ac-snapshot-note { padding-top: var(--space-sm); border-top: 1px solid var(--line); }
-.ac-line {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+.ac-snapshot-note { margin: 0; padding: var(--space-sm) 14px; border-top: 1px solid var(--line-muted); }
+
+/* ------------------------------------------- shared row extensions (#880)
+   The vendored action-row (_vendored/action-row/) owns the row: the stretched
+   tap target, the title and meta type, the hairline. Two parts are this app's
+   until project-scaffolding#341 takes them upstream:
+   - the leading avatar (design.md `avatar`): a 36px squircle on neutral-soft
+     with the kind or mode glyph, inside the tap target; its corner badge
+     means connected (success) or should be and is not (danger), ringed in
+     card so it reads cut out;
+   - one trailing item that is not a kebab (a switch, a value), a sibling of
+     the tap target so a tap on it never opens the sheet.
+   The meta line becomes a flex row so an exception chip closes it outside the
+   ellipsis. */
+.action-row-main.has-avatar {
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
-  /* Single tight line per unit, matching the Network "Attached devices" row
-     density (#211). */
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
+  justify-content: flex-start;
+  gap: var(--gap);
 }
-.ac-line:first-child { border-top: 0; }
-.ac-line.is-off { color: var(--muted); }
-.ac-line-name {
-  font-weight: 600;
+.action-row-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+}
+.row-avatar {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  color: var(--ink);
+}
+.row-avatar .icon { width: var(--bottom-tabs-icon); height: var(--bottom-tabs-icon); }
+.row-avatar[data-badge]::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--on);
+  box-shadow: 0 0 0 2px var(--card);
+}
+.row-avatar[data-badge="down"]::after { background: var(--deficit); }
+.action-row .action-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.action-row-meta-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ac-line-icon { width: 1.05em; height: 1.05em; margin-right: 2px; }
-/* Unreachable unit (#520) — mirrors the AC card's treatment: the row's readings
-   dim and its toggle is disabled, with a caption saying why. Same opacity as
-   the other unavailable rows (.device-row.is-unavailable), and applied to the
-   content rather than the row for the same reason as the card above — the
-   "Offline" caption must not fade along with what it explains. */
-.ac-line.is-unavailable .ac-line-name,
-.ac-line.is-unavailable .ac-temp { opacity: 0.6; }
-.ac-line-offline { margin-right: 6px; }
-/* Single-line temperature reading: room → target (#211). */
-.ac-line-center { text-align: right; }
-.ac-temp {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.ac-temp-arrow { width: 16px; height: 16px; color: var(--muted); }
+.action-row-trail { flex: none; margin-right: 10px; }
+.row-meta-arrow { width: 14px; height: 14px; margin: 0 2px; vertical-align: -2px; }
 
 /* ------------------------------------------------- energy flow diagram */
 .energy-feedback { margin: 0 0 var(--gap); }

@@ -39,46 +39,49 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { confirmAction } from './confirm.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
-import { closeDialog, openDialog } from './dialog.js';
+import { sheet } from './sheet.js';
 
 export function denseListEditor(config) {
   let editorIndex = null;
   let editorEntryId = null;
-  let editorReturnFocus = null;
   let staged = null;
+
+  // The staged sheet shell (sheet.js, #880): ×, Esc and the backdrop discard,
+  // and focus goes back to the opener, else the edited row, else Add.
+  const shell = sheet(config.dialog, {
+    model: 'staged',
+    closeButton: config.closeButton,
+    fallbackFocus: function () {
+      if (editorEntryId) {
+        const row = config.listEl.querySelector(
+          '[' + config.rowIdAttr + '="' + CSS.escape(editorEntryId) + '"]'
+        );
+        if (row) return row.querySelector('.automation-summary-main');
+      }
+      return config.addButton;
+    },
+    onClose: function () {
+      editorIndex = null;
+      editorEntryId = null;
+      staged = null;
+    },
+  });
 
   function open(index, trigger) {
     editorIndex = index;
     const source = index == null ? config.defaults() : config.getEntries()[index];
     staged = config.stage ? config.stage(source) : { ...source };
     editorEntryId = staged.id;
-    editorReturnFocus = trigger || null;
     config.titleEl.textContent = index == null ? config.titles.add : config.titles.edit;
     config.populate(staged);
     config.deleteButton.hidden = index == null;
-    openDialog(config.dialog);
+    shell.open(trigger);
     config.focusEl.focus();
     if (config.afterOpen) config.afterOpen(staged);
   }
 
   function close() {
-    closeDialog(config.dialog);
-  }
-
-  function restoreFocus() {
-    let target = editorReturnFocus && editorReturnFocus.isConnected ? editorReturnFocus : null;
-    if (!target && editorEntryId) {
-      const row = config.listEl.querySelector(
-        '[' + config.rowIdAttr + '="' + CSS.escape(editorEntryId) + '"]'
-      );
-      if (row) target = row.querySelector('.automation-summary-main');
-    }
-    if (!target) target = config.addButton;
-    editorIndex = null;
-    editorEntryId = null;
-    editorReturnFocus = null;
-    staged = null;
-    if (target) requestAnimationFrame(function () { target.focus(); });
+    shell.close();
   }
 
   // Optimistic update: swap the list, render, PUT — roll back on failure.
@@ -145,11 +148,6 @@ export function denseListEditor(config) {
     config.addButton.addEventListener('click', function () {
       open(null, config.addButton);
     });
-    config.closeButton.addEventListener('click', close);
-    config.dialog.addEventListener('click', function (ev) {
-      if (ev.target === config.dialog) close();
-    });
-    config.dialog.addEventListener('close', restoreFocus);
     config.saveButton.addEventListener('click', onSave);
     config.deleteButton.addEventListener('click', onDelete);
   }

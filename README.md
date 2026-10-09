@@ -617,6 +617,20 @@ lights, and blinds, each a collapsible row list, plus the UPS tile and the PC
 fleet — see below), and **🛡️ Security** (RISCO alarm controls, schedules, event
 log, cameras, detectors, and presence).
 
+**Live header line and tab badge (#880).** Beside each tab's title, AC, Energy,
+Devices and Security show one live line: what needs you, in its tone (AC "1
+offline", Security "Triggered" in red or "2 trouble" in amber, Devices "On
+battery" or "UPS battery low", Energy "Live unavailable"), else a plain fact
+("2 running", "Exporting 356 W", "3 on · 235 W", "24 detectors"). It only
+reports a live read, never a restored snapshot. The **Security** tab carries a
+count badge seen from every tab: amber with the detector-trouble count, red
+with "1" while the alarm is triggered; it updates whenever the alarm is polled
+(on Home and Security). Home AC rows are the shared row: tap the row to open
+the unit's sheet, tap the switch for power. Every detail sheet closes the same
+way (×, Esc, tapping outside) and hands focus back to what opened it; an editor
+saves only on **Save**, a device sheet such as Wi-Fi saves as you change it and
+closes on **Done**.
+
 **Settings** is not a tab: the gear in any page header opens it. It holds the
 former **Net** tab (LAN health, the attached-device inventory, the AP reboot —
 see below) and the configuration that used to be spread across tabs: the one
