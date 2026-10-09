@@ -42,6 +42,7 @@ from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_float, _env_int
 from app.webapp._task_loop import run_loop
 from src import telemetry
+from src._schedule_store import daily_due
 from src.hvac_automation import (
     TempRule,
     boosted_target,
@@ -140,14 +141,7 @@ async def _apply_schedule(unit: DeviceInfo, sched) -> None:
 
 def _schedule_due(sched, now: datetime, grace_s: int) -> bool:
     """True if ``now`` falls in ``[HH:MM, HH:MM + grace)`` for today."""
-    try:
-        hh, mm = (int(p) for p in sched.time.split(":", 1))
-    except (ValueError, AttributeError):
-        logger.warning("⚠️ Invalid schedule time %r; skipping", sched.time)
-        return False
-    fire_at = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-    delta = (now - fire_at).total_seconds()
-    return 0 <= delta < grace_s
+    return daily_due(sched.time, now, grace_s)
 
 
 def _set_boost(

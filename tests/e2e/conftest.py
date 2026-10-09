@@ -476,6 +476,8 @@ def base_url() -> Iterator[str]:
             # config, but keep it explicitly off like the sampler).
             "HVAC_AUTOMATION_ENABLED": "0",
             "SECURITY_SCHEDULES_ENABLED": "0",
+            # Never move real blinds from a test boot (#871).
+            "BLIND_SCHEDULES_ENABLED": "0",
             "PRESENCE_ICLOUD_REFRESH_ENABLED": "0",
             "PRESENCE_AUTOMATION_ENGINE_ENABLED": "0",
             # Assist trace ingestion is a production background read. Browser

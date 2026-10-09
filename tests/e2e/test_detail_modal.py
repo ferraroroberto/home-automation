@@ -42,11 +42,12 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     # + the horizon-point editor dialog (#pvHorizonDialog, #578 part b)
     # + the circuit rename/sign-flip dialog (#circuitDialog, #25)
     # + the iCloud trust-renewal code dialog (#presenceTrustDialog, #659)
-    # + the camera preset-name prompt dialog (#cameraPresetNameDialog, #722);
+    # + the camera preset-name prompt dialog (#cameraPresetNameDialog, #722)
+    # + the blind schedule editor dialog (#blindScheduleDialog, #871);
     # the HA capabilities help left the census when #461 made it a folded
     # subsection instead of a modal.
-    expect(close_buttons).to_have_count(25)
-    expect(page.locator(".detail-close.hit-target")).to_have_count(25)
+    expect(close_buttons).to_have_count(26)
+    expect(page.locator(".detail-close.hit-target")).to_have_count(26)
 
     target = effective_rect(page.locator("#detailClose"))
     # Exact compact-control contract: 34px visual box, 44px effective hit area.

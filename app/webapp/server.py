@@ -14,6 +14,7 @@ with the router set the way the old exhaustive table did (#453).
     circuits           → /api/circuits*                  (Athom CT-clamp per-circuit power)
     weather            → /api/weather
     tuya               → /api/tuya*                      (Smart Life / Tuya plugs, blinds)
+    blind_schedules    → /api/blinds/schedules
     ups                → /api/ups*                        (USB UPS + notify prefs)
     lights             → /api/lights*                     (Elgato lights)
     cameras            → /api/cameras*                    (RTSP/ONVIF, snapshot, stream, PTZ, presets)
@@ -68,7 +69,7 @@ from app.webapp import read_snapshot
 from app.webapp.middleware import BearerTokenMiddleware, StreamSafeGZipMiddleware
 from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
+from app.webapp.routers import actions, activity, auth, blind_schedules, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
 from app.webapp.actions_registry import warn_unconfigured_quick_actions
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from src.automation_owner import AutomationOwnership
@@ -77,6 +78,7 @@ from app.webapp.power_monitor import start_power_monitor
 from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
 from app.webapp.security_automation import start_security_schedules
+from app.webapp.blind_schedules import start_blind_schedules
 from app.webapp.wake_alarm_automation import start_wake_alarms
 from app.webapp.sampler import start_sampler
 from app.webapp.speedtest_schedule import start_nightly_speedtest
@@ -230,6 +232,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 start_presence_refresher(),
                 start_presence_automation(),
                 start_security_schedules(),
+                start_blind_schedules(),
                 start_wake_alarms(),
                 start_power_monitor(),
                 start_ha_trace_collector(),
@@ -304,6 +307,7 @@ def create_app() -> FastAPI:
     app.include_router(circuits.router)
     app.include_router(weather.router)
     app.include_router(tuya.router)
+    app.include_router(blind_schedules.router)
     app.include_router(ups.router)
     app.include_router(lights.router)
     app.include_router(cameras.router)
