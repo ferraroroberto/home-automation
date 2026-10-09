@@ -72,7 +72,7 @@ from src.camera_token import verify as _verify_camera_token
 from app.webapp.routers import actions, activity, auth, blind_schedules, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
 from app.webapp.actions_registry import warn_unconfigured_quick_actions
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
-from src.automation_owner import AutomationOwnership
+from src.automation_owner import AutomationOwnership, automation_engines_opt_in
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
 from app.webapp.presence_automation import start_presence_automation
@@ -217,13 +217,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # pool avoids constructing a new client/socket pool for every chunk.
     app.state.outbound_http = aiohttp.ClientSession()
 
-    # Only one process may run the write-side automation loops against the
-    # shared config/logs/physical devices (#690) — a second instance (any
-    # port) still serves the API/PWA, just with none of these loops started.
-    ownership = AutomationOwnership(port=app.state.webapp_config.port)
-    app.state.automation_owned = ownership.held
-    if ownership.held:
-        logger.info("ℹ️  automation ownership acquired (pid=%s) — write-side loops enabled", os.getpid())
+    # The write-side automation loops act on the real alarm, AC units, blinds
+    # and household notifications, so they run only where the launcher opted
+    # in (#876: a throwaway worktree instance re-fired the alarm schedule) and,
+    # there, only in the one process holding the ownership lock (#690). Every
+    # other instance still serves the API/PWA, with none of these loops.
+    engines_on, engines_why = automation_engines_opt_in()
+    ownership = AutomationOwnership(port=app.state.webapp_config.port) if engines_on else None
+    app.state.automation_owned = bool(ownership and ownership.held)
+    if ownership is None:
+        logger.info(
+            "ℹ️  automation engines off — %s; serving the API/PWA only",
+            engines_why,
+        )
+        tasks = []
+    elif ownership.held:
+        logger.info(
+            "ℹ️  automation ownership acquired (pid=%s, %s) — write-side loops enabled",
+            os.getpid(), engines_why,
+        )
         tasks = [
             t for t in (
                 start_sampler(),
@@ -251,7 +263,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     tasks.extend(asyncio.create_task(s.tick_forever()) for s in read_snapshot.registered())
     # The owner only: it holds the single-client Modbus session, so a read-only
     # second instance must not open one at boot (#769).
-    if ownership.held:
+    if app.state.automation_owned:
         tasks.append(asyncio.create_task(energy.ENERGY_SNAPSHOT.warm()))
     # Any instance: a plain HTTPS read, so the first tile load after a restart
     # doesn't pay for a cold TLS handshake inside the request (#772).
@@ -264,7 +276,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         for task in tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
-        ownership.release()
+        if ownership is not None:
+            ownership.release()
         await app.state.outbound_http.close()
 
 

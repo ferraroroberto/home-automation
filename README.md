@@ -1205,6 +1205,8 @@ otherwise plain HTTP. Invoke uvicorn directly if you prefer:
 
 The signal that new code is live is the `GET /api/version` `git_sha` matching `git rev-parse --short HEAD` (a `/healthz` 200 alone is not enough — a stale process passes it); the 6-unit grid rendering is only a secondary visual confirm.
 
+**Automation engines run only in the live instance (issue #876).** The alarm and blind schedules, presence and HVAC automation, wake alarms, the power monitor, samplers, the SearXNG watchdog and the nightly speed test act on the real alarm, AC units, blinds and household notifications. So they start only when the launcher sets `HOME_AUTOMATION_ENGINES=1`, which the tray's `WebappManager` and `webapp.bat` (the two launchers of the live `:8447` instance) do. Any other boot (a sibling worktree, another port, the bare `uvicorn` line above, the e2e autoboot) serves the API/PWA with **no engine at all**, and its first startup log line says `automation engines off — …`. Where it is set, the #690 ownership lock still decides which single process runs them. To opt a dev instance in deliberately, set the variable in that one shell, e.g. `$env:HOME_AUTOMATION_ENGINES = "1"` before the `uvicorn` line, and know that it will then act on the real devices. **Never put it in `.env`**: `.env` is copied into every worktree, so the webapp refuses an opt-in it finds there and logs why.
+
 ## HTTPS (Tailscale cert)
 
 The webapp is reached over Tailscale, so HTTPS uses a **real Let's Encrypt
