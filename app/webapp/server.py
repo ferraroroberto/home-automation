@@ -37,6 +37,7 @@ with the router set the way the old exhaustive table did (#453).
     reminders          → /api/reminders*                    (bidirectional voice/app reminders, issue #314)
     calendar_events    → /api/calendar/voice                 (voice-only Google Calendar event creation, issue #313)
     voice_commands     → /api/voice-commands                 (read-only voice cheat-sheet catalogue, issue #437)
+    web_search         → /api/voice/search                   (Spanish voice web search: SearXNG es + hub summary, issue #865)
     pc_fleet           → /api/pc-fleet*                     (UPS-triggered fleet-shutdown prefs + hub proxy)
 
 Run with::
@@ -67,7 +68,7 @@ from app.webapp import read_snapshot
 from app.webapp.middleware import BearerTokenMiddleware, StreamSafeGZipMiddleware
 from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
 from src.camera_token import verify as _verify_camera_token
-from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, weather
+from app.webapp.routers import actions, activity, auth, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
 from app.webapp.actions_registry import warn_unconfigured_quick_actions
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from src.automation_owner import AutomationOwnership
@@ -326,6 +327,7 @@ def create_app() -> FastAPI:
     app.include_router(reminders.router)
     app.include_router(calendar_events.router)
     app.include_router(voice_commands.router)
+    app.include_router(web_search.router)
     app.include_router(pc_fleet.router)
     app.include_router(actions.router)
 
