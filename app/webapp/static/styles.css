@@ -449,25 +449,27 @@ button.circuit-meter-name:hover,
 .chip[data-tone="attention"] { --tone: var(--attention); --tone-text: var(--attention-text); }
 .chip[data-tone="danger"] { --tone: var(--deficit); --tone-text: var(--danger-text); }
 
-/* ----------------------------------------------- segmented control (#879)
+/* ----------------------------------------------- segmented control (#879, #888)
    One exclusive choice of 2-6 options: the alarm mode, the energy and money
    periods, the forecast day. The selected segment IS the state (never a
-   sentence above faded options), drawn like the active nav tab: accent-soft
-   fill, accent-text, soft accent hairline. The group is a hairline box on the
-   card; unselected segments are fg on the card, unavailable ones fg-muted on
-   the card (5.3:1 light, 4.7:1 dark), never opacity. Segments are adjacent,
-   so each reaches the 44px floor with real height (verbs) or a vertical-only
-   ::before band (pickers) that can't overlap its neighbour. */
+   sentence above faded options). Drawn as in the #872 mockup: no outer
+   border, a neutral-soft track with a 3px inset, borderless segments, and the
+   selected one raised on the card surface with a soft shadow, in fg. An armed
+   alarm is therefore never red (decision 3 of #872). Every label is fg on the
+   track (12.9:1 light, 11.9:1 dark); unavailable ones keep fg too, because
+   fg-muted on the track is 4.3:1 light and 3.8:1 dark, under AA. They read as
+   unavailable through disabled (screen readers), their title and the cursor,
+   never opacity. Segments are adjacent, so each reaches the 44px floor with
+   real height (verbs) or a vertical-only ::before band (pickers) that can't
+   overlap its neighbour. */
 .segmented {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  gap: 2px;
-  padding: 2px;
+  padding: 3px;
   margin-bottom: 12px;
-  border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--card);
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
   min-width: 0;
 }
 .segmented-item {
@@ -478,7 +480,7 @@ button.circuit-meter-name:hover,
   min-width: 0;
   height: calc(var(--control-h) - 6px);
   padding: 0 4px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: calc(var(--radius-md) - 3px);
   background: transparent;
   color: var(--ink);
@@ -492,12 +494,11 @@ button.circuit-meter-name:hover,
   background: color-mix(in srgb, var(--muted) 10%, transparent);
 }
 .segmented-item[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent-border-soft);
-  color: var(--accent-text);
+  background: var(--card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
-.segmented-item:disabled { color: var(--muted); cursor: not-allowed; }
-.segmented-item[aria-pressed="true"]:disabled { color: var(--accent-text); cursor: default; }
+.segmented-item:disabled { cursor: not-allowed; }
+.segmented-item[aria-pressed="true"]:disabled { cursor: default; }
 /* Verbs that act on the house (the alarm mode) get the real 44px row. */
 .segmented--verbs { margin: 12px 0 0; }
 .segmented--verbs .segmented-item { height: calc(var(--hit-min) - 6px); }
@@ -1797,7 +1798,7 @@ button.circuit-meter-name {
    space in the prefix span collapses inside this flex container (issue #104). */
 .security-state-word { font-weight: 700; margin-inline-start: 0.35em; }
 /* The state word is plain text (#879, decision 3 of #872): an armed mode is
-   normal, and the selected segment below already draws it in the accent.
+   normal, and the selected segment below already shows it (raised, #888).
    Red is kept for a triggered alarm; arming is work in progress (accent). */
 .security-state.is-alert .security-state-word { color: var(--danger-text); }
 .security-state.is-arming .security-state-word { color: var(--accent-text); }

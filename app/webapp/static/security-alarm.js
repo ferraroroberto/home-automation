@@ -175,9 +175,9 @@ const SEGMENT_LABELS = {
 
 // Alarm controls render into every registered container — the Security tab and
 // the Home tab both show the same control (issue #72). It is one segmented
-// control (#879, decision 3 of #872): the selected segment is the current
-// mode, in the accent like any selected state, because an armed alarm is
-// normal, not an emergency. Red is kept for a triggered alarm (the state line)
+// control (#879, #888, decision 3 of #872): the selected segment is the
+// current mode, raised on the card like any selected segment and never red,
+// because an armed alarm is normal, not an emergency. Red is kept for a triggered alarm (the state line)
 // and amber for trouble. Off is always tappable (#223); the arm modes only
 // from disarmed, and the rest read as unavailable.
 function renderActionsInto(el) {

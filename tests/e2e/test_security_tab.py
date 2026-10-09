@@ -368,8 +368,10 @@ def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
 ) -> None:
     """#879 (decision 3 of #872): the mode is the selected segment of one
     control on both tabs, an armed alarm is a normal state (plain text, the
-    accent segment), trouble is an attention chip, and a detector that is
-    simply active carries no chip at all."""
+    raised segment), trouble is an attention chip, and a detector that is
+    simply active carries no chip at all. #888: the control has no outer
+    border, the selected segment sits on the card surface, and every label
+    (selected, available, unavailable) keeps one text colour."""
     mock_api(sample_units)
     mock_energy()
     mock_presence()
@@ -392,6 +394,19 @@ def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
             ["Off", "Partial", "Perimeter", "Full"]
         )
         expect(page.locator(f'{pane} [aria-pressed="true"]')).to_have_text("Full")
+        control = page.locator(pane)
+        assert control.evaluate(
+            "el => ['Top', 'Right', 'Bottom', 'Left'].map("
+            "s => getComputedStyle(el)['border' + s + 'Width'])"
+        ) == ["0px"] * 4
+        card_bg = control.evaluate("el => getComputedStyle(el.closest('.card')).backgroundColor")
+        assert page.locator(f'{pane} [aria-pressed="true"]').evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        ) == card_bg
+        colors = page.locator(f"{pane} .security-action").evaluate_all(
+            "els => els.map(el => getComputedStyle(el).color)"
+        )
+        assert len(set(colors)) == 1, colors
     # Off is the one way out of an armed mode; the other modes wait for it.
     expect(page.locator("#securityActions .security-action:enabled")).to_have_text(["Off"])
 
