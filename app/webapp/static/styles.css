@@ -2517,7 +2517,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .unit-setpoint-value {
   min-width: 5ch;
   text-align: center;
-  font-size: 2.5rem;
+  font-size: var(--font-heading-xl);
   font-weight: 700;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
