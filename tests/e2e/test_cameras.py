@@ -51,7 +51,6 @@ def _open_live_view(page: Page, base_url: str, camera: Dict, presets: List[Dict]
     )
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
-    page.locator(".cameras-card > summary").click()
     live = page.locator("#camerasList .camera-row-live")
     expect(live).to_have_text("Live")
     live.click()

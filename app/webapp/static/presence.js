@@ -36,6 +36,8 @@ import { wirePresencePushControls } from './presence-push.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { confirmAction } from './confirm.js';
 import { friendlyError } from './format.js';
+import { rowEl } from './row.js';
+import { chipEl } from './chip.js';
 
 // Re-export so callers (security.js, main.js) keep a single import surface —
 // same convention security.js itself uses for its own sub-modules.
@@ -283,9 +285,9 @@ export function renderPresence() {
     showPresenceState('Presence unavailable', false);
     els.presenceNote.hidden = false;
     els.presenceNote.textContent = presence.reason === '2fa_required'
-      ? 'iCloud needs re-authentication — use Renew trust on the account row below.'
+      ? 'iCloud needs re-authentication — use Renew trust in Accounts below.'
       : presence.reason === 'terms_required'
-        ? 'An iCloud account must accept Apple’s updated terms — see the account row below.'
+        ? 'An iCloud account must accept Apple’s updated terms — see Accounts below.'
         : friendlyError(presence.detail, 'Presence is not configured.');
     hidePresenceRefreshNote();
     return;
@@ -306,20 +308,12 @@ export function renderPresence() {
   const homeCount = counted.filter(function (e) { return e.at_home === true; }).length;
   const awayCount = counted.filter(function (e) { return e.at_home === false; }).length;
   const unknownCount = counted.filter(function (e) { return e.at_home !== true && e.at_home !== false; }).length;
-  els.presenceSummary.textContent =
-    homeCount + ' home · ' + awayCount + ' away · ' + unknownCount + ' unknown';
-  if (els.presenceHiddenCount) {
-    if (hiddenCount > 0) {
-      els.presenceHiddenCount.textContent = hiddenCount + ' hidden';
-      els.presenceHiddenCount.hidden = false;
-    } else {
-      els.presenceHiddenCount.hidden = true;
-    }
-  }
+  els.presenceSummary.textContent = homeCount + ' home · ' + awayCount + ' away' +
+    (unknownCount ? ' · ' + unknownCount + ' unknown' : '');
   if (els.presenceHiddenToggle) {
     els.presenceHiddenToggle.hidden = hiddenCount === 0;
-    els.presenceHiddenToggle.textContent = state.presenceShowHidden ? 'Hide' : 'Show hidden';
-    els.presenceHiddenToggle.classList.toggle('active', state.presenceShowHidden);
+    els.presenceHiddenToggle.textContent = (state.presenceShowHidden ? 'Hide ' : 'Show ') + hiddenCount + ' hidden';
+    els.presenceHiddenToggle.setAttribute('aria-pressed', state.presenceShowHidden ? 'true' : 'false');
   }
 
   if (!entities.length) {
@@ -340,59 +334,49 @@ export function renderPresence() {
 
   if (!visible.length) showPresenceState('No presence entities shown', false);
 
-  visible
-    .forEach(function (entity) {
-      const row = document.createElement('div');
-      row.className = 'presence-row';
-      if (entity.hidden) row.classList.add('is-hidden');
-      if (entity.stale) row.classList.add('is-stale');
-      if (entity.at_home === true) row.classList.add('is-home');
-      else if (entity.at_home === false) row.classList.add('is-away');
-      else row.classList.add('is-unknown');
-
-      const main = document.createElement('div');
-      main.className = 'presence-main';
-
-      const name = document.createElement('button');
-      name.type = 'button';
-      name.className = 'presence-name';
-      name.textContent = presenceEntityLabel(entity);
-      name.title = 'Presence details · rename';
-      name.addEventListener('click', function () { openPresenceDetail(entity.entity_id); });
-      main.appendChild(name);
-
-      const meta = document.createElement('span');
-      meta.className = 'presence-meta';
-      meta.textContent = [
-        sourceLabel(entity),
-        entity.device_class || entity.model || 'Device',
-        entity.last_seen ? fmtTime(entity.last_seen) : 'not located',
-        entity.stale ? 'stale' : '',
-      ].filter(Boolean).join(' · ');
-      main.appendChild(meta);
-      row.appendChild(main);
-
-      const status = document.createElement('span');
-      status.className = 'presence-status';
-      const statusLine = document.createElement('span');
-      statusLine.className = 'presence-status-line';
-      const dist = fmtDistance(entity.distance_from_home_m);
-      statusLine.textContent = presenceLabel(entity) + (dist !== 'unknown' ? ' · ' + dist : '');
-      status.appendChild(statusLine);
-      const place = placeLabel(entity);
-      if (place) {
-        const addrLine = document.createElement('span');
-        addrLine.className = 'presence-status-addr';
-        addrLine.textContent = place;
-        status.appendChild(addrLine);
-      }
-      row.appendChild(status);
-      els.presenceList.appendChild(row);
-      ensurePlaceLabel(entity);
-    });
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
+  visible.forEach(function (entity) {
+    list.appendChild(personRow(entity));
+    ensurePlaceLabel(entity);
+  });
+  if (visible.length) els.presenceList.appendChild(list);
 
   renderPresenceRefreshNote();
   renderPresenceAutomationNote();
+}
+
+// Where a person is, in one muted line (#882; four lines before, J-10):
+// home, or away with the distance and the place; who, how and when sit in the
+// person sheet. This device's line says what it is instead: browser GPS that
+// never drives the alarm.
+function personMeta(entity) {
+  if (isThisDevice(entity)) return sourceLabel(entity);
+  if (entity.at_home === true) return 'Home';
+  if (entity.at_home !== false) return 'Unknown';
+  const dist = fmtDistance(entity.distance_from_home_m);
+  const place = placeLabel(entity);
+  return ['Away', dist !== 'unknown' ? dist : '', place].filter(Boolean).join(' · ');
+}
+
+// One person on the shared row (row.js): the row opens the person sheet.
+function personRow(entity) {
+  const classes = ['presence-row',
+    entity.at_home === true ? 'is-home' : (entity.at_home === false ? 'is-away' : 'is-unknown')];
+  if (entity.hidden) classes.push('is-hidden');
+  if (entity.stale) classes.push('is-stale');
+  const row = rowEl({
+    className: classes.join(' '),
+    glyph: isThisDevice(entity) ? 'smartphone' : 'user',
+    title: presenceEntityLabel(entity),
+    meta: personMeta(entity),
+    chip: entity.stale ? chipEl('Stale', null, 'presence-stale-chip') : null,
+    openLabel: presenceEntityLabel(entity) + ': ' + personMeta(entity),
+    onOpen: function (btn) { openPresenceDetail(entity.entity_id, btn); },
+    chevron: true,
+  });
+  row.dataset.entityId = entity.entity_id;
+  return row;
 }
 
 function renderPresenceRefreshNote() {
@@ -438,10 +422,32 @@ function accountTrustState(acct) {
   return { cls: 'is-unknown', text: 'trust unknown — no session yet' };
 }
 
+// The People group's Accounts row value (#882): how many Apple IDs, and a
+// chip when one needs you: a broken sign-in in danger, a lapsed trust or
+// Apple's terms in attention.
+function renderAccountsMeta(accounts) {
+  const meta = els.presenceAccountsMeta;
+  if (!meta) return;
+  const line = meta.parentNode;
+  line.querySelectorAll('.chip').forEach(function (chip) { chip.remove(); });
+  meta.textContent = accounts.length
+    ? accounts.length + (accounts.length === 1 ? ' account' : ' accounts')
+    : 'None';
+  const states = accounts.map(function (acct) { return { acct: acct, trust: accountTrustState(acct) }; });
+  const needing = states.filter(function (s) { return s.trust.cls === 'is-broken' || s.trust.cls === 'is-untrusted'; });
+  if (!needing.length) return;
+  const broken = needing.some(function (s) {
+    return s.trust.cls === 'is-broken' && s.acct.reason !== 'terms_required';
+  });
+  line.appendChild(chipEl(needing.length === 1 ? '1 needs you' : needing.length + ' need you',
+    broken ? 'danger' : 'attention', 'presence-accounts-chip'));
+}
+
 function renderPresenceAccounts(presence) {
   if (!els.presenceAccounts || !els.presenceAccountsList) return;
   const diag = (presence && presence.diagnostics) || {};
   const accounts = Array.isArray(diag.accounts) ? diag.accounts : [];
+  renderAccountsMeta(accounts);
   if (!accounts.length) {
     els.presenceAccounts.hidden = true;
     els.presenceAccountsList.innerHTML = '';
@@ -642,9 +648,12 @@ export async function loadPresence() {
 }
 
 // --------------------------------------------------- presence detail + config
-function openPresenceDetail(entityId) {
+let presenceDetailOpener = null;
+
+function openPresenceDetail(entityId, trigger) {
   const entity = presenceById(entityId);
   if (!entity) return;
+  presenceDetailOpener = trigger || null;
   state.selectedPresenceId = entityId;
   els.presenceDetailName.textContent = presenceEntityLabel(entity);
   els.presenceDetailStatus.textContent = presenceLabel(entity) + (entity.stale ? ' · stale' : '');
@@ -808,6 +817,18 @@ export function wirePresenceControls() {
   if (els.presenceDialog) {
     els.presenceDialog.addEventListener('click', function (ev) {
       if (ev.target === els.presenceDialog) closePresenceDetail();
+    });
+    // However it closed (×, Esc, backdrop), focus goes back to the row that
+    // opened it, or its re-rendered replacement.
+    els.presenceDialog.addEventListener('close', function () {
+      const id = state.selectedPresenceId;
+      state.selectedPresenceId = null;
+      let target = presenceDetailOpener;
+      presenceDetailOpener = null;
+      if ((!target || !target.isConnected) && id && els.presenceList) {
+        target = els.presenceList.querySelector('.presence-row[data-entity-id="' + CSS.escape(id) + '"] .action-row-main');
+      }
+      if (target && target.isConnected) target.focus();
     });
   }
   [els.presenceDisplayName, els.presenceRole].forEach(function (el) {

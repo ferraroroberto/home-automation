@@ -65,8 +65,7 @@ def test_card_toolbar_and_light_controls_keep_their_own_tap_zones(
     boot_home(page, base_url)
 
     page.locator("#tabSecurity").click()
-    page.locator("details.security-zones-card > summary").click()
-    # The filter only renders once a detector is hidden; show it directly.
+    # The footer toggle only renders once a detector is hidden; show it directly.
     page.evaluate("() => { document.getElementById('securityHiddenToggle').hidden = false; }")
     first_switch = page.locator("#securityZones .security-zone .toggle").first
     expect(first_switch).to_be_visible()

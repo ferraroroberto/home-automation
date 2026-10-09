@@ -105,8 +105,7 @@ export function renderSecurityOverrides() {
 
   if (els.securityOverridesCount) {
     const enabled = state.securityOverrides.filter(function (o) { return o.enabled !== false; }).length;
-    els.securityOverridesCount.hidden = enabled === 0;
-    els.securityOverridesCount.textContent = enabled + ' active';
+    els.securityOverridesCount.textContent = enabled > 0 ? enabled + ' active' : 'None';
   }
 
   if (!state.securityOverrides.length) {

@@ -212,6 +212,20 @@
       <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
       <circle cx="12" cy="12" r="3" />
     </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none">
+      <path d="m21 21-4.34-4.34" />
+      <circle cx="11" cy="11" r="8" />
+    </symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none">
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <circle cx="9" cy="7" r="4" />
+    </symbol>
     <symbol id="i-smartphone" viewBox="0 0 24 24" fill="none">
       <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
       <path d="M12 18h.01" />
@@ -1814,134 +1828,146 @@
         </button>
       </div>
       <div id="securityFeedback" class="security-feedback" role="status" hidden></div>
-      <section class="card security-card" aria-label="Alarm controls">
+      <!-- The glance card (#882, Step 4/8 of #872): is the house protected?
+           The mode is the selected segment of the arm control (decision 3),
+           exceptions are chips on the state line, then the next schedule and
+           Kids home. Everything else is an open group below. -->
+      <section class="card security-card security-glance" aria-label="Alarm">
         <h2 id="securityState" class="security-state">Alarm state: —</h2>
         <div id="securityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
+        <p id="securityNext" class="security-next" hidden></p>
+        <ul class="action-rows security-glance-rows">
+          <li class="action-row security-kids-row">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg></span>
+              <span class="action-row-text">
+                <span id="presenceKidsHomeLabel" class="action-row-title">Kids home</span>
+                <span class="action-row-meta"><span class="action-row-meta-text">Perimeter only when all leave</span></span>
+              </span>
+            </div>
+            <span id="presenceKidsHomeHint" class="visually-hidden">Arm perimeter only, not full, when everyone leaves. Resets on the next disarm.</span>
+            <button id="presenceKidsHome" type="button" class="toggle action-row-trail" role="switch" aria-checked="false" aria-labelledby="presenceKidsHomeLabel" aria-describedby="presenceKidsHomeHint">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </li>
+        </ul>
       </section>
 
-      <details class="card card--collapsible security-card security-schedules-card" aria-label="Alarm schedules">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
-            <h3 class="collapse-title">Schedules</h3>
-            <span id="securitySchedulesCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="security-schedules-body">
-          <div id="securitySchedules" class="alarm-schedule-list"></div>
-          <p id="securitySchedulesNote" class="muted small security-note" hidden></p>
-          <button id="securityScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+      <!-- Detectors: the shared row (row.js) with exception chips only, a
+           filter once the list is long, and the rest one tap away. -->
+      <section id="securityZonesCard" class="card action-list security-group security-zones-card" aria-labelledby="securityZonesTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-satellite-dish"></use></svg>
+          <h3 id="securityZonesTitle" class="group-title">Detectors</h3>
+          <span id="securityZonesMeta" class="group-meta"></span>
         </div>
-      </details>
-
-      <details class="card card--collapsible security-card security-events-card">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
-            <h3 class="collapse-title">Event log</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div id="securityEvents" class="security-events"></div>
-        <p id="securityEventsNote" class="muted small security-note" hidden></p>
-      </details>
-
-      <details class="card card--collapsible security-card cameras-card">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
-            <h3 class="collapse-title">Cameras</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div id="camerasList" class="cameras-list" aria-live="polite"></div>
-        <p id="camerasNote" class="muted small security-note" hidden></p>
-      </details>
-
-      <details class="card card--collapsible security-card security-zones-card">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-satellite-dish"></use></svg>
-            <h3 class="collapse-title">Detectors</h3>
-            <span id="securityHiddenCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <span class="security-zones-tools">
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </span>
-        </summary>
-        <div class="card-toolbar card-toolbar--inset">
-          <button id="securityHiddenToggle" type="button" class="range-tab" data-testid="detectors-show-hidden-toggle" hidden>Show hidden</button>
-        </div>
+        <label id="securityZoneFilterField" class="action-row-filter" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <input id="securityZoneFilter" type="search" placeholder="Filter detectors" aria-label="Filter detectors" autocomplete="off" enterkeyhint="search">
+        </label>
         <div id="securityZones" class="security-zones"></div>
-        <p id="securityZonesNote" class="muted small security-note" hidden></p>
-      </details>
-
-      <details class="card card--collapsible security-card scene-pairings-card" aria-label="Alarm scene capture">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
-            <h3 class="collapse-title">Scene capture</h3>
-            <span id="scenePairingsCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="scene-pairings-body">
-          <p class="muted small">When the alarm trips, capture the paired camera(s) and ask the AI whether it's a real or false alarm. Only detectors you pair here are photographed.</p>
-          <div id="scenePairings" class="alarm-schedule-list"></div>
-          <p id="scenePairingsNote" class="muted small security-note" hidden></p>
-          <button id="scenePairingAdd" type="button" class="schedule-add-btn">+ Add pairing</button>
+        <p id="securityZonesNote" class="muted small group-note" hidden></p>
+        <div class="group-foot">
+          <button id="securityZonesMore" type="button" class="group-foot-btn" aria-controls="securityZones" hidden>Show all</button>
+          <button id="securityHiddenToggle" type="button" class="group-foot-btn" data-testid="detectors-show-hidden-toggle" aria-controls="securityZones" hidden>Show hidden</button>
         </div>
-      </details>
+      </section>
 
-      <details class="card card--collapsible security-card presence-card" aria-label="Presence">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
-            <h3 class="collapse-title">Presence</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <!-- Not in the summary (#805, design rule LAYOUT-05): open the card,
-             then tap — two taps by design. -->
-        <div class="card-control-row">
-          <span id="presenceKidsHomeHint" class="muted small">Arm perimeter only (not full) when everyone leaves; resets on the next disarm.</span>
-          <button id="presenceKidsHome" type="button" class="range-tab" aria-pressed="false" aria-describedby="presenceKidsHomeHint">Kids home</button>
+      <section class="card action-list security-group cameras-card" aria-labelledby="camerasTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
+          <h3 id="camerasTitle" class="group-title">Cameras</h3>
         </div>
-        <p class="muted small presence-body-summary">
-          <span id="presenceSummary">—</span>
-          <span id="presenceHiddenCount" class="security-hidden-count" hidden></span>
-          <button id="presenceHiddenToggle" type="button" class="range-tab" data-testid="presence-show-hidden-toggle" hidden>Show hidden</button>
-        </p>
+        <div id="camerasList" class="cameras-list" aria-live="polite"></div>
+        <p id="camerasNote" class="muted small group-note" hidden></p>
+      </section>
+
+      <!-- People: one line each, the person sheet one tap away; the iCloud
+           accounts (trust renewal, #659) and the refresh note in a sheet. -->
+      <section class="card action-list security-group presence-card" aria-labelledby="presenceTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-users"></use></svg>
+          <h3 id="presenceTitle" class="group-title">People</h3>
+          <span id="presenceSummary" class="group-meta">—</span>
+        </div>
         <div id="presenceList" class="presence-list" aria-live="polite"></div>
-        <p id="presenceNote" class="muted small security-note" role="status" hidden></p>
-        <p id="presenceRefreshNote" class="muted small security-note"></p>
-        <!-- Per-account iCloud session rows + browser-trust renewal (issue
-             #659). Hidden until GET /api/presence carries diagnostics.accounts. -->
-        <div id="presenceAccounts" class="presence-accounts" data-testid="presence-accounts" hidden>
-          <p class="muted small presence-accounts-title">iCloud accounts</p>
-          <div id="presenceAccountsList" class="presence-accounts-list"></div>
+        <p id="presenceNote" class="muted small group-note" role="status" hidden></p>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="presenceAccountsOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-smartphone"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Accounts</span>
+                <span class="action-row-meta"><span id="presenceAccountsMeta" class="action-row-meta-text">Find My</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+        <div class="group-foot">
+          <button id="presenceHiddenToggle" type="button" class="group-foot-btn" data-testid="presence-show-hidden-toggle" aria-controls="presenceList" hidden>Show hidden</button>
         </div>
+      </section>
 
-      </details>
-
-
-      <details class="card card--collapsible security-card security-override-card" aria-label="Override">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
-            <h3 class="collapse-title">Override</h3>
-            <span id="securityOverridesCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="security-override-body">
-          <p class="muted small">After N triggers this armed session, the detector is automatically bypassed until the next arm — keeps the system armed without wind/pet false-alarm spam.</p>
-          <div id="securityOverrides" class="alarm-schedule-list"></div>
-          <p id="securityOverridesNote" class="muted small security-note" hidden></p>
-          <button id="securityOverrideAdd" type="button" class="schedule-add-btn">+ Add override</button>
+      <!-- Recent events (decision 8 of #872): the last three here; the whole
+           history is the activity log, opened filtered to the alarm. -->
+      <section class="card action-list security-group security-events-card" aria-labelledby="securityEventsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+          <h3 id="securityEventsTitle" class="group-title">Recent events</h3>
         </div>
-      </details>
+        <div id="securityEvents" class="security-events"></div>
+        <p id="securityEventsNote" class="muted small group-note" hidden></p>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="securityEventsAll" type="button" class="action-row-main group-link" aria-haspopup="dialog">
+              <span class="action-row-text"><span class="action-row-title">All events</span></span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Automations: each a dense collection in its own sheet; the counts
+           are the row values. -->
+      <section class="card action-list security-group security-automations-card" aria-labelledby="securityAutomationsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+          <h3 id="securityAutomationsTitle" class="group-title">Automations</h3>
+        </div>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="securitySchedulesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Schedules</span>
+                <span class="action-row-meta"><span id="securitySchedulesCount" class="action-row-meta-text">None</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button id="scenePairingsOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Scene capture</span>
+                <span class="action-row-meta"><span id="scenePairingsCount" class="action-row-meta-text">None</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button id="securityOverridesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-shield-check"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Override</span>
+                <span class="action-row-meta"><span id="securityOverridesCount" class="action-row-meta-text">None</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
     </section>
 
     <!-- Build identity: which build the PWA is running. Filled by main.js. -->
@@ -1951,6 +1977,75 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- The Security tab's Automations (#882): each saved collection is a sheet
+       (sheet.js, instant) holding its dense rows; a row's switch saves as it
+       changes, and Add / Edit open the staged editor on top. Done closes. -->
+  <dialog id="securitySchedulesSheet" class="detail-dialog security-automation-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Schedules</h2>
+        <button id="securitySchedulesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="securitySchedules" class="alarm-schedule-list"></div>
+      <p id="securitySchedulesNote" class="muted small schedule-empty" hidden></p>
+      <button id="securityScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+      <p class="muted small detail-hint">Arms or disarms the alarm at the set time on the chosen days.</p>
+      <div class="detail-actions">
+        <button id="securitySchedulesSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="scenePairingsSheet" class="detail-dialog security-automation-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Scene capture</h2>
+        <button id="scenePairingsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="scenePairings" class="alarm-schedule-list"></div>
+      <p id="scenePairingsNote" class="muted small schedule-empty" hidden></p>
+      <button id="scenePairingAdd" type="button" class="schedule-add-btn">+ Add pairing</button>
+      <p class="muted small detail-hint">When a paired detector trips, its camera takes a picture and the AI judges a real or false alarm.</p>
+      <div class="detail-actions">
+        <button id="scenePairingsSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="securityOverridesSheet" class="detail-dialog security-automation-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Override</h2>
+        <button id="securityOverridesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="securityOverrides" class="alarm-schedule-list"></div>
+      <p id="securityOverridesNote" class="muted small schedule-empty" hidden></p>
+      <button id="securityOverrideAdd" type="button" class="schedule-add-btn">+ Add override</button>
+      <p class="muted small detail-hint">After N triggers in one armed session, the detector is bypassed until the next arm.</p>
+      <div class="detail-actions">
+        <button id="securityOverridesSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Find My accounts (#659, moved into a sheet by #882): each Apple ID's
+       browser trust with Renew trust, and how often the locations refresh. -->
+  <dialog id="presenceAccountsSheet" class="detail-dialog" data-testid="presence-accounts-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Accounts</h2>
+        <button id="presenceAccountsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="presenceAccounts" class="presence-accounts" data-testid="presence-accounts" hidden>
+        <div id="presenceAccountsList" class="presence-accounts-list"></div>
+      </div>
+      <p id="presenceRefreshNote" class="muted small detail-hint"></p>
+      <div class="detail-actions">
+        <button id="presenceAccountsSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
 
   <dialog id="securityOverrideDialog" class="detail-dialog">
     <div class="detail-card">
@@ -2702,12 +2797,14 @@
         <span>Display name</span>
         <input id="cameraDisplayName" type="text" class="input-native" placeholder="Custom label…">
       </label>
+      <!-- Live view is a secondary verb in the body; Save is the footer's one
+           primary (J-02 of #872, #882). -->
+      <button id="cameraLiveBtn" type="button" class="big-btn camera-live-open">
+        <svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg> Open live view
+      </button>
       <div class="detail-actions">
         <button id="cameraSave" type="button" class="detail-save-btn" disabled>Save</button>
       </div>
-      <button id="cameraLiveBtn" type="button" class="big-btn camera-live-open">
-        <svg class="icon" aria-hidden="true"><use href="#i-maximize"></use></svg> Open live view
-      </button>
     </div>
   </dialog>
 

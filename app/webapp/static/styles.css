@@ -303,19 +303,13 @@ button, input, select, textarea {
    neighbour's (#779). The inset is derived from the button's own height, so a
    taller (2-line) name simply needs none. */
 button.device-row-name,
-button.security-zone-name,
-button.presence-name,
 button.net-wifi-row-name,
 button.net-device-name,
-button.circuit-meter-name,
-.camera-row-name { position: relative; }
+button.circuit-meter-name { position: relative; }
 button.device-row-name::before,
-button.security-zone-name::before,
-button.presence-name::before,
 button.net-wifi-row-name::before,
 button.net-device-name::before,
-button.circuit-meter-name::before,
-.camera-row-name::before {
+button.circuit-meter-name::before {
   content: "";
   position: absolute;
   inset: min(0px, calc((100% - var(--hit-min)) / 2)) 0;
@@ -324,12 +318,9 @@ button.circuit-meter-name::before,
    keep them left-aligned with a hover underline. Each rule below this block
    keeps only its deltas (colour, weight, flex/grid placement, line clamp). */
 button.device-row-name,
-button.security-zone-name,
-button.presence-name,
 button.net-wifi-row-name,
 button.net-device-name,
-button.circuit-meter-name,
-.camera-row-name {
+button.circuit-meter-name {
   appearance: none;
   border: 0;
   background: none;
@@ -342,22 +333,18 @@ button.circuit-meter-name,
   font-weight: 600;
   cursor: pointer;
 }
-/* One line, ellipsised (the zone name clamps to two lines and the device name
-   ellipsises its inner text span instead). */
+/* One line, ellipsised (the device name ellipsises its inner text span
+   instead). */
 button.device-row-name,
 button.circuit-meter-name,
-button.net-wifi-row-name,
-.camera-row-name {
+button.net-wifi-row-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 button.device-row-name:hover,
-button.security-zone-name:hover,
-button.presence-name:hover,
 button.net-wifi-row-name:hover,
-button.circuit-meter-name:hover,
-.camera-row-name:hover { text-decoration: underline; }
+button.circuit-meter-name:hover { text-decoration: underline; }
 
 /* A card's filter/toolbar row (#779): controls that used to sit in the
    disclosure summary, where a near-miss folds the card (LAYOUT-05). Hidden
@@ -1640,115 +1627,148 @@ button.circuit-meter-name {
   padding: 12px;
   margin-bottom: var(--gap);
 }
-/* System-state line: one centered line, sized like the other tab headers. */
+/* The state line (#882): a shield glyph, the mode word and the exception
+   chips, left-aligned like a card header; the segmented control below shows
+   the same mode as its selected segment. */
 .security-state {
   margin: 0 0 var(--space-xs);
   display: flex;
   align-items: center;
-  justify-content: center;
-  /* Wrap the badges onto a new line instead of overflowing the card on narrow
+  /* Chips wrap onto a new line instead of overflowing the card on narrow
      mobile widths (issue #223). */
   flex-wrap: wrap;
-  row-gap: 2px;
+  gap: 2px var(--space-sm);
+  min-height: var(--row-sm);
   font-size: var(--font-body);
   font-weight: 600;
   line-height: 1.3;
   color: var(--ink);
 }
-/* margin-inline-start gives a reliable gap after "Alarm state:" — a trailing
-   space in the prefix span collapses inside this flex container (issue #104). */
-.security-state-word { font-weight: 700; margin-inline-start: 0.35em; }
+.security-state-icon { width: var(--icon-title); height: var(--icon-title); flex: none; }
+.security-state-word { font-weight: 700; }
 /* The state word is plain text (#879, decision 3 of #872): an armed mode is
    normal, and the selected segment below already shows it (raised, #888).
    Red is kept for a triggered alarm; arming is work in progress (accent). */
 .security-state.is-alert .security-state-word { color: var(--danger-text); }
 .security-state.is-arming .security-state-word { color: var(--accent-text); }
-/* System-wide exceptions on the state line, as status chips: AC power lost
-   (issue #99) and the detector-trouble roll-up (issue #225). */
-.security-aclost-badge,
-.security-trouble-badge { margin-left: var(--space-sm); }
 /* The alarm actions are the segmented control (.segmented--verbs). */
 .security-action:active:not(:disabled) { transform: scale(0.97); }
-.security-events,
-.security-zones,
-.cameras-list,
-.presence-list,
-.locator-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0 14px 14px;
+/* The glance card's schedule line and its Kids home row (#882). The row is
+   the shared action-row, full-bleed inside the card's own padding. */
+.security-next {
+  margin: var(--space-sm) 0 0;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
 }
-.security-event,
-.security-zone {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+.security-glance-rows {
+  margin: var(--space-sm) -12px -12px;
+  border-top: 1px solid var(--line-muted);
+}
+.security-kids-row .action-row-main { cursor: default; }
+.security-kids-row .action-row-main:active { background: transparent; }
+
+/* A chip that opens something (the glance card's trouble chip, #882): the
+   chip's shape and tone, a real button, its target grown to 44px. */
+.chip-button {
+  position: relative;
+  border: 0;
+  font: inherit;
+  font-size: var(--font-caption);
+  cursor: pointer;
+}
+.chip-button::before { content: ""; position: absolute; inset: -12px -4px; }
+
+/* -------------------------------------------- open groups (#882)
+   A tab's lists are open cards on the shared row (design.md card header +
+   action-row), never closed disclosures: a header row (glyph, bold title,
+   muted meta pinned right), the rows full-bleed, and an optional footer for
+   the group's quiet verbs (Show all, Show hidden). */
+.security-group { margin-bottom: var(--gap); }
+.group-head {
+  display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--line);
+  min-height: var(--row-md);
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line-muted);
 }
-/* 10px, not 8 (#779): the row must contain its controls' 44px tap zones —
-   the bypass switch's (26 + 2x9) and the name's (24 + 2x10, a 2-line name
-   too) — or each spills into the next row's. At 8px a row was 42px tall. */
-.security-zone { padding-block: 10px; }
-.security-event:first-child,
-.security-zone:first-child { border-top: 0; }
-/* Event rows read event · actor · time (#805): the time is the trailing cell. */
-.security-event { grid-template-columns: minmax(0, 1fr) auto auto; }
-.security-event-time {
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.security-event-body {
+.group-icon { width: var(--icon-title); height: var(--icon-title); flex: none; }
+.group-title { margin: 0; font-size: var(--font-body); font-weight: 700; line-height: 1.2; }
+.group-meta {
+  margin-left: auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
-}
-/* 2-line clamp instead of a single-line ellipsis (issue #367) — a long
-   detector name was cutting off even where the row had vertical slack to
-   spare; short names still render identically on one line. Split out of the
-   shared .security-event-body rule above since the event log's free-text
-   body is a different, longer-form case not in scope here. */
-.security-zone-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  font-weight: 600;
-}
-.security-event-actor {
   color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 700;
+  font-size: var(--font-body-sm);
 }
-.security-zone-main {
+.group-note { margin: 0; padding: 12px 14px; }
+.group-foot {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  min-width: 0;
   gap: var(--space-sm);
+  border-top: 1px solid var(--line-muted);
+}
+.group-foot:not(:has(> :not([hidden]))) { display: none; }
+.group-foot-btn {
+  min-height: var(--row-sm);
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--font-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.group-foot-btn:last-child { margin-left: auto; }
+.group-links { border-top: 1px solid var(--line-muted); }
+.group-head + .group-links { border-top: 0; }
+.group-link .action-row-text { flex: 1; }
+.group-link-chevron,
+.action-row-chevron {
+  flex: none;
+  width: var(--icon-inline);
+  height: var(--icon-inline);
+  color: var(--muted);
+}
+/* A row whose tap target ends in a chevron lays its parts out in a line. */
+.action-row-main:has(> .action-row-chevron),
+.group-link {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--gap);
+}
+/* A time-led row (Recent events): the time is the leading slot, tabular. */
+.action-row-main:has(> .row-time) {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--gap);
+}
+.row-time {
+  flex: none;
+  min-width: 3.2em;
+  color: var(--ink);
+  font-size: var(--font-body-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 /* Exception chips only (#879): an active detector shows nothing. */
 .security-zone-flags {
   display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
   gap: var(--space-xs);
   flex: none;
 }
-.security-zone-flags:empty { display: none; }
-/* Hidden detectors (shown only when "show hidden" is on) read dimmed. */
-.security-zone.is-hidden { opacity: 0.55; }
-/* Detectors header tools: the "N hidden" counter sits beside the title; the
-   "show hidden" toggle + chevron share grid-column 2 of the summary (#104). */
+/* Hidden detectors and people (shown only when "show hidden" is on) read
+   dimmed. */
+.security-zone.is-hidden .action-row-main,
+.presence-row.is-hidden .action-row-main { opacity: 0.55; }
+.security-zones-card .action-row-filter { margin: var(--gap) 12px 0; }
+/* A collapsible card's summary count and tools (other tabs' cards share these
+   since the Detectors card was their first user, #104). */
 .security-hidden-count { line-height: 1; white-space: nowrap; }
 .security-zones-tools {
   grid-column: 2;
@@ -1764,9 +1784,6 @@ button.circuit-meter-name {
 }
 /* Original RISCO name under the rename field in the detector modal (#104). */
 .zone-original-name { margin: 6px 0 0; }
-.security-bypass {
-  justify-self: end;
-}
 /* Bypass is a state toggle: bypassed (off) keeps the danger fill; monitored
    (on) takes the shared accent from .toggle.on, since success is never a
    switch's on-colour (#818). */
@@ -1775,10 +1792,6 @@ button.circuit-meter-name {
 }
 .security-bypass.on .toggle-label,
 .security-bypass.off .toggle-label { color: var(--accent-fg); }
-.security-note { margin: 10px 14px 14px; }
-.security-schedules-body,
-.scene-pairings-body,
-.security-override-body,
 .wake-alarms-body,
 .reminders-body,
 .pv-system-body,
@@ -1891,7 +1904,6 @@ button.circuit-meter-name {
   height: var(--hit-min);
   text-align: center;
 }
-.security-schedules-body .schedule-add-btn,
 .wake-alarms-body .schedule-add-btn,
 .blind-schedules-body .schedule-add-btn {
   margin-top: 10px;
@@ -2050,29 +2062,20 @@ button.circuit-meter-name {
   font-weight: 700;
   color: var(--muted);
 }
-.scene-pairings-body .schedule-add-btn { margin-top: 10px; }
-.security-override-body .schedule-add-btn { margin-top: 10px; }
-.presence-body-summary .range-tab { margin-left: auto; flex: none; }
-.presence-body-summary {
+/* The Home locator's list (#438); the Security People group is the shared
+   row since #882. */
+.locator-list {
   display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  white-space: nowrap;
-  /* 4px below holds the "Show hidden" tab's expansion off the first row. */
-  margin: 10px 14px var(--space-xs);
-  line-height: 1.2;
+  flex-direction: column;
+  padding: 0 14px 14px;
 }
-.presence-row,
 .locator-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-sm);
   align-items: center;
-  /* 10px holds the name's 44px tap zone (24 + 2x10) inside the row (#779). */
-  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
-.presence-row:first-child,
 .locator-row:first-child { border-top: 0; }
 .presence-main,
 .locator-main {
@@ -2088,14 +2091,6 @@ button.circuit-meter-name {
   white-space: nowrap;
   font-weight: 600;
 }
-.presence-meta {
-  color: var(--muted);
-  font-size: var(--font-caption);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.presence-status,
 .locator-status {
   justify-self: end;
   display: flex;
@@ -2104,30 +2099,11 @@ button.circuit-meter-name {
   gap: 1px;
   text-align: right;
 }
-.presence-status-line {
-  font-size: var(--font-caption);
-  font-weight: 700;
-  white-space: nowrap;
-}
-.presence-status-addr {
-  font-size: var(--font-caption);
-  font-weight: 400;
-  color: var(--muted);
-  white-space: normal;
-  word-break: break-word;
-}
-.presence-row.is-home .presence-status-line { color: var(--on); }
-.presence-row.is-away .presence-status-line { color: var(--deficit); }
-.presence-row.is-unknown .presence-status-line { color: var(--muted); }
-.presence-row.is-hidden { opacity: 0.55; }
-.presence-row.is-stale .presence-meta { color: var(--attention); }
 /* Per-account iCloud rows + Renew trust (issue #659) — the .presence-row grid
    (name + trust state left, one .range-tab action right), state as plain
-   colour-coded caption text like .presence-status-line, no pill. Untrusted is
+   colour-coded caption text, no pill. Untrusted is
    amber (attention), not red: Find My keeps serving, only fresh sign-ins get
    expensive; a really broken account is red. */
-.presence-accounts { padding: 0 14px 14px; }
-.presence-accounts-title { margin: 0; }
 .presence-account-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2148,7 +2124,7 @@ button.circuit-meter-name {
   color: var(--muted);
   white-space: normal;
 }
-.presence-account-row.is-trusted .presence-account-state { color: var(--on); }
+.presence-account-row.is-trusted .presence-account-state { color: var(--muted); }
 .presence-account-row.is-untrusted .presence-account-state { color: var(--attention); }
 .presence-account-row.is-broken .presence-account-state { color: var(--deficit); }
 .presence-account-renew { flex: none; white-space: nowrap; }
@@ -2362,19 +2338,10 @@ button.circuit-meter-name {
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
 }
 @media (max-width: 430px) {
-  .security-event {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-  }
-  .security-event-time {
-    grid-column: 1 / -1;
-  }
-  .presence-row,
   .locator-row {
     grid-template-columns: 1fr;
     gap: 2px;
   }
-  .presence-status,
   .locator-status {
     justify-self: start;
     align-items: flex-start;
@@ -3536,39 +3503,16 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .net-dhcp-applybar .range-tab .icon { width: 16px; height: 16px; }
 
 /* ----------------------------------------------------------- cameras (#161) */
-/* .cameras-list layout (flex column + 14px inset) is shared with the other
-   collapsible Security card bodies above, so the closed-card height matches. */
-/* Camera rows have their own class family (issue #367) — previously borrowed
-   .security-zone/-main/-name/-flags from the detector list, coupling the two
-   components' styles together (prep for the vendored-components phase).
-   Layout/typography intentionally mirrors .security-zone (same list idiom)
-   but is now fully independent CSS. */
-.camera-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--line);
-}
-.camera-row:first-child { border-top: 0; }
-/* Leading thumbnail + name + live button: the thumbnail is the row's "icon",
-   lining the names up under the card title's icon+text (issue #190). */
-.camera-row-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  gap: var(--space-sm);
-}
 /* An image row (#879): the leading thumbnail is the picture itself, drawn
    on nothing like any image button (design.md icon-button, COMP-05). The box
    is a transparent 56x44 target, already past the 44px floor with real
    geometry; the image carries its own rounded corners. With no frame yet the
-   camera glyph sits in the same box, an icon button at rest. */
+   camera glyph sits in the same box, an icon button at rest. It leads the
+   shared row (#882) outside the row's tap target, since it zooms on its own. */
 .camera-thumb {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 56px; height: 44px; padding: 0;
+  flex: none;
+  width: 56px; height: 44px; padding: 0; margin-left: 10px;
   border: 0; border-radius: var(--radius-md);
   background: transparent; cursor: zoom-in;
 }
@@ -3578,11 +3522,21 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .camera-thumb.is-empty { cursor: default; }
 .camera-thumb-glyph { width: 18px; height: 18px; color: var(--muted); }
+/* Live is the row's one dominant verb (design.md action-row): the tint
+   recipe at real 44px geometry. */
 .camera-row-live {
   display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px; min-width: var(--hit-min); padding: 6px 10px;
+  gap: 6px; min-width: var(--hit-min); height: var(--row-sm); padding: 0 12px;
+  border: 1px solid var(--accent-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--font-label);
+  font-weight: 600;
+  cursor: pointer;
 }
-.camera-row-live .icon { width: 18px; height: 18px; }
+.camera-row-live .icon { width: var(--icon-inline); height: var(--icon-inline); }
 
 /* Snapshot zoom: the persisted last frame at full size. */
 .camera-zoom-dialog { width: min(96vw, 880px); }

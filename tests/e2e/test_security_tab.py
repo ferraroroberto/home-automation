@@ -1,8 +1,9 @@
-"""Security tab — alarm status plus its schedules, scene pairings, overrides.
+"""Security tab — the glance card, detectors, recent events and automations.
 
-The pane's own loading/unavailable/stale states, the three automation editors
-reachable from it, and the mobile tap-target floor for the alarm actions and
-weekday chips. Cameras and presence — rendered in the same pane but separate
+The pane's own loading/unavailable/stale states, the glance card (mode,
+trouble, next schedule), the Detectors group, Recent events, the three
+automation editors reachable from their sheets, and the mobile tap-target
+floor for the alarm actions and weekday chips. Cameras and presence — rendered in the same pane but separate
 features — live in `test_cameras.py` and `test_presence.py`.
 """
 
@@ -125,7 +126,8 @@ def test_security_schedule_editor_cancels_then_adds(
     boot_home(page, base_url)
 
     page.locator("#tabSecurity").click()
-    page.locator("#paneSecurity .security-schedules-card > summary").click()
+    page.locator("#securitySchedulesOpen").click()
+    expect(page.locator("#securitySchedulesSheet")).to_have_attribute("data-save-model", "instant")
     dialog = page.locator("#securityScheduleDialog")
     rows = page.locator("#securitySchedules .automation-summary-row")
 
@@ -199,7 +201,7 @@ def test_scene_pairing_editor_cancels_then_adds(
     page.route("**/api/cameras**", handle_cameras)
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
-    page.locator("#paneSecurity .scene-pairings-card > summary").click()
+    page.locator("#scenePairingsOpen").click()
     dialog = page.locator("#scenePairingDialog")
     rows = page.locator("#scenePairings .automation-summary-row")
 
@@ -258,7 +260,7 @@ def test_security_override_editor_cancels_then_adds(
     page.route("**/api/security/overrides", handle_overrides)
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
-    page.locator("#paneSecurity .security-override-card > summary").click()
+    page.locator("#securityOverridesOpen").click()
     dialog = page.locator("#securityOverrideDialog")
     rows = page.locator("#securityOverrides .automation-summary-row")
 
@@ -312,7 +314,7 @@ def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
         for index in range(3)
     )
 
-    page.locator("#paneSecurity .security-schedules-card > summary").click()
+    page.locator("#securitySchedulesOpen").click()
     page.locator("#securityScheduleAdd").click()
     days = page.locator(".alarm-schedule-day")
     assert len(_stable_effective_rects(days)) == 7
@@ -321,42 +323,165 @@ def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
     assert_no_horizontal_overflow(page)
 
 
-def test_event_log_rows_lead_with_the_event_not_the_time(
+@pytest.mark.chromium_only
+def test_recent_events_show_three_and_all_events_opens_the_alarm_log(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
 ) -> None:
-    """J-10 (#805): each row reads event · (actor) · time, never time first."""
+    """Decision 8 of #872 (#882): the last three events as time-led rows
+    (sentence case, who as words), and All events opens the activity log
+    filtered to the alarm, handing focus back when it closes."""
     mock_api(sample_units)
     mock_energy()
     mock_security()
+    mock_presence()
     page.route(
         "**/api/security/events**",
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
             body=json.dumps({"events": [
-                {"time": "2026-06-22T10:00:00+00:00", "name": "System armed", "user_id": 3},
+                {"time": "2026-06-22T10:00:00+00:00", "name": "SYSTEM ARMED", "user_id": 3},
                 {"time": "2026-06-22T09:00:00+00:00", "name": "Zone opened", "user_id": 0},
+                {"time": "2026-06-22T08:00:00+00:00", "name": "System disarmed", "user_id": 1},
+                {"time": "2026-06-22T07:00:00+00:00", "name": "Older event", "user_id": 0},
+            ]}),
+        ),
+    )
+    activity_urls: List[str] = []
+
+    def handle_activity(route) -> None:
+        if "/api/activity/domains" in route.request.url:
+            body = {"domains": ["hvac", "security"]}
+        else:
+            activity_urls.append(route.request.url)
+            body = {"events": []}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    page.route("**/api/activity**", handle_activity)
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    rows = page.locator("#securityEvents .security-event")
+    expect(rows).to_have_count(3)
+    expect(rows.locator(".action-row-title")).to_have_text(
+        ["System armed", "Zone opened", "System disarmed"]
+    )
+    expect(rows.first.locator(".row-time")).to_be_visible()
+    expect(rows.first.locator(".action-row-meta")).to_contain_text("User 3")
+    # No actor, no badge (#362).
+    expect(rows.nth(1)).not_to_contain_text("User")
+
+    page.locator("#securityEventsAll").click()
+    expect(page.locator("#activityDialog")).to_be_visible()
+    expect(page.locator("#activityDomain")).to_have_value("security")
+    expect(page.locator("#activityNote")).to_be_visible()
+    assert any("domain=security" in url for url in activity_urls), activity_urls
+    page.keyboard.press("Escape")
+    expect(page.locator("#activityDialog")).to_be_hidden()
+    expect(page.locator("#securityEventsAll")).to_be_focused()
+    assert_no_horizontal_overflow(page)
+
+
+@pytest.mark.chromium_only
+def test_glance_card_shows_next_schedule_and_trouble_opens_the_detector(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """#882: the glance card answers "is the house protected?" without a tap:
+    the next schedule as one line, and a trouble chip that opens the one
+    troubled detector's sheet."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_presence()
+    zone = {"type": 1, "status": "closed", "active": False, "triggered": False,
+            "bypassed": False, "display_name": None, "hidden": False,
+            "trouble_ignored": False}
+    mock_security({
+        "reachable": True, "label": "Disarmed", "mode": "disarmed",
+        "supported_actions": ["disarm", "partial", "perimeter", "arm"],
+        "ac_lost": False, "assumed_control_panel_state": False,
+        "zones": [
+            {**zone, "id": 1, "name": "Back Door", "trouble": False},
+            {**zone, "id": 2, "name": "Garage", "trouble": True},
+        ],
+    })
+    every_day = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    page.route(
+        "**/api/security/schedules",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"entries": [
+                {"id": "s1", "enabled": True, "time": "23:59", "days": every_day, "action": "arm"},
+                {"id": "s2", "enabled": False, "time": "00:00", "days": every_day, "action": "disarm"},
             ]}),
         ),
     )
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
-    page.locator(".security-events-card > summary").click()
 
-    rows = page.locator("#securityEvents .security-event")
-    expect(rows).to_have_count(2)
-    expect(rows.first.locator("> span").first).to_have_text("System armed")
-    expect(rows.first.locator("> span").last).to_have_class("security-event-time")
-    expect(rows.nth(1).locator("> span").first).to_have_text("Zone opened")
-    for index in range(2):
-        row = rows.nth(index)
-        body_box = row.locator(".security-event-body").bounding_box()
-        time_box = row.locator(".security-event-time").bounding_box()
-        assert body_box is not None and time_box is not None
-        # Event first: it starts no further right than the time, and on a phone
-        # (time on its own line) sits above it.
-        assert body_box["x"] <= time_box["x"] or body_box["y"] < time_box["y"]
+    next_line = page.locator("#securityNext")
+    expect(next_line).to_contain_text("Next: Arm full")
+    expect(next_line).to_contain_text("at 23:59")
+    expect(page.locator("#securitySchedulesCount")).to_have_text("1 active")
+
+    chip = page.locator("#securityState button.security-trouble-badge")
+    expect(chip).to_have_text("1 trouble")
+    expect(chip).to_have_attribute("data-tone", "attention")
+    # The Home card shows the same chip, but as a plain status chip.
+    expect(page.locator("#homeSecurityState button")).to_have_count(0)
+    chip.click()
+    expect(page.locator("#zoneDialog")).to_be_visible()
+    expect(page.locator("#zoneDetailName")).to_have_text("Garage")
+
+
+@pytest.mark.chromium_only
+def test_detectors_fold_behind_show_all_and_filter_when_long(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """#882: a long detector list shows its first five (a detector that needs
+    you first, the rest A-Z), "Show all" unfolds it, and past twelve a filter
+    narrows it (design.md action-row: long lists get a filter)."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_presence()
+    zone = {"type": 1, "status": "closed", "active": False, "triggered": False,
+            "display_name": None, "hidden": False, "trouble_ignored": False}
+    zones = [
+        {**zone, "id": n, "name": f"Zone {n:02d}", "bypassed": n == 3, "trouble": n == 9}
+        for n in range(1, 15)
+    ]
+    mock_security({
+        "reachable": True, "label": "Disarmed", "mode": "disarmed",
+        "supported_actions": ["disarm", "partial", "perimeter", "arm"],
+        "ac_lost": False, "assumed_control_panel_state": False, "zones": zones,
+    })
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    rows = page.locator("#securityZones .security-zone")
+    titles = rows.locator(".action-row-title")
+    expect(titles).to_have_text(["Zone 09", "Zone 01", "Zone 02", "Zone 03", "Zone 04"])
+    expect(rows.first.locator('.chip[data-tone="attention"]')).to_have_text("Trouble")
+    expect(page.locator("#securityZonesMeta")).to_have_text("14 · 1 bypassed")
+    more = page.locator("#securityZonesMore")
+    expect(more).to_have_text("Show all 14")
+
+    more.click()
+    expect(rows).to_have_count(14)
+    expect(more).to_have_text("Show fewer")
+
+    page.locator("#securityZoneFilter").fill("zone 1")
+    expect(titles).to_have_text(["Zone 10", "Zone 11", "Zone 12", "Zone 13", "Zone 14"])
+    expect(more).to_be_hidden()
+    page.locator("#securityZoneFilter").fill("nothing like it")
+    expect(rows).to_have_count(0)
+    expect(page.locator("#securityZonesNote")).to_have_text("No detector matches.")
     assert_no_horizontal_overflow(page)
 
 
@@ -418,8 +543,9 @@ def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
         "data-tone", "attention"
     )
 
+    # A detector that needs you sorts first (#882).
     rows = page.locator("#securityZones .security-zone")
     expect(rows).to_have_count(2)
-    expect(rows.nth(0).locator(".chip")).to_have_count(0)
-    expect(rows.nth(1).locator(".chip")).to_have_text(["Bypassed", "Trouble"])
-    expect(rows.nth(1).locator('.chip[data-tone="attention"]')).to_have_text("Trouble")
+    expect(rows.nth(0).locator(".chip")).to_have_text(["Bypassed", "Trouble"])
+    expect(rows.nth(0).locator('.chip[data-tone="attention"]')).to_have_text("Trouble")
+    expect(rows.nth(1).locator(".chip")).to_have_count(0)
