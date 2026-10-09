@@ -227,16 +227,21 @@ correct in a fresh batch, verified live on the puck. This is inherently probabil
 config tuning alone can guarantee to 100% — a rare wrong answer on a very recently
 current-events question is still possible.
 
-**English only for now.** The Spanish pipeline ("Hey Mycroft") runs HA's built-in
+**Spanish (#842, #865, #866).** The Spanish pipeline ("Hey Mycroft") runs HA's built-in
 conversation agent — deterministic-only, no LLM fallback, by design (see "Command
-routing" above). Making Spanish search actually work would mean adding an LLM agent to
-that pipeline for the first time, a real architecture change beyond this spike. Instead,
-`docs/voice-pe-config/custom_sentences/es/websearch.yaml` matches a bounded set of
-search-shaped Spanish phrasings (`busca ...`, `qué es ...`, `quién es ...`, `cuánto
-cuesta ...`, etc.) against a static `WebSearchUnavailable` intent_script (mirrors
-`GroceryHelp`'s no-rest-call shape) that replies "La búsqueda por internet todavía solo
-funciona en inglés. Di Okay Nabu para buscar." — a clear deterministic answer instead of
-a generic "no entiendo" or silence.
+routing" above), so it does not get an LLM agent. Instead the pipeline stays
+deterministic and the *app* does the searching: `docs/voice-pe-config/custom_sentences/es/websearch.yaml`
+matches a bounded set of search-shaped phrasings (`busca ...`, `qué es ...`, `quién
+ganó ...`, `cuándo es ...`, `cómo quedó ...`, `qué tiempo hace en ...`, `a cuánto está
+...`, `dime ...`, etc. — no catch-all wildcard, which would shadow other intents) and fires
+the `WebSearch` intent_script, whose `rest_command.voice_search` POSTs the spoken
+question to the app's `POST /api/voice/search` (`{query}` → `{ok, speech, source}`, always
+200). The endpoint searches SearXNG with `language=es`, takes the top 8 hits × 200-char
+snippets, and makes one summarising pass through the local hub; HA speaks `speech`
+verbatim. It never answers from the model's training cutoff: SearXNG down, no results and
+a failing hub each return their own fixed Spanish sentence (SearXNG down: "No puedo
+buscar ahora mismo."), and if the app itself is unreachable the intent_script's own
+fallback says the same.
 
 **Verified end-to-end** via `POST /api/conversation/process` (no browser, no live speaker
 test needed — matches the probe-based verification already used elsewhere in this repo):
@@ -259,9 +264,8 @@ Re-verified 2026-08-09 (#648, post stale-snippet fix — top-8/200-char window,
 
 Search-backed answers land around **1.8–2.0 s** (vs. the ~0.7–1.0 s baseline from #234) —
 the added cost is one LAN round trip to SearXNG plus a second model pass to summarize the
-result. Non-search questions are unaffected. Spanish: "busca en internet quien gano la
-super bowl" → the deterministic English-only reply; existing Spanish grocery/alarm
-intents regression-checked as unaffected.
+result. Non-search questions are unaffected. Spanish search is covered
+in the paragraph above and verified by `ha_config_sync.py probe`.
 
 **Webapp status card:** the Home Assistant disclosure's **Search engine** sub-card
 (`GET /api/searxng`, `POST /api/searxng/start`) shows the container's live status and a

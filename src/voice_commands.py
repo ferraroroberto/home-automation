@@ -416,7 +416,7 @@ _WEB_SEARCH = VoiceCommandGroup(
     id="web-search",
     title="Web search",
     icon="globe",
-    summary="Open questions needing current info (news, prices, facts outside training data) get a real answer instead of \"I don't know\" — English only for now.",
+    summary="Open questions needing current info (news, prices, facts outside training data) get a real answer instead of \"I don't know\" — in English or Spanish.",
     commands=(
         VoiceCommand(
             id="web-search-ask",
@@ -429,12 +429,26 @@ _WEB_SEARCH = VoiceCommandGroup(
                     phrases=("who won the last super bowl", "what's the price of bitcoin", "what's the news on <topic>"),
                     example="Okay Nabu, who won the last super bowl",
                 ),
+                Phrasing(
+                    lang="es",
+                    wake_word=WAKE_WORD_ES,
+                    phrases=(
+                        "busca en internet <tema>",
+                        "quién ganó el último mundial",
+                        "cuándo es <evento>",
+                        "qué tiempo hace en <ciudad>",
+                        "a cuánto está <cosa>",
+                        "dime <pregunta>",
+                    ),
+                    example="Hey Mycroft, quién ganó el último mundial",
+                ),
             ),
         ),
     ),
     notes=(
-        "English only for now (issue #321) — ask in Spanish (\"Hey Mycroft\") and it replies that "
-        "search is English-only, rather than \"no entiendo\" or staying silent.",
+        "Spanish (\"Hey Mycroft\") uses a fixed set of question shapes (busca…, qué es…, quién ganó…, cuándo es…, "
+        "cómo quedó…, a cuánto está…, dime…) — a question outside them isn't searched. If search is down it "
+        "says so (\"No puedo buscar ahora mismo\").",
         "A real internet search, not a cloud AI lookup — it can answer things past the local model's "
         "training data, but isn't guaranteed accurate for every query.",
     ),
