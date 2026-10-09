@@ -1126,6 +1126,15 @@
             <button id="blindsAllDown" type="button" class="range-tab" data-testid="blinds-all-down">All down</button>
           </div>
           <section id="blindsList" class="device-list" aria-label="Blinds"></section>
+          <!-- Daily up/down schedule (#871): the alarm-schedule summary rows +
+               staged edit dialog (denseListEditor), fired server-side by
+               app/webapp/blind_schedules.py. -->
+          <div class="blind-schedules-body">
+            <h4 class="net-group-head">Schedule</h4>
+            <div id="blindSchedules" class="alarm-schedule-list"></div>
+            <p id="blindSchedulesNote" class="muted small" hidden></p>
+            <button id="blindScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+          </div>
         </div>
       </details>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
@@ -2005,6 +2014,58 @@
 
       <div class="detail-actions">
         <button id="securityScheduleSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Blind schedule add/edit dialog (issue #871) — the same denseListEditor
+       shell and fields as securityScheduleDialog, plus which blinds move and
+       the presence condition. -->
+  <dialog id="blindScheduleDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="blindScheduleEditorTitle">Schedule</h2>
+        <button id="blindScheduleEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row">
+        <span>Enabled</span>
+        <button id="blindScheduleEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable schedule">
+          <span class="knob"></span><span class="toggle-label">ON</span>
+        </button>
+      </div>
+      <label class="row">
+        <span>Time</span>
+        <input id="blindScheduleTime" type="time" class="input-native" value="08:00">
+      </label>
+      <label class="row">
+        <span>Action</span>
+        <select id="blindScheduleAction" class="select-native">
+          <option value="open">Up</option>
+          <option value="close">Down</option>
+        </select>
+      </label>
+      <label class="row">
+        <span>Only when</span>
+        <select id="blindSchedulePresence" class="select-native">
+          <option value="any">Always</option>
+          <option value="home">Someone is home</option>
+          <option value="away">Nobody is home</option>
+        </select>
+      </label>
+      <div class="schedule-editor-days-block">
+        <span class="schedule-editor-days-label">Days</span>
+        <div id="blindScheduleDays" class="alarm-schedule-days"></div>
+      </div>
+      <div class="schedule-editor-days-block">
+        <span class="schedule-editor-days-label">Blinds</span>
+        <div id="blindScheduleTargets" class="blind-schedule-targets"></div>
+      </div>
+
+      <button id="blindScheduleDelete" type="button" class="schedule-editor-delete" hidden>Delete schedule</button>
+
+      <div class="detail-actions">
+        <button id="blindScheduleSave" type="button" class="detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>

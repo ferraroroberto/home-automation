@@ -137,3 +137,27 @@ def clean_days(value: Any) -> List[str]:
         if day in _DAY_SET and day not in seen:
             seen.append(day)
     return seen or list(DAYS)
+
+
+def daily_due(
+    time_hhmm: str, now: datetime, grace_s: int, days: Optional[List[str]] = None
+) -> bool:
+    """True when ``now`` falls in today's ``[HH:MM, HH:MM + grace)`` window.
+
+    The HVAC schedule's narrow catch-up window, lifted out of
+    ``app.webapp.automation`` so the blind schedule shares it (issue #871): a
+    tick landing just past the minute still fires, but a restart hours later
+    never replays a stale entry. ``days`` (``mon``..``sun``; ``None`` = every
+    day) restricts which days it fires on. Deliberately no look-back past
+    midnight: callers gate on "fired today" by local date, so a late-night
+    entry caught after midnight would consume the next day's slot.
+    """
+    try:
+        hour, minute = (int(part) for part in str(time_hhmm).split(":", 1))
+        fire_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    except (TypeError, ValueError):
+        logger.warning("⚠️ Invalid schedule time %r; skipping", time_hhmm)
+        return False
+    if days is not None and now.strftime("%a").lower()[:3] not in days:
+        return False
+    return 0 <= (now - fire_at).total_seconds() < grace_s

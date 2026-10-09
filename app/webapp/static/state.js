@@ -24,6 +24,8 @@ export const state = {
   tuyaLights: [],
   // The blinds the Blinds card currently lists — the group buttons' targets.
   blindsShown: [],
+  // Daily blind up/down schedule entries from GET /api/blinds/schedules (#871).
+  blindSchedules: [],
   // Athom CT-clamp meters (one entry per meter, each with all its channels)
   // from GET /api/circuits (issue #25).
   circuits: [],
@@ -393,6 +395,21 @@ export const els = {
   blindsAllUp: document.getElementById('blindsAllUp'),
   blindsAllStop: document.getElementById('blindsAllStop'),
   blindsAllDown: document.getElementById('blindsAllDown'),
+  // Blind schedule list + its denseListEditor dialog (#871).
+  blindSchedules: document.getElementById('blindSchedules'),
+  blindSchedulesNote: document.getElementById('blindSchedulesNote'),
+  blindScheduleAdd: document.getElementById('blindScheduleAdd'),
+  blindScheduleDialog: document.getElementById('blindScheduleDialog'),
+  blindScheduleEditorTitle: document.getElementById('blindScheduleEditorTitle'),
+  blindScheduleEditorClose: document.getElementById('blindScheduleEditorClose'),
+  blindScheduleEnabled: document.getElementById('blindScheduleEnabled'),
+  blindScheduleTime: document.getElementById('blindScheduleTime'),
+  blindScheduleAction: document.getElementById('blindScheduleAction'),
+  blindSchedulePresence: document.getElementById('blindSchedulePresence'),
+  blindScheduleDays: document.getElementById('blindScheduleDays'),
+  blindScheduleTargets: document.getElementById('blindScheduleTargets'),
+  blindScheduleDelete: document.getElementById('blindScheduleDelete'),
+  blindScheduleSave: document.getElementById('blindScheduleSave'),
   // Circuits — per-breaker CT-clamp meters, the IoT card after Plugs (#25).
   circuitsList: document.getElementById('circuitsList'),
   circuitsCount: document.getElementById('circuitsCount'),

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "weekend-up",
+    "enabled": true,
+    "time": "07:00",
+    "days": ["sat", "sun"],
+    "action": "open",
+    "targets": [],
+    "presence": "any"
+  },
+  {
+    "id": "weekday-up-home",
+    "enabled": true,
+    "time": "08:30",
+    "days": ["mon", "tue", "wed", "thu", "fri"],
+    "action": "open",
+    "targets": [],
+    "presence": "home"
+  },
+  {
+    "id": "weekday-up-away",
+    "enabled": true,
+    "time": "10:00",
+    "days": ["mon", "tue", "wed", "thu", "fri"],
+    "action": "open",
+    "targets": ["example-blind-id"],
+    "presence": "away"
+  },
+  {
+    "id": "evening-down",
+    "enabled": true,
+    "time": "21:30",
+    "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    "action": "close",
+    "targets": [],
+    "presence": "any"
+  }
+]

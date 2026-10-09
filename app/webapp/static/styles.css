@@ -2079,9 +2079,22 @@ button.circuit-meter-name {
   text-align: center;
 }
 .security-schedules-body .schedule-add-btn,
-.wake-alarms-body .schedule-add-btn {
+.wake-alarms-body .schedule-add-btn,
+.blind-schedules-body .schedule-add-btn {
   margin-top: 10px;
 }
+/* Blind schedule (#871): sits inside the Blinds card's own padded body, under
+   the blind rows, so it needs only the gap above and below. */
+.blind-schedules-body { padding: 4px 0 6px; }
+/* Which blinds an entry moves: "All blinds" plus one chip per blind, the day
+   chips' toggle style, wrapping since names are longer than "Mon". */
+.blind-schedule-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: var(--space-sm);
+}
+.blind-schedule-targets .alarm-schedule-day { padding: 0 12px; }
 @media (max-width: 420px) {
   .alarm-schedule-entry .schedule-entry-head { grid-template-columns: 1fr auto; }
   .alarm-schedule-entry .schedule-enabled { grid-column: 1 / -1; }
