@@ -5,7 +5,7 @@
  * disarm-on-arrival) and the "kids home" override (PUT
  * /api/presence/kids_home_override) that makes the everyone-away webhook arm
  * perimeter instead of full. Calls back into ./presence.js's loadPresence()
- * after a kids-home write so the card reflects the new override immediately.
+ * after a kids-home write so the switch reflects the new override immediately.
  */
 
 'use strict';
@@ -15,11 +15,11 @@ import { jsonApi, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 import { loadPresence, presenceById, presenceEntityLabel } from './presence.js';
 
+// Kids home is a switch on the Security glance card (#882; a pressed pill
+// inside the Presence card before), live only once presence has been read.
 export function renderKidsHomeToggle(viewReady) {
   if (!els.presenceKidsHome) return;
-  const on = !!(state.presence && state.presence.kids_home_override);
-  els.presenceKidsHome.classList.toggle('active', on);
-  els.presenceKidsHome.setAttribute('aria-pressed', on ? 'true' : 'false');
+  setToggleState(els.presenceKidsHome, !!(state.presence && state.presence.kids_home_override));
   els.presenceKidsHome.disabled = !viewReady;
 }
 

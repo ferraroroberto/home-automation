@@ -1,9 +1,10 @@
-/* Cameras tile (Security tab) + detail, live-view, and zoom modals.
+/* Cameras group (Security tab) + detail, live-view, and zoom modals.
  *
- * Reads GET /api/cameras; each list row shows a persisted last-snapshot
- * thumbnail (or a camera glyph when there's none yet) — clicking it zooms the
- * last frame, clicking the name opens the detail modal which grabs a FRESH
- * snapshot (that becomes the new persisted last frame). The full-screen view
+ * Reads GET /api/cameras; each row (the shared row, #882) leads with a
+ * persisted last-snapshot thumbnail (or a camera glyph when there's none yet)
+ * — tapping it zooms the last frame, tapping the row opens the detail sheet
+ * which grabs a FRESH snapshot (that becomes the new persisted last frame).
+ * Live opens the full-screen view. The full-screen view
  * streams MJPEG via <img src=…/stream?camera_token=…>; thumbnails/zoom use the
  * same short-lived scoped token (issue #261) since an <img> can't carry a header.
  *
@@ -23,6 +24,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { chipEl } from './chip.js';
 import { createViewState, markTabFailure } from './view-state.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { rowEl } from './row.js';
 
 let snapshotUrl = null;   // objectURL for the detail-modal snapshot (revoked on replace)
 let liveRecording = false;
@@ -165,45 +167,40 @@ function renderCameras() {
   } else {
     els.camerasNote.hidden = true;
   }
-  cameras.forEach(function (cam) {
-    const row = document.createElement('div');
-    row.className = 'camera-row';
-    if (!cam.reachable) row.classList.add('is-offline');
-    else row.classList.add('is-online');
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
+  cameras.forEach(function (cam) { list.appendChild(cameraRow(cam)); });
+  els.camerasList.appendChild(list);
+}
 
-    row.appendChild(buildThumb(cam));
-
-    const main = document.createElement('div');
-    main.className = 'camera-row-main';
-    const name = document.createElement('button');
-    name.type = 'button';
-    name.className = 'camera-row-name';
-    name.textContent = cameraLabel(cam);
-    name.title = 'Camera details · live view · rename';
-    name.addEventListener('click', function () { openCameraDetail(cam.id); });
-    main.appendChild(name);
-
-    const chip = cameraChip(cam);
-    if (chip) {
-      chip.classList.add('camera-row-flags');
-      main.appendChild(chip);
-    }
-    row.appendChild(main);
-
-    if (cam.reachable) {
-      const live = document.createElement('button');
-      live.type = 'button';
-      live.className = 'range-tab camera-row-live';
-      live.setAttribute('aria-label', 'Live view ' + cameraLabel(cam));
-      live.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-maximize"></use></svg>Live';
-      live.addEventListener('click', function () {
-        state.selectedCameraId = cam.id;
-        openLiveView(cam.id);
-      });
-      row.appendChild(live);
-    }
-    els.camerasList.appendChild(row);
+// One camera on the shared row (row.js, #882): the last-frame thumbnail leads
+// and zooms on its own; the row opens the camera sheet (a fresh frame, name,
+// live view); Live is the row's one verb.
+function cameraRow(cam) {
+  let live = null;
+  if (cam.reachable) {
+    live = document.createElement('button');
+    live.type = 'button';
+    live.className = 'camera-row-live';
+    live.setAttribute('aria-label', 'Live view ' + cameraLabel(cam));
+    live.innerHTML = icon('video') + 'Live';
+    live.addEventListener('click', function () {
+      state.selectedCameraId = cam.id;
+      openLiveView(cam.id);
+    });
+  }
+  const row = rowEl({
+    className: 'camera-row ' + (cam.reachable ? 'is-online' : 'is-offline'),
+    lead: buildThumb(cam),
+    title: cameraLabel(cam),
+    chip: cameraChip(cam),
+    openLabel: cameraLabel(cam) + ': details',
+    onOpen: function (btn) { openCameraDetail(cam.id, btn); },
+    chevron: !live,
+    trail: live,
   });
+  row.dataset.cameraId = cam.id;
+  return row;
 }
 
 export async function loadCameras() {
@@ -270,9 +267,12 @@ async function loadSnapshotInto(imgEl, cameraId) {
   }
 }
 
-function openCameraDetail(cameraId) {
+let cameraDetailOpener = null;
+
+function openCameraDetail(cameraId, trigger) {
   const cam = cameraById(cameraId);
   if (!cam) return;
+  cameraDetailOpener = trigger || null;
   state.selectedCameraId = cameraId;
   els.cameraDetailName.textContent = cameraLabel(cam);
   els.cameraDetailStatus.textContent = cameraStatus(cam);
@@ -654,6 +654,15 @@ export function wireCameras() {
   // snapshot blob here so no path leaks it.
   els.cameraDialog.addEventListener('close', function () {
     if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); snapshotUrl = null; }
+    // Focus back to the row that opened it (or its re-rendered replacement),
+    // unless the sheet handed over to the live view.
+    let target = cameraDetailOpener;
+    cameraDetailOpener = null;
+    if (els.cameraLiveDialog && els.cameraLiveDialog.open) return;
+    if ((!target || !target.isConnected) && state.selectedCameraId && els.camerasList) {
+      target = els.camerasList.querySelector('.camera-row[data-camera-id="' + CSS.escape(state.selectedCameraId) + '"] .action-row-main');
+    }
+    if (target && target.isConnected) target.focus();
   });
   els.cameraDisplayName.addEventListener('input', function () {
     if (els.cameraSave) els.cameraSave.disabled = false;

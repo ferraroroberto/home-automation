@@ -1,9 +1,11 @@
 /* Home Automation — Activity log overlay (#289).
  *
  * A read-only admin/telemetry panel (a <dialog>, not a tab) opened from the
- * Home "Activity log" button. Lists recent events from GET /api/activity, with
- * a domain dropdown + a free-text type filter — both applied server-side, so
- * the browser never holds or filters the whole store.
+ * Settings "Activity log" button, and from the Security tab's All events
+ * already filtered to the alarm (decision 8 of #872, #882). Lists recent
+ * events from GET /api/activity, with a domain dropdown + a free-text type
+ * filter — both applied server-side, so the browser never holds or filters
+ * the whole store.
  */
 
 'use strict';
@@ -15,6 +17,10 @@ import { friendlyError } from './format.js';
 
 const PAGE_LIMIT = 100;
 let mode = 'events'; // 'events' | 'readings'
+// A domain asked for by the opener (All events → 'security'), applied once the
+// domain list for the view has loaded.
+let wantedDomain = null;
+let returnFocus = null;
 
 function el(id) {
   return document.getElementById(id);
@@ -159,15 +165,19 @@ const READING_DOMAINS = ['hvac', 'plug', 'ups', 'light', 'presence'];
 function fillDomains(domains) {
   const select = el('activityDomain');
   const current = select.value;
+  // A domain the opener asked for is listed even before its first event, so
+  // the filter it chose is the filter shown.
+  const listed = wantedDomain && domains.indexOf(wantedDomain) < 0
+    ? domains.concat([wantedDomain]) : domains;
   select.innerHTML = '<option value="">All</option>';
-  for (const d of domains) {
+  for (const d of listed) {
     const opt = document.createElement('option');
     opt.value = d;
     opt.textContent = d;
     select.appendChild(opt);
   }
   // Preserve the selection only if still valid for this view.
-  select.value = domains.indexOf(current) >= 0 ? current : '';
+  select.value = listed.indexOf(current) >= 0 ? current : '';
 }
 
 async function refreshDomains() {
@@ -185,6 +195,12 @@ async function refreshDomains() {
 
 function applyMode(next) {
   mode = next === 'readings' ? 'readings' : 'events';
+  applyModeButtons();
+  refreshDomains();
+  reload();
+}
+
+function applyModeButtons() {
   const isReadings = mode === 'readings';
   el('activityModeEvents').classList.toggle('active', !isReadings);
   el('activityModeEvents').setAttribute('aria-selected', String(!isReadings));
@@ -192,15 +208,25 @@ function applyMode(next) {
   el('activityModeReadings').setAttribute('aria-selected', String(isReadings));
   el('activityTypeRow').hidden = isReadings;
   el('activityMetricRow').hidden = !isReadings;
-  refreshDomains();
-  reload();
 }
 
-function openActivity() {
+// Open the log. `opts.domain` starts it on the events of one domain (the
+// Security tab's All events passes 'security'); without it the log keeps the
+// filter it had. `opts.trigger` gets focus back on close.
+export async function openActivity(opts) {
   const dlg = el('activityDialog');
   if (!dlg) return;
+  const options = opts || {};
+  returnFocus = options.trigger || null;
+  wantedDomain = options.domain || null;
+  if (wantedDomain && mode !== 'events') {
+    mode = 'events';
+    applyModeButtons();
+  }
   openDialog(dlg);
-  refreshDomains();
+  await refreshDomains();
+  if (wantedDomain) el('activityDomain').value = wantedDomain;
+  wantedDomain = null;
   reload();
 }
 
@@ -223,9 +249,17 @@ function wireDebounced(input, fn) {
 // Wire the Home button + the overlay's controls. Called once at boot.
 export function wireActivity() {
   const open = el('activityOpen');
-  if (open) open.addEventListener('click', openActivity);
+  if (open) open.addEventListener('click', function () { openActivity({ trigger: open }); });
   const close = el('activityClose');
   if (close) close.addEventListener('click', closeActivity);
+  const dlg = el('activityDialog');
+  if (dlg) {
+    dlg.addEventListener('close', function () {
+      const target = returnFocus;
+      returnFocus = null;
+      if (target && target.isConnected) target.focus();
+    });
+  }
   const modeEvents = el('activityModeEvents');
   if (modeEvents) modeEvents.addEventListener('click', function () { applyMode('events'); });
   const modeReadings = el('activityModeReadings');

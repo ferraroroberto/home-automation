@@ -195,12 +195,13 @@ def test_security_tab_renders_presence_spike(
 
 
 @pytest.mark.chromium_only
-def test_kids_home_is_a_body_control_not_a_summary_control(
+def test_kids_home_is_a_switch_on_the_glance_card(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
 ) -> None:
-    """LAYOUT-05 (#805): "Kids home" lives in the card body — two taps."""
+    """#882: "Kids home" is a switch row on the Security glance card, one tap
+    from the tab (inside a closed Presence card before, #805)."""
     mock_api(sample_units)
     mock_energy()
     mock_security()
@@ -215,15 +216,15 @@ def test_kids_home_is_a_body_control_not_a_summary_control(
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
 
-    card = page.locator(".presence-card")
-    expect(card.locator("> summary button, > summary input, > summary a")).to_have_count(0)
-    card.locator("> summary").click()
-    expect(card).to_have_attribute("open", "")
-    page.locator("#presenceKidsHome").click()
+    switch = page.locator(".security-glance #presenceKidsHome")
+    expect(switch).to_have_attribute("role", "switch")
+    expect(switch).to_have_attribute("aria-checked", "false")
+    expect(switch).to_have_accessible_name("Kids home")
+    expect(switch).to_be_enabled()
+    switch.click()
 
     expect(page.locator("#toast")).to_contain_text("Kids home on")
     assert puts == [{"active": True}]
-    expect(card).to_have_attribute("open", "")
 
 
 @pytest.mark.chromium_only
@@ -262,7 +263,7 @@ def test_presence_icloud_account_rows_offer_trust_renewal(
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
 ) -> None:
-    """Issue #659: one row per configured Apple ID under the Presence card —
+    """Issue #659: one row per configured Apple ID in the Accounts sheet —
     who, whether its session is trusted, and a Renew trust button. Renewal is
     confirm-gated; a stubbed ``code_sent`` opens the 6-digit code dialog.
     Fixture names only (public repo)."""
@@ -306,7 +307,11 @@ def test_presence_icloud_account_rows_offer_trust_renewal(
     page.route("**/api/presence/icloud/2/trust/begin", begin)
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
-    page.locator("details.presence-card > summary").click()
+    # The Accounts row says one needs you before it is opened (#882).
+    expect(page.locator(".presence-accounts-chip")).to_have_text("1 needs you")
+    expect(page.locator(".presence-accounts-chip")).to_have_attribute("data-tone", "attention")
+    page.locator("#presenceAccountsOpen").click()
+    expect(page.get_by_test_id("presence-accounts-sheet")).to_be_visible()
 
     rows = page.get_by_test_id("presence-account-row")
     expect(rows).to_have_count(2)
@@ -377,7 +382,7 @@ def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
     })
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
-    page.locator("details.presence-card > summary").click()
+    page.locator("#presenceAccountsOpen").click()
 
     rows = page.get_by_test_id("presence-account-row")
     expect(rows).to_have_count(2)

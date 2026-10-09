@@ -27,6 +27,11 @@
  *   openLabel        optional aria-label for the tap target (default: its
  *                    own text, title then meta)
  *   onOpen(btn)      tap handler; the row is inert text without one
+ *   chevron          optional: a chevron closes the tap target, for a row
+ *                    that only opens its sheet (no trailing item)
+ *   lead             optional leading element *outside* the tap target, in
+ *                    place of the avatar, for a lead with its own action (a
+ *                    camera's last-frame thumbnail zooms, #882)
  *   trail            optional trailing element (a switch, a value)
  *   className        extra class on the row
  * Returns the <li>; the caller appends it to a `<ul class="action-rows">`
@@ -83,6 +88,13 @@ export function rowEl(opts) {
     text.appendChild(meta);
   }
   main.appendChild(text);
+  if (opts.chevron) {
+    main.insertAdjacentHTML('beforeend', icon('chevron-right', 'action-row-chevron'));
+  }
+  if (opts.lead) {
+    opts.lead.classList.add('action-row-lead');
+    li.appendChild(opts.lead);
+  }
   li.appendChild(main);
 
   if (opts.trail) {

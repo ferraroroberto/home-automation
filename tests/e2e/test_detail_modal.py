@@ -62,11 +62,12 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     # + the iCloud trust-renewal code dialog (#presenceTrustDialog, #659)
     # + the camera preset-name prompt dialog (#cameraPresetNameDialog, #722)
     # + the blind schedule editor dialog (#blindScheduleDialog, #871)
-    # + the unit sheet's Back button and the AC schedule editor (#881);
-    # the HA capabilities help left the census when #461 made it a folded
-    # subsection instead of a modal.
-    expect(close_buttons).to_have_count(28)
-    expect(page.locator(".detail-close.hit-target")).to_have_count(28)
+    # + the unit sheet's Back button and the AC schedule editor (#881)
+    # + the Security tab's Schedules, Scene capture, Override and Accounts
+    # sheets (#882); the HA capabilities help left the census when #461 made
+    # it a folded subsection instead of a modal.
+    expect(close_buttons).to_have_count(32)
+    expect(page.locator(".detail-close.hit-target")).to_have_count(32)
 
     target = effective_rect(page.locator("#detailClose"))
     # Exact compact-control contract: 34px visual box, 44px effective hit area.

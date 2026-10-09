@@ -1,22 +1,22 @@
 /* Alarm state + detectors controller (split out of security.js, issue #197).
  *
- * Owns the alarm state line, the action pills (disarm/partial/perimeter/arm),
- * the recent-events list, and the detector list with per-zone detail/rename
- * modals. State writes are one-tap POST/PUT calls that re-render from the
- * returned live state; the top-level redraw is delegated back to the boot
- * module's renderSecurity().
+ * Owns the glance card's state line and arm control (segmented), the Recent
+ * events group, and the Detectors group with the per-zone detail/rename sheet
+ * (#882 put both groups on the shared row). State writes are one-tap POST/PUT
+ * calls that re-render from the returned live state; the top-level redraw is
+ * delegated back to the boot module's renderSecurity().
  *
  * ACTIONS / ACTION_LABELS are exported because the schedule editor reuses the
- * same action set. fmtTime is imported from presence.js (its busiest consumer)
- * rather than duplicated.
+ * same action set.
  */
 
 'use strict';
 
 import { state, els, toast, persistedFlag, SECURITY_SHOW_HIDDEN_KEY } from './state.js';
 import { jsonApi, reportActionFailure } from './api.js';
-import { fmtTime } from './presence.js';
 import { renderSecurity } from './security.js';
+import { openActivity } from './activity.js';
+import { rowEl } from './row.js';
 import { toggleMarkup } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { detailModal } from './detail-modal.js';
@@ -211,15 +211,20 @@ export function renderActions() {
   renderActionsInto(els.homeSecurityActions);
 }
 
-function renderStateInto(el) {
+// The state line (#882): a shield glyph and the mode word, with the system
+// exceptions as chips after it. "Alarm state:" stays for assistive tech only;
+// on the card the word and the selected segment already say it. On the
+// Security tab (`openTrouble`) the trouble chip opens the detector.
+function renderStateInto(el, openTrouble) {
   if (!el) return;
   const security = state.security;
   const mode = security ? currentMode() : 'unknown';
   const label = security ? displayLabel() : '—';
   el.className = 'security-state ' + statusClass(mode);
-  el.innerHTML = '';
+  el.innerHTML = icon('shield-check', 'security-state-icon');
   const prefix = document.createElement('span');
-  prefix.textContent = 'Alarm state:';
+  prefix.className = 'visually-hidden';
+  prefix.textContent = 'Alarm state: ';
   el.appendChild(prefix);
   const word = document.createElement('span');
   word.className = 'security-state-word';
@@ -236,23 +241,58 @@ function renderStateInto(el) {
   // Detector-trouble roll-up (issue #225): count detectors reporting trouble that
   // the user hasn't ignored, so an un-ignored trouble is visible on the main card.
   // Ignored ones (a known/accepted trouble) don't contribute, keeping it quiet.
-  const troubled = troubledNotIgnoredCount();
-  if (security && troubled > 0) {
-    const badge = chipEl(troubled + ' trouble', 'attention', 'security-trouble-badge');
-    badge.title = troubled + ' detector(s) reporting trouble — see the Detectors list';
+  const troubled = troubledZones();
+  if (security && troubled.length > 0) {
+    const text = troubled.length + ' trouble';
+    let badge;
+    if (openTrouble) {
+      // A chip that opens something keeps its status colours on the chip
+      // shape (design.md reference pill): one detector opens its sheet, more
+      // show them at the top of the Detectors group.
+      badge = document.createElement('button');
+      badge.type = 'button';
+      badge.className = 'chip chip-button security-trouble-badge';
+      badge.dataset.tone = 'attention';
+      badge.textContent = text;
+      badge.setAttribute('aria-label', troubled.length === 1
+        ? 'Trouble: open ' + zoneLabel(troubled[0])
+        : troubled.length + ' detectors report trouble: show them');
+      badge.addEventListener('click', function () { showTroubled(badge); });
+    } else {
+      badge = chipEl(text, 'attention', 'security-trouble-badge');
+      badge.title = troubled.length + ' detector(s) reporting trouble — see the Detectors list';
+    }
     el.appendChild(badge);
   }
 }
 
 // Detectors reporting trouble that the user hasn't ignored (issue #225).
-function troubledNotIgnoredCount() {
+function troubledZones() {
   const zones = (state.security && state.security.zones) || [];
-  return zones.filter(function (z) { return z.trouble && !z.trouble_ignored; }).length;
+  return zones.filter(function (z) { return z.trouble && !z.trouble_ignored; });
+}
+
+function troubledNotIgnoredCount() {
+  return troubledZones().length;
+}
+
+function showTroubled(trigger) {
+  const troubled = troubledZones();
+  if (troubled.length === 1) {
+    openZoneDetail(troubled[0].id, trigger);
+    return;
+  }
+  // Alerts already sort first; clear a filter that could hide them.
+  if (els.securityZoneFilter) els.securityZoneFilter.value = '';
+  renderZones();
+  if (els.securityZonesCard) els.securityZonesCard.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const first = els.securityZones && els.securityZones.querySelector('.security-zone.is-alert .action-row-main');
+  if (first) first.focus({ preventScroll: true });
 }
 
 export function renderState() {
-  renderStateInto(els.securityState);
-  renderStateInto(els.homeSecurityState);
+  renderStateInto(els.securityState, true);
+  renderStateInto(els.homeSecurityState, false);
   renderSecurityHead();
 }
 
@@ -291,6 +331,56 @@ function renderSecurityHead() {
   else setTabBadge('security', troubled, 'trouble', 'attention');
 }
 
+// The Recent events group (decision 8 of #872, #882): the last three on the
+// shared row, time-led (design.md action-row: a tabular time is a leading
+// slot), what happened as the title and who as the one meta line. The whole
+// history is the activity log, opened filtered to the alarm.
+const RECENT_EVENTS = 3;
+
+// The panel names events in capitals ("SYSTEM ARMED"); a row title is
+// sentence case. Mixed-case names are left as the panel wrote them.
+function eventTitle(event) {
+  const text = String(event.name || event.type || event.category || event.text || 'Event');
+  return text === text.toUpperCase() && /[A-Z]/.test(text)
+    ? text.charAt(0) + text.slice(1).toLowerCase()
+    : text;
+}
+
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+// The row's time slot and the day it belongs to when that is not today.
+function eventWhen(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return { time: '—', day: '' };
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  if (sameDay(date, now)) return { time: time, day: '' };
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(date, yesterday)) return { time: time, day: 'Yesterday' };
+  return { time: time, day: date.toLocaleDateString([], { day: 'numeric', month: 'short' }) };
+}
+
+function eventRow(event) {
+  const when = eventWhen(event.time);
+  const lead = document.createElement('span');
+  lead.className = 'row-time';
+  lead.textContent = when.time;
+  // Who acted, as words (#362: no actor means no badge, never a bare "-").
+  const actor = event.user_id ? 'User ' + event.user_id : '';
+  const meta = [when.day, actor].filter(Boolean).join(' · ');
+  const row = rowEl({
+    className: 'security-event',
+    title: eventTitle(event),
+    meta: meta || null,
+  });
+  row.querySelector('.action-row-main').prepend(lead);
+  return row;
+}
+
 export function renderEvents() {
   els.securityEvents.innerHTML = '';
   const events = state.securityEvents || [];
@@ -300,37 +390,10 @@ export function renderEvents() {
     return;
   }
   els.securityEventsNote.hidden = true;
-
-  const hasActor = events.some(function (event) {
-    return event.user_id !== null && event.user_id !== undefined && event.user_id !== '' && event.user_id !== 0;
-  });
-
-  events.slice(0, 20).forEach(function (event) {
-    const row = document.createElement('div');
-    row.className = 'security-event';
-
-    // Lead with what happened, then when (#805, J-10): event · actor · time.
-    const body = document.createElement('span');
-    body.className = 'security-event-body';
-    body.textContent = event.name || event.type || event.category || event.text || 'Event';
-    row.appendChild(body);
-
-    // Render nothing for events with no actor — a literal "-" badge next to a
-    // real "U1"/"U3" one reads as broken data, not "no user" (issue #362).
-    if (hasActor && event.user_id) {
-      const actor = document.createElement('span');
-      actor.className = 'security-event-actor';
-      actor.textContent = 'U' + event.user_id;
-      row.appendChild(actor);
-    }
-
-    const time = document.createElement('span');
-    time.className = 'security-event-time';
-    time.textContent = fmtTime(event.time);
-    row.appendChild(time);
-
-    els.securityEvents.appendChild(row);
-  });
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
+  events.slice(0, RECENT_EVENTS).forEach(function (event) { list.appendChild(eventRow(event)); });
+  els.securityEvents.appendChild(list);
 }
 
 // A detector's exception chips (#879): an active detector is the normal state
@@ -347,91 +410,127 @@ function renderZoneFlags(zone) {
       ? chipEl('Trouble ignored')
       : chipEl('Trouble', 'attention'));
   }
-  return flags;
+  return flags.childNodes.length ? flags : null;
+}
+
+// The Detectors group (#882): the shared row, a filter once the list is long
+// (design.md action-row: a list that can exceed ~12 rows), and only the first
+// few until "Show all", so the groups below stay within reach. A detector that
+// needs you (triggered, or trouble not ignored) sorts first so it is never
+// folded away; every other detector keeps its A–Z place, so toggling one
+// never moves it.
+const ZONES_FOLDED = 5;
+const ZONES_FILTER_MIN = 12;
+let zonesExpanded = false;
+
+function zoneNeedsYou(zone) {
+  return !!(zone.triggered || (zone.trouble && !zone.trouble_ignored));
+}
+
+function zoneRow(zone) {
+  const active = !zone.bypassed;
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'toggle security-bypass' + (active ? ' on' : ' off');
+  toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-checked', active ? 'true' : 'false');
+  toggle.setAttribute('aria-label', 'Detector active ' + zoneLabel(zone));
+  toggle.innerHTML = toggleMarkup(active);
+  toggle.addEventListener('click', function () { setBypass(zone, active, toggle); });
+
+  const classes = ['security-zone', zone.bypassed ? 'is-bypassed' : 'is-active'];
+  if (zone.triggered) classes.push('is-triggered');
+  if (zoneNeedsYou(zone)) classes.push('is-alert');
+  if (zone.hidden) classes.push('is-hidden');
+  const row = rowEl({
+    className: classes.join(' '),
+    glyph: 'satellite-dish',
+    title: zoneLabel(zone),
+    chip: renderZoneFlags(zone),
+    openLabel: zoneLabel(zone) + ': details',
+    onOpen: function (btn) { openZoneDetail(zone.id, btn); },
+    trail: toggle,
+  });
+  row.dataset.zoneId = zone.id;
+  return row;
+}
+
+function renderZonesMeta(listed) {
+  if (!els.securityZonesMeta) return;
+  const bypassed = listed.filter(function (z) { return z.bypassed; }).length;
+  els.securityZonesMeta.textContent = listed.length
+    ? listed.length + (bypassed ? ' · ' + bypassed + ' bypassed' : '')
+    : '';
 }
 
 export function renderZones() {
   els.securityZones.innerHTML = '';
   const zones = (state.security && state.security.zones) || [];
+  const hiddenCount = zones.filter(function (z) { return z.hidden; }).length;
+  if (els.securityHiddenToggle) {
+    els.securityHiddenToggle.hidden = hiddenCount === 0;
+    els.securityHiddenToggle.textContent = state.securityShowHidden
+      ? 'Hide ' + hiddenCount + ' hidden'
+      : 'Show ' + hiddenCount + ' hidden';
+    els.securityHiddenToggle.setAttribute('aria-pressed', state.securityShowHidden ? 'true' : 'false');
+  }
   if (!zones.length) {
     els.securityZonesNote.hidden = false;
     els.securityZonesNote.textContent = 'No detectors.';
-    if (els.securityHiddenCount) els.securityHiddenCount.hidden = true;
-    if (els.securityHiddenToggle) els.securityHiddenToggle.hidden = true;
+    renderZonesMeta([]);
+    if (els.securityZoneFilterField) els.securityZoneFilterField.hidden = true;
+    if (els.securityZonesMore) els.securityZonesMore.hidden = true;
     return;
   }
-  els.securityZonesNote.hidden = true;
 
-  // A–Z by display label (mirrors the plugs list); locale-aware so accented
-  // Spanish detector names sort naturally.
+  // Needs-you first, then A–Z by display label (mirrors the plugs list);
+  // locale-aware so accented Spanish detector names sort naturally.
   const sorted = zones.slice().sort(function (a, b) {
-    return zoneLabel(a).localeCompare(zoneLabel(b), undefined, { sensitivity: 'base' });
+    const alert = Number(zoneNeedsYou(b)) - Number(zoneNeedsYou(a));
+    return alert || zoneLabel(a).localeCompare(zoneLabel(b), undefined, { sensitivity: 'base' });
   });
-
   // Hidden detectors drop out unless "show hidden" is on, where they render
-  // dimmed so they can be un-hidden from the modal (issue #104).
-  const hiddenCount = sorted.filter(function (z) { return z.hidden; }).length;
-  const visible = state.securityShowHidden
+  // dimmed so they can be un-hidden from the sheet (issue #104).
+  const listed = state.securityShowHidden
     ? sorted
     : sorted.filter(function (z) { return !z.hidden; });
+  renderZonesMeta(listed.filter(function (z) { return !z.hidden; }));
 
-  if (els.securityHiddenCount) {
-    if (hiddenCount > 0) {
-      els.securityHiddenCount.textContent = hiddenCount + ' hidden';
-      els.securityHiddenCount.hidden = false;
-    } else {
-      els.securityHiddenCount.hidden = true;
-    }
-  }
-  if (els.securityHiddenToggle) {
-    els.securityHiddenToggle.hidden = hiddenCount === 0;
-    els.securityHiddenToggle.textContent = state.securityShowHidden ? 'Hide' : 'Show hidden';
-    els.securityHiddenToggle.classList.toggle('active', state.securityShowHidden);
+  const filterable = listed.length > ZONES_FILTER_MIN;
+  if (els.securityZoneFilterField) els.securityZoneFilterField.hidden = !filterable;
+  const query = filterable && els.securityZoneFilter
+    ? els.securityZoneFilter.value.trim().toLocaleLowerCase()
+    : '';
+  const matched = query
+    ? listed.filter(function (z) {
+      return zoneLabel(z).toLocaleLowerCase().includes(query) ||
+        String(z.name || '').toLocaleLowerCase().includes(query);
+    })
+    : listed;
+  // Folding away a single row saves nothing; show it instead.
+  const foldable = !query && matched.length > ZONES_FOLDED + 1;
+  const folded = foldable && !zonesExpanded;
+  const shown = folded ? matched.slice(0, ZONES_FOLDED) : matched;
+  if (els.securityZonesMore) {
+    els.securityZonesMore.hidden = !foldable;
+    els.securityZonesMore.textContent = folded ? 'Show all ' + matched.length : 'Show fewer';
+    els.securityZonesMore.setAttribute('aria-expanded', folded ? 'false' : 'true');
   }
 
-  if (!visible.length) {
+  if (!listed.length) {
     els.securityZonesNote.hidden = false;
     els.securityZonesNote.textContent = 'All detectors hidden.';
+  } else if (!matched.length) {
+    els.securityZonesNote.hidden = false;
+    els.securityZonesNote.textContent = 'No detector matches.';
+  } else {
+    els.securityZonesNote.hidden = true;
   }
-
-  visible.forEach(function (zone) {
-    const row = document.createElement('div');
-    row.className = 'security-zone';
-    if (zone.triggered) row.classList.add('is-triggered');
-    if (zone.bypassed) row.classList.add('is-bypassed');
-    else row.classList.add('is-active');
-    if (zone.hidden) row.classList.add('is-hidden');
-
-    const main = document.createElement('div');
-    main.className = 'security-zone-main';
-
-    // The name opens the detector detail/rename modal (mirrors the AC/plug card
-    // header). A button keeps it keyboard-reachable without nesting interactive
-    // controls inside the bypass toggle.
-    const name = document.createElement('button');
-    name.type = 'button';
-    name.className = 'security-zone-name';
-    name.textContent = zoneLabel(zone);
-    name.title = 'Detector details · rename';
-    name.addEventListener('click', function () { openZoneDetail(zone.id); });
-    main.appendChild(name);
-
-    main.appendChild(renderZoneFlags(zone));
-    row.appendChild(main);
-
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    const active = !zone.bypassed;
-    toggle.className = 'toggle security-bypass' + (active ? ' on' : ' off');
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', active ? 'true' : 'false');
-    toggle.setAttribute('aria-label', 'Detector active ' + zoneLabel(zone));
-    toggle.innerHTML = toggleMarkup(active);
-    toggle.addEventListener('click', function () { setBypass(zone, active, toggle); });
-    row.appendChild(toggle);
-
-    els.securityZones.appendChild(row);
-  });
+  if (!shown.length) return;
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
+  shown.forEach(function (zone) { list.appendChild(zoneRow(zone)); });
+  els.securityZones.appendChild(list);
 }
 
 // --------------------------------------------------- detector detail + rename
@@ -444,10 +543,10 @@ function zoneById(zoneId) {
   return zones.find(function (z) { return z.id === zoneId; }) || null;
 }
 
-function openZoneDetail(zoneId) {
+function openZoneDetail(zoneId, trigger) {
   if (!zoneById(zoneId)) return;
   state.selectedZoneId = zoneId;
-  zoneModal.open(zoneId);
+  zoneModal.open(zoneId, trigger);
 }
 
 function renderZoneHiddenToggle(zone) {
@@ -573,15 +672,29 @@ export function wireZoneDetail() {
   if (els.zoneSave) els.zoneSave.addEventListener('click', zoneModal.save);
 }
 
-// Wire the "show hidden" detectors toggle (issue #104) — in the card body's
-// toolbar since #779, so its click no longer needs keeping off the <summary>.
+// Wire the Detectors group's controls: the "show hidden" toggle (issue #104),
+// the filter and Show all (#882), and Recent events' All events, which opens
+// the activity log filtered to the alarm (decision 8 of #872).
 export function wireSecurityHiddenToggle() {
   state.securityShowHidden = showHiddenPref.read();
 
-  if (!els.securityHiddenToggle) return;
-  els.securityHiddenToggle.addEventListener('click', function () {
-    state.securityShowHidden = !state.securityShowHidden;
-    showHiddenPref.write(state.securityShowHidden);
-    renderZones();
-  });
+  if (els.securityHiddenToggle) {
+    els.securityHiddenToggle.addEventListener('click', function () {
+      state.securityShowHidden = !state.securityShowHidden;
+      showHiddenPref.write(state.securityShowHidden);
+      renderZones();
+    });
+  }
+  if (els.securityZoneFilter) els.securityZoneFilter.addEventListener('input', renderZones);
+  if (els.securityZonesMore) {
+    els.securityZonesMore.addEventListener('click', function () {
+      zonesExpanded = !zonesExpanded;
+      renderZones();
+    });
+  }
+  if (els.securityEventsAll) {
+    els.securityEventsAll.addEventListener('click', function () {
+      openActivity({ domain: 'security', trigger: els.securityEventsAll });
+    });
+  }
 }

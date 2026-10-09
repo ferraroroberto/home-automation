@@ -169,8 +169,7 @@ export function renderScenePairings() {
 
   if (els.scenePairingsCount) {
     const enabled = state.scenePairings.filter(function (p) { return p.enabled !== false; }).length;
-    els.scenePairingsCount.hidden = enabled === 0;
-    els.scenePairingsCount.textContent = enabled + ' active';
+    els.scenePairingsCount.textContent = enabled > 0 ? enabled + ' active' : 'None';
   }
 
   if (!state.scenePairings.length) {

@@ -1,7 +1,8 @@
 /* Weekly alarm-schedule editor (split out of security.js, issue #197).
  *
- * Owns the DAYS-based schedule CRUD: load/normalise/render the schedule cards
- * and persist edits through GET/PUT /api/security/schedules. The action set
+ * Owns the DAYS-based schedule CRUD: load/normalise/render the schedule rows
+ * (in the Automations › Schedules sheet since #882, plus the glance card's
+ * "Next:" line) and persist edits through GET/PUT /api/security/schedules. The action set
  * (ACTIONS / ACTION_LABELS) is owned by the alarm module and imported here so
  * the schedule's action dropdown stays in lockstep with the alarm pills.
  */
@@ -50,15 +51,66 @@ function normalizedSchedules(entries) {
   });
 }
 
+// The Automations row's value (#882): how many are on, else "None".
 function renderScheduleCount() {
   if (!els.securitySchedulesCount) return;
   const enabled = (state.securitySchedules || []).filter(function (entry) { return entry.enabled !== false; }).length;
-  if (enabled > 0) {
-    els.securitySchedulesCount.textContent = enabled + ' active';
-    els.securitySchedulesCount.hidden = false;
-  } else {
-    els.securitySchedulesCount.hidden = true;
+  els.securitySchedulesCount.textContent = enabled > 0 ? enabled + ' active' : 'None';
+}
+
+// The next enabled schedule from `now`, as {entry, at}: the soonest time on
+// one of its days within the coming week (the engine runs them in this
+// house's local time, which is this device's).
+export function nextSchedule(entries, now) {
+  let best = null;
+  (entries || []).forEach(function (entry) {
+    if (entry.enabled === false) return;
+    const parts = String(entry.time || '').split(':');
+    const hour = Number(parts[0]);
+    const minute = Number(parts[1]);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return;
+    for (let offset = 0; offset < 8; offset += 1) {
+      const at = new Date(now);
+      at.setDate(now.getDate() + offset);
+      at.setHours(hour, minute, 0, 0);
+      if (at <= now) continue;
+      // getDay(): 0 = Sunday; DAYS starts on Monday.
+      if (!entry.days.includes(DAYS[(at.getDay() + 6) % 7][0])) continue;
+      if (!best || at < best.at) best = { entry: entry, at: at };
+      break;
+    }
+  });
+  return best;
+}
+
+// The schedule's action as a verb phrase for the "Next:" line.
+const NEXT_VERBS = {
+  disarm: 'Disarm',
+  partial: 'Arm partial',
+  perimeter: 'Arm perimeter',
+  arm: 'Arm full',
+};
+
+// The glance card's one schedule line (#882): what the alarm does next on its
+// own, so "will it arm tonight?" needs no tap. Hidden with no schedule on.
+function renderNextSchedule() {
+  if (!els.securityNext) return;
+  const now = new Date();
+  const next = nextSchedule(state.securitySchedules, now);
+  if (!next) {
+    els.securityNext.hidden = true;
+    els.securityNext.textContent = '';
+    return;
   }
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const day = next.at.toDateString() === now.toDateString()
+    ? ''
+    : next.at.toDateString() === tomorrow.toDateString()
+      ? 'tomorrow '
+      : DAYS[(next.at.getDay() + 6) % 7][1] + ' ';
+  els.securityNext.textContent = 'Next: ' + NEXT_VERBS[next.entry.action] + ' ' + day + 'at ' + next.entry.time;
+  els.securityNext.hidden = false;
 }
 
 function daysSummary(days) {
@@ -147,6 +199,7 @@ export function renderSchedules() {
   els.securitySchedules.innerHTML = '';
   state.securitySchedules = normalizedSchedules();
   renderScheduleCount();
+  renderNextSchedule();
   if (!state.securitySchedules.length) {
     els.securitySchedulesNote.hidden = false;
     els.securitySchedulesNote.textContent = 'No alarm schedules.';

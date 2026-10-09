@@ -73,12 +73,15 @@ MELCloud Home login).
 
 The **Security** tab integrates the RISCO Cloud alarm through `pyrisco` for
 state/events and the native RISCO WebUI command path for arm/disarm actions.
-It shows the current alarm state as a single centered `Alarm state: <Word>`
-line (colour-coded with the three-colour scheme below), one row of rounded
-action pills (`Disarm` / `Partial` / `Perimeter` / `Full`), the recent event
-log, and a collapsible detector list with per-zone toggles (active = the accent blue,
-bypassed = red). The same alarm state + action pills are mirrored, actionable,
-on the **Home** tab.
+Since #882 (Step 4/8 of the #872 redesign) the tab opens on a **glance card**
+that answers "is the house protected?": the mode word with any exception chips
+(AC power lost, trouble), the arm control as one segmented control (`Off` /
+`Partial` / `Perimeter` / `Full`, the selected segment is the mode, never red),
+the next schedule as one line (`Next: Arm full at 23:00`) and the **Kids home**
+switch. Below it are open groups on the shared row (`row.js`): **Detectors**,
+**Cameras**, **People**, **Recent events** and **Automations** (Schedules, Scene
+capture and Override, each a sheet). The same state line and segmented control
+are mirrored, actionable, on the **Home** tab.
 
 **Per-detector data (issue #84).** The RISCO Cloud API does not expose
 per-detector battery — only a generic per-zone *trouble* boolean (surfaced via the
@@ -91,10 +94,14 @@ backup battery, a red **`AC power lost`** badge (warning icon + text) appears on
 line (Home + Security tiles) from the aggregate `ac_lost` flag, clearing when
 mains power returns.
 
-Each detector row shows its flags inline (`Active`/`Bypass`/`Triggered` in their
-state colour, with `Trouble` always in the amber attention colour); the list is
-sorted A–Z by label. Tapping a detector's name opens a detail modal showing its
-type, status, and trouble state, plus a **Display name** field with the original
+Each detector row carries chips for exceptions only (`Triggered` danger,
+`Trouble` attention, `Bypassed` and `Trouble ignored` neutral; an active
+detector shows none) and its active/bypassed switch (active = the accent blue,
+bypassed = red). A detector that needs you (triggered, or trouble not ignored)
+sorts first, the rest A–Z by label. The group shows the first five with **Show
+all N** below, and a **Filter detectors** field once more than twelve are
+listed. Tapping a row opens the detector sheet showing its type, status, and
+trouble state, plus a **Display name** field with the original
 RISCO **system name** shown beneath it for correspondence. Detectors arrive named
 `1`, `2`, … so a custom label is saved via `PUT /api/security/zones/{id}/display_name`
 to a gitignored `config/security_display_names.json` (zone id → label, parallel to
@@ -104,13 +111,14 @@ missing file is not an error, and the override wins over the RISCO name everywhe
 **Hiding unused detectors (issue #104).** The detail modal also has a **Hidden**
 toggle that parks an unused detector out of the default list, saved via
 `PUT /api/security/zones/{id}/hidden` to a gitignored `config/security_hidden.json`
-(reusing the same atomic store as the display-name files). The Detectors card
-header then shows an `N hidden` counter and a **Show hidden / Hide** switch that
-reveals the hidden detectors (dimmed) on demand so they can be un-hidden.
+(reusing the same atomic store as the display-name files). The Detectors group's
+footer then shows **Show N hidden / Hide N hidden**, which reveals the hidden
+detectors (dimmed) on demand so they can be un-hidden.
 
 **Ignoring a detector's trouble (issue #225).** A detector's `Trouble` flag rolls
-up to a **`Trouble (N)`** badge (warning icon + count) on the Home/Security `Alarm state` line counting
-detectors that are troubled. For a known/accepted trouble (a detector that can't be
+up to an **`N trouble`** chip on the Home/Security state line counting detectors
+that are troubled. On the Security tab the chip opens the detector (one) or
+shows the troubled ones at the top of Detectors (several). For a known/accepted trouble (a detector that can't be
 serviced yet), the detail modal has an **Ignore trouble** toggle: an ignored
 detector reads muted **`Trouble — ignored`** in the list and is dropped from the
 main-card count, so muting the known ones quiets the card while a new/un-ignored
@@ -253,9 +261,9 @@ On a brand-new session (no cached session token at all) Apple may require 2FA du
 & .\.venv\Scripts\python.exe -m src.list_presence --account 1 --2fa-code 123456
 ```
 
-For the routine case — an existing session whose ~30-day **browser trust** has lapsed — use the app's Presence card or `--renew-trust` instead (see *Renewing iCloud browser trust* below); the two-run `--2fa-code` dance cannot renew trust there.
+For the routine case — an existing session whose ~30-day **browser trust** has lapsed — use the app's Security → People → **Accounts** sheet or `--renew-trust` instead (see *Renewing iCloud browser trust* below); the two-run `--2fa-code` dance cannot renew trust there.
 
-The CLI prints each visible Find My entity's name, model/class, coordinates, accuracy, last-seen time, battery, and distance from `config/location.json` when the home location is configured. The app also exposes the same read as `GET /api/presence` and renders a minimal **Presence** card in the Security tab showing home / away / unknown counts plus the entity rows. Do not commit Apple credentials, session cookies, person names, coordinates, or location dumps; this repository is public.
+The CLI prints each visible Find My entity's name, model/class, coordinates, accuracy, last-seen time, battery, and distance from `config/location.json` when the home location is configured. The app also exposes the same read as `GET /api/presence` and renders a **People** group in the Security tab: the home / away counts, one row per person (tap for the person sheet with map, name, role and Hidden), and an **Accounts** row for the iCloud accounts. Do not commit Apple credentials, session cookies, person names, coordinates, or location dumps; this repository is public.
 
 **Two accounts for two phones (issue #478).** Apple's Family Sharing only ever returns the configured account's own devices plus family members who share their location with *that* account's family group, so a phone on a different Apple ID never appears no matter how the read is normalized. Set the `ICLOUD_EMAIL_2` / `ICLOUD_PASSWORD_2` pair (with an optional `ICLOUD_SESSION_DIR_2`) to authenticate that phone's own Apple ID as a second account; its Find My devices are merged into the same `GET /api/presence` snapshot. 2FA is per Apple ID, so trust each account's session separately by targeting it explicitly — `--account 1` / `--account 2`:
 
@@ -271,7 +279,7 @@ With no `--account`, the CLI lists every configured account in turn. A single ac
 
 **Health is the fetch, not pyicloud's 2FA flag — and the tray never triggers an Apple push (issue #658).** A cached session counts as healthy when the Find My fetch succeeds; `2fa_required` now means Apple actually *refused* the fetch, not that `pyicloud`'s in-memory `requires_2fa` flag is set. That flag is unreliable on a long-lived session: when the ~30-day browser trust behind the cached session expires, `pyicloud`'s Find My sub-service re-authenticates on its own (Apple answers 450, it falls back to a password login, Apple asks for 2FA) and leaves `requires_2fa` true — while the very same fetch still returns every device. Gating on the flag marked both accounts broken one poll after every successful sign-in and turned the 4h self-heal above into a 4-hourly "Reconnecting/restored" Telegram pair (plus an Apple sign-in push each time) with locations stale in between. Two consequences worth knowing: (1) the tray refresher runs its fetches with `request_2fa_push=False`, so `pyicloud` never asks Apple to push a 2FA code from the unattended process (nobody there can type it; the session serves Find My regardless) — only the attended CLI (`src.list_presence`) still triggers the push, which is where a code is actually entered; (2) an expired browser trust is therefore *not* an outage — locations keep flowing, and the webapp log carries one `WARNING` per session build ("Find My is serving on an untrusted session") until it is re-trusted (next paragraph).
 
-**Renewing iCloud browser trust from the app (issue #659).** Once the ~30-day browser trust lapses every *fresh* session build (tray restart, the 4h self-heal) costs a full password sign-in Apple throttles ("Invalid email/password combination." on roughly 3 of 4 attempts was observed), so re-trust each account about monthly. Renewal has to happen inside **one live pyicloud session** — the 2FA push and the code entry belong to the same Apple auth session — which is why the tray's own webapp process does it: open the **Presence** card (Security tab) → the **iCloud accounts** rows list every configured Apple ID with its trust state (`trusted` / `untrusted — password login on each fresh sign-in` / `broken: <reason>`) → **Renew trust** on the account's row → confirm → Apple pushes a 6-digit code to that account's trusted devices → type it in the dialog → **Verify**. The row flips to `trusted`, `GET /api/presence` reports `diagnostics.accounts[].trusted: true` for it, the untrusted `WARNING` latch clears, and the account's `webapp/icloud_session*/*.session` carries the new `trust_token` — no tray restart, no CLI. Under the hood: `POST /api/presence/icloud/{account}/trust/begin` (→ `code_sent` / `already_trusted` / `terms_required` / `failed` with Apple's detail) then `POST …/trust/complete` `{"code":"123456"}` (→ `trusted` / `invalid_code` — one retry on the same push, then start again / `expired` after 10 min / `failed`); both share every `/api/*` route's auth, the code is never logged, and the tray's unattended refresher is untouched (still never pushes). CLI fallback, one attended run per account: `& .\.venv\Scripts\python.exe -m src.list_presence --account <N> --renew-trust`.
+**Renewing iCloud browser trust from the app (issue #659).** Once the ~30-day browser trust lapses every *fresh* session build (tray restart, the 4h self-heal) costs a full password sign-in Apple throttles ("Invalid email/password combination." on roughly 3 of 4 attempts was observed), so re-trust each account about monthly. Renewal has to happen inside **one live pyicloud session** — the 2FA push and the code entry belong to the same Apple auth session — which is why the tray's own webapp process does it: open Security → People → **Accounts** (the row's value flags an account that needs you) → the sheet lists every configured Apple ID with its trust state (`trusted` / `untrusted — password login on each fresh sign-in` / `broken: <reason>`) → **Renew trust** on the account's row → confirm → Apple pushes a 6-digit code to that account's trusted devices → type it in the dialog → **Verify**. The row flips to `trusted`, `GET /api/presence` reports `diagnostics.accounts[].trusted: true` for it, the untrusted `WARNING` latch clears, and the account's `webapp/icloud_session*/*.session` carries the new `trust_token` — no tray restart, no CLI. Under the hood: `POST /api/presence/icloud/{account}/trust/begin` (→ `code_sent` / `already_trusted` / `terms_required` / `failed` with Apple's detail) then `POST …/trust/complete` `{"code":"123456"}` (→ `trusted` / `invalid_code` — one retry on the same push, then start again / `expired` after 10 min / `failed`); both share every `/api/*` route's auth, the code is never logged, and the tray's unattended refresher is untouched (still never pushes). CLI fallback, one attended run per account: `& .\.venv\Scripts\python.exe -m src.list_presence --account <N> --renew-trust`.
 
 ## Presence webhooks, home location, and alarm automation
 
@@ -311,7 +319,7 @@ Set up each iPhone with two Personal Automations in Shortcuts:
 3. **Leave**: duplicate the automation with URL `https://<host>:8447/api/presence/webhooks/<person_id>/away`.
 4. Repeat with a different stable `<person_id>` for the other phone, for example `ana`.
 
-To test immediately, run the same **Get Contents of URL** action from a temporary normal Shortcut (or tap the automation's run/play control if iOS shows one). A successful call returns JSON like `{"ok": true, "person_id": "ana", "state": "away"}`; the Security → Presence card then shows that person as `Shortcut · Person`. Opening the URL in Safari is not a valid test because Safari sends `GET` and the endpoint intentionally accepts only `POST`.
+To test immediately, run the same **Get Contents of URL** action from a temporary normal Shortcut (or tap the automation's run/play control if iOS shows one). A successful call returns JSON like `{"ok": true, "person_id": "ana", "state": "away"}`; the Security tab's People group then shows that person (the person sheet's Source reads `Shortcut`). Opening the URL in Safari is not a valid test because Safari sends `GET` and the endpoint intentionally accepts only `POST`.
 
 The browser-only **This device** row is diagnostic: it uses the browser Geolocation API and only updates while the dashboard tab/PWA is open. It is useful for setting/checking the home location, but it does not drive alarm automation. Find My/iCloud entries are also diagnostic enrichment; the reliable automation source is the Shortcut webhook state persisted in `config/presence_state.json`.
 
@@ -323,7 +331,7 @@ Alarm behavior:
 
 - Everyone visible/confirmed away for the configured grace period → `control_system("arm")` (full), or `control_system("perimeter")` when the **Kids home** override is on.
 - First fresh confirmed arrival while armed → `control_system("disarm")`.
-- **Kids home** override (a labelled pill at the top of the opened Presence card): when active, the everyone-away trigger arms perimeter only instead of full — for leaving a child at home without arming the interior. It is transient: the next disarm-on-arrival auto-resets it to off, so the system never silently stays on perimeter when it should default to full. Stored in `config/presence_state.json`, not the persisted automation config.
+- **Kids home** override (a switch on the Security glance card, #882): when active, the everyone-away trigger arms perimeter only instead of full — for leaving a child at home without arming the interior. It is transient: the next disarm-on-arrival auto-resets it to off, so the system never silently stays on perimeter when it should default to full. Stored in `config/presence_state.json`, not the persisted automation config.
 - **Guardian-home arm hold** (issue #693): if a configured, untracked household member (`PRESENCE_GUARDIAN_HOME_NAMES`) is home and their iCloud read is fresh (`PRESENCE_GUARDIAN_HOME_STALE_AFTER_S`), the everyone-away arm is held entirely — overriding even the **Kids home** override — and a Telegram notice explains why the house didn't arm. No configured guardian, no matching entity, a stale read, or the read not reporting home all fall through to the normal everyone-away decision.
 - Stale/uncertain state never disarms.
 - **A roster member with no record at all blocks every decision (issue #689).** `config/presence_roster.json` (gitignored; `…sample.json` committed) is the union of every person id the engine has ever seen — added on their first webhook, never removed by automation. If someone in it has no entry in `config/presence_state.json`, the engine refuses to arm *or* disarm and pages the same Telegram alert as the staleness block, naming who went missing. Without this, a state file that lost one of two people looked exactly like a one-person household, and "everyone away" armed the house with someone asleep inside — which is what happened on 2026-08-25. Retiring someone for good (a person id that will never report again) is a hand edit of that file; there is deliberately no delete-person endpoint, the same as for their `presence_state.json` entry.
@@ -650,8 +658,8 @@ control is the vendored `_vendored/text-size/` component from
 
 On desktop the tabs are a top segmented control; on a phone / installed PWA they
 become a floating bottom tab bar with stroke icons (mirroring the `app-launcher`
-nav). Collapsible sections (Settings, Security's event log + detectors) share one
-centered, icon-led summary style.
+nav). Collapsible sections (Settings, and Devices until its own step of #872)
+share one icon-led summary style; Security's lists are open groups since #882.
 
 While the webapp runs, a background **sampler** (started in the FastAPI
 lifespan, so it lives and dies with the tray's uvicorn process) persists the
@@ -1114,7 +1122,7 @@ Anthropic-shape `/v1/messages`) per the fleet rule — never an inline `claude -
 wrapper. A hub or parse failure degrades to an "AI analysis unavailable — verify
 manually" verdict and never breaks the alarm path.
 
-**Configure pairings** in the **Security tab → Scene capture** card. Saved
+**Configure pairings** in **Security tab → Automations → Scene capture**. Saved
 pairings appear as compact detector-to-camera rows; tap a row or **Add pairing**
 to edit the detector, camera, and optional PTZ preset in a dialog. Closing the
 dialog without **Save** discards the change. Pairings can also be edited by hand in gitignored
@@ -1139,8 +1147,8 @@ Captures + baselines live under the already-gitignored `webapp/camera_captures/`
 ## Alarm override — auto-bypass after repeated false alarms (#341)
 
 RISCO's own panel already auto-omits a repeatedly-triggered detector, but only
-after an uncontrolled, undocumented number of repeats. The **Security tab →
-Override** card (collapsed by default, right after Notifications) lets you set
+after an uncontrolled, undocumented number of repeats. **Security tab →
+Automations → Override** (a sheet) lets you set
 a much tighter, per-detector threshold: after 1-3 real alarms from the same
 detector within one armed session (a windy garden gate, a roaming cat), the app
 proactively bypasses just that detector — the rest of the system stays fully

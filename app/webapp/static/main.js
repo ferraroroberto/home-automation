@@ -46,7 +46,7 @@ import { onSearxngTab, wireSearxng } from './searxng.js';
 import { onHaTab, wireHa } from './ha.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
 import { onBlindSchedulesTab, wireBlindSchedules } from './blind-schedules.js';
-import { onSecurityTab, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security.js';
+import { onSecurityTab, wireSecuritySheets, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security.js';
 import { onWakeAlarmsTab, wireWakeAlarms } from './wake-alarms.js';
 import { onRemindersTab, wireReminders } from './reminders.js';
 import { wireVoiceCommands } from './voice-commands.js';
@@ -190,6 +190,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   wireLightControls();
   wireZoneDetail();
   wireSecurityHiddenToggle();
+  wireSecuritySheets();
   wireSecuritySchedules();
   wireScenePairings();
   wireSecurityOverrides();
