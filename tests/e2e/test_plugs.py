@@ -361,7 +361,8 @@ def _with_second_blind_and_light(sample_plugs: List[Dict]) -> List[Dict]:
         {**blank, "device_id": "cover-2", "name": "Test Blind Two",
          "category": "qt", "has_cover": True},
         {**blank, "device_id": "light-1", "name": "Test Dimmer",
-         "category": "dj", "has_switch": True, "is_light": True, "switch_on": False},
+         "category": "dj", "has_switch": True, "is_light": True, "switch_on": False,
+         "has_brightness": True, "brightness_pct": 40},
     ]
 
 
@@ -500,3 +501,30 @@ def test_add_device_is_gated_by_a_confirm(
     page.locator("#confirmOk").click()
     expect(page.locator("#toast")).to_have_text("No new devices")
     assert len(calls) == 1
+
+
+def test_tuya_dimmer_brightness_slider_round_trips(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    _boot_plugs(
+        page, base_url, sample_units, _with_second_blind_and_light(sample_plugs),
+        mock_api, mock_energy, mock_tuya,
+    )
+
+    # The dimmer row carries the Elgato row's Brightness slider (#870),
+    # wrapping onto its own line, at the device's current level.
+    row = page.locator('#lightsList [data-device-id="light-1"]')
+    expect(row).to_have_class(re.compile(r"\blight-row\b"))
+    number = row.locator(".light-number")
+    expect(number).to_have_value("40")
+    assert_no_horizontal_overflow(page)
+
+    # One request on commit, carrying the percentage; the row re-renders from
+    # the read-back card.
+    with page.expect_request("**/api/tuya/light-1/brightness") as request:
+        number.fill("70")
+        number.press("Enter")
+    assert request.value.post_data_json == {"brightness": 70}
+    expect(page.locator('#lightsList [data-device-id="light-1"] .light-number')).to_have_value("70")

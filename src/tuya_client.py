@@ -86,6 +86,11 @@ def _record_backoff_success(device_id: str) -> None:
 
 _SWITCH_CODES = ("switch_1", "switch", "switch_led")
 _COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
+_BRIGHTNESS_CODES = ("bright_value", "bright_value_v2", "bright_value_1")
+# Tuya's documented raw brightness range per code, used only when a device's
+# mapping does not state its own min/max (issue #870).
+_BRIGHTNESS_DEFAULT_RANGE = {"bright_value_v2": (10, 1000)}
+_BRIGHTNESS_FALLBACK_RANGE = (25, 255)
 _CURRENT_CODES = ("cur_current", "cur_current_1", "current")
 _POWER_CODES = ("cur_power", "cur_power_1", "power")
 _VOLTAGE_CODES = ("cur_voltage", "cur_voltage_1", "voltage")
@@ -125,6 +130,8 @@ class TuyaMapping:
     type: Optional[str] = None
     scale: int = 0
     unit: Optional[str] = None
+    min: Optional[int] = None
+    max: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -148,6 +155,7 @@ class TuyaDeviceInfo:
     cover_control_dps: Optional[str] = None
     energy_dps: dict[str, str] = field(default_factory=dict)
     is_light: bool = False
+    brightness_dps: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -227,8 +235,42 @@ def _mapping(device: dict[str, Any]) -> dict[str, TuyaMapping]:
             type=entry.get("type"),
             scale=scale,
             unit=values.get("unit"),
+            min=_int_or_none(values.get("min")),
+            max=_int_or_none(values.get("max")),
         )
     return result
+
+
+def _int_or_none(value: Any) -> Optional[int]:
+    """An integer mapping bound, or ``None`` when absent or malformed."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _brightness_range(mapping: TuyaMapping) -> tuple[int, int]:
+    """The device's raw ``(min, max)`` brightness, from its mapping if stated."""
+    default = _BRIGHTNESS_DEFAULT_RANGE.get(mapping.code, _BRIGHTNESS_FALLBACK_RANGE)
+    low = mapping.min if mapping.min is not None else default[0]
+    high = mapping.max if mapping.max is not None else default[1]
+    return (low, high) if high > low else default
+
+
+def brightness_to_raw(pct: int, mapping: TuyaMapping) -> int:
+    """Map 1–100 % linearly onto the device's own raw range (1 % → min)."""
+    low, high = _brightness_range(mapping)
+    return round(low + (pct - 1) * (high - low) / 99)
+
+
+def raw_to_brightness(raw: Any, mapping: TuyaMapping) -> Optional[int]:
+    """The inverse of :func:`brightness_to_raw`, clamped to 1–100 %."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    low, high = _brightness_range(mapping)
+    return max(1, min(100, round(1 + (value - low) * 99 / (high - low))))
 
 
 def _snapshot_dps(device: dict[str, Any]) -> dict[str, Any]:
@@ -309,6 +351,7 @@ def _sanitize(device: dict[str, Any]) -> TuyaDeviceInfo:
     switch = _first_mapping(device, _SWITCH_CODES)
     cover = _first_mapping(device, _COVER_CONTROL_CODES)
     energy = _energy_mappings(device)
+    brightness = _first_mapping(device, _BRIGHTNESS_CODES)
     category = device.get("category")
     return TuyaDeviceInfo(
         device_id=str(device.get("id") or device.get("dev_id") or ""),
@@ -329,6 +372,7 @@ def _sanitize(device: dict[str, Any]) -> TuyaDeviceInfo:
         energy_dps={name: entry.dps for name, entry in energy.items()},
         is_light=switch is not None
         and (switch.code == "switch_led" or category in _LIGHT_CATEGORIES),
+        brightness_dps=brightness.dps if brightness else None,
     )
 
 
@@ -549,6 +593,7 @@ def read_device_state(device_id: str) -> dict[str, Any]:
     metadata = _local_metadata(device_id)
     switch = _first_mapping(metadata.raw, _SWITCH_CODES)
     energy = _energy_mappings(metadata.raw)
+    brightness = _first_mapping(metadata.raw, _BRIGHTNESS_CODES)
 
     try:
         status = _status(device_id)
@@ -566,9 +611,12 @@ def read_device_state(device_id: str) -> dict[str, Any]:
         "current_ma": None,
         "voltage_v": None,
         "energy_kwh": None,
+        "brightness_pct": None,
     }
     if switch and switch.dps in dps:
         result["switch_on"] = bool(dps.get(switch.dps))
+    if brightness and brightness.dps in dps:
+        result["brightness_pct"] = raw_to_brightness(dps.get(brightness.dps), brightness)
     for name, mapping in energy.items():
         result[name] = _scaled(dps.get(mapping.dps), mapping)
     logger.debug("Read Tuya state from %s", device_id)  # per-tick noise (issue #537); see _record_backoff_* for signal
@@ -604,6 +652,39 @@ def set_switch(device_id: str, on: bool) -> dict[str, Any]:
         raise
     _record_backoff_success(device_id)
     logger.info("✅ Set Tuya switch %s", device_id)
+    return response if isinstance(response, dict) else {"response": response}
+
+
+def set_brightness(device_id: str, pct: int) -> dict[str, Any]:
+    """Set a dimmable Tuya light's brightness (1–100 %) via local LAN control.
+
+    The percentage is mapped onto the device's own raw range from its DPS
+    mapping (issue #870). Only the brightness DPS is written — an off light
+    stays off. Raises :class:`ValueError` for an out-of-range percentage or a
+    device with no brightness DPS (a caller error, not a LAN failure); same
+    backoff-bypass contract as :func:`set_switch`.
+    """
+    if isinstance(pct, bool) or not isinstance(pct, int) or not 1 <= pct <= 100:
+        raise ValueError("brightness must be an integer from 1 to 100")
+    metadata = _local_metadata(device_id)
+    brightness = _first_mapping(metadata.raw, _BRIGHTNESS_CODES)
+    if not brightness:
+        raise ValueError(f"Device {device_id} has no brightness DPS mapping")
+
+    raw = brightness_to_raw(pct, brightness)
+    device = _connect(device_id)
+    logger.info(
+        "ℹ️ Setting Tuya brightness %s DPS %s (%s) to %d%% (raw %d)",
+        device_id, brightness.dps, brightness.code, pct, raw,
+    )
+    try:
+        response = device.set_value(brightness.dps, raw)
+        _raise_for_tinytuya_error(response, f"Set Tuya brightness {device_id}")
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
+    logger.info("✅ Set Tuya brightness %s", device_id)
     return response if isinstance(response, dict) else {"response": response}
 
 

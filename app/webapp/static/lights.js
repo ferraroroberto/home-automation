@@ -18,7 +18,7 @@ import { emptyStateEl } from './empty-state.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
-import { buildPlugRow, toggleSwitch } from './plugs.js';
+import { buildPlugRow, setTuyaBrightness, toggleSwitch } from './plugs.js';
 
 const POLL_MS = 15_000;
 const LIGHTS_UNAVAILABLE_COPY =
@@ -155,7 +155,10 @@ async function applyAllLights(on) {
   if (failures) toast(failures + ' light command(s) failed', 'error');
 }
 
-function buildSlider(light, key, min, max, value, suffix) {
+// One labelled slider + exact-number field. ``name`` labels it for assistive
+// tech; ``apply(next)`` is called once per committed value (release / Enter),
+// never per pixel — shared by the Elgato and Tuya light rows (#870).
+function buildSlider(name, key, min, max, value, suffix, apply) {
   const row = document.createElement('div');
   row.className = 'light-control-row';
   const labelEl = document.createElement('span');
@@ -169,7 +172,7 @@ function buildSlider(light, key, min, max, value, suffix) {
   slider.max = String(max);
   slider.value = String(value);
   slider.className = 'light-slider';
-  slider.setAttribute('aria-label', key + ' for ' + label(light));
+  slider.setAttribute('aria-label', key + ' for ' + name);
   const number = document.createElement('input');
   number.type = 'number';
   number.min = String(min);
@@ -177,7 +180,7 @@ function buildSlider(light, key, min, max, value, suffix) {
   number.step = '1';
   number.value = String(value);
   number.className = 'input-native light-number';
-  number.setAttribute('aria-label', key + ' exact value for ' + label(light));
+  number.setAttribute('aria-label', key + ' exact value for ' + name);
   const valueEdit = document.createElement('label');
   valueEdit.className = 'light-value-edit';
   const unit = document.createElement('span');
@@ -197,10 +200,7 @@ function buildSlider(light, key, min, max, value, suffix) {
     if (!Number.isFinite(next)) next = value;
     next = Math.max(min, Math.min(max, next));
     sync(next);
-    const field = suffix === 'K' ? 'temperature_k' : 'brightness';
-    const patch = {};
-    patch[field] = next;
-    applyLight(light, patch);
+    apply(next);
   };
   slider.addEventListener('input', function () { sync(slider.value); });
   slider.addEventListener('change', function () { commit(slider.value); });
@@ -265,11 +265,13 @@ function buildLightRow(light) {
   const controls = document.createElement('div');
   controls.className = 'light-controls';
   controls.appendChild(
-    buildSlider(light, 'Brightness', 3, 100, Number(light.brightness || 3), '%')
+    buildSlider(label(light), 'Brightness', 3, 100, Number(light.brightness || 3), '%',
+      function (next) { applyLight(light, { brightness: next }); })
   );
   if (light.supports_temperature) {
     controls.appendChild(
-      buildSlider(light, 'Warmth', 2900, 7000, Number(light.temperature_k || 2900), 'K')
+      buildSlider(label(light), 'Warmth', 2900, 7000, Number(light.temperature_k || 2900), 'K',
+        function (next) { applyLight(light, { temperature_k: next }); })
     );
   } else {
     const unavailable = document.createElement('div');
@@ -279,6 +281,23 @@ function buildLightRow(light) {
   }
   row.appendChild(controls);
 
+  return row;
+}
+
+// A Tuya light is the plug switch row (name + toggle, rename modal) plus, for a
+// dimmer, the Elgato row's Brightness slider wrapping onto its own line (#870).
+function buildTuyaLightRow(device) {
+  const row = buildPlugRow(device);
+  if (!device.reachable || !device.has_brightness) return row;
+  row.classList.add('light-row');
+  const name = device.display_name || device.name || 'Light';
+  const controls = document.createElement('div');
+  controls.className = 'light-controls';
+  controls.appendChild(
+    buildSlider(name, 'Brightness', 1, 100, Number(device.brightness_pct || 1), '%',
+      function (next) { setTuyaBrightness(device, next); })
+  );
+  row.appendChild(controls);
   return row;
 }
 
@@ -391,7 +410,7 @@ export function renderLights() {
   }).concat(tuyaLights.map(function (device) {
     return {
       name: device.display_name || device.name || '',
-      build: function () { return buildPlugRow(device); },
+      build: function () { return buildTuyaLightRow(device); },
     };
   }));
   rows.sort(function (a, b) { return a.name.localeCompare(b.name); });

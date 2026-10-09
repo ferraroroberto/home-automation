@@ -330,3 +330,91 @@ def test_sanitize_flags_lights(row: dict, is_light: bool) -> None:
     """Tuya lights are told apart from plugs so the PWA lists them under Lights (#181)."""
     info = T._sanitize({"id": "dev-1", "name": "Fixture", **row})
     assert info.is_light is is_light
+
+
+_DIMMER = {
+    "id": "dimmer-1", "name": "Fixture dimmer", "category": "dj", "ip": "192.0.2.9",
+    "key": "k", "version": "3.3",
+    "mapping": {
+        "1": {"code": "switch_led", "type": "Boolean", "values": {}},
+        "2": {"code": "bright_value", "type": "Integer",
+              "values": {"min": 25, "max": 255, "scale": 0, "step": 1}},
+    },
+}
+
+
+def _bright(row: dict = _DIMMER) -> T.TuyaMapping:
+    mapping = T._first_mapping(row, T._BRIGHTNESS_CODES)
+    assert mapping is not None
+    return mapping
+
+
+@pytest.mark.parametrize("pct, raw", [(1, 25), (100, 255), (50, 139)])
+def test_brightness_maps_percent_onto_the_device_range(pct: int, raw: int) -> None:
+    """1 % is the device's own min, 100 % its max, linear between (#870)."""
+    assert T.brightness_to_raw(pct, _bright()) == raw
+    assert T.raw_to_brightness(raw, _bright()) == pct
+
+
+def test_brightness_falls_back_to_the_code_default_range() -> None:
+    row = {"mapping": {"2": {"code": "bright_value_v2", "type": "Integer"}}}
+    assert T.brightness_to_raw(1, _bright(row)) == 10
+    assert T.brightness_to_raw(100, _bright(row)) == 1000
+    assert T.raw_to_brightness("junk", _bright(row)) is None
+
+
+def test_sanitize_reports_brightness_dps_only_for_dimmers() -> None:
+    assert T._sanitize(_DIMMER).brightness_dps == "2"
+    plug = {"id": "p", "category": "cz", "mapping": {"1": {"code": "switch_1"}}}
+    assert T._sanitize(plug).brightness_dps is None
+
+
+def test_read_device_state_reports_brightness_percent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "devices.json"
+    _write_devices(path, [_DIMMER])
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    T._backoff_state.clear()
+    monkeypatch.setattr(T, "_status", lambda device_id: {"dps": {"1": True, "2": 255}})
+    state = T.read_device_state("dimmer-1")
+    assert state["switch_on"] is True
+    assert state["brightness_pct"] == 100
+
+
+class _FakeDevice:
+    def __init__(self) -> None:
+        self.writes: list[tuple[str, object]] = []
+
+    def set_value(self, dps: str, value: object) -> dict:
+        self.writes.append((dps, value))
+        return {"dps": {dps: value}}
+
+
+def test_set_brightness_writes_only_the_brightness_dps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "devices.json"
+    _write_devices(path, [_DIMMER])
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    fake = _FakeDevice()
+    monkeypatch.setattr(T, "_connect", lambda device_id, cls=None: fake)
+    T.set_brightness("dimmer-1", 100)
+    assert fake.writes == [("2", 255)]
+
+
+@pytest.mark.parametrize("pct", [0, 101, True, 50.5])
+def test_set_brightness_rejects_out_of_range(pct: object) -> None:
+    with pytest.raises(ValueError, match="1 to 100"):
+        T.set_brightness("dimmer-1", pct)  # type: ignore[arg-type]
+
+
+def test_set_brightness_rejects_a_device_without_brightness(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "devices.json"
+    _write_devices(path, [{"id": "p", "ip": "192.0.2.8", "key": "k",
+                           "mapping": {"1": {"code": "switch_1"}}}])
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    with pytest.raises(ValueError, match="no brightness"):
+        T.set_brightness("p", 50)

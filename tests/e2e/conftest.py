@@ -1431,6 +1431,11 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                 route.fulfill(status=200, content_type="application/json",
                               body=_json(device))
                 return
+            if verb == "brightness":  # #870 — echo the card at the new level
+                device["brightness_pct"] = int(body.get("brightness"))
+                route.fulfill(status=200, content_type="application/json",
+                              body=_json(device))
+                return
             route.fulfill(status=200, content_type="application/json",
                           body=_json({"device_id": did, "reachable": True,
                                       "action": body.get("action"), "ok": True}))

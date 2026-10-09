@@ -355,3 +355,65 @@ def test_tuya_card_carries_the_light_flag(
     cards = {c["device_id"]: c for c in client.get("/api/tuya").json()["devices"]}
     assert cards["light-1"]["is_light"] is True
     assert cards["plug-1"]["is_light"] is False
+
+
+_DIMMER_ROW = {
+    "id": "dimmer-1", "name": "Fixture dimmer", "category": "dj", "key": "k",
+    "mapping": {
+        "1": {"code": "switch_led", "type": "Boolean", "values": {}},
+        "2": {"code": "bright_value", "type": "Integer", "values": {"min": 25, "max": 255}},
+    },
+}
+
+
+def test_brightness_endpoint_writes_and_reads_back(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import app.webapp.routers.tuya as tuya_router
+
+    _stub_devices_file(monkeypatch, tmp_path, [_DIMMER_ROW])
+    sent: list = []
+    monkeypatch.setattr(tuya_router, "set_brightness", lambda d, pct: sent.append((d, pct)))
+    response = client.post("/api/tuya/dimmer-1/brightness", json={"brightness": 40})
+    assert response.status_code == 200
+    assert sent == [("dimmer-1", 40)]
+    card = response.json()
+    assert card["device_id"] == "dimmer-1"
+    assert card["has_brightness"] is True
+
+
+def test_brightness_endpoint_maps_errors(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from src.tuya_client import TuyaCommandError
+
+    _stub_devices_file(
+        monkeypatch, tmp_path,
+        [_DIMMER_ROW, {"id": "plug-1", "key": "k", "mapping": {"1": {"code": "switch_1"}}}],
+    )
+    assert client.post("/api/tuya/dimmer-1/brightness", json={"brightness": 0}).status_code == 400
+    no_dps = client.post("/api/tuya/plug-1/brightness", json={"brightness": 50})
+    assert no_dps.status_code == 400
+    assert "no brightness" in no_dps.json()["detail"]
+    assert client.post("/api/tuya/ghost/brightness", json={"brightness": 50}).status_code == 404
+
+    import app.webapp.routers.tuya as tuya_router
+
+    def _offline(device_id, pct):
+        raise TuyaCommandError("no response on the LAN")
+
+    monkeypatch.setattr(tuya_router, "set_brightness", _offline)
+    offline = client.post("/api/tuya/dimmer-1/brightness", json={"brightness": 50})
+    assert offline.status_code == 502
+
+
+def test_tuya_card_reports_brightness_capability(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _stub_devices_file(
+        monkeypatch, tmp_path,
+        [_DIMMER_ROW, {"id": "plug-1", "key": "k", "mapping": {"1": {"code": "switch_1"}}}],
+    )
+    cards = {c["device_id"]: c for c in client.get("/api/tuya").json()["devices"]}
+    assert cards["dimmer-1"]["has_brightness"] is True
+    assert cards["plug-1"]["has_brightness"] is False
