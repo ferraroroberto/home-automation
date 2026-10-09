@@ -27,6 +27,7 @@ import {
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { confirmAction } from './confirm.js';
+import { setHeadPart } from './head-status.js';
 import {
   arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
 } from './pv-system.js';
@@ -69,6 +70,9 @@ function markEnergyFailure() {
     label: 'live energy',
     render: function () {
       renderEnergyFeedback();
+      setHeadPart('energy', 'flow', {
+        exceptions: [{ text: 'Live unavailable', tone: 'attention' }],
+      });
       if (energyLastGood) {
         els.liveMeta.textContent = '· ' + energyView.lastUpdatedLabel() + ' · live data unavailable';
       }
@@ -162,8 +166,35 @@ function renderFlowCard(r, e, solar) {
   }
 }
 
+// The Energy header's live line (head-status.js, #880): what the house does
+// with the grid right now, or why that isn't known. A restored snapshot says
+// nothing: it is not live.
+function renderEnergyHead(e) {
+  if (energyView.state !== 'ready') {
+    setHeadPart('energy', 'flow', null);
+    return;
+  }
+  if (e.snapshot && e.snapshot.stale) {
+    setHeadPart('energy', 'flow', { exceptions: [{ text: 'Not refreshing', tone: 'attention' }] });
+    return;
+  }
+  if (e.meter_reachable === false) {
+    setHeadPart('energy', 'flow', { exceptions: [{ text: 'Live unavailable', tone: 'attention' }] });
+    return;
+  }
+  const imp = e.grid_import_w || 0;
+  const exp = e.grid_export_w || 0;
+  let fact = '';
+  if (e.grid_import_w == null && e.grid_export_w == null) fact = '';
+  else if (exp > imp && exp > 1) fact = 'Exporting ' + fmtW(exp);
+  else if (imp > 1) fact = 'Importing ' + fmtW(imp);
+  else fact = 'Balanced';
+  setHeadPart('energy', 'flow', { fact: fact });
+}
+
 export function renderEnergy(e) {
   const solar = e.inverter_reachable ? e.pv_power_w : null;
+  renderEnergyHead(e);
 
   // Energy-tab flow card + the matching Home-tab card (revealed once it has data).
   renderFlowCard(energyFlowRefs, e, solar);

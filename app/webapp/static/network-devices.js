@@ -611,6 +611,8 @@ function patchNetDevice(mac, patch) {
 
 const netDeviceModal = detailModal({
   dialog: els.netDeviceDialog,
+  closeButton: els.netDeviceDetailClose,
+  onClose: function () { state.selectedNetDeviceMac = null; },
   saveButton: els.netDeviceSave,
   focusEl: els.netDeviceDisplayName,
   getEntity: deviceByMac,
@@ -701,11 +703,6 @@ function openNetDeviceDetail(mac) {
   netDeviceModal.open(mac);
 }
 
-function closeNetDeviceDetail() {
-  state.selectedNetDeviceMac = null;
-  netDeviceModal.close();
-}
-
 // Toggles now only stage visually — the POST happens on Save.
 function toggleImportant() {
   const d = deviceByMac(netDeviceModal.id);
@@ -725,10 +722,6 @@ function toggleDeviceHidden() {
 
 export function wireNetDeviceDetail() {
   if (!els.netDeviceDialog) return;
-  els.netDeviceDetailClose.addEventListener('click', closeNetDeviceDetail);
-  els.netDeviceDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.netDeviceDialog) closeNetDeviceDetail();  // backdrop
-  });
   els.netDeviceDisplayName.addEventListener('input', netDeviceModal.markDirty);
   els.netDeviceDisplayName.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); netDeviceModal.save(); }

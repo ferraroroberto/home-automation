@@ -75,11 +75,18 @@ def test_home_shows_ac_summary_line_per_unit(
     mock_energy()
     boot_home(page, base_url)
 
-    lines = page.locator("#acSummary .ac-line")
+    lines = page.locator("#acSummary .ac-row")
     expect(lines).to_have_count(len(sample_units))
     # One scannable line per unit: name + an actionable power toggle (issue #72).
     expect(page.locator("#acSummary")).to_contain_text("Office")
     expect(page.locator("#acSummary .ac-line-toggle")).to_have_count(len(sample_units))
+    # The shared row (#880): tapping the row, not its switch, opens the unit's
+    # sheet, the same one the AC tab opens.
+    office = lines.filter(has_text="Office").locator(".action-row-main")
+    office.click()
+    expect(page.locator("#detailDialog")).to_have_attribute("open", "")
+    page.keyboard.press("Escape")
+    expect(page.locator("#detailDialog")).not_to_have_attribute("open", "")
 
 
 def test_perf_review_ready_selector_is_visible_on_home(

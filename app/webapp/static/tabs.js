@@ -31,6 +31,23 @@ const RETIRED_TABS = ['plugs', 'lights'];
 // content now lives, and the key falls back to Home from then on.
 const RETIRED_TO_SETTINGS = 'network';
 
+// The vendored nav (project-scaffolding#338) owns the count badge; set once
+// wireTabs has run.
+let nav = null;
+
+// A tab's count badge (#880, decision 10 of #872). The vendored setBadge
+// paints attention only; `tone` 'danger' marks the tab button so styles.css
+// can repaint that one badge, until the nav takes a tone itself
+// (project-scaffolding#342). Pass 0 to clear it.
+export function setTabBadge(tab, count, noun, tone) {
+  if (!nav) return;
+  nav.setBadge(tab, count, noun);
+  const btn = document.querySelector('nav.tabs .tab[data-tab="' + tab + '"]');
+  if (!btn) return;
+  if (count > 0 && tone === 'danger') btn.dataset.badgeTone = 'danger';
+  else delete btn.dataset.badgeTone;
+}
+
 function migrateStoredTab() {
   try {
     const stored = localStorage.getItem(TAB_KEY);
@@ -70,7 +87,7 @@ function openSettings(onTab) {
 
 export function wireTabs(onTab) {
   const openSettingsNow = migrateStoredTab();
-  initNavTabs({
+  nav = initNavTabs({
     storageKey: TAB_KEY,
     navEvent: recordNavEvent,
     onChange: function (tab) {

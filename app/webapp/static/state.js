@@ -617,6 +617,7 @@ export const els = {
   netWifiDisplayName: document.getElementById('netWifiDisplayName'),
   netWifiOriginalName: document.getElementById('netWifiOriginalName'),
   netWifiHiddenDetailToggle: document.getElementById('netWifiHiddenDetailToggle'),
+  netWifiDone: document.getElementById('netWifiDone'),
   // Reusable confirm modal
   confirmDialog: document.getElementById('confirmDialog'),
   confirmTitle: document.getElementById('confirmTitle'),
