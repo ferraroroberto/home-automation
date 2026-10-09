@@ -137,6 +137,19 @@ rest_command:
     payload: '{"phrase": "{{ text }}"}'
     verify_ssl: false
     timeout: 30
+  # Spanish web search (issue #866). {query} is the free spoken question; the
+  # app searches SearXNG in Spanish and returns {ok, speech, source}. `tojson`
+  # keeps free spoken text JSON-safe. The summarising hub pass can take a few
+  # seconds, hence the longer timeout.
+  voice_search:
+    url: "https://192.168.0.13:8447/api/voice/search"
+    method: POST
+    headers:
+      authorization: !secret app_api_authorization
+      content-type: "application/json"
+    payload: '{"query": {{ query | default("") | tojson }}}'
+    verify_ssl: false
+    timeout: 30
   # Grocery list (issue #315) — the grocery-shopping-automation app on :8502
   # (grocery#86). One parameterized command: the app decides everything from
   # {intent, text}; `tojson` keeps free spoken text JSON-safe.
@@ -382,16 +395,24 @@ intent_script:
       text: >-
         Puedes decir: añade leche y dos huevos. Pon el objetivo de leche a cuatro. Anota que tenemos dos aceites. No quedan huevos. Qué hay que comprar. O di: quiero añadir cosas a la lista, y te preguntaré qué quieres.
 
-  # Web search (issue #321) is English-only for now — wired only into the
-  # "Okay Nabu" pipeline's extended_openai_conversation web_search function.
-  # The Spanish pipeline's built-in agent has no LLM fallback by design
-  # (docs/voice-control.md), so a search-shaped Spanish question would
-  # otherwise just get a generic "no entiendo". Static reply, no rest call,
-  # matched by custom_sentences/es/websearch.yaml — mirrors GroceryHelp.
-  WebSearchUnavailable:
+  # Spanish web search (issues #321, #842, #866) — the "Asistente (es)" pipeline
+  # has no LLM fallback by design (docs/voice-control.md), so a search-shaped
+  # Spanish question (custom_sentences/es/websearch.yaml) calls the app's
+  # POST /api/voice/search, which searches SearXNG in Spanish, summarises via
+  # the local hub and returns a ready-made `speech`. The app answers 200 with
+  # a fixed Spanish sentence even when SearXNG or the hub is down; the fallback
+  # below only covers the app itself being unreachable.
+  WebSearch:
+    action:
+      - service: rest_command.voice_search
+        data:
+          query: "{{ query }}"
+        response_variable: r
+      - stop: "done"
+        response_variable: r
     speech:
       text: >-
-        La búsqueda por internet todavía solo funciona en inglés. Di Okay Nabu para buscar.
+        {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}No puedo buscar ahora mismo.{% endif %}
 
 # Multi-turn grocery add (issue #315): the trigger phrase opens a follow-up
 # question on the same puck (assist_satellite.ask_question, HA 2025.7+), the
