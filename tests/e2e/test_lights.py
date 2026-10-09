@@ -70,7 +70,11 @@ def test_lights_tab_renders_reachable_and_offline_lights(
     expect(page.locator("#lightsCount")).to_have_text("2")
     offline = page.locator('[data-light-id="192.0.2.11:9123"]')
     expect(offline).to_have_class("device-row light-row is-unavailable")
-    expect(offline.locator(".light-unavailable")).to_contain_text("timed out")
+    # Sanitized failure copy (#879): the row says the light is unavailable and
+    # never prints its connection error, which carries the device address.
+    expect(offline.locator(".light-unavailable")).to_have_text("Unavailable")
+    expect(offline).not_to_contain_text("timed out")
+    expect(offline).not_to_contain_text("192.0.2.11")
 
 
 def test_lights_tab_distinguishes_loading_from_true_empty(
