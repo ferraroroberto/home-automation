@@ -58,7 +58,7 @@ Coordinates are **reused from `config/location.json`** (the same file the weathe
 
 ## Editing from the app (issue #561)
 
-The Energy tab's **PV system** card, directly under the forecast card, edits the same file — one summary row per panel row (`kwp` · tilt · compass direction), opened into a staged dialog for peak power / tilt / azimuth, plus the shared performance ratio and the home coordinates inline. Saving is live on the next forecast read: `src/pv_forecast.py` loads the config per request, so there is no cache to clear and no restart.
+The **PV system** card in Settings (on the Energy tab until #779) edits the same file — one summary row per panel row (`kwp` · tilt · compass direction), opened into a staged dialog for peak power / tilt / azimuth, plus the shared performance ratio and the home coordinates inline. Saving is live on the next forecast read: `src/pv_forecast.py` loads the config per request, so there is no cache to clear and no restart.
 
 `config/pv_system.json` remains the source of truth, not a cache of the UI:
 

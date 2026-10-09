@@ -34,6 +34,8 @@ const RETIRED_TO_SETTINGS = 'network';
 // The vendored nav (project-scaffolding#338) owns the count badge; set once
 // wireTabs has run.
 let nav = null;
+// wireTabs' tab-change handler, kept so showSettings can run it too.
+let tabHandler = null;
 
 // A tab's count badge (#880, decision 10 of #872). The vendored setBadge
 // paints attention only; `tone` 'danger' marks the tab button so styles.css
@@ -85,7 +87,18 @@ function openSettings(onTab) {
   if (onTab) onTab('settings');
 }
 
+// Open Settings at one of its cards, from a link on a tab (the Energy tab's
+// Export rate row, #883): the card opens if it is a disclosure and scrolls
+// into view.
+export function showSettings(card) {
+  openSettings(tabHandler);
+  if (!card) return;
+  if (card.tagName === 'DETAILS') card.open = true;
+  requestAnimationFrame(function () { card.scrollIntoView({ block: 'start' }); });
+}
+
 export function wireTabs(onTab) {
+  tabHandler = onTab;
   const openSettingsNow = migrateStoredTab();
   nav = initNavTabs({
     storageKey: TAB_KEY,

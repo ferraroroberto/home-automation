@@ -195,6 +195,10 @@
       <path d="M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4" />
       <path d="M5 21h14" />
     </symbol>
+    <symbol id="i-chart-line" viewBox="0 0 24 24" fill="none">
+      <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+      <path d="m19 9-5 5-4-4-3 3" />
+    </symbol>
     <symbol id="i-euro" viewBox="0 0 24 24" fill="none">
       <path d="M4 10h12" />
       <path d="M4 14h9" />
@@ -570,7 +574,7 @@
           <div class="flow-node">
             <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
             <span class="flow-value" id="homeFlowGrid">—</span>
-            <span class="flow-name">Grid</span>
+            <span class="flow-name" id="homeFlowGridName">Grid</span>
           </div>
         </div>
       </section>
@@ -798,13 +802,15 @@
         </button>
       </div>
       <div id="energyFeedback" class="energy-feedback" role="status" hidden></div>
-      <!-- Live energy-flow diagram: ☀️ Solar feeds 🏠 Home, the 🗼 Grid makes up
-           the difference (or absorbs the surplus). Values + arrow directions
-           come from GET /api/energy; an asleep inverter dims the Solar node. -->
-      <section class="card flow-card" aria-label="Energy flow">
+      <!-- The glance card (#883, Step 5/8 of #872): am I running on the sun?
+           ☀️ Solar feeds 🏠 Home, the 🗼 Grid makes up the difference (or
+           absorbs the surplus), then one line: self-sufficiency and
+           self-consumption right now. Values + arrow directions come from
+           GET /api/energy; an asleep inverter dims the Solar node. -->
+      <section class="card flow-card energy-glance" aria-label="Energy now">
         <!-- Compact inline flow: Solar → Home ← Grid, in one row. Home sits in
-             the middle (the consumer); arrows show which way power flows and are
-             coloured in JS. Net + self-consumption read from the banner/tiles. -->
+             the middle (the consumer); the arrows and the Grid node's name say
+             which way power flows. Direction is not a status, so no colour. -->
         <div class="flow-row">
           <div class="flow-node" id="flowNodePv">
             <svg class="icon flow-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
@@ -821,184 +827,151 @@
           <div class="flow-node" id="flowNodeGrid">
             <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
             <span class="flow-value" id="flowGrid">—</span>
-            <span class="flow-name">Grid</span>
+            <span class="flow-name" id="flowGridName">Grid</span>
           </div>
         </div>
+        <p class="energy-glance-line">
+          <span id="liveSelfSuff">—</span> self-sufficient now<span id="liveSelfConsPart"> · <span id="liveSelfCons">—</span> of solar used here</span>
+        </p>
       </section>
 
-      <!-- Instantaneous efficiency tiles. -->
-      <section class="metric-tiles" aria-label="Live efficiency">
-        <div class="card metric-tile">
-          <span class="metric-label">Self-sufficiency</span>
-          <span class="metric-value" id="liveSelfSuff">—</span>
+      <!-- Today: what the array made and what the house used, each a meter
+           (design.md `meter`), then the day's savings. Fed by
+           /api/energy/today and the day's tariff estimate. -->
+      <section class="card action-list energy-today" aria-labelledby="energyTodayTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+          <h3 id="energyTodayTitle" class="group-title">Today</h3>
+          <span class="group-meta">estimated</span>
         </div>
-        <div class="card metric-tile">
-          <span class="metric-label">Self-consumption</span>
-          <span class="metric-value" id="liveSelfCons">—</span>
-        </div>
-      </section>
-
-      <!-- Today's generation: self-consumed vs fed back to the grid. -->
-      <section class="card split-card" aria-label="Today's generation">
-        <div class="split-head">
-          <h3 class="split-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-sun"></use></svg>Today's generation</h3>
-          <span class="split-total" id="genTotal">—</span>
-        </div>
-        <div class="split-legend">
-          <div class="split-leg">
-            <span class="split-leg-name">Self-consumption</span>
-            <span class="split-leg-val" id="genSelf">—</span>
+        <div class="energy-today-body">
+          <!-- Made: the fill is the share of today's solar used in the house. -->
+          <div class="today-meter">
+            <span class="today-meter-label">Made</span>
+            <span class="meter" role="meter" aria-label="Share of today's solar used here" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="meter-fill" id="genBar"></span></span>
+            <span class="today-meter-value" id="genTotal">—</span>
+            <span class="today-meter-meta"><span id="genSelf">—</span> used here (<span id="genPct">—</span>) · <span id="genFeed">—</span> exported</span>
           </div>
-          <div class="split-leg split-leg-end">
-            <span class="split-leg-name">Grid feed-in</span>
-            <span class="split-leg-val" id="genFeed">—</span>
+          <!-- Used: the fill is the share of today's use covered by the sun. -->
+          <div class="today-meter">
+            <span class="today-meter-label">Used</span>
+            <span class="meter" role="meter" aria-label="Share of today's use covered by solar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="meter-fill" id="consBar"></span></span>
+            <span class="today-meter-value" id="consTotal">—</span>
+            <span class="today-meter-meta"><span id="consSelf">—</span> from the sun (<span id="consPct">—</span>) · <span id="consGrid">—</span> from the grid</span>
           </div>
-        </div>
-        <div class="split-bar"><span class="split-bar-fill split-bar-gen" id="genBar"></span></div>
-        <span class="split-pct muted small" id="genPct">—</span>
-        <!-- Only shown when today's feed dropped out mid-hour: the total above
-             is exactly as measured, so a gap makes it read low for a reason
-             that has nothing to do with the array (#579). -->
-        <span class="split-pct muted small" id="genGap" hidden></span>
-      </section>
-
-      <!-- Today's consumption: covered by solar vs drawn from the grid. -->
-      <section class="card split-card" aria-label="Today's consumption">
-        <div class="split-head">
-          <h3 class="split-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-house"></use></svg>Today's consumption</h3>
-          <span class="split-total" id="consTotal">—</span>
-        </div>
-        <div class="split-legend">
-          <div class="split-leg">
-            <span class="split-leg-name">Self-sufficiency</span>
-            <span class="split-leg-val" id="consSelf">—</span>
-          </div>
-          <div class="split-leg split-leg-end">
-            <span class="split-leg-name">Grid-supplied</span>
-            <span class="split-leg-val" id="consGrid">—</span>
-          </div>
-        </div>
-        <div class="split-bar"><span class="split-bar-fill split-bar-cons" id="consBar"></span></div>
-        <span class="split-pct muted small" id="consPct">—</span>
-      </section>
-
-      <!-- Your savings — a rough, clearly-labelled estimate from today's PV. -->
-      <section class="card savings-card" aria-label="Your savings">
-        <h3 class="savings-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-sprout"></use></svg>Your savings <span class="muted small">· today, estimated</span></h3>
-        <div class="savings-grid">
-          <div class="savings-stat">
-            <span class="savings-label">€ saved</span>
-            <span class="savings-value" id="savEur">—</span>
-          </div>
-          <div class="savings-stat">
-            <span class="savings-label">CO₂ avoided</span>
-            <span class="savings-value" id="savCo2">—</span>
-          </div>
-          <div class="savings-stat">
-            <span class="savings-label">Trees equivalent</span>
-            <span class="savings-value" id="savTrees">—</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="card chart-card">
-        <h3 class="chart-title">Live flow <span id="liveMeta" class="muted small"></span></h3>
-        <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
-      </section>
-
-      <section class="card chart-card">
-        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-zap"></use></svg>Energy</h3>
-        <nav class="segmented" id="aggRange" role="group" aria-label="Energy range">
-          <button id="rangeDay" type="button" class="segmented-item" aria-pressed="true" data-range="day">Day</button>
-          <button id="rangeWeek" type="button" class="segmented-item" aria-pressed="false" data-range="week">Week</button>
-          <button id="rangeMonth" type="button" class="segmented-item" aria-pressed="false" data-range="month">Month</button>
-          <button id="rangeYear" type="button" class="segmented-item" aria-pressed="false" data-range="year">Year</button>
-          <button id="rangeTotal" type="button" class="segmented-item" aria-pressed="false" data-range="total">Σ</button>
-        </nav>
-        <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
-        <div class="energy-summary" id="energySummary"></div>
-        <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
-      </section>
-
-      <!-- Cost & savings breakdown — grid energy priced per tariff period, with
-           self-consumed PV valued at the avoided rate, across the five windows. -->
-      <section class="card cost-card" aria-label="Cost and savings breakdown">
-        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-euro"></use></svg>Money <span id="costMeta" class="muted small"></span></h3>
-        <nav class="segmented" id="costRange" role="group" aria-label="Cost range">
-          <button type="button" class="segmented-item" aria-pressed="true" data-crange="day">Day</button>
-          <button type="button" class="segmented-item" aria-pressed="false" data-crange="week">Week</button>
-          <button type="button" class="segmented-item" aria-pressed="false" data-crange="month">Month</button>
-          <button type="button" class="segmented-item" aria-pressed="false" data-crange="year">Year</button>
-          <button type="button" class="segmented-item" aria-pressed="false" data-crange="total">Σ</button>
-        </nav>
-        <div class="cost-table-wrap">
-          <table class="cost-table">
-            <thead>
-              <tr>
-                <th scope="col">Period</th>
-                <th scope="col">Rate</th>
-                <th scope="col">Grid kWh</th>
-                <th scope="col">Solar kWh</th>
-                <th scope="col">Spent</th>
-                <th scope="col">Saved</th>
-                <th scope="col">Earned</th>
-              </tr>
-            </thead>
-            <tbody id="costBody"></tbody>
-            <tfoot id="costFoot"></tfoot>
-          </table>
-        </div>
-        <div class="cost-summary" id="costSummary"></div>
-        <div class="chart-wrap chart-wrap-export"><canvas id="exportCreditChart"></canvas></div>
-        <p id="costEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
-        <p class="muted small cost-note" id="costNote"></p>
-      </section>
-
-      <details class="card card--collapsible export-rate-card" id="exportRateCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-euro"></use></svg>
-            <h3 class="collapse-title">Export compensation</h3>
-            <span id="exportRateCurrent" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="export-rate-body">
-          <p class="muted small">Add the rate from the date it takes effect. Earlier entries stay in the history.</p>
-          <div id="exportRateList" class="alarm-schedule-list"></div>
-          <div class="export-rate-form">
-            <input id="exportRateOriginalDate" type="hidden">
-            <label><span>Effective from</span><input id="exportRateDate" type="date" class="input-native"></label>
-            <label><span>EUR / kWh</span><input id="exportRateValue" type="number" min="0" max="10" step="0.00001" inputmode="decimal" class="input-native" placeholder="0.00000"></label>
-            <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
-            <div class="export-rate-actions">
-              <button id="exportRateDelete" type="button" class="button-ghost" hidden>Delete</button>
-              <button id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
+          <div class="kpis">
+            <div class="kpi">
+              <span class="kpi-label">Saved</span>
+              <span class="kpi-value" id="savEur">—</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">CO₂ avoided</span>
+              <span class="kpi-value" id="savCo2">—</span>
+              <span class="kpi-sub"><span id="savTrees">—</span> tree-years</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Export</span>
+              <span class="kpi-value" id="savExport">—</span>
             </div>
           </div>
-          <p id="exportRateError" class="field-error" role="alert" hidden></p>
         </div>
-      </details>
+        <!-- Only shown when today's feed dropped out mid-hour: the totals above
+             are exactly as measured, so a gap makes them read low for a reason
+             that has nothing to do with the array (#579). -->
+        <p class="muted small group-note" id="genGap" hidden></p>
+      </section>
+
+      <!-- History (decision 9 of #872): one period picker and an Energy /
+           Money switch over one chart, instead of three cards with two
+           pickers. Live is the last hour of the flow (energy only); Money is
+           the tariff estimate, its tariff periods as rows, and every figure
+           one tap away in the All figures sheet. -->
+      <section class="card action-list energy-history" aria-labelledby="energyHistoryTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>
+          <h3 id="energyHistoryTitle" class="group-title">History</h3>
+        </div>
+        <div class="energy-history-body">
+          <div class="segmented" id="historyRange" role="group" aria-label="History period">
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="live">Live</button>
+            <button type="button" class="segmented-item" aria-pressed="true" data-range="day">Day</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="week">Week</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="month">Month</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="year">Year</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="total">All</button>
+          </div>
+          <div class="segmented" id="historyView" role="group" aria-label="History shows">
+            <button type="button" class="segmented-item" aria-pressed="true" data-view="energy">Energy</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-view="money">Money</button>
+          </div>
+
+          <div id="historyLive" class="history-view" hidden>
+            <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
+            <p id="liveMeta" class="muted small history-note"></p>
+          </div>
+
+          <div id="historyEnergy" class="history-view">
+            <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
+            <div class="kpis" id="energySummary"></div>
+            <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
+          </div>
+
+          <div id="historyMoney" class="history-view" hidden>
+            <div class="chart-wrap chart-wrap-export"><canvas id="exportCreditChart"></canvas></div>
+            <div class="kpis" id="costSummary"></div>
+            <p id="costEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
+          </div>
+        </div>
+        <div id="historyMoneyRows" hidden>
+          <ul id="costPeriods" class="action-rows cost-periods"></ul>
+          <ul class="action-rows group-links">
+            <li class="action-row">
+              <button id="energyFiguresOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+                <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg></span>
+                <span class="action-row-text">
+                  <span class="action-row-title">All figures</span>
+                  <span class="action-row-meta"><span id="energyFiguresMeta" class="action-row-meta-text">Bill, savings and each tariff period</span></span>
+                </span>
+                <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              </button>
+            </li>
+            <li class="action-row">
+              <button id="exportRateOpen" type="button" class="action-row-main has-avatar group-link">
+                <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-euro"></use></svg></span>
+                <span class="action-row-text">
+                  <span class="action-row-title">Export rate</span>
+                  <span class="action-row-meta"><span id="exportRateRowMeta" class="action-row-meta-text">Edited in Settings</span></span>
+                </span>
+                <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              </button>
+            </li>
+          </ul>
+          <p class="muted small group-note" id="costNote"></p>
+        </div>
+      </section>
 
       <!-- Solar forecast — expected generation (Open-Meteo tilted irradiance,
            scaled by the configured PV array) as a dashed curve, with the day's
            measured generation overlaid. A rough, clearly-labelled estimate; the
            card stays empty-noted until config/pv_system.json exists (issue #39). -->
-      <section class="card forecast-card" aria-label="Solar generation forecast">
-        <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-sun"></use></svg>Solar forecast <span id="forecastMeta" class="muted small"></span></h3>
-        <nav class="segmented" id="forecastDay" role="group" aria-label="Forecast day">
-          <button type="button" class="segmented-item" aria-pressed="false" data-day="yesterday">Yesterday</button>
-          <button type="button" class="segmented-item" aria-pressed="true" data-day="today">Today</button>
-          <button type="button" class="segmented-item" aria-pressed="false" data-day="tomorrow">Tomorrow</button>
-        </nav>
-        <p class="forecast-headline" id="forecastHeadline">—</p>
-        <p class="forecast-params muted small" id="forecastParams"></p>
-        <div class="chart-wrap chart-wrap-forecast"><canvas id="forecastChart"></canvas></div>
-        <p id="forecastEmpty" class="muted small chart-empty" hidden>Add your panel rows in the PV system card in Settings to enable the forecast.</p>
+      <section class="card action-list forecast-card" aria-labelledby="forecastTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-cloud-sun"></use></svg>
+          <h3 id="forecastTitle" class="group-title">Solar forecast</h3>
+          <span id="forecastMeta" class="group-meta"></span>
+        </div>
+        <div class="forecast-body">
+          <div class="segmented" id="forecastDay" role="group" aria-label="Forecast day">
+            <button type="button" class="segmented-item" aria-pressed="false" data-day="yesterday">Yesterday</button>
+            <button type="button" class="segmented-item" aria-pressed="true" data-day="today">Today</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-day="tomorrow">Tomorrow</button>
+          </div>
+          <p class="forecast-headline" id="forecastHeadline">—</p>
+          <div class="chart-wrap chart-wrap-forecast"><canvas id="forecastChart"></canvas></div>
+          <p id="forecastEmpty" class="muted small chart-empty" hidden>Add your panel rows in the PV system card in Settings to enable the forecast.</p>
+        </div>
+        <p class="muted small group-note forecast-params" id="forecastParams"></p>
       </section>
-
-
-
     </section>
 
     <!-- =============================== IOT =============================== -->
@@ -1683,6 +1656,35 @@
         </div>
       </details>
 
+      <!-- Export compensation (moved here from the Energy tab by #883, Step 5/8
+           of #872): the export-rate history and its editor are a rare,
+           settings-shaped job. The Energy tab's Money view links here. -->
+      <details class="card card--collapsible export-rate-card" id="exportRateCard">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-euro"></use></svg>
+            <h3 class="collapse-title">Export compensation</h3>
+            <span id="exportRateCurrent" class="muted small security-hidden-count">—</span>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="export-rate-body">
+          <p class="muted small">Add the rate from the date it takes effect. Earlier entries stay in the history.</p>
+          <div id="exportRateList" class="alarm-schedule-list"></div>
+          <div class="export-rate-form">
+            <input id="exportRateOriginalDate" type="hidden">
+            <label><span>Effective from</span><input id="exportRateDate" type="date" class="input-native"></label>
+            <label><span>EUR / kWh</span><input id="exportRateValue" type="number" min="0" max="10" step="0.00001" inputmode="decimal" class="input-native" placeholder="0.00000"></label>
+            <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
+            <div class="export-rate-actions">
+              <button id="exportRateDelete" type="button" class="button-ghost" hidden>Delete</button>
+              <button id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
+            </div>
+          </div>
+          <p id="exportRateError" class="field-error" role="alert" hidden></p>
+        </div>
+      </details>
+
       <!-- Solar boost sequencing (issue #562) — the fleet-level knobs deciding
            how A/C units enter and leave solar boost: one at a time, measuring
            real surplus between steps, instead of every eligible unit reacting to
@@ -2025,6 +2027,24 @@
       <p class="muted small detail-hint">After N triggers in one armed session, the detector is bypassed until the next arm.</p>
       <div class="detail-actions">
         <button id="securityOverridesSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Energy › History › All figures (#883): every figure the Money view
+       summarises, for the selected period: the bill estimate and savings, then
+       each tariff period's rate, kWh and euros. Read-only, so it only has Done.
+       Filled by energy.js renderCost(). -->
+  <dialog id="energyFiguresSheet" class="detail-dialog energy-figures-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>All figures</h2>
+        <button id="energyFiguresSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="energyFiguresRange" class="muted small detail-hint"></p>
+      <div id="energyFiguresBody" class="energy-figures"></div>
+      <div class="detail-actions">
+        <button id="energyFiguresSheetDone" type="button" class="detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>

@@ -612,14 +612,18 @@ the actionable alarm tile, a one-line-per-unit AC summary with inline power
 toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
 card as the Energy tab; alarm + AC act, the rest inform),
 **AC** (one row per unit with its power switch; the unit sheet holds the rest),
-**Energy** (a stacked-area solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
-flow row with a colour-coded grid arrow (blue ◀ importing, green ▶ exporting),
-self-sufficiency / self-consumption tiles, today's generation & consumption split
-cards, a savings estimate (€ saved on self-consumed PV at the configured tiered
-rate, plus CO₂ avoided + trees), an all-positive Generation/Grid-supplied/Consumption
-live chart, a Day/Week/Month/Year/Σ history chart, and a **cost & savings
-breakdown** table (grid energy priced per time-of-use period, self-consumed PV
-valued at the avoided rate — see *Electricity tariff* below), **🔌 Devices** (the
+**Energy** (on the shared system since #883: a glance card with the live
+☀️ Solar · 🏠 Home · 🗼 Grid flow row — the arrows and the Grid node's name,
+Exporting / Importing, say which way power flows — and one line of
+self-sufficiency and self-consumption now; a **Today** card with two meters,
+Made (share used in the house) and Used (share covered by the sun), plus € saved
+on self-consumed PV at the configured tiered rate, CO₂ avoided with its
+tree-years, and export income; one **History** card with one period picker,
+Live · Day · Week · Month · Year · All, and an **Energy / Money** switch — Live is
+the all-positive Generation/Grid-supplied/Consumption chart of the last hour,
+Energy the history chart with its five totals, Money the tariff estimate with a
+row per time-of-use period and every figure in an **All figures** sheet, see
+*Electricity tariff* below; and the **Solar forecast**), **🔌 Devices** (the
 former IoT tab: every local device on one surface — Smart Life plugs, Elgato
 lights, and blinds, each a collapsible row list, plus the UPS tile and the PC
 fleet — see below), and **🛡️ Security** (RISCO alarm controls, schedules, event
@@ -708,8 +712,8 @@ billing-grade meter read.
 
 ### Electricity tariff (cost & savings)
 
-The Energy tab's **cost & savings breakdown** prices grid energy per time-of-use
-period and values the self-consumed PV at the same avoided rate. Rates come from
+The Energy tab's **History › Money** view (the cost & savings breakdown) prices
+grid energy per time-of-use period and values the self-consumed PV at the same avoided rate. Rates come from
 a per-machine tariff file:
 
 - **Config:** `config/tariff.json` (gitignored) — copy `config/tariff.sample.json`
@@ -728,10 +732,12 @@ a per-machine tariff file:
   with the prorated fixed standing charge, an estimated bill, and the "without
   solar" cost. Export is credited per hour using the latest dated `export_rates`
   entry effective at that time, surfaced with grid cost and avoided cost in the
-  **Money** report, and already netted into the estimated bill. Dated rates can
-  be added, edited, or deleted in the Energy tab without restarting; an optional
+  **Money** view, and already netted into the estimated bill. Dated rates can
+  be added, edited, or deleted in **Settings › Export compensation** (moved off
+  the Energy tab by #883; Money's **Export rate** row opens it) without
+  restarting; an optional
   24-value hourly schedule overrides the dated default, and legacy
-  `export_eur_kwh` files still load. The matching **Energy** report shows
+  `export_eur_kwh` files still load. The matching **Energy** view shows
   production, consumption, solar consumed, grid imported, and solar exported.
 
 How the period prices and the model are derived from a real PVPC 2.0TD invoice —
@@ -739,7 +745,7 @@ including the PVPC hourly-market approximation and the bono-social handling — 
 documented in [`docs/tariff-model.md`](docs/tariff-model.md).
 
 > **Data-retention caveat.** The breakdown is computed from the local history DB,
-> so the **Year** and **Σ Total** windows only fill in as the sampler accrues
+> so the **Year** and **All** windows only fill in as the sampler accrues
 > data (hourly rollups are kept `ENERGY_HOURLY_RETENTION_DAYS`, default ~400
 > days). A freshly-started instance shows mostly empty long windows until history
 > builds up — this is an estimate from monitored data, not your utility's meter.
@@ -848,8 +854,8 @@ input.
   about the real obstruction geometry), nothing changes, same contract as the
   thermal term above. See [`docs/pv-forecast.md`](docs/pv-forecast.md) →
   "Horizon / shading profile".
-- **Editing it:** the Energy tab's **PV system** card (directly under the
-  forecast card) adds/edits/removes panel rows, horizon points, and the shared
+- **Editing it:** the **PV system** card in Settings (on the Energy tab
+  until #779) adds/edits/removes panel rows, horizon points, and the shared
   performance ratio and coordinates — no file editing needed, and no restart:
   the forecast reads the config per request. The file stays the source of
   truth and remains hand-editable (`config/pv_system.sample.json` is the

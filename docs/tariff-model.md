@@ -1,12 +1,12 @@
 # Electricity tariff model
 
-How the Energy-tab **cost & savings breakdown** turns monitored energy into money, and how the default per-period prices were derived from a real Spanish PVPC 2.0TD invoice. The code lives in `src/tariff.py`; the rates live in `config/tariff.json` (gitignored; copy `config/tariff.sample.json`).
+How the Energy tab's **History › Money** view (the cost & savings breakdown) turns monitored energy into money, and how the default per-period prices were derived from a real Spanish PVPC 2.0TD invoice. The code lives in `src/tariff.py`; the rates live in `config/tariff.json` (gitignored; copy `config/tariff.sample.json`).
 
 This is a **household-monitoring estimate**, not a billing-grade meter read. It is good enough to compare periods, track self-consumption value, and size the eventual solar load-balancing automation — but it will not match your utility bill to the cent.
 
 ## What it computes
 
-For each hour in the selected window (Day / Week / Month / Year / Σ Total), the model:
+For each hour in the selected window (Day / Week / Month / Year / All), the model:
 
 1. Assigns the hour to a **time-of-use period** from its local date/time (see the 2.0TD calendar below).
 2. Prices the **grid import** for that hour at the period's all-in €/kWh.
@@ -77,11 +77,11 @@ prorated by the window's day count and grossed up by VAT. It feeds the summary's
 
 ## Export income (surplus compensation)
 
-Export credit is priced hour by hour: `hourly export kWh × the latest export_rates entry effective on or before that local date`. The Energy tab's collapsible Export compensation editor can add, edit, and delete dated rates. Each entry may also carry 24 hourly overrides (00–23); a blank hour falls back to that entry's default. The open Money report plots grid cost, avoided-import savings, and export income, while its summary shows their totals and total solar benefit. Use the rate your surplus-compensation product pays; with no compensation contracted, enter `0.0`. Existing files with one `export_eur_kwh` scalar remain readable and that legacy value applies to all dates until the first UI save migrates it to the dated list.
+Export credit is priced hour by hour: `hourly export kWh × the latest export_rates entry effective on or before that local date`. The Export compensation editor in Settings (on the Energy tab until #883; the Money view's Export rate row opens it) can add, edit, and delete dated rates. Each entry may also carry 24 hourly overrides (00–23); a blank hour falls back to that entry's default. The Money view plots grid cost, avoided-import savings, and export income; its All figures sheet shows their totals and total solar benefit, and each period's rate, kWh and euros. Use the rate your surplus-compensation product pays; with no compensation contracted, enter `0.0`. Existing files with one `export_eur_kwh` scalar remain readable and that legacy value applies to all dates until the first UI save migrates it to the dated list.
 
 ## Limitations
 
 - Flat-average commodity price (see above) — replace per-invoice for accuracy.
 - Holidays must be listed manually in `config/tariff.json` (`holidays: ["YYYY-MM-DD", …]`); unlisted national/local holidays are billed as their weekday period instead of valle.
-- Long windows (Year, Σ Total) only fill as the local history DB accrues data — see the data-retention note in the README.
+- Long windows (Year, All) only fill as the local history DB accrues data — see the data-retention note in the README.
 - Export rates are user-entered rather than downloaded from PVPC/ESIOS; the real schemes' banking/expiry rules (monthly netting cap on PVPC, multi-year rollover on a monedero virtual) are not modelled, and no running monedero balance is persisted.
