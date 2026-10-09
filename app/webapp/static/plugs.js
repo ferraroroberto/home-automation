@@ -98,6 +98,26 @@ export async function toggleSwitch(device, btn) {
   }
 }
 
+// Dim a Tuya light (#870). Exported for the Lights card's slider; like the
+// Elgato slider it does not toast on success (it fires on every release), and
+// re-renders from the read-back card.
+export async function setTuyaBrightness(device, pct) {
+  try {
+    const updated = await jsonApi(
+      '/api/tuya/' + encodeURIComponent(device.device_id) + '/brightness',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brightness: pct }),
+      },
+    );
+    patchPlug(device.device_id, updated);
+    renderPlugs();
+  } catch (exc) {
+    reportActionFailure(exc, 'Brightness failed');
+  }
+}
+
 async function coverAction(device, action) {
   try {
     toast('Sending…', 'pending');

@@ -3,7 +3,8 @@
 ``GET /api/tuya`` lists every captured Tuya device with its live switch state
 and current wattage; ``POST /api/tuya/{id}/switch`` and
 ``POST /api/tuya/{id}/cover`` write on/off and blind controls, and
-``POST /api/tuya/covers`` moves a group of blinds at once (issue #181). Everything here
+``POST /api/tuya/covers`` moves a group of blinds at once (issue #181), and
+``POST /api/tuya/{id}/brightness`` dims a Tuya light (issue #870). Everything here
 is LAN-only through the gitignored ``devices.json`` — no Tuya Cloud at runtime.
 The one exception is ``POST /api/tuya/pair`` (issue #612), the explicit
 "Add device" action that captures a newly-paired device's identity and local
@@ -39,6 +40,7 @@ from src.tuya_client import (
     list_devices,
     read_device_state,
     rescan_addresses,
+    set_brightness,
     set_cover,
     set_switch,
 )
@@ -88,6 +90,7 @@ def _base_card(
         "has_switch": info.switch_dps is not None,
         "has_cover": info.cover_control_dps is not None,
         "is_light": info.is_light,
+        "has_brightness": info.brightness_dps is not None,
         "metered": bool(info.energy_dps),
         "has_valid_ip": info.has_valid_ip,
         "reachable": False,
@@ -96,6 +99,7 @@ def _base_card(
         "current_ma": None,
         "voltage_v": None,
         "energy_kwh": None,
+        "brightness_pct": None,
         "error": None,
     }
 
@@ -142,6 +146,7 @@ def _read_one(
         current_ma=state.get("current_ma"),
         voltage_v=state.get("voltage_v"),
         energy_kwh=state.get("energy_kwh"),
+        brightness_pct=state.get("brightness_pct"),
     )
     return card
 
@@ -328,7 +333,16 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 — telemetry is best-effort
         logger.debug("telemetry plug-toggle event skipped", exc_info=True)
 
-    # Read back so the card re-renders from live state, not the requested value.
+    card = await _read_back(device_id)
+    return card if card is not None else {"device_id": device_id, "reachable": False, "switch_on": on}
+
+
+async def _read_back(device_id: str) -> Optional[Dict[str, Any]]:
+    """Re-read one device after a write so its card renders live state.
+
+    Best-effort: ``None`` (and a snapshot invalidation) when the read fails,
+    so the caller answers with what it knows rather than an error.
+    """
     try:
         overrides = load_tuya_display_names()
         hidden_ids = load_hidden_tuya_ids()
@@ -341,11 +355,33 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
         card = None
     if card is None:
         TUYA_SNAPSHOT.invalidate()
-        return {"device_id": device_id, "reachable": False, "switch_on": on}
+        return None
     TUYA_SNAPSHOT.update(
         lambda cards: [card if c["device_id"] == device_id else c for c in cards]
     )
     return card
+
+
+class BrightnessPayload(BaseModel):
+    brightness: int
+
+
+@router.post("/api/tuya/{device_id}/brightness")
+async def control_brightness(device_id: str, payload: BrightnessPayload) -> Dict[str, Any]:
+    """Dim a Tuya light to 1–100 % of its own range (issue #870)."""
+    try:
+        await asyncio.to_thread(set_brightness, device_id, payload.brightness)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except TuyaDeviceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except (TuyaCommandError, TuyaConfigError) as exc:
+        TUYA_SNAPSHOT.invalidate()
+        raise HTTPException(status_code=502, detail=str(exc))
+    card = await _read_back(device_id)
+    return card if card is not None else {
+        "device_id": device_id, "reachable": False, "brightness_pct": payload.brightness,
+    }
 
 
 @router.post("/api/tuya/{device_id}/cover")
