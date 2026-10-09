@@ -2095,6 +2095,10 @@ button.circuit-meter-name {
   margin-top: var(--space-sm);
 }
 .blind-schedule-targets .alarm-schedule-day { padding: 0 12px; }
+/* The alarm-pairing switch (#875) reuses the notification toggle row; the
+   Blinds card body already carries the side padding. */
+.blind-schedules-body .notify-toggles { padding: 0; }
+.blind-alarm-note { margin: 2px 0 0; }
 @media (max-width: 420px) {
   .alarm-schedule-entry .schedule-entry-head { grid-template-columns: 1fr auto; }
   .alarm-schedule-entry .schedule-enabled { grid-column: 1 / -1; }

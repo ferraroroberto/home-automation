@@ -34,6 +34,18 @@ def _stub_schedules(page: Page, entries: List[Dict]) -> List[Dict]:
     return puts
 
 
+def _stub_alarm_pairing(page: Page) -> None:
+    """Stub GET/PUT /api/blinds/alarm-pairing (#875), off until a PUT."""
+    store = {"follow_alarm": False}
+
+    def handle(route: Route) -> None:
+        if route.request.method == "PUT":
+            store["follow_alarm"] = bool(route.request.post_data_json.get("follow_alarm"))
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(store))
+
+    page.route("**/api/blinds/alarm-pairing", handle)
+
+
 def _boot(page: Page, base_url: str, sample_units, mock_api, mock_energy, mock_tuya,
           entries: List[Dict]) -> List[Dict]:
     page.set_viewport_size({"width": 390, "height": 844})
@@ -44,6 +56,7 @@ def _boot(page: Page, base_url: str, sample_units, mock_api, mock_energy, mock_t
         {**_BLIND, "device_id": "blind-b", "name": "Test Blind B"},
     ])
     puts = _stub_schedules(page, entries)
+    _stub_alarm_pairing(page)
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
     page.locator("#tabIot").click()
@@ -98,3 +111,26 @@ def test_blind_schedule_lists_and_adds_an_entry(
     expect(rows.first.locator(".automation-summary-meta")).to_have_text(
         "Up · Weekends · Someone home · Test Blind B"
     )
+
+
+def test_blinds_follow_alarm_switch_saves(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    _boot(page, base_url, sample_units, mock_api, mock_energy, mock_tuya, [])
+
+    # #875: one visible, labelled switch on the Blinds card, off by default.
+    switch = page.locator("#blindsFollowAlarm")
+    expect(switch).to_be_visible()
+    expect(switch).to_have_attribute("aria-checked", "false")
+    expect(page.locator("#blindsCard .notify-toggle span").first).to_have_text(
+        "Follow the automatic alarm"
+    )
+    assert_no_horizontal_overflow(page)
+
+    with page.expect_request(
+        lambda r: r.url.endswith("/api/blinds/alarm-pairing") and r.method == "PUT"
+    ) as request:
+        switch.click()
+    assert request.value.post_data_json == {"follow_alarm": True}
+    expect(switch).to_have_attribute("aria-checked", "true")

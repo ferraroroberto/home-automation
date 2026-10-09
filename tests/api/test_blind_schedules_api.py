@@ -38,3 +38,16 @@ def test_blind_schedules_round_trip(client: TestClient, store) -> None:
 def test_blind_schedules_reject_a_non_list(client: TestClient, store) -> None:
     response = client.put("/api/blinds/schedules", json={"entries": {"id": "x"}})
     assert response.status_code == 400
+
+
+def test_alarm_pairing_switch_round_trips(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import src.blind_automation as B
+
+    monkeypatch.setattr(B, "ALARM_PREFS_PATH", tmp_path / "blind_alarm.json")
+    assert client.get("/api/blinds/alarm-pairing").json() == {"follow_alarm": False}
+    put = client.put("/api/blinds/alarm-pairing", json={"follow_alarm": True})
+    assert put.status_code == 200 and put.json() == {"follow_alarm": True}
+    assert client.get("/api/blinds/alarm-pairing").json() == {"follow_alarm": True}
+    assert client.put("/api/blinds/alarm-pairing", json={}).status_code == 422

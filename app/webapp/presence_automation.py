@@ -23,6 +23,7 @@ from app.webapp.alarm_notify import (
     record_alarm_action,
 )
 from app.webapp.alarm_scene_automation import consider_security_read
+from app.webapp.blind_schedules import follow_alarm
 from app.webapp.presence_refresher import PresenceDiagnosticsCache, get_cache
 from app.webapp.security_override_automation import (
     consider_security_read as consider_security_override,
@@ -533,6 +534,10 @@ async def tick() -> None:
                 outcome=OUTCOME_OK,
                 detail=decision.reason,
             )
+            # Issue #875: the blinds follow a *confirmed* arm/disarm when the
+            # Blinds card's switch is on. Never raises, and runs after the
+            # alarm is recorded so it cannot change that outcome.
+            await follow_alarm(decision.kind, decision.action)
         else:
             logger.warning("⚠️ Presence automation action failed: %s", failure)
             # Failure leaves the decision un-applied, so the loop retries every tick;

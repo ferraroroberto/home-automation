@@ -1134,6 +1134,20 @@
             <div id="blindSchedules" class="alarm-schedule-list"></div>
             <p id="blindSchedulesNote" class="muted small" hidden></p>
             <button id="blindScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+            <!-- Alarm pairing (#875): the one visible switch. Fired from the
+                 presence automation after the panel confirms the action. -->
+            <h4 class="net-group-head">Alarm</h4>
+            <div class="notify-toggles">
+              <div class="notify-toggle">
+                <span>Follow the automatic alarm</span>
+                <button id="blindsFollowAlarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Follow the automatic alarm">
+                  <span class="knob"></span><span class="toggle-label">OFF</span>
+                </button>
+              </div>
+            </div>
+            <p class="muted small blind-alarm-note">
+              All down when everyone has left and the alarm arms full. All up when the first person arrives and it disarms, in daytime only. Kids home (perimeter) leaves them up.
+            </p>
           </div>
         </div>
       </details>

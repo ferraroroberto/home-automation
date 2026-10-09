@@ -53,6 +53,14 @@ _DECISION = PresenceDecision(
 )
 
 
+_FOLLOWED: list[tuple] = []
+
+
+async def _record_follow_alarm(kind: str, action: str):
+    _FOLLOWED.append((kind, action))
+    return None
+
+
 def _wire_common(monkeypatch) -> None:
     async def fake_fetch_security_state() -> _FakeSecurity:
         return _FakeSecurity("disarmed")
@@ -78,6 +86,10 @@ def _wire_common(monkeypatch) -> None:
     # from their `{"p1": ...}` sentinel household; the roster's own behaviour is
     # covered in tests/test_presence_roster.py.
     monkeypatch.setattr(PA, "remember_known_people", lambda ids: tuple(ids))
+    # Issue #875: the blinds-follow-the-alarm hook. Never the real one here —
+    # it reads config/blind_alarm.json and would move real blinds.
+    monkeypatch.setattr(PA, "follow_alarm", _record_follow_alarm)
+    _FOLLOWED.clear()
 
     async def fake_sync_arm_block_diagnostic(
         security_mode: str, corroboration=None, known_person_ids=()
@@ -739,3 +751,39 @@ def test_a_successful_action_is_not_reported_as_failed_when_bookkeeping_read_fai
 
     assert [r["outcome"] for r in recorded] == [PA.OUTCOME_OK]
     assert "error" not in recorded[0]
+
+
+def test_presence_tick_lets_the_blinds_follow_a_confirmed_action(monkeypatch) -> None:
+    """#875: the blinds hook runs once, after the panel confirmed the arm."""
+    _wire_common(monkeypatch)
+
+    async def fake_confirm(action: str) -> _FakeConfirmState:
+        return _FakeConfirmState("armed")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        pass
+
+    monkeypatch.setattr(PA, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(PA, "mark_decision_applied", lambda d, o: None)
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
+
+    asyncio.run(PA.tick())
+
+    assert _FOLLOWED == [("arm", "arm")]
+
+
+def test_presence_tick_never_moves_blinds_when_the_action_failed(monkeypatch) -> None:
+    _wire_common(monkeypatch)
+
+    async def fake_confirm(action: str) -> _FakeConfirmState:
+        raise RiscoCommandError("RISCO rejected 'arm': D:")
+
+    async def fake_record_alarm_action(**kw) -> None:
+        pass
+
+    monkeypatch.setattr(PA, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(PA, "record_alarm_action", fake_record_alarm_action)
+
+    asyncio.run(PA.tick())
+
+    assert _FOLLOWED == []
