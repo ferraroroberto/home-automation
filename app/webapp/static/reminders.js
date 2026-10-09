@@ -14,6 +14,7 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { createPoller } from './poll.js';
+import { friendlyError } from './format.js';
 
 function reminderDefaults() {
   return { id: 'reminder-' + Date.now().toString(36), text: '', done: false, date: null, time: null, created_at: '' };
@@ -152,7 +153,7 @@ export async function loadReminders() {
     state.reminders = [];
     if (els.remindersNote) {
       els.remindersNote.hidden = false;
-      els.remindersNote.textContent = exc.message || 'Failed to load reminders.';
+      els.remindersNote.textContent = friendlyError(exc, 'Failed to load reminders.');
     }
   }
   renderReminders();

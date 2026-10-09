@@ -50,16 +50,17 @@ def test_tinted_and_solid_controls_clear_aa(
     mock_security()
     boot_home(page, base_url)
 
-    # Status text on its tint: the alarm action pills (attention + danger).
+    # The segmented alarm control (#879): the selected mode is accent text on
+    # its tint, an available mode fg on the card. Disarmed selects Off.
     page.wait_for_selector("#homeSecurityActions .security-action-arm:not(:disabled)")
-    for selector in (".security-action-partial", ".security-action-arm"):
+    for selector in (".security-action-disarm", ".security-action-partial", ".security-action-arm"):
         ratio = page.locator(f"#homeSecurityActions {selector}").evaluate(_CONTRAST_JS)
         assert ratio >= 4.5, (theme, selector, ratio)
 
-    # Accent text on the accent-soft tint: the active range tab.
+    # Accent text on the accent-soft tint: the selected period segment.
     page.locator("#tabEnergy").click()
-    ratio = page.locator("#paneEnergy .range-tab.active").first.evaluate(_CONTRAST_JS)
-    assert ratio >= 4.5, (theme, "range-tab.active", ratio)
+    ratio = page.locator('#paneEnergy .segmented-item[aria-pressed="true"]').first.evaluate(_CONTRAST_JS)
+    assert ratio >= 4.5, (theme, "segmented-item selected", ratio)
 
     # White on the solid primary fill.
     page.evaluate("() => document.getElementById('reminderDialog').showModal()")

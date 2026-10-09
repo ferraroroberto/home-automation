@@ -18,6 +18,7 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { friendlyError } from './format.js';
 
 // cameraId -> [{token, name}], fetched lazily so we don't hit every camera up front.
 const presetCache = {};
@@ -216,7 +217,7 @@ export async function loadScenePairings() {
     state.scenePairings = state.scenePairings || [];
     if (els.scenePairingsNote) {
       els.scenePairingsNote.hidden = false;
-      els.scenePairingsNote.textContent = exc.message || 'Failed to load pairings.';
+      els.scenePairingsNote.textContent = friendlyError(exc, 'Failed to load pairings.');
     }
   }
   renderScenePairings();

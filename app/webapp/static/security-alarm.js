@@ -20,6 +20,7 @@ import { renderSecurity } from './security.js';
 import { toggleMarkup } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { detailModal } from './detail-modal.js';
+import { chipEl } from './chip.js';
 
 // The "show hidden detectors" filter, on the shared localStorage wrapper.
 const showHiddenPref = persistedFlag(SECURITY_SHOW_HIDDEN_KEY, false);
@@ -82,7 +83,8 @@ function displayLabel() {
 function statusClass(mode) {
   if (mode === 'triggered') return 'is-alert';
   if (mode === 'disarmed') return 'is-disarmed';
-  if (mode === 'armed' || mode === 'arming') return 'is-armed';
+  if (mode === 'arming') return 'is-arming';
+  if (mode === 'armed') return 'is-armed';
   if (mode === 'partial') return 'is-partial';
   if (mode === 'perimeter') return 'is-perimeter';
   return '';
@@ -154,20 +156,41 @@ async function setBypass(zone, bypass, btn) {
   }
 }
 
+// The segment each panel mode selects (#879). Arming and triggered select
+// none: the state line names them.
+const MODE_SEGMENTS = {
+  disarmed: 'disarm',
+  partial: 'partial',
+  perimeter: 'perimeter',
+  armed: 'arm',
+};
+// Segment labels name the mode, so the selected one reads as the state
+// ("Off"); ACTION_LABELS keeps the verbs the schedule editor shows.
+const SEGMENT_LABELS = {
+  disarm: 'Off',
+  partial: 'Partial',
+  perimeter: 'Perimeter',
+  arm: 'Full',
+};
+
 // Alarm controls render into every registered container — the Security tab and
-// the Home tab both show the same actionable pills (issue #72). The full row
-// (Disarm · Partial · Perimeter · Full) always renders: each reachable action is
-// a tappable translucent colour pill, the rest fade out. The current state is
-// not specially highlighted on the pills — the "Alarm state: …" line carries it.
+// the Home tab both show the same control (issue #72). It is one segmented
+// control (#879, decision 3 of #872): the selected segment is the current
+// mode, in the accent like any selected state, because an armed alarm is
+// normal, not an emergency. Red is kept for a triggered alarm (the state line)
+// and amber for trouble. Off is always tappable (#223); the arm modes only
+// from disarmed, and the rest read as unavailable.
 function renderActionsInto(el) {
   if (!el) return;
   el.innerHTML = '';
+  const selected = MODE_SEGMENTS[currentMode()] || null;
   ACTIONS.forEach(function (action) {
     const available = actionAvailable(action);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'security-action security-action-' + action;
-    btn.textContent = ACTION_LABELS[action];
+    btn.className = 'segmented-item security-action security-action-' + action;
+    btn.textContent = SEGMENT_LABELS[action];
+    btn.setAttribute('aria-pressed', action === selected ? 'true' : 'false');
     btn.disabled = !available || actionBusy;
     if (actionBusy) {
       btn.title = 'Working…';
@@ -201,12 +224,10 @@ function renderStateInto(el) {
   word.textContent = label;
   el.appendChild(word);
   // System-wide AC-power-lost alert (issue #99): an aggregate cloud flag,
-  // dual-rendered onto Home + Security, clearing when false. Red --deficit tint
-  // because the panel running on backup power needs attention.
+  // dual-rendered onto Home + Security, clearing when false. Attention, not
+  // danger: the panel is on its backup battery and still protecting (#879).
   if (security && security.ac_lost) {
-    const badge = document.createElement('span');
-    badge.className = 'security-aclost-badge';
-    badge.innerHTML = icon('triangle-alert') + ' AC power lost';
+    const badge = chipEl('AC power lost', 'attention', 'security-aclost-badge');
     badge.title = 'The alarm panel lost mains power and is running on backup battery';
     el.appendChild(badge);
   }
@@ -215,9 +236,7 @@ function renderStateInto(el) {
   // Ignored ones (a known/accepted trouble) don't contribute, keeping it quiet.
   const troubled = troubledNotIgnoredCount();
   if (security && troubled > 0) {
-    const badge = document.createElement('span');
-    badge.className = 'security-trouble-badge';
-    badge.innerHTML = icon('triangle-alert') + ' Trouble (' + troubled + ')';
+    const badge = chipEl(troubled + ' trouble', 'attention', 'security-trouble-badge');
     badge.title = troubled + ' detector(s) reporting trouble — see the Detectors list';
     el.appendChild(badge);
   }
@@ -276,29 +295,20 @@ export function renderEvents() {
   });
 }
 
-// Build the flags row, rendering each flag as its own span so "Trouble" can
-// carry the amber attention colour while Active/Bypass/Triggered keep their
-// state colour (issue #104).
+// A detector's exception chips (#879): an active detector is the normal state
+// and shows none (its switch already says it). Triggered is danger, an
+// un-ignored trouble attention (#104), and bypassed or an ignored trouble a
+// neutral fact kept off the main-card count (#225).
 function renderZoneFlags(zone) {
   const flags = document.createElement('span');
   flags.className = 'security-zone-flags';
-  const parts = [];
-  if (zone.triggered) parts.push({ text: 'Triggered', cls: '' });
-  parts.push({ text: zone.bypassed ? 'Bypass' : 'Active', cls: '' });
-  // An ignored trouble renders muted "Trouble — ignored" and is kept off the
-  // main-card count; an un-ignored one keeps the amber attention tint (#225).
+  if (zone.triggered) flags.appendChild(chipEl('Triggered', 'danger'));
+  if (zone.bypassed) flags.appendChild(chipEl('Bypassed'));
   if (zone.trouble) {
-    parts.push(zone.trouble_ignored
-      ? { text: 'Trouble — ignored', cls: 'is-trouble-ignored' }
-      : { text: 'Trouble', cls: 'is-trouble' });
+    flags.appendChild(zone.trouble_ignored
+      ? chipEl('Trouble ignored')
+      : chipEl('Trouble', 'attention'));
   }
-  parts.forEach(function (part, i) {
-    if (i > 0) flags.appendChild(document.createTextNode(' · '));
-    const span = document.createElement('span');
-    span.className = 'security-zone-flag' + (part.cls ? ' ' + part.cls : '');
-    span.textContent = part.text;
-    flags.appendChild(span);
-  });
   return flags;
 }
 

@@ -565,11 +565,17 @@ async function loadSavingsEur() {
   }
 }
 
+// The selected segment is the state (#879): aria-pressed drives both the
+// styling and what assistive tech announces.
+function markSegments(btns, key, value) {
+  btns.forEach(function (btn) {
+    btn.setAttribute('aria-pressed', btn.dataset[key] === value ? 'true' : 'false');
+  });
+}
+
 function setCostRange(range) {
   state.costRange = range;
-  els.costRangeBtns.forEach(function (btn) {
-    btn.classList.toggle('active', btn.dataset.crange === range);
-  });
+  markSegments(els.costRangeBtns, 'crange', range);
   loadCost(range);
 }
 
@@ -635,9 +641,7 @@ async function loadForecast(day) {
 
 function setForecastDay(day) {
   state.forecastDay = day;
-  els.forecastDayBtns.forEach(function (btn) {
-    btn.classList.toggle('active', btn.dataset.day === day);
-  });
+  markSegments(els.forecastDayBtns, 'day', day);
   loadForecast(day);
 }
 
@@ -780,9 +784,7 @@ async function loadAggregate(range) {
 
 function setRange(range) {
   state.range = range;
-  els.rangeBtns.forEach(function (btn) {
-    btn.classList.toggle('active', btn.dataset.range === range);
-  });
+  markSegments(els.rangeBtns, 'range', range);
   if (state.aggChart) loadAggregate(range);
 }
 

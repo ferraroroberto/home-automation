@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
@@ -357,3 +358,53 @@ def test_event_log_rows_lead_with_the_event_not_the_time(
         # (time on its own line) sits above it.
         assert body_box["x"] <= time_box["x"] or body_box["y"] < time_box["y"]
     assert_no_horizontal_overflow(page)
+
+
+@pytest.mark.chromium_only
+def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """#879 (decision 3 of #872): the mode is the selected segment of one
+    control on both tabs, an armed alarm is a normal state (plain text, the
+    accent segment), trouble is an attention chip, and a detector that is
+    simply active carries no chip at all."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_presence()
+    zone = {"type": 1, "status": "closed", "active": False, "triggered": False,
+            "display_name": None, "hidden": False}
+    mock_security({
+        "reachable": True, "label": "Armed", "mode": "armed",
+        "supported_actions": ["disarm", "partial", "perimeter", "arm"],
+        "ac_lost": False, "assumed_control_panel_state": False,
+        "zones": [
+            {**zone, "id": 1, "name": "Back Door", "bypassed": False, "trouble": False},
+            {**zone, "id": 2, "name": "Garage", "bypassed": True, "trouble": True},
+        ],
+    })
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    for pane in ("#securityActions", "#homeSecurityActions"):
+        expect(page.locator(f"{pane} .security-action")).to_have_text(
+            ["Off", "Partial", "Perimeter", "Full"]
+        )
+        expect(page.locator(f'{pane} [aria-pressed="true"]')).to_have_text("Full")
+    # Off is the one way out of an armed mode; the other modes wait for it.
+    expect(page.locator("#securityActions .security-action:enabled")).to_have_text(["Off"])
+
+    word = page.locator("#securityState .security-state-word")
+    expect(word).to_have_text("Fully armed")
+    line_color = page.locator("#securityState").evaluate("el => getComputedStyle(el).color")
+    assert word.evaluate("el => getComputedStyle(el).color") == line_color
+    expect(page.locator("#securityState .security-trouble-badge")).to_have_attribute(
+        "data-tone", "attention"
+    )
+
+    rows = page.locator("#securityZones .security-zone")
+    expect(rows).to_have_count(2)
+    expect(rows.nth(0).locator(".chip")).to_have_count(0)
+    expect(rows.nth(1).locator(".chip")).to_have_text(["Bypassed", "Trouble"])
+    expect(rows.nth(1).locator('.chip[data-tone="attention"]')).to_have_text("Trouble")

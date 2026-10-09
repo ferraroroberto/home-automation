@@ -11,6 +11,7 @@
 import { jsonApi } from './api.js';
 import { toast } from './state.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { friendlyError } from './format.js';
 
 const PAGE_LIMIT = 100;
 let mode = 'events'; // 'events' | 'readings'
@@ -127,7 +128,7 @@ async function loadEvents() {
     const data = await jsonApi('/api/activity?' + params.toString());
     renderRows((data && data.events) || []);
   } catch (exc) {
-    toast((exc && exc.message) || 'Failed to load activity');
+    toast(friendlyError(exc, 'Failed to load activity'));
   }
 }
 
@@ -142,7 +143,7 @@ async function loadReadings() {
     const data = await jsonApi('/api/activity/readings?' + params.toString());
     renderReadings((data && data.readings) || []);
   } catch (exc) {
-    toast((exc && exc.message) || 'Failed to load readings');
+    toast(friendlyError(exc, 'Failed to load readings'));
   }
 }
 

@@ -14,6 +14,7 @@ Machine ids/names are obvious fixtures, never real hosts (the repo is public).
 from __future__ import annotations
 
 import json
+import re
 from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
@@ -130,11 +131,18 @@ def test_pc_fleet_renders_machine_list_with_state_chips(
 
     rows = page.locator(".pc-fleet-machine")
     expect(rows).to_have_count(4)
-    # Per-machine state chips render with the state text.
-    expect(page.locator('[data-machine-id="hub-host"] .pc-fleet-chip')).to_have_text("this host")
-    expect(page.locator('[data-machine-id="workstation"] .pc-fleet-chip')).to_have_text("up")
-    expect(page.locator('[data-machine-id="media-pc"] .pc-fleet-chip')).to_have_text("down")
-    expect(page.locator('[data-machine-id="old-laptop"] .pc-fleet-chip')).to_have_text("dormant")
+    # State chips mark exceptions only (#879): an up machine shows none, the
+    # hub host a neutral fact, down danger and dormant attention.
+    host_chip = page.locator('[data-machine-id="hub-host"] .pc-fleet-chip')
+    expect(host_chip).to_have_text("This host")
+    expect(host_chip).not_to_have_attribute("data-tone", re.compile(".+"))
+    expect(page.locator('[data-machine-id="workstation"] .pc-fleet-chip')).to_have_count(0)
+    down_chip = page.locator('[data-machine-id="media-pc"] .pc-fleet-chip')
+    expect(down_chip).to_have_text("Down")
+    expect(down_chip).to_have_attribute("data-tone", "danger")
+    dormant_chip = page.locator('[data-machine-id="old-laptop"] .pc-fleet-chip')
+    expect(dormant_chip).to_have_text("Dormant")
+    expect(dormant_chip).to_have_attribute("data-tone", "attention")
     # The hub host has no include toggle — it always participates, shut last.
     expect(page.locator('[data-machine-id="hub-host"] .toggle')).to_have_count(0)
     expect(page.locator('[data-machine-id="hub-host"] .pc-fleet-host-note')).to_be_visible()

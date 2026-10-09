@@ -19,6 +19,7 @@ import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { buildPlugRow, setTuyaBrightness, toggleSwitch } from './plugs.js';
+import { friendlyError } from './format.js';
 
 const POLL_MS = 15_000;
 const LIGHTS_UNAVAILABLE_COPY =
@@ -146,7 +147,7 @@ async function applyAllLights(on) {
     } catch (exc) {
       failures += 1;
       if (!isAuthRequired(exc)) {
-        toast('Failed: ' + label(light) + ': ' + (exc.message || exc), 'error');
+        toast('Failed: ' + label(light) + ': ' + friendlyError(exc), 'error');
         await wait(250);
       }
     }
@@ -245,8 +246,9 @@ function buildLightRow(light) {
     row.classList.add('is-unavailable');
     const note = document.createElement('span');
     note.className = 'device-row-note light-unavailable';
-    note.textContent = light.error || 'Unavailable';
-    if (light.error) note.title = light.error;
+    // The row says only that the light is unavailable (#879): its connection
+    // error carries the device address, which the UI never shows.
+    note.textContent = 'Unavailable';
     row.appendChild(note);
     return row;
   }

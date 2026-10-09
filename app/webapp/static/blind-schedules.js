@@ -19,6 +19,7 @@ import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { friendlyError } from './format.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -263,7 +264,7 @@ export async function loadBlindSchedules() {
     state.blindSchedules = [];
     if (els.blindSchedulesNote) {
       els.blindSchedulesNote.hidden = false;
-      els.blindSchedulesNote.textContent = exc.message || 'Failed to load blind schedules.';
+      els.blindSchedulesNote.textContent = friendlyError(exc, 'Failed to load blind schedules.');
     }
     return;
   }

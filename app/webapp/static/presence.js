@@ -35,6 +35,7 @@ import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomat
 import { wirePresencePushControls } from './presence-push.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { confirmAction } from './confirm.js';
+import { friendlyError } from './format.js';
 
 // Re-export so callers (security.js, main.js) keep a single import surface —
 // same convention security.js itself uses for its own sub-modules.
@@ -285,7 +286,7 @@ export function renderPresence() {
       ? 'iCloud needs re-authentication — use Renew trust on the account row below.'
       : presence.reason === 'terms_required'
         ? 'An iCloud account must accept Apple’s updated terms — see the account row below.'
-        : (presence.detail || 'Presence is not configured.');
+        : friendlyError(presence.detail, 'Presence is not configured.');
     hidePresenceRefreshNote();
     return;
   }
@@ -428,7 +429,7 @@ function accountTrustState(acct) {
     return { cls: 'is-broken', text: 'needs Apple’s updated terms accepted' };
   }
   if (acct.available === false) {
-    return { cls: 'is-broken', text: 'broken: ' + (acct.reason || 'error') };
+    return { cls: 'is-broken', text: 'broken: ' + friendlyError(acct.reason, 'sign-in failed') };
   }
   if (acct.trusted === true) return { cls: 'is-trusted', text: 'trusted' };
   if (acct.trusted === false) {

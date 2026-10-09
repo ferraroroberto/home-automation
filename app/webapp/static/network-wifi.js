@@ -22,7 +22,8 @@ import {
   loadChartJs,
   setWifiChannelData,
 } from './charts.js';
-import { renderSignalBar } from './format.js';
+import { renderSignalBar, friendlyError } from './format.js';
+import { chipEl } from './chip.js';
 import { renderNetwork } from './network.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
@@ -98,10 +99,7 @@ function wifiRow(b) {
   name.addEventListener('click', function () { openNetWifiDetail(wifiId(b)); });
   main.appendChild(name);
   if (b.connected) {
-    const pill = document.createElement('span');
-    pill.className = 'pill pill--accent net-wifi-current';
-    pill.textContent = 'Current';
-    main.appendChild(pill);
+    main.appendChild(chipEl('Current', '', 'net-wifi-current'));
   }
   const meta = document.createElement('span');
   meta.className = 'net-wifi-row-meta';
@@ -185,14 +183,14 @@ export function renderWifi(wifi) {
     meta.push(wifi.adapter_description);
   }
   if (wifi.current_radio_type) meta.push(wifi.current_radio_type);
-  els.netWifiMeta.textContent = meta.length ? meta.join(' · ') : (wifi.error || 'Wi-Fi scan unavailable.');
+  els.netWifiMeta.textContent = meta.length ? meta.join(' · ') : friendlyError(wifi.error, 'Wi-Fi scan unavailable.');
 
   if (!available) {
     renderWifiRecommendations([]);
     els.netWifiList.innerHTML = '';
     renderWifiHiddenToggle(0);
     els.netWifiNote.hidden = false;
-    els.netWifiNote.textContent = wifi.error || 'Wi-Fi diagnostics are unavailable on this PC.';
+    els.netWifiNote.textContent = friendlyError(wifi.error, 'Wi-Fi diagnostics are unavailable on this PC.');
     if (state.wifiChart24) setWifiChannelData(state.wifiChart24, []);
     if (state.wifiChart5) setWifiChannelData(state.wifiChart5, []);
     return;

@@ -16,6 +16,8 @@
 import { state, els } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
+import { chipEl } from './chip.js';
+import { friendlyError } from './format.js';
 
 const LANG_LABELS = { en: 'EN', es: 'ES' };
 
@@ -78,10 +80,11 @@ function renderPhrasing(phrasing, showLang) {
   const example = document.createElement('p');
   example.className = 'voice-example';
   if (showLang) {
-    const chip = document.createElement('span');
-    chip.className = 'pill pill--accent voice-lang-chip';
-    chip.textContent = LANG_LABELS[phrasing.lang] || String(phrasing.lang || '').toUpperCase();
-    example.appendChild(chip);
+    example.appendChild(chipEl(
+      LANG_LABELS[phrasing.lang] || String(phrasing.lang || '').toUpperCase(),
+      '',
+      'voice-lang-chip',
+    ));
   }
   const quoted = document.createElement('span');
   quoted.className = 'voice-example-text';
@@ -226,7 +229,7 @@ async function loadVoiceCommands() {
     state.voiceCommands = [];
     if (els.voiceCommandsNote) {
       els.voiceCommandsNote.hidden = false;
-      els.voiceCommandsNote.textContent = exc.message || 'Failed to load voice commands.';
+      els.voiceCommandsNote.textContent = friendlyError(exc, 'Failed to load voice commands.');
     }
     return;
   }

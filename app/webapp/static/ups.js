@@ -10,6 +10,7 @@ import { state, els, toast, reportFetchOk } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { esc, fmtPct } from './format.js';
+import { chipHtml } from './chip.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from './poll.js';
@@ -40,14 +41,15 @@ function fmtRuntime(seconds) {
   return h + ' h ' + String(m).padStart(2, '0') + ' min';
 }
 
-function statusText(ups) {
-  if (!ups || ups.available !== true) return 'Unavailable';
-  if (ups.mains_online === false) return 'On battery';
-  if (ups.status === 'charging') return 'Charging';
-  if (ups.status === 'full') return 'Full';
-  if (ups.status && ups.status.indexOf('low_battery') >= 0) return 'Low battery';
-  if (ups.status && ups.status.indexOf('critical') >= 0) return 'Critical';
-  return 'Online';
+// The UPS status chip, for exceptions only (#879): online, charging and full
+// are the normal state and show none. The most urgent condition wins.
+function statusChipHtml(ups) {
+  const status = (ups && ups.status) || '';
+  if (!ups || ups.available !== true) return chipHtml('Unavailable', 'attention', 'ups-status');
+  if (status.indexOf('critical') >= 0) return chipHtml('Critical', 'danger', 'ups-status');
+  if (status.indexOf('low_battery') >= 0) return chipHtml('Low battery', 'danger', 'ups-status');
+  if (ups.mains_online === false) return chipHtml('On battery', 'attention', 'ups-status');
+  return '';
 }
 
 function renderUpsTile(tile, ups) {
@@ -78,14 +80,14 @@ function renderUpsTile(tile, ups) {
 
   // Home tile (#253): one line at weather-tile height — identity, then bare
   // charge % and runtime pulled onto the title row (no labels — a % and a
-  // duration read for themselves), then the status pill hard-right. The Plugs
+  // duration read for themselves), then any status chip hard-right. The Plugs
   // tile is identical (its container carries `ups-tile-compact`).
   tile.innerHTML =
     '<div class="ups-main">' +
     identity +
     '<span class="ups-line-stats"><span>' + esc(fmtPct(ups && ups.battery_charge_pct)) + '</span>' +
     '<span>' + esc(fmtRuntime(ups && ups.runtime_seconds)) + '</span></span>' +
-    '<span class="pill pill--success ups-status">' + esc(statusText(ups)) + '</span>' +
+    statusChipHtml(ups) +
     '</div>';
   // Shown whenever the tile is stale (a live fetch failed) OR a cached
   // snapshot painted before the first live fetch has resolved — the union

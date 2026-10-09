@@ -16,6 +16,9 @@
   --muted: #656d76;         /* fg-muted (secondary text) */
   --line: #d1d9e0;          /* border (default hairline) */
   --line-muted: #d8dee4;    /* border-muted (divider inside a card) */
+  /* control-border: the input/select/textarea boundary and the switch's off
+     track, 3.45:1 against card (WCAG 1.4.11). Card hairlines keep --line. */
+  --control-border: #818b98;
   /* colors — accent + status (status colors signal state only, never decoration) */
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
@@ -38,7 +41,7 @@
   --tile-yellow: #bf8700;
   /* derived surface roles (mapped onto the neutral tokens above) */
   --input-bg: var(--card-off);
-  --toggle-track: var(--line);
+  --toggle-track: var(--control-border);
   --toggle-knob: #ffffff;
   --toggle-label: var(--muted);
   --close-bg: transparent; /* glyph-only controls draw nothing at rest (fleet-config#1259) */
@@ -126,6 +129,7 @@
   --muted: #7d8590;         /* fg-muted */
   --line: #30363d;          /* border */
   --line-muted: #21262d;    /* border-muted */
+  --control-border: #6e7681; /* control-border, 3.77:1 against card */
   --accent: #2f81f7;
   --accent-fg: #ffffff;
   --accent-text: #58a6ff;
@@ -142,7 +146,7 @@
   --tile-orange: #bd561d;
   --tile-yellow: #9e6a03;
   --input-bg: var(--bg);
-  --toggle-track: var(--line);
+  --toggle-track: var(--control-border);
   --toggle-knob: var(--ink);
   --toggle-label: var(--muted);
   --close-bg: transparent;
@@ -286,7 +290,7 @@ button, input, select, textarea {
   border-width: var(--control-inset) 0;
   border-radius: var(--radius-md) / calc(var(--radius-md) + var(--control-inset));
   background: var(--input-bg) padding-box;
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--control-border);
 }
 .input-native:focus-visible,
 .select-native:focus-visible,
@@ -412,34 +416,92 @@ button.circuit-meter-name:hover,
   .app { padding: 0 var(--gap) 24px; }
 }
 
-/* ------------------------------------------------------- status pill (#832)
-   The one small status chip (design.md `chip` geometry: pill radius, caption
-   type, 2px x spacing.sm padding). Every badge / state chip composes
-   `.pill` + one tone modifier, so the same semantic tone renders the same fill
-   on every card: status text (`--tone-text`) on its own 16% tint of `--tone`
-   (the spec's badge recipe), no border. `--tone`/`--tone-text` are the whole
-   interface — a component that switches tone on state (`.ups-status`) just
-   re-points the pair. Neutral sets its text in `--ink`: `--muted` drops under
-   AA on the 16% neutral-soft fill. A component keeps only what is genuinely
-   its own (layout, a larger size) in its own rule. */
-.pill {
+/* ------------------------------------------------- status chip (#832, #879)
+   The one status chip (design.md "status chip": the `chip` geometry in one
+   tone map, for exceptions only). A normal state gets no chip at all.
+   Markup is `<span class="chip" data-tone="…">`, built by chip.js's
+   chipEl() / chipHtml();
+   a component class next to it carries only layout, never a colour.
+     neutral   (no data-tone) a plain fact: bypassed, hidden, stale
+     accent    selected or in progress: boost, recording, arming
+     attention needs you soon: trouble, offline, on battery
+     danger    broken or an emergency: triggered, down, critical
+   `success` is never a chip (it is the avatar badge only). Status text sits on
+   its own 16% tint; neutral sets its text in --ink, because --muted drops
+   under AA on the neutral-soft fill. */
+.chip {
   --tone: var(--muted);
   --tone-text: var(--ink);
   display: inline-flex;
   align-items: center;
+  gap: var(--space-xs);
   padding: 2px var(--space-sm);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--tone) 16%, transparent);
   color: var(--tone-text);
   font-size: var(--font-caption);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.15;
   white-space: nowrap;
+  flex: none;
 }
-.pill--success { --tone: var(--on); --tone-text: var(--success-text); }
-.pill--danger { --tone: var(--deficit); --tone-text: var(--danger-text); }
-.pill--attention { --tone: var(--attention); --tone-text: var(--attention-text); }
-.pill--accent { --tone: var(--accent); --tone-text: var(--accent-text); }
+.chip[data-tone="accent"] { --tone: var(--accent); --tone-text: var(--accent-text); }
+.chip[data-tone="attention"] { --tone: var(--attention); --tone-text: var(--attention-text); }
+.chip[data-tone="danger"] { --tone: var(--deficit); --tone-text: var(--danger-text); }
+
+/* ----------------------------------------------- segmented control (#879)
+   One exclusive choice of 2-6 options: the alarm mode, the energy and money
+   periods, the forecast day. The selected segment IS the state (never a
+   sentence above faded options), drawn like the active nav tab: accent-soft
+   fill, accent-text, soft accent hairline. The group is a hairline box on the
+   card; unselected segments are fg on the card, unavailable ones fg-muted on
+   the card (5.3:1 light, 4.7:1 dark), never opacity. Segments are adjacent,
+   so each reaches the 44px floor with real height (verbs) or a vertical-only
+   ::before band (pickers) that can't overlap its neighbour. */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  min-width: 0;
+}
+.segmented-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: calc(var(--control-h) - 6px);
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-md) - 3px);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--font-label);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.segmented-item::before { content: ""; position: absolute; inset: -8px 0; }
+.segmented-item:not(:disabled):not([aria-pressed="true"]):hover {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+.segmented-item[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-border-soft);
+  color: var(--accent-text);
+}
+.segmented-item:disabled { color: var(--muted); cursor: not-allowed; }
+.segmented-item[aria-pressed="true"]:disabled { color: var(--accent-text); cursor: default; }
+/* Verbs that act on the house (the alarm mode) get the real 44px row. */
+.segmented--verbs { margin: 12px 0 0; }
+.segmented--verbs .segmented-item { height: calc(var(--hit-min) - 6px); }
+.segmented--verbs .segmented-item::before { inset: -4px 0; }
 
 /* ---------------------------------------------------- icons (Lucide) */
 /* Every app icon is <svg class="icon"><use href="#i-NAME"></use></svg>, drawn
@@ -524,12 +586,7 @@ button.circuit-meter-name:hover,
    "Offline" caption must not fade along with what it explains. */
 .ac-line.is-unavailable .ac-line-name,
 .ac-line.is-unavailable .ac-temp { opacity: 0.6; }
-.ac-line-offline {
-  margin-right: 6px;
-  color: var(--attention);
-  font-size: var(--font-caption);
-  font-weight: 700;
-}
+.ac-line-offline { margin-right: 6px; }
 /* Single-line temperature reading: room → target (#211). */
 .ac-line-center { text-align: right; }
 .ac-temp {
@@ -991,7 +1048,6 @@ button.circuit-meter-name:hover,
    lands at the same y as those value boxes, keeping the pill text centered
    on the same line as the Room/Rule temperature text instead of floating low. */
 .unit-boost-badge {
-  gap: 4px;
   align-self: flex-end;
   min-height: 28px;
 }
@@ -1206,23 +1262,8 @@ button.circuit-meter-name:hover,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ups-status {
-  /* Pinned to the top-right corner, equidistant from the top and right edges
-     (the card padding). Out of flow so the stat row can run full-width. */
-  position: absolute;
-  top: var(--space-md);
-  right: var(--space-md);
-  /* Prominent pill so mains/online state reads at a glance — green online,
-     red on battery / unavailable (#207): a body-size `.pill`. */
-  font-size: var(--font-body);
-  padding: 2px 10px;
-  text-align: right;
-}
-.ups-tile.is-on-battery .ups-status,
-.ups-tile.is-unavailable .ups-status {
-  --tone: var(--deficit);
-  --tone-text: var(--danger-text);
-}
+/* The UPS exception chip (#879) sits hard-right on the one-line tile; a
+   healthy UPS shows none. */
 .ups-stats {
   display: grid;
   grid-template-columns: repeat(5, minmax(62px, 1fr));
@@ -1246,23 +1287,6 @@ button.circuit-meter-name:hover,
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.ups-alerts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-/* Background tint carries the attention colour (issue #367 impeccable pass) —
-   matches the .ups-status / .confirm-ok.is-danger tint recipe (color-mix over
-   transparent) rather than a structural border-left "side-tab" accent. */
-.ups-alerts span {
-  background: color-mix(in srgb, var(--attention) 16%, transparent);
-  color: var(--attention-text);
-  border-radius: var(--radius-md);
-  padding: 5px 8px;
-  font-size: var(--font-label);
-  font-weight: 700;
-}
 /* Home-tab UPS tile as a single line at the weather-tile height (#253):
    identity, then bare charge % + runtime on the same row, then the status pill
    hard-right. The Plugs-tab tile (.ups-tile, not -compact) keeps its stacked
@@ -1283,14 +1307,7 @@ button.circuit-meter-name:hover,
   color: var(--ink);
   white-space: nowrap;
 }
-/* Pull the status pill out of the corner-pinned absolute flow and onto the row,
-   pushed to the right edge. */
-.ups-tile-compact .ups-status {
-  position: static;
-  top: auto;
-  right: auto;
-  margin-left: auto;
-}
+.ups-tile-compact .ups-status { margin-left: auto; }
 
 /* Home Assistant disclosure (#239; #461 folded the old VM body tile away):
    the summary row is read-only status text; the canonical .toggle power
@@ -1441,10 +1458,7 @@ button.circuit-meter-name:hover,
   line-height: 1.45;
 }
 .voice-example-text { flex: 1; }
-.voice-lang-chip {
-  flex: none;
-  letter-spacing: 0.04em;
-}
+.voice-lang-chip { letter-spacing: 0.04em; }
 .voice-phrases { margin: var(--space-xs) 0 0; line-height: 1.45; }
 .voice-reply { margin: var(--space-xs) 0 0; line-height: 1.45; }
 .voice-reply .icon { width: 16px; height: 16px; vertical-align: -3px; }
@@ -1688,7 +1702,7 @@ button.circuit-meter-name {
   gap: var(--space-xs);
   height: var(--control-h);
   padding: 0 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--input-bg);
   min-width: 0;
@@ -1782,72 +1796,17 @@ button.circuit-meter-name {
 /* margin-inline-start gives a reliable gap after "Alarm state:" — a trailing
    space in the prefix span collapses inside this flex container (issue #104). */
 .security-state-word { font-weight: 700; margin-inline-start: 0.35em; }
-/* State word colour follows the same three-colour scheme as the pills:
-   green disarmed, yellow partial/perimeter, red armed/alert. No blue. */
-.security-state.is-disarmed .security-state-word { color: var(--on); }
-.security-state.is-armed .security-state-word { color: var(--deficit); }
-.security-state.is-alert .security-state-word { color: var(--deficit); }
-.security-state.is-partial .security-state-word { color: var(--attention); }
-.security-state.is-perimeter .security-state-word { color: var(--attention); }
-/* System-wide inline alerts on the alarm-state line: AC-power-lost (issue #99)
-   and the detector-trouble roll-up (issue #225). Plain inline text — same size as
-   the state label, bold, colour-coded; no pill border/background. */
+/* The state word is plain text (#879, decision 3 of #872): an armed mode is
+   normal, and the selected segment below already draws it in the accent.
+   Red is kept for a triggered alarm; arming is work in progress (accent). */
+.security-state.is-alert .security-state-word { color: var(--danger-text); }
+.security-state.is-arming .security-state-word { color: var(--accent-text); }
+/* System-wide exceptions on the state line, as status chips: AC power lost
+   (issue #99) and the detector-trouble roll-up (issue #225). */
 .security-aclost-badge,
-.security-trouble-badge {
-  margin-left: 0.5em;
-  font-weight: 700;
-  white-space: nowrap;
-}
-/* Detector-trouble roll-up on the main card — amber attention (issue #225). */
-.security-trouble-badge { color: var(--attention); }
-.security-aclost-badge  { color: var(--deficit); }
-
-/* Alarm actions: one full-width row of rounded pills using translucent colour
-   tints — no hard outlines, no solid fills. Three colour identities via --act:
-   green disarm, yellow partial/perimeter, red full (and the alert Clear). The
-   current armed mode shows as a quiet "selected" pill; a real alert shows a
-   distinct "Clear" CTA; unavailable actions fade out. */
-.security-actions {
-  display: flex;
-  gap: var(--space-sm);
-  margin-top: 12px;
-}
-.security-action {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 44px;
-  padding-inline: 6px;
-  border-radius: var(--radius-pill);
-  border: 1px solid color-mix(in srgb, var(--act) 22%, transparent);
-  background: color-mix(in srgb, var(--act) 14%, transparent);
-  color: var(--act-text);
-  font-size: var(--font-label);
-  font-weight: 700;
-  cursor: pointer;
-}
-.security-action-disarm { --act: var(--on); --act-text: var(--success-text); }
-.security-action-partial { --act: var(--attention); --act-text: var(--attention-text); }
-.security-action-perimeter { --act: var(--attention); --act-text: var(--attention-text); }
-.security-action-arm { --act: var(--deficit); --act-text: var(--danger-text); }
-
-.security-action:not(:disabled):hover { filter: brightness(1.05); }
+.security-trouble-badge { margin-left: var(--space-sm); }
+/* The alarm actions are the segmented control (.segmented--verbs). */
 .security-action:active:not(:disabled) { transform: scale(0.97); }
-/* Unavailable actions (incl. the current state) drop their colour and fade —
-   only the actions you can actually take carry a colour. */
-.security-action:disabled {
-  cursor: not-allowed;
-  --act: var(--line);
-  color: var(--muted);
-  opacity: 0.5;
-}
-@media (max-width: 430px) {
-  .security-actions { gap: 5px; }
-  .security-action {
-    min-height: 44px;
-    font-size: var(--font-caption);
-    padding-inline: 3px;
-  }
-}
 .security-events,
 .security-zones,
 .cameras-list,
@@ -1915,23 +1874,15 @@ button.circuit-meter-name {
   min-width: 0;
   gap: var(--space-sm);
 }
+/* Exception chips only (#879): an active detector shows nothing. */
 .security-zone-flags {
-  color: var(--muted);
-  font-size: var(--font-caption);
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-xs);
   flex: none;
 }
-.security-zone.is-active .security-zone-flags { color: var(--on); }
-.security-zone.is-bypassed .security-zone-flags { color: var(--deficit); }
-.security-zone.is-triggered .security-zone-flags { color: var(--deficit); }
-/* "Trouble" always reads amber regardless of the row's active/bypass/triggered
-   state (issue #104). */
-.security-zone-flag.is-trouble { color: var(--attention); }
-/* An ignored trouble (issue #225) reads muted grey — acknowledged, not alarming,
-   and overrides the row's flag colour. */
-.security-zone.is-active .security-zone-flag.is-trouble-ignored,
-.security-zone.is-bypassed .security-zone-flag.is-trouble-ignored,
-.security-zone.is-triggered .security-zone-flag.is-trouble-ignored,
-.security-zone-flag.is-trouble-ignored { color: var(--muted); }
+.security-zone-flags:empty { display: none; }
 /* Hidden detectors (shown only when "show hidden" is on) read dimmed. */
 .security-zone.is-hidden { opacity: 0.55; }
 /* Detectors header tools: the "N hidden" counter sits beside the title; the
@@ -2819,7 +2770,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .login-card h2 { margin: 0; }
 .login-card input {
   font-size: var(--font-body); padding: 12px; border-radius: var(--radius-md);
-  border: 1px solid var(--line); background: var(--input-bg);
+  border: 1px solid var(--control-border); background: var(--input-bg);
 }
 .big-btn {
   background: var(--accent-soft);
@@ -3497,20 +3448,10 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
    and an ordinary AP/router-confirmed signal reading. */
 .net-device-signal.net-device-pingreachable { color: var(--on); font-weight: 600; }
 
-/* "Important" star marker + the "new" pill on a device row (Phase 4). */
+/* "Important" star marker + the "New" chip on a device row (Phase 4). */
 .net-device-star { width: 16px; height: 16px; flex: 0 0 auto; color: var(--accent); }
-.net-device-new {
-  flex: 0 0 auto; margin-left: 2px;
-  background: var(--accent-fill); color: var(--accent-fg);
-  border-radius: var(--radius-pill); padding: 1px 7px;
-  font-size: var(--font-caption); font-weight: 700;
-}
+.net-device-new { margin-left: 2px; }
 button.net-device-name:hover .net-device-new { text-decoration: none; }
-/* "Reachable" pill (#552) — success-colored, not the accent "new" pill's blue,
-   so a probe-confirmed device reads as a distinct positive state rather than
-   "recently joined". */
-.net-device-reachable { flex: 0 0 auto; margin-left: 2px; }
-button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 /* Offline status line in the detail modal. */
 #netDeviceStatus.is-offline { color: var(--muted); }
 
@@ -3560,7 +3501,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 .net-dhcp-group {
   grid-area: pill; justify-self: end; align-self: center;
   font-size: var(--font-caption); padding: 2px 6px; border-radius: var(--radius-md);
-  border: 1px solid var(--line); background: var(--input-bg); color: var(--ink);
+  border: 1px solid var(--control-border); background: var(--input-bg); color: var(--ink);
   max-width: 140px;
 }
 .net-dhcp-name {
@@ -3654,7 +3595,7 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
 
 /* Staged manual adds shown as removable chips. */
 .net-dhcp-manual-staged { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-sm) 0 0; }
-.net-dhcp-chip { gap: var(--space-xs); padding-right: 6px; }
+.net-dhcp-chip { padding-right: 6px; }
 /* No fixed box inside the pill: a 16px icon-button box leaves the chip's own
    layout unchanged and its ::before reaches the 44px target. */
 .net-dhcp-chip-x { --icon-btn-box: 16px; }
@@ -3698,21 +3639,22 @@ button.net-device-name:hover .net-device-reachable { text-decoration: none; }
   min-width: 0;
   gap: var(--space-sm);
 }
-.camera-row-flags { color: var(--muted); font-size: var(--font-caption); flex: none; }
-.camera-row.is-online .camera-row-flags { color: var(--on); }
-.camera-row.is-offline .camera-row-flags { color: var(--deficit); }
-/* Direct 44px sizing rather than the ::before tap-target trick (#361 pattern)
-   — the thumbnail needs overflow:hidden to clip its image to the rounded box,
-   which would also clip (and hit-test-disable) an absolutely-positioned
-   ::before, so the box itself is grown to the floor instead (issue #367). */
+/* An image row (#879): the leading thumbnail is the picture itself, drawn
+   on nothing like any image button (design.md icon-button, COMP-05). The box
+   is a transparent 56x44 target, already past the 44px floor with real
+   geometry; the image carries its own rounded corners. With no frame yet the
+   camera glyph sits in the same box, an icon button at rest. */
 .camera-thumb {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 56px; height: 44px; padding: 0; overflow: hidden;
-  border: 1px solid var(--line); border-radius: var(--radius-md);
-  background: var(--video-matte); cursor: zoom-in;
+  width: 56px; height: 44px; padding: 0;
+  border: 0; border-radius: var(--radius-md);
+  background: transparent; cursor: zoom-in;
 }
-.camera-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.camera-thumb.is-empty { background: var(--card-off); cursor: default; }
+.camera-thumb-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  border-radius: var(--radius-md);
+}
+.camera-thumb.is-empty { cursor: default; }
 .camera-thumb-glyph { width: 18px; height: 18px; color: var(--muted); }
 .camera-row-live {
   display: inline-flex; align-items: center; justify-content: center;

@@ -19,6 +19,7 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { friendlyError } from './format.js';
 
 const RETRY_OPTIONS = [1, 2, 3];
 
@@ -148,7 +149,7 @@ export async function loadSecurityOverrides() {
     state.securityOverrides = state.securityOverrides || [];
     if (els.securityOverridesNote) {
       els.securityOverridesNote.hidden = false;
-      els.securityOverridesNote.textContent = exc.message || 'Failed to load overrides.';
+      els.securityOverridesNote.textContent = friendlyError(exc, 'Failed to load overrides.');
     }
   }
   renderSecurityOverrides();

@@ -11,6 +11,7 @@ import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js
 import { jsonApi, isAuthRequired } from './api.js';
 import { createPoller } from './poll.js';
 import { createViewState } from './view-state.js';
+import { friendlyError } from './format.js';
 
 const POLL_MS = 30_000;
 
@@ -43,7 +44,7 @@ function render(sx) {
   if (els.searxngNote) {
     els.searxngNote.textContent = (sx && sx.available)
       ? 'Backs "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).'
-      : ((sx && sx.error) || 'Search engine is unavailable.');
+      : friendlyError(sx && sx.error, 'Search engine is unavailable.');
   }
   if (els.searxngStartBtn) {
     const canStart = !!(sx && sx.container_status !== 'running');

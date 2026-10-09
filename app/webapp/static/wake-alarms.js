@@ -14,7 +14,7 @@ import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { buildToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
-import { localIsoDate } from './format.js';
+import { localIsoDate, friendlyError } from './format.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -259,7 +259,7 @@ export async function loadWakeAlarms() {
     state.wakeAlarms = [];
     if (els.wakeAlarmsNote) {
       els.wakeAlarmsNote.hidden = false;
-      els.wakeAlarmsNote.textContent = exc.message || 'Failed to load wake alarms.';
+      els.wakeAlarmsNote.textContent = friendlyError(exc, 'Failed to load wake alarms.');
     }
   }
   renderWakeAlarms();
