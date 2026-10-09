@@ -1,37 +1,42 @@
-"""Inline card controls — power, target stepper, fan — POST and re-render.
+"""AC controls — the row's power switch and the unit sheet's setpoint and fan.
 
-Each write hits POST /api/units/{id}; the stub echoes the merged snapshot
-and only that card re-renders from the response.
+Each write hits POST /api/units/{id}; the stub echoes the merged snapshot and
+the rows re-render from the response. Since #881 the AC tab draws a unit on
+the shared row (power is its switch) and the setpoint and fan live in the
+unit sheet, which sends each change as it is made.
 """
 
 from __future__ import annotations
 
-import re
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List
 
 import pytest
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Page, expect
 
-from tests.e2e._geometry import assert_no_horizontal_overflow
+from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rect
 
 
 def _boot(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    # Unit cards live in the AC tab now — activate it before interacting.
     page.locator("#tabAc").click()
-    page.wait_for_selector(".unit-card", state="visible")
+    page.wait_for_selector("#acUnits .ac-row", state="visible")
 
 
-def _stable_bounding_box(locator: Locator) -> Optional[Dict[str, float]]:
-    """Wait for visibility, then measure. Under full-suite load the card grid
-    can re-render between the wait and the read, so retry once if the first
-    read still lands mid-repaint (#431)."""
-    expect(locator).to_be_visible()
-    box = locator.bounding_box()
-    if box is None:
-        expect(locator).to_be_visible()
-        box = locator.bounding_box()
-    return box
+def _row(page: Page, unit_id: str):
+    return page.locator(f'#acUnits [data-unit-id="{unit_id}"]')
+
+
+def _open_sheet(page: Page, base_url: str, unit_id: str) -> None:
+    _boot(page, base_url)
+    _row(page, unit_id).locator(".action-row-main").click()
+    expect(page.locator("#detailDialog")).to_be_visible()
+
+
+def _unit_posts(page: Page, unit_id: str) -> List[Dict]:
+    posts: List[Dict] = []
+    page.on("request", lambda r: posts.append(r.post_data_json)
+            if (r.method == "POST" and r.url.endswith(f"/api/units/{unit_id}")) else None)
+    return posts
 
 
 def test_power_toggle_posts_and_rerenders(
@@ -39,48 +44,88 @@ def test_power_toggle_posts_and_rerenders(
 ) -> None:
     mock_api(sample_units)
     _boot(page, base_url)
-    off = page.locator('[data-unit-id="unit-2"]')  # starts OFF
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-2") and r.method == "POST"
     ) as info:
-        off.locator(".toggle").click()
+        _row(page, "unit-2").locator(".ac-line-toggle").click()  # starts OFF
     assert info.value.post_data_json == {"power": True}
-    # Card re-renders ON from the read-back.
-    expect(off.locator(".toggle")).to_have_attribute("aria-checked", "true")
+    # The row re-renders ON from the read-back, its avatar badged as running.
+    expect(_row(page, "unit-2").locator(".ac-line-toggle")).to_have_attribute("aria-checked", "true")
+    expect(_row(page, "unit-2").locator(".row-avatar")).to_have_attribute("data-badge", "up")
 
 
-def test_target_stepper_posts_set_temperature(
+def test_setpoint_taps_settle_into_one_post(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
+    """Decision 4 of #872: the setpoint lives in the sheet and is sent as it
+    changes; a burst of taps settles into one write, not one per tap."""
     mock_api(sample_units)
-    _boot(page, base_url)
-    card = page.locator('[data-unit-id="unit-1"]')  # set 24.0, step 0.5
+    posts = _unit_posts(page, "unit-1")
+    _open_sheet(page, base_url, "unit-1")  # set 24.0, step 0.5
+    expect(page.locator("#detailSetTemp")).to_have_text("24.0°")
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1") and r.method == "POST"
     ) as info:
-        card.locator(".stepper .plus").click()
-    assert info.value.post_data_json == {"set_temperature": 24.5}
-    expect(card.locator(".target-value")).to_contain_text("24.5")
+        page.locator("#detailTempUp").click()
+        page.locator("#detailTempUp").click()
+        expect(page.locator("#detailSetTemp")).to_have_text("25.0°")
+    assert info.value.post_data_json == {"set_temperature": 25.0}
+    # The row follows the read-back, and no second write trails the first.
+    expect(_row(page, "unit-1").locator(".action-row-meta")).to_contain_text("25.0")
+    page.wait_for_timeout(900)
+    assert posts == [{"set_temperature": 25.0}]
 
 
-def test_fan_change_posts_fan_speed(
+def test_closing_the_sheet_sends_a_dialled_setpoint(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
-    _boot(page, base_url)
-    card = page.locator('[data-unit-id="unit-1"]')
+    _open_sheet(page, base_url, "unit-1")
+    page.locator("#detailTempDown").click()
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1") and r.method == "POST"
     ) as info:
-        card.locator("select.unit-fan").select_option("Three")
+        page.locator("#detailDone").click()
+    assert info.value.post_data_json == {"set_temperature": 23.5}
+    expect(page.locator("#detailDialog")).to_be_hidden()
+
+
+def test_setpoint_stops_at_the_mode_minimum(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    """A unit at its Cool minimum (16) can't be dialled below it."""
+    sample_units[0]["set_temperature"] = 16.0
+    mock_api(sample_units)
+    posts = _unit_posts(page, "unit-1")
+    _open_sheet(page, base_url, "unit-1")
+    expect(page.locator("#detailTempDown")).to_be_disabled()
+    expect(page.locator("#detailTempUp")).to_be_enabled()
+    expect(page.locator("#detailSetTemp")).to_have_text("16.0°")
+    page.locator("#detailDone").click()
+    page.wait_for_timeout(300)
+    assert posts == [], "the floor must not POST a sub-range value"
+
+
+def test_fan_segment_posts_fan_speed(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    mock_api(sample_units)
+    _open_sheet(page, base_url, "unit-1")
+    fan = page.locator("#detailFanSpeed")
+    # The selected segment is the state; numbered speeds read as digits.
+    expect(fan.locator('[aria-pressed="true"]')).to_have_text("Auto")
+    with page.expect_request(
+        lambda r: r.url.endswith("/api/units/unit-1") and r.method == "POST"
+    ) as info:
+        fan.locator('[data-value="Three"]').click()
     assert info.value.post_data_json == {"fan_speed": "Three"}
-    expect(card.locator("select.unit-fan")).to_have_value("Three")
+    expect(fan.locator('[aria-pressed="true"]')).to_have_text("3")
 
 
-def test_offline_unit_card_is_dimmed_and_inert(
+def test_offline_unit_row_is_marked_and_inert(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
-    """An unreachable unit dims, says why, and cannot be commanded (#520).
+    """An unreachable unit says so and cannot be commanded (#520).
 
     The bug this guards: controls that look live but silently no-op because the
     unit lost its cloud connection.
@@ -89,28 +134,24 @@ def test_offline_unit_card_is_dimmed_and_inert(
     mock_api(sample_units)
     _boot(page, base_url)
 
-    offline = page.locator('[data-unit-id="unit-2"]')
-    expect(offline).to_have_class(re.compile(r"\bis-unavailable\b"))
-    expect(offline.locator(".unit-offline-badge")).to_have_text("Offline")
-    # Every command-sending control is inert; readings stay on screen.
-    expect(offline.locator(".toggle")).to_be_disabled()
-    expect(offline.locator("select.unit-fan")).to_be_disabled()
-    expect(offline.locator(".stepper .minus")).to_be_disabled()
-    expect(offline.locator(".stepper .plus")).to_be_disabled()
-    expect(offline.locator(".unit-room .value")).to_contain_text("19.0")
+    offline = _row(page, "unit-2")
+    expect(offline.locator(".row-avatar")).to_have_attribute("data-badge", "down")
+    expect(offline.locator(".ac-line-offline")).to_have_text("Offline")
+    expect(offline.locator(".ac-line-toggle")).to_be_disabled()
+    # The last-known reading stays on screen.
+    expect(offline.locator(".action-row-meta")).to_contain_text("Last read 19.0")
 
     # A reachable sibling is untouched.
-    online = page.locator('[data-unit-id="unit-1"]')
-    expect(online).not_to_have_class(re.compile(r"\bis-unavailable\b"))
-    expect(online.locator(".unit-offline-badge")).to_have_count(0)
-    expect(online.locator(".toggle")).to_be_enabled()
+    online = _row(page, "unit-1")
+    expect(online.locator(".ac-line-offline")).to_have_count(0)
+    expect(online.locator(".ac-line-toggle")).to_be_enabled()
 
 
 def test_offline_unit_row_marked_on_home_summary(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """The Home tile mirrors the AC tab's offline state (#520)."""
+    """The Home rows mirror the AC tab's offline state (#520)."""
     sample_units[1]["reachable"] = False  # unit-2 (Studio)
     mock_api(sample_units)
     mock_energy()
@@ -130,38 +171,40 @@ def test_offline_unit_row_marked_on_home_summary(
     )
 
 
-def test_unit_header_has_44px_target_without_overlapping_controls(
+@pytest.mark.chromium_only
+def test_row_meta_carries_the_rule_and_the_boost_chip(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    """The rule's room target joins the meta line while it steers; a running
+    solar boost is an accent chip with its signed offset (#554, #575)."""
+    sample_units[0]["temperature_rule"] = {
+        "enabled": True, "active_target": 23.0, "boost_active": False, "boost_delta_c": None,
+    }
+    sample_units[2]["temperature_rule"] = {
+        "enabled": True, "active_target": 22.0, "boost_active": True, "boost_delta_c": -2.0,
+    }
+    mock_api(sample_units)
+    _boot(page, base_url)
+    expect(_row(page, "unit-1").locator(".action-row-meta")).to_contain_text("rule 23.0°")
+    expect(_row(page, "unit-1").locator(".ac-line-boost")).to_have_count(0)
+    boost = _row(page, "unit-3").locator(".ac-line-boost")
+    expect(boost).to_have_text("Boost -2")
+    expect(boost).to_have_attribute("data-tone", "accent")
+
+
+def test_unit_row_target_is_44px_and_clear_of_its_switch(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     page.set_viewport_size({"width": 390, "height": 844})
     mock_api(sample_units)
     _boot(page, base_url)
-    card = page.locator('[data-unit-id="unit-1"]')
-    header = _stable_bounding_box(card.locator(".unit-header"))
-    fan = _stable_bounding_box(card.locator(".unit-fan-control"))
-    power = _stable_bounding_box(card.locator(".toggle"))
-    assert header is not None and fan is not None and power is not None
-    assert header["height"] >= 44
-    assert header["x"] + header["width"] <= fan["x"]
-    assert header["x"] + header["width"] <= power["x"]
+    row = _row(page, "unit-1")
+    main = effective_rect(row.locator(".action-row-main"))
+    switch = effective_rect(row.locator(".ac-line-toggle"))
+    assert main.effective.height >= 44
+    assert switch.effective.height >= 44
+    assert main.effective.right <= switch.effective.left
     assert_no_horizontal_overflow(page)
-
-
-def test_target_clamped_at_min(
-    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
-) -> None:
-    """A unit at its Cool minimum (16) shouldn't POST a below-range value."""
-    sample_units[0]["set_temperature"] = 16.0
-    mock_api(sample_units)
-    _boot(page, base_url)
-    card = page.locator('[data-unit-id="unit-1"]')
-    posted = {"hit": False}
-    page.on("request", lambda r: posted.update(hit=True)
-            if (r.method == "POST" and r.url.endswith("/api/units/unit-1")) else None)
-    card.locator(".stepper .minus").click()
-    page.wait_for_timeout(300)
-    assert posted["hit"] is False, "minus at the floor must not POST a sub-range value"
-    expect(card.locator(".target-value")).to_contain_text("16.0")
 
 
 @pytest.mark.chromium_only
@@ -178,10 +221,10 @@ def test_on_switch_track_is_the_accent_not_green(
     page.evaluate("t => localStorage.setItem('home-automation.theme', t)", theme)
     page.reload(wait_until="domcontentloaded")
     page.locator("#tabAc").click()
-    page.wait_for_selector(".unit-card", state="visible")
+    page.wait_for_selector("#acUnits .ac-row", state="visible")
     assert page.evaluate("document.documentElement.dataset.theme") == theme
 
-    track = page.locator('[data-unit-id="unit-1"] .toggle[aria-checked="true"]')
+    track = page.locator('#acUnits [data-unit-id="unit-1"] .ac-line-toggle[aria-checked="true"]')
     expect(track).to_be_visible()
     got, accent, green = page.evaluate(
         """el => {

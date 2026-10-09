@@ -1,7 +1,7 @@
-"""Smoke tests — the dashboard boots and renders the unit cards.
+"""Smoke tests — the dashboard boots and renders the unit rows.
 
 Tight by design: catches JS exceptions on boot, a broken render, and the
-core card anatomy (power toggle, target stepper, room readout). Expand
+core row anatomy (power switch, avatar badge, room → set line). Expand
 only when a real regression slips through.
 """
 
@@ -24,33 +24,32 @@ def test_boots_without_console_errors(
 ) -> None:
     mock_api(sample_units)
     errors = _boot(page, base_url)
-    page.wait_for_selector(".unit-card", state="attached")
+    page.wait_for_selector("#acUnits .ac-row", state="attached")
     page.wait_for_timeout(300)
     assert errors == [], "JS errors during boot:\n  - " + "\n  - ".join(errors)
 
 
-def test_renders_unit_cards_with_their_anatomy(
+def test_renders_unit_rows_with_their_anatomy(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
     _boot(page, base_url)
-    cards = page.locator(".unit-card")
-    expect(cards).to_have_count(len(sample_units))
-    # Names from the fixtures land in the headers.
+    rows = page.locator("#acUnits .ac-row")
+    expect(rows).to_have_count(len(sample_units))
+    # Names from the fixtures land in the row titles.
     for u in sample_units:
-        card = page.locator(f'[data-unit-id="{u["unit_id"]}"]')
-        expect(card.locator(".unit-name")).to_have_text(u["name"])
+        row = page.locator(f'#acUnits [data-unit-id="{u["unit_id"]}"]')
+        expect(row.locator(".action-row-title")).to_have_text(u["name"])
 
-    card = page.locator('[data-unit-id="unit-1"]')
-    # Power toggle reflects power=True.
-    expect(card.locator(".toggle")).to_have_attribute("aria-checked", "true")
-    # Room readout + target value present.
-    expect(card.locator(".unit-room .value")).to_contain_text("22.5")
-    expect(card.locator(".target-value")).to_contain_text("24.0")
-    # Fan select rendered with the current value (.unit-fan is the <select>).
-    expect(card.locator("select.unit-fan")).to_have_value("Auto")
+    row = page.locator('#acUnits [data-unit-id="unit-1"]')
+    # Power switch reflects power=True, and the running unit's avatar is badged.
+    expect(row.locator(".ac-line-toggle")).to_have_attribute("aria-checked", "true")
+    expect(row.locator(".row-avatar")).to_have_attribute("data-badge", "up")
+    # One meta line: room → set.
+    expect(row.locator(".action-row-meta")).to_contain_text("22.5")
+    expect(row.locator(".action-row-meta")).to_contain_text("24.0")
 
-    # An off unit is marked as such.
-    off = page.locator('[data-unit-id="unit-2"]')
-    expect(off).to_have_class("card unit-card is-off")
-    expect(off.locator(".toggle")).to_have_attribute("aria-checked", "false")
+    # An off unit: switch off, no badge.
+    off = page.locator('#acUnits [data-unit-id="unit-2"]')
+    expect(off.locator(".ac-line-toggle")).to_have_attribute("aria-checked", "false")
+    expect(off.locator(".row-avatar")).not_to_have_attribute("data-badge", "up")

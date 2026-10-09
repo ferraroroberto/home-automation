@@ -25,7 +25,7 @@ def test_home_cold_load_requests_no_chart_or_map_library(
     page.on("request", lambda req: requested.append(req.url))
 
     boot_home(page, base_url)
-    page.wait_for_selector(".unit-card", state="attached")
+    page.wait_for_selector("#acUnits .ac-row", state="attached")
     page.wait_for_timeout(500)
 
     assert [u for u in requested if u.split("?")[0].endswith(_LAZY_LIBRARIES)] == []

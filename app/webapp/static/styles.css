@@ -568,10 +568,12 @@ button.circuit-meter-name:hover,
   }
 }
 
-/* ----------------------------------------------------------- AC summary */
-/* The Home AC rows are the shared row (row.js, #880) on the vendored
-   action-row, so the card holds full-bleed rows; only its notes need an inset. */
-.ac-summary { margin-bottom: var(--gap); }
+/* ----------------------------------------------------------- AC rows */
+/* Home's AC rows and the AC tab's are the one shared row (row.js, #880, #881)
+   on the vendored action-row, so each card holds full-bleed rows; only Home's
+   notes need an inset. */
+.ac-summary,
+.ac-units { margin-bottom: var(--gap); }
 .ac-summary-empty { margin: 0; padding: var(--space-sm) 14px; }
 .snapshot-note { margin: 10px 0 0; }
 .ac-snapshot-note { margin: 0; padding: var(--space-sm) 14px; border-top: 1px solid var(--line-muted); }
@@ -889,16 +891,6 @@ button.circuit-meter-name:hover,
   cursor: not-allowed;
 }
 
-/* ----------------------------------------------------------- grid */
-.units-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--gap);
-}
-@media (min-width: 520px) {
-  .units-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 /* ----------------------------------------------------------- card */
 /* Cards sit one step above the canvas via surface color + a hairline border,
    not a heavy shadow (the floating nav/toast are the only real shadows). */
@@ -907,31 +899,6 @@ button.circuit-meter-name:hover,
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
-.unit-card {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 7px 12px;
-  min-width: 0;
-  transition: opacity 0.15s ease;
-}
-.unit-card.is-off { background: var(--card-off); }
-.unit-card.is-off .unit-room .value,
-.unit-card.is-off .target-value { color: var(--muted); }
-/* Unreachable unit (#520): dimmed like an offline network device
-   (.net-device.is-offline) so it reads as non-interactive, but not blacked
-   out — the last-known readings must stay legible. Controls are separately
-   `disabled` in JS; this is only the visual half.
-
-   The fade lands on the card's *content*, never on `.unit-card` itself: opacity
-   is inherited multiplicatively, so a faded card would drag its own "Offline"
-   chip down with it (~2.2:1, below AA) and the one element that explains why
-   the controls are dead would be the hardest thing to read. Excluding the chip
-   from the fade is what keeps it at full strength. The power switch is left out
-   too — it carries the same 0.55 through its own `.toggle:disabled`. */
-.unit-card.is-unavailable .unit-header > *:not(.unit-offline-badge),
-.unit-card.is-unavailable .unit-fan-control,
-.unit-card.is-unavailable .unit-readings { opacity: 0.55; }
 
 /* Weather strip (Home tab): current weather + today's forecast on the left, a
    small transparent theme toggle on the right (issue #72). The clock was
@@ -981,120 +948,6 @@ button.circuit-meter-name:hover,
 }
 .weather-fc-sep { color: var(--muted); margin: 0 1px; }
 
-/* top band: name (opens modal) + fan + power toggle, all on one row.
-   No bottom rule — the band reads as separate from the readings via spacing
-   alone, which also shortens the card (issue #80). */
-.unit-top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.unit-header {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  gap: var(--space-sm);
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-}
-.unit-mode-icon { font-size: var(--font-body); flex: none; }
-/* 2-line clamp instead of a single-line ellipsis (issue #367) — a long name
-   ("hab. matrimonio") was cutting off even where the card had vertical slack
-   to spare; short names still render identically on one line. */
-.unit-name {
-  font-weight: 600;
-  font-size: var(--font-body);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.unit-chevron { color: var(--muted); font-size: var(--font-heading-lg); line-height: 1; flex: none; }
-.unit-schedule-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 700;
-  flex: none;
-}
-/* "Offline" chip beside the unit name — says *why* the card's controls are
-   inert. `.pill--attention` keeps it readable through the card's reduced
-   opacity in both themes. */
-.unit-offline-badge { flex: none; }
-.unit-schedule-icon {
-  color: var(--muted);
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-
-/* readings band: room readout + target stepper */
-.unit-readings {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  gap: 14px;
-}
-
-.unit-room,
-.unit-rule-target { display: flex; flex-direction: column; gap: 2px; }
-.unit-room .label,
-.unit-rule-target .label,
-.unit-target .label,
-.unit-fan-label {
-  font-size: var(--font-caption);
-  font-weight: 600;
-  color: var(--muted);
-}
-/* Room actual and Set-to target render at the same size — the unit-name (title)
-   scale — and sit on the same baseline, a symmetric "actual → target" pair
-   (issue #80). The value box matches the stepper height (28px) so the plain
-   Room number and the stepper's number align horizontally. */
-.unit-room .value,
-.unit-rule-target .value {
-  font-size: var(--font-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: center;
-  min-height: 28px;
-}
-.unit-rule-target {
-  align-items: flex-start;
-  color: var(--accent);
-}
-.unit-rule-target .value { gap: var(--space-xs); }
-.unit-rule-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--accent);
-}
-/* Live "currently boosted" pill (#554) — background automation state, same
-   pill shape as .unit-offline-badge but in the accent color (not a warning).
-   min-height matches .unit-room/.unit-rule-target .value (issue #575) so the
-   pill's own bottom edge — which .unit-readings' flex-end aligns against —
-   lands at the same y as those value boxes, keeping the pill text centered
-   on the same line as the Room/Rule temperature text instead of floating low. */
-.unit-boost-badge {
-  align-self: flex-end;
-  min-height: 28px;
-}
-/* icons.size.inline (16px) — the smallest step on the design.md icon scale (#570). */
-.unit-boost-icon { width: 16px; height: 16px; }
-
 /* power toggle */
 /* shadcn-style switch: a compact track + sliding thumb, no text label.
    https://ui.shadcn.com/docs/components/base/switch — one canonical size for
@@ -1138,47 +991,15 @@ button.circuit-meter-name:hover,
   opacity: 0.55;
 }
 
-/* target stepper */
-.unit-target {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: flex-end;
-  margin-left: auto;
-}
-.stepper { display: inline-flex; align-items: center; gap: 6px; --icon-btn-box: var(--control-h); }
-/* Used when the unit is unreachable (#520). The one disabled recipe from
-   design.md — flat --card-off/--line/--muted, never opacity on a solid fill
-   (issue #362) — so the accent-blue ± and the select's label grey out
-   identically in both themes instead of fading unevenly. */
-.select-native:disabled {
+/* Used when a field can't write now (an unreachable unit, #520; a setting not
+   read yet, #881). The one disabled recipe from design.md — flat
+   --card-off/--line/--muted, never opacity on a solid fill (issue #362) — so
+   every field greys out identically in both themes. */
+.select-native:disabled,
+.input-native:disabled {
   background-color: var(--card-off);
   color: var(--muted);
   cursor: default;
-}
-.target-value {
-  font-size: var(--font-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  min-width: 3.4ch;
-  text-align: center;
-}
-
-/* fan select — compact in the top band */
-.unit-fan-control {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: var(--control-h);
-}
-.unit-fan { flex: none; max-width: 7ch; }
-.unit-fan-label {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--control-h);
-  line-height: 1;
-  white-space: nowrap;
 }
 .select-native {
   font-size: var(--font-label);
@@ -2664,15 +2485,76 @@ body:has(dialog[open]) .app { overflow: hidden; }
   font-family: inherit;
 }
 
-/* Collapsible automation sections inside the detail modal (temperature rule +
-   schedule). Reuse the shared .collapse-summary chevron pattern; the summary
-   sits on its own top border like a .row, and the body indents the fields. */
-.detail-section { border-top: 1px solid var(--line); }
-.detail-section > .collapse-summary { padding: 12px 0; }
-.detail-section .detail-section-body { padding-bottom: 6px; }
-.detail-section .detail-section-body .row:first-child { border-top: none; }
+/* ------------------------------------------------ the unit sheet (#881)
+   An instant sheet with pages (units.js): the main page's daily controls,
+   then settings rows (design.md `settings group`: a lead glyph, the label,
+   the value muted, a chevron) that open a page of the same sheet. On a page
+   the header carries Back, left of the page's title. */
+.unit-sheet .detail-header { gap: var(--space-xs); }
+.unit-sheet .detail-header h2 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unit-sheet-back { margin-left: -6px; }
+/* The setpoint: one large stepper, the room and what the unit is doing under
+   it. The ± are icon buttons at the real 44px. */
+.unit-setpoint {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 2px 0 14px;
+}
+.unit-setpoint-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  --icon-btn-box: var(--hit-min);
+}
+.unit-setpoint-step .icon { width: 20px; height: 20px; }
+.unit-setpoint-value {
+  min-width: 5ch;
+  text-align: center;
+  font-size: var(--font-heading-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.unit-setpoint-note { margin: 0; color: var(--muted); font-size: var(--font-body-sm); }
+.unit-sheet-field {
+  display: grid;
+  gap: var(--space-sm);
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.unit-sheet-label { font-weight: 600; }
+.unit-mode-segmented .segmented-item .icon { width: 18px; height: 18px; }
+.unit-sheet-links { border-top: 1px solid var(--line); }
+.unit-sheet-links .action-row { padding: 0; }
+.unit-sheet-link {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+  padding: 0;
+}
+/* The label never gives way to its value: the value ellipsizes first. */
+.unit-sheet-link .action-row-title { flex: 1 0 auto; overflow: visible; }
+.unit-sheet-link-icon { width: 18px; height: 18px; color: var(--muted); }
+.unit-sheet-link-value {
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+}
+.unit-sheet-link-chevron { width: 16px; height: 16px; color: var(--muted); }
+.unit-sheet-page[data-page="schedules"] .alarm-schedule-list { gap: 0; }
 .detail-hint { margin: 8px 0 2px; }
-.schedule-list { display: flex; flex-direction: column; gap: 10px; }
 .schedule-empty { margin: var(--space-xs) 0 0; }
 .schedule-entry {
   border: 1px solid var(--line);
@@ -2694,8 +2576,6 @@ body:has(dialog[open]) .app { overflow: hidden; }
   font-size: var(--font-label);
   font-weight: 600;
 }
-.schedule-profile { margin-top: var(--space-sm); }
-.schedule-profile .row { padding: 9px 0; }
 /* One destructive-× idiom app-wide (issue #367): the vendored icon-button.danger
    (quiet at rest, danger glyph on hover) at the control height. */
 .schedule-delete { --icon-btn-box: var(--control-h); }
@@ -2715,6 +2595,7 @@ body:has(dialog[open]) .app { overflow: hidden; }
 /* Full width already clears 44px horizontally; only the 36px height (#wakeAlarmAdd
    among others, issue #361 review) needs the vertical extension (#367). */
 .schedule-add-btn::before { content: ""; position: absolute; inset: -4px 0; }
+.schedule-add-btn:disabled { color: var(--muted); cursor: default; }
 @media (max-width: 420px) {
   .schedule-entry-head { grid-template-columns: 1fr 1fr auto; }
   .schedule-enabled { grid-column: 1 / -1; }

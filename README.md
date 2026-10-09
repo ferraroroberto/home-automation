@@ -4,7 +4,7 @@ Control your Mitsubishi Electric units from your phone — a mobile-first, insta
 
 > **Platform note.** These units migrated from classic MELCloud (`app.melcloud.com`) to **MELCloud Home**, which is a different API. The classic `pymelcloud` library cannot see them. This project uses [`aiomelcloudhome`](https://github.com/erwindouna/aiomelcloudhome) — a pure-async client that does the PKCE login over HTTP (no browser). Use your **MELCloud Home** credentials in `.env`.
 
-The product is a **FastAPI + static PWA**: a card grid showing every unit at once, each card carrying the everyday controls inline (on/off, target temperature, fan speed, room-temperature readout); a per-unit detail modal holds the rest (operation mode + the two vanes). A unit whose WiFi adapter has lost its cloud connection (MELCloud Home's own `isConnected` flag) renders **dimmed with an "Offline" chip beside its name**, and every control that would write to it — card power toggle, fan selector, target steppers, and the modal's mode/fan/vane selects — is disabled rather than silently swallowing the command (issue #520); its last-known readings stay legible, and the locally-stored settings (display name, temperature rule, schedules) remain editable. It is reachable over **Tailscale**, behind a real Let's Encrypt HTTPS endpoint (`tailscale cert`) and an optional bearer token. Two ways to reach it once running:
+The product is a **FastAPI + static PWA**: one row per unit (its mode glyph, the room → set temperatures, and the power switch one tap away); tapping a row opens the unit sheet, which sends each change as it is made — a large setpoint stepper, power, mode and fan as segmented controls, then the vanes, the temperature rule, the schedules and the name (issue #881). A unit whose WiFi adapter has lost its cloud connection (MELCloud Home's own `isConnected` flag) shows **an "Offline" chip and a red avatar badge**, and every control that would write to it — the row's power switch, and the sheet's setpoint, power, mode, fan and vanes — is disabled rather than silently swallowing the command (issue #520); its last-known readings stay legible, and the locally-stored settings (display name, temperature rule, schedules) remain editable. It is reachable over **Tailscale**, behind a real Let's Encrypt HTTPS endpoint (`tailscale cert`) and an optional bearer token. Two ways to reach it once running:
 
 - **Tailscale** (anywhere on the tailnet, including this PC): `https://<pc>.<tailnet>.ts.net:8447` — trusted cert, no per-device setup
 - **Loopback** (plain desktop access on the PC): `http://localhost:8447` — plain HTTP; `https://localhost` would warn (the cert is for the `.ts.net` name — see [HTTPS](#https-tailscale-cert))
@@ -603,7 +603,7 @@ the tab's title, the theme toggle, and a **Settings** gear: **Home** (a consolid
 the actionable alarm tile, a one-line-per-unit AC summary with inline power
 toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
 card as the Energy tab; alarm + AC act, the rest inform),
-**AC** (the full unit controls + detail modal),
+**AC** (one row per unit with its power switch; the unit sheet holds the rest),
 **Energy** (a stacked-area solar dashboard — a live ☀️ Solar · 🏠 Home · 🗼 Grid
 flow row with a colour-coded grid arrow (blue ◀ importing, green ▶ exporting),
 self-sufficiency / self-consumption tiles, today's generation & consumption split
@@ -1310,11 +1310,11 @@ The PWA keeps a browser-local, versioned last-good snapshot of selected read-onl
 
 Each HVAC unit has a factory name supplied by MELCloud (e.g. "MSZAP15VGK").
 You can override it with a friendlier label — "Living Room", "Master Bedroom" —
-that is shown in the card grid and the detail modal instead of the API name.
+that is shown on the unit's rows and in its sheet instead of the API name.
 
-- Open the detail modal for a unit → fill in the **Display name** field → the
-  label is saved immediately via `PUT /api/units/{id}/display_name` and
-  reflected on the card without a page reload.
+- Open the unit's sheet → **Name** → fill in the **Display name** field → the
+  label is saved on blur (or Enter) via `PUT /api/units/{id}/display_name` and
+  reflected on the rows without a page reload.
 - Overrides are stored in `config/display_names.json` (gitignored — it would
   expose room names in a public repo). A template with the JSON structure is at
   `config/display_names.sample.json`:
@@ -1331,7 +1331,9 @@ that is shown in the card grid and the detail modal instead of the API name.
 
 ## HVAC automation
 
-The unit detail modal has two optional automation sections:
+The unit sheet has two optional automation pages. The rule saves as it changes
+(a switch on tap, a number on blur); schedules are a dense collection whose Add
+and Edit open a staged editor, where Save is the only persistence boundary:
 
 - **Temperature rule** — a dynamic setpoint controller, not an on/off thermostat.
   The unit stays on only if you turned it on; while it is on in Cool/Dry or Heat,
@@ -1377,13 +1379,13 @@ upgrade. Optional `.env` knobs:
 | `HVAC_BOOST_SURPLUS_OFF_W` | `500` | PV surplus (watts) below which a boost is eligible to end — the lower half of the hysteresis band. |
 | `HVAC_BOOST_MIN_DURATION_S` | `1800` | Minimum time a boost holds once started, regardless of surplus, to avoid thrashing. |
 
-Solar-surplus boost (#554): a per-unit opt-in (`boost_enabled` + `boost_offset_c`, in the detail modal's Temperature rule section) that shifts the rule's own steered target further toward comfort while PV surplus is high, then lets it relax back via the same gradual steering law once surplus drops — pre-cooling/heating to bank thermal inertia ahead of a PV drop. Inert unless the unit's temperature rule is also enabled (boost shifts that rule's target). Start/stop transitions are logged to the Activity log (`domain=hvac`, `boost_start`/`boost_stop`); a unit currently boosted shows a pill in its card with the signed offset actually applied — e.g. `Boost -2` while cooling, `Boost +2` while heating (issue #575).
+Solar-surplus boost (#554): a per-unit opt-in (`boost_enabled` + `boost_offset_c`, in the unit sheet's Temperature rule page) that shifts the rule's own steered target further toward comfort while PV surplus is high, then lets it relax back via the same gradual steering law once surplus drops — pre-cooling/heating to bank thermal inertia ahead of a PV drop. Inert unless the unit's temperature rule is also enabled (boost shifts that rule's target). Start/stop transitions are logged to the Activity log (`domain=hvac`, `boost_start`/`boost_stop`); a unit currently boosted shows an accent chip on its row with the signed offset actually applied — e.g. `Boost -2` while cooling, `Boost +2` while heating (issue #575).
 
 **Boost is sequenced across units, one at a time (#562).** With several eligible units, one shared surplus reading and one shared threshold is an oscillator, not a controller: every unit would enter boost in the same tick, their combined draw can exceed the surplus and push the house into import, and — because they all started together — they would become sheddable together, shed together, and repeat. The engine therefore admits **at most one unit per settle interval**, then re-reads the *measured* surplus (which now contains that unit's real draw, so no per-unit power model is needed) before considering the next. As surplus declines, units leave one per interval in **reverse admission order** (last admitted, first shed); a unit still inside its `HVAC_BOOST_MIN_DURATION_S` is skipped rather than jumped ahead of. Sustained **import** past the fast-shed threshold is the one exception: it drops every boosted unit at once and overrides the min-duration debounce, because otherwise a herd-induced deficit would persist for the full 30 minutes. It sheds all rather than one-per-tick deliberately — there is no per-unit power model to size a partial shed with, and the solar feed runs several minutes behind, so shedding one per tick would re-decide repeatedly against the same stale reading while the house keeps importing.
 
 On admission (and symmetrically on shed) the unit's **actual setpoint is commanded in that same tick**, computed straight from the boosted target rather than the usual single 0.5 °C step — otherwise a 2 °C boost would express as ~0.5 °C per 15 minutes and take about an hour to arrive, so a sequencer measuring 5 minutes later would see no added draw and admit the whole fleet before any of it materialised. That immediate write is scoped to the transition only: a unit that is already boosted goes straight back to the normal one-step-per-`HVAC_ADJUST_INTERVAL_S` steering law. It is a **setpoint write only** — the coordinator never toggles power, so the compressor is never cycled. Every decision leaves a breadcrumb in the Activity log with a distinct reason: `admitted` on `boost_start`, `shed_sequential` / `shed_deficit` on `boost_stop`, and `boost_hold` / `held_margin` when a candidate is waiting for headroom (logged once per hold episode, not once per poll).
 
-The coordinator knobs are **fleet-wide** and edited from the Energy tab's **Solar boost** card — persisted to gitignored `config/hvac_boost.json` (committed `…sample.json` shows the shape) and re-read every tick, so a change is live with **no tray restart**. The per-unit `boost_enabled` / `boost_offset_c` stay per unit in the detail modal; rooms are deliberately opted in one by one and that never becomes a global policy. The `HVAC_BOOST_*` hysteresis knobs above remain `.env`-only (they are read once at start-up).
+The coordinator knobs are **fleet-wide** and edited from the Energy tab's **Solar boost** card — persisted to gitignored `config/hvac_boost.json` (committed `…sample.json` shows the shape) and re-read every tick, so a change is live with **no tray restart**. The per-unit `boost_enabled` / `boost_offset_c` stay per unit in the unit sheet; rooms are deliberately opted in one by one and that never becomes a global policy. The `HVAC_BOOST_*` hysteresis knobs above remain `.env`-only (they are read once at start-up).
 
 | Key (`config/hvac_boost.json`) | Default | Meaning |
 |-----|---------|---------|

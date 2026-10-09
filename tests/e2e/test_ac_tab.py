@@ -1,6 +1,6 @@
 """AC tab pane states — loading, true-empty, unavailable, stale, and snapshot.
 
-Card-level controls and the detail modal have their own modules
+The row and sheet controls and the unit sheet have their own modules
 (`test_controls.py`, `test_detail_modal.py`); this one covers the pane's own
 `data-state` machine and the cached-snapshot paint (#522).
 """
@@ -71,7 +71,7 @@ def test_ac_poll_failure_preserves_units_and_disables_actions(
     mock_energy()
     boot_home(page, base_url)
     page.locator("#tabAc").click()
-    expect(page.locator(".unit-card")).to_have_count(len(sample_units))
+    expect(page.locator("#acUnits .ac-row")).to_have_count(len(sample_units))
 
     page.unroute("**/api/units")
     page.route(
@@ -88,8 +88,8 @@ def test_ac_poll_failure_preserves_units_and_disables_actions(
     expect(page.locator("#paneAc")).to_have_attribute("data-state", "stale")
     expect(page.locator("#acFeedback")).to_contain_text("Last updated")
     expect(page.locator("#acFeedback")).to_contain_text("live data unavailable")
-    expect(page.locator(".unit-card")).to_have_count(len(sample_units))
-    expect(page.locator("#unitsGrid button:enabled, #unitsGrid select:enabled")).to_have_count(0)
+    expect(page.locator("#acUnits .ac-row")).to_have_count(len(sample_units))
+    expect(page.locator("#acUnits .ac-line-toggle:enabled")).to_have_count(0)
     expect(page.locator("#acSummary .ac-line-toggle:enabled")).to_have_count(0)
     expect(page.locator("#acFeedback")).not_to_contain_text("melcloud.example.internal")
 
