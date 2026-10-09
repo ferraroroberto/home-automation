@@ -1,4 +1,4 @@
-"""Background daily blind schedule evaluator (issue #871).
+"""Background daily blind schedule evaluator (#871) and the alarm pairing (#875).
 
 Fires each enabled entry of ``config/blind_schedules.json`` once on its day at
 its time through :func:`src.blind_automation.move_blinds`, the same parallel
@@ -11,15 +11,21 @@ gate per entry. An entry whose presence condition does not hold at its fire
 time is skipped for the day (it does not wait for someone to arrive), and so
 is one whose presence cannot be established. When every one of its blinds
 failed — the LAN down, say — it is retried on the next poll inside the window.
+
+:func:`follow_alarm` is the other way blinds move on their own: the presence
+alarm automation calls it after the panel *confirmed* an automatic arm or
+disarm, and it lowers every blind on a full arm or raises them on a daytime
+disarm when the Blinds card's "Follow the automatic alarm" switch is on.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -28,12 +34,17 @@ from app.webapp._task_loop import run_loop
 from src._schedule_store import daily_due
 from src.blind_automation import (
     BlindScheduleEntry,
+    alarm_blind_action,
     cover_device_ids,
+    is_daytime,
+    load_blind_alarm_prefs,
     load_blind_schedules,
     move_blinds,
     presence_allows,
 )
+from src.location_config import load_location_config
 from src.presence_engine import load_people
+from src.sun_position import sun_position
 
 logger = logging.getLogger(__name__)
 
@@ -66,21 +77,30 @@ def load_blind_schedule_config() -> BlindScheduleConfig:
     )
 
 
-def _record(entry: BlindScheduleEntry, outcome: str, detail: str) -> None:
+def _record_event(
+    action: str, entity_id: str, source: str, outcome: str, payload: Dict[str, Any]
+) -> None:
     """Best-effort telemetry event, like the plug toggle's (#289)."""
     try:
         from src import telemetry
 
         telemetry.record_event(
             "blind",
-            "blind_" + entry.action,
-            entity_id=entry.id,
-            source="schedule",
+            "blind_" + action,
+            entity_id=entity_id,
+            source=source,
             outcome=outcome,
-            payload={"time": entry.time, "targets": entry.targets, "detail": detail},
+            payload=payload,
         )
     except Exception:  # noqa: BLE001 — telemetry is best-effort
-        logger.debug("telemetry blind-schedule event skipped", exc_info=True)
+        logger.debug("telemetry blind event skipped", exc_info=True)
+
+
+def _record(entry: BlindScheduleEntry, outcome: str, detail: str) -> None:
+    _record_event(
+        entry.action, entry.id, "schedule", outcome,
+        {"time": entry.time, "targets": entry.targets, "detail": detail},
+    )
 
 
 async def _apply(entry: BlindScheduleEntry) -> bool:
@@ -145,6 +165,54 @@ async def tick(
                 state.last_fire_day[entry.id] = today
         except Exception as exc:  # noqa: BLE001 — never kill the loop
             logger.warning("⚠️ Blind schedule apply failed for %s: %s", entry.id, exc)
+
+
+def _sun_elevation_now() -> Optional[float]:
+    """The sun's elevation at home right now, or ``None`` with no location."""
+    location = load_location_config()
+    if location is None:
+        return None
+    return sun_position(time.time(), location.lat, location.lon).elevation_deg
+
+
+async def follow_alarm(kind: str, action: str, now: Optional[datetime] = None) -> Optional[str]:
+    """Move the blinds after a *confirmed* automatic alarm decision (#875).
+
+    ``kind``/``action`` are the presence decision's (``arm``/``disarm`` and
+    the panel action). Returns the blind action sent, or ``None`` when the
+    blinds were left alone. Never raises: the alarm action already happened,
+    and nothing here may change its outcome, record or notification.
+    """
+    try:
+        enabled = load_blind_alarm_prefs().follow_alarm
+        daytime: Optional[bool] = None
+        day_why = ""
+        if enabled and kind == "disarm":
+            daytime, day_why = is_daytime(
+                now or datetime.now(), load_blind_schedules(), _sun_elevation_now()
+            )
+        blind_action, why = alarm_blind_action(kind, action, enabled=enabled, daytime=daytime)
+        if day_why:
+            why = f"{why} ({day_why})"
+        if blind_action is None:
+            if enabled:
+                logger.info("ℹ️ Blinds left alone after alarm %s/%s: %s", kind, action, why)
+            return None
+        outcomes = await move_blinds(blind_action)  # type: ignore[arg-type]
+        moved = sum(1 for o in outcomes if o.ok)
+        logger.info(
+            "🪟 Blinds %s after alarm %s/%s — %s; %d of %d moved",
+            blind_action, kind, action, why, moved, len(outcomes),
+        )
+        _record_event(
+            blind_action, "all", "alarm", "ok" if moved else "error",
+            {"alarm": kind, "alarm_action": action, "detail": why,
+             "moved": moved, "total": len(outcomes)},
+        )
+        return blind_action
+    except Exception as exc:  # noqa: BLE001 — never let blinds touch the alarm path
+        logger.warning("⚠️ Blinds could not follow the alarm %s/%s: %s", kind, action, exc)
+        return None
 
 
 async def _run(config: BlindScheduleConfig) -> None:

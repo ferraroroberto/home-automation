@@ -410,6 +410,7 @@ export const els = {
   blindScheduleTargets: document.getElementById('blindScheduleTargets'),
   blindScheduleDelete: document.getElementById('blindScheduleDelete'),
   blindScheduleSave: document.getElementById('blindScheduleSave'),
+  blindsFollowAlarm: document.getElementById('blindsFollowAlarm'),
   // Circuits — per-breaker CT-clamp meters, the IoT card after Plugs (#25).
   circuitsList: document.getElementById('circuitsList'),
   circuitsCount: document.getElementById('circuitsCount'),

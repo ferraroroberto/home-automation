@@ -14,7 +14,7 @@ with the router set the way the old exhaustive table did (#453).
     circuits           → /api/circuits*                  (Athom CT-clamp per-circuit power)
     weather            → /api/weather
     tuya               → /api/tuya*                      (Smart Life / Tuya plugs, blinds)
-    blind_schedules    → /api/blinds/schedules
+    blind_schedules    → /api/blinds/schedules, /api/blinds/alarm-pairing
     ups                → /api/ups*                        (USB UPS + notify prefs)
     lights             → /api/lights*                     (Elgato lights)
     cameras            → /api/cameras*                    (RTSP/ONVIF, snapshot, stream, PTZ, presets)

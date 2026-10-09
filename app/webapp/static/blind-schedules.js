@@ -1,4 +1,5 @@
-/* Daily blind up/down schedule editor (issue #871).
+/* Daily blind up/down schedule editor (issue #871) and the alarm-pairing
+ * switch (issue #875).
  *
  * Lives in the Devices tab's Blinds card, under the group row and the blind
  * rows. The same shape as the alarm-schedule editor (security-schedules.js):
@@ -14,8 +15,8 @@
 
 'use strict';
 
-import { state, els } from './state.js';
-import { jsonApi, isAuthRequired } from './api.js';
+import { state, els, toast } from './state.js';
+import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 
@@ -224,6 +225,34 @@ export function renderBlindSchedules() {
   });
 }
 
+// The "Follow the automatic alarm" switch (#875): read on entry, written on
+// tap, rolled back when the save fails so the switch never shows a state the
+// server does not hold.
+async function loadAlarmPairing() {
+  if (!els.blindsFollowAlarm) return;
+  try {
+    const body = await jsonApi('/api/blinds/alarm-pairing');
+    setToggleState(els.blindsFollowAlarm, !!(body && body.follow_alarm));
+  } catch (exc) {
+    if (!isAuthRequired(exc)) reportActionFailure(exc, "Couldn't read the alarm pairing");
+  }
+}
+
+async function saveAlarmPairing(on) {
+  try {
+    const body = await jsonApi('/api/blinds/alarm-pairing', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ follow_alarm: on }),
+    });
+    setToggleState(els.blindsFollowAlarm, !!(body && body.follow_alarm));
+    toast(on ? 'Blinds follow the alarm' : 'Blinds no longer follow the alarm', 'success');
+  } catch (exc) {
+    setToggleState(els.blindsFollowAlarm, !on);
+    reportActionFailure(exc, "Couldn't save the alarm pairing");
+  }
+}
+
 export async function loadBlindSchedules() {
   if (!els.blindSchedules) return;
   try {
@@ -244,7 +273,9 @@ export async function loadBlindSchedules() {
 // The list changes only through this editor, so one read per visit to the
 // Devices tab is enough — no polling.
 export function onBlindSchedulesTab(tab) {
-  if (tab === 'iot') loadBlindSchedules();
+  if (tab !== 'iot') return;
+  loadBlindSchedules();
+  loadAlarmPairing();
 }
 
 export function wireBlindSchedules() {
@@ -252,6 +283,7 @@ export function wireBlindSchedules() {
   wireToggle(els.blindScheduleEnabled, function (on) {
     if (scheduleEditor.staged) scheduleEditor.staged.enabled = on;
   });
+  wireToggle(els.blindsFollowAlarm, saveAlarmPairing);
   // Blind names come from GET /api/tuya; re-render once they land so a
   // single-blind row shows the blind's name rather than "Removed blind".
   // Only then: a re-render on every 15 s Plugs poll would rebuild rows under
