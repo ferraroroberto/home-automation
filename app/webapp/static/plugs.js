@@ -67,7 +67,8 @@ function plugLabel(device) {
 // plug B, but a double-tap on the same toggle must not double-POST.
 const switchBusy = new Set();
 
-async function toggleSwitch(device, btn) {
+// Exported for the Lights card, which renders the Tuya lights (#181).
+export async function toggleSwitch(device, btn) {
   if (switchBusy.has(device.device_id)) return;
   switchBusy.add(device.device_id);
   if (btn) btn.disabled = true;
@@ -108,10 +109,58 @@ async function coverAction(device, action) {
         body: JSON.stringify({ action: action }),
       },
     );
-    toast(plugLabel(device) + ' ' + action, 'success');
+    toast(plugLabel(device) + ' ' + BLIND_WORDS[action], 'success');
   } catch (exc) {
     reportActionFailure(exc, 'Failed');
   }
+}
+
+// House-wide group move (#181): every blind the Blinds card currently lists
+// (so a user-hidden blind stays out of it), offline-looking ones included — a
+// user command bypasses the poll backoff, and the blind may well answer. The
+// server sends the commands in parallel and reports each blind's outcome.
+let groupBusy = false;
+
+async function blindsGroupAction(action) {
+  if (groupBusy) return;
+  const targets = state.blindsShown;
+  if (!targets.length) {
+    toast('No blinds to move', 'error');
+    return;
+  }
+  groupBusy = true;
+  try {
+    toast('Sending…', 'pending');
+    const body = await jsonApi('/api/tuya/covers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: action,
+        device_ids: targets.map(function (d) { return d.device_id; }),
+      }),
+    });
+    const failed = ((body && body.results) || []).filter(function (r) { return !r.ok; });
+    if (failed.length) {
+      const names = failed.map(function (r) {
+        const d = deviceById(r.device_id);
+        return d ? plugLabel(d) : r.device_id;
+      });
+      toast(failed.length + ' of ' + targets.length + ' blinds failed: ' + names.join(', '), 'error');
+    } else {
+      toast('All blinds ' + BLIND_WORDS[action], 'success');
+    }
+  } catch (exc) {
+    reportActionFailure(exc, 'Failed');
+  } finally {
+    groupBusy = false;
+  }
+}
+
+export function wireBlindsGroup() {
+  [[els.blindsAllUp, 'open'], [els.blindsAllStop, 'stop'], [els.blindsAllDown, 'close']]
+    .forEach(function (pair) {
+      if (pair[0]) pair[0].addEventListener('click', function () { blindsGroupAction(pair[1]); });
+    });
 }
 
 // ------------------------------------------------------------- row DOM
@@ -139,7 +188,8 @@ function unavailableNote(device) {
   return note;
 }
 
-function buildPlugRow(device) {
+// Exported for the Lights card: a Tuya light is a switch row like a plug (#181).
+export function buildPlugRow(device) {
   const on = device.switch_on === true;
   const row = document.createElement('div');
   row.className = 'device-row plug-row';
@@ -179,12 +229,15 @@ function buildPlugRow(device) {
 
 // Up · Stop · Down buttons, each an icon plus a visible word (#805, J-01: a
 // row's main action is never icon-only). Covers expose only open/stop/close on
-// the LAN (no native position), so these are the full control surface.
+// the LAN (no native position), so these are the full control surface. The
+// words are the household's own — these are roller blinds, so a blind goes up
+// and down (#181) — while the API keeps Tuya's open/stop/close.
 const BLIND_CONTROLS = [
-  ['open', 'Open', 'i-chevron-up'],
+  ['open', 'Up', 'i-chevron-up'],
   ['stop', 'Stop', 'i-square'],
-  ['close', 'Close', 'i-chevron-down'],
+  ['close', 'Down', 'i-chevron-down'],
 ];
+const BLIND_WORDS = { open: 'up', stop: 'stopped', close: 'down' };
 
 function buildBlindRow(device) {
   const row = document.createElement('div');
@@ -311,19 +364,21 @@ function patchPlug(id, patch) {
 function renderStats() {
   // The same totals render in the Plugs tab card and the Home tab tile (#72).
   const cards = [els.plugsStats, els.homePlugsStats];
-  if (!state.plugs.length) {
+  // Tuya lights are counted by the Lights card, not here (#181).
+  const devices = state.plugs.filter(function (d) { return !d.is_light; });
+  if (!devices.length) {
     cards.forEach(function (c) { if (c) c.hidden = true; });
     return;
   }
   let on = 0;
   let off = 0;
   let watts = 0;
-  state.plugs.forEach(function (d) {
+  devices.forEach(function (d) {
     if (d.switch_on === true) on += 1;
     else if (d.has_switch && d.switch_on === false) off += 1;
     if (d.metered && d.reachable && d.power_w != null) watts += Number(d.power_w);
   });
-  const total = String(state.plugs.length);
+  const total = String(devices.length);
   const onStr = String(on);
   const offStr = String(off);
   const wattStr = fmtW(watts);
@@ -366,6 +421,8 @@ export function renderPlugs() {
     renderHiddenToggle();
     setListCard(els.plugsCard, els.plugsCount, 0);
     setListCard(els.blindsCard, els.blindsCount, 0);
+    state.blindsShown = [];
+    publishTuyaLights([]);
     return;
   }
   els.plugsNote.hidden = true;
@@ -399,13 +456,24 @@ export function renderPlugs() {
     : visible.filter(function (d) { return !d.hidden; });
   renderHiddenToggle();
 
-  // Split: covers → Blinds card, everything else → Plugs card.
-  const plugs = shown.filter(function (d) { return d.has_cover !== true; });
+  // Split: covers → Blinds card, lights → Lights card (#181), everything
+  // else → Plugs card.
+  const plugs = shown.filter(function (d) { return d.has_cover !== true && !d.is_light; });
   const blinds = shown.filter(function (d) { return d.has_cover === true; });
   plugs.forEach(function (d) { els.plugsList.appendChild(buildPlugRow(d)); });
   blinds.forEach(function (d) { els.blindsList.appendChild(buildBlindRow(d)); });
   setListCard(els.plugsCard, els.plugsCount, plugs.length);
   setListCard(els.blindsCard, els.blindsCount, blinds.length);
+  state.blindsShown = blinds;
+  publishTuyaLights(shown.filter(function (d) { return d.is_light === true; }));
+}
+
+// The Lights card owns the rendering of Tuya lights; hand it the filtered set
+// and let it re-render. An event rather than an import keeps the dependency
+// one-way (lights.js imports from here, never the reverse).
+function publishTuyaLights(lights) {
+  state.tuyaLights = lights;
+  document.dispatchEvent(new CustomEvent('plugs:rendered'));
 }
 
 // ------------------------------------------------------- toggle wiring

@@ -1367,7 +1367,8 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
 
     ``GET /api/tuya`` returns the supplied device cards; the switch POST flips
     ``switch_on`` and echoes the card back (mirroring the server's read-back);
-    the cover POST acknowledges the action. Returns the live list so a test can
+    the cover POST acknowledges the action, and the group cover POST (#181)
+    acknowledges every listed blind. Returns the live list so a test can
     assert server-bound mutations. Call before navigating.
     """
     def _install(devices: List[Dict]) -> List[Dict]:
@@ -1395,6 +1396,21 @@ def mock_tuya(page: Page) -> Callable[[List[Dict]], List[Dict]]:
                             "added": [], "updated": [], "recovered": [],
                             "detail": "No new devices",
                         },
+                    }),
+                )
+                return
+            if verb == "covers":  # #181 — group move; every blind accepts
+                body = req.post_data_json or {}
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body=_json({
+                        "action": body.get("action"),
+                        "results": [
+                            {"device_id": d, "ok": True, "error": None}
+                            for d in body.get("device_ids") or []
+                        ],
+                        "failed": 0,
                     }),
                 )
                 return

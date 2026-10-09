@@ -2,7 +2,8 @@
 
 ``GET /api/tuya`` lists every captured Tuya device with its live switch state
 and current wattage; ``POST /api/tuya/{id}/switch`` and
-``POST /api/tuya/{id}/cover`` write on/off and blind controls. Everything here
+``POST /api/tuya/{id}/cover`` write on/off and blind controls, and
+``POST /api/tuya/covers`` moves a group of blinds at once (issue #181). Everything here
 is LAN-only through the gitignored ``devices.json`` — no Tuya Cloud at runtime.
 The one exception is ``POST /api/tuya/pair`` (issue #612), the explicit
 "Add device" action that captures a newly-paired device's identity and local
@@ -25,6 +26,7 @@ from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, make_display_name_endpoint
+from src.blind_automation import move_blinds
 from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
 from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
@@ -85,6 +87,7 @@ def _base_card(
         "sn": info.sn,
         "has_switch": info.switch_dps is not None,
         "has_cover": info.cover_control_dps is not None,
+        "is_light": info.is_light,
         "metered": bool(info.energy_dps),
         "has_valid_ip": info.has_valid_ip,
         "reachable": False,
@@ -264,6 +267,38 @@ async def pair_tuya() -> Dict[str, Any]:
         "detail": _pair_detail(added, recovered, found, scan_error),
     }
     return body
+
+
+class CoverGroupPayload(BaseModel):
+    action: str
+    device_ids: Optional[List[str]] = None
+
+
+@router.post("/api/tuya/covers")
+async def control_cover_group(payload: CoverGroupPayload) -> Dict[str, Any]:
+    """Move several blinds at once — all of them when ``device_ids`` is omitted.
+
+    The commands go out in parallel (``src.blind_automation``). A blind that
+    fails is reported per device rather than failing the group; only when
+    *every* blind failed is the whole request a 502.
+    """
+    try:
+        outcomes = await move_blinds(payload.action, payload.device_ids)  # type: ignore[arg-type]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except TuyaConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    TUYA_SNAPSHOT.invalidate()  # no read-back for a cover: refetch next read
+    results = [
+        {"device_id": o.device_id, "ok": o.ok, "error": o.error} for o in outcomes
+    ]
+    failed = [r for r in results if not r["ok"]]
+    if results and len(failed) == len(results):
+        raise HTTPException(
+            status_code=502,
+            detail=f"no blind accepted {payload.action}: " + "; ".join(r["error"] or "" for r in failed),
+        )
+    return {"action": payload.action, "results": results, "failed": len(failed)}
 
 
 @router.post("/api/tuya/{device_id}/switch")

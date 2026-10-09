@@ -1083,10 +1083,11 @@
         </div>
       </details>
 
-      <!-- Elgato lights — a peer of the Plugs/Blinds row lists, sitting right
-           after Plugs since both are on/off power devices. Its bulk actions
-           live in the card body rather than a pane toolbar, so they stay
-           scoped to lights. -->
+      <!-- Lights — Elgato lights plus the Tuya lights from GET /api/tuya
+           (#181), a peer of the Plugs/Blinds row lists, sitting right after
+           Plugs since both are on/off power devices. Its bulk actions live in
+           the card body rather than a pane toolbar, so they stay scoped to
+           lights. -->
       <details class="card card--collapsible device-list-card" id="lightsCard">
         <summary class="collapse-summary">
           <span class="collapse-main">
@@ -1102,7 +1103,7 @@
             <button id="lightsAllOn" type="button" class="range-tab" data-testid="lights-all-on">All on</button>
             <button id="lightsAllOff" type="button" class="range-tab" data-testid="lights-all-off">All off</button>
           </div>
-          <section id="lightsList" class="device-list" aria-label="Elgato lights" aria-live="polite"></section>
+          <section id="lightsList" class="device-list" aria-label="Lights" aria-live="polite"></section>
           <p id="lightsNote" class="muted small lights-note" role="status" hidden></p>
         </div>
       </details>
@@ -1117,6 +1118,13 @@
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
         <div class="device-list-body">
+          <!-- House-wide group moves (#181), the Lights card's bulk-row shape.
+               The commands go out in parallel so the blinds start together. -->
+          <div class="lights-toolbar" aria-label="Blind group controls">
+            <button id="blindsAllUp" type="button" class="range-tab" data-testid="blinds-all-up">All up</button>
+            <button id="blindsAllStop" type="button" class="range-tab" data-testid="blinds-all-stop">All stop</button>
+            <button id="blindsAllDown" type="button" class="range-tab" data-testid="blinds-all-down">All down</button>
+          </div>
           <section id="blindsList" class="device-list" aria-label="Blinds"></section>
         </div>
       </details>
