@@ -19,6 +19,11 @@ export const state = {
   selectedId: null,
   // Local Tuya / Smart Life device cards from GET /api/tuya.
   plugs: [],
+  // The Tuya lights among them that pass the Plugs visibility filters —
+  // plugs.js derives it, lights.js renders it in the Lights card (#181).
+  tuyaLights: [],
+  // The blinds the Blinds card currently lists — the group buttons' targets.
+  blindsShown: [],
   // Athom CT-clamp meters (one entry per meter, each with all its channels)
   // from GET /api/circuits (issue #25).
   circuits: [],
@@ -385,6 +390,9 @@ export const els = {
   blindsCard: document.getElementById('blindsCard'),
   blindsList: document.getElementById('blindsList'),
   blindsCount: document.getElementById('blindsCount'),
+  blindsAllUp: document.getElementById('blindsAllUp'),
+  blindsAllStop: document.getElementById('blindsAllStop'),
+  blindsAllDown: document.getElementById('blindsAllDown'),
   // Circuits — per-breaker CT-clamp meters, the IoT card after Plugs (#25).
   circuitsList: document.getElementById('circuitsList'),
   circuitsCount: document.getElementById('circuitsCount'),

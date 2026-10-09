@@ -5,9 +5,17 @@ from __future__ import annotations
 import copy
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import hold_reads
+
+
+@pytest.fixture(autouse=True)
+def _no_tuya_lights(mock_tuya: Callable) -> None:
+    """The Lights card also lists Tuya lights (#181); stub GET /api/tuya empty
+    so these Elgato tests never read the real devices.json."""
+    mock_tuya([])
 
 
 def _open_lights(page: Page) -> None:

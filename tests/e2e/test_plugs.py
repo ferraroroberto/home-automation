@@ -336,7 +336,7 @@ def test_blind_has_labelled_controls(
     # an icon plus a visible word (#805, J-01 — never icon-only).
     buttons = page.locator('[data-device-id="cover-1"] .blind-btn')
     expect(buttons).to_have_count(3)
-    expect(buttons.locator(".blind-btn-label")).to_have_text(["Open", "Stop", "Close"])
+    expect(buttons.locator(".blind-btn-label")).to_have_text(["Up", "Stop", "Down"])
     boxes = effective_rects(buttons)
     assert all(box.visual.height >= 44 and box.visual.width >= 44 for box in boxes)
     # The three buttons sit left-to-right with no shared tap zone.
@@ -345,8 +345,74 @@ def test_blind_has_labelled_controls(
         for index in range(2)
     )
     assert_no_horizontal_overflow(page)
-    # Open is actionable and does not raise (stub acks the action).
+    # Up is actionable and does not raise (stub acks the action).
     page.locator('[data-device-id="cover-1"] .blind-btn[data-action="open"]').click()
+
+
+def _with_second_blind_and_light(sample_plugs: List[Dict]) -> List[Dict]:
+    """sample_plugs plus a second blind and a Tuya light (#181)."""
+    blank = {
+        "has_switch": False, "has_cover": False, "metered": False,
+        "has_valid_ip": True, "reachable": True, "switch_on": None,
+        "power_w": None, "current_ma": None, "voltage_v": None,
+        "energy_kwh": None, "error": None,
+    }
+    return sample_plugs + [
+        {**blank, "device_id": "cover-2", "name": "Test Blind Two",
+         "category": "qt", "has_cover": True},
+        {**blank, "device_id": "light-1", "name": "Test Dimmer",
+         "category": "dj", "has_switch": True, "is_light": True, "switch_on": False},
+    ]
+
+
+def test_blinds_group_buttons_move_every_listed_blind(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    _boot_plugs(
+        page, base_url, sample_units, _with_second_blind_and_light(sample_plugs),
+        mock_api, mock_energy, mock_tuya,
+    )
+
+    group = page.locator("#blindsCard .lights-toolbar .range-tab")
+    expect(group).to_have_text(["All up", "All stop", "All down"])
+    assert all(box.effective.height >= 44 for box in effective_rects(group))
+    assert_no_horizontal_overflow(page)
+
+    # One request carries every blind the card lists, in parallel server-side.
+    with page.expect_request("**/api/tuya/covers") as request:
+        page.locator("#blindsAllDown").click()
+    body = request.value.post_data_json
+    assert body["action"] == "close"
+    assert sorted(body["device_ids"]) == ["cover-1", "cover-2"]
+    expect(page.locator("#toast")).to_contain_text("All blinds down")
+
+
+@pytest.mark.chromium_only
+def test_tuya_light_lists_under_lights_not_plugs(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    _boot_plugs(
+        page, base_url, sample_units, _with_second_blind_and_light(sample_plugs),
+        mock_api, mock_energy, mock_tuya,
+    )
+
+    # The dimmer is a light (#181): a row in the Lights card, not the Plugs one,
+    # and it counts toward neither the Plugs badge nor the plug stats.
+    expect(page.locator('#lightsList [data-device-id="light-1"]')).to_be_visible()
+    expect(page.locator('#plugsList [data-device-id="light-1"]')).to_have_count(0)
+    expect(page.locator("#plugStatTotal")).to_have_text("5")
+
+    # Its toggle rides the plug switch path and re-renders in the Lights card.
+    toggle = page.locator('#lightsList [data-device-id="light-1"] .toggle')
+    expect(toggle).to_have_attribute("aria-checked", "false")
+    with page.expect_request("**/api/tuya/light-1/switch"):
+        toggle.click()
+    expect(page.locator('#lightsList [data-device-id="light-1"] .toggle')).to_have_attribute(
+        "aria-checked", "true"
+    )
 
 
 def test_offline_device_unavailable_without_blocking_others(

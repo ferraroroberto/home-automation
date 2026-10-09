@@ -1,7 +1,12 @@
-/* Elgato Lights controller (Devices tab).
+/* Lights controller (Devices tab).
  *
  * Reads GET /api/lights and writes POST /api/lights/{id}. Polling is tab-aware
- * like Plugs: the LAN read runs only while the Devices tab is open. */
+ * like Plugs: the LAN read runs only while the Devices tab is open.
+ *
+ * The card also lists the Tuya lights (#181). Those are read by plugs.js as
+ * part of GET /api/tuya and handed over as state.tuyaLights on every Plugs
+ * render (the 'plugs:rendered' event); their rows and on/off reuse the plug
+ * switch path, so there is one Tuya read and one Tuya write path. */
 
 'use strict';
 
@@ -13,6 +18,7 @@ import { emptyStateEl } from './empty-state.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { buildPlugRow, toggleSwitch } from './plugs.js';
 
 const POLL_MS = 15_000;
 const LIGHTS_UNAVAILABLE_COPY =
@@ -50,17 +56,26 @@ function reachableLights() {
   return state.lights.filter(function (light) { return light.reachable; });
 }
 
+function reachableTuyaLights() {
+  return state.tuyaLights.filter(function (device) { return device.reachable; });
+}
+
 function bulkTargets(on) {
   return reachableLights().filter(function (light) { return light.on !== on; });
 }
 
+function tuyaBulkTargets(on) {
+  return reachableTuyaLights().filter(function (device) { return (device.switch_on === true) !== on; });
+}
+
 function updateBulkControls() {
   if (!els.lightsAllOn || !els.lightsAllOff) return;
-  const reachable = reachableLights();
-  const allOn = reachable.length > 0 && reachable.every(function (light) { return light.on === true; });
-  const allOff = reachable.length > 0 && reachable.every(function (light) { return light.on !== true; });
-  els.lightsAllOn.disabled = !reachable.length || allOn;
-  els.lightsAllOff.disabled = !reachable.length || allOff;
+  const onStates = reachableLights().map(function (light) { return light.on === true; })
+    .concat(reachableTuyaLights().map(function (device) { return device.switch_on === true; }));
+  const allOn = onStates.length > 0 && onStates.every(function (on) { return on; });
+  const allOff = onStates.length > 0 && onStates.every(function (on) { return !on; });
+  els.lightsAllOn.disabled = !onStates.length || allOn;
+  els.lightsAllOff.disabled = !onStates.length || allOff;
 }
 
 function markLightsFailure() {
@@ -99,13 +114,21 @@ async function applyLight(light, patch) {
 
 async function applyAllLights(on) {
   const targets = bulkTargets(on);
-  if (!reachableLights().length) {
+  const tuyaTargets = tuyaBulkTargets(on);
+  if (!reachableLights().length && !reachableTuyaLights().length) {
     toast('No reachable lights', 'error');
     return;
   }
-  if (!targets.length) return;
-  toast((on ? 'Activating ' : 'Deactivating ') + targets.length + ' light' + (targets.length === 1 ? '' : 's'));
+  const count = targets.length + tuyaTargets.length;
+  if (!count) return;
+  toast((on ? 'Activating ' : 'Deactivating ') + count + ' light' + (count === 1 ? '' : 's'));
   await wait(250);
+  // Tuya lights go through the plug switch path, which toasts and reports
+  // its own outcome and re-renders this card via 'plugs:rendered'.
+  for (const device of tuyaTargets) {
+    await toggleSwitch(device, null);
+    await wait(250);
+  }
   let failures = 0;
   for (const light of targets) {
     try {
@@ -330,8 +353,9 @@ export function renderLights() {
   els.lightsList.innerHTML = '';
   els.lightsList.dataset.state = lightsView.state;
   els.lightsList.setAttribute('aria-busy', lightsView.state === 'loading' ? 'true' : 'false');
-  setLightsCount(state.lights.length);
-  if (!state.lights.length) {
+  const tuyaLights = state.tuyaLights;
+  setLightsCount(state.lights.length + tuyaLights.length);
+  if (!state.lights.length && !tuyaLights.length) {
     updateBulkControls();
     if (lightsView.state === 'loading') {
       showLightsState('refresh-cw', 'Reading Elgato lights…', false);
@@ -348,7 +372,12 @@ export function renderLights() {
     }
     return;
   }
-  if (lightsView.state === 'stale' && lightsView.liveUnavailable) {
+  if (!state.lights.length) {
+    // Only Tuya lights to show: the Elgato side has nothing to list, so its
+    // setup hint would be noise — but a failed Elgato read still says so.
+    els.lightsNote.hidden = lightsView.state !== 'error';
+    els.lightsNote.textContent = LIGHTS_UNAVAILABLE_COPY;
+  } else if (lightsView.state === 'stale' && lightsView.liveUnavailable) {
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = lightsView.lastUpdatedLabel() + ' · live data unavailable';
   } else if (isSnapshotRestored('lights')) {
@@ -357,10 +386,16 @@ export function renderLights() {
   } else {
     els.lightsNote.hidden = true;
   }
-  const sorted = state.lights.slice().sort(function (a, b) {
-    return label(a).localeCompare(label(b));
-  });
-  sorted.forEach(function (light) { els.lightsList.appendChild(buildLightRow(light)); });
+  const rows = state.lights.map(function (light) {
+    return { name: label(light), build: function () { return buildLightRow(light); } };
+  }).concat(tuyaLights.map(function (device) {
+    return {
+      name: device.display_name || device.name || '',
+      build: function () { return buildPlugRow(device); },
+    };
+  }));
+  rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  rows.forEach(function (row) { els.lightsList.appendChild(row.build()); });
   updateBulkControls();
 }
 
@@ -408,6 +443,7 @@ export function onLightsTab(tab) {
 }
 
 export function wireLightControls() {
+  document.addEventListener('plugs:rendered', renderLights);
   if (els.lightsRefresh) {
     els.lightsRefresh.addEventListener('click', async function () {
       els.lightsRefresh.disabled = true;

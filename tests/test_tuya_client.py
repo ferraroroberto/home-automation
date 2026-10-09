@@ -307,3 +307,26 @@ def test_set_switch_failure_also_escalates_backoff(
         T.set_switch("dev-1", True)
 
     assert T._seconds_until_retry("dev-1") is not None
+
+
+@pytest.mark.parametrize(
+    "row, is_light",
+    [
+        # A dimmer switch: lighting category + the lighting switch code.
+        ({"category": "dj", "mapping": {"1": {"code": "switch_led"}, "2": {"code": "bright_value"}}}, True),
+        # A light in a light category whose switch uses a generic code.
+        ({"category": "tgq", "mapping": {"1": {"code": "switch_1"}}}, True),
+        # An uncategorised device whose switch is the lighting code.
+        ({"mapping": {"20": {"code": "switch_led"}}}, True),
+        # A smart plug — even one feeding a lamp — stays a plug.
+        ({"category": "cz", "mapping": {"1": {"code": "switch_1"}}}, False),
+        # A blind has no switch at all.
+        ({"category": "qt", "mapping": {"1": {"code": "control"}}}, False),
+        # A light category with no switch mapping is nothing to toggle.
+        ({"category": "dj", "mapping": {}}, False),
+    ],
+)
+def test_sanitize_flags_lights(row: dict, is_light: bool) -> None:
+    """Tuya lights are told apart from plugs so the PWA lists them under Lights (#181)."""
+    info = T._sanitize({"id": "dev-1", "name": "Fixture", **row})
+    assert info.is_light is is_light

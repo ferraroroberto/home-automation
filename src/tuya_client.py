@@ -90,6 +90,11 @@ _CURRENT_CODES = ("cur_current", "cur_current_1", "current")
 _POWER_CODES = ("cur_power", "cur_power_1", "power")
 _VOLTAGE_CODES = ("cur_voltage", "cur_voltage_1", "voltage")
 _ENERGY_CODES = ("add_ele", "add_ele_1", "electricity", "energy", "total_energy")
+# Tuya's standard light categories (bulbs, strips, ceiling lights, dimmer
+# switches). A device in one of these — or one whose switch is the lighting
+# ``switch_led`` code — is a light, so the PWA lists it under Lights rather
+# than Plugs (issue #181). A smart plug feeding a lamp stays a plug.
+_LIGHT_CATEGORIES = frozenset({"dj", "dd", "dc", "xdd", "fwd", "tgq", "tgkg"})
 
 
 class TuyaConfigError(RuntimeError):
@@ -142,6 +147,7 @@ class TuyaDeviceInfo:
     switch_dps: Optional[str] = None
     cover_control_dps: Optional[str] = None
     energy_dps: dict[str, str] = field(default_factory=dict)
+    is_light: bool = False
 
 
 @dataclass(frozen=True)
@@ -303,10 +309,11 @@ def _sanitize(device: dict[str, Any]) -> TuyaDeviceInfo:
     switch = _first_mapping(device, _SWITCH_CODES)
     cover = _first_mapping(device, _COVER_CONTROL_CODES)
     energy = _energy_mappings(device)
+    category = device.get("category")
     return TuyaDeviceInfo(
         device_id=str(device.get("id") or device.get("dev_id") or ""),
         name=str(device.get("name") or device.get("id") or "Unnamed Tuya device"),
-        category=device.get("category"),
+        category=category,
         product_id=device.get("product_id") or device.get("productId"),
         product_name=device.get("product_name") or device.get("productName"),
         model=device.get("model"),
@@ -320,6 +327,8 @@ def _sanitize(device: dict[str, Any]) -> TuyaDeviceInfo:
         switch_dps=switch.dps if switch else None,
         cover_control_dps=cover.dps if cover else None,
         energy_dps={name: entry.dps for name, entry in energy.items()},
+        is_light=switch is not None
+        and (switch.code == "switch_led" or category in _LIGHT_CATEGORIES),
     )
 
 

@@ -260,3 +260,98 @@ def test_tuya_route_surfaces_no_ip_identity_and_refresh(
     assert pair["found"] == 2
     assert pair["recovered"] == ["plug-noip"]
     assert "recovered 1 stale" in pair["detail"]
+
+
+def _stub_blinds(monkeypatch: pytest.MonkeyPatch, fail: tuple[str, ...] = ()) -> list:
+    """Two fake blinds and a plug; ``set_cover`` records instead of dialing."""
+    import src.blind_automation as blind_automation
+    from src.tuya_client import TuyaCommandError, TuyaDeviceInfo
+
+    infos = [
+        TuyaDeviceInfo(device_id="blind-1", name="Blind 1", cover_control_dps="1"),
+        TuyaDeviceInfo(device_id="blind-2", name="Blind 2", cover_control_dps="1"),
+        TuyaDeviceInfo(device_id="plug-1", name="Plug 1", switch_dps="1"),
+    ]
+    monkeypatch.setattr(blind_automation, "list_devices", lambda: infos)
+    sent: list = []
+
+    def _set_cover(device_id: str, action: str) -> dict:
+        if device_id in fail:
+            raise TuyaCommandError(f"{device_id} did not answer")
+        sent.append((device_id, action))
+        return {}
+
+    monkeypatch.setattr(blind_automation, "set_cover", _set_cover)
+    return sent
+
+
+def test_cover_group_moves_every_blind_by_default(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent = _stub_blinds(monkeypatch)
+    response = client.post("/api/tuya/covers", json={"action": "open"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["failed"] == 0
+    assert sorted(sent) == [("blind-1", "open"), ("blind-2", "open")]
+    assert {r["device_id"] for r in body["results"]} == {"blind-1", "blind-2"}
+
+
+def test_cover_group_reports_a_partial_failure_per_blind(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent = _stub_blinds(monkeypatch, fail=("blind-2",))
+    response = client.post(
+        "/api/tuya/covers", json={"action": "close", "device_ids": ["blind-1", "blind-2"]}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["failed"] == 1
+    failed = [r for r in body["results"] if not r["ok"]]
+    assert failed[0]["device_id"] == "blind-2"
+    assert "did not answer" in failed[0]["error"]
+    assert sent == [("blind-1", "close")]
+
+
+def test_cover_group_is_502_only_when_every_blind_failed(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_blinds(monkeypatch, fail=("blind-1", "blind-2"))
+    response = client.post("/api/tuya/covers", json={"action": "stop"})
+    assert response.status_code == 502
+    assert "no blind accepted stop" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "payload, detail",
+    [
+        ({"action": "raise"}, "action must be"),
+        ({"action": "open", "device_ids": ["plug-1"]}, "not a blind: plug-1"),
+    ],
+)
+def test_cover_group_rejects_caller_bugs_without_moving_anything(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, payload: dict, detail: str
+) -> None:
+    sent = _stub_blinds(monkeypatch)
+    response = client.post("/api/tuya/covers", json=payload)
+    assert response.status_code == 400
+    assert detail in response.json()["detail"]
+    assert sent == []
+
+
+def test_tuya_card_carries_the_light_flag(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    _stub_devices_file(
+        monkeypatch,
+        tmp_path,
+        [
+            {"id": "light-1", "name": "Fixture light", "category": "dj", "key": "k",
+             "mapping": {"1": {"code": "switch_led"}}},
+            {"id": "plug-1", "name": "Fixture plug", "category": "cz", "key": "k",
+             "mapping": {"1": {"code": "switch_1"}}},
+        ],
+    )
+    cards = {c["device_id"]: c for c in client.get("/api/tuya").json()["devices"]}
+    assert cards["light-1"]["is_light"] is True
+    assert cards["plug-1"]["is_light"] is False
