@@ -12,6 +12,8 @@
 
 'use strict';
 
+import { friendlyError } from './format.js';
+
 export const TOKEN_KEY = 'home-automation.token';
 
 export const state = {
@@ -709,14 +711,14 @@ export const els = {
   aggEmpty: document.getElementById('aggEmpty'),
   energySummary: document.getElementById('energySummary'),
   // History range buttons (Day / Week / Month / Year / Σ) — driven by data-range.
-  rangeBtns: Array.from(document.querySelectorAll('#aggRange .range-tab')),
+  rangeBtns: Array.from(document.querySelectorAll('#aggRange .segmented-item')),
   // Energy tab: cost & savings breakdown
   costBody: document.getElementById('costBody'),
   costFoot: document.getElementById('costFoot'),
   costSummary: document.getElementById('costSummary'),
   costEmpty: document.getElementById('costEmpty'),
   costNote: document.getElementById('costNote'),
-  costRangeBtns: Array.from(document.querySelectorAll('#costRange .range-tab')),
+  costRangeBtns: Array.from(document.querySelectorAll('#costRange .segmented-item')),
   exportCreditChart: document.getElementById('exportCreditChart'),
   exportRateCurrent: document.getElementById('exportRateCurrent'),
   exportRateList: document.getElementById('exportRateList'),
@@ -733,7 +735,7 @@ export const els = {
   forecastParams: document.getElementById('forecastParams'),
   forecastChart: document.getElementById('forecastChart'),
   forecastEmpty: document.getElementById('forecastEmpty'),
-  forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .range-tab')),
+  forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .segmented-item')),
   // Energy tab: sun-position diagnostic card (issue #590)
   sunOverlayCard: document.getElementById('sunOverlayCard'),
   sunOverlayDate: document.getElementById('sunOverlayDate'),
@@ -896,8 +898,7 @@ export function reportFetchFailure(scope, exc, label) {
   if (exc && String(exc.message) === 'auth required') return;
   if (fetchFailing[scope]) return;  // already toasted for this outage
   fetchFailing[scope] = true;
-  const reason = (exc && (exc.message || exc)) || 'unknown error';
-  toast("Couldn't load " + (label || scope) + ': ' + reason, 'error');
+  toast("Couldn't load " + (label || scope) + ': ' + friendlyError(exc, 'live data unavailable'), 'error');
 }
 export function reportFetchOk(scope) {
   fetchFailing[scope] = false;  // re-arm so the next outage toasts again

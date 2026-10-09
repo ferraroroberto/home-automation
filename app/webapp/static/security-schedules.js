@@ -13,6 +13,7 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { friendlyError } from './format.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -184,7 +185,7 @@ export async function loadSecuritySchedules() {
     state.securitySchedules = [];
     if (els.securitySchedulesNote) {
       els.securitySchedulesNote.hidden = false;
-      els.securitySchedulesNote.textContent = exc.message || 'Failed to load schedules.';
+      els.securitySchedulesNote.textContent = friendlyError(exc, 'Failed to load schedules.');
     }
   }
   renderSchedules();

@@ -56,6 +56,7 @@ import { startWeatherPolling } from './weather.js';
 import { wireActivity } from './activity.js';
 import { installDialogScrollLock } from './scroll-lock.js';
 import { wireConfirmDialog } from './confirm.js';
+import { friendlyError } from './format.js';
 
 // --------------------------------------------------- build identity
 function fmtBuildTime(iso) {
@@ -149,7 +150,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
     });
     const body = await res.json().catch(function () { return null; });
     if (!res.ok || !body || !body.token) {
-      els.loginError.textContent = (body && body.detail) || 'Login failed';
+      els.loginError.textContent = friendlyError(body && body.detail, 'Login failed');
       els.loginError.hidden = false;
       return;
     }
@@ -157,7 +158,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
     hideLogin();
     loadUnits();
   } catch (exc) {
-    els.loginError.textContent = String(exc.message || exc);
+    els.loginError.textContent = friendlyError(exc, 'Login failed');
     els.loginError.hidden = false;
   }
 });

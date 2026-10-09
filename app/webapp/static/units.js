@@ -19,6 +19,7 @@ import {
   modeIcon,
 } from './state.js';
 import { icon } from './_vendored/icons/icons.js';
+import { chipEl, chipHtml } from './chip.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { toggleHtml, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
@@ -220,10 +221,11 @@ function renderCardInto(card, unit) {
   header.innerHTML =
     '<span class="unit-mode-icon">' + icon(modeIcon(unit.operation_mode)) + '</span>' +
     '<span class="unit-name"></span>' +
-    (offline ? '<span class="pill pill--attention unit-offline-badge" title="Not reachable — controls are disabled">Offline</span>' : '') +
+    (offline ? chipHtml('Offline', 'attention', 'unit-offline-badge') : '') +
     (schedCount ? '<span class="unit-schedule-badge" title="' + schedCount + ' schedule' + (schedCount === 1 ? '' : 's') + '">' +
       icon('clock', 'unit-schedule-icon') + (schedCount > 1 ? '<span>' + schedCount + '</span>' : '') + '</span>' : '');
   header.querySelector('.unit-name').textContent = displayLabel(unit) || 'Unit';
+  if (offline) header.querySelector('.unit-offline-badge').title = 'Not reachable — controls are disabled';
   header.addEventListener('click', function () { openDetail(unit.unit_id); });
   top.appendChild(header);
 
@@ -295,8 +297,7 @@ function renderCardInto(card, unit) {
   // signed delta (#575) makes the Rule → Set-to math legible at a glance.
   const boostRule = unit.temperature_rule || {};
   if (boostRule.boost_active) {
-    const boost = document.createElement('div');
-    boost.className = 'pill pill--accent unit-boost-badge';
+    const boost = chipEl('', 'accent', 'unit-boost-badge');
     const label = boostRule.boost_delta_c == null
       ? 'Boost'
       : 'Boost ' + fmtBoostDelta(boostRule.boost_delta_c);
@@ -609,7 +610,7 @@ function renderAcSummary() {
     // The row is a 3-column grid (name · readings · toggle), so the offline
     // marker rides in the readings column rather than adding a fourth cell.
     center.innerHTML =
-      (offline ? '<span class="ac-line-offline">Offline</span>' : '') +
+      (offline ? chipHtml('Offline', 'attention', 'ac-line-offline') : '') +
       '<span class="ac-temp">' + room + icon('arrow-right', 'ac-temp-arrow') +
       '<span class="visually-hidden"> to </span>' + target + '</span>';
 

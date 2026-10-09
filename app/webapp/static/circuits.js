@@ -25,7 +25,7 @@ import {
   CIRCUITS_COLLAPSED_KEY, CIRCUITS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { fmtW } from './format.js';
+import { fmtW, friendlyError } from './format.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -141,7 +141,7 @@ function buildMeterGroup(meter) {
     const note = document.createElement('span');
     note.className = 'circuit-meter-detail';
     note.textContent = 'offline';
-    note.title = meter.error || 'No response on the LAN.';
+    note.title = friendlyError(meter.error, 'No response on the LAN.');
     main.appendChild(note);
   }
 
@@ -457,11 +457,11 @@ export async function loadCircuits() {
     state.circuits = (body && body.meters) || [];
     // A discovery problem is reported as its own fact, never folded into
     // "no meters" — the two need different actions from whoever is reading.
-    state.circuitsError = (body && body.error) || '';
+    state.circuitsError = body && body.error ? friendlyError(body.error, 'Meter discovery failed.') : '';
     renderCircuits();
   } catch (exc) {
     if (isAuthRequired(exc)) return;
-    state.circuitsError = 'Circuits unavailable: ' + (exc.message || exc);
+    state.circuitsError = 'Circuits unavailable: ' + friendlyError(exc);
     renderCircuits();
   }
 }

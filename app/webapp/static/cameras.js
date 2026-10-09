@@ -20,6 +20,7 @@ import { api, jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { confirmAction } from './confirm.js';
 import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
+import { chipEl } from './chip.js';
 import { createViewState, markTabFailure } from './view-state.js';
 import { closeDialog, openDialog } from './dialog.js';
 
@@ -69,6 +70,14 @@ function cameraStatus(cam) {
   const parts = [cam.model || 'Camera'];
   if (cam.recording) parts.push('Recording');
   return parts.join(' · ');
+}
+
+// The row's exception chip (#879): a reachable camera is normal and its model
+// is detail-sheet information, so the row shows only offline or recording.
+function cameraChip(cam) {
+  if (!cam.reachable) return chipEl('Offline', 'attention');
+  if (cam.recording) return chipEl('Recording', 'accent');
+  return null;
 }
 
 function showCamerasState(message, retry) {
@@ -174,10 +183,11 @@ function renderCameras() {
     name.addEventListener('click', function () { openCameraDetail(cam.id); });
     main.appendChild(name);
 
-    const flags = document.createElement('span');
-    flags.className = 'camera-row-flags';
-    flags.textContent = cameraStatus(cam);
-    main.appendChild(flags);
+    const chip = cameraChip(cam);
+    if (chip) {
+      chip.classList.add('camera-row-flags');
+      main.appendChild(chip);
+    }
     row.appendChild(main);
 
     if (cam.reachable) {

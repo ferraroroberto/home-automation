@@ -44,6 +44,7 @@ import {
 } from './state.js';
 import { jsonApi, reportActionFailure } from './api.js';
 import { renderSignalBar } from './format.js';
+import { chipEl } from './chip.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
 import { renderNetwork } from './network.js';
 import { toggleMarkup } from './toggle.js';
@@ -225,13 +226,6 @@ function renderGroupingControls() {
   }
 }
 
-// True only when a row is live *because of* the ping probe — i.e. it has no
-// AP/router evidence of its own (#552). Distinguishes the probe-confirmed
-// badge from an ordinary live device that merely happens to carry the flag.
-function pingConfirmed(d) {
-  return d.online !== false && d.ping_reachable === true && d.signal == null && d.conn_type !== 'wired';
-}
-
 function buildDeviceRow(d, grouped) {
   const offline = d.online === false;
   // In the read, but with nothing to show for it (#550) — dimmed like an
@@ -265,21 +259,10 @@ function buildDeviceRow(d, grouped) {
   text.className = 'net-device-name-text';
   text.textContent = label;
   name.appendChild(text);
-  // A small "new" pill for a device first seen in the last 24 h (Phase 4).
-  if (d.is_new) {
-    const pill = document.createElement('span');
-    pill.className = 'net-device-new';
-    pill.textContent = 'New';
-    name.appendChild(pill);
-  }
-  // Marks a row promoted purely by the ping probe (#552) — distinct from
-  // AP/router evidence, so it doesn't read as an ordinary live client.
-  if (pingConfirmed(d)) {
-    const pill = document.createElement('span');
-    pill.className = 'pill pill--success net-device-reachable';
-    pill.textContent = 'Reachable';
-    name.appendChild(pill);
-  }
+  // A "New" chip for a device first seen in the last 24 h (Phase 4). A row
+  // promoted by the ping probe (#552) gets no chip: its signal cell already
+  // says "reachable via ping" (#879).
+  if (d.is_new) name.appendChild(chipEl('New', 'accent', 'net-device-new'));
   name.addEventListener('click', function () { openNetDeviceDetail(d.mac); });
   row.appendChild(name);
 

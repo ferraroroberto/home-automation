@@ -13,7 +13,8 @@ import { api, jsonApi, isAuthRequired } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
 import { els, readToken, state, toast } from './state.js';
-import { esc } from './format.js';
+import { esc, friendlyError } from './format.js';
+import { chipHtml } from './chip.js';
 
 const POLL_MS = 15_000;
 const CHUNK_MS = 1_000;
@@ -95,6 +96,16 @@ function micButtonHtml(satellite) {
     '" title="' + esc(label) + '">' + micFace('mic', 'Talk') + '</button>';
 }
 
+// A satellite's status chip, exceptions only (#879): idle is the normal
+// state and shows none; listening, processing or responding is work in
+// progress (accent); offline needs you (attention).
+function satelliteChipHtml(satellite) {
+  if (!satellite.online) return chipHtml('Offline', 'attention', 'ha-satellite-state');
+  const st = String(satellite.state || '');
+  if (!st || st === 'idle') return '';
+  return chipHtml(st.charAt(0).toUpperCase() + st.slice(1).replace(/_/g, ' '), 'accent', 'ha-satellite-state');
+}
+
 function renderSatellites(rows) {
   els.haSatellitesList.innerHTML = '';
   els.haSatellitesNote.hidden = rows.length > 0;
@@ -111,8 +122,7 @@ function renderSatellites(rows) {
     row.innerHTML =
       '<div class="ha-satellite-copy">' +
       '  <div class="ha-satellite-title"><strong>' + esc(satellite.room) + '</strong>' +
-      '    <span class="pill' + (satellite.online ? ' pill--success' : '') + ' ha-satellite-state ' + (satellite.online ? 'is-online' : 'is-offline') + '">' +
-             esc(satellite.online ? satellite.state : 'offline') + '</span></div>' +
+      satelliteChipHtml(satellite) + '</div>' +
       '  <div class="muted small">' + esc(satellite.name) + ' · ' + esc(fmtVolume(satellite.volume)) + '</div>' +
       '  <p class="ha-live-transcript muted small" aria-live="polite"></p>' +
       '</div>' + micButtonHtml(satellite);
@@ -145,7 +155,7 @@ async function loadHa() {
     if (isAuthRequired(exc)) return;
     haViewState = 'error';
     renderSatellites([]);
-    toast((exc && exc.message) || 'Home Assistant unavailable', 'error');
+    toast(friendlyError(exc, 'Home Assistant unavailable'), 'error');
   }
 }
 
@@ -324,7 +334,7 @@ async function toggleDictation(satellite, row, button) {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (exc) {
-    toast('Microphone unavailable: ' + (exc.message || exc), 'error');
+    toast('Microphone unavailable: ' + friendlyError(exc, 'permission or device missing'), 'error');
     return;
   }
   const mime = pickAudioMime();
@@ -333,7 +343,7 @@ async function toggleDictation(satellite, row, button) {
     recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
   } catch (exc) {
     stream.getTracks().forEach(function (track) { track.stop(); });
-    toast('Recorder failed: ' + (exc.message || exc), 'error');
+    toast('Recorder failed: ' + friendlyError(exc, 'please try again'), 'error');
     return;
   }
 
@@ -374,7 +384,7 @@ async function toggleDictation(satellite, row, button) {
     chunks.push(event.data);
     chunks.drain().catch(function (exc) {
       overload = true;
-      transcriptEl.textContent = exc.message || 'Audio stream failed';
+      transcriptEl.textContent = friendlyError(exc, 'Audio stream failed');
       try { recorder.stop(); } catch (_) { /* cleanup below */ }
     });
   });
@@ -390,8 +400,8 @@ async function toggleDictation(satellite, row, button) {
         await announceFinal(satellite, result && result.transcript, transcriptEl);
       }
     } catch (exc) {
-      transcriptEl.textContent = exc.message || 'Transcription failed';
-      toast(exc.message || 'Transcription failed', 'error');
+      transcriptEl.textContent = friendlyError(exc, 'Transcription failed');
+      toast(friendlyError(exc, 'Transcription failed'), 'error');
     } finally {
       teardownDictation(button, satellite, eventSource, chunks, buffered);
     }

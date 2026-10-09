@@ -15,7 +15,7 @@ import {
   PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { fmtW } from './format.js';
+import { fmtW, friendlyError } from './format.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
@@ -204,7 +204,7 @@ function unavailableNote(device) {
   const note = document.createElement('span');
   note.className = 'device-row-note plug-unavailable';
   note.textContent = device.has_valid_ip === false ? 'No IP' : 'Offline';
-  if (device.error) note.title = device.error;
+  if (device.error) note.title = friendlyError(device.error, 'Not reachable right now');
   return note;
 }
 
@@ -558,7 +558,7 @@ export function wirePlugsPair() {
       applyPlugsBody(body);
       const info = (body && body.pair) || {};
       const changed = (info.added && info.added.length) || (info.recovered && info.recovered.length);
-      toast(info.detail || 'Tuya sync finished', changed ? 'success' : '');
+      toast(friendlyError(info.detail, 'Tuya sync finished'), changed ? 'success' : '');
     } catch (exc) {
       if (!isAuthRequired(exc)) {
         markPlugsFailure();

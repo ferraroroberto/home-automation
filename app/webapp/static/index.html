@@ -489,7 +489,7 @@
            tab, rendered into these home containers too (issue #72). -->
       <section class="card security-card" aria-label="Alarm controls">
         <h2 id="homeSecurityState" class="security-state">Alarm state: —</h2>
-        <div id="homeSecurityActions" class="security-actions" aria-label="Alarm actions"></div>
+        <div id="homeSecurityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
         <p id="homeSecurityFeedback" class="muted small security-live-feedback" role="status" hidden></p>
       </section>
 
@@ -878,12 +878,12 @@
 
       <section class="card chart-card">
         <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-zap"></use></svg>Energy</h3>
-        <nav class="range-tabs" id="aggRange" aria-label="Energy range">
-          <button id="rangeDay" type="button" class="range-tab active" data-range="day">Day</button>
-          <button id="rangeWeek" type="button" class="range-tab" data-range="week">Week</button>
-          <button id="rangeMonth" type="button" class="range-tab" data-range="month">Month</button>
-          <button id="rangeYear" type="button" class="range-tab" data-range="year">Year</button>
-          <button id="rangeTotal" type="button" class="range-tab" data-range="total">Σ</button>
+        <nav class="segmented" id="aggRange" role="group" aria-label="Energy range">
+          <button id="rangeDay" type="button" class="segmented-item" aria-pressed="true" data-range="day">Day</button>
+          <button id="rangeWeek" type="button" class="segmented-item" aria-pressed="false" data-range="week">Week</button>
+          <button id="rangeMonth" type="button" class="segmented-item" aria-pressed="false" data-range="month">Month</button>
+          <button id="rangeYear" type="button" class="segmented-item" aria-pressed="false" data-range="year">Year</button>
+          <button id="rangeTotal" type="button" class="segmented-item" aria-pressed="false" data-range="total">Σ</button>
         </nav>
         <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
         <div class="energy-summary" id="energySummary"></div>
@@ -894,12 +894,12 @@
            self-consumed PV valued at the avoided rate, across the five windows. -->
       <section class="card cost-card" aria-label="Cost and savings breakdown">
         <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-euro"></use></svg>Money <span id="costMeta" class="muted small"></span></h3>
-        <nav class="range-tabs" id="costRange" aria-label="Cost range">
-          <button type="button" class="range-tab active" data-crange="day">Day</button>
-          <button type="button" class="range-tab" data-crange="week">Week</button>
-          <button type="button" class="range-tab" data-crange="month">Month</button>
-          <button type="button" class="range-tab" data-crange="year">Year</button>
-          <button type="button" class="range-tab" data-crange="total">Σ</button>
+        <nav class="segmented" id="costRange" role="group" aria-label="Cost range">
+          <button type="button" class="segmented-item" aria-pressed="true" data-crange="day">Day</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-crange="week">Week</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-crange="month">Month</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-crange="year">Year</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-crange="total">Σ</button>
         </nav>
         <div class="cost-table-wrap">
           <table class="cost-table">
@@ -956,10 +956,10 @@
            card stays empty-noted until config/pv_system.json exists (issue #39). -->
       <section class="card forecast-card" aria-label="Solar generation forecast">
         <h3 class="chart-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-sun"></use></svg>Solar forecast <span id="forecastMeta" class="muted small"></span></h3>
-        <nav class="range-tabs" id="forecastDay" aria-label="Forecast day">
-          <button type="button" class="range-tab" data-day="yesterday">Yesterday</button>
-          <button type="button" class="range-tab active" data-day="today">Today</button>
-          <button type="button" class="range-tab" data-day="tomorrow">Tomorrow</button>
+        <nav class="segmented" id="forecastDay" role="group" aria-label="Forecast day">
+          <button type="button" class="segmented-item" aria-pressed="false" data-day="yesterday">Yesterday</button>
+          <button type="button" class="segmented-item" aria-pressed="true" data-day="today">Today</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-day="tomorrow">Tomorrow</button>
         </nav>
         <p class="forecast-headline" id="forecastHeadline">—</p>
         <p class="forecast-params muted small" id="forecastParams"></p>
@@ -1798,7 +1798,7 @@
       <div id="securityFeedback" class="security-feedback" role="status" hidden></div>
       <section class="card security-card" aria-label="Alarm controls">
         <h2 id="securityState" class="security-state">Alarm state: —</h2>
-        <div id="securityActions" class="security-actions" aria-label="Alarm actions"></div>
+        <div id="securityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
       </section>
 
       <details class="card card--collapsible security-card security-schedules-card" aria-label="Alarm schedules">

@@ -27,7 +27,7 @@ import {
   reportFetchOk,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { esc, fmtPct } from './format.js';
+import { esc, fmtPct, friendlyError } from './format.js';
 import { icon } from './_vendored/icons/icons.js';
 import {
   restoreSnapshot,
@@ -181,7 +181,7 @@ function renderHealth(ap, router) {
     els.netApMeta.classList.remove('is-error');
     els.netApReboot.hidden = false;
   } else {
-    els.netApMeta.textContent = 'Unreachable' + (ap && ap.error ? ': ' + ap.error : '');
+    els.netApMeta.textContent = 'Unreachable' + (ap && ap.error ? ': ' + friendlyError(ap.error, 'no response') : '');
     els.netApMeta.classList.add('is-error');
     els.netApReboot.hidden = true;  // can't reboot what we can't reach
   }
@@ -191,7 +191,7 @@ function renderHealth(ap, router) {
   const routerReachable = !!(router && router.reachable);
   const routerAuthed = !!(router && router.authenticated);
   if (!routerReachable) {
-    els.netRouterMeta.textContent = 'Unreachable' + (router && router.error ? ': ' + router.error : '');
+    els.netRouterMeta.textContent = 'Unreachable' + (router && router.error ? ': ' + friendlyError(router.error, 'no response') : '');
     els.netRouterMeta.classList.add('is-error');
   } else if (!routerAuthed) {
     els.netRouterMeta.textContent = 'Reachable · login failed';

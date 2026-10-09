@@ -17,6 +17,7 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { loadScript, loadStyle } from './lazy-script.js';
+import { friendlyError } from './format.js';
 
 const DEFAULT_RADIUS_M = 150;
 
@@ -82,7 +83,7 @@ export async function loadPresencePlaces() {
     state.presencePlacesList = [];
     if (els.presencePlacesNote) {
       els.presencePlacesNote.hidden = false;
-      els.presencePlacesNote.textContent = exc.message || 'Failed to load places.';
+      els.presencePlacesNote.textContent = friendlyError(exc, 'Failed to load places.');
     }
   }
   renderPresencePlaces();
@@ -143,7 +144,7 @@ function useBrowserLocationForPlace() {
     els.presencePlaceLat.value = pos.coords.latitude.toFixed(6);
     els.presencePlaceLon.value = pos.coords.longitude.toFixed(6);
   }, function (err) {
-    toast('Location failed: ' + err.message, 'error');
+    toast('Location failed: ' + friendlyError(err, 'location unavailable'), 'error');
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 

@@ -20,6 +20,7 @@ import {
 } from './state.js';
 import { jsonApi, reportActionFailure } from './api.js';
 import { renderPresence, loadPresence } from './presence.js';
+import { friendlyError } from './format.js';
 
 function distanceMeters(lat1, lon1, lat2, lon2) {
   const radius = 6371000;
@@ -197,7 +198,7 @@ function useBrowserLocation() {
     updateThisDeviceFromPosition(pos);
     saveLocation();
   }, function (err) {
-    toast('Location failed: ' + err.message, 'error');
+    toast('Location failed: ' + friendlyError(err, 'location unavailable'), 'error');
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 

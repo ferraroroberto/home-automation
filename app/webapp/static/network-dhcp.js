@@ -15,7 +15,8 @@ import { els, toast } from './state.js';
 import { jsonApi, reportActionFailure } from './api.js';
 import { confirmAction } from './confirm.js';
 import { buildToggle } from './toggle.js';
-import { esc } from './format.js';
+import { esc, friendlyError } from './format.js';
+import { chipEl } from './chip.js';
 import { icon } from './_vendored/icons/icons.js';
 
 let dhcpPlanLoading = false;
@@ -63,11 +64,8 @@ function existingRow(e) {
   name.className = 'net-dhcp-ex-name';
   name.textContent = e.display_name || e.name || '(unnamed)';
   if (!e.online) {
-    const badge = document.createElement('span');
-    badge.className = 'pill net-dhcp-ex-offline';
-    badge.textContent = 'offline';
     name.appendChild(document.createTextNode(' '));
-    name.appendChild(badge);
+    name.appendChild(chipEl('Offline', 'attention', 'net-dhcp-ex-offline'));
   }
 
   const mac = document.createElement('span');
@@ -177,13 +175,9 @@ function suggestedRow(a) {
     moveTo: a.planned_ip,
   });
 
-  const tag = a.status === 'change'
-    ? ['Change', 'pill--attention']
-    : ['New', 'pill--accent'];
-  const pill = document.createElement('span');
-  pill.className = 'pill net-dhcp-pill ' + tag[1];
-  pill.textContent = tag[0];
-  row.appendChild(pill);
+  row.appendChild(a.status === 'change'
+    ? chipEl('Change', 'attention', 'net-dhcp-pill')
+    : chipEl('New', 'accent', 'net-dhcp-pill'));
   return row;
 }
 
@@ -277,8 +271,7 @@ function renderManualStaged() {
   if (!manualAdds.length) { els.netDhcpManualStaged.hidden = true; return; }
   els.netDhcpManualStaged.hidden = false;
   manualAdds.forEach(function (m, i) {
-    const chip = document.createElement('span');
-    chip.className = 'pill pill--accent net-dhcp-chip';
+    const chip = chipEl('', 'accent', 'net-dhcp-chip');
     const label = document.createElement('span');
     label.innerHTML = esc(m.name ? m.name + ' · ' : '') + moveHtml(m.mac, m.ip);
     chip.appendChild(label);
@@ -404,7 +397,7 @@ async function loadDhcpPlan() {
     if (els.netDhcpExistingWrap) els.netDhcpExistingWrap.hidden = true;
     if (els.netDhcpApplyBar) els.netDhcpApplyBar.hidden = true;
     els.netDhcpNote.hidden = false;
-    els.netDhcpNote.textContent = 'Could not compute plan: ' + (exc && exc.message ? exc.message : exc);
+    els.netDhcpNote.textContent = 'Could not compute plan: ' + friendlyError(exc);
   } finally {
     dhcpPlanLoading = false;
   }
@@ -514,7 +507,7 @@ async function applyDhcpChanges() {
     await loadDhcpPlan();
   } catch (exc) {
     reportActionFailure(exc, 'Apply failed');
-    els.netDhcpNote.textContent = 'Apply failed: ' + (exc && exc.message ? exc.message : exc);
+    els.netDhcpNote.textContent = 'Apply failed: ' + friendlyError(exc);
   } finally {
     dhcpApplying = false;
     if (els.netDhcpApply) els.netDhcpApply.disabled = false;

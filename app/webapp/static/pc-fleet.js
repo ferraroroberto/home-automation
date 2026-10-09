@@ -17,6 +17,7 @@ import { els, toast } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle, buildToggle } from './toggle.js';
 import { esc } from './format.js';
+import { chipEl } from './chip.js';
 import { createPoller } from './poll.js';
 
 const POLL_MS = 15_000;
@@ -30,19 +31,16 @@ let prefs = { enabled: false, threshold_minutes: 15, excluded: [] };
 let machines = [];
 let hubUnreachable = false;
 
+// Status chip per state, exceptions only (#879): an up machine is the normal
+// state and gets no chip. "This host" and an unknown state are neutral facts.
 const STATE_LABELS = {
-  self: 'this host',
-  up: 'up',
-  down: 'down',
-  dormant: 'dormant',
+  self: 'This host',
+  down: 'Down',
+  dormant: 'Dormant',
 };
-
-// Shared `.pill` tone per state; an unknown state stays the neutral pill.
 const STATE_TONES = {
-  self: 'pill--success',
-  up: 'pill--success',
-  down: 'pill--danger',
-  dormant: 'pill--attention',
+  down: 'danger',
+  dormant: 'attention',
 };
 
 function clampThreshold(value) {
@@ -85,11 +83,14 @@ function machineRow(machine) {
   const rail = document.createElement('div');
   rail.className = 'pc-fleet-machine-rail';
 
-  const chip = document.createElement('span');
   const rawState = String(machine.state || '');
-  chip.className = 'pill ' + (STATE_TONES[rawState] || '') + ' pc-fleet-chip pc-fleet-chip--' + esc(rawState || 'unknown');
-  chip.textContent = STATE_LABELS[rawState] || (rawState || 'unknown');
-  rail.appendChild(chip);
+  if (rawState !== 'up') {
+    rail.appendChild(chipEl(
+      STATE_LABELS[rawState] || (rawState || 'Unknown'),
+      STATE_TONES[rawState] || '',
+      'pc-fleet-chip pc-fleet-chip--' + (rawState || 'unknown'),
+    ));
+  }
 
   const actions = machine.actions || {};
   if ((rawState === 'down' || rawState === 'dormant') && actions.wake === true) {

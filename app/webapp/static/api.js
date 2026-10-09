@@ -13,6 +13,7 @@
 'use strict';
 
 import { els, readToken, toast } from './state.js';
+import { friendlyError } from './format.js';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
@@ -34,11 +35,12 @@ export function isAuthRequired(exc) {
 
 // The mutation-path failure idiom: quiet on auth, one error toast otherwise.
 // `label` names the action that failed ('Rename failed', 'Failed to save', …);
-// the reason is appended. A call site that also has cleanup to skip on auth
-// keeps its own `if (!isAuthRequired(exc)) { … }` block instead.
+// the sanitized reason is appended (#879: no hosts, addresses or exception
+// text in the UI). A call site that also has cleanup to skip on auth keeps its
+// own `if (!isAuthRequired(exc)) { … }` block instead.
 export function reportActionFailure(exc, label) {
   if (isAuthRequired(exc)) return;
-  toast(label + ': ' + ((exc && exc.message) || exc), 'error');
+  toast(label + ': ' + friendlyError(exc), 'error');
 }
 
 export async function api(path, opts) {
