@@ -3,10 +3,10 @@
  * Loaded by index.html as <script type="module">. Thin orchestrator (issue
  * #346 maintainability split, mirroring #197's security.js/network.js
  * pattern): owns boot wiring, the theme toggle, nav-debug init, and login.
- * The AC/units card grid, Home summary tile, and per-unit detail modal
- * (mode/fan/vanes + temperature-rule + schedule editor) live in
- * ./units.js — each write there hits POST /api/units/{id} and re-renders
- * only that card from the read-back response.
+ * The AC rows (Home and the AC tab, one shared row) and the unit sheet
+ * (setpoint, power, mode, fan, vanes, temperature rule, schedules, name)
+ * live in ./units.js — each command there hits POST /api/units/{id} and
+ * re-renders the rows from the read-back response.
  */
 
 'use strict';
@@ -222,7 +222,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
     onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onCircuitsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onBlindSchedulesTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
   });
 
-  // AC units only matter on Home (summary tile) and AC (cards), so poll them
+  // AC units only matter on Home and AC (their rows), so poll them
   // only while one of those tabs is active rather than every 30s everywhere
   // (#209). wireTabs() above fires the fan-out callback for the default
   // 'home'/'ac' tab immediately, which calls units.js's onUnitsTab ->

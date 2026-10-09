@@ -56,7 +56,7 @@ def test_password_login_loads_dashboard(
 
     # Overlay clears and the dashboard renders from the now-authed fetch.
     expect(page.locator("#loginOverlay")).to_be_hidden()
-    expect(page.locator(".unit-card")).to_have_count(len(sample_units))
+    expect(page.locator("#acUnits .ac-row")).to_have_count(len(sample_units))
     # The token was stashed for subsequent calls.
     assert page.evaluate("localStorage.getItem('home-automation.token')") == "test-token"
 

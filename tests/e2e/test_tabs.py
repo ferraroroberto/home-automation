@@ -35,11 +35,11 @@ def test_tab_navigation_switches_panes(
     expect(page.locator("#paneHome .flow-row")).to_be_visible()
     expect(page.locator("#homeFlowPv")).to_have_text("2,500 W")
 
-    # AC tab → unit cards become visible.
+    # AC tab → the unit rows become visible.
     page.locator("#tabAc").click()
     expect(page.locator("#paneAc")).to_be_visible()
     expect(page.locator("#paneHome")).to_be_hidden()
-    expect(page.locator(".unit-card").first).to_be_visible()
+    expect(page.locator("#acUnits .ac-row").first).to_be_visible()
 
     # Energy tab → the live flow row shows.
     page.locator("#tabEnergy").click()
@@ -90,15 +90,15 @@ def test_nav_returns_to_rest_after_a_strand_and_after_each_modal_close(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
     page.locator("#tabAc").click()
-    page.wait_for_selector(".unit-card", state="visible")
+    page.wait_for_selector("#acUnits .ac-row", state="visible")
     # Close via the X button.
-    page.locator('[data-unit-id="unit-1"] .unit-header').click()
+    page.locator('#acUnits [data-unit-id="unit-1"] .action-row-main').click()
     expect(page.locator("#detailDialog")).to_be_visible()
     page.locator("#detailClose").click()
     expect(page.locator("#detailDialog")).to_be_hidden()
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
     # Close via Esc.
-    page.locator('[data-unit-id="unit-1"] .unit-header').click()
+    page.locator('#acUnits [data-unit-id="unit-1"] .action-row-main').click()
     expect(page.locator("#detailDialog")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator("#detailDialog")).to_be_hidden()

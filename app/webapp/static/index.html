@@ -257,6 +257,15 @@
     <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none">
       <path d="m9 18 6-6-6-6" />
     </symbol>
+    <!-- The unit sheet's back button and its Vanes row (#881). -->
+    <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none">
+      <path d="m15 18-6-6 6-6" />
+    </symbol>
+    <symbol id="i-wind" viewBox="0 0 24 24" fill="none">
+      <path d="M12.8 19.6A2 2 0 1 0 14 16H2" />
+      <path d="M17.5 8a2.5 2.5 0 1 1 2 4H2" />
+      <path d="M9.8 4.4A2 2 0 1 1 11 8H2" />
+    </symbol>
     <symbol id="i-chevron-up" viewBox="0 0 24 24" fill="none">
       <path d="m18 15-6-6-6 6" />
     </symbol>
@@ -752,7 +761,9 @@
         </button>
       </div>
       <div id="acFeedback" class="ac-feedback" role="status" hidden></div>
-      <section id="unitsGrid" class="units-grid" aria-label="Units"></section>
+      <!-- The units on the shared row (row.js, #881): power on the row, the
+           rest one tap away in the unit sheet. -->
+      <section id="acUnits" class="card action-list ac-units" aria-label="Units" hidden></section>
     </section>
 
     <!-- ============================= ENERGY ============================= -->
@@ -2286,108 +2297,217 @@
     </div>
   </dialog>
 
-  <dialog id="detailDialog" class="detail-dialog">
+  <!-- The unit sheet (#881, decision 4 of #872): an instant sheet (sheet.js),
+       so every change is sent as it is made, like the switch on the row, and
+       the one primary is Done. The main page holds what is used daily (the
+       setpoint, power, mode, fan); the rarer settings are rows that open a
+       page of this same sheet, with a back button in the header. -->
+  <dialog id="detailDialog" class="detail-dialog unit-sheet">
     <div class="detail-card">
       <div class="detail-header">
+        <button id="detailBack" type="button" class="detail-close hit-target unit-sheet-back" aria-label="Back" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
         <h2 id="detailName">Unit</h2>
         <button id="detailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <!-- Shown when the unit's adapter has lost its cloud connection (#520):
-           mode/fan/vane changes would be silently swallowed, so those selects
-           are disabled. Name, rule and schedules are stored here, not on the
-           unit, so they stay editable. -->
-      <p id="detailOffline" class="detail-offline" hidden>Offline — this unit is unreachable, so mode, fan and vane changes can't be sent.</p>
+           a command would be silently swallowed, so every control that writes
+           to the unit is disabled. Name, rule and schedules are stored here,
+           not on the unit, so they stay editable. -->
+      <p id="detailOffline" class="detail-offline" hidden>Offline. Changes to this unit can't be sent until it reconnects.</p>
 
-      <label class="row">
-        <span>Display name</span>
-        <input id="detailDisplayName" type="text" class="input-native" placeholder="Custom label…">
-      </label>
+      <div class="unit-sheet-page" data-page="main">
+        <div class="unit-setpoint">
+          <div class="unit-setpoint-stepper">
+            <button id="detailTempDown" type="button" class="icon-button unit-setpoint-step" aria-label="Lower the set temperature"><svg class="icon" aria-hidden="true"><use href="#i-minus"></use></svg></button>
+            <output id="detailSetTemp" class="unit-setpoint-value" aria-live="polite">—</output>
+            <button id="detailTempUp" type="button" class="icon-button unit-setpoint-step" aria-label="Raise the set temperature"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
+          </div>
+          <p id="detailRoomLine" class="unit-setpoint-note"></p>
+        </div>
 
-      <label class="row">
-        <span>Mode</span>
-        <select id="detailMode" class="select-native"></select>
-      </label>
+        <div class="row">
+          <span>Power</span>
+          <button id="detailPower" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
 
-      <label class="row" id="detailFanSpeedRow" hidden>
-        <span>Fan speed</span>
-        <select id="detailFanSpeed" class="select-native"></select>
-      </label>
+        <div class="unit-sheet-field">
+          <span id="detailModeLabel" class="unit-sheet-label">Mode</span>
+          <div id="detailMode" class="segmented unit-mode-segmented" role="group" aria-labelledby="detailModeLabel"></div>
+        </div>
 
-      <label class="row" id="detailVaneVerticalRow" hidden>
-        <span>Vane — vertical</span>
-        <select id="detailVaneVertical" class="select-native"></select>
-      </label>
+        <div id="detailFanSpeedRow" class="unit-sheet-field" hidden>
+          <span id="detailFanLabel" class="unit-sheet-label">Fan</span>
+          <div id="detailFanSpeed" class="segmented" role="group" aria-labelledby="detailFanLabel"></div>
+        </div>
 
-      <label class="row" id="detailVaneHorizontalRow" hidden>
-        <span>Vane — horizontal</span>
-        <select id="detailVaneHorizontal" class="select-native"></select>
-      </label>
+        <!-- Settings-group rows (design.md `settings group`): a lead glyph,
+             the label, the current value muted and a chevron to its page. -->
+        <ul class="action-rows unit-sheet-links">
+          <li id="detailVanesLink" class="action-row" hidden>
+            <button type="button" class="action-row-main unit-sheet-link" data-page-to="vanes">
+              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-wind"></use></svg>
+              <span class="action-row-title">Vanes</span>
+              <span id="detailVanesValue" class="unit-sheet-link-value"></span>
+              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main unit-sheet-link" data-page-to="rule">
+              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-thermometer"></use></svg>
+              <span class="action-row-title">Temperature rule</span>
+              <span id="detailRuleValue" class="unit-sheet-link-value"></span>
+              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main unit-sheet-link" data-page-to="schedules">
+              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+              <span class="action-row-title">Schedules</span>
+              <span id="detailSchedValue" class="unit-sheet-link-value"></span>
+              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main unit-sheet-link" data-page-to="name">
+              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
+              <span class="action-row-title">Name</span>
+              <span id="detailNameValue" class="unit-sheet-link-value"></span>
+              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="unit-sheet-page" data-page="vanes" data-title="Vanes" hidden>
+        <label class="row" id="detailVaneVerticalRow" hidden>
+          <span>Vertical</span>
+          <select id="detailVaneVertical" class="select-native"></select>
+        </label>
+        <label class="row" id="detailVaneHorizontalRow" hidden>
+          <span>Horizontal</span>
+          <select id="detailVaneHorizontal" class="select-native"></select>
+        </label>
+      </div>
 
       <!-- Dynamic-setpoint rule: hold a desired ROOM temperature by nudging
            the unit's own (unreliable) setpoint each interval. Never powers the
            unit on/off. Cool/heat targets; the active one follows current mode. -->
-      <details class="detail-section" id="detailRuleSection">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-thermometer"></use></svg>
-            <h3 class="collapse-title">Temperature rule</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="detail-section-body">
-          <div class="row">
-            <span>Enabled</span>
-            <button id="ruleEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable temperature rule">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <label class="row">
-            <span>Cool target (room °C)</span>
-            <input id="ruleCoolTarget" type="number" step="0.5" min="16" max="31" class="input-native" placeholder="—">
-          </label>
-          <label class="row">
-            <span>Heat target (room °C)</span>
-            <input id="ruleHeatTarget" type="number" step="0.5" min="10" max="31" class="input-native" placeholder="—">
-          </label>
-          <p class="muted small detail-hint">Keeps the unit on and steers its setpoint so the room reaches your target — the active target follows the unit's current mode.</p>
-
-          <!-- Solar-surplus boost (#554): pushes the steered target further
-               toward comfort while PV surplus is high, to pre-cool/heat and
-               bank thermal inertia. Only takes effect while Enabled above is on. -->
-          <div class="row">
-            <span>Solar boost</span>
-            <button id="ruleBoostEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable solar-surplus boost">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <label class="row">
-            <span>Boost offset (°C)</span>
-            <input id="ruleBoostOffset" type="number" step="0.5" min="0.5" max="5" class="input-native" placeholder="2.0">
-          </label>
-          <p class="muted small detail-hint">When PV surplus is high, pushes the steered target this many degrees further toward comfort. Only takes effect while the temperature rule above is enabled.</p>
+      <div class="unit-sheet-page" data-page="rule" data-title="Temperature rule" hidden>
+        <div class="row">
+          <span>Enabled</span>
+          <button id="ruleEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable temperature rule">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
         </div>
-      </details>
-
-      <!-- Schedules: one or more daily entries. Off entries only power down;
-           on entries can apply a full profile. -->
-      <details class="detail-section" id="detailScheduleSection">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
-            <h3 class="collapse-title">Schedules</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="detail-section-body">
-          <div id="schedList" class="schedule-list"></div>
-          <button id="schedAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
-          <p class="muted small detail-hint">Each enabled entry runs once per day. Off entries only turn the unit off; on entries can apply a full profile before the temperature rule resumes steering.</p>
+        <label class="row">
+          <span>Cool target (room °C)</span>
+          <input id="ruleCoolTarget" type="number" step="0.5" min="16" max="31" class="input-native" placeholder="—">
+        </label>
+        <label class="row">
+          <span>Heat target (room °C)</span>
+          <input id="ruleHeatTarget" type="number" step="0.5" min="10" max="31" class="input-native" placeholder="—">
+        </label>
+        <!-- Solar-surplus boost (#554): pushes the steered target further
+             toward comfort while PV surplus is high, to pre-cool/heat and
+             bank thermal inertia. Only takes effect while Enabled is on. -->
+        <div class="row">
+          <span>Solar boost</span>
+          <button id="ruleBoostEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable solar-surplus boost">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
         </div>
-      </details>
+        <label class="row">
+          <span>Boost offset (°C)</span>
+          <input id="ruleBoostOffset" type="number" step="0.5" min="0.5" max="5" class="input-native" placeholder="2.0">
+        </label>
+        <p class="muted small detail-hint">Steers the unit's setpoint until the room reaches the target for its mode. Solar boost goes further while there is surplus.</p>
+      </div>
+
+      <!-- Schedules: a dense collection (design.md): one summary row per
+           entry with its switch, and Add / Edit open the staged editor. -->
+      <div class="unit-sheet-page" data-page="schedules" data-title="Schedules" hidden>
+        <div id="schedList" class="alarm-schedule-list"></div>
+        <p id="schedNote" class="muted small schedule-empty" hidden>No schedules yet.</p>
+        <button id="schedAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+        <p class="muted small detail-hint">Each runs once a day. An Off entry only turns the unit off.</p>
+      </div>
+
+      <div class="unit-sheet-page" data-page="name" data-title="Name" hidden>
+        <label class="row">
+          <span>Display name</span>
+          <input id="detailDisplayName" type="text" class="input-native" placeholder="Custom label…">
+        </label>
+        <p id="detailOriginalName" class="muted small zone-original-name"></p>
+      </div>
 
       <div class="detail-actions">
-        <button id="detailSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="detailDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- AC schedule add/edit dialog (#881): the staged dense-collection editor
+       (dense-editor.js) every schedule in the app uses. Save is the only
+       persistence boundary; ×, Esc and the backdrop discard. -->
+  <dialog id="acScheduleDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="acScheduleEditorTitle">Schedule</h2>
+        <button id="acScheduleEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row">
+        <span>Enabled</span>
+        <button id="acScheduleEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable schedule">
+          <span class="knob"></span><span class="toggle-label">ON</span>
+        </button>
+      </div>
+      <label class="row">
+        <span>Time</span>
+        <input id="acScheduleTime" type="time" class="input-native" value="08:00">
+      </label>
+      <label class="row">
+        <span>Power</span>
+        <select id="acSchedulePower" class="select-native">
+          <option value="true">On</option>
+          <option value="false">Off</option>
+        </select>
+      </label>
+      <!-- An Off entry only powers the unit down, so the profile hides. -->
+      <div id="acScheduleProfile">
+        <label class="row">
+          <span>Mode</span>
+          <select id="acScheduleMode" class="select-native"></select>
+        </label>
+        <label class="row">
+          <span>Set temp now (°C)</span>
+          <input id="acScheduleTemp" type="number" step="0.5" min="10" max="31" class="input-native" placeholder="—">
+        </label>
+        <label class="row">
+          <span>Target temp (°C)</span>
+          <input id="acScheduleTarget" type="number" step="0.5" min="10" max="31" class="input-native" placeholder="—">
+        </label>
+        <label class="row">
+          <span>Fan</span>
+          <select id="acScheduleFan" class="select-native"></select>
+        </label>
+        <label class="row" id="acScheduleVvRow">
+          <span>Vane, vertical</span>
+          <select id="acScheduleVv" class="select-native"></select>
+        </label>
+        <label class="row" id="acScheduleVhRow">
+          <span>Vane, horizontal</span>
+          <select id="acScheduleVh" class="select-native"></select>
+        </label>
+      </div>
+
+      <button id="acScheduleDelete" type="button" class="schedule-editor-delete" hidden>Delete schedule</button>
+
+      <div class="detail-actions">
+        <button id="acScheduleSave" type="button" class="detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
