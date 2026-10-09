@@ -17,6 +17,11 @@ if not exist "%VENV_PY%" (
 
 cd /d "%SCRIPT_DIR%" || exit /b 1
 
+REM This bat serves the live instance on :8447 (the tray's headless twin), so
+REM it opts into the automation engines like the tray does. Every other boot
+REM (a worktree, another port, a bare uvicorn) leaves them off (#876).
+set "HOME_AUTOMATION_ENGINES=1"
+
 set "CERT=%SCRIPT_DIR%webapp\certificates\cert.pem"
 set "KEY=%SCRIPT_DIR%webapp\certificates\key.pem"
 

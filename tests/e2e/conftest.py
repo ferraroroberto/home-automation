@@ -486,6 +486,10 @@ def base_url() -> Iterator[str]:
             # The nightly speed-test loop spends real bandwidth; a test boot
             # must never start it, whatever a copied config says (#840).
             "SPEEDTEST_SCHEDULE_ENABLED": "0",
+            # The master switch (#876): only the tray / webapp.bat opt in, so
+            # a test boot runs no engine even when the shell running pytest
+            # inherited the opt-in. The per-engine flags above stay as depth.
+            "HOME_AUTOMATION_ENGINES": "0",
         },
     )
     if sys.platform == "win32":

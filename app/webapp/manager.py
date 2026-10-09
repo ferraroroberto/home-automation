@@ -220,6 +220,9 @@ class WebappManager:
             env = os.environ.copy()
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUTF8"] = "1"
+            # The tray serves the live instance: opt it into the automation
+            # engines. No other boot sets this, so none runs them (#876).
+            env["HOME_AUTOMATION_ENGINES"] = "1"
 
             try:
                 popen_kwargs: Dict[str, Any] = dict(
