@@ -92,12 +92,11 @@ def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """A fake house: two blinds, a presence roster, a schedule file, a recorder."""
     path = tmp_path / "blind_schedules.json"
     monkeypatch.setattr(B, "SCHEDULES_PATH", path)
-    house = SimpleNamespace(people={"p1": "home"}, moves=[], fail=False, path=path)
+    house = SimpleNamespace(people={"p1": "home"}, moves=[], path=path)
 
     async def _move(action, targets):
         house.moves.append((action, list(targets)))
-        return [B.BlindOutcome(device_id=t, ok=not house.fail, error="down" if house.fail else None)
-                for t in targets]
+        return [B.BlindOutcome(device_id=t, ok=True) for t in targets]
 
     monkeypatch.setattr(engine, "move_blinds", _move)
     monkeypatch.setattr(engine, "cover_device_ids", lambda: ["blind-1", "blind-2"])
@@ -162,18 +161,6 @@ def test_unknown_presence_skips(world) -> None:
     B.set_blind_schedules([{"id": "up", "time": "08:00", "presence": "home"}], world.path)
     _tick(engine._EngineState(), MONDAY_0800)
     assert world.moves == []
-
-
-def test_every_blind_failing_retries_next_poll(world) -> None:
-    B.set_blind_schedules([{"id": "down", "time": "08:00", "action": "close"}], world.path)
-    state = engine._EngineState()
-    world.fail = True
-    _tick(state, MONDAY_0800)
-    assert "down" not in state.last_fire_day
-    world.fail = False
-    _tick(state, MONDAY_0800.replace(minute=1))
-    assert len(world.moves) == 2
-    assert state.last_fire_day["down"] == "2026-10-05"
 
 
 def test_engine_respects_the_env_switch(monkeypatch: pytest.MonkeyPatch) -> None:

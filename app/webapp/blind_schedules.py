@@ -9,13 +9,21 @@ narrow catch-up window after HH:MM (:func:`src._schedule_store.daily_due`), so
 a restart hours later never replays a stale morning "up", and a once-per-day
 gate per entry. An entry whose presence condition does not hold at its fire
 time is skipped for the day (it does not wait for someone to arrive), and so
-is one whose presence cannot be established. When every one of its blinds
-failed — the LAN down, say — it is retried on the next poll inside the window.
+is one whose presence cannot be established. Only a move that could not even
+be attempted (an exception, say a missing ``devices.json``) is retried on the
+next poll inside the window.
 
 :func:`follow_alarm` is the other way blinds move on their own: the presence
 alarm automation calls it after the panel *confirmed* an automatic arm or
 disarm, and it lowers every blind on a full arm or raises them on a daytime
 disarm when the Blinds card's "Follow the automatic alarm" switch is on.
+
+Both automatic paths retry a blind that failed — offline when the move fired —
+in the background through :func:`src.blind_automation.retry_failed_blinds`
+(#897), so a retry never delays the schedule tick or the alarm path. The event
+record is written once the move has settled, with its attempt count; a blind
+still failing after the last retry sends one Telegram message per move.
+Manual taps keep their single attempt: the owner sees that result at once.
 """
 
 from __future__ import annotations
@@ -25,7 +33,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set
 
 from dotenv import load_dotenv
 
@@ -33,6 +41,9 @@ from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src._schedule_store import daily_due
 from src.blind_automation import (
+    RETRY_DELAYS_S,
+    BlindOutcome,
+    BlindRetryReport,
     BlindScheduleEntry,
     alarm_blind_action,
     cover_device_ids,
@@ -41,10 +52,15 @@ from src.blind_automation import (
     load_blind_schedules,
     move_blinds,
     presence_allows,
+    retry_failed_blinds,
 )
 from src.location_config import load_location_config
+from src.notify import NotifierError
+from src.notify_config import build_alarm_notifier
 from src.presence_engine import load_people
 from src.sun_position import sun_position
+from src.tuya_client import list_devices
+from src.tuya_display_names import load_tuya_display_names
 
 logger = logging.getLogger(__name__)
 
@@ -96,19 +112,126 @@ def _record_event(
         logger.debug("telemetry blind event skipped", exc_info=True)
 
 
-def _record(entry: BlindScheduleEntry, outcome: str, detail: str) -> None:
+def _record(
+    entry: BlindScheduleEntry, outcome: str, detail: str, extra: Optional[Dict[str, Any]] = None
+) -> None:
     _record_event(
         entry.action, entry.id, "schedule", outcome,
-        {"time": entry.time, "targets": entry.targets, "detail": detail},
+        {"time": entry.time, "targets": entry.targets, "detail": detail, **(extra or {})},
     )
 
 
-async def _apply(entry: BlindScheduleEntry) -> bool:
-    """Run one due entry; ``True`` when it is settled for today.
+# ----------------------------------------------------- retries (#897)
+# Background retries of automatic moves, held so none is garbage-collected
+# mid-backoff.
+_RETRY_TASKS: Set[asyncio.Task] = set()
 
-    Settled means it moved at least one blind, or was deliberately skipped
-    (presence, no blinds left). ``False`` — every blind failed — leaves it
-    due, so the next poll inside the window retries it.
+
+async def _retry_sleep(delay: float) -> None:
+    """The backoff's clock; tests replace it with a fake one."""
+    await asyncio.sleep(delay)
+
+
+def _report_outcome(report: BlindRetryReport) -> str:
+    return "error" if report.failed else "ok"
+
+
+def _report_fields(report: BlindRetryReport) -> Dict[str, Any]:
+    """The settled move for the event record: final outcome and attempt count."""
+    detail = f"{len(report.moved)} moved, {len(report.failed)} failed"
+    if report.superseded:
+        detail += f", {len(report.superseded)} superseded"
+    detail += f" after {report.max_attempts} attempt(s)"
+    return {
+        "detail": detail,
+        "moved": len(report.moved),
+        "failed": report.failed,
+        "superseded": report.superseded,
+        "attempts": report.max_attempts,
+    }
+
+
+def _blind_names(device_ids: Iterable[str]) -> List[str]:
+    """Each blind's display name: the rename override, else its device name."""
+    overrides = load_tuya_display_names()
+    try:
+        names = {info.device_id: info.name for info in list_devices()}
+    except Exception:  # noqa: BLE001 — a name lookup must never cost the message
+        names = {}
+    return [overrides.get(d) or names.get(d) or d for d in device_ids]
+
+
+async def _notify(text: str) -> None:
+    notifier = build_alarm_notifier()
+    if notifier is None:
+        logger.info("ℹ️ Blind failure not sent to Telegram: notifier not configured")
+        return
+    try:
+        # send_text is blocking network I/O; keep it off the event loop.
+        await asyncio.to_thread(notifier.send_text, text)
+    except NotifierError as exc:  # delivery must never break the engine
+        logger.warning("⚠️ Blind failure Telegram notify failed: %s", exc)
+
+
+async def _finish_move(
+    action: str,
+    outcomes: List[BlindOutcome],
+    what: str,
+    record: Callable[[BlindRetryReport], None],
+) -> None:
+    """Retry an automatic move's failed blinds, then record, log and notify.
+
+    Full success (first try or after retries) is an info log; a blind still
+    failing after the last retry sends exactly one Telegram message for the
+    whole move, never one per blind or per attempt. Never raises.
+    """
+    try:
+        report = await retry_failed_blinds(action, outcomes, sleep=_retry_sleep)  # type: ignore[arg-type]
+        record(report)
+        if not report.failed:
+            logger.info(
+                "✅ Blinds %s (%s): %d moved, %d superseded, in %d attempt(s)",
+                action, what, len(report.moved), len(report.superseded), report.max_attempts,
+            )
+            return
+        logger.warning(
+            "⚠️ Blinds %s (%s): %s still failing after %d attempt(s)",
+            action, what, ", ".join(report.failed), report.max_attempts,
+        )
+        minutes = f"{sum(RETRY_DELAYS_S) / 60:g}"
+        await _notify(
+            f"🪟 Blinds could not {action}: {', '.join(_blind_names(report.failed))} "
+            f"({what}). Retried for ~{minutes} min."
+        )
+    except Exception as exc:  # noqa: BLE001 — a background retry must never die unseen
+        logger.warning("⚠️ Blind %s retry (%s) failed: %s", action, what, exc)
+
+
+async def _settle(
+    action: str,
+    outcomes: List[BlindOutcome],
+    what: str,
+    record: Callable[[BlindRetryReport], None],
+) -> None:
+    """Finish an automatic move: at once when every blind moved, else in the background.
+
+    The retries run as their own task, so they never hold up the schedule
+    tick or the alarm path that started the move.
+    """
+    if all(o.ok for o in outcomes):
+        await _finish_move(action, outcomes, what, record)
+        return
+    task = asyncio.create_task(_finish_move(action, outcomes, what, record), name="blind-retry")
+    _RETRY_TASKS.add(task)
+    task.add_done_callback(_RETRY_TASKS.discard)
+
+
+async def _apply(entry: BlindScheduleEntry) -> None:
+    """Run one due entry, which settles it for today.
+
+    It moves its blinds (failed ones are retried in the background) or is
+    deliberately skipped (presence, no blinds left). Only an exception leaves
+    it due, so the next poll inside the window tries again.
     """
     allowed, why = presence_allows(entry.presence, (p.state for p in load_people().values()))
     if not allowed:
@@ -117,7 +240,7 @@ async def _apply(entry: BlindScheduleEntry) -> bool:
             entry.id, entry.time, entry.action, entry.presence, why,
         )
         _record(entry, "skipped", why)
-        return True
+        return
 
     known = cover_device_ids()
     targets = [d for d in entry.targets if d in known] if entry.targets else known
@@ -130,20 +253,19 @@ async def _apply(entry: BlindScheduleEntry) -> bool:
     if not targets:
         logger.warning("⚠️ Blind schedule %s has no blinds left to move — skipped", entry.id)
         _record(entry, "skipped", "no blinds")
-        return True
+        return
 
     logger.info(
         "⏰ Applying blind schedule %s (%s %s, %d blind(s), %s)",
         entry.id, entry.time, entry.action, len(targets), why,
     )
     outcomes = await move_blinds(entry.action, targets)  # type: ignore[arg-type]
-    moved = [o for o in outcomes if o.ok]
-    if not moved:
-        _record(entry, "error", "every blind failed")
-        return False
-    failed = len(outcomes) - len(moved)
-    _record(entry, "ok", f"{len(moved)} moved, {failed} failed")
-    return True
+
+    def _record_report(report: BlindRetryReport) -> None:
+        fields = _report_fields(report)
+        _record(entry, _report_outcome(report), fields.pop("detail"), fields)
+
+    await _settle(entry.action, outcomes, f"schedule {entry.time}", _record_report)
 
 
 async def tick(
@@ -161,8 +283,8 @@ async def tick(
         if not daily_due(entry.time, instant, config.fire_grace_s, entry.days):
             continue
         try:
-            if await _apply(entry):
-                state.last_fire_day[entry.id] = today
+            await _apply(entry)
+            state.last_fire_day[entry.id] = today
         except Exception as exc:  # noqa: BLE001 — never kill the loop
             logger.warning("⚠️ Blind schedule apply failed for %s: %s", entry.id, exc)
 
@@ -204,11 +326,16 @@ async def follow_alarm(kind: str, action: str, now: Optional[datetime] = None) -
             "🪟 Blinds %s after alarm %s/%s — %s; %d of %d moved",
             blind_action, kind, action, why, moved, len(outcomes),
         )
-        _record_event(
-            blind_action, "all", "alarm", "ok" if moved else "error",
-            {"alarm": kind, "alarm_action": action, "detail": why,
-             "moved": moved, "total": len(outcomes)},
-        )
+
+        def _record_report(report: BlindRetryReport) -> None:
+            fields = _report_fields(report)
+            _record_event(
+                blind_action, "all", "alarm", _report_outcome(report),
+                {"alarm": kind, "alarm_action": action, "detail": why,
+                 "result": fields.pop("detail"), "total": len(outcomes), **fields},
+            )
+
+        await _settle(blind_action, outcomes, "following the alarm", _record_report)
         return blind_action
     except Exception as exc:  # noqa: BLE001 — never let blinds touch the alarm path
         logger.warning("⚠️ Blinds could not follow the alarm %s/%s: %s", kind, action, exc)
