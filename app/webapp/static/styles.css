@@ -1527,7 +1527,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .segmented--row .segmented-item { height: calc(var(--hit-min) - 6px); }
 .segmented--row .segmented-item::before { inset: -3px 0; }
 .segmented--row .segmented-item .icon { width: 18px; height: 18px; }
-.segmented--row .segmented-item .blind-stop-icon { width: 14px; height: 14px; }
+.segmented--row .segmented-item .blind-stop-icon { width: 16px; height: 16px; }
 .segmented-item:active:not(:disabled) { transform: scale(0.96); }
 /* The All blinds row and the blind rows are two lists: one hairline between. */
 .blinds-all-row { border-bottom: 1px solid var(--line-muted); }
