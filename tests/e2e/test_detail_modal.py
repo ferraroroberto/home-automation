@@ -64,11 +64,12 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     # + the blind schedule editor dialog (#blindScheduleDialog, #871)
     # + the unit sheet's Back button and the AC schedule editor (#881)
     # + the Security tab's Schedules, Scene capture, Override and Accounts
-    # sheets (#882) + the Energy tab's All figures sheet (#883); the HA
-    # capabilities help left the census when #461 made it a folded subsection
-    # instead of a modal.
-    expect(close_buttons).to_have_count(33)
-    expect(page.locator(".detail-close.hit-target")).to_have_count(33)
+    # sheets (#882) + the Energy tab's All figures sheet (#883) + the Devices
+    # tab's UPS, light, blind schedule, voice satellites, recent interactions
+    # and Network sheets (#884); the HA capabilities help left the census when
+    # #461 made it a folded subsection instead of a modal.
+    expect(close_buttons).to_have_count(39)
+    expect(page.locator(".detail-close.hit-target")).to_have_count(39)
 
     target = effective_rect(page.locator("#detailClose"))
     # Exact compact-control contract: 34px visual box, 44px effective hit area.

@@ -1,8 +1,10 @@
-"""Elgato lights (the IoT tab's Lights card): render, on/off, brightness, warmth."""
+"""Elgato lights (the Devices tab's Lights group): render, on/off, and the
+light sheet's brightness and warmth (#884, decision 5 of #872)."""
 
 from __future__ import annotations
 
 import copy
+import re
 from typing import Callable, Dict, List
 
 import pytest
@@ -19,15 +21,9 @@ def _no_tuya_lights(mock_tuya: Callable) -> None:
 
 
 def _open_lights(page: Page) -> None:
-    """IoT tab → expand the Lights card.
-
-    Lights folded out of their own top-level tab into a collapsed <details>
-    beside Plugs and Blinds (#136), so the rows are only interactable once the
-    card is open.
-    """
+    """Devices tab: the Lights group is an open group since #884."""
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
-    page.locator("#lightsCard").evaluate("el => { el.open = true; }")
 
 
 def _boot_lights(
@@ -67,12 +63,15 @@ def test_lights_tab_renders_reachable_and_offline_lights(
     expect(page.locator("#tabLights")).to_have_count(0)
     expect(page.locator(".light-row")).to_have_count(2)
     expect(page.locator("#lightsList")).to_contain_text("Fixture Key Light")
-    expect(page.locator("#lightsCount")).to_have_text("2")
+    expect(page.locator("#lightsCount")).to_have_text("1 on")
+    expect(page.locator('[data-light-id="192.0.2.10:9123"] .action-row-meta-text')).to_have_text("42% · 5000 K")
     offline = page.locator('[data-light-id="192.0.2.11:9123"]')
-    expect(offline).to_have_class("device-row light-row is-unavailable")
-    # Sanitized failure copy (#879): the row says the light is unavailable and
+    expect(offline).to_have_class(re.compile(r"\bis-unavailable\b"))
+    expect(offline.locator(".row-avatar")).to_have_attribute("data-badge", "down")
+    # Sanitized failure copy (#879): the row says the light is offline and
     # never prints its connection error, which carries the device address.
-    expect(offline.locator(".light-unavailable")).to_have_text("Unavailable")
+    expect(offline.locator(".chip")).to_have_text("Offline")
+    expect(offline.locator(".toggle")).to_have_count(0)
     expect(offline).not_to_contain_text("timed out")
     expect(offline).not_to_contain_text("192.0.2.11")
 
@@ -99,7 +98,7 @@ def test_lights_tab_distinguishes_loading_from_true_empty(
 
     expect(page.locator("#lightsList")).to_have_attribute("data-state", "loading")
     expect(page.locator("#lightsList .empty-state-message")).to_have_text(
-        "Reading Elgato lights…"
+        "Reading lights…"
     )
     release()
     expect(page.locator("#lightsList")).to_have_attribute("data-state", "empty")
@@ -156,19 +155,31 @@ def test_lights_controls_round_trip(
     toggle.click()
     expect(row.locator(".toggle")).to_have_attribute("aria-checked", "false")
 
-    brightness = row.locator('input[aria-label="Brightness exact value for Fixture Key Light"]')
+    # Tapping the row opens the light sheet: power, brightness and warmth,
+    # each applied as it changes (an instant sheet, Done only closes).
+    row.locator(".action-row-main").click()
+    sheet = page.locator("#lightSheet")
+    expect(sheet).to_be_visible()
+    expect(sheet).to_have_attribute("data-save-model", "instant")
+    expect(page.locator("#lightSheetPower")).to_have_attribute("aria-checked", "false")
+    page.locator("#lightSheetPower").click()
+    expect(page.locator("#lightSheetPower")).to_have_attribute("aria-checked", "true")
+    expect(row.locator(".toggle")).to_have_attribute("aria-checked", "true")
+
+    brightness = sheet.locator('input[aria-label="Brightness exact value for Fixture Key Light"]')
     brightness.fill("55")
     brightness.dispatch_event("change")
     expect(brightness).to_have_value("55")
-    expect(row.locator(".light-control-value")).to_have_count(0)
-    expect(row.locator(".light-value-edit")).to_have_count(2)
+    expect(sheet.locator(".light-value-edit")).to_have_count(2)
 
-    row = page.locator('[data-light-id="192.0.2.10:9123"]')
-    warmth = row.locator('input[aria-label="Warmth exact value for Fixture Key Light"]')
+    warmth = sheet.locator('input[aria-label="Warmth exact value for Fixture Key Light"]')
     expect(warmth).to_have_value("5000")
     warmth.fill("4000")
     warmth.dispatch_event("change")
     expect(warmth).to_have_value("4000")
+    expect(row.locator(".action-row-meta-text")).to_have_text("55% · 4000 K")
+    page.locator("#lightSheetDone").click()
+    expect(sheet).to_be_hidden()
 
 
 def test_lights_bulk_buttons_follow_reachable_state_and_show_progress(
@@ -252,7 +263,9 @@ def test_lights_bulk_controls_and_detail_rename(
     assert store[1]["on"] is False
 
     row = page.locator('[data-light-id="192.0.2.10:9123"]')
-    row.locator(".device-row-name").click()
+    row.locator(".action-row-main").click()
+    expect(page.locator("#lightSheetEditMeta")).to_have_text("Elgato Key Light")
+    page.locator("#lightSheetEdit").click()
     expect(page.locator("#lightDialog")).to_be_visible()
     expect(page.locator("#lightOriginalName")).to_have_text("Fixture Key Light")
     expect(page.locator("#lightProduct")).to_have_text("Elgato Key Light")
@@ -266,7 +279,8 @@ def test_lights_bulk_controls_and_detail_rename(
     page.locator("#lightDisplayName").fill("Desk left")
     page.locator("#lightDisplayName").press("Enter")
     expect(page.locator("#lightDetailName")).to_have_text("Desk left")
-    expect(row.locator(".device-row-name")).to_have_text("Desk left")
+    expect(row.locator(".action-row-title")).to_have_text("Desk left")
+    expect(page.locator("#lightSheetName")).to_have_text("Desk left")
 
 
 def test_lights_refresh_failure_keeps_partial_data_note(

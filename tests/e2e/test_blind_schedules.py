@@ -1,4 +1,4 @@
-"""Blind schedule editor in the Devices tab's Blinds card (issue #871)."""
+"""Blind schedule sheet in the Devices tab's Blinds group (issues #871, #884)."""
 
 from __future__ import annotations
 
@@ -61,8 +61,14 @@ def _boot(page: Page, base_url: str, sample_units, mock_api, mock_energy, mock_t
     page.wait_for_selector("#paneHome", state="visible")
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
-    page.locator("#blindsCard").evaluate("el => { el.open = true; }")
+    # The group is hidden until a cover exists; the stub above provides two.
+    expect(page.locator("#blindsCard")).to_be_visible()
     return puts
+
+
+def _open_schedule_sheet(page: Page) -> None:
+    page.locator("#blindSchedulesOpen").click()
+    expect(page.locator("#blindSchedulesSheet")).to_be_visible()
 
 
 def test_blind_schedule_lists_and_adds_an_entry(
@@ -75,14 +81,19 @@ def test_blind_schedule_lists_and_adds_an_entry(
          "presence": "any"},
     ])
 
-    # The existing entry renders as a summary row under the blind rows, with
-    # the group row and per-blind buttons still on the card.
+    # The group row and per-blind buttons are on the group; the schedule row
+    # says what is inside its sheet.
+    expect(page.locator("#blindsAllUp")).to_be_visible()
+    expect(page.locator('[data-device-id="blind-a"] .blind-btn')).to_have_count(3)
+    expect(page.locator("#blindSchedulesMeta")).to_have_text("1 on")
+    assert_no_horizontal_overflow(page)
+
+    # The existing entry renders as a summary row in the schedule sheet.
+    _open_schedule_sheet(page)
     rows = page.locator("#blindSchedules .automation-summary-row")
     expect(rows).to_have_count(1)
     expect(rows.first.locator(".automation-summary-title")).to_have_text("21:30")
     expect(rows.first.locator(".automation-summary-meta")).to_have_text("Down · Every day · All blinds")
-    expect(page.locator("#blindsAllUp")).to_be_visible()
-    expect(page.locator('[data-device-id="blind-a"] .blind-btn')).to_have_count(3)
     assert_no_horizontal_overflow(page)
 
     # Add a weekend "up" for one blind, only when someone is home.
@@ -111,6 +122,9 @@ def test_blind_schedule_lists_and_adds_an_entry(
     expect(rows.first.locator(".automation-summary-meta")).to_have_text(
         "Up · Weekends · Someone home · Test Blind B"
     )
+    expect(page.locator("#blindSchedulesMeta")).to_have_text("2 on")
+    page.locator("#blindSchedulesSheetDone").click()
+    expect(page.locator("#blindSchedulesSheet")).to_be_hidden()
 
 
 def test_blinds_follow_alarm_switch_saves(
@@ -119,11 +133,12 @@ def test_blinds_follow_alarm_switch_saves(
 ) -> None:
     _boot(page, base_url, sample_units, mock_api, mock_energy, mock_tuya, [])
 
-    # #875: one visible, labelled switch on the Blinds card, off by default.
+    # #875: one visible, labelled switch in the schedule sheet, off by default.
+    _open_schedule_sheet(page)
     switch = page.locator("#blindsFollowAlarm")
     expect(switch).to_be_visible()
     expect(switch).to_have_attribute("aria-checked", "false")
-    expect(page.locator("#blindsCard .notify-toggle span").first).to_have_text(
+    expect(page.locator("#blindSchedulesSheet .row > span").first).to_have_text(
         "Follow the automatic alarm"
     )
     assert_no_horizontal_overflow(page)
@@ -134,3 +149,6 @@ def test_blinds_follow_alarm_switch_saves(
         switch.click()
     assert request.value.post_data_json == {"follow_alarm": True}
     expect(switch).to_have_attribute("aria-checked", "true")
+    # The group's schedule row reflects it once the sheet is closed.
+    page.locator("#blindSchedulesSheetDone").click()
+    expect(page.locator("#blindSchedulesMeta")).to_have_text("None · follows alarm")

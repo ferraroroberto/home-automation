@@ -56,7 +56,8 @@ def test_card_toolbar_and_light_controls_keep_their_own_tap_zones(
 ) -> None:
     """The live review caught what the fixtures hide: a body toolbar's "Show
     hidden" tab reaching into the first row's switch, and the light rows'
-    sliders and number fields under the floor (#779)."""
+    sliders and number fields under the floor (#779; in the light sheet since
+    #884)."""
     page.set_viewport_size({"width": 390, "height": 844})
     mock_api(sample_units)
     mock_energy()
@@ -71,9 +72,10 @@ def test_card_toolbar_and_light_controls_keep_their_own_tap_zones(
     expect(first_switch).to_be_visible()
     assert_no_overlap([page.locator("#securityHiddenToggle"), first_switch])
 
+    # The sliders and number fields live in the light sheet since #884.
     page.locator("#tabIot").click()
-    page.locator("#lightsCard").evaluate("el => { el.open = true; }")
-    reachable = page.locator(".light-row .light-slider")
+    page.locator('#lightsList .light-row:not(.is-unavailable) .action-row-main').first.click()
+    reachable = page.locator("#lightSheet .light-slider")
     expect(reachable.first).to_be_visible()
     assert_min_target(reachable)
-    assert_min_target(page.locator(".light-row .light-number"))
+    assert_min_target(page.locator("#lightSheet .light-number"))

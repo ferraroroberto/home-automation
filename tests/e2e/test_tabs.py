@@ -106,11 +106,7 @@ def test_nav_returns_to_rest_after_a_strand_and_after_each_modal_close(
 
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
-    # Rows live inside collapsed <details> cards — expand so they're interactable.
-    page.eval_on_selector_all(
-        "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
-    )
-    page.locator('[data-device-id="plug-1"] .device-row-name').click()
+    page.locator('[data-device-id="plug-1"] .action-row-main').click()
     expect(page.locator("#plugDialog")).to_be_visible()
     # The modal auto-focuses the text input — assert that, then close.
     expect(page.locator("#plugDisplayName")).to_be_focused()
@@ -125,10 +121,12 @@ def test_saved_tab_restores_with_retired_tabs_migrated(
 ) -> None:
     """Each stored tab key is a fresh app start (a reload):
 
-    - #136: Plugs and Light folded into IoT. The vendored switcher drops a tab
-      name it doesn't recognise and silently falls back to the first tab, so an
-      installed PWA parked on either one would reopen on Home. tabs.js rewrites
-      the stored key before the switcher reads it — and persists the rewrite.
+    - #136: Plugs and Light folded into IoT, and #884 moved the old Net tab's
+      content (Settings since #779) into the Devices tab's Network group. The
+      vendored switcher drops a tab name it doesn't recognise and silently falls
+      back to the first tab, so an installed PWA parked on any of them would
+      reopen on Home. tabs.js rewrites the stored key before the switcher reads
+      it — and persists the rewrite.
     - #232: the nav is a body-level sibling of the inner scroller, so the PWA
       can safely restore a short saved tab without floating the fixed bar up.
     """
@@ -137,7 +135,7 @@ def test_saved_tab_restores_with_retired_tabs_migrated(
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
 
-    for stored_tab in ("plugs", "lights", "iot"):
+    for stored_tab in ("plugs", "lights", "network", "iot"):
         page.evaluate(
             "tab => localStorage.setItem('home-automation.tab', tab)", stored_tab
         )
@@ -150,15 +148,7 @@ def test_saved_tab_restores_with_retired_tabs_migrated(
         assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "iot"
         expect(page.locator("body > .tabs")).to_have_count(1)
         page.wait_for_function(_NAV_AT_REST, timeout=3000)
-
-    # #779: Net became the header gear's Settings pane. Settings is no tab, so
-    # a PWA parked on Net reopens once on Settings and the key falls to Home.
-    page.evaluate("() => localStorage.setItem('home-automation.tab', 'network')")
-    page.reload(wait_until="domcontentloaded")
-    page.wait_for_selector("#paneSettings", state="visible")
-    expect(page.locator("#settingsNetwork")).to_be_visible()
-    expect(page.locator(".tabs .tab[aria-selected='true']")).to_have_count(0)
-    assert page.evaluate("() => localStorage.getItem('home-automation.tab')") == "home"
+    expect(page.locator("#networkCard")).to_be_visible()
 
 
 def test_every_pane_opens_with_a_page_header_and_the_gear_opens_settings(

@@ -16,7 +16,7 @@ from typing import Callable, Dict, List
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home, open_settings
+from tests.e2e._app import boot_home
 from tests.e2e.test_contrast import _CONTRAST_JS
 
 _ZONE = {"type": 1, "status": "closed", "active": False, "bypass": False,
@@ -118,10 +118,7 @@ def test_sheets_follow_their_save_model(
     # focus goes back to the row that opened it.
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
-    page.eval_on_selector_all(
-        "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
-    )
-    opener = page.locator('[data-device-id="plug-1"] .device-row-name')
+    opener = page.locator('[data-device-id="plug-1"] .action-row-main')
     dialog = page.locator("#plugDialog")
     expect(dialog).to_have_attribute("data-save-model", "staged")
     opener.click()
@@ -134,10 +131,12 @@ def test_sheets_follow_their_save_model(
     expect(page.locator("#plugDisplayName")).to_have_value("")
     page.mouse.click(4, 4)  # the backdrop
     expect(dialog).to_be_hidden()
-    expect(opener).to_have_text("Test Heater")
+    expect(opener.locator(".action-row-title")).to_have_text("Test Heater")
 
-    # Instant: the Wi-Fi sheet saves as it changes; its one primary is Done.
-    open_settings(page)
+    # Instant: the Network sheet (Devices since #884) and the Wi-Fi sheet on
+    # top of it save as they change; their one primary is Done.
+    page.locator("#networkInternetOpen").click()
+    expect(page.locator("#networkSheet")).to_have_attribute("data-save-model", "instant")
     page.locator("details.net-wifi-card > summary").click()
     page.locator("#netWifiList .net-wifi-row").filter(has_text="TestNet-IoT") \
         .locator(".net-wifi-row-name").click()

@@ -1,7 +1,10 @@
-/* Home Assistant Voice PE card (#239).
+/* Home Assistant voice: the Devices tab's Home Assistant group (#239; moved
+ * from Home in #884, decision 1 of #872).
  *
- * The disclosure consumes the existing HA VM tile and adds HA-owned room names,
- * satellite state/volume, recent Assist interactions, and per-room push-to-talk.
+ * Beside the VM row (vm.js), two rows open sheets: Voice satellites (HA-owned
+ * room names, satellite state/volume and per-room push-to-talk) and Recent
+ * interactions (recent Assist interactions). The rows' meta lines come from
+ * one read on entering the tab; the read repeats only while a sheet is open.
  * Dictation mirrors App Launcher's proven flow: one-second MediaRecorder chunks,
  * ordered proxy uploads to Voice Transcriber, live SSE partials, then canonical
  * finish + assist_satellite.announce. Only one mic may record at a time.
@@ -15,6 +18,7 @@ import { createPoller } from './poll.js';
 import { els, readToken, state, toast } from './state.js';
 import { esc, friendlyError } from './format.js';
 import { chipHtml } from './chip.js';
+import { sheet } from './sheet.js';
 
 const POLL_MS = 15_000;
 const CHUNK_MS = 1_000;
@@ -51,6 +55,10 @@ function fmtInteractionTime(value) {
 function renderInteractions(rows) {
   els.haInteractionsList.innerHTML = '';
   els.haInteractionsCard.hidden = rows.length === 0;
+  if (els.haInteractionsMeta) {
+    const latest = rows.length ? fmtInteractionTime(rows[0].timestamp) : '';
+    els.haInteractionsMeta.textContent = rows.length + (latest ? ' · last ' + latest : '');
+  }
   for (const interaction of rows) {
     const item = document.createElement('div');
     item.className = 'ha-interaction-row';
@@ -106,8 +114,23 @@ function satelliteChipHtml(satellite) {
   return chipHtml(st.charAt(0).toUpperCase() + st.slice(1).replace(/_/g, ' '), 'accent', 'ha-satellite-state');
 }
 
+// The Voice satellites row's meta: how many are online, in words.
+function renderSatellitesMeta(rows) {
+  if (!els.haSatellitesMeta) return;
+  if (haViewState === 'loading') els.haSatellitesMeta.textContent = 'Reading…';
+  else if (haViewState === 'error') els.haSatellitesMeta.textContent = 'Unavailable';
+  else if (!rows.length) els.haSatellitesMeta.textContent = 'None found';
+  else {
+    const online = rows.filter(function (s) { return s.online; }).length;
+    els.haSatellitesMeta.textContent = online === rows.length
+      ? online + ' online'
+      : online + ' of ' + rows.length + ' online';
+  }
+}
+
 function renderSatellites(rows) {
   els.haSatellitesList.innerHTML = '';
+  renderSatellitesMeta(rows);
   els.haSatellitesNote.hidden = rows.length > 0;
   if (!rows.length) {
     els.haSatellitesNote.textContent = haViewState === 'error'
@@ -141,9 +164,10 @@ function renderHa() {
 }
 
 async function loadHa() {
-  if (!els.homeAssistantCard || !els.homeAssistantCard.open || activeTab !== 'home') return;
+  if (activeTab !== 'iot') return;
   if (!state.ha) {
     haViewState = 'loading';
+    renderSatellitesMeta([]);
     els.haSatellitesNote.hidden = false;
     els.haSatellitesNote.textContent = 'Reading Home Assistant rooms…';
   }
@@ -161,24 +185,52 @@ async function loadHa() {
 
 const schedule = createPoller(loadHa);
 
+// Both sheets are the instant sheet shell (sheet.js): nothing to save, Done
+// closes. Closing the satellites sheet ends a recording in progress.
+const satellitesSheet = sheet(els.haSatellitesSheet, {
+  model: 'instant',
+  closeButton: els.haSatellitesSheetClose,
+  doneButton: els.haSatellitesSheetDone,
+  onClose: function () {
+    if (activeDictation) activeDictation.stop();
+    updatePolling();
+  },
+});
+const interactionsSheet = sheet(els.haInteractionsSheet, {
+  model: 'instant',
+  closeButton: els.haInteractionsSheetClose,
+  doneButton: els.haInteractionsSheetDone,
+  onClose: function () { updatePolling(); },
+});
+
+function sheetOpen() {
+  return satellitesSheet.isOpen() || interactionsSheet.isOpen();
+}
+
 function updatePolling() {
-  const enabled = activeTab === 'home' && els.homeAssistantCard && els.homeAssistantCard.open;
-  if (enabled) {
-    loadHa();
-    schedule(POLL_MS);
-  } else {
-    schedule(0);
-  }
+  schedule(activeTab === 'iot' && sheetOpen() ? POLL_MS : 0);
 }
 
 export function onHaTab(tab) {
   activeTab = tab;
+  if (tab === 'iot') loadHa();  // one read on entry: the rows' meta lines
   updatePolling();
 }
 
 export function wireHa() {
-  if (!els.homeAssistantCard) return;
-  els.homeAssistantCard.addEventListener('toggle', updatePolling);
+  if (els.haSatellitesOpen) {
+    els.haSatellitesOpen.addEventListener('click', function () {
+      satellitesSheet.open(els.haSatellitesOpen);
+      loadHa();
+      updatePolling();
+    });
+  }
+  if (els.haInteractionsOpen) {
+    els.haInteractionsOpen.addEventListener('click', function () {
+      interactionsSheet.open(els.haInteractionsOpen);
+      updatePolling();
+    });
+  }
 }
 
 function voiceEventUrl(sessionId) {

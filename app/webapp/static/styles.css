@@ -988,55 +988,23 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 
 /* ----------------------------------------------------- plugs (Smart Life) */
-/* Summary stats: devices · on · off · live watts, four cells in one row. */
-/* Card padding follows design.md (spacing.md = 16px) so the single stat row
-   has the same breathing room as the taller cards (issue #72). */
+/* Home's plug summary line (#72, #253); the Devices tab's totals are its
+   Power glance card since #884. */
 .plugs-summary { padding: var(--space-md); margin-bottom: var(--gap); }
-.plugs-summary-actions {
-  padding-block: 12px;
-}
-.plugs-summary-row {
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-}
-.plugs-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-sm);
-}
-.plugs-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  text-align: center;
-}
 .plugs-stat-label { font-size: var(--font-caption); color: var(--muted); }
 .plugs-stat-value {
   font-size: var(--font-body);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.plugs-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-sm);
-  min-width: 0;
-}
-.plugs-toolbar .range-tab { flex: none; }
-.plugs-hidden-count { line-height: 1; }
 
 .plugs-note { margin: 10px 4px; }
 .plugs-feedback { margin: 0 0 var(--gap); }
 
 /* Home-tab plug summary as a single line at the weather-tile height (#253):
    identity (icon + "Plugs" + total) left, On/Off counts inline, the total live
-   wattage pushed hard-right. Scoped to .plugs-summary-line so the Plugs-tab
-   summary (#plugsStats), which shares .plugs-stats / .plugs-stat, is untouched.
-   Comes after .plugs-summary so the padding override wins on equal specificity. */
+   wattage pushed hard-right. Comes after .plugs-summary so the padding
+   override wins on equal specificity. */
 .plugs-summary-line { padding: 12px 14px; }
 .plugs-line {
   display: flex;
@@ -1075,16 +1043,12 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   opacity: 0.75;
 }
 .ups-tile > .empty-state { padding: var(--space-sm) 0; }
-/* One unified layout for both the Home and Plugs tiles (#207 follow-up): the
-   identity sits top-left, the status pill is pinned to the top-right corner,
-   and the stat row runs full-width beneath. No separate desktop/mobile shape. */
 .ups-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   row-gap: var(--space-sm);
 }
-.ups-identity { min-width: 0; }
 .ups-title {
   display: inline-flex;
   align-items: center;
@@ -1104,35 +1068,9 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The UPS exception chip (#879) sits hard-right on the one-line tile; a
-   healthy UPS shows none. */
-.ups-stats {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(62px, 1fr));
-  gap: var(--space-sm);
-  min-width: 0;
-}
-.ups-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  text-align: center;
-}
-.ups-stat-label {
-  font-size: var(--font-caption);
-  color: var(--muted);
-}
-.ups-stat-value {
-  font-size: var(--font-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 /* Home-tab UPS tile as a single line at the weather-tile height (#253):
-   identity, then bare charge % + runtime on the same row, then the status pill
-   hard-right. The Plugs-tab tile (.ups-tile, not -compact) keeps its stacked
-   5-stat grid with the corner-pinned pill. */
+   identity, then bare charge % + runtime on the same row, then the exception
+   chip hard-right (#879); a healthy UPS shows none. */
 .ups-tile-compact { padding: 12px 14px; }
 .ups-tile-compact .ups-main {
   display: flex;
@@ -1151,28 +1089,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 .ups-tile-compact .ups-status { margin-left: auto; }
 
-/* Home Assistant disclosure (#239; #461 folded the old VM body tile away):
-   the summary row is read-only status text; the canonical .toggle power
-   switch (on = running, same as AC power and plugs) is the first body row
-   (#805), followed by the equidistant folded subsections. */
-.ha-card { margin-bottom: var(--gap); }
-/* A labelled control as the first row of a card body (#805): nothing tappable
-   lives in a <summary>, so the switch/pill sits here — hint on the left,
-   control on the right, closed by the same hairline the subsections use. */
-.card-control-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-sm);
-  min-height: var(--row-sm);
-  /* 10px, not 8: the switch's tap zone reaches 9px past its 26px body, so the
-     row must hold it inside or it overlaps the summary above (TOUCH-02, #816). */
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
-}
-.card-control-row > .toggle,
-.card-control-row > .range-tab { justify-self: end; }
-.ha-card > .card-control-row + .ha-subsection { border-top: 0; }
+/* The search engine's summary status (Settings, #321). */
 .ha-summary-state { margin-left: auto; white-space: nowrap; }
 .ha-summary-running { color: var(--on); }
 .ha-summary-unavailable { color: var(--deficit); }
@@ -1244,14 +1161,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .ha-interaction-text,
 .ha-interaction-response,
 .ha-interaction-meta { margin: 3px 0 0; overflow-wrap: anywhere; }
-/* HA-card nested subsections (#461): the Presence card's nested-details
-   pattern — a hairline-separated 48px .collapse-summary per section, all
-   folded by default. Rules shared with the presence nested cards below. */
-.ha-subsection-body { padding: 12px 14px 14px; }
-/* The first subsection sits directly under the open card's summary, which
-   already draws its own border-bottom — a border-top here would double the
-   hairline and break the uniform row rhythm. */
-.ha-card > summary + .ha-subsection { border-top: 0; }
 
 /* Voice reference sections (#437, shared with the "What can I do?" guide in
    #461). The spoken example is the one thing the eye should land on, so it
@@ -1265,7 +1174,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .voice-group:first-child > .collapse-summary { padding-top: var(--space-xs); }
 .voice-group .collapse-title { font-size: var(--font-label); }
 .voice-group .collapse-icon { color: var(--accent); }
-/* "What can I do?" static guide (index.html) reuses .voice-group-* naming but
+/* "What can I do?" static guide (index.html, Settings since #884) reuses .voice-group-* naming but
    is hand-authored markup, not the JS-rendered .collapse-summary structure
    above — so its <h4> icon + text need their own gap (missing entirely), and
    each group needs its own top/bottom breathing room around the border-top
@@ -1274,8 +1183,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
    cheat sheet's own .voice-group elements render one level deeper, inside
    #voiceCommandsList, so they are untouched by this rule. */
 .voice-group-head { display: flex; align-items: center; gap: var(--space-sm); }
-.ha-subsection-body > .voice-group { padding: 12px 0; }
-.ha-subsection-body > .voice-group:first-child { padding-top: var(--space-xs); }
+#haHelpCard .settings-card-body > .voice-group { padding: 12px 0; }
+#haHelpCard .settings-card-body > .voice-group:first-child { padding-top: var(--space-xs); }
 .voice-group-body { padding: 0 0 12px; }
 .voice-group-summary { margin: var(--space-xs) 0 0 26px; line-height: 1.45; }
 .voice-command { margin: var(--space-sm) 0 0 26px; }
@@ -1309,187 +1218,11 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 /* Voice-command language filter (#466): a segmented .range-tabs row at the
    top of the "What can I say?" body — out of the summary since #779. */
 .voice-lang-toggle { margin-bottom: var(--space-sm); }
-@media (max-width: 720px) {
-  .plugs-summary-row {
-    grid-template-columns: 1fr;
-  }
-  /* Compact UPS card on mobile (#207): a short "Charge · Runtime" line sits
-     beneath the identity + corner status pill — much shorter than the old
-     fully-stacked 5-stat tile. The base layout already pins the pill top-right. */
-  .ups-stats {
-    grid-template-columns: repeat(2, auto);
-    justify-content: start;
-    gap: 18px;
-  }
-  /* Keep only the two stats that matter at a glance; the rest only add height. */
-  .ups-stat-battery,
-  .ups-stat-load,
-  .ups-stat-input {
-    display: none;
-  }
-  /* Inline each kept stat as "Charge 96%" rather than a stacked tile. */
-  .ups-stat {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 6px;
-    text-align: left;
-  }
-  /* Three actions (Add · Reachable only · Show hidden) must sit on ONE line
-     (#612 retired the fourth, Refresh). At 390px they fit with 13px to spare,
-     but a 375px iPhone SE missed it by half a pixel — so the gap steps down one
-     stop on the spacing scale (sm -> xs), buying 8px. wrap stays as the safety
-     net for a ~320px viewport, where three pills genuinely cannot fit without
-     shrinking the labels. */
-  .plugs-toolbar {
-    justify-self: stretch;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
-  }
-}
 
-/* Plugs / Blinds collapsible row lists — mirror the Network "Attached devices"
-   card: the card owns no padding (the summary + body do), rows are divider-
-   separated and vertically centered. */
-.device-list-card { margin-bottom: var(--gap); }
-.device-list-body { padding: 2px 14px 8px; }
-.device-list { display: flex; flex-direction: column; }
-
-.device-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  /* rows.sm — the design.md 44/52/60 row scale, same token + padding pair as
-     the sibling .net-survey-picker-row (#570; was an ad-hoc 46px). */
-  min-height: var(--row-sm);
-  padding: 9px 0;
-  border-top: 1px solid var(--line);
-  transition: opacity 0.15s ease;
-}
-.device-row:first-child { border-top: 0; }
-.device-row.is-off { color: var(--muted); }
-.device-row.is-unavailable { opacity: 0.6; }
-
-/* Name is a button (tap to rename) but reads as plain text. */
-button.device-row-name {
-  flex: 1 1 auto;
-  color: var(--ink);
-}
-
-/* Offline / no-IP reason — a muted caption right of the name. The name keeps
-   priority (grows); the note holds its content width and ellipsises, so device
-   identity stays readable rather than the reason squeezing the name out. */
-.device-row-note {
-  flex: 0 1 auto;
-  min-width: 4em;
-  text-align: right;
-  color: var(--muted);
-  font-size: var(--font-caption);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Live wattage — sits just left of the toggle, on the same row as the name.
-   Reads as primary text like the row's own name, not as an accent: a wattage is
-   a *value*, not something you can click, and the blue read as a link. This was
-   scoped to .circuit-row first (six accent-blue numbers stop reading as a list)
-   and generalized to the plug rows in #619 — the accent is now reserved for
-   interactive emphasis app-wide, per design.md's "one accent" rule. */
-.plug-watts {
-  flex: none;
-  font-size: var(--font-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-
-/* Circuits card (issue #25, reshaped in #619): one foldable <details> group per
-   CT-clamp meter, that meter's channels as ordinary .device-row entries inside.
-   The header is the meter's *name alone* — the aggregate figures it used to
-   carry moved into the detail dialog, because this card exists to show the
-   individual circuits rather than the meter's own total. */
-.circuit-group { border-top: 1px solid var(--line); }
-.circuit-group:first-child { border-top: 0; }
-/* The group header reads at the same size as the channel rows it introduces
-   (700 vs their 600 marks it as the group), vertically centred rather than
-   baseline-aligned now that it is a single line of text. */
-.circuit-meter {
-  min-height: var(--row-sm);
-  padding: var(--space-xs) 0;
-  gap: 10px;
-}
-.circuit-meter .collapse-main { align-items: center; line-height: 1.2; }
-.circuit-meter.is-unavailable { opacity: 0.6; }
-/* Tap-to-rename like a device row's name. It yields first: on a narrow phone
-   the chevron and the offline flag matter more than the tail of a long label. */
-button.circuit-meter-name {
-  flex: 0 1 auto;
-  font-size: var(--font-body);
-  font-weight: 700;
-  color: var(--ink);
-}
-.circuit-meter-detail {
-  flex: none;
-  font-size: var(--font-caption);
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  white-space: nowrap;
-}
-/* (The first row in each group body needs no border reset — the shared
-   .device-row:first-child rule already covers it, one group body at a time.) */
-/* Only on screen while "Show hidden" is on, so it is dimmed to read as the
-   put-away row it is — at the same one dim level .is-unavailable uses, rather
-   than inventing a second nearly-identical opacity. */
-.circuit-row.is-hidden-circuit { opacity: 0.6; }
-
-/* A load circuit reading below zero means the clamp is still fitted backwards —
-   attention (a thing to fix), not danger (a thing that failed). */
-.circuit-row .plug-watts.circuit-watts-negative { color: var(--attention); }
-
-/* Blind controls: up / stop / down buttons, icon + visible word (#805). Like a
-   light row, a blind row wraps: name on the summary line, the three equal
-   buttons on their own full-width line beneath. */
-.blind-row { flex-wrap: wrap; }
-.blind-controls {
-  flex: 1 0 100%;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-.blind-btn {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  font: inherit;
-  font-size: var(--font-caption);
-  background: var(--card-off);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  color: var(--ink);
-  cursor: pointer;
-}
-.blind-btn:active { transform: scale(0.96); }
-.blind-btn .icon { width: 18px; height: 18px; }
 
 /* ----------------------------------------------------- lights (Elgato) */
-/* Lights are a row list on the IoT tab (#136), sharing the .device-row base
-   with plugs and blinds — the is-off / is-unavailable treatments come from
-   there. A light row wraps: name + toggle on the summary line, sliders on
-   their own full-width line beneath. */
-.light-row { flex-wrap: wrap; }
-.light-row .light-controls { flex: 1 0 100%; }
-
-.lights-note { margin: 10px 0; }
-.lights-toolbar {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-sm);
-  margin: 8px 0 10px;
-}
+/* A light is the shared row (#884); its brightness and warmth sliders live in
+   the light sheet (decision 5 of #872). */
 
 .light-unavailable {
   color: var(--muted);
@@ -1676,7 +1409,8 @@ button.circuit-meter-name {
    action-row), never closed disclosures: a header row (glyph, bold title,
    muted meta pinned right), the rows full-bleed, and an optional footer for
    the group's quiet verbs (Show all, Show hidden). */
-.security-group { margin-bottom: var(--gap); }
+.security-group,
+.devices-group { margin-bottom: var(--gap); }
 .group-head {
   display: flex;
   align-items: center;
@@ -1748,6 +1482,87 @@ button.circuit-meter-name {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+/* ------------------------------------------- Devices tab (#884, Step 6/8)
+   The Power glance card's live figure, a value or a segmented verb as a
+   row's one trailing item, the Offline fold, and the tab's sheets. */
+.power-now {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 10px;
+}
+.power-watts {
+  font-size: var(--font-heading-lg);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.power-top {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+.power-top:empty { display: none; }
+/* A value as the trailing item (a clamp's watts): tabular, in fg. */
+.row-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.row-value.is-muted { color: var(--muted); font-weight: 400; }
+/* A load circuit reading below zero means the clamp is still fitted
+   backwards: attention (a thing to fix), not danger (a thing that failed). */
+.row-value.circuit-watts-negative { color: var(--attention-text); }
+/* A segmented verb as the trailing item (decision 6 of #872): adjacent
+   segments at real 44px geometry (the track's 3px inset plus a 38px
+   segment), widened to the floor by a vertical-only band, never overlapping. */
+.segmented--row {
+  grid-auto-columns: var(--hit-min);
+  margin: 0 10px 0 0;
+}
+.segmented--row .segmented-item { height: calc(var(--hit-min) - 6px); }
+.segmented--row .segmented-item::before { inset: -3px 0; }
+.segmented--row .segmented-item .icon { width: 18px; height: 18px; }
+.segmented--row .segmented-item .blind-stop-icon { width: 16px; height: 16px; }
+.segmented-item:active:not(:disabled) { transform: scale(0.96); }
+/* The All blinds row and the blind rows are two lists: one hairline between. */
+.blinds-all-row { border-bottom: 1px solid var(--line-muted); }
+/* The Offline fold: its chevron turns down while the plugs are listed. */
+.plugs-offline-row [aria-expanded="true"] .action-row-chevron { transform: rotate(90deg); }
+.group-foot-btn:disabled { color: var(--muted); cursor: not-allowed; }
+.device-rows .empty-state { padding: var(--space-md) 14px; }
+.sheet-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 18px 0 2px;
+  font-size: var(--font-body);
+  font-weight: 700;
+}
+.sheet-section-head .icon { width: var(--icon-title); height: var(--icon-title); }
+.ups-sheet-status > .empty-state { padding: var(--space-sm) 0; }
+.light-sheet .light-controls { padding: 12px 0; border-top: 1px solid var(--line); }
+.light-sheet .light-controls:empty { display: none; }
+/* The Network sheet holds the network cards (#884): inside the sheet they
+   are sections on a hairline, not cards in a card. */
+.network-body > .card,
+.network-body .net-health-row > .card {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+.network-body > .card--collapsible > .collapse-summary { padding-left: 0; padding-right: 0; }
+.network-body .net-health-row { gap: 0; margin: 0; }
+
 /* Exception chips only (#879): an active detector shows nothing. */
 .security-zone-flags {
   display: inline-flex;
@@ -1897,13 +1712,9 @@ button.circuit-meter-name {
   height: var(--hit-min);
   text-align: center;
 }
-.wake-alarms-body .schedule-add-btn,
-.blind-schedules-body .schedule-add-btn {
+.wake-alarms-body .schedule-add-btn {
   margin-top: 10px;
 }
-/* Blind schedule (#871): sits inside the Blinds card's own padded body, under
-   the blind rows, so it needs only the gap above and below. */
-.blind-schedules-body { padding: 4px 0 6px; }
 /* Which blinds an entry moves: "All blinds" plus one chip per blind, the day
    chips' toggle style, wrapping since names are longer than "Mon". */
 .blind-schedule-targets {
@@ -1913,10 +1724,6 @@ button.circuit-meter-name {
   margin-top: var(--space-sm);
 }
 .blind-schedule-targets .alarm-schedule-day { padding: 0 12px; }
-/* The alarm-pairing switch (#875) reuses the notification toggle row; the
-   Blinds card body already carries the side padding. */
-.blind-schedules-body .notify-toggles { padding: 0; }
-.blind-alarm-note { margin: 2px 0 0; }
 @media (max-width: 420px) {
   .alarm-schedule-entry .schedule-entry-head { grid-template-columns: 1fr auto; }
   .alarm-schedule-entry .schedule-enabled { grid-column: 1 / -1; }
@@ -2137,16 +1944,6 @@ button.circuit-meter-name {
 .locator-meta {
   white-space: nowrap;
 }
-.ha-subsection {
-  border-top: 1px solid var(--line);
-}
-.ha-subsection > .collapse-summary {
-  height: 48px;
-  padding: 0 14px;
-}
-.ha-subsection[open] > .collapse-summary {
-  border-bottom: 1px solid var(--line);
-}
 .presence-settings {
   display: grid;
   gap: var(--space-sm);
@@ -2241,15 +2038,15 @@ button.circuit-meter-name {
 .notify-toggle span {
   min-width: 0;
 }
-/* PC-fleet UPS-shutdown card (#498): the runtime threshold input reuses the
-   notify-toggle row; the machine roster follows the list-row contract — flat
-   full-bleed rows on a top hairline divider, never nested cards. */
+/* PC-fleet UPS shutdown (#498), in the UPS sheet since #884: the runtime
+   threshold is a sheet row; the machine roster follows the list-row contract —
+   flat rows on a top hairline divider, never nested cards. */
 .pc-fleet-threshold-row > .input-native {
   width: 5rem;
   text-align: right;
 }
-.pc-fleet-caption { margin: 2px 14px 6px; }
-.pc-fleet-machines { padding: 0 14px 8px; }
+.pc-fleet-caption { margin: 2px 0 6px; }
+.pc-fleet-machines { padding: 0 0 4px; }
 .pc-fleet-machine {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2770,8 +2567,8 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 /* Initial/unavailable feedback replaces the placeholder-filled Network shell;
    stale feedback stays compact above the preserved last-good content. */
 .network-feedback { margin: 0 0 var(--gap); }
-#settingsNetwork[data-state="loading"] > :not(.network-feedback),
-#settingsNetwork[data-state="error"] > :not(.network-feedback) { display: none; }
+#networkBody[data-state="loading"] > :not(.network-feedback),
+#networkBody[data-state="error"] > :not(.network-feedback) { display: none; }
 
 /* Internet-health tile — modelled on the energy flow-card: a big status word,
    a quiet latency/loss caption, the sticky last speed-test result, and the

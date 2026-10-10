@@ -1,7 +1,7 @@
 /* Circuits (per-breaker CT clamps) data + card controller.
  *
- * Owns the IoT tab's Circuits card: one foldable group per Athom BL0906 meter,
- * and under it EVERY channel that meter has — clamp fitted or not. Reads
+ * Owns the Devices tab's Circuits group: a row for EVERY channel each Athom
+ * BL0906 meter has — clamp fitted or not — then a row per meter. Reads
  * GET /api/circuits and writes the per-channel rename / sign-flip / hide
  * endpoints.
  *
@@ -21,38 +21,21 @@
 'use strict';
 
 import {
-  state, els, reportFetchOk, persistedFlag,
-  CIRCUITS_COLLAPSED_KEY, CIRCUITS_SHOW_HIDDEN_KEY,
+  state, els, reportFetchOk, persistedFlag, CIRCUITS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW, friendlyError } from './format.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
-import { icon } from './_vendored/icons/icons.js';
 import { detailModal } from './detail-modal.js';
+import { rowEl } from './row.js';
+import { chipEl } from './chip.js';
+import { emptyStateEl } from './empty-state.js';
 
 const POLL_MS = 15_000;
 
-// Which meter groups are folded shut. renderCircuits() rebuilds the whole list
-// on every poll, so this cannot live in the DOM the way voice-commands.js's
-// groups can — that card renders once. Held here and re-applied each render.
-const collapsedMeters = new Set();
-
 // The "show hidden terminals" filter, on the shared localStorage wrapper.
 const showHiddenPref = persistedFlag(CIRCUITS_SHOW_HIDDEN_KEY, false);
-
-function loadCollapsedMeters() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(CIRCUITS_COLLAPSED_KEY) || '[]');
-    if (Array.isArray(raw)) raw.forEach(function (id) { collapsedMeters.add(String(id)); });
-  } catch (_) { /* private mode, or a hand-mangled value — start expanded */ }
-}
-
-function saveCollapsedMeters() {
-  try {
-    localStorage.setItem(CIRCUITS_COLLAPSED_KEY, JSON.stringify(Array.from(collapsedMeters)));
-  } catch (_) { /* private mode */ }
-}
 
 // ------------------------------------------------------------- lookups
 function allChannels() {
@@ -100,122 +83,71 @@ function visibleChannels(meter) {
   return ordered.filter(function (channel) { return !channel.hidden; });
 }
 
-// ------------------------------------------------------------- row DOM
-// One foldable group per meter (issue #619). The header carries the meter's
-// name and nothing else: this card exists to show individual circuits, so the
-// meter's own aggregate would be the one figure on screen nobody asked for.
-// Its reference data (voltage, total, signal, MAC) is in the dialog instead.
-function buildMeterGroup(meter) {
-  const group = document.createElement('details');
-  group.className = 'circuit-group';
-  group.dataset.meterId = meter.meter_id;
-  group.open = !collapsedMeters.has(meter.meter_id);
-
-  const summary = document.createElement('summary');
-  summary.className = 'collapse-summary circuit-meter';
-
-  const main = document.createElement('span');
-  main.className = 'collapse-main';
-
-  // Tappable like a channel name: with three meters on the way, "cuadro
-  // principal" beats "Athom Energy Monitor ddee01". The summary-embedded-control
-  // pattern (as on the HA card's power switch) — this click edits the meter and
-  // must never fold the group, so it stops the summary's default toggle.
-  const name = document.createElement('button');
-  name.type = 'button';
-  name.className = 'circuit-meter-name';
-  name.title = 'Rename this meter';
-  name.textContent = meterLabel(meter);
-  name.addEventListener('click', function (ev) {
-    ev.preventDefault();
-    ev.stopPropagation();
-    openCircuitDetail(meter.meter_id);
-  });
-  main.appendChild(name);
-
-  // "offline" is a state, not a reading — the readings left this row in #619,
-  // but why every channel below reads nothing has to stay visible, including
-  // while the group is folded shut.
-  if (!meter.reachable) {
-    summary.classList.add('is-unavailable');
-    const note = document.createElement('span');
-    note.className = 'circuit-meter-detail';
-    note.textContent = 'offline';
-    note.title = friendlyError(meter.error, 'No response on the LAN.');
-    main.appendChild(note);
-  }
-
-  summary.appendChild(main);
-  // No leading glyph: the header is deliberately just the name, and the chevron
-  // alone carries the disclosure affordance.
-  summary.insertAdjacentHTML('beforeend', icon('chevron-right', 'collapse-chevron'));
-  group.appendChild(summary);
-
-  group.addEventListener('toggle', function () {
-    if (group.open) collapsedMeters.delete(meter.meter_id);
-    else collapsedMeters.add(meter.meter_id);
-    saveCollapsedMeters();
-  });
-
-  const body = document.createElement('div');
-  body.className = 'circuit-group-body';
-  visibleChannels(meter).forEach(function (channel) {
-    body.appendChild(buildChannelRow(meter, channel));
-  });
-  group.appendChild(body);
-  return group;
-}
-
-function buildChannelRow(meter, channel) {
-  const row = document.createElement('div');
-  row.className = 'device-row circuit-row';
-  row.dataset.channelKey = channel.key;
-
-  const name = document.createElement('button');
-  name.type = 'button';
-  name.className = 'device-row-name';
-  name.title = 'Readings / rename / fix clamp direction';
-  name.textContent = channelLabel(channel);
-  name.addEventListener('click', function () { openCircuitDetail(channel.key); });
-  row.appendChild(name);
-
-  // Only visible while "Show hidden" is on, so it is worth saying which rows
-  // are the ones normally put away.
-  if (channel.hidden) {
-    row.classList.add('is-hidden-circuit');
-    const flag = document.createElement('span');
-    flag.className = 'device-row-note';
-    flag.textContent = 'hidden';
-    row.appendChild(flag);
-  }
-
-  // A meter that is offline still lists its channels (so circuits don't vanish
-  // mid-watch), but they carry no readings — say so rather than showing 0 W.
+// ------------------------------------------------------------- the rows
+// The shared row (row.js, #884, Step 6/8 of #872): one row per clamp, its
+// watts the one trailing value (issue #619: amps, kWh, voltage and signal are
+// in the dialog). The meta names the meter and terminal, so an unlabelled
+// clamp can still be traced. A meter's avatar badge means connected (up) or
+// should be and is not (down), on each of its clamps and its own row.
+function readingEl(meter, channel) {
+  const value = document.createElement('span');
+  value.className = 'row-value circuit-watts';
+  // A meter that is offline still lists its channels (so circuits don't
+  // vanish mid-watch), but they carry no readings: say so, never 0 W.
   if (!meter.reachable || channel.power_w == null) {
-    row.classList.add('is-unavailable');
-    const note = document.createElement('span');
-    note.className = 'device-row-note';
-    note.textContent = meter.reachable ? 'no reading' : 'offline';
-    row.appendChild(note);
-    return row;
+    value.classList.add('is-muted');
+    value.textContent = meter.reachable ? 'No reading' : '—';
+    return value;
   }
-
-  // Watts is the whole row (issue #619): amps and cumulative kWh moved into the
-  // dialog, because six rows of three figures each stop being scannable.
-  const watts = document.createElement('span');
-  watts.className = 'plug-watts';
-  watts.textContent = fmtW(channel.power_w);
+  value.textContent = fmtW(channel.power_w);
   // A channel reading negative after the correction is applied is worth
   // flagging: on a load circuit it means the clamp direction is still wrong.
   if (channel.power_w < 0) {
-    watts.classList.add('circuit-watts-negative');
-    watts.title = 'Reading negative — the clamp may be fitted backwards. '
-      + 'Tap the name to flip it.';
+    value.classList.add('circuit-watts-negative');
+    value.title = 'Reading negative — the clamp may be fitted backwards. '
+      + 'Tap the row to flip it.';
   }
   // An idle circuit and a channel with no clamp both read 0 W and are
   // indistinguishable electrically, so neither is dressed up as the other.
-  if (channel.power_w === 0) row.classList.add('is-off');
-  row.appendChild(watts);
+  if (channel.power_w === 0) value.classList.add('is-muted');
+  return value;
+}
+
+function buildChannelRow(meter, channel) {
+  const row = rowEl({
+    className: 'circuit-row',
+    glyph: 'gauge',
+    badge: meter.reachable ? 'up' : 'down',
+    title: channelLabel(channel),
+    meta: meterLabel(meter) + ' · clamp ' + channel.channel,
+    // Only listed while Show hidden is on, so it says which rows are the ones
+    // normally put away (a plain fact, the neutral chip).
+    chip: channel.hidden ? chipEl('Hidden', null, 'device-hidden-chip') : null,
+    openLabel: channelLabel(channel) + ', readings, rename, clamp direction',
+    onOpen: function (btn) { openCircuitDetail(channel.key, btn); },
+    trail: readingEl(meter, channel),
+  });
+  row.dataset.channelKey = channel.key;
+  if (channel.hidden) row.classList.add('is-hidden-circuit');
+  return row;
+}
+
+// The meter itself, after its clamps: its name (rename it here, so three
+// meters read as "main board" rather than a model and a serial) and its
+// reference data in the dialog.
+function buildMeterRow(meter) {
+  const count = (meter.channels || []).length;
+  const row = rowEl({
+    className: 'circuit-meter',
+    glyph: 'gauge',
+    badge: meter.reachable ? 'up' : 'down',
+    title: meterLabel(meter),
+    meta: meter.reachable ? 'Meter · ' + count + (count === 1 ? ' clamp' : ' clamps') : 'Meter',
+    chip: meter.reachable ? null : chipEl('Offline', 'attention', 'circuit-meter-offline'),
+    chevron: true,
+    onOpen: function (btn) { openCircuitDetail(meter.meter_id, btn); },
+  });
+  row.dataset.meterId = meter.meter_id;
   return row;
 }
 
@@ -368,10 +300,10 @@ const circuitModal = detailModal({
   render: renderCircuits,
 });
 
-function openCircuitDetail(key) {
+function openCircuitDetail(key, trigger) {
   if (!circuitEntity(key)) return;
   state.selectedCircuitKey = key;
-  circuitModal.open(key);
+  circuitModal.open(key, trigger);
 }
 
 function toggleCircuitInvert() {
@@ -395,16 +327,14 @@ function setNote(message) {
   els.circuitsNote.hidden = !message;
 }
 
-// The "Show hidden" affordance only exists once something is actually put away
-// — same rule as the Plugs card. It lives in the card's own summary beside the
-// chevron, so it stays reachable even with the card folded.
+// Show hidden only exists once something is actually put away — the same
+// group-foot verb as the Plugs group.
 function renderHiddenToggle() {
   const n = state.circuitsHiddenCount || 0;
   const btn = els.circuitsHiddenToggle;
   if (!btn) return;
   btn.hidden = n === 0;
   btn.textContent = state.circuitsShowHidden ? 'Hide hidden' : 'Show hidden (' + n + ')';
-  btn.classList.toggle('active', state.circuitsShowHidden);
   btn.setAttribute('aria-pressed', state.circuitsShowHidden ? 'true' : 'false');
 }
 
@@ -418,32 +348,36 @@ export function renderCircuits() {
   }).length;
   renderHiddenToggle();
 
-  // The badge counts what is actually drawn, so it agrees with the card.
-  const shown = state.circuitsShowHidden
-    ? channels.length
-    : channels.length - state.circuitsHiddenCount;
+  // The group's meta is how many meters there are.
+  const meters = state.circuits.length;
   if (els.circuitsCount) {
-    els.circuitsCount.textContent = String(shown);
-    els.circuitsCount.hidden = shown === 0;
+    els.circuitsCount.textContent = meters === 1 ? '1 meter' : meters + ' meters';
+    els.circuitsCount.hidden = meters === 0;
   }
 
-  if (!state.circuits.length) {
-    // The card stays visible with an explanation rather than disappearing:
-    // "no meters found" is a state worth seeing, not an empty space.
-    setNote(
-      state.circuitsError
-      || 'No CT-clamp meters found yet. They are discovered automatically once '
-         + 'powered and joined to Wi-Fi.',
-    );
+  if (!meters) {
+    // The empty-state block rather than a vanished group: "no meters found"
+    // is a state worth seeing. A discovery problem is its own fact.
+    setNote('');
+    els.circuitsList.appendChild(emptyStateEl('gauge', state.circuitsError ||
+      'No meters yet. They appear once powered and on the Wi-Fi.'));
     return;
   }
   setNote(state.circuitsError || '');
 
-  // One foldable group per meter, A→Z by name; channels inside stay in physical
-  // terminal order. Sorted on a copy — state.circuits mirrors the server body.
+  // Meters A→Z by name; each meter's clamps in physical terminal order, then
+  // the meter's own row. Sorted on a copy — state.circuits mirrors the server.
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
   state.circuits.slice().sort(byMeterLabel).forEach(function (meter) {
-    els.circuitsList.appendChild(buildMeterGroup(meter));
+    visibleChannels(meter).forEach(function (channel) {
+      list.appendChild(buildChannelRow(meter, channel));
+    });
   });
+  state.circuits.slice().sort(byMeterLabel).forEach(function (meter) {
+    list.appendChild(buildMeterRow(meter));
+  });
+  els.circuitsList.appendChild(list);
 }
 
 // --------------------------------------------------------------- load
@@ -469,7 +403,6 @@ export async function loadCircuits() {
 // exists for a forced sweep from the command line.
 export function wireCircuitsToggle() {
   state.circuitsShowHidden = showHiddenPref.read();
-  loadCollapsedMeters();
 
   if (!els.circuitsHiddenToggle) return;
   els.circuitsHiddenToggle.addEventListener('click', function () {

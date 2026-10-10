@@ -51,9 +51,9 @@ export const state = {
   lights: [],
   // device_id whose rename modal is open (or null).
   selectedPlugId: null,
-  // When true (default), all source-visible devices render, including no-IP
-  // adapters. When false, only cards with has_valid_ip===true are shown.
-  plugsShowAll: true,
+  // Unreachable plugs fold into one Offline row (#884); true lists them
+  // under it.
+  plugsShowOffline: false,
   // When false (default), user-hidden plugs/blinds are filtered out; the
   // "Show hidden" toggle reveals them (mirrors the Network device list).
   plugsShowHidden: false,
@@ -175,13 +175,9 @@ export const state = {
 // ----------------------------------------------------------------- DOM
 export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
-export const PLUGS_SHOW_ALL_KEY = 'home-automation.plugsShowAll';
+export const PLUGS_SHOW_OFFLINE_KEY = 'home-automation.plugsShowOffline';
 export const PLUGS_SHOW_HIDDEN_KEY = 'home-automation.plugsShowHidden';
 export const CIRCUITS_SHOW_HIDDEN_KEY = 'home-automation.circuitsShowHidden';
-// Which meter groups are folded shut (issue #619) — a JSON array of meter ids.
-// Per-browser rather than server-side: how much of the board you want unrolled
-// is a property of the screen you are reading it on, not of the house.
-export const CIRCUITS_COLLAPSED_KEY = 'home-automation.circuitsCollapsed';
 export const SECURITY_SHOW_HIDDEN_KEY = 'home-automation.securityShowHidden';
 export const PRESENCE_SHOW_HIDDEN_KEY = 'home-automation.presenceShowHidden';
 export const NETWORK_SHOW_OFFLINE_KEY = 'home-automation.networkShowOffline';
@@ -427,15 +423,24 @@ export const els = {
   circuitsNote: document.getElementById('circuitsNote'),
   plugsNote: document.getElementById('plugsNote'),
   plugsPair: document.getElementById('plugsPair'),
-  plugsToggleBtn: document.getElementById('plugsToggleBtn'),
   plugsHiddenToggle: document.getElementById('plugsHiddenToggle'),
-  plugsHiddenCount: document.getElementById('plugsHiddenCount'),
-  // Plugs summary stats
-  plugsStats: document.getElementById('plugsStats'),
-  plugStatTotal: document.getElementById('plugStatTotal'),
-  plugStatOn: document.getElementById('plugStatOn'),
-  plugStatOff: document.getElementById('plugStatOff'),
-  plugStatWatts: document.getElementById('plugStatWatts'),
+  // The Devices tab's Power glance card (#884): live watts, the biggest
+  // draws, and the UPS row (its sheet holds the PC fleet).
+  powerOnCount: document.getElementById('powerOnCount'),
+  powerNow: document.getElementById('powerNow'),
+  powerWatts: document.getElementById('powerWatts'),
+  powerTop: document.getElementById('powerTop'),
+  upsRows: document.getElementById('upsRows'),
+  upsSheet: document.getElementById('upsSheet'),
+  upsSheetClose: document.getElementById('upsSheetClose'),
+  upsSheetDone: document.getElementById('upsSheetDone'),
+  upsSheetStatus: document.getElementById('upsSheetStatus'),
+  blindsAllMeta: document.getElementById('blindsAllMeta'),
+  blindSchedulesOpen: document.getElementById('blindSchedulesOpen'),
+  blindSchedulesMeta: document.getElementById('blindSchedulesMeta'),
+  blindSchedulesSheet: document.getElementById('blindSchedulesSheet'),
+  blindSchedulesSheetClose: document.getElementById('blindSchedulesSheetClose'),
+  blindSchedulesSheetDone: document.getElementById('blindSchedulesSheetDone'),
   // Plug summary mirrored onto the Home tab (informative).
   homePlugsStats: document.getElementById('homePlugsStats'),
   homePlugStatTotal: document.getElementById('homePlugStatTotal'),
@@ -443,22 +448,34 @@ export const els = {
   homePlugStatOff: document.getElementById('homePlugStatOff'),
   homePlugStatWatts: document.getElementById('homePlugStatWatts'),
   homeUpsTile: document.getElementById('homeUpsTile'),
-  upsTile: document.getElementById('upsTile'),
   notifyPowerLost: document.getElementById('notifyPowerLost'),
   notifyPowerRestored: document.getElementById('notifyPowerRestored'),
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
-  // PC fleet — UPS-triggered graceful fleet shutdown card (issue #498).
+  // PC fleet — UPS-triggered graceful fleet shutdown (issue #498), in the
+  // UPS sheet since #884.
   pcFleetEnabled: document.getElementById('pcFleetEnabled'),
   pcFleetThreshold: document.getElementById('pcFleetThreshold'),
   pcFleetCaption: document.getElementById('pcFleetCaption'),
   pcFleetMachines: document.getElementById('pcFleetMachines'),
   pcFleetNote: document.getElementById('pcFleetNote'),
-  // Home Assistant Hyper-V VM tile (Home tab, last card — issue #240).
+  // Home Assistant group (Devices tab since #884; the VM switch is #240,
+  // the voice satellites and interactions #239, each in its sheet).
   homeVmToggle: document.getElementById('homeVmToggle'),
   homeAssistantCard: document.getElementById('homeAssistantCard'),
   homeAssistantSummaryState: document.getElementById('homeAssistantSummaryState'),
+  haVmAvatar: document.getElementById('haVmAvatar'),
+  haSatellitesOpen: document.getElementById('haSatellitesOpen'),
+  haSatellitesMeta: document.getElementById('haSatellitesMeta'),
+  haSatellitesSheet: document.getElementById('haSatellitesSheet'),
+  haSatellitesSheetClose: document.getElementById('haSatellitesSheetClose'),
+  haSatellitesSheetDone: document.getElementById('haSatellitesSheetDone'),
   haSatellitesList: document.getElementById('haSatellitesList'),
   haSatellitesNote: document.getElementById('haSatellitesNote'),
+  haInteractionsOpen: document.getElementById('haInteractionsOpen'),
+  haInteractionsMeta: document.getElementById('haInteractionsMeta'),
+  haInteractionsSheet: document.getElementById('haInteractionsSheet'),
+  haInteractionsSheetClose: document.getElementById('haInteractionsSheetClose'),
+  haInteractionsSheetDone: document.getElementById('haInteractionsSheetDone'),
   haInteractionsList: document.getElementById('haInteractionsList'),
   haInteractionsCard: document.getElementById('haInteractionsCard'),
   // Search-engine (SearXNG) status sub-card (issue #321).
@@ -493,7 +510,17 @@ export const els = {
   circuitHiddenToggle: document.getElementById('circuitHiddenToggle'),
   circuitDetailClose: document.getElementById('circuitDetailClose'),
   circuitSave: document.getElementById('circuitSave'),
-  // Elgato lights — the IoT tab's middle row-list card (#136).
+  // Lights group (#136) and the light sheet (#884): power, brightness and
+  // warmth as they change; the name and details stay in lightDialog.
+  lightSheet: document.getElementById('lightSheet'),
+  lightSheetName: document.getElementById('lightSheetName'),
+  lightSheetClose: document.getElementById('lightSheetClose'),
+  lightSheetDone: document.getElementById('lightSheetDone'),
+  lightSheetOffline: document.getElementById('lightSheetOffline'),
+  lightSheetPower: document.getElementById('lightSheetPower'),
+  lightSheetControls: document.getElementById('lightSheetControls'),
+  lightSheetEdit: document.getElementById('lightSheetEdit'),
+  lightSheetEditMeta: document.getElementById('lightSheetEditMeta'),
   lightsCount: document.getElementById('lightsCount'),
   lightsAllOn: document.getElementById('lightsAllOn'),
   lightsAllOff: document.getElementById('lightsAllOff'),
@@ -513,8 +540,17 @@ export const els = {
   lightFirmware: document.getElementById('lightFirmware'),
   lightTemperatureMeta: document.getElementById('lightTemperatureMeta'),
   lightIdentifier: document.getElementById('lightIdentifier'),
-  // Network (LAN) section of the Settings pane (#779) — its own data-state host
-  paneNetwork: document.getElementById('settingsNetwork'),
+  // Network: the Devices group's rows and the Network sheet (#884; Settings
+  // from #779) — #networkBody is its own data-state host.
+  networkInternetOpen: document.getElementById('networkInternetOpen'),
+  networkInternetAvatar: document.getElementById('networkInternetAvatar'),
+  networkInternetMeta: document.getElementById('networkInternetMeta'),
+  networkDevicesOpen: document.getElementById('networkDevicesOpen'),
+  networkDevicesMeta: document.getElementById('networkDevicesMeta'),
+  networkSheet: document.getElementById('networkSheet'),
+  networkSheetClose: document.getElementById('networkSheetClose'),
+  networkSheetDone: document.getElementById('networkSheetDone'),
+  paneNetwork: document.getElementById('networkBody'),
   netFeedback: document.getElementById('netFeedback'),
   netInternetStatus: document.getElementById('netInternetStatus'),
   netInternetMeta: document.getElementById('netInternetMeta'),

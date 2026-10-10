@@ -1,18 +1,18 @@
-/* Home Assistant Hyper-V VM control (Home tab — issue #240; #461 folded the
- * old body tile into the HA card's summary).
+/* Home Assistant Hyper-V VM control (issue #240; on the Devices tab's Home
+ * Assistant group since #884, decision 1 of #872).
  *
  * Reads GET /api/hyperv and controls the VM via POST /api/hyperv/{start|stop}.
  * The backend shells out to Hyper-V on the host PC and addresses the VM by
  * name, so this is independent of the VM's LAN IP. Stop is confirm-gated (it
- * drops Home Assistant); Start is not. Polled only while the Home tab is
+ * drops Home Assistant); Start is not. Polled only while the Devices tab is
  * active.
  *
- * The surface is the HA card's read-only summary status text
- * (#homeAssistantSummaryState) plus the power switch (#homeVmToggle), the first
- * row of the card body (#805 — nothing tappable lives in a summary, so
- * switching the VM is open-then-tap). The card element carries data-vm-state as the
- * machine-readable state hook (tests); IP·MAC and the stale-snapshot detail
- * live in the status text's hover tooltip.
+ * The surface is the group's VM row: its meta line (#homeAssistantSummaryState)
+ * says the state in words, the avatar badge says alive (up while running,
+ * down when it should answer and does not), and the power switch
+ * (#homeVmToggle) is the row's one trailing item. The group carries
+ * data-vm-state as the machine-readable state hook (tests); IP·MAC and the
+ * stale-snapshot detail live in the meta line's hover tooltip.
  */
 
 'use strict';
@@ -36,12 +36,21 @@ function viewStateFor(vm) {
   return vm.available === true ? 'ready' : 'error';
 }
 
+// The meta line in words, and the avatar badge (design.md avatar: alive and
+// nothing else). The modifier is a state hook, never a colour (#872 tone map).
+const BADGES = { running: 'up', unavailable: 'down' };
+
 function renderSummaryState(text, modifier, title) {
   if (!els.homeAssistantSummaryState) return;
-  els.homeAssistantSummaryState.textContent = text;
+  els.homeAssistantSummaryState.textContent = text.charAt(0).toUpperCase() + text.slice(1);
   els.homeAssistantSummaryState.title = title || '';
   els.homeAssistantSummaryState.className =
-    'muted small ha-summary-state ha-summary-' + modifier;
+    'action-row-meta-text vm-state vm-state-' + modifier;
+  if (els.haVmAvatar) {
+    const badge = BADGES[modifier];
+    if (badge) els.haVmAvatar.dataset.badge = badge;
+    else delete els.haVmAvatar.dataset.badge;
+  }
 }
 
 function renderToggle(on, disabled) {
@@ -222,7 +231,7 @@ export function restoreVmSnapshot() {
 const schedule = createPoller(loadVm);
 
 export function onVmTab(tab) {
-  if (tab === 'home') {
+  if (tab === 'iot') {
     loadVm();
     schedule(POLL_MS);
   } else {

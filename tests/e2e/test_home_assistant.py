@@ -1,4 +1,4 @@
-"""Issue #239: folded Home Assistant card + streamed room push-to-talk."""
+"""Issues #239 / #884: the Home Assistant group on Devices + streamed room push-to-talk."""
 
 from __future__ import annotations
 
@@ -108,81 +108,105 @@ def _boot(
     page.wait_for_selector("#paneHome", state="visible")
 
 
-def test_card_is_folded_in_existing_position_and_loads_ha_only_when_open(
+def test_group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
     mock_api: Callable,
     mock_energy: Callable,
 ) -> None:
-    calls = {"ha": 0}
+    """#884: the HA group lives on Devices; /api/ha is read once on entry, then polled with a sheet open."""
+    reads: List[str] = []
 
     def handle_ha(route) -> None:
-        calls["ha"] += 1
+        reads.append(route.request.url)
         route.fulfill(status=200, content_type="application/json", body=json.dumps(_HA_BODY))
 
     page.route("**/api/ha", handle_ha)
+    page.clock.install()
     _boot(page, base_url, sample_units, mock_api, mock_energy)
 
+    # Moved off Home: the group is a plain section on the Devices pane, nothing to open.
+    expect(page.locator("#paneHome #homeAssistantCard")).to_have_count(0)
+    expect(page.locator("#paneIot #homeAssistantCard")).to_have_count(1)
+    expect(page.locator("#homeAssistantCard")).to_have_js_property("tagName", "SECTION")
+    assert reads == []
+
+    page.locator("#tabIot").click()
     card = page.locator("#homeAssistantCard")
-    expect(card).not_to_have_attribute("open", "")
-    expect(page.locator("#haSatellitesList")).to_be_hidden()
-    assert calls["ha"] == 0
-    card_summary_icon = card.locator("> summary .collapse-icon")
-    expect(card_summary_icon.locator("use")).to_have_attribute("href", "#i-house")
-    ha_icon = card_summary_icon.bounding_box()
-    wake_icon = page.locator(".wake-alarms-card summary .collapse-icon").bounding_box()
-    assert ha_icon is not None and wake_icon is not None
-    assert ha_icon["width"] == wake_icon["width"]
-    assert ha_icon["height"] == wake_icon["height"]
-    ha_icon_offset = card_summary_icon.evaluate(
-        "icon => icon.getBoundingClientRect().top - icon.closest('summary').getBoundingClientRect().top"
-    )
-    wake_icon_offset = page.locator(".wake-alarms-card summary .collapse-icon").evaluate(
-        "icon => icon.getBoundingClientRect().top - icon.closest('summary').getBoundingClientRect().top"
-    )
-    assert abs(ha_icon_offset - wake_icon_offset) < 0.1
-    assert page.locator("#homeEnergyFlow").evaluate(
-        "(energy, card) => energy.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING",
-        card.element_handle(),
-    )
-
-    card.locator("> summary").click()
-    expect(card).to_have_attribute("open", "")
-    # #461/#805: status text in the summary, power switch in the card body.
-    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("online")
+    expect(card).to_be_visible()
+    # Status in words on the VM row, power switch as its trailing item.
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("Online")
+    expect(page.locator("#haVmAvatar")).to_have_attribute("data-badge", "up")
     expect(page.locator("#homeVmToggle")).to_have_attribute("aria-checked", "true")
+    # One read on entry fills the rows' meta lines; both sheets are still closed.
+    expect(page.locator("#haSatellitesMeta")).to_have_text("1 of 2 online")
+    expect(page.locator("#haInteractionsMeta")).to_have_text(re.compile(r"^1 · last \d{1,2}:\d\d"))
+    expect(page.locator("#haSatellitesSheet")).to_be_hidden()
+    expect(page.locator("#haInteractionsSheet")).to_be_hidden()
+    assert len(reads) == 1
 
-    # #461: everything but the uptime tile lives in Presence-style nested
-    # subsections, all folded by default, each with a hit-target summary.
-    for section_id in ("haSatellitesCard", "haInteractionsCard", "haHelpCard"):
-        section = page.locator("#" + section_id)
-        # Recent interactions appears only once there is one (#805).
-        expect(section).to_be_visible()
-        expect(section).not_to_have_attribute("open", "")
-        box = section.locator("summary").bounding_box()
-        assert box is not None and box["height"] >= 44, section_id
+    for opener in ("#haSatellitesOpen", "#haInteractionsOpen"):
+        box = page.locator(opener).bounding_box()
+        assert box is not None and box["height"] >= 44, opener
 
-    page.locator("#haSatellitesCard summary").click()
-    expect(page.locator('.ha-satellite-row[data-entity="assist_satellite.kitchen"]')).to_contain_text(
-        "Kitchen"
-    )
-    expect(page.locator('.ha-satellite-row[data-entity="assist_satellite.kitchen"]')).to_contain_text(
-        "Volume 75%"
-    )
-    expect(page.locator('.ha-satellite-row[data-entity="assist_satellite.bedroom"] .ha-mic-btn')).to_be_disabled()
+    # Sheets closed: time passing reads nothing.
+    page.clock.run_for(45_000)
+    page.evaluate("() => fetch('/healthz').then((r) => r.status)")
+    assert len(reads) == 1
 
-    page.locator("#haInteractionsCard summary").click()
+    # Voice satellites sheet: rows, volume, an offline room's disabled mic; polls while open.
+    page.locator("#haSatellitesOpen").click()
+    expect(page.locator("#haSatellitesSheet")).to_be_visible()
+    kitchen = page.locator('.ha-satellite-row[data-entity="assist_satellite.kitchen"]')
+    expect(kitchen).to_contain_text("Kitchen")
+    expect(kitchen).to_contain_text("Volume 75%")
+    expect(
+        page.locator('.ha-satellite-row[data-entity="assist_satellite.bedroom"] .ha-mic-btn')
+    ).to_be_disabled()
+    with page.expect_request(lambda r: r.method == "GET" and r.url.endswith("/api/ha")):
+        page.clock.run_for(15_000)
+    page.locator("#haSatellitesSheetDone").click()
+    expect(page.locator("#haSatellitesSheet")).to_be_hidden()
+
+    # Recent interactions sheet.
+    page.locator("#haInteractionsOpen").click()
+    expect(page.locator("#haInteractionsSheet")).to_be_visible()
     expect(page.locator(".ha-interaction-row")).to_contain_text("Where is mom?")
+    page.locator("#haInteractionsSheetDone").click()
+    expect(page.locator("#haInteractionsSheet")).to_be_hidden()
 
-    help_card = page.locator("#haHelpCard")
+    # Both closed again: the poll stops.
+    page.evaluate("() => fetch('/healthz').then((r) => r.status)")
+    settled = len(reads)
+    page.clock.run_for(45_000)
+    page.evaluate("() => fetch('/healthz').then((r) => r.status)")
+    assert len(reads) == settled
+
+
+def test_help_card_moved_to_settings(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    """#884: "What can I do?" is a settings card, and keeps its guidance."""
+    _boot(page, base_url, sample_units, mock_api, mock_energy)
+    expect(page.locator("#paneIot #haHelpCard")).to_have_count(0)
+
+    page.locator("main.app > section.pane:not([hidden]) .settings-open-btn").click()
+    help_card = page.locator("#paneSettings #haHelpCard")
+    expect(help_card).to_be_visible()
+    expect(help_card).not_to_have_attribute("open", "")
+    box = help_card.locator("summary").bounding_box()
+    assert box is not None and box["height"] >= 44
     help_card.locator("summary").click()
     expect(help_card).to_have_attribute("open", "")
     expect(help_card).to_contain_text("See the voice layer")
     expect(help_card).to_contain_text("Talk to a room")
     expect(help_card).to_contain_text("Review recent interactions")
     expect(help_card).to_contain_text("Room and satellite names are owned in Home Assistant")
-    assert calls["ha"] >= 1
 
 
 def test_streamed_partial_finishes_and_announces_to_selected_room(
@@ -242,8 +266,9 @@ def test_streamed_partial_finishes_and_announces_to_selected_room(
 
     page.route("**/api/ha/satellites/assist_satellite.kitchen/announce", handle_announce)
     _boot(page, base_url, sample_units, mock_api, mock_energy)
-    page.locator("#homeAssistantCard > summary").click()
-    page.locator("#haSatellitesCard summary").click()
+    page.locator("#tabIot").click()
+    page.locator("#haSatellitesOpen").click()
+    expect(page.locator("#haSatellitesSheet")).to_be_visible()
 
     row = page.locator('.ha-satellite-row[data-entity="assist_satellite.kitchen"]')
     mic = row.locator(".ha-mic-btn")
@@ -275,10 +300,10 @@ def test_recent_interactions_is_hidden_until_there_is_one(
     )
     _boot(page, base_url, sample_units, mock_api, mock_energy)
 
-    page.locator("#homeAssistantCard > summary").click()
-    page.locator("#haSatellitesCard summary").click()
-    # The satellites rendered, so the HA read has landed — the empty box is not shown.
-    expect(page.locator(".ha-satellite-row")).to_have_count(2)
+    page.locator("#tabIot").click()
+    # The satellites row's meta fills once the HA read has landed - the empty
+    # interactions row is still not offered.
+    expect(page.locator("#haSatellitesMeta")).to_have_text("1 of 2 online")
     expect(page.locator("#haInteractionsCard")).to_be_hidden()
-    expect(page.locator("#haHelpCard")).to_be_visible()
+    expect(page.locator("#haSatellitesOpen")).to_be_visible()
 

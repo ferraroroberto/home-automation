@@ -1,6 +1,7 @@
-"""PC-fleet UPS-shutdown card (IoT tab, issue #498).
+"""PC-fleet UPS-shutdown section (UPS sheet on the Devices tab, issue #498).
 
-Drives the PC-fleet card against Playwright route stubs for ``/api/pc-fleet/*``
+Since #884 the section lives in the UPS sheet, opened from the UPS row of the
+Power glance card. Drives it against Playwright route stubs for ``/api/pc-fleet/*``
 — never the real hub. The card owns the fleet's desired-state shutdown prefs
 (master enable + runtime-remaining threshold + an ``excluded`` id list) and a
 live machine roster read from the hub. These tests cover: the machine list with
@@ -98,7 +99,7 @@ def _boot_pc_fleet(
 ) -> Dict:
     """Stub every endpoint the boot + IoT tab touches (units/energy/tuya/ups/
     notify-prefs never reach the cloud), install the pc-fleet stubs, open the
-    IoT tab, and expand the (collapsed-by-default) PC-fleet card."""
+    Devices tab, and open the UPS sheet that holds the PC-fleet section."""
     mock_api(sample_units)
     mock_energy()
     mock_tuya([])
@@ -117,7 +118,9 @@ def _boot_pc_fleet(
     page.wait_for_selector("#paneHome", state="visible")
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
-    page.eval_on_selector("details.pc-fleet-card", "e => { e.open = true; }")
+    # The UPS row is present in every state (loading/empty/error too).
+    page.locator("#upsRows .action-row-main").click()
+    expect(page.locator("#upsSheet")).to_be_visible()
     return store
 
 

@@ -1,8 +1,10 @@
-/* Network (LAN) tab controller — boot/core.
+/* Network (LAN) controller — boot/core.
  *
- * Owns the home-network view's top-level shell: internet health (+ opt-in speed
- * test), AP/router health with the confirm-gated reboots, the tab poll
- * lifecycle, and the renderNetwork orchestrator. The confirm dialog itself is
+ * Owns the home-network view's top-level shell: the Devices tab's Network
+ * group rows (#884, decision 7 of #872; Settings from #779), the Network sheet
+ * they open, internet health (+ opt-in speed test), AP/router health with the
+ * confirm-gated reboots, the poll lifecycle, and the renderNetwork
+ * orchestrator. The confirm dialog itself is
  * the neutral `./confirm.js` primitive (issue #574) — it used to live here,
  * which made unrelated modules import this feature tab to get it. The
  * feature panels live in sibling modules and are wired in here (issue #197):
@@ -13,8 +15,9 @@
  *   ./network-dhcp.js    — DHCP reservation planner + apply flow
  * Read-mostly — it reads GET /api/network and writes only the AP/router reboots.
  *
- * Cadence is tab-aware like plugs.js/energy.js: the AP SOAP read is comparatively
- * expensive, so it polls only while the Network section of Settings is open and stops on leave.
+ * Cadence: the AP SOAP read is comparatively expensive, so entering the
+ * Devices tab reads once (the group rows' facts) and the read repeats only
+ * while the Network sheet is open.
  * The speed test never auto-runs — it is an explicit button that adds ~13 s.
  */
 
@@ -44,6 +47,8 @@ import {
   toggleShowHiddenDevices,
   setDeviceSort,
   setDeviceGrouping,
+  hasLiveLink,
+  WEAK_SIGNAL_PCT,
   initShowOfflinePref,
   initShowHiddenDevicesPref,
   initDeviceSortPref,
@@ -65,6 +70,7 @@ import {
 } from './network-survey.js';
 import { wireDhcpPlan } from './network-dhcp.js';
 import { confirmAction } from './confirm.js';
+import { sheet } from './sheet.js';
 
 const POLL_MS = 15_000;
 
@@ -219,11 +225,53 @@ function renderHealth(ap, router) {
   }
 }
 
+// The Devices tab's Network group (#884): the internet in one line with the
+// connected badge, and the attached devices as a count with the weak ones.
+function renderGroupRows(net) {
+  if (!els.networkInternetMeta) return;
+  const internet = net ? net.internet : null;
+  const avatar = els.networkInternetAvatar;
+  if (!internet) {
+    els.networkInternetMeta.textContent = networkView.state === 'error'
+      ? 'Unavailable'
+      : (net ? 'No data' : 'Reading…');
+    if (avatar) delete avatar.dataset.badge;
+  } else if (!internet.online) {
+    els.networkInternetMeta.textContent = 'Offline';
+    if (avatar) avatar.dataset.badge = 'down';
+  } else {
+    const parts = [];
+    if (internet.external_ms != null) parts.push(fmtMs(internet.external_ms));
+    if (lastSpeed) {
+      parts.push(icon('arrow-down', 'row-meta-arrow') + '<span class="visually-hidden">Download </span>' +
+        esc(String(Math.round(Number(lastSpeed.down)))) + ' ' +
+        icon('arrow-up', 'row-meta-arrow') + '<span class="visually-hidden">Upload </span>' +
+        esc(fmtMbps(lastSpeed.up)));
+    }
+    els.networkInternetMeta.innerHTML = parts.length ? parts.join(' · ') : 'Online';
+    if (avatar) avatar.dataset.badge = 'up';
+  }
+  const devices = net ? (net.devices || []).filter(function (d) { return !d.hidden; }) : [];
+  if (!els.networkDevicesMeta) return;
+  if (!net) {
+    els.networkDevicesMeta.textContent = '';
+    return;
+  }
+  const live = devices.filter(hasLiveLink);
+  const weak = live.filter(function (d) {
+    return d.is_wireless && d.signal != null && d.signal < WEAK_SIGNAL_PCT;
+  }).length;
+  els.networkDevicesMeta.textContent = live.length + ' online' + (weak ? ' · ' + weak + ' weak' : '');
+}
+
 function renderNetwork() {
   const net = state.network;
+  renderGroupRows(net);
   renderInternet(net ? net.internet : null);
   renderHealth(net ? net.access_point : null, net ? net.router : null);
-  renderWifi(net ? net.wifi : null);
+  // The Wi-Fi charts load Chart.js on first use (#760): only once the sheet
+  // that shows them is open, never for the group rows alone.
+  if (networkSheet.isOpen()) renderWifi(net ? net.wifi : null);
   renderSurvey();
   renderStats(net
     ? (net.devices || []).filter(function (d) { return state.networkShowHiddenDevices || !d.hidden; })
@@ -232,6 +280,30 @@ function renderNetwork() {
   renderNetworkFeedback();
   if (networkView.state === 'stale' && networkView.liveUnavailable) {
     disableStaleNetworkActions();
+  }
+}
+
+// The Network sheet (sheet.js, instant: reboots, the speed test and the
+// toggles act as they are pressed; renames open their own staged dialogs).
+const networkSheet = sheet(els.networkSheet, {
+  model: 'instant',
+  closeButton: els.networkSheetClose,
+  doneButton: els.networkSheetDone,
+  onClose: function () { updatePolling(); },
+});
+
+// Open the sheet, optionally at one of its cards (a disclosure opens).
+function openNetworkSheet(trigger, card) {
+  networkSheet.open(trigger);
+  renderNetwork();
+  loadNightlyPref();
+  updatePolling();
+  if (card) {
+    if (card.tagName === 'DETAILS') card.open = true;
+    requestAnimationFrame(function () { card.scrollIntoView({ block: 'start' }); });
+  } else if (els.networkSheet) {
+    const body = els.networkSheet.querySelector('.detail-card');
+    if (body) body.scrollTop = 0;
   }
 }
 
@@ -366,21 +438,33 @@ export function wireNetworkControls() {
   }
   wireNightlyToggle();
   wireDhcpPlan();
+  if (els.networkInternetOpen) {
+    els.networkInternetOpen.addEventListener('click', function () {
+      openNetworkSheet(els.networkInternetOpen, null);
+    });
+  }
+  if (els.networkDevicesOpen) {
+    els.networkDevicesOpen.addEventListener('click', function () {
+      openNetworkSheet(els.networkDevicesOpen, document.querySelector('.net-devices-card'));
+    });
+  }
 }
 
 // --------------------------------------------------------- cadence + tabs
 const schedule = createPoller(loadNetwork);
 
-// The AP SOAP read is expensive, so only poll while Settings — the network
-// section's home since #779 — is open.
+// The AP SOAP read is expensive: one read on entering the Devices tab feeds
+// the group rows, and the poll runs only while the Network sheet is open.
+let activeTab = null;
+
+function updatePolling() {
+  schedule(activeTab === 'iot' && networkSheet.isOpen() ? POLL_MS : 0);
+}
+
 export function onNetworkTab(tab) {
-  if (tab === 'settings') {
-    loadNetwork();      // immediate refresh on entry (also the first load)
-    loadNightlyPref();
-    schedule(POLL_MS);
-  } else {
-    schedule(0);
-  }
+  activeTab = tab;
+  if (tab === 'iot') loadNetwork();
+  updatePolling();
 }
 
 export function restyleNetworkCharts() {

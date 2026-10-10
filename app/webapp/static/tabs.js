@@ -24,12 +24,9 @@ import { initNavTabs } from './_vendored/nav/nav-tabs.js';
 // name it doesn't recognise and falls back to the first one, so without this an
 // installed PWA parked on Plugs or Light silently reopens on Home. Rewriting the
 // key up front (rather than mapping at read time) means the migration runs once
-// and then costs nothing.
-const RETIRED_TABS = ['plugs', 'lights'];
-// The Net tab became the Settings pane (#779). Settings is no tab, so it is
-// never stored; a PWA parked on Net reopens once on Settings, where its
-// content now lives, and the key falls back to Home from then on.
-const RETIRED_TO_SETTINGS = 'network';
+// and then costs nothing. The Net tab joins them: its content was Settings'
+// from #779 and is the Devices tab's Network group since #884.
+const RETIRED_TABS = ['plugs', 'lights', 'network'];
 
 // The vendored nav (project-scaffolding#338) owns the count badge; set once
 // wireTabs has run.
@@ -53,14 +50,8 @@ export function setTabBadge(tab, count, noun, tone) {
 function migrateStoredTab() {
   try {
     const stored = localStorage.getItem(TAB_KEY);
-    if (RETIRED_TABS.includes(stored)) {
-      localStorage.setItem(TAB_KEY, 'iot');
-    } else if (stored === RETIRED_TO_SETTINGS) {
-      localStorage.setItem(TAB_KEY, 'home');
-      return true;
-    }
+    if (RETIRED_TABS.includes(stored)) localStorage.setItem(TAB_KEY, 'iot');
   } catch (_) { /* private mode */ }
-  return false;
 }
 
 // Show the Settings pane over the current tab. The vendored nav only manages
@@ -99,7 +90,7 @@ export function showSettings(card) {
 
 export function wireTabs(onTab) {
   tabHandler = onTab;
-  const openSettingsNow = migrateStoredTab();
+  migrateStoredTab();
   nav = initNavTabs({
     storageKey: TAB_KEY,
     navEvent: recordNavEvent,
@@ -113,5 +104,4 @@ export function wireTabs(onTab) {
   document.querySelectorAll('.settings-open-btn').forEach(function (btn) {
     btn.addEventListener('click', function () { openSettings(onTab); });
   });
-  if (openSettingsNow) openSettings(onTab);
 }

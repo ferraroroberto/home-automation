@@ -1,8 +1,9 @@
-/* Local USB UPS tile for Plugs + Home.
+/* Local USB UPS: Home's tile and the Devices tab's UPS row + sheet.
  *
  * Reads GET /api/ups. The backend prefers NUT when available and otherwise uses
  * Windows USB-HID battery telemetry, so the connected PC UPS works without
- * vendor cloud software. */
+ * vendor cloud software. On Devices (#884) the UPS is a row of the Power glance
+ * card, and its sheet holds the reading and the PC-fleet shutdown (#498). */
 
 'use strict';
 
@@ -10,12 +11,14 @@ import { state, els, toast, reportFetchOk } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { emptyStateEl } from './empty-state.js';
 import { esc, fmtPct } from './format.js';
-import { chipHtml } from './chip.js';
+import { chipEl, chipHtml } from './chip.js';
 import { setHeadPart } from './head-status.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, staleNoteEl, staleText } from './view-state.js';
+import { rowEl } from './row.js';
+import { sheet } from './sheet.js';
 
 const POLL_MS = 15_000;
 
@@ -81,8 +84,7 @@ function renderUpsTile(tile, ups) {
 
   // Home tile (#253): one line at weather-tile height — identity, then bare
   // charge % and runtime pulled onto the title row (no labels — a % and a
-  // duration read for themselves), then any status chip hard-right. The Plugs
-  // tile is identical (its container carries `ups-tile-compact`).
+  // duration read for themselves), then any status chip hard-right.
   tile.innerHTML =
     '<div class="ups-main">' +
     identity +
@@ -100,9 +102,110 @@ function renderUpsTile(tile, ups) {
   }
 }
 
+// The UPS status chip as a node, for the row (the same exceptions).
+function statusChip(ups) {
+  const status = (ups && ups.status) || '';
+  if (status.indexOf('critical') >= 0) return chipEl('Critical', 'danger', 'ups-status');
+  if (status.indexOf('low_battery') >= 0) return chipEl('Low battery', 'danger', 'ups-status');
+  if (ups && ups.mains_online === false) return chipEl('On battery', 'attention', 'ups-status');
+  return null;
+}
+
+// The Power card's UPS row (#884): connected badge, the reading in one line,
+// an exception chip, and the sheet one tap away. The row is there in every
+// state, so the PC-fleet shutdown in its sheet is always reachable.
+function upsRowMeta() {
+  if (upsView.state === 'loading') return { text: 'Reading UPS status…', badge: null, chip: null };
+  if (upsView.state === 'empty') return { text: 'No UPS detected', badge: null, chip: null };
+  if (upsView.state === 'error') {
+    return { text: 'Status unavailable', badge: 'down', chip: chipEl('Unavailable', 'attention', 'ups-status') };
+  }
+  const ups = state.ups;
+  const parts = [ups && ups.mains_online === false ? 'On battery' : 'On mains'];
+  parts.push(fmtPct(ups && ups.battery_charge_pct));
+  parts.push(fmtRuntime(ups && ups.runtime_seconds));
+  const chip = statusChip(ups);
+  return {
+    text: chip ? parts.slice(1).join(' · ') : parts.join(' · '),
+    badge: 'up',
+    chip: chip,
+  };
+}
+
+function renderUpsRow() {
+  if (!els.upsRows) return;
+  const meta = upsRowMeta();
+  const row = rowEl({
+    className: 'ups-row',
+    glyph: 'battery-charging',
+    badge: meta.badge,
+    title: 'UPS',
+    meta: meta.text,
+    chip: meta.chip,
+    chevron: true,
+    onOpen: function (btn) { openUpsSheet(btn); },
+  });
+  row.dataset.state = upsView.state;
+  els.upsRows.innerHTML = '';
+  els.upsRows.appendChild(row);
+}
+
+function kvRow(label, value) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const k = document.createElement('span');
+  k.textContent = label;
+  const v = document.createElement('span');
+  v.className = 'muted';
+  v.textContent = value;
+  row.appendChild(k);
+  row.appendChild(v);
+  return row;
+}
+
+function renderUpsSheet() {
+  const box = els.upsSheetStatus;
+  if (!box) return;
+  box.innerHTML = '';
+  if (upsView.state === 'loading' || upsView.state === 'empty' || upsView.state === 'error') {
+    const empty = upsView.state === 'loading'
+      ? emptyStateEl('refresh-cw', 'Reading UPS status…')
+      : emptyStateEl('battery-charging',
+        upsView.state === 'empty' ? 'No UPS detected' : 'UPS status unavailable',
+        { actionLabel: 'Retry', onAction: function () { loadUps(); } });
+    box.appendChild(empty);
+    return;
+  }
+  const ups = state.ups;
+  let status = ups && ups.mains_online === false ? 'On battery' : 'On mains';
+  const chip = statusChip(ups);
+  if (chip) status = chip.textContent;
+  box.appendChild(kvRow('Status', status));
+  box.appendChild(kvRow('Charge', fmtPct(ups && ups.battery_charge_pct)));
+  box.appendChild(kvRow('Runtime', fmtRuntime(ups && ups.runtime_seconds)));
+  if (upsView.state === 'stale' || isSnapshotRestored('ups')) {
+    box.appendChild(staleNoteEl(staleText(upsView, 'ups'), 'ups-stale-note'));
+  }
+}
+
+const upsSheet = sheet(els.upsSheet, {
+  model: 'instant',
+  closeButton: els.upsSheetClose,
+  doneButton: els.upsSheetDone,
+  fallbackFocus: function () {
+    return els.upsRows ? els.upsRows.querySelector('.action-row-main') : null;
+  },
+});
+
+function openUpsSheet(trigger) {
+  renderUpsSheet();
+  upsSheet.open(trigger);
+}
+
 export function renderUps() {
-  renderUpsTile(els.upsTile, state.ups);
   renderUpsTile(els.homeUpsTile, state.ups);
+  renderUpsRow();
+  if (upsSheet.isOpen()) renderUpsSheet();
   renderUpsHead();
 }
 

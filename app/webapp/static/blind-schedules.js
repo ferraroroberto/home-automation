@@ -1,8 +1,10 @@
 /* Daily blind up/down schedule editor (issue #871) and the alarm-pairing
  * switch (issue #875).
  *
- * Lives in the Devices tab's Blinds card, under the group row and the blind
- * rows. The same shape as the alarm-schedule editor (security-schedules.js):
+ * Lives in the Blind schedule sheet (#884), opened from the Schedule row of
+ * the Devices tab's Blinds group, whose meta line says how many entries are on
+ * and whether the blinds follow the alarm. The same shape as the
+ * alarm-schedule editor (security-schedules.js):
  * summary rows + a staged edit dialog through the shared denseListEditor,
  * persisted as one list via GET/PUT /api/blinds/schedules. The server-side
  * engine (app/webapp/blind_schedules.py) fires due entries through the same
@@ -20,6 +22,7 @@ import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { friendlyError } from './format.js';
+import { sheet } from './sheet.js';
 
 const DAYS = [
   ['mon', 'Mon'],
@@ -192,10 +195,28 @@ const scheduleEditor = denseListEditor({
   bodyKey: 'entries',
 });
 
+// The Schedule row's meta: entries on, and the alarm pairing when it is on.
+// Blank until both have been read (never a guessed "None").
+let schedulesRead = false;
+let followAlarm = null;
+
+function renderScheduleMeta() {
+  if (!els.blindSchedulesMeta) return;
+  if (!schedulesRead) {
+    els.blindSchedulesMeta.textContent = '';
+    return;
+  }
+  const on = state.blindSchedules.filter(function (e) { return e.enabled; }).length;
+  const parts = [state.blindSchedules.length ? on + ' on' : 'None'];
+  if (followAlarm === true) parts.push('follows alarm');
+  els.blindSchedulesMeta.textContent = parts.join(' · ');
+}
+
 export function renderBlindSchedules() {
   if (!els.blindSchedules || !els.blindSchedulesNote) return;
   els.blindSchedules.innerHTML = '';
   state.blindSchedules = normalizedSchedules();
+  renderScheduleMeta();
   if (!state.blindSchedules.length) {
     els.blindSchedulesNote.hidden = false;
     els.blindSchedulesNote.textContent = 'No blind schedules.';
@@ -233,7 +254,9 @@ async function loadAlarmPairing() {
   if (!els.blindsFollowAlarm) return;
   try {
     const body = await jsonApi('/api/blinds/alarm-pairing');
-    setToggleState(els.blindsFollowAlarm, !!(body && body.follow_alarm));
+    followAlarm = !!(body && body.follow_alarm);
+    setToggleState(els.blindsFollowAlarm, followAlarm);
+    renderScheduleMeta();
   } catch (exc) {
     if (!isAuthRequired(exc)) reportActionFailure(exc, "Couldn't read the alarm pairing");
   }
@@ -246,7 +269,9 @@ async function saveAlarmPairing(on) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ follow_alarm: on }),
     });
-    setToggleState(els.blindsFollowAlarm, !!(body && body.follow_alarm));
+    followAlarm = !!(body && body.follow_alarm);
+    setToggleState(els.blindsFollowAlarm, followAlarm);
+    renderScheduleMeta();
     toast(on ? 'Blinds follow the alarm' : 'Blinds no longer follow the alarm', 'success');
   } catch (exc) {
     setToggleState(els.blindsFollowAlarm, !on);
@@ -259,6 +284,7 @@ export async function loadBlindSchedules() {
   try {
     const body = await jsonApi('/api/blinds/schedules');
     state.blindSchedules = (body && body.entries) || [];
+    schedulesRead = true;
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.blindSchedules = [];
@@ -279,8 +305,21 @@ export function onBlindSchedulesTab(tab) {
   loadAlarmPairing();
 }
 
+// The sheet (sheet.js, instant): a row's switch and the alarm pairing save
+// as they change; Add / Edit open the staged editor on top; Done closes.
+const schedulesSheet = sheet(els.blindSchedulesSheet, {
+  model: 'instant',
+  closeButton: els.blindSchedulesSheetClose,
+  doneButton: els.blindSchedulesSheetDone,
+});
+
 export function wireBlindSchedules() {
   if (!els.blindScheduleAdd || !els.blindScheduleDialog) return;
+  if (els.blindSchedulesOpen) {
+    els.blindSchedulesOpen.addEventListener('click', function () {
+      schedulesSheet.open(els.blindSchedulesOpen);
+    });
+  }
   wireToggle(els.blindScheduleEnabled, function (on) {
     if (scheduleEditor.staged) scheduleEditor.staged.enabled = on;
   });
