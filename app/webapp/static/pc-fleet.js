@@ -1,9 +1,9 @@
-/* PC-fleet UPS-triggered shutdown card (IoT tab, issue #498).
+/* PC-fleet UPS-triggered shutdown (issue #498), in the Devices tab's UPS
+ * sheet since #884 (it was its own folded card).
  *
- * A folded-by-default card, peer of the UPS Notifications card. Owns the
- * fleet's desired-state shutdown prefs (GET/PUT /api/pc-fleet/prefs) plus a
- * live machine roster read from the hub (GET /api/pc-fleet/machines, polled
- * every ~15s while the tab is open). Each backend PUT sends the whole prefs
+ * Owns the fleet's desired-state shutdown prefs (GET/PUT /api/pc-fleet/prefs)
+ * plus a live machine roster read from the hub (GET /api/pc-fleet/machines,
+ * polled every ~15s while the Devices tab is open). Each backend PUT sends the whole prefs
  * object — master enable, the runtime-remaining threshold, and the `excluded`
  * id list (a machine's include-toggle OFF = its id in `excluded`). The hub
  * host row always participates (shut down last over its local path) and has no

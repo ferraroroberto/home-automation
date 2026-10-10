@@ -344,7 +344,7 @@ def _reap_orphaned_webkit_zombies() -> None:
 CHROMIUM_ONLY_MODULES = frozenset({
     "test_ac_tab",            # pane states (loading/empty/unavailable/stale) + snapshot paint
     "test_boost_coordinator", # settings form: persistence, range refusal, summary text
-    "test_circuits",          # CT-clamp card: rows, rename dialog, fold/hide state — text and class only
+    "test_circuits",          # CT-clamp group: rows, rename dialog, hide state — text and class only
     "test_lazy_libraries",    # which scripts/styles the page requests, and when — network wiring
     "test_lights",            # light rows, bulk buttons, rename — POST round-trips and states
     "test_pc_fleet",          # roster chips, toggles, wake PUT/POST wiring
@@ -732,6 +732,31 @@ def _stub_circuits_api(page: Page) -> None:
             body='{"meters":[],"discovery_ok":true,"error":null}',
         ),
     )
+
+
+@pytest.fixture(autouse=True)
+def _stub_network_api(page: Page) -> None:
+    """Never let a browser regression test read the live router and AP (#884).
+
+    The Devices tab reads ``GET /api/network`` on entry since #884 (its
+    Network group's rows), and the real read logs in to the router and polls
+    the access point. An empty snapshot keeps every Devices test off the LAN;
+    tests that want a network install ``mock_network`` over this one.
+    """
+
+    def handle(route: Route) -> None:
+        if route.request.method != "GET":
+            route.fulfill(status=503, content_type="application/json",
+                          body='{"detail":"network not stubbed"}')
+            return
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"internet":null,"access_point":null,"router":null,"wifi":null,"devices":[]}',
+        )
+
+    page.route("**/api/network", handle)
+    page.route("**/api/network?*", handle)
 
 
 @pytest.fixture

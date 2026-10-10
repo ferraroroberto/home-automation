@@ -1,11 +1,10 @@
-"""Smart Life (Plugs) tab: split Plugs/Blinds row lists, wattage, switch + covers.
+"""Devices tab: the Plugs and Blinds groups, the Power card, switch + covers.
 
-Drives the Plugs tab against stubbed local-Tuya fixtures (no LAN, no cloud) on
-both the Chromium-desktop and WebKit/iPhone projections. Plugs and blinds render
-as compact divider-separated rows inside two collapsible cards (collapsed by
-default); these tests expand them, then cover a metered plug row, a switch
-round-trip, the blind icon controls, an unavailable device that must not block
-the reachable ones, and the reachable-only toggle for no-IP adapters.
+Drives the Devices tab against stubbed local-Tuya fixtures (no LAN, no cloud)
+on both the Chromium-desktop and WebKit/iPhone projections. Plugs and blinds
+are open groups on the shared row (#884): these tests cover a metered plug's
+watts, a switch round-trip, the blind segmented verb, the Power glance card,
+and the Offline row the unreachable plugs fold into.
 """
 
 from __future__ import annotations
@@ -34,11 +33,10 @@ def _boot_plugs(
     page.wait_for_selector("#paneHome", state="visible")
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
-    # Both list cards are collapsed by default — expand them so their rows are
-    # visible/interactable (open persists across re-renders).
-    page.eval_on_selector_all(
-        "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
-    )
+
+
+# Device rows (not the Offline fold row) in the Plugs and Blinds groups.
+_DEVICE_ROWS = "#plugsList .action-row[data-device-id], #blindsList .action-row[data-device-id]"
 
 
 def test_plugs_tab_renders_all_devices(
@@ -47,10 +45,12 @@ def test_plugs_tab_renders_all_devices(
 ) -> None:
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # One row per device, split across the two list cards.
-    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(len(sample_plugs))
+    # One row per reachable device, split across the two groups; the offline
+    # plug folds into the Offline row until that row is opened (#884).
+    expect(page.locator(_DEVICE_ROWS)).to_have_count(len(sample_plugs) - 1)
     expect(page.locator("#plugsList")).to_contain_text("Test Heater")
     expect(page.locator("#blindsList")).to_contain_text("Test Blind")
+    expect(page.locator("#plugsList .plugs-offline-row")).to_contain_text("One plug not reachable")
 
 
 class _FeedbackPanel(NamedTuple):
@@ -146,7 +146,7 @@ def test_plug_refresh_failure_preserves_last_good_rows(
         page, base_url, sample_units, sample_plugs,
         mock_api, mock_energy, mock_tuya,
     )
-    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(len(sample_plugs))
+    expect(page.locator(_DEVICE_ROWS)).to_have_count(len(sample_plugs) - 1)
 
     page.route(
         "**/api/tuya",
@@ -160,7 +160,7 @@ def test_plug_refresh_failure_preserves_last_good_rows(
     page.locator("#tabIot").click()
 
     expect(page.locator("#plugsFeedback")).to_have_attribute("data-state", "stale")
-    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(len(sample_plugs))
+    expect(page.locator(_DEVICE_ROWS)).to_have_count(len(sample_plugs) - 1)
     expect(page.locator("#plugsFeedback")).to_contain_text("Last updated")
     expect(page.locator("#plugsFeedback")).to_contain_text("live data unavailable")
     expect(page.locator("#plugsFeedback")).not_to_contain_text("192.0.2.60")
@@ -274,9 +274,9 @@ def test_metered_plug_shows_watts(
 ) -> None:
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # Wattage is a first-class value on the metered plug row. Grouped digits
-    # per the shared fmtW (format.js, #383) — one watt format across tabs.
-    watts = page.locator('[data-device-id="plug-1"] .plug-watts')
+    # Wattage is the metered plug row's meta line while it is on. Grouped
+    # digits per the shared fmtW (format.js, #383) — one watt format across tabs.
+    watts = page.locator('[data-device-id="plug-1"] .action-row-meta-text')
     expect(watts).to_be_visible()
     expect(watts).to_have_text("1,450 W")
 
@@ -287,12 +287,13 @@ def test_plugs_stats_block_summarizes(
 ) -> None:
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # 4 devices; Heater on, Lamp off; live watts = the metered, reachable plug.
-    expect(page.locator("#plugsStats")).to_be_visible()
-    expect(page.locator("#plugStatTotal")).to_have_text("4")
-    expect(page.locator("#plugStatOn")).to_have_text("1")
-    expect(page.locator("#plugStatOff")).to_have_text("1")
-    expect(page.locator("#plugStatWatts")).to_have_text("1,450 W")
+    # The Power glance card (#884): Heater on, Lamp off; the live watts are the
+    # metered, reachable plug's, and it is named as the biggest draw.
+    expect(page.locator("#powerNow")).to_be_visible()
+    expect(page.locator("#powerOnCount")).to_have_text("1 on")
+    expect(page.locator("#powerWatts")).to_have_text("1,450 W")
+    expect(page.locator("#powerTop")).to_have_text("Test Heater 1450")
+    expect(page.locator('#paneIot .status[data-head="iot"]')).to_have_text("1 on · 1,450 W")
 
 
 def test_plug_rename_round_trips(
@@ -301,13 +302,13 @@ def test_plug_rename_round_trips(
 ) -> None:
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # Tap the name → rename modal opens; saving relabels the row from the override.
-    page.locator('[data-device-id="plug-1"] .device-row-name').click()
+    # Tap the row → rename dialog opens; saving relabels the row from the override.
+    page.locator('[data-device-id="plug-1"] .action-row-main').click()
     expect(page.locator("#plugDialog")).to_be_visible()
     field = page.locator("#plugDisplayName")
     field.fill("Garage Heater")
-    field.press("Enter")  # Enter blurs → PUT /api/tuya/{id}/display_name
-    expect(page.locator('[data-device-id="plug-1"] .device-row-name')).to_have_text("Garage Heater")
+    field.press("Enter")  # Enter saves → PUT /api/tuya/{id}/display_name
+    expect(page.locator('[data-device-id="plug-1"] .action-row-title')).to_have_text("Garage Heater")
 
 
 def test_switch_toggle_round_trips(
@@ -332,13 +333,15 @@ def test_blind_has_labelled_controls(
     page.set_viewport_size({"width": 390, "height": 844})
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # The blind lives in the Blinds card with three up/stop/down buttons, each
-    # an icon plus a visible word (#805, J-01 — never icon-only).
+    # The blind's one trailing item is the Up · Stop · Down segmented verb
+    # (decision 6 of #872): glyphs, each named in words for assistive tech.
     buttons = page.locator('[data-device-id="cover-1"] .blind-btn')
     expect(buttons).to_have_count(3)
-    expect(buttons.locator(".blind-btn-label")).to_have_text(["Up", "Stop", "Down"])
+    for button, word in zip(buttons.all(), ["Up", "Stop", "Down"]):
+        expect(button).to_have_attribute("aria-label", f"{word} Test Blind")
+        expect(button).to_have_attribute("title", word)
     boxes = effective_rects(buttons)
-    assert all(box.visual.height >= 44 and box.visual.width >= 44 for box in boxes)
+    assert all(box.effective.height >= 44 and box.visual.width >= 44 for box in boxes)
     # The three buttons sit left-to-right with no shared tap zone.
     assert all(
         boxes[index].effective.right <= boxes[index + 1].effective.left
@@ -376,8 +379,11 @@ def test_blinds_group_buttons_move_every_listed_blind(
         mock_api, mock_energy, mock_tuya,
     )
 
-    group = page.locator("#blindsCard .lights-toolbar .range-tab")
-    expect(group).to_have_text(["All up", "All stop", "All down"])
+    # The house-wide move is the first row's segmented verb.
+    group = page.locator("#blindsCard .blinds-all-row .segmented-item")
+    for button, label in zip(group.all(), ["All up", "All stop", "All down"]):
+        expect(button).to_have_attribute("aria-label", label)
+    expect(page.locator("#blindsAllMeta")).to_have_text("2 blinds")
     assert all(box.effective.height >= 44 for box in effective_rects(group))
     assert_no_horizontal_overflow(page)
 
@@ -400,11 +406,12 @@ def test_tuya_light_lists_under_lights_not_plugs(
         mock_api, mock_energy, mock_tuya,
     )
 
-    # The dimmer is a light (#181): a row in the Lights card, not the Plugs one,
-    # and it counts toward neither the Plugs badge nor the plug stats.
+    # The dimmer is a light (#181): a row in the Lights group, not the Plugs
+    # one, and it counts toward neither the Plugs count nor the Power card.
     expect(page.locator('#lightsList [data-device-id="light-1"]')).to_be_visible()
     expect(page.locator('#plugsList [data-device-id="light-1"]')).to_have_count(0)
-    expect(page.locator("#plugStatTotal")).to_have_text("5")
+    expect(page.locator("#plugsCount")).to_have_text("3")
+    expect(page.locator("#powerOnCount")).to_have_text("1 on")
 
     # Its toggle rides the plug switch path and re-renders in the Lights card.
     toggle = page.locator('#lightsList [data-device-id="light-1"] .toggle')
@@ -422,60 +429,46 @@ def test_offline_device_unavailable_without_blocking_others(
 ) -> None:
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    offline = page.locator('[data-device-id="plug-3"]')
-    expect(offline).to_have_class("device-row plug-row is-unavailable")
-    expect(offline.locator(".plug-unavailable")).to_be_visible()
-    # The offline row has no power toggle, but the reachable plug still does.
-    expect(offline.locator(".toggle")).to_have_count(0)
+    # The unreachable plug folds into the Offline row (#884); the reachable
+    # plug keeps its switch.
+    expect(page.locator('[data-device-id="plug-3"]')).to_have_count(0)
     expect(page.locator('[data-device-id="plug-1"] .toggle')).to_be_visible()
+    fold = page.get_by_test_id("plugs-offline-toggle")
+    expect(fold).to_have_attribute("aria-expanded", "false")
+
+    # Opening the row lists it: no switch, a plain reason, never its error.
+    fold.click()
+    offline = page.locator('[data-device-id="plug-3"]')
+    expect(offline).to_have_class(re.compile(r"\bis-unavailable\b"))
+    expect(offline.locator(".action-row-meta-text")).to_have_text("Not reachable right now")
+    expect(offline.locator(".toggle")).to_have_count(0)
+    expect(offline).not_to_contain_text("devices.json")
+    expect(page.get_by_test_id("plugs-offline-toggle")).to_have_attribute("aria-expanded", "true")
+
+    # The choice persists across a reload.
+    page.reload(wait_until="domcontentloaded")
+    page.locator("#tabIot").click()
+    expect(page.locator('[data-device-id="plug-3"]')).to_be_visible()
 
 
-def test_default_view_shows_no_ip_adapters(
+def test_no_ip_adapters_fold_with_the_offline_plugs(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs_with_no_ip: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
-    """By default source-visible no-IP adapters render with an unavailable reason."""
+    """A no-IP adapter is one more unreachable plug: the Offline row replaced
+    the Reachable only toggle (#884), and the setup hint stays off the row."""
     _boot_plugs(
         page, base_url, sample_units, sample_plugs_with_no_ip,
         mock_api, mock_energy, mock_tuya,
     )
 
+    expect(page.locator(_DEVICE_ROWS)).to_have_count(3)
+    expect(page.locator("#plugsList .plugs-offline-row")).to_contain_text("2 plugs not reachable")
+    page.get_by_test_id("plugs-offline-toggle").click()
+    expect(page.locator(_DEVICE_ROWS)).to_have_count(5)
     no_ip = page.locator('[data-device-id="plug-noip"]')
-    expect(no_ip).to_be_visible()
-    # Compact status word in the row; the full reason lives in the hover title.
-    note = no_ip.locator(".plug-unavailable")
-    expect(note).to_have_text("No IP")
-    expect(note).to_have_attribute("title", re.compile("tinytuya snapshot"))
-    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(5)
-    expect(page.locator("#plugsHiddenCount")).to_be_hidden()
-
-
-def test_reachable_only_toggle_hides_no_ip_adapters(
-    page: Page, base_url: str, sample_units: List[Dict], sample_plugs_with_no_ip: List[Dict],
-    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
-) -> None:
-    """Clicking the toggle hides no-IP adapters; clicking again restores them."""
-    _boot_plugs(
-        page, base_url, sample_units, sample_plugs_with_no_ip,
-        mock_api, mock_energy, mock_tuya,
-    )
-
-    toggle = page.locator('[data-testid="plugs-show-all-toggle"]')
-    expect(toggle).to_be_visible()
-
-    # Default: no-IP visible.
-    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(1)
-
-    # Click "Reachable only" → no-IP hidden.
-    toggle.click()
-    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(4)
-    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(0)
-    expect(page.locator("#plugsHiddenCount")).to_contain_text("1 no-IP hidden")
-
-    # Click again ("Show all devices") → back to 5.
-    toggle.click()
-    expect(page.locator("#plugsList .device-row, #blindsList .device-row")).to_have_count(5)
-    expect(page.locator('[data-device-id="plug-noip"]')).to_have_count(1)
+    expect(no_ip).to_contain_text("Not reachable right now")
+    expect(no_ip).not_to_contain_text("tinytuya")
 
 
 def test_add_device_is_gated_by_a_confirm(
@@ -513,11 +506,13 @@ def test_tuya_dimmer_brightness_slider_round_trips(
         mock_api, mock_energy, mock_tuya,
     )
 
-    # The dimmer row carries the Elgato row's Brightness slider (#870),
-    # wrapping onto its own line, at the device's current level.
+    # The dimmer's Brightness slider (#870) is in its light sheet (#884), at
+    # the device's current level.
     row = page.locator('#lightsList [data-device-id="light-1"]')
     expect(row).to_have_class(re.compile(r"\blight-row\b"))
-    number = row.locator(".light-number")
+    row.locator(".action-row-main").click()
+    expect(page.locator("#lightSheet")).to_be_visible()
+    number = page.locator("#lightSheetControls .light-number")
     expect(number).to_have_value("40")
     assert_no_horizontal_overflow(page)
 
@@ -527,4 +522,5 @@ def test_tuya_dimmer_brightness_slider_round_trips(
         number.fill("70")
         number.press("Enter")
     assert request.value.post_data_json == {"brightness": 70}
-    expect(page.locator('#lightsList [data-device-id="light-1"] .light-number')).to_have_value("70")
+    expect(page.locator("#lightSheetControls .light-number")).to_have_value("70")
+    expect(row.locator(".action-row-meta-text")).to_have_text("Off")

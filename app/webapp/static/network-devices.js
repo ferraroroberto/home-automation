@@ -53,7 +53,7 @@ import { detailModal } from './detail-modal.js';
 
 // Mirrors src.network_client._WEAK_SIGNAL_PCT — a wireless client below this is
 // counted in the "Weak" chip and dimmed in the list.
-const WEAK_SIGNAL_PCT = 40;
+export const WEAK_SIGNAL_PCT = 40;
 // Device-list group order + display labels (wireless bands first, then wired).
 const GROUPS = [
   { key: '5GHz', label: '5 GHz' },
@@ -210,7 +210,7 @@ function bandLabel(d) {
 // `ping_reachable`. A confirmed device promotes into the live view too, with
 // its own marker (buildDeviceRow below) so it reads as probe-confirmed rather
 // than AP/router-confirmed.
-function hasLiveLink(d) {
+export function hasLiveLink(d) {
   return d.online !== false && (d.signal != null || d.conn_type === 'wired' || d.ping_reachable === true);
 }
 

@@ -427,6 +427,24 @@
       <path d="M9.09 9a3 3 0 1 1 5.83 1c0 2-3 3-3 3" />
       <path d="M12 17h.01" />
     </symbol>
+    <symbol id="i-blinds" viewBox="0 0 24 24" fill="none">
+      <path d="M3 3h18" /><path d="M20 7H8" /><path d="M20 11H8" /><path d="M10 19h10" />
+      <path d="M8 15h12" /><path d="M4 3v14" /><circle cx="4" cy="19" r="2" />
+    </symbol>
+    <symbol id="i-server" viewBox="0 0 24 24" fill="none">
+      <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+      <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+      <line x1="6" x2="6.01" y1="6" y2="6" /><line x1="6" x2="6.01" y1="18" y2="18" />
+    </symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none">
+      <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+      <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+      <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+      <path d="m2 2 20 20" />
+    </symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24" fill="none">
+      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+    </symbol>
   </svg>
 
   <!-- Floating bottom-tab nav on mobile / installed PWA; a sticky top segmented
@@ -527,12 +545,11 @@
            Mode + vanes still live in the AC tab's per-unit detail modal. -->
       <section id="acSummary" class="card action-list ac-summary" aria-label="AC summary"></section>
 
-      <!-- Plug summary (informative) — the same totals as the Plugs tab. Loaded
-           once on Home entry; live control stays on the Plugs tab (issue #72).
-           Single line at weather-tile height (#253): Plugs icon + label + total,
-           On/Off counts, then total live wattage hard-right (no "Live" label —
-           a total wattage is self-evident). The Plugs-tab summary (#plugsStats)
-           keeps its full stacked grid. -->
+      <!-- Plug summary (informative) — the same totals as the Devices tab's
+           Power card. Loaded once on Home entry; live control stays on Devices
+           (issue #72). Single line at weather-tile height (#253): Plugs icon +
+           label + total, On/Off counts, then total live wattage hard-right (no
+           "Live" label — a total wattage is self-evident). -->
       <section id="homePlugsStats" class="card plugs-summary plugs-summary-line" aria-label="Plug summary" hidden>
         <div class="plugs-line">
           <span class="plugs-line-identity">
@@ -578,95 +595,6 @@
           </div>
         </div>
       </section>
-
-      <!-- Home Assistant consumes the existing neutral VM tile in-place and
-           expands it into Voice PE rooms + push-to-talk (issue #239). Closed by
-           default; detailed HA polling runs only while this disclosure is open. -->
-      <details id="homeAssistantCard" class="card card--collapsible ha-card" aria-label="Home Assistant">
-        <!-- The summary is read-only status (#461, #805): live status text plus
-             the chevron, nothing tappable inside it (design rule LAYOUT-05).
-             The VM power switch is the first row of the body, so switching the
-             VM is open-the-card then tap — two taps by design. -->
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-house"></use></svg>
-            <h3 class="collapse-title">Home Assistant</h3>
-            <span id="homeAssistantSummaryState" class="muted small">Reading status…</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-
-        <div class="card-control-row">
-          <span>VM power</span>
-          <button id="homeVmToggle" type="button" class="toggle vm-toggle" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
-            <span class="knob"></span><span class="toggle-label">OFF</span>
-          </button>
-        </div>
-
-        <details id="haSatellitesCard" class="ha-subsection" aria-label="Voice satellites">
-          <summary class="collapse-summary">
-            <span class="collapse-main">
-              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-satellite-dish"></use></svg>
-              <h3 class="collapse-title">Voice satellites</h3>
-            </span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </summary>
-          <div class="ha-subsection-body">
-            <div id="haSatellitesList" class="ha-satellite-list" aria-live="polite"></div>
-            <p id="haSatellitesNote" class="muted small ha-note">Open to load Home Assistant rooms.</p>
-          </div>
-        </details>
-
-        <!-- Hidden until the first interaction arrives (#805): an always-empty box
-             with no control in it offered nothing to do. -->
-        <details id="haInteractionsCard" class="ha-subsection" aria-label="Recent interactions" hidden>
-          <summary class="collapse-summary">
-            <span class="collapse-main">
-              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
-              <h3 class="collapse-title">Recent interactions</h3>
-            </span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </summary>
-          <div class="ha-subsection-body">
-            <div id="haInteractionsList" class="ha-interaction-list"></div>
-          </div>
-        </details>
-
-
-        <!-- Home Assistant capabilities guide (#239, restructured in #461 from a
-             modal into a subsection): static, user-facing help for the three
-             shipped workflows. Shares the voice-group classes with the cheat
-             sheet below so the two reference sections read identically. -->
-        <details id="haHelpCard" class="ha-subsection" aria-label="What can I do?">
-          <summary class="collapse-summary">
-            <span class="collapse-main">
-              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
-              <h3 class="collapse-title">What can I do?</h3>
-            </span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </summary>
-          <div class="ha-subsection-body">
-            <section class="voice-group">
-              <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h4>
-              <p class="voice-group-summary muted small">Check each Home Assistant room, whether its Voice satellite is online, what it is doing, and its current speaker volume.</p>
-            </section>
-            <section class="voice-group">
-              <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h4>
-              <p class="voice-group-summary muted small">Tap that room’s microphone, speak, then tap Stop. You will see the transcript while you talk; the final text is announced through that room’s satellite.</p>
-            </section>
-            <section class="voice-group">
-              <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h4>
-              <p class="voice-group-summary muted small">See what Home Assistant heard, which local or fallback intent handled it, what action ran, and the spoken response.</p>
-              <ul class="voice-group-notes muted small">
-                <li>Room and satellite names are owned in Home Assistant; change them there.</li>
-                <li>Only one microphone records at a time. Push-to-talk announces transcribed text, not the original voice recording or an assistant command.</li>
-                <li>Recent interactions are best-effort and are collected only while this webapp is running.</li>
-              </ul>
-            </section>
-          </div>
-        </details>
-
-      </details>
 
       <!-- Wake alarms & timers (issue #304) — Alexa-style alarms/timers that
            ring/notify at a set time. Distinct from the RISCO "Alarm controls"
@@ -975,13 +903,11 @@
     </section>
 
     <!-- =============================== IOT =============================== -->
-    <!-- IoT: every local device on one surface (issue #136) — Smart Life / Tuya
-         plugs and blinds, Elgato lights, the UPS tile, and power notifications.
-         Lights folded in here from their own top-level tab: they are local
-         device controls like the rest, and seven peer tabs was more navigation
-         weight than a phone PWA should carry. Cloud-free — driven by local
-         devices.json and LAN reads only. The empty/error note guides toward
-         refreshing devices.json (never the cloud). -->
+    <!-- Devices (data-tab 'iot'): every local device on one surface (issue
+         #136), on the shared system since #884 (Step 6/8 of #872): the Power
+         glance card, then Lights, Blinds, Plugs and Circuits as open groups on
+         the shared row, then Home Assistant (from Home) and Network (from
+         Settings). Cloud-free: local devices.json and LAN reads only. -->
     <section id="paneIot" class="pane" role="tabpanel" aria-labelledby="tabIot" aria-label="Devices" hidden>
       <div class="card home-head page-head">
         <h2 class="home-title">
@@ -998,198 +924,196 @@
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
         </button>
       </div>
-      <section id="upsTile" class="card ups-tile ups-tile-compact" aria-label="UPS status" hidden></section>
-
-      <!-- Summary: total devices · on · off · live consumption (reachable
-           metered). Computed from state.plugs; hidden until devices load. -->
-      <section id="plugsStats" class="card plugs-summary plugs-summary-actions" aria-label="Plug summary" hidden>
-        <div class="plugs-summary-row">
-          <div class="plugs-stats">
-            <div class="plugs-stat">
-              <span class="plugs-stat-label">Devices</span>
-              <span class="plugs-stat-value" id="plugStatTotal">—</span>
-            </div>
-            <div class="plugs-stat">
-              <span class="plugs-stat-label">On</span>
-              <span class="plugs-stat-value" id="plugStatOn">—</span>
-            </div>
-            <div class="plugs-stat">
-              <span class="plugs-stat-label">Off</span>
-              <span class="plugs-stat-value" id="plugStatOff">—</span>
-            </div>
-            <div class="plugs-stat">
-              <span class="plugs-stat-label">Live</span>
-              <span class="plugs-stat-value" id="plugStatWatts">—</span>
-            </div>
-          </div>
-          <div class="plugs-toolbar">
-            <button id="plugsPair" type="button" class="range-tab" data-testid="plugs-pair">Add</button>
-            <button id="plugsToggleBtn" type="button" class="range-tab" data-testid="plugs-show-all-toggle">Reachable only</button>
-            <button id="plugsHiddenToggle" type="button" class="range-tab" data-testid="plugs-show-hidden-toggle" hidden>Show hidden</button>
-            <span id="plugsHiddenCount" class="muted small plugs-hidden-count" hidden></span>
-          </div>
+      <!-- The glance card (#884, Step 6/8 of #872): what is on and drawing
+           power? The live plug total, the biggest draws, and the UPS as a row
+           whose sheet also holds the PC-fleet shutdown. -->
+      <section id="powerCard" class="card action-list devices-group power-glance" aria-labelledby="powerTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+          <h3 id="powerTitle" class="group-title">Power</h3>
+          <span id="powerOnCount" class="group-meta"></span>
         </div>
+        <div id="powerNow" class="power-now" hidden>
+          <span id="powerWatts" class="power-watts">—</span>
+          <span id="powerTop" class="power-top"></span>
+        </div>
+        <ul id="upsRows" class="action-rows group-links"></ul>
       </section>
       <div id="plugsFeedback" class="plugs-feedback" role="status" hidden></div>
-      <!-- Plugs and blinds are split into two collapsible cards (collapsed by
-           default), each rendering its devices as a compact divider-separated
-           row list — the same low-chrome style as the Network "Attached
-           devices" list, not chunky sub-cards. -->
-      <details class="card card--collapsible device-list-card" id="plugsCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
-            <h3 class="collapse-title">Plugs</h3>
-            <span id="plugsCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="device-list-body">
-          <section id="plugsList" class="device-list" aria-label="Plugs"></section>
+
+      <!-- Lights: the Elgato lights and the Tuya lights from GET /api/tuya
+           (#181) on the shared row; brightness and warmth live in the light
+           sheet (decision 5 of #872). The group verbs sit in the footer. -->
+      <section id="lightsCard" class="card action-list devices-group" aria-labelledby="lightsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
+          <h3 id="lightsTitle" class="group-title">Lights</h3>
+          <span id="lightsCount" class="group-meta" hidden></span>
         </div>
-      </details>
-
-      <!-- Circuits (issue #25): per-breaker power from the Athom BL0906 CT-clamp
-           meters, sitting right after Plugs because it answers the same "what is
-           drawing power" question one level deeper — a plug measures an
-           appliance, a clamp measures a whole breaker.
-
-           Meters are discovered over mDNS with nothing to register, and EVERY
-           channel a meter has is listed whether or not a clamp is fitted, so a
-           clamp added later starts reading with no code change and no config
-           edit. Tapping a channel opens the rename + sign-flip dialog.
-
-           Each meter is its own <details> group (issue #619), rendered by
-           circuits.js: tap the header to fold it away, tap its name to rename.
-           There is no Refresh button — the card re-polls on its own, and a
-           newly-joined meter appears when the mDNS discovery TTL lapses. -->
-      <details class="card card--collapsible device-list-card" id="circuitsCard">
-        <!-- "Show hidden" lives in the body toolbar, not the summary (#779,
-             #805: nothing tappable lives in a summary). It is a card-level
-             filter, only rendered once something is hidden. -->
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-gauge"></use></svg>
-            <h3 class="collapse-title">Circuits</h3>
-            <span id="circuitsCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <span class="security-zones-tools">
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </span>
-        </summary>
-        <div class="device-list-body">
-          <!-- Filters sit in the body, never the summary (#779, LAYOUT-05). -->
-          <div class="card-toolbar">
-            <button id="circuitsHiddenToggle" type="button" class="range-tab" data-testid="circuits-show-hidden-toggle" hidden>Show hidden</button>
-          </div>
-          <section id="circuitsList" class="device-list" aria-label="Circuits" aria-live="polite"></section>
-          <p id="circuitsNote" class="muted small lights-note" role="status" hidden></p>
+        <div id="lightsList" class="device-rows" aria-label="Lights" aria-live="polite"></div>
+        <p id="lightsNote" class="muted small group-note" role="status" hidden></p>
+        <div class="group-foot">
+          <button id="lightsAllOn" type="button" class="group-foot-btn" data-testid="lights-all-on">All on</button>
+          <button id="lightsAllOff" type="button" class="group-foot-btn" data-testid="lights-all-off">All off</button>
+          <button id="lightsRefresh" type="button" class="group-foot-btn" data-testid="lights-refresh">Refresh</button>
         </div>
-      </details>
+      </section>
 
-      <!-- Lights — Elgato lights plus the Tuya lights from GET /api/tuya
-           (#181), a peer of the Plugs/Blinds row lists, sitting right after
-           Plugs since both are on/off power devices. Its bulk actions live in
-           the card body rather than a pane toolbar, so they stay scoped to
-           lights. -->
-      <details class="card card--collapsible device-list-card" id="lightsCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
-            <h3 class="collapse-title">Lights</h3>
-            <span id="lightsCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="device-list-body">
-          <div class="lights-toolbar" aria-label="Light group controls">
-            <button id="lightsRefresh" type="button" class="range-tab" data-testid="lights-refresh">Refresh</button>
-            <button id="lightsAllOn" type="button" class="range-tab" data-testid="lights-all-on">All on</button>
-            <button id="lightsAllOff" type="button" class="range-tab" data-testid="lights-all-off">All off</button>
-          </div>
-          <section id="lightsList" class="device-list" aria-label="Lights" aria-live="polite"></section>
-          <p id="lightsNote" class="muted small lights-note" role="status" hidden></p>
+      <!-- Blinds: one-tap Up · Stop · Down on every row as a segmented verb
+           (decision 6 of #872), the house-wide move as the first row, and the
+           daily schedule plus the alarm pairing (#871, #875) in a sheet. -->
+      <section id="blindsCard" class="card action-list devices-group" aria-labelledby="blindsTitle" hidden>
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-blinds"></use></svg>
+          <h3 id="blindsTitle" class="group-title">Blinds</h3>
+          <span id="blindsCount" class="group-meta" hidden></span>
         </div>
-      </details>
-
-      <details class="card card--collapsible device-list-card" id="blindsCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
-            <h3 class="collapse-title">Blinds</h3>
-            <span id="blindsCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="device-list-body">
-          <!-- House-wide group moves (#181), the Lights card's bulk-row shape.
-               The commands go out in parallel so the blinds start together. -->
-          <div class="lights-toolbar" aria-label="Blind group controls">
-            <button id="blindsAllUp" type="button" class="range-tab" data-testid="blinds-all-up">All up</button>
-            <button id="blindsAllStop" type="button" class="range-tab" data-testid="blinds-all-stop">All stop</button>
-            <button id="blindsAllDown" type="button" class="range-tab" data-testid="blinds-all-down">All down</button>
-          </div>
-          <section id="blindsList" class="device-list" aria-label="Blinds"></section>
-          <!-- Daily up/down schedule (#871): the alarm-schedule summary rows +
-               staged edit dialog (denseListEditor), fired server-side by
-               app/webapp/blind_schedules.py. -->
-          <div class="blind-schedules-body">
-            <h4 class="net-group-head">Schedule</h4>
-            <div id="blindSchedules" class="alarm-schedule-list"></div>
-            <p id="blindSchedulesNote" class="muted small" hidden></p>
-            <button id="blindScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
-            <!-- Alarm pairing (#875): the one visible switch. Fired from the
-                 presence automation after the panel confirms the action. -->
-            <h4 class="net-group-head">Alarm</h4>
-            <div class="notify-toggles">
-              <div class="notify-toggle">
-                <span>Follow the automatic alarm</span>
-                <button id="blindsFollowAlarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Follow the automatic alarm">
-                  <span class="knob"></span><span class="toggle-label">OFF</span>
-                </button>
-              </div>
+        <ul class="action-rows">
+          <li class="action-row blinds-all-row">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-blinds"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">All blinds</span>
+                <span class="action-row-meta"><span id="blindsAllMeta" class="action-row-meta-text"></span></span>
+              </span>
             </div>
-            <p class="muted small blind-alarm-note">
-              All down when everyone has left and the alarm arms full. All up when the first person arrives and it disarms, in daytime only. Kids home (perimeter) leaves them up.
-            </p>
-          </div>
+            <div class="segmented segmented--row action-row-trail" role="group" aria-label="Move all blinds">
+              <button id="blindsAllUp" type="button" class="segmented-item" data-testid="blinds-all-up" title="All up" aria-label="All up"><svg class="icon" aria-hidden="true"><use href="#i-chevron-up"></use></svg></button>
+              <button id="blindsAllStop" type="button" class="segmented-item" data-testid="blinds-all-stop" title="All stop" aria-label="All stop"><svg class="icon blind-stop-icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
+              <button id="blindsAllDown" type="button" class="segmented-item" data-testid="blinds-all-down" title="All down" aria-label="All down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+            </div>
+          </li>
+        </ul>
+        <div id="blindsList" class="device-rows" aria-label="Blinds"></div>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="blindSchedulesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Schedule</span>
+                <span class="action-row-meta"><span id="blindSchedulesMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Plugs: one row each with the switch; the unreachable ones fold into
+           one Offline row, and hidden ones stay out until Show hidden. -->
+      <section id="plugsCard" class="card action-list devices-group" aria-labelledby="plugsTitle" hidden>
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
+          <h3 id="plugsTitle" class="group-title">Plugs</h3>
+          <span id="plugsCount" class="group-meta" hidden></span>
         </div>
-      </details>
+        <div id="plugsList" class="device-rows" aria-label="Plugs"></div>
+        <div class="group-foot">
+          <button id="plugsHiddenToggle" type="button" class="group-foot-btn" data-testid="plugs-show-hidden-toggle" aria-controls="plugsList" hidden>Show hidden</button>
+          <button id="plugsPair" type="button" class="group-foot-btn" data-testid="plugs-pair">Add device</button>
+        </div>
+      </section>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
 
+      <!-- Circuits (issue #25): per-breaker power from the Athom BL0906
+           CT-clamp meters, one row per clamp with its watts. Meters are found
+           over mDNS and EVERY channel is listed, clamp fitted or not, so a
+           clamp added later just starts reading. A clamp row opens its
+           rename / sign-flip / hide dialog; a meter row its reference data. -->
+      <section id="circuitsCard" class="card action-list devices-group" aria-labelledby="circuitsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-gauge"></use></svg>
+          <h3 id="circuitsTitle" class="group-title">Circuits</h3>
+          <span id="circuitsCount" class="group-meta" hidden></span>
+        </div>
+        <div id="circuitsList" class="device-rows" aria-label="Circuits" aria-live="polite"></div>
+        <p id="circuitsNote" class="muted small group-note" role="status" hidden></p>
+        <div class="group-foot">
+          <button id="circuitsHiddenToggle" type="button" class="group-foot-btn" data-testid="circuits-show-hidden-toggle" aria-controls="circuitsList" hidden>Show hidden</button>
+        </div>
+      </section>
 
-      <!-- PC fleet: UPS-triggered graceful shutdown of the fleet PCs (issue
-           #498). Collapsed by default, peer of the UPS Notifications card. The
-           machine roster is read live from the hub and rendered by pc-fleet.js;
-           the hub host always shuts down last over its local path and carries no
-           include toggle. Supersedes the old "auto-shutdown" notify toggle. -->
-      <details class="card card--collapsible security-card pc-fleet-card" aria-label="PC fleet">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-cpu"></use></svg>
-            <h3 class="collapse-title">PC fleet</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <p class="muted small security-note">
-          Gracefully shut down the fleet PCs when the UPS runtime runs critically low. The hub host is shut down last over its own local path.
-        </p>
-        <div class="notify-toggles">
-          <div class="notify-toggle">
-            <span>Shut down fleet on low UPS runtime</span>
-            <button id="pcFleetEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Shut down fleet on low UPS runtime">
+      <!-- Home Assistant (decision 1 of #872, moved from Home): the VM's power
+           switch on its row (#240, Stop is confirm-gated), the voice
+           satellites with push-to-talk and the recent interactions (#239)
+           each one tap away in a sheet. -->
+      <section id="homeAssistantCard" class="card action-list devices-group ha-card" aria-labelledby="haTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-server"></use></svg>
+          <h3 id="haTitle" class="group-title">Home Assistant</h3>
+        </div>
+        <ul class="action-rows">
+          <li class="action-row ha-vm-row">
+            <div class="action-row-main has-avatar">
+              <span id="haVmAvatar" class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Virtual machine</span>
+                <span class="action-row-meta"><span id="homeAssistantSummaryState" class="action-row-meta-text">Reading status…</span></span>
+              </span>
+            </div>
+            <button id="homeVmToggle" type="button" class="toggle vm-toggle action-row-trail" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
               <span class="knob"></span><span class="toggle-label">OFF</span>
             </button>
-          </div>
-          <label class="notify-toggle pc-fleet-threshold-row">
-            <span>Runtime-remaining threshold (min)</span>
-            <input id="pcFleetThreshold" type="number" min="1" max="240" step="1" class="input-native" value="15" aria-label="Runtime-remaining threshold in minutes">
-          </label>
+          </li>
+        </ul>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="haSatellitesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Voice satellites</span>
+                <span class="action-row-meta"><span id="haSatellitesMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <!-- Hidden until the first interaction arrives (#805): an always-empty
+               sheet offered nothing to do. -->
+          <li id="haInteractionsCard" class="action-row" hidden>
+            <button id="haInteractionsOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Recent interactions</span>
+                <span class="action-row-meta"><span id="haInteractionsMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Network (decision 7 of #872, moved from Settings): the internet and
+           the attached devices as rows; every network tool (speed test, access
+           point and router, Wi-Fi, walk test, attached devices, address
+           reservations) is in the Network sheet. -->
+      <section id="networkCard" class="card action-list devices-group" aria-labelledby="networkTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+          <h3 id="networkTitle" class="group-title">Network</h3>
         </div>
-        <p id="pcFleetCaption" class="muted small pc-fleet-caption">Trigger when UPS runtime-remaining ≤ 15 min.</p>
-        <div id="pcFleetMachines" class="pc-fleet-machines" aria-label="Fleet machines" aria-live="polite"></div>
-        <p id="pcFleetNote" class="muted small security-note" role="status" hidden></p>
-      </details>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="networkInternetOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span id="networkInternetAvatar" class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-globe"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Internet</span>
+                <span class="action-row-meta"><span id="networkInternetMeta" class="action-row-meta-text">Reading…</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button id="networkDevicesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Attached devices</span>
+                <span class="action-row-meta"><span id="networkDevicesMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
     </section>
 
     <!-- ============================= SETTINGS =========================== -->
@@ -1212,9 +1136,6 @@
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
       </div>
-      <!-- The network section carries its own data-state (#779): a network
-           read in flight or failed must hide only these cards, never the
-           configuration cards that share the Settings pane. -->
       <!-- Text size (#820): the vendored text-size control (text-size.html). The
            zoom lock fails WCAG 1.4.4 without it; main.js binds it with the
            home-automation prefix, the boot script stamps it before first paint. -->
@@ -1227,242 +1148,6 @@
         </nav>
         <p class="muted small settings-text-size-hint">Applies to this device only. Buttons and spacing stay the same size.</p>
       </section>
-      <div id="settingsNetwork" class="settings-network">
-      <div id="netFeedback" class="network-feedback" role="status" hidden></div>
-      <!-- Internet-health tile — big online/offline word, latency + loss
-           caption, last speed-test result, and the opt-in "Run speed test". -->
-      <section class="card net-internet" aria-label="Internet health">
-        <div class="net-internet-head">
-          <span class="net-internet-label"><svg class="icon title-icon" aria-hidden="true"><use href="#i-globe"></use></svg>Internet</span>
-          <span id="netInternetStatus" class="net-internet-status">— no data</span>
-        </div>
-        <p id="netInternetMeta" class="muted small net-internet-meta">— no data</p>
-        <p id="netSpeedResult" class="net-speed-result" hidden>—</p>
-        <div id="netTrends" class="net-trends" data-testid="net-trends" hidden></div>
-        <button id="netSpeedBtn" type="button" class="big-btn net-speed-btn" data-testid="net-speedtest">
-          <svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg>Run speed test
-        </button>
-        <!-- Opt-in nightly run (#840), off until switched on. The 03:00 here is
-             NIGHTLY_HOUR in src/speedtest_prefs.py. -->
-        <div class="notify-toggles net-nightly">
-          <div class="notify-toggle">
-            <span>Nightly speed test</span>
-            <button id="netNightlyToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Nightly speed test" data-testid="net-nightly">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <p class="muted small net-nightly-hint">Opt-in. Runs once around 03:00 and uses real bandwidth.</p>
-        </div>
-      </section>
-
-      <!-- Network-quality alerts are intentionally not surfaced as a separate
-           strip here; weak clients are already counted and highlighted below,
-           and a new/offline device is badged on its own row in the inventory. -->
-
-      <!-- AP + router health row. The router Reboot stays disabled with a
-           "coming soon" title until Phase 3 wires reboot_router(). -->
-      <section class="net-health-row" aria-label="Devices health">
-        <section class="card net-health-card" id="netApCard">
-          <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-wifi"></use></svg><span id="netApName">Access point</span></h3>
-          <p id="netApMeta" class="muted small net-health-meta">— no data</p>
-          <button id="netApReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-ap-reboot" hidden>
-            <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot AP
-          </button>
-        </section>
-        <section class="card net-health-card" id="netRouterCard">
-          <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-router"></use></svg><span id="netRouterName">Router</span></h3>
-          <p id="netRouterMeta" class="muted small net-health-meta">— no data</p>
-          <button id="netRouterReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-router-reboot" disabled
-                  title="Router login required to reboot">
-            <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot
-          </button>
-        </section>
-      </section>
-
-      <details class="card card--collapsible net-wifi-card">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
-            <h3 class="collapse-title">Wi-Fi diagnostics</h3>
-            <span id="netWifiHiddenCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <span class="net-wifi-summary">
-            <span id="netWifiStatus" class="net-wifi-status">—</span>
-            <span id="netWifiSummary" class="muted small">—</span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </span>
-        </summary>
-        <div class="net-wifi-body">
-          <div class="card-toolbar">
-            <button id="netWifiHiddenToggle" type="button" class="range-tab" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
-          </div>
-          <p id="netWifiMeta" class="muted small net-wifi-meta">—</p>
-          <div id="netWifiRecommendations" class="net-wifi-recommendations" hidden></div>
-          <div class="net-wifi-charts" aria-label="Wi-Fi channel charts">
-            <section class="net-wifi-chart-card">
-              <h4 class="net-wifi-chart-title">2.4 GHz</h4>
-              <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart24"></canvas></div>
-            </section>
-            <section class="net-wifi-chart-card">
-              <h4 class="net-wifi-chart-title">5 GHz</h4>
-              <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart5"></canvas></div>
-            </section>
-          </div>
-          <section id="netWifiList" class="net-wifi-list" aria-label="Visible Wi-Fi radios"></section>
-          <p id="netWifiNote" class="muted small net-wifi-note" hidden></p>
-        </div>
-      </details>
-
-      <!-- Wi-Fi walk test (issue #547). The card above scans from the server PC,
-           so it only describes coverage where that PC sits. This one measures
-           coverage where *you* are: no browser on any platform exposes Wi-Fi
-           telemetry, so the phone is the probe and the AP/router is the meter —
-           you pick this device once, then record a sample per room. -->
-      <details class="card card--collapsible net-survey-card" id="netSurveyCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
-            <h3 class="collapse-title">Walk test</h3>
-          </span>
-          <span class="net-wifi-summary">
-            <span id="netSurveyStatus" class="muted small">—</span>
-            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-          </span>
-        </summary>
-        <div id="netSurveyBody" class="net-survey-body">
-          <p class="muted small net-survey-hint">
-            Your phone can’t scan Wi-Fi — no browser exposes it, on any platform. So the phone is the
-            probe and the access point is the meter: pick this device once, then walk the house and
-            record a sample per room.
-          </p>
-
-          <div id="netSurveyDeviceRow" class="net-survey-device">
-            <svg class="icon net-survey-device-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
-            <span id="netSurveyDeviceName" class="net-survey-device-name">No device picked</span>
-            <button id="netSurveyDevicePick" type="button" class="range-tab net-survey-action" data-testid="net-survey-pick">Pick device</button>
-          </div>
-
-          <div id="netSurveyForm" class="net-survey-form">
-            <input id="netSurveyRoom" type="text" class="input-native net-survey-room" list="netSurveyRoomList"
-                   placeholder="Room (e.g. Kitchen)" aria-label="Room" autocomplete="off"
-                   data-testid="net-survey-room">
-            <datalist id="netSurveyRoomList"></datalist>
-            <button id="netSurveyRecord" type="button" class="range-tab net-survey-action net-survey-record"
-                    data-testid="net-survey-record">Record here</button>
-          </div>
-          <p id="netSurveyProgress" class="muted small net-survey-progress" role="status" aria-live="polite" hidden></p>
-
-          <section id="netSurveyRooms" class="net-survey-rooms" aria-label="Walk test results"></section>
-          <p id="netSurveyNote" class="muted small net-survey-note" hidden></p>
-        </div>
-      </details>
-
-      <details class="card card--collapsible net-devices-card">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
-            <h3 class="collapse-title">Attached devices</h3>
-            <span id="netHiddenCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="net-devices-body">
-          <!-- Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N — filled in JS. -->
-          <div id="netStats" class="net-stats" aria-label="Device counts" hidden></div>
-
-          <div class="net-devices-head">
-            <div class="net-sort" role="group" aria-label="Sort attached devices">
-              <span class="net-sort-label">Order</span>
-              <button id="netSortAlpha" type="button" class="net-sort-btn active" data-sort="az">A-Z</button>
-              <button id="netSortSignal" type="button" class="net-sort-btn" data-sort="signal">Signal</button>
-            </div>
-            <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Offline hidden</button>
-            <button id="netHiddenToggle" type="button" class="range-tab" data-testid="net-show-hidden" hidden>Show hidden</button>
-          </div>
-
-          <!-- Group by: the user's own device groups (issue #513, the default —
-               #519) or the original radio-band view. Persisted in localStorage. -->
-          <div class="net-devices-groupby">
-            <div class="net-sort" role="group" aria-label="Group attached devices">
-              <span class="net-sort-label">Group</span>
-              <button id="netGroupByGroup" type="button" class="net-sort-btn active" data-grouping="group" data-testid="net-group-custom">My groups</button>
-              <button id="netGroupByBand" type="button" class="net-sort-btn" data-grouping="band" data-testid="net-group-band">Band</button>
-            </div>
-          </div>
-
-          <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz — or by
-               the user's own groups — with the selected sort applied inside each
-               group. Built in network-devices.js. -->
-          <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
-          <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
-        </div>
-      </details>
-
-      <!-- DHCP reservation plan (issue #170 + #176) — a MAC→IP assignment grouped
-           by category, marking each row reserved / create / change against the
-           router's bindings. Lazy-loads on open. "Apply plan" is a confirm-gated
-           write of the create/change rows to the router (never automatic). -->
-      <details class="card card--collapsible net-dhcp-card" id="netDhcpCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-router"></use></svg>
-            <h3 class="collapse-title">DHCP reservation plan</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="net-dhcp-body">
-          <div class="net-dhcp-head">
-            <p class="muted small net-dhcp-intro">Mark reservations to remove and tick suggestions to add, then apply everything at once. The router holds 10 reservations.</p>
-            <div class="net-dhcp-actions">
-              <button id="netDhcpRefresh" type="button" class="range-tab" data-testid="net-dhcp-refresh">
-                <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh
-              </button>
-            </div>
-          </div>
-          <div id="netDhcpWarnings" class="net-dhcp-warnings" role="status" hidden></div>
-
-          <!-- On the router now (#176): the current reservations, listed even when
-               their device is offline; tick one to stage its removal (frees a slot). -->
-          <section id="netDhcpExistingWrap" class="net-dhcp-existing-wrap" hidden>
-            <h4 class="net-group-head" id="netDhcpExistingHead">On the router now</h4>
-            <div id="netDhcpExisting" class="net-dhcp-existing" aria-label="Reservations on the router"></div>
-          </section>
-
-          <!-- Suggested adds, unassigned (assignable) + randomised (un-reservable). -->
-          <section id="netDhcpPlan" class="net-dhcp-plan" aria-label="DHCP reservation plan"></section>
-
-          <!-- Manual reservation (#176): stage a binding for a device the rules
-               can't place, or one not in the live inventory at all. -->
-          <details class="net-dhcp-manual" id="netDhcpManual">
-            <summary class="net-dhcp-manual-summary">Add a reservation manually</summary>
-            <div class="net-dhcp-manual-form">
-              <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="Hardware address (AA:BB:CC:DD:EE:FF)" aria-label="Hardware address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
-              <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="Network address (192.168.0.x)" aria-label="Network address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
-              <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" aria-label="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
-              <button id="netDhcpManualAdd" type="button" class="range-tab net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
-                <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> Stage
-              </button>
-            </div>
-          </details>
-          <div id="netDhcpManualStaged" class="net-dhcp-manual-staged"></div>
-
-          <!-- One Apply for the whole staged batch (#176): removes first, then adds. -->
-          <div id="netDhcpApplyBar" class="net-dhcp-applybar" hidden>
-            <span id="netDhcpBudget" class="net-dhcp-budget"></span>
-            <div class="net-dhcp-applybar-actions">
-              <button id="netDhcpClear" type="button" class="range-tab net-dhcp-clear" data-testid="net-dhcp-clear">Clear</button>
-              <button id="netDhcpApply" type="button" class="range-tab net-dhcp-apply" data-testid="net-dhcp-apply">
-                <svg class="icon" aria-hidden="true"><use href="#i-router"></use></svg> Apply changes
-              </button>
-            </div>
-          </div>
-
-          <p id="netDhcpNote" class="muted small net-dhcp-note">Open to compute the plan.</p>
-        </div>
-      </details>
-
-      </div>
-
       <!-- ---------------- configuration moved here from the other tabs (#779) -->
       <!-- Notifications (#779): the alarm and UPS Telegram preferences, once
            two cards on two tabs, are one card here — two groups, same
@@ -1786,6 +1471,38 @@
           <div id="voiceLangToggle" class="range-tabs voice-lang-toggle" role="group" aria-label="Filter voice commands by language" hidden></div>
           <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
           <p id="voiceCommandsNote" class="muted small ha-note">Open to load the voice commands.</p>
+        </div>
+      </details>
+
+      <!-- "What can I do?" (#239, moved from the Home Assistant card in #884):
+           what this app does with Home Assistant. Merges with "What can I
+           say?" in Step 8/8 of #872. -->
+      <details id="haHelpCard" class="card card--collapsible settings-card" aria-label="What can I do?">
+        <summary class="collapse-summary">
+          <span class="collapse-main">
+            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
+            <h3 class="collapse-title">What can I do?</h3>
+          </span>
+          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </summary>
+        <div class="settings-card-body">
+          <section class="voice-group">
+            <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h4>
+            <p class="voice-group-summary muted small">Check each Home Assistant room, whether its Voice satellite is online, what it is doing, and its current speaker volume.</p>
+          </section>
+          <section class="voice-group">
+            <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h4>
+            <p class="voice-group-summary muted small">Tap that room’s microphone, speak, then tap Stop. You will see the transcript while you talk; the final text is announced through that room’s satellite.</p>
+          </section>
+          <section class="voice-group">
+            <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h4>
+            <p class="voice-group-summary muted small">See what Home Assistant heard, which local or fallback intent handled it, what action ran, and the spoken response.</p>
+            <ul class="voice-group-notes muted small">
+              <li>Room and satellite names are owned in Home Assistant; change them there.</li>
+              <li>Only one microphone records at a time. Push-to-talk announces transcribed text, not the original voice recording or an assistant command.</li>
+              <li>Recent interactions are best-effort and are collected only while this webapp is running.</li>
+            </ul>
+          </section>
         </div>
       </details>
 
@@ -2623,6 +2340,380 @@
 
       <div class="detail-actions">
         <button id="acScheduleSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- The Devices tab's sheets (#884, Step 6/8 of #872). Each is the shared
+       sheet shell (sheet.js) in the instant model: a change applies as it is
+       made, with a toast, and Done only closes. Renames and other saved
+       edits still open their staged dialog on top. -->
+
+  <!-- UPS: the reading, then the PC-fleet shutdown it drives (#498, moved
+       here from its own Devices card). -->
+  <dialog id="upsSheet" class="detail-dialog ups-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>UPS</h2>
+        <button id="upsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="upsSheetStatus" class="ups-sheet-status"></div>
+      <h3 class="sheet-section-head"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg>Fleet shutdown</h3>
+      <div class="row">
+        <span>Shut down PCs on low runtime</span>
+        <button id="pcFleetEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Shut down fleet on low UPS runtime">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <label class="row pc-fleet-threshold-row">
+        <span>Threshold (min)</span>
+        <input id="pcFleetThreshold" type="number" min="1" max="240" step="1" class="input-native" value="15" aria-label="Runtime-remaining threshold in minutes">
+      </label>
+      <p id="pcFleetCaption" class="muted small pc-fleet-caption">Trigger when UPS runtime-remaining ≤ 15 min.</p>
+      <div id="pcFleetMachines" class="pc-fleet-machines" aria-label="Fleet machines" aria-live="polite"></div>
+      <p id="pcFleetNote" class="muted small security-note" role="status" hidden></p>
+      <p class="muted small detail-hint">The hub host shuts down last. Mains-loss alerts are in Settings › Notifications.</p>
+      <div class="detail-actions">
+        <button id="upsSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- A light (decision 5 of #872): power, brightness and warmth as they
+       change; the name and the device details open the staged dialog. -->
+  <dialog id="lightSheet" class="detail-dialog light-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="lightSheetName">Light</h2>
+        <button id="lightSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="lightSheetOffline" class="muted small detail-hint" hidden>Not reachable right now.</p>
+      <div class="row">
+        <span>Power</span>
+        <button id="lightSheetPower" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <div id="lightSheetControls" class="light-controls"></div>
+      <ul class="action-rows unit-sheet-links">
+        <li class="action-row">
+          <button id="lightSheetEdit" type="button" class="action-row-main unit-sheet-link" aria-haspopup="dialog">
+            <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
+            <span class="action-row-title">Name and details</span>
+            <span id="lightSheetEditMeta" class="unit-sheet-link-value"></span>
+            <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </button>
+        </li>
+      </ul>
+      <div class="detail-actions">
+        <button id="lightSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Blinds › Schedule: the daily up/down entries (#871, dense rows + the
+       staged editor on top) and the alarm pairing switch (#875). -->
+  <dialog id="blindSchedulesSheet" class="detail-dialog security-automation-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Blind schedule</h2>
+        <button id="blindSchedulesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="blindSchedules" class="alarm-schedule-list"></div>
+      <p id="blindSchedulesNote" class="muted small schedule-empty" hidden></p>
+      <button id="blindScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+      <div class="row">
+        <span>Follow the automatic alarm</span>
+        <button id="blindsFollowAlarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Follow the automatic alarm">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <p class="muted small detail-hint blind-alarm-note">All down when everyone leaves and the alarm arms full; all up on the first arrival, in daytime only. Kids home leaves them up.</p>
+      <div class="detail-actions">
+        <button id="blindSchedulesSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Home Assistant › Voice satellites: each room's satellite with its
+       push-to-talk (#239). Read from Home Assistant while it is open. -->
+  <dialog id="haSatellitesSheet" class="detail-dialog ha-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Voice satellites</h2>
+        <button id="haSatellitesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="haSatellitesList" class="ha-satellite-list" aria-live="polite"></div>
+      <p id="haSatellitesNote" class="muted small ha-note">Reading Home Assistant rooms…</p>
+      <p class="muted small detail-hint">Tap Talk, speak, then Stop: the text is announced in that room. One microphone records at a time.</p>
+      <div class="detail-actions">
+        <button id="haSatellitesSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="haInteractionsSheet" class="detail-dialog ha-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Recent interactions</h2>
+        <button id="haInteractionsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="haInteractionsList" class="ha-interaction-list"></div>
+      <p class="muted small detail-hint">Collected only while this app is running.</p>
+      <div class="detail-actions">
+        <button id="haInteractionsSheetDone" type="button" class="detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+  <!-- Devices › Network (decision 7 of #872; in Settings from #779 until
+       #884): internet health and the opt-in speed test, the access point
+       and router with their confirm-gated reboots, Wi-Fi diagnostics, the
+       walk test, the attached devices and the address reservation plan.
+       #networkBody carries its own data-state, so a read in flight or
+       failed hides only these cards. -->
+  <dialog id="networkSheet" class="detail-dialog network-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Network</h2>
+        <button id="networkSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="networkBody" class="network-body">
+        <div id="netFeedback" class="network-feedback" role="status" hidden></div>
+        <!-- Internet-health tile — big online/offline word, latency + loss
+             caption, last speed-test result, and the opt-in "Run speed test". -->
+        <section class="card net-internet" aria-label="Internet health">
+          <div class="net-internet-head">
+            <span class="net-internet-label"><svg class="icon title-icon" aria-hidden="true"><use href="#i-globe"></use></svg>Internet</span>
+            <span id="netInternetStatus" class="net-internet-status">— no data</span>
+          </div>
+          <p id="netInternetMeta" class="muted small net-internet-meta">— no data</p>
+          <p id="netSpeedResult" class="net-speed-result" hidden>—</p>
+          <div id="netTrends" class="net-trends" data-testid="net-trends" hidden></div>
+          <button id="netSpeedBtn" type="button" class="big-btn net-speed-btn" data-testid="net-speedtest">
+            <svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg>Run speed test
+          </button>
+          <!-- Opt-in nightly run (#840), off until switched on. The 03:00 here is
+               NIGHTLY_HOUR in src/speedtest_prefs.py. -->
+          <div class="notify-toggles net-nightly">
+            <div class="notify-toggle">
+              <span>Nightly speed test</span>
+              <button id="netNightlyToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Nightly speed test" data-testid="net-nightly">
+                <span class="knob"></span><span class="toggle-label">OFF</span>
+              </button>
+            </div>
+            <p class="muted small net-nightly-hint">Opt-in. Runs once around 03:00 and uses real bandwidth.</p>
+          </div>
+        </section>
+
+        <!-- Network-quality alerts are intentionally not surfaced as a separate
+             strip here; weak clients are already counted and highlighted below,
+             and a new/offline device is badged on its own row in the inventory. -->
+
+        <!-- AP + router health row. The router Reboot stays disabled with a
+             "coming soon" title until Phase 3 wires reboot_router(). -->
+        <section class="net-health-row" aria-label="Devices health">
+          <section class="card net-health-card" id="netApCard">
+            <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-wifi"></use></svg><span id="netApName">Access point</span></h3>
+            <p id="netApMeta" class="muted small net-health-meta">— no data</p>
+            <button id="netApReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-ap-reboot" hidden>
+              <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot AP
+            </button>
+          </section>
+          <section class="card net-health-card" id="netRouterCard">
+            <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-router"></use></svg><span id="netRouterName">Router</span></h3>
+            <p id="netRouterMeta" class="muted small net-health-meta">— no data</p>
+            <button id="netRouterReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-router-reboot" disabled
+                    title="Router login required to reboot">
+              <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot
+            </button>
+          </section>
+        </section>
+
+        <details class="card card--collapsible net-wifi-card">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+              <h3 class="collapse-title">Wi-Fi diagnostics</h3>
+              <span id="netWifiHiddenCount" class="muted small security-hidden-count" hidden></span>
+            </span>
+            <span class="net-wifi-summary">
+              <span id="netWifiStatus" class="net-wifi-status">—</span>
+              <span id="netWifiSummary" class="muted small">—</span>
+              <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </span>
+          </summary>
+          <div class="net-wifi-body">
+            <div class="card-toolbar">
+              <button id="netWifiHiddenToggle" type="button" class="range-tab" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
+            </div>
+            <p id="netWifiMeta" class="muted small net-wifi-meta">—</p>
+            <div id="netWifiRecommendations" class="net-wifi-recommendations" hidden></div>
+            <div class="net-wifi-charts" aria-label="Wi-Fi channel charts">
+              <section class="net-wifi-chart-card">
+                <h4 class="net-wifi-chart-title">2.4 GHz</h4>
+                <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart24"></canvas></div>
+              </section>
+              <section class="net-wifi-chart-card">
+                <h4 class="net-wifi-chart-title">5 GHz</h4>
+                <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart5"></canvas></div>
+              </section>
+            </div>
+            <section id="netWifiList" class="net-wifi-list" aria-label="Visible Wi-Fi radios"></section>
+            <p id="netWifiNote" class="muted small net-wifi-note" hidden></p>
+          </div>
+        </details>
+
+        <!-- Wi-Fi walk test (issue #547). The card above scans from the server PC,
+             so it only describes coverage where that PC sits. This one measures
+             coverage where *you* are: no browser on any platform exposes Wi-Fi
+             telemetry, so the phone is the probe and the AP/router is the meter —
+             you pick this device once, then record a sample per room. -->
+        <details class="card card--collapsible net-survey-card" id="netSurveyCard">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+              <h3 class="collapse-title">Walk test</h3>
+            </span>
+            <span class="net-wifi-summary">
+              <span id="netSurveyStatus" class="muted small">—</span>
+              <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </span>
+          </summary>
+          <div id="netSurveyBody" class="net-survey-body">
+            <p class="muted small net-survey-hint">
+              Your phone can’t scan Wi-Fi — no browser exposes it, on any platform. So the phone is the
+              probe and the access point is the meter: pick this device once, then walk the house and
+              record a sample per room.
+            </p>
+
+            <div id="netSurveyDeviceRow" class="net-survey-device">
+              <svg class="icon net-survey-device-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
+              <span id="netSurveyDeviceName" class="net-survey-device-name">No device picked</span>
+              <button id="netSurveyDevicePick" type="button" class="range-tab net-survey-action" data-testid="net-survey-pick">Pick device</button>
+            </div>
+
+            <div id="netSurveyForm" class="net-survey-form">
+              <input id="netSurveyRoom" type="text" class="input-native net-survey-room" list="netSurveyRoomList"
+                     placeholder="Room (e.g. Kitchen)" aria-label="Room" autocomplete="off"
+                     data-testid="net-survey-room">
+              <datalist id="netSurveyRoomList"></datalist>
+              <button id="netSurveyRecord" type="button" class="range-tab net-survey-action net-survey-record"
+                      data-testid="net-survey-record">Record here</button>
+            </div>
+            <p id="netSurveyProgress" class="muted small net-survey-progress" role="status" aria-live="polite" hidden></p>
+
+            <section id="netSurveyRooms" class="net-survey-rooms" aria-label="Walk test results"></section>
+            <p id="netSurveyNote" class="muted small net-survey-note" hidden></p>
+          </div>
+        </details>
+
+        <details class="card card--collapsible net-devices-card">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
+              <h3 class="collapse-title">Attached devices</h3>
+              <span id="netHiddenCount" class="muted small security-hidden-count" hidden></span>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="net-devices-body">
+            <!-- Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N — filled in JS. -->
+            <div id="netStats" class="net-stats" aria-label="Device counts" hidden></div>
+
+            <div class="net-devices-head">
+              <div class="net-sort" role="group" aria-label="Sort attached devices">
+                <span class="net-sort-label">Order</span>
+                <button id="netSortAlpha" type="button" class="net-sort-btn active" data-sort="az">A-Z</button>
+                <button id="netSortSignal" type="button" class="net-sort-btn" data-sort="signal">Signal</button>
+              </div>
+              <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Offline hidden</button>
+              <button id="netHiddenToggle" type="button" class="range-tab" data-testid="net-show-hidden" hidden>Show hidden</button>
+            </div>
+
+            <!-- Group by: the user's own device groups (issue #513, the default —
+                 #519) or the original radio-band view. Persisted in localStorage. -->
+            <div class="net-devices-groupby">
+              <div class="net-sort" role="group" aria-label="Group attached devices">
+                <span class="net-sort-label">Group</span>
+                <button id="netGroupByGroup" type="button" class="net-sort-btn active" data-grouping="group" data-testid="net-group-custom">My groups</button>
+                <button id="netGroupByBand" type="button" class="net-sort-btn" data-grouping="band" data-testid="net-group-band">Band</button>
+              </div>
+            </div>
+
+            <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz — or by
+                 the user's own groups — with the selected sort applied inside each
+                 group. Built in network-devices.js. -->
+            <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
+            <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
+          </div>
+        </details>
+
+        <!-- DHCP reservation plan (issue #170 + #176) — a MAC→IP assignment grouped
+             by category, marking each row reserved / create / change against the
+             router's bindings. Lazy-loads on open. "Apply plan" is a confirm-gated
+             write of the create/change rows to the router (never automatic). -->
+        <details class="card card--collapsible net-dhcp-card" id="netDhcpCard">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-router"></use></svg>
+              <h3 class="collapse-title">DHCP reservation plan</h3>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="net-dhcp-body">
+            <div class="net-dhcp-head">
+              <p class="muted small net-dhcp-intro">Mark reservations to remove and tick suggestions to add, then apply everything at once. The router holds 10 reservations.</p>
+              <div class="net-dhcp-actions">
+                <button id="netDhcpRefresh" type="button" class="range-tab" data-testid="net-dhcp-refresh">
+                  <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh
+                </button>
+              </div>
+            </div>
+            <div id="netDhcpWarnings" class="net-dhcp-warnings" role="status" hidden></div>
+
+            <!-- On the router now (#176): the current reservations, listed even when
+                 their device is offline; tick one to stage its removal (frees a slot). -->
+            <section id="netDhcpExistingWrap" class="net-dhcp-existing-wrap" hidden>
+              <h4 class="net-group-head" id="netDhcpExistingHead">On the router now</h4>
+              <div id="netDhcpExisting" class="net-dhcp-existing" aria-label="Reservations on the router"></div>
+            </section>
+
+            <!-- Suggested adds, unassigned (assignable) + randomised (un-reservable). -->
+            <section id="netDhcpPlan" class="net-dhcp-plan" aria-label="DHCP reservation plan"></section>
+
+            <!-- Manual reservation (#176): stage a binding for a device the rules
+                 can't place, or one not in the live inventory at all. -->
+            <details class="net-dhcp-manual" id="netDhcpManual">
+              <summary class="net-dhcp-manual-summary">Add a reservation manually</summary>
+              <div class="net-dhcp-manual-form">
+                <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="Hardware address (AA:BB:CC:DD:EE:FF)" aria-label="Hardware address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
+                <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="Network address (192.168.0.x)" aria-label="Network address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
+                <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" aria-label="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
+                <button id="netDhcpManualAdd" type="button" class="range-tab net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
+                  <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> Stage
+                </button>
+              </div>
+            </details>
+            <div id="netDhcpManualStaged" class="net-dhcp-manual-staged"></div>
+
+            <!-- One Apply for the whole staged batch (#176): removes first, then adds. -->
+            <div id="netDhcpApplyBar" class="net-dhcp-applybar" hidden>
+              <span id="netDhcpBudget" class="net-dhcp-budget"></span>
+              <div class="net-dhcp-applybar-actions">
+                <button id="netDhcpClear" type="button" class="range-tab net-dhcp-clear" data-testid="net-dhcp-clear">Clear</button>
+                <button id="netDhcpApply" type="button" class="range-tab net-dhcp-apply" data-testid="net-dhcp-apply">
+                  <svg class="icon" aria-hidden="true"><use href="#i-router"></use></svg> Apply changes
+                </button>
+              </div>
+            </div>
+
+            <p id="netDhcpNote" class="muted small net-dhcp-note">Open to compute the plan.</p>
+          </div>
+        </details>
+
+      </div>
+      <div class="detail-actions">
+        <button id="networkSheetDone" type="button" class="detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>

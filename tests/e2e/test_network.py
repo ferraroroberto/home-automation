@@ -1,5 +1,6 @@
-"""Settings' network section (the former Net tab, #779): mobile layout and
-attached-device sorting."""
+"""The Network sheet (the former Settings network section, #779; moved to the
+Devices tab's Network group, #884): mobile layout, attached-device sorting and
+the group rows that open it."""
 
 from __future__ import annotations
 
@@ -9,8 +10,106 @@ from typing import Callable, Dict, List
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home, hold_reads, open_settings
+from tests.e2e._app import boot_home, hold_reads
 from tests.e2e._geometry import apply_matrix_leg, assert_no_horizontal_overflow
+
+
+def open_network_sheet(page: Page, trigger: str = "#networkInternetOpen") -> None:
+    """Enter Devices and open the Network sheet from one of its group rows.
+
+    ``#networkInternetOpen`` opens it at the top; ``#networkDevicesOpen`` opens
+    it with the attached-devices card already open (#884).
+    """
+    page.locator("#tabIot").click()
+    page.locator(trigger).click()
+    expect(page.locator("#networkSheet")).to_be_visible()
+
+
+@pytest.mark.chromium_only
+def test_network_group_rows_summarise_and_open_the_sheet(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    """The Devices tab's Network group states the facts and each row opens the sheet (#884)."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    boot_home(page, base_url)
+    page.locator("#tabIot").click()
+
+    expect(page.locator("#networkInternetMeta")).to_have_text("14 ms")
+    expect(page.locator("#networkInternetAvatar")).to_have_attribute("data-badge", "up")
+    expect(page.locator("#networkDevicesMeta")).to_have_text("4 online · 1 weak")
+    expect(page.locator("#networkSheet")).to_be_hidden()
+
+    # The internet row opens the sheet at the top, the devices card still folded.
+    page.locator("#networkInternetOpen").click()
+    expect(page.locator("#networkSheet")).to_be_visible()
+    expect(page.locator("details.net-devices-card")).not_to_have_attribute("open", "")
+    page.locator("#networkSheetDone").click()
+    expect(page.locator("#networkSheet")).to_be_hidden()
+
+    # The devices row opens it with the inventory open.
+    page.locator("#networkDevicesOpen").click()
+    expect(page.locator("#networkSheet")).to_be_visible()
+    expect(page.locator("details.net-devices-card")).to_have_attribute("open", "")
+    expect(page.locator("#netDevices .net-device-name-text").first).to_be_visible()
+
+
+@pytest.mark.chromium_only
+def test_network_is_read_once_on_entering_devices_and_polled_only_with_the_sheet_open(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_network: Callable,
+) -> None:
+    """The AP read is expensive (#884): one read feeds the rows, the 15 s poll needs the sheet."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_network()
+    reads: List[str] = []
+
+    def count(route) -> None:
+        if route.request.method == "GET":
+            reads.append(route.request.url)
+        route.fallback()
+
+    page.route("**/api/network", count)
+    page.clock.install()
+    boot_home(page, base_url)
+    assert reads == []
+
+    page.locator("#tabIot").click()
+    expect(page.locator("#networkInternetMeta")).to_have_text("14 ms")
+    assert len(reads) == 1
+
+    # Sheet closed: time passing reads nothing.
+    page.clock.run_for(45_000)
+    page.evaluate("() => fetch('/healthz').then((r) => r.status)")
+    assert len(reads) == 1
+
+    # Sheet open: the 15 s poll runs.
+    page.locator("#networkInternetOpen").click()
+    expect(page.locator("#networkSheet")).to_be_visible()
+    with page.expect_request(
+        lambda r: r.method == "GET" and r.url.endswith("/api/network")
+    ):
+        page.clock.run_for(15_000)
+
+    # Closing it stops the poll again.
+    page.locator("#networkSheetDone").click()
+    expect(page.locator("#networkSheet")).to_be_hidden()
+    page.evaluate("() => fetch('/healthz').then((r) => r.status)")
+    settled = len(reads)
+    page.clock.run_for(45_000)
+    page.evaluate("() => fetch('/healthz').then((r) => r.status)")
+    assert len(reads) == settled
 
 
 @pytest.mark.chromium_only
@@ -27,7 +126,7 @@ def test_network_tab_groups_devices_and_switches_sort(
     mock_network()
     boot_home(page, base_url)
 
-    open_settings(page)
+    open_network_sheet(page)
 
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
     # Attached devices is collapsed by default now; open it for the inventory.
@@ -94,14 +193,17 @@ def test_network_tab_shows_contextual_unavailable_state(
         ),
     )
     boot_home(page, base_url)
-    open_settings(page)
+    open_network_sheet(page)
 
-    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "error")
+    expect(page.locator("#networkBody")).to_have_attribute("data-state", "error")
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Network unavailable"
     )
     expect(page.locator("#netInternetStatus")).to_be_hidden()
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.1")
+    # The Devices tab's own row says so too, in words.
+    page.locator("#networkSheetDone").click()
+    expect(page.locator("#networkInternetMeta")).to_have_text("Unavailable")
 
 
 @pytest.mark.chromium_only
@@ -118,14 +220,14 @@ def test_network_tab_loads_then_keeps_and_labels_last_good_data_on_poll_failure(
     mock_network()
     release = hold_reads(page, "/api/network")
     boot_home(page, base_url)
-    open_settings(page)
+    open_network_sheet(page)
 
-    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "loading")
+    expect(page.locator("#networkBody")).to_have_attribute("data-state", "loading")
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Reading network status…"
     )
     release()
-    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "ready")
+    expect(page.locator("#networkBody")).to_have_attribute("data-state", "ready")
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
 
     page.unroute("**/api/network**")
@@ -137,10 +239,13 @@ def test_network_tab_loads_then_keeps_and_labels_last_good_data_on_poll_failure(
             body='{"detail":"router 192.0.2.1 timed out after 10 seconds"}',
         ),
     )
+    # Leave Devices and come back: entering the tab is the one fresh read.
+    page.locator("#networkSheetDone").click()
     page.locator("#tabHome").click()
-    open_settings(page)
+    page.locator("#tabIot").click()
+    page.locator("#networkInternetOpen").click()
 
-    expect(page.locator("#settingsNetwork")).to_have_attribute("data-state", "stale")
+    expect(page.locator("#networkBody")).to_have_attribute("data-state", "stale")
     expect(page.locator("#netFeedback")).to_contain_text("Last updated")
     expect(page.locator("#netFeedback")).to_contain_text("live data unavailable")
     expect(page.locator("#netInternetStatus")).to_have_text("Online")
@@ -183,8 +288,7 @@ def test_network_header_uses_equal_chips_and_compact_offline_toggle(
     })
     boot_home(page, base_url)
 
-    open_settings(page)
-    page.locator("details.net-devices-card > summary").click()  # collapsed by default now
+    open_network_sheet(page, "#networkDevicesOpen")  # opens the attached-devices card
 
     chips = page.locator("#netStats .net-stat-chip")
     expect(chips).to_have_count(4)
@@ -275,8 +379,7 @@ def test_network_offline_toggle_hides_devices_with_no_live_link(
     snapshot["devices"].append(_lease_only_device())
     boot_home(page, base_url)
 
-    open_settings(page)
-    page.locator("details.net-devices-card > summary").click()
+    open_network_sheet(page, "#networkDevicesOpen")
 
     rows = page.locator("#netDevices .net-device")
     ghost = rows.filter(has_text="Ghost Phone")
@@ -339,7 +442,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     mock_network()
     boot_home(page, base_url)
 
-    open_settings(page)
+    open_network_sheet(page)
     page.locator("details.net-wifi-card > summary").click()
 
     wifi_row = page.locator("#netWifiList .net-wifi-row").filter(has_text="TestNet-IoT")
@@ -433,8 +536,7 @@ def test_network_device_groups_create_move_rename_and_delete(
     })
     boot_home(page, base_url)
 
-    open_settings(page)
-    page.locator("details.net-devices-card > summary").click()
+    open_network_sheet(page, "#networkDevicesOpen")
 
     # "My groups" is the default/first grouping now (#519) — no click needed.
     expect(page.locator("#netGroupByGroup")).to_have_class("net-sort-btn active")
@@ -501,8 +603,9 @@ def test_network_device_groups_create_move_rename_and_delete(
     # The choice persists across a reload, and so do the assignments.
     _assign_group(page, "Alpha Laptop", new_name="Elgato lights")
     page.reload(wait_until="domcontentloaded")
-    open_settings(page)
-    page.locator("details.net-devices-card > summary").click()
+    # The tab is remembered: the reload lands on Devices, no tab click needed.
+    page.locator("#networkDevicesOpen").click()
+    expect(page.locator("#networkSheet")).to_be_visible()
     expect(page.locator("#netGroupByGroup")).to_have_class("net-sort-btn active")
     expect(
         page.locator("#netDevices .net-group-head").filter(has_text="Elgato lights")
@@ -551,7 +654,7 @@ def test_network_wifi_header_stays_quiet_when_scan_unavailable(
     }
     boot_home(page, base_url)
 
-    open_settings(page)
+    open_network_sheet(page)
 
     expect(page.locator("#netWifiStatus")).to_have_text("")
     expect(page.locator("#netWifiSummary")).to_have_text("")
@@ -583,7 +686,7 @@ def test_network_tab_retries_after_first_load_failure(
     page.clock.install()
     boot_home(page, base_url)
 
-    open_settings(page)
+    open_network_sheet(page)
 
     expect(page.locator("#netFeedback .empty-state-message")).to_have_text(
         "Network unavailable"
@@ -615,7 +718,7 @@ def test_network_walk_test_picks_a_device_and_records_a_room(
     mock_network()
     boot_home(page, base_url)
 
-    open_settings(page)
+    open_network_sheet(page)
     page.locator("details.net-survey-card > summary").click()
     expect(page.locator("details.net-survey-card")).to_have_attribute("open", "")
 
@@ -657,7 +760,7 @@ def test_internet_tile_trends_fit_the_phone_widths_in_both_themes(
     mock_energy()
     mock_network()
     boot_home(page, base_url)
-    open_settings(page)
+    open_network_sheet(page)
 
     trends = page.get_by_test_id("net-trends")
     expect(trends.locator(".net-trend")).to_have_count(2)
@@ -706,7 +809,7 @@ def test_internet_tile_trends_explain_themselves_when_empty(
     mock_energy()
     mock_network(internet_history={"latency": [], "download": [], "upload": []})
     boot_home(page, base_url)
-    open_settings(page)
+    open_network_sheet(page)
 
     trends = page.get_by_test_id("net-trends")
     expect(trends.locator(".net-trend-empty").first).to_contain_text("tab is open")
@@ -727,7 +830,7 @@ def test_nightly_speedtest_switch_is_off_by_default_persists_and_fits_the_phone(
     mock_energy()
     mock_network()
     boot_home(page, base_url)
-    open_settings(page)
+    open_network_sheet(page)
 
     switch = page.get_by_test_id("net-nightly")
     expect(switch).to_have_attribute("aria-checked", "false")
@@ -743,8 +846,9 @@ def test_nightly_speedtest_switch_is_off_by_default_persists_and_fits_the_phone(
 
     # A fresh load reads the saved value back rather than assuming the default.
     page.reload(wait_until="domcontentloaded")
-    page.wait_for_selector("#paneHome", state="visible")
-    open_settings(page)
+    # The tab is remembered: the reload lands on Devices. The saved preference
+    # is read when the sheet opens.
+    page.locator("#networkInternetOpen").click()
     expect(page.get_by_test_id("net-nightly")).to_have_attribute("aria-checked", "true")
 
     for width in (320, 390):

@@ -1,18 +1,19 @@
-/* Smart Life (Plugs) data + tab controller.
+/* Smart Life (Tuya) data + the Devices tab's Plugs and Blinds groups.
  *
- * Owns the local Tuya device grid: on/off switches, live wattage on metered
- * plugs, and open/close/stop controls for covers. All cloud-free — it reads
- * GET /api/tuya (which does per-device LAN reads) and writes the switch/cover
- * endpoints, updating just the touched card from the read-back.
+ * Owns the local Tuya devices: on/off switches, live wattage on metered
+ * plugs, and Up / Stop / Down on covers, all on the shared row (#884), plus
+ * the Power glance card's live total. All cloud-free — it reads GET /api/tuya
+ * (which does per-device LAN reads) and writes the switch/cover endpoints,
+ * re-rendering from the read-back.
  *
- * Cadence is tab-aware like energy.js: it polls only while the Plugs tab is
+ * Cadence is tab-aware like energy.js: it polls only while the Devices tab is
  * open (LAN reads are comparatively expensive) and stops on leave. */
 
 'use strict';
 
 import {
   state, els, toast, reportFetchOk, persistedFlag,
-  PLUGS_SHOW_ALL_KEY, PLUGS_SHOW_HIDDEN_KEY,
+  PLUGS_SHOW_OFFLINE_KEY, PLUGS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW, friendlyError } from './format.js';
@@ -23,10 +24,13 @@ import { toggleMarkup } from './toggle.js';
 import { confirmAction } from './confirm.js';
 import { detailModal } from './detail-modal.js';
 import { setHeadPart } from './head-status.js';
+import { rowEl } from './row.js';
+import { chipEl } from './chip.js';
+import { icon } from './_vendored/icons/icons.js';
 
-// The two list filters, on the shared localStorage wrapper. `showAll`
-// falls back to the in-memory default (true) when nothing is stored.
-const showAllPref = persistedFlag(PLUGS_SHOW_ALL_KEY, true);
+// The two list filters, on the shared localStorage wrapper: the Offline
+// row's fold (closed by default) and Show hidden.
+const showOfflinePref = persistedFlag(PLUGS_SHOW_OFFLINE_KEY, false);
 const showHiddenPref = persistedFlag(PLUGS_SHOW_HIDDEN_KEY, false);
 
 const POLL_MS = 15_000;
@@ -184,116 +188,130 @@ export function wireBlindsGroup() {
     });
 }
 
-// ------------------------------------------------------------- row DOM
-// Plugs and blinds render as compact divider-separated rows (the Network
-// "Attached devices" style), not chunky sub-cards. The name is a button that
-// opens the rename/detail modal — shared by both row kinds.
-function nameButton(device) {
-  const name = document.createElement('button');
-  name.type = 'button';
-  name.className = 'device-row-name';
-  name.title = 'Rename';
-  name.textContent = plugLabel(device) || 'Device';
-  name.addEventListener('click', function () { openPlugDetail(device.device_id); });
-  return name;
-}
+// ------------------------------------------------------------- the rows
+// Every Tuya device is the shared row (row.js, #880) since #884 (Step 6/8 of
+// #872): the kind glyph, the name, one muted meta line, and one trailing item
+// (a plug's switch, a blind's segmented verb). Tapping the row opens the
+// device's rename / hide dialog. An unreachable device says so in words; its
+// connection error and address stay out of the copy (#879).
 
-// A compact status word keeps the device name readable in the row; the full
-// reason (often a long sentence) lives in the hover title rather than crushing
-// the name to an ellipsis.
-function unavailableNote(device) {
-  const note = document.createElement('span');
-  note.className = 'device-row-note plug-unavailable';
-  note.textContent = device.has_valid_ip === false ? 'No IP' : 'Offline';
-  if (device.error) note.title = friendlyError(device.error, 'Not reachable right now');
-  return note;
-}
-
-// Exported for the Lights card: a Tuya light is a switch row like a plug (#181).
-export function buildPlugRow(device) {
+// The power switch, also used by the Lights group for a Tuya light (#181).
+export function tuyaSwitch(device, label) {
   const on = device.switch_on === true;
-  const row = document.createElement('div');
-  row.className = 'device-row plug-row';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'toggle' + (on ? ' on' : '');
+  toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-checked', on ? 'true' : 'false');
+  toggle.setAttribute('aria-label', 'Power ' + (label || plugLabel(device) || 'device'));
+  toggle.innerHTML = toggleMarkup(on);
+  toggle.addEventListener('click', function () { toggleSwitch(device, toggle); });
+  return toggle;
+}
+
+// What a plug is doing, in one line: its draw while on, else On / Off.
+function plugMeta(device) {
+  if (!device.reachable) return 'Not reachable right now';
+  const watts = device.metered && device.power_w != null ? fmtW(device.power_w) : '';
+  if (!device.has_switch) return watts;
+  if (device.switch_on !== true) return 'Off';
+  return watts || 'On';
+}
+
+// A user-hidden device is listed only while Show hidden is on, so it says
+// which one it is (a plain fact, the neutral chip).
+function hiddenChip(device) {
+  return device.hidden ? chipEl('Hidden', null, 'device-hidden-chip') : null;
+}
+
+function plugRow(device) {
+  const row = rowEl({
+    className: 'plug-row',
+    glyph: 'plug-zap',
+    title: plugLabel(device) || 'Device',
+    meta: plugMeta(device),
+    chip: hiddenChip(device),
+    onOpen: function (btn) { openPlugDetail(device.device_id, btn); },
+    trail: device.reachable && device.has_switch ? tuyaSwitch(device) : null,
+  });
+  if (!device.reachable) row.classList.add('is-unavailable');
   row.dataset.deviceId = device.device_id;
-
-  row.appendChild(nameButton(device));
-
-  // Offline / no-IP: just the name + the reason, no controls.
-  if (!device.reachable) {
-    row.classList.add('is-unavailable');
-    row.appendChild(unavailableNote(device));
-    return row;
-  }
-  if (device.has_switch && !on) row.classList.add('is-off');
-
-  // Live wattage on metered plugs — sits just left of the toggle.
-  if (device.metered && device.power_w != null) {
-    const watts = document.createElement('span');
-    watts.className = 'plug-watts';
-    watts.textContent = fmtW(device.power_w);
-    row.appendChild(watts);
-  }
-
-  if (device.has_switch) {
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'toggle' + (on ? ' on' : '');
-    toggle.setAttribute('role', 'switch');
-    toggle.setAttribute('aria-checked', on ? 'true' : 'false');
-    toggle.setAttribute('aria-label', 'Power ' + (plugLabel(device) || 'device'));
-    toggle.innerHTML = toggleMarkup(on);
-    toggle.addEventListener('click', function () { toggleSwitch(device, toggle); });
-    row.appendChild(toggle);
-  }
   return row;
 }
 
-// Up · Stop · Down buttons, each an icon plus a visible word (#805, J-01: a
-// row's main action is never icon-only). Covers expose only open/stop/close on
-// the LAN (no native position), so these are the full control surface. The
-// words are the household's own — these are roller blinds, so a blind goes up
-// and down (#181) — while the API keeps Tuya's open/stop/close.
-const BLIND_CONTROLS = [
-  ['open', 'Up', 'i-chevron-up'],
-  ['stop', 'Stop', 'i-square'],
-  ['close', 'Down', 'i-chevron-down'],
+// The unreachable plugs fold into this one row (#872 shared system: an
+// unplugged plug is not an exception per row). Tapping it lists them under
+// it, or folds them away again; the choice persists.
+function offlineRow(count) {
+  const row = rowEl({
+    className: 'plugs-offline-row',
+    glyph: 'plug-zap',
+    title: 'Offline',
+    meta: count === 1 ? 'One plug not reachable' : count + ' plugs not reachable',
+    chevron: true,
+    onOpen: function () {
+      state.plugsShowOffline = !state.plugsShowOffline;
+      showOfflinePref.write(state.plugsShowOffline);
+      renderPlugs();
+      const again = els.plugsList.querySelector('.plugs-offline-row .action-row-main');
+      if (again) again.focus();
+    },
+  });
+  const main = row.querySelector('.action-row-main');
+  main.setAttribute('aria-expanded', state.plugsShowOffline ? 'true' : 'false');
+  main.dataset.testid = 'plugs-offline-toggle';
+  return row;
+}
+
+// Up · Stop · Down as one segmented verb (decision 6 of #872): the row's one
+// trailing item, each segment a real 44px target. Glyphs on the row, the
+// household's own word for each (roller blinds go up and down, #181) as the
+// accessible name and title; the API keeps Tuya's open / stop / close.
+const BLIND_VERBS = [
+  ['open', 'Up', 'chevron-up'],
+  ['stop', 'Stop', 'square'],
+  ['close', 'Down', 'chevron-down'],
 ];
 const BLIND_WORDS = { open: 'up', stop: 'stopped', close: 'down' };
 
-function buildBlindRow(device) {
-  const row = document.createElement('div');
-  row.className = 'device-row blind-row';
-  row.dataset.deviceId = device.device_id;
-
-  row.appendChild(nameButton(device));
-
-  if (!device.reachable) {
-    row.classList.add('is-unavailable');
-    row.appendChild(unavailableNote(device));
-    return row;
-  }
-
-  const controls = document.createElement('div');
-  controls.className = 'blind-controls';
-  BLIND_CONTROLS.forEach(function (spec) {
+function blindVerbs(name, act) {
+  const group = document.createElement('div');
+  group.className = 'segmented segmented--row';
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Move ' + name);
+  BLIND_VERBS.forEach(function (spec) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'blind-btn';
+    btn.className = 'segmented-item blind-btn';
     btn.dataset.action = spec[0];
-    btn.setAttribute('aria-label', spec[1] + ' ' + (plugLabel(device) || 'blind'));
-    btn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#' + spec[2] + '"></use></svg>' +
-      '<span class="blind-btn-label">' + spec[1] + '</span>';
-    btn.addEventListener('click', function () { coverAction(device, spec[0]); });
-    controls.appendChild(btn);
+    btn.title = spec[1];
+    btn.setAttribute('aria-label', spec[1] + ' ' + name);
+    btn.innerHTML = icon(spec[2], spec[0] === 'stop' ? 'blind-stop-icon' : '');
+    btn.addEventListener('click', function () { act(spec[0]); });
+    group.appendChild(btn);
   });
-  row.appendChild(controls);
+  return group;
+}
+
+function blindRow(device) {
+  const name = plugLabel(device) || 'Blind';
+  const row = rowEl({
+    className: 'blind-row',
+    glyph: 'blinds',
+    badge: device.reachable ? null : 'down',
+    title: name,
+    chip: device.reachable ? hiddenChip(device) : chipEl('Offline', 'attention', 'blind-offline'),
+    onOpen: function (btn) { openPlugDetail(device.device_id, btn); },
+    trail: device.reachable ? blindVerbs(name, function (action) { coverAction(device, action); }) : null,
+  });
+  row.dataset.deviceId = device.device_id;
   return row;
 }
 
-// Hide a list card entirely when it holds no devices; otherwise show the
-// per-card count badge in its summary.
-function setListCard(card, countEl, n) {
-  if (card) card.hidden = n === 0;
+// A group's meta is the count it lists; the group hides when it has no
+// device at all (`present`, default: something listed).
+function setListCard(card, countEl, n, present) {
+  if (card) card.hidden = !(present === undefined ? n > 0 : present);
   if (countEl) {
     countEl.textContent = String(n);
     countEl.hidden = n === 0;
@@ -356,10 +374,12 @@ const plugModal = detailModal({
   render: renderPlugs,
 });
 
-function openPlugDetail(deviceId) {
+// Exported for the light sheet: a Tuya light's name and Hidden switch are
+// this dialog's (#181).
+export function openPlugDetail(deviceId, trigger) {
   if (!deviceById(deviceId)) return;
   state.selectedPlugId = deviceId;
-  plugModal.open(deviceId);
+  plugModal.open(deviceId, trigger);
 }
 
 function togglePlugHidden() {
@@ -376,37 +396,48 @@ function patchPlug(id, patch) {
 }
 
 // ----------------------------------------------------------- summary stats
-// Totals over every known device (state.plugs), independent of the show-all
-// filter: devices, switches on, switches off, and live watts on reachable
-// metered plugs.
+// Totals over every known plug (state.plugs, Tuya lights excluded — the
+// Lights group counts those, #181), independent of the list filters: switches
+// on and off, and live watts on reachable metered plugs. They feed the
+// Devices tab's Power glance card (#884) and Home's plug line (#72).
 function renderStats() {
-  // The same totals render in the Plugs tab card and the Home tab tile (#72).
-  const cards = [els.plugsStats, els.homePlugsStats];
-  // Tuya lights are counted by the Lights card, not here (#181).
   const devices = state.plugs.filter(function (d) { return !d.is_light; });
   if (!devices.length) {
-    cards.forEach(function (c) { if (c) c.hidden = true; });
+    if (els.homePlugsStats) els.homePlugsStats.hidden = true;
+    if (els.powerNow) els.powerNow.hidden = true;
+    if (els.powerOnCount) els.powerOnCount.textContent = '';
     setHeadPart('iot', 'plugs', null);
     return;
   }
   let on = 0;
   let off = 0;
   let watts = 0;
+  const drawing = [];
   devices.forEach(function (d) {
     if (d.switch_on === true) on += 1;
     else if (d.has_switch && d.switch_on === false) off += 1;
-    if (d.metered && d.reachable && d.power_w != null) watts += Number(d.power_w);
+    if (d.metered && d.reachable && d.power_w != null) {
+      watts += Number(d.power_w);
+      if (Number(d.power_w) > 0) drawing.push(d);
+    }
   });
-  const total = String(devices.length);
-  const onStr = String(on);
-  const offStr = String(off);
   const wattStr = fmtW(watts);
   const set = function (el, v) { if (el) el.textContent = v; };
-  set(els.plugStatTotal, total); set(els.homePlugStatTotal, total);
-  set(els.plugStatOn, onStr); set(els.homePlugStatOn, onStr);
-  set(els.plugStatOff, offStr); set(els.homePlugStatOff, offStr);
-  set(els.plugStatWatts, wattStr); set(els.homePlugStatWatts, wattStr);
-  cards.forEach(function (c) { if (c) c.hidden = false; });
+  set(els.homePlugStatTotal, String(devices.length));
+  set(els.homePlugStatOn, String(on));
+  set(els.homePlugStatOff, String(off));
+  set(els.homePlugStatWatts, wattStr);
+  if (els.homePlugsStats) els.homePlugsStats.hidden = false;
+
+  // The glance card: the live total, then the three biggest draws by name.
+  set(els.powerOnCount, on + ' on');
+  set(els.powerWatts, wattStr);
+  drawing.sort(function (a, b) { return Number(b.power_w) - Number(a.power_w); });
+  set(els.powerTop, drawing.slice(0, 3).map(function (d) {
+    return (plugLabel(d) || 'Device') + ' ' + Math.round(Number(d.power_w));
+  }).join(' · '));
+  if (els.powerNow) els.powerNow.hidden = false;
+
   // The Devices header's plain fact (head-status.js, #880): what is on and
   // drawing power, from a live read only.
   setHeadPart('iot', 'plugs', plugsView.state === 'ready'
@@ -414,16 +445,21 @@ function renderStats() {
     : null);
 }
 
-// The "Show hidden" toggle carries the count and only appears when at least one
-// device is user-hidden — same pattern as the Network attached-device list.
+// Show hidden carries the count and only appears when at least one device is
+// user-hidden — the same group-foot verb as Security's detectors (#882).
 function renderHiddenToggle() {
   const btn = els.plugsHiddenToggle;
   if (!btn) return;
   const n = state.plugsUserHiddenCount || 0;
   btn.hidden = n === 0;
   btn.textContent = state.plugsShowHidden ? 'Hide hidden' : 'Show hidden (' + n + ')';
-  btn.classList.toggle('active', state.plugsShowHidden);
   btn.setAttribute('aria-pressed', state.plugsShowHidden ? 'true' : 'false');
+}
+
+function rowList() {
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
+  return list;
 }
 
 export function renderPlugs() {
@@ -432,15 +468,8 @@ export function renderPlugs() {
   renderPlugsFeedback();
   renderStats();
 
-  // Update toggle button label to reflect current state.
-  if (els.plugsToggleBtn) {
-    els.plugsToggleBtn.textContent = state.plugsShowAll ? 'Reachable only' : 'Show all devices';
-    els.plugsToggleBtn.classList.toggle('active', state.plugsShowAll);
-  }
-
   if (!state.plugs.length) {
     els.plugsNote.hidden = true;
-    if (els.plugsHiddenCount) els.plugsHiddenCount.hidden = true;
     state.plugsUserHiddenCount = 0;
     renderHiddenToggle();
     setListCard(els.plugsCard, els.plugsCount, 0);
@@ -455,39 +484,40 @@ export function renderPlugs() {
     return (a.name || '').localeCompare(b.name || '');
   });
 
-  // When "show all" is off, hide devices without a valid LAN IP.
-  // Registered-but-offline devices (has_valid_ip=true, reachable=false) still show.
-  const visible = state.plugsShowAll
-    ? sorted
-    : sorted.filter(function (d) { return d.has_valid_ip === true; });
-
-  const hiddenCount = sorted.length - visible.length;
-  if (els.plugsHiddenCount) {
-    if (!state.plugsShowAll && hiddenCount > 0) {
-      els.plugsHiddenCount.textContent = hiddenCount + ' no-IP hidden';
-      els.plugsHiddenCount.hidden = false;
-    } else {
-      els.plugsHiddenCount.hidden = true;
-    }
-  }
-
-  // User-hidden devices (the per-device Hidden toggle) drop out of both lists
-  // unless "Show hidden" is on; the toggle carries the count and only appears
-  // when something is hidden (mirrors the Network attached-device list).
-  state.plugsUserHiddenCount = visible.filter(function (d) { return !!d.hidden; }).length;
+  // User-hidden devices (the per-device Hidden switch) drop out of every list
+  // unless Show hidden is on.
+  state.plugsUserHiddenCount = sorted.filter(function (d) { return !!d.hidden; }).length;
   const shown = state.plugsShowHidden
-    ? visible
-    : visible.filter(function (d) { return !d.hidden; });
+    ? sorted
+    : sorted.filter(function (d) { return !d.hidden; });
   renderHiddenToggle();
 
-  // Split: covers → Blinds card, lights → Lights card (#181), everything
-  // else → Plugs card.
-  const plugs = shown.filter(function (d) { return d.has_cover !== true && !d.is_light; });
+  // Split: covers → Blinds, lights → Lights (#181), everything else → Plugs.
+  const isPlug = function (d) { return d.has_cover !== true && !d.is_light; };
+  const plugs = shown.filter(isPlug);
   const blinds = shown.filter(function (d) { return d.has_cover === true; });
-  plugs.forEach(function (d) { els.plugsList.appendChild(buildPlugRow(d)); });
-  blinds.forEach(function (d) { els.blindsList.appendChild(buildBlindRow(d)); });
-  setListCard(els.plugsCard, els.plugsCount, plugs.length);
+
+  const plugList = rowList();
+  plugs.filter(function (d) { return d.reachable; })
+    .forEach(function (d) { plugList.appendChild(plugRow(d)); });
+  const offline = plugs.filter(function (d) { return !d.reachable; });
+  if (offline.length) {
+    plugList.appendChild(offlineRow(offline.length));
+    if (state.plugsShowOffline) offline.forEach(function (d) { plugList.appendChild(plugRow(d)); });
+  }
+  els.plugsList.appendChild(plugList);
+
+  const blindList = rowList();
+  blinds.forEach(function (d) { blindList.appendChild(blindRow(d)); });
+  els.blindsList.appendChild(blindList);
+
+  // The Plugs group stays while there is any plug at all, so its Show hidden
+  // and Add device remain reachable even when every plug is put away.
+  setListCard(els.plugsCard, els.plugsCount, plugs.length, sorted.some(isPlug));
   setListCard(els.blindsCard, els.blindsCount, blinds.length);
+  if (els.blindsAllMeta) {
+    els.blindsAllMeta.textContent = blinds.length === 1 ? 'One blind' : blinds.length + ' blinds';
+  }
   state.blindsShown = blinds;
   publishTuyaLights(shown.filter(function (d) { return d.is_light === true; }));
 }
@@ -503,16 +533,8 @@ function publishTuyaLights(lights) {
 // ------------------------------------------------------- toggle wiring
 export function wirePlugsToggle() {
   // Restore persisted preferences on page load.
-  state.plugsShowAll = showAllPref.read();
+  state.plugsShowOffline = showOfflinePref.read();
   state.plugsShowHidden = showHiddenPref.read();
-
-  if (els.plugsToggleBtn) {
-    els.plugsToggleBtn.addEventListener('click', function () {
-      state.plugsShowAll = !state.plugsShowAll;
-      showAllPref.write(state.plugsShowAll);
-      renderPlugs();
-    });
-  }
 
   if (els.plugsHiddenToggle) {
     els.plugsHiddenToggle.addEventListener('click', function () {

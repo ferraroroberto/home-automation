@@ -3,10 +3,16 @@
  * Reads GET /api/lights and writes POST /api/lights/{id}. Polling is tab-aware
  * like Plugs: the LAN read runs only while the Devices tab is open.
  *
- * The card also lists the Tuya lights (#181). Those are read by plugs.js as
+ * The group also lists the Tuya lights (#181). Those are read by plugs.js as
  * part of GET /api/tuya and handed over as state.tuyaLights on every Plugs
- * render (the 'plugs:rendered' event); their rows and on/off reuse the plug
- * switch path, so there is one Tuya read and one Tuya write path. */
+ * render (the 'plugs:rendered' event); their on/off and dimming reuse the
+ * Tuya write path, so there is one Tuya read and one Tuya write path.
+ *
+ * Every light is the shared row (row.js, #884): the bulb, the name, one meta
+ * line (brightness and warmth while on), the power switch. Tapping the row
+ * opens the light sheet (decision 5 of #872): power, brightness and warmth,
+ * each applied as it changes, and a link to the staged name / details dialog
+ * (lightDialog for an Elgato light, the plug dialog for a Tuya one). */
 
 'use strict';
 
@@ -16,10 +22,13 @@ import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { emptyStateEl } from './empty-state.js';
 import { createPoller } from './poll.js';
-import { toggleMarkup } from './toggle.js';
+import { toggleMarkup, setToggleState } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
-import { buildPlugRow, setTuyaBrightness, toggleSwitch } from './plugs.js';
+import { openPlugDetail, setTuyaBrightness, toggleSwitch, tuyaSwitch } from './plugs.js';
 import { friendlyError } from './format.js';
+import { rowEl } from './row.js';
+import { chipEl } from './chip.js';
+import { sheet } from './sheet.js';
 
 const POLL_MS = 15_000;
 const LIGHTS_UNAVAILABLE_COPY =
@@ -31,8 +40,16 @@ function label(light) {
   return light.display_name || light.name || light.light_id || 'Elgato light';
 }
 
+function tuyaLabel(device) {
+  return device.display_name || device.name || 'Light';
+}
+
 function lightById(lightId) {
   return state.lights.find(function (light) { return light.light_id === lightId; });
+}
+
+function tuyaLightById(deviceId) {
+  return state.tuyaLights.find(function (device) { return device.device_id === deviceId; });
 }
 
 function originalName(light) {
@@ -158,7 +175,7 @@ async function applyAllLights(on) {
 
 // One labelled slider + exact-number field. ``name`` labels it for assistive
 // tech; ``apply(next)`` is called once per committed value (release / Enter),
-// never per pixel — shared by the Elgato and Tuya light rows (#870).
+// never per pixel — shared by the Elgato and Tuya lights (#870).
 function buildSlider(name, key, min, max, value, suffix, apply) {
   const row = document.createElement('div');
   row.className = 'light-control-row';
@@ -219,90 +236,178 @@ function buildSlider(name, key, min, max, value, suffix, apply) {
   return row;
 }
 
-// Lights render as compact divider-separated rows, the same shape as their
-// Plugs/Blinds siblings on the IoT tab (#136) — a card per light nested inside
-// the Lights card would read as double chrome, which design.md's list-row
-// contract rejects. Row internals are unconstrained by that contract, so the
-// name + toggle share the summary line and the sliders wrap onto their own line
-// below. The product name is not repeated per row (it is in the detail modal);
-// the row keeps the plug row's name-only identity.
-function buildLightRow(light) {
-  const on = light.on === true;
-  const row = document.createElement('div');
-  row.className = 'device-row light-row';
-  row.dataset.lightId = light.light_id;
-
-  const name = document.createElement('button');
-  name.type = 'button';
-  name.className = 'device-row-name';
-  name.title = 'Rename';
-  name.textContent = label(light);
-  name.addEventListener('click', function () { openLightDetail(light.light_id); });
-  row.appendChild(name);
-
-  // Offline: name + reason only, no controls — the plug-row contract. The row
-  // ellipsizes a long reason, so the full text also rides in the hover title.
-  if (!light.reachable) {
-    row.classList.add('is-unavailable');
-    const note = document.createElement('span');
-    note.className = 'device-row-note light-unavailable';
-    // The row says only that the light is unavailable (#879): its connection
-    // error carries the device address, which the UI never shows.
-    note.textContent = 'Unavailable';
-    row.appendChild(note);
-    return row;
-  }
-  if (!on) row.classList.add('is-off');
-
+// ------------------------------------------------------------- the rows
+function powerSwitch(on, name, onClick) {
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'toggle' + (on ? ' on' : '');
   toggle.setAttribute('role', 'switch');
   toggle.setAttribute('aria-checked', on ? 'true' : 'false');
-  toggle.setAttribute('aria-label', 'Power ' + label(light));
+  toggle.setAttribute('aria-label', 'Power ' + name);
   toggle.innerHTML = toggleMarkup(on);
-  toggle.addEventListener('click', function () { applyLight(light, { on: !on }); });
-  row.appendChild(toggle);
+  toggle.addEventListener('click', onClick);
+  return toggle;
+}
 
-  const controls = document.createElement('div');
-  controls.className = 'light-controls';
-  controls.appendChild(
-    buildSlider(label(light), 'Brightness', 3, 100, Number(light.brightness || 3), '%',
-      function (next) { applyLight(light, { brightness: next }); })
-  );
-  if (light.supports_temperature) {
-    controls.appendChild(
-      buildSlider(label(light), 'Warmth', 2900, 7000, Number(light.temperature_k || 2900), 'K',
-        function (next) { applyLight(light, { temperature_k: next }); })
-    );
-  } else {
-    const unavailable = document.createElement('div');
-    unavailable.className = 'light-unavailable';
-    unavailable.textContent = 'Color temperature unavailable';
-    controls.appendChild(unavailable);
+// The meta line while on: brightness, then warmth where the light has it.
+function elgatoMeta(light) {
+  if (light.on !== true) return 'Off';
+  const parts = [];
+  if (light.brightness != null) parts.push(Math.round(Number(light.brightness)) + '%');
+  if (light.supports_temperature && light.temperature_k) parts.push(light.temperature_k + ' K');
+  return parts.join(' · ') || 'On';
+}
+
+function tuyaMeta(device) {
+  if (device.switch_on !== true) return 'Off';
+  if (device.has_brightness && device.brightness_pct != null) {
+    return Math.round(Number(device.brightness_pct)) + '%';
   }
-  row.appendChild(controls);
+  return 'On';
+}
 
+// An unreachable light should be there and is not: the down badge and an
+// attention chip, never its connection error (it carries the address, #879).
+function lightRow(opts) {
+  const row = rowEl({
+    className: 'light-row',
+    glyph: 'lightbulb',
+    badge: opts.reachable ? null : 'down',
+    title: opts.name,
+    meta: opts.reachable ? opts.meta : '',
+    chip: opts.reachable
+      ? (opts.hidden ? chipEl('Hidden', null, 'device-hidden-chip') : null)
+      : chipEl('Offline', 'attention', 'light-offline'),
+    onOpen: opts.onOpen,
+    trail: opts.reachable ? opts.trail : null,
+  });
+  if (!opts.reachable) row.classList.add('is-unavailable');
   return row;
 }
 
-// A Tuya light is the plug switch row (name + toggle, rename modal) plus, for a
-// dimmer, the Elgato row's Brightness slider wrapping onto its own line (#870).
+function buildLightRow(light) {
+  const name = label(light);
+  const row = lightRow({
+    name: name,
+    reachable: light.reachable,
+    meta: elgatoMeta(light),
+    onOpen: function (btn) { openLightSheet({ kind: 'elgato', id: light.light_id }, btn); },
+    trail: powerSwitch(light.on === true, name, function () {
+      applyLight(light, { on: light.on !== true });
+    }),
+  });
+  row.dataset.lightId = light.light_id;
+  return row;
+}
+
 function buildTuyaLightRow(device) {
-  const row = buildPlugRow(device);
-  if (!device.reachable || !device.has_brightness) return row;
-  row.classList.add('light-row');
-  const name = device.display_name || device.name || 'Light';
-  const controls = document.createElement('div');
-  controls.className = 'light-controls';
-  controls.appendChild(
-    buildSlider(name, 'Brightness', 1, 100, Number(device.brightness_pct || 1), '%',
-      function (next) { setTuyaBrightness(device, next); })
-  );
-  row.appendChild(controls);
+  const row = lightRow({
+    name: tuyaLabel(device),
+    reachable: device.reachable,
+    hidden: device.hidden,
+    meta: tuyaMeta(device),
+    onOpen: function (btn) { openLightSheet({ kind: 'tuya', id: device.device_id }, btn); },
+    trail: device.has_switch ? tuyaSwitch(device, tuyaLabel(device)) : null,
+  });
+  row.dataset.deviceId = device.device_id;
   return row;
 }
 
+// ------------------------------------------------------- the light sheet
+// Which light the sheet shows: {kind: 'elgato' | 'tuya', id}. Its controls
+// are rebuilt on open and when the light's reachability or dimming changes,
+// never on a plain poll, so a poll can't pull a slider out from under a
+// finger; the power switch follows every render.
+let sheetLight = null;
+let sheetShape = '';
+
+const lightSheet = sheet(els.lightSheet, {
+  model: 'instant',
+  closeButton: els.lightSheetClose,
+  doneButton: els.lightSheetDone,
+  fallbackFocus: function () {
+    if (!sheetLight) return null;
+    const attr = sheetLight.kind === 'elgato' ? 'data-light-id' : 'data-device-id';
+    return els.lightsList.querySelector('.light-row[' + attr + '="' + CSS.escape(sheetLight.id) + '"] .action-row-main');
+  },
+  onClose: function () {
+    sheetLight = null;
+    sheetShape = '';
+  },
+});
+
+function sheetEntity() {
+  if (!sheetLight) return null;
+  return sheetLight.kind === 'elgato' ? lightById(sheetLight.id) : tuyaLightById(sheetLight.id);
+}
+
+function renderLightSheet(force) {
+  const entity = sheetEntity();
+  if (!entity || !els.lightSheet) return;
+  const elgato = sheetLight.kind === 'elgato';
+  const name = elgato ? label(entity) : tuyaLabel(entity);
+  const on = elgato ? entity.on === true : entity.switch_on === true;
+  const reachable = !!entity.reachable;
+  els.lightSheetName.textContent = name;
+  els.lightSheetOffline.hidden = reachable;
+  setToggleState(els.lightSheetPower, on);
+  els.lightSheetPower.disabled = !reachable || (!elgato && !entity.has_switch);
+  els.lightSheetPower.setAttribute('aria-label', 'Power ' + name);
+  els.lightSheetEditMeta.textContent = elgato
+    ? (entity.product_name || 'Product, firmware')
+    : 'Name, hidden';
+
+  const shape = [reachable, elgato ? entity.supports_temperature : entity.has_brightness].join('|');
+  if (!force && shape === sheetShape) return;
+  sheetShape = shape;
+  els.lightSheetControls.innerHTML = '';
+  if (!reachable) return;
+  if (elgato) {
+    els.lightSheetControls.appendChild(
+      buildSlider(name, 'Brightness', 3, 100, Number(entity.brightness || 3), '%',
+        function (next) { applyLight(lightById(entity.light_id) || entity, { brightness: next }); })
+    );
+    if (entity.supports_temperature) {
+      els.lightSheetControls.appendChild(
+        buildSlider(name, 'Warmth', 2900, 7000, Number(entity.temperature_k || 2900), 'K',
+          function (next) { applyLight(lightById(entity.light_id) || entity, { temperature_k: next }); })
+      );
+    } else {
+      const none = document.createElement('p');
+      none.className = 'muted small light-unavailable';
+      none.textContent = 'Brightness only';
+      els.lightSheetControls.appendChild(none);
+    }
+  } else if (entity.has_brightness) {
+    els.lightSheetControls.appendChild(
+      buildSlider(name, 'Brightness', 1, 100, Number(entity.brightness_pct || 1), '%',
+        function (next) { setTuyaBrightness(tuyaLightById(entity.device_id) || entity, next); })
+    );
+  }
+}
+
+function openLightSheet(which, trigger) {
+  sheetLight = which;
+  if (!sheetEntity()) { sheetLight = null; return; }
+  renderLightSheet(true);
+  lightSheet.open(trigger);
+}
+
+function onSheetPower() {
+  const entity = sheetEntity();
+  if (!entity) return;
+  if (sheetLight.kind === 'elgato') applyLight(entity, { on: entity.on !== true });
+  else toggleSwitch(entity, els.lightSheetPower);
+}
+
+function onSheetEdit() {
+  const entity = sheetEntity();
+  if (!entity) return;
+  if (sheetLight.kind === 'elgato') openLightDetail(entity.light_id);
+  else openPlugDetail(entity.device_id, els.lightSheetEdit);
+}
+
+// ------------------------------------------- Elgato name + details dialog
 function openLightDetail(lightId) {
   const light = lightById(lightId);
   if (!light) return;
@@ -352,6 +457,7 @@ async function saveLightName() {
   }
 }
 
+// ------------------------------------------------------------- render
 function showLightsState(iconName, message, retry) {
   els.lightsList.innerHTML = '';
   const options = retry ? {
@@ -361,13 +467,12 @@ function showLightsState(iconName, message, retry) {
   els.lightsList.appendChild(emptyStateEl(iconName, message, options));
 }
 
-// Count badge in the card summary, mirroring the Plugs/Blinds cards. Unlike
-// those, the Lights card is never hidden when empty: its empty/error state and
-// Retry action live inside its own body, so hiding the card would strand them.
-function setLightsCount(n) {
+// The group's meta: how many are on. The group is never hidden when empty:
+// its empty/error state and Retry live in its own body.
+function setLightsCount(onCount, total) {
   if (!els.lightsCount) return;
-  els.lightsCount.textContent = String(n);
-  els.lightsCount.hidden = n === 0;
+  els.lightsCount.textContent = onCount ? onCount + ' on' : 'All off';
+  els.lightsCount.hidden = total === 0;
 }
 
 export function renderLights() {
@@ -375,11 +480,13 @@ export function renderLights() {
   els.lightsList.dataset.state = lightsView.state;
   els.lightsList.setAttribute('aria-busy', lightsView.state === 'loading' ? 'true' : 'false');
   const tuyaLights = state.tuyaLights;
-  setLightsCount(state.lights.length + tuyaLights.length);
+  const onCount = state.lights.filter(function (l) { return l.reachable && l.on === true; }).length +
+    tuyaLights.filter(function (d) { return d.reachable && d.switch_on === true; }).length;
+  setLightsCount(onCount, state.lights.length + tuyaLights.length);
   if (!state.lights.length && !tuyaLights.length) {
     updateBulkControls();
     if (lightsView.state === 'loading') {
-      showLightsState('refresh-cw', 'Reading Elgato lights…', false);
+      showLightsState('refresh-cw', 'Reading lights…', false);
       els.lightsNote.hidden = true;
     } else if (lightsView.state === 'error') {
       showLightsState('lightbulb', 'Lights unavailable', true);
@@ -391,6 +498,7 @@ export function renderLights() {
       els.lightsNote.textContent =
         'Add ELGATO_LIGHT_HOSTS=host[:9123] to .env or enable Bonjour/mDNS.';
     }
+    renderLightSheet(false);
     return;
   }
   if (!state.lights.length) {
@@ -410,14 +518,15 @@ export function renderLights() {
   const rows = state.lights.map(function (light) {
     return { name: label(light), build: function () { return buildLightRow(light); } };
   }).concat(tuyaLights.map(function (device) {
-    return {
-      name: device.display_name || device.name || '',
-      build: function () { return buildTuyaLightRow(device); },
-    };
+    return { name: tuyaLabel(device), build: function () { return buildTuyaLightRow(device); } };
   }));
   rows.sort(function (a, b) { return a.name.localeCompare(b.name); });
-  rows.forEach(function (row) { els.lightsList.appendChild(row.build()); });
+  const list = document.createElement('ul');
+  list.className = 'action-rows';
+  rows.forEach(function (row) { list.appendChild(row.build()); });
+  els.lightsList.appendChild(list);
   updateBulkControls();
+  renderLightSheet(false);
 }
 
 export async function loadLights() {
@@ -494,6 +603,8 @@ export function wireLightControls() {
   if (els.lightsAllOff) {
     els.lightsAllOff.addEventListener('click', function () { applyAllLights(false); });
   }
+  if (els.lightSheetPower) els.lightSheetPower.addEventListener('click', onSheetPower);
+  if (els.lightSheetEdit) els.lightSheetEdit.addEventListener('click', onSheetEdit);
   els.lightDetailClose.addEventListener('click', closeLightDetail);
   els.lightDialog.addEventListener('click', function (ev) {
     if (ev.target === els.lightDialog) closeLightDetail();

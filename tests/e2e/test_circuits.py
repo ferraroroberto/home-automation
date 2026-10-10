@@ -1,6 +1,6 @@
-"""Circuits card (issue #25): every CT-clamp channel renders, clamp or not.
+"""Circuits group (issue #25): every CT-clamp channel renders, clamp or not.
 
-Drives the IoT tab's Circuits card against a stubbed ``GET /api/circuits`` (no
+Drives the Devices tab's Circuits group against a stubbed ``GET /api/circuits`` (no
 mDNS, no meter I/O) on both the Chromium-desktop and WebKit/iPhone projections.
 
 The contract worth a browser test is the one a well-meaning refactor would
@@ -10,14 +10,16 @@ nothing is indistinguishable, on screen, from a channel that was never there.
 Issue #619 added a *user*-driven hide on top of that, which makes the
 distinction sharper rather than softer: hidden is a decision, 0 W never is.
 
-The rest of #619's card shape is here too, because it is all state the DOM
-holds rather than the server — the fold state has to survive a re-render (the
-card repaints every poll), and the group order is computed client-side.
+The rest of #619's shape is here too, because it is all state the DOM holds
+rather than the server — the order of meters and clamps is computed
+client-side. Since #884 the list is flat (a row per clamp, then a row per
+meter, all shared rows from row.js); there is no per-meter fold any more.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
@@ -99,9 +101,6 @@ def _boot_circuits(
     page.wait_for_selector("#paneHome", state="visible")
     page.locator("#tabIot").click()
     page.wait_for_selector("#paneIot", state="visible")
-    page.eval_on_selector_all(
-        "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
-    )
 
 
 def test_every_channel_renders_even_with_no_clamp_fitted(
@@ -127,25 +126,30 @@ def test_a_measured_zero_is_shown_and_an_unmeasured_channel_is_not_faked(
 
     rows = page.locator("#circuitsList .circuit-row")
     # The sign-corrected clamp reports positive watts, not the raw negative.
-    expect(rows.nth(0).locator(".plug-watts")).to_have_text("292 W")
+    expect(rows.nth(0).locator(".circuit-watts")).to_have_text("292 W")
     # Channel 2 genuinely measured 0 W.
-    expect(rows.nth(1).locator(".plug-watts")).to_have_text("0 W")
+    expect(rows.nth(1).locator(".circuit-watts")).to_have_text("0 W")
     # Channels 3-6 measured nothing — never dressed up as a 0 W reading.
-    expect(rows.nth(2).locator(".plug-watts")).to_have_count(0)
-    expect(rows.nth(2)).to_contain_text("no reading")
+    expect(rows.nth(2).locator(".circuit-watts")).to_have_text("No reading")
 
 
 def test_an_offline_meter_keeps_its_channel_rows(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """A meter dropping off Wi-Fi must dim its card, not delete circuits."""
+    """A meter dropping off Wi-Fi must flag its row, not delete circuits."""
     _boot_circuits(
         page, base_url, sample_units, mock_api, mock_energy, [_meter(reachable=False)]
     )
 
     expect(page.locator("#circuitsList .circuit-row")).to_have_count(6)
-    expect(page.locator("#circuitsList .circuit-meter")).to_contain_text("offline")
+    meter_row = page.locator("#circuitsList .circuit-meter")
+    expect(meter_row.locator(".chip")).to_have_text("Offline")
+    expect(meter_row.locator(".row-avatar")).to_have_attribute("data-badge", "down")
+    # The channels carry no readings while the meter is unreachable (never 0 W).
+    expect(
+        page.locator("#circuitsList .circuit-row .circuit-watts").first
+    ).to_have_text("—")
 
 
 def test_rename_dialog_shows_the_clamp_flip_only_for_a_channel(
@@ -154,12 +158,12 @@ def test_rename_dialog_shows_the_clamp_flip_only_for_a_channel(
 ) -> None:
     """One dialog serves both; a meter has no clamp direction to correct.
 
-    Nor a hidden flag — hiding a meter would hide every circuit under it, which
-    is what folding the group is for (issue #619).
+    Nor a hidden flag — hiding a meter would hide every circuit under it
+    (issue #619).
     """
     _boot_circuits(page, base_url, sample_units, mock_api, mock_energy, [_meter()])
 
-    page.locator("#circuitsList .circuit-row .device-row-name").first.click()
+    page.locator("#circuitsList .circuit-row .action-row-main").first.click()
     expect(page.locator("#circuitDialog")).to_be_visible()
     expect(page.locator("#circuitDetailName")).to_have_text("water heater")
     expect(page.locator("#circuitInvertSection")).to_be_visible()
@@ -167,32 +171,32 @@ def test_rename_dialog_shows_the_clamp_flip_only_for_a_channel(
     expect(page.locator("#circuitHiddenSection")).to_be_visible()
     page.locator("#circuitDetailClose").click()
 
-    page.locator("#circuitsList .circuit-meter-name").first.click()
+    page.locator("#circuitsList .circuit-meter .action-row-main").first.click()
     expect(page.locator("#circuitDialog")).to_be_visible()
     expect(page.locator("#circuitDetailName")).to_have_text("Athom Energy Monitor ddee01")
     expect(page.locator("#circuitInvertSection")).to_be_hidden()
     expect(page.locator("#circuitHiddenSection")).to_be_hidden()
 
 
-def test_the_meter_header_carries_the_name_alone(
+def test_the_meter_row_carries_the_name_alone(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """#619: the group's aggregate left the header for the dialog.
+    """#619: the meter's aggregate left the tab for the dialog.
 
-    This card answers "where is the power going", so the meter's own total,
-    mains voltage and Wi-Fi signal are reference figures — not the one thing
-    the header should be spending its width on.
+    This group answers "where is the power going", so the meter's own total,
+    mains voltage and Wi-Fi signal are reference figures — not what its row
+    should be spending its width on.
     """
     _boot_circuits(page, base_url, sample_units, mock_api, mock_energy, [_meter()])
 
-    header = page.locator("#circuitsList .circuit-meter").first
-    expect(header).to_contain_text("Athom Energy Monitor ddee01")
-    for reading in ("292 W", "239 V", "-68 dBm"):
-        expect(header).not_to_contain_text(reading)
+    meter_row = page.locator("#circuitsList .circuit-meter").first
+    expect(meter_row.locator(".action-row-title")).to_have_text("Athom Energy Monitor ddee01")
+    for reading in ("292 W", "239 V", "-68 dBm", METER_ID):
+        expect(meter_row).not_to_contain_text(reading)
 
     # They are all still reachable, one tap away, plus the meter's MAC.
-    page.locator("#circuitsList .circuit-meter-name").first.click()
+    meter_row.locator(".action-row-main").click()
     expect(page.locator("#circuitMeterInfo")).to_be_visible()
     expect(page.locator("#circuitMeterVoltage")).to_have_text("239 V")
     expect(page.locator("#circuitMeterTotal")).to_have_text("292 W")
@@ -212,18 +216,18 @@ def test_a_channels_reference_figures_live_in_the_dialog(
     expect(row).not_to_contain_text("1.81 A")
     expect(row).not_to_contain_text("6.88 kWh")
 
-    row.locator(".device-row-name").click()
+    row.locator(".action-row-main").click()
     expect(page.locator("#circuitReadings")).to_be_visible()
     expect(page.locator("#circuitReadingPower")).to_have_text("292 W")
     expect(page.locator("#circuitReadingCurrent")).to_have_text("1.81 A")
     expect(page.locator("#circuitReadingEnergy")).to_have_text("6.88 kWh")
     # A meter has no per-clamp readings block of its own.
     page.locator("#circuitDetailClose").click()
-    page.locator("#circuitsList .circuit-meter-name").first.click()
+    page.locator("#circuitsList .circuit-meter .action-row-main").first.click()
     expect(page.locator("#circuitReadings")).to_be_hidden()
 
 
-def test_meter_groups_are_ordered_by_name_not_discovery(
+def test_meters_are_ordered_by_name_not_discovery(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -231,7 +235,8 @@ def test_meter_groups_are_ordered_by_name_not_discovery(
 
     mDNS hands meters back in whatever order the sweep saw them, so the only
     way to choose the order of the board is to rename the meters — which only
-    works if "2 …" sorts before "10 …" rather than lexically after it.
+    works if "2 …" sorts before "10 …" rather than lexically after it. The
+    flat list keeps that order twice: every meter's clamps, then the meters.
     """
     meters = [
         _meter(meter_id="AA:BB:CC:DD:EE:10", display_name="10 garage"),
@@ -240,74 +245,53 @@ def test_meter_groups_are_ordered_by_name_not_discovery(
     ]
     _boot_circuits(page, base_url, sample_units, mock_api, mock_energy, meters)
 
-    names = page.locator("#circuitsList .circuit-meter-name")
-    expect(names).to_have_count(3)
-    expect(names.nth(0)).to_have_text("1 cuadro principal")
-    expect(names.nth(1)).to_have_text("2 kitchen")
-    expect(names.nth(2)).to_have_text("10 garage")
+    titles = page.locator("#circuitsList .circuit-meter .action-row-title")
+    expect(titles).to_have_count(3)
+    expect(titles.nth(0)).to_have_text("1 cuadro principal")
+    expect(titles.nth(1)).to_have_text("2 kitchen")
+    expect(titles.nth(2)).to_have_text("10 garage")
+
+    # The clamps come first, grouped by meter in the same order (6 per meter).
+    clamp_metas = page.locator("#circuitsList .circuit-row .action-row-meta-text")
+    expect(clamp_metas).to_have_count(18)
+    expect(clamp_metas.nth(0)).to_have_text("1 cuadro principal · clamp 1")
+    expect(clamp_metas.nth(6)).to_have_text("2 kitchen · clamp 1")
+    expect(clamp_metas.nth(12)).to_have_text("10 garage · clamp 1")
+    # ... and every clamp row precedes the first meter row.
+    rows = page.locator("#circuitsList .action-row")
+    expect(rows).to_have_count(21)
+    expect(rows.nth(17)).to_have_class(re.compile(r"\bcircuit-row\b"))
+    expect(rows.nth(18)).to_have_class(re.compile(r"\bcircuit-meter\b"))
 
 
-def test_a_meter_group_folds_and_the_name_still_renames(
+def test_tapping_the_meter_renames_it(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """The summary-embedded control: the name edits, it never folds."""
+    """The meter row opens the dialog, and a Save there renames the meter."""
+    puts: List[Dict] = []
+
+    def handle(route: Route) -> None:
+        req = route.request
+        if req.method == "PUT" and req.url.endswith("/display_name"):
+            puts.append(req.post_data_json)
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    # Stubbed so a rename never reaches the real name store.
+    page.route("**/api/circuits/**", handle)
     _boot_circuits(page, base_url, sample_units, mock_api, mock_energy, [_meter()])
 
-    group = page.locator("#circuitsList .circuit-group").first
-    body = page.locator("#circuitsList .circuit-group-body").first
-    expect(group).to_have_js_property("open", True)
-    expect(body).to_be_visible()
-
-    page.locator("#circuitsList .circuit-meter .collapse-chevron").first.click()
-    expect(group).to_have_js_property("open", False)
-    expect(body).to_be_hidden()
-
-    # Tapping the name of a folded group opens the dialog and leaves it folded.
-    page.locator("#circuitsList .circuit-meter-name").first.click()
+    page.locator("#circuitsList .circuit-meter .action-row-main").first.click()
     expect(page.locator("#circuitDialog")).to_be_visible()
-    expect(group).to_have_js_property("open", False)
+    page.locator("#circuitDisplayName").fill("main board")
+    page.locator("#circuitSave").click()
 
-
-def test_the_fold_survives_a_re_render_and_a_reload(
-    page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable, mock_energy: Callable,
-) -> None:
-    """renderCircuits() rebuilds the list every poll — the DOM cannot hold this.
-
-    A fold that quietly springs open every 15 seconds is worse than no fold at
-    all, so the collapsed set lives in localStorage and is re-applied on render.
-    """
-    channels = [
-        _channel(1, display_name="water heater", power_w=291.5, current_a=1.81,
-                 energy_kwh=6.88),
-        _channel(2, hidden=True),
-    ]
-    _boot_circuits(
-        page, base_url, sample_units, mock_api, mock_energy,
-        [_meter(channels=channels)],
-    )
-
-    page.locator("#circuitsList .circuit-meter .collapse-chevron").first.click()
-    expect(page.locator("#circuitsList .circuit-group").first).to_have_js_property(
-        "open", False
-    )
-
-    # "Show hidden" re-renders the whole list — the same path the poll takes.
-    page.locator("#circuitsHiddenToggle").click()
-    expect(page.locator("#circuitsList .circuit-group").first).to_have_js_property(
-        "open", False
-    )
-
-    page.reload(wait_until="domcontentloaded")
-    page.locator("#tabIot").click()
-    page.wait_for_selector("#paneIot", state="visible")
-    page.eval_on_selector_all(
-        "details.device-list-card", "els => els.forEach(e => { e.open = true; })"
-    )
-    expect(page.locator("#circuitsList .circuit-group").first).to_have_js_property(
-        "open", False
-    )
+    expect(page.locator("#circuitDetailName")).to_have_text("main board")
+    assert puts == [{"display_name": "main board"}], puts
+    page.locator("#circuitDetailClose").click()
+    expect(
+        page.locator("#circuitsList .circuit-meter .action-row-title")
+    ).to_have_text("main board")
 
 
 def test_a_hidden_channel_is_put_away_but_never_lost(
@@ -338,11 +322,12 @@ def test_a_hidden_channel_is_put_away_but_never_lost(
     rows = page.locator("#circuitsList .circuit-row")
     expect(rows).to_have_count(3)
     expect(rows.nth(2)).to_contain_text("Clamp 5")
-    expect(rows.nth(2)).to_contain_text("hidden")
+    expect(rows.nth(2).locator(".device-hidden-chip")).to_have_text("Hidden")
+    expect(rows.nth(2)).to_have_class(re.compile(r"\bis-hidden-circuit\b"))
     expect(toggle).to_have_text("Hide hidden")
 
     # The revealed row's dialog shows the flag it was put away with.
-    rows.nth(2).locator(".device-row-name").click()
+    rows.nth(2).locator(".action-row-main").click()
     expect(page.locator("#circuitHiddenToggle")).to_have_attribute("aria-checked", "true")
 
 
@@ -355,14 +340,14 @@ def test_the_hidden_toggle_stays_out_of_the_way_when_nothing_is_hidden(
     expect(page.locator("#circuitsHiddenToggle")).to_be_hidden()
 
 
-def test_the_hidden_toggle_filters_without_folding_the_card(
+def test_the_hidden_toggle_filters_rows_from_the_group_footer(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
-    """It sits in the card body's toolbar, never the <summary> (#779).
+    """It sits in the group's footer, never its header (#779, #884).
 
-    A control in the summary is an ambiguous tap: a near-miss folds the card
-    (design.md, LAYOUT-05). Filtering the list must leave the card open.
+    A control in the header is an ambiguous tap (design.md, LAYOUT-05). The
+    footer verb only filters the list, in both directions.
     """
     channels = [
         _channel(1, display_name="water heater", power_w=291.5),
@@ -373,13 +358,14 @@ def test_the_hidden_toggle_filters_without_folding_the_card(
         [_meter(channels=channels)],
     )
 
-    card = page.locator("#circuitsCard")
     toggle = page.locator("#circuitsHiddenToggle")
-    # In the body's toolbar, not in the header.
-    expect(page.locator("#circuitsCard > summary #circuitsHiddenToggle")).to_have_count(0)
-    expect(page.locator("#circuitsCard .card-toolbar #circuitsHiddenToggle")).to_have_count(1)
-    expect(card).to_have_js_property("open", True)
+    # In the group's footer, not in the header.
+    expect(page.locator("#circuitsCard .group-head #circuitsHiddenToggle")).to_have_count(0)
+    expect(page.locator("#circuitsCard .group-foot #circuitsHiddenToggle")).to_have_count(1)
+    expect(page.locator("#circuitsList .circuit-row")).to_have_count(1)
 
     toggle.click()
-    expect(card).to_have_js_property("open", True)
     expect(page.locator("#circuitsList .circuit-row")).to_have_count(2)
+
+    toggle.click()
+    expect(page.locator("#circuitsList .circuit-row")).to_have_count(1)
