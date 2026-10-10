@@ -86,10 +86,16 @@ def _record_backoff_success(device_id: str) -> None:
 
 _SWITCH_CODES = ("switch_1", "switch", "switch_led")
 _COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
-# The DPS value per cover action where it is not the action word itself:
-# ``control`` / ``control_back`` take Tuya's own open / stop / close enum,
-# the vendor ``mach_operate`` code its ZZ / FZ / STOP one.
-_COVER_VALUES = {"mach_operate": {"open": "ZZ", "close": "FZ", "stop": "STOP"}}
+# The value set a blind takes on its control DPS is local, not the cloud
+# schema's (#901): a ``control`` DPS listed as the open / stop / close enum
+# can answer ``'1'`` over the LAN and silently ignore a written ``'close'``.
+# So each device's set is detected from its own ``status()`` exactly as
+# TinyTuya's ``CoverDevice`` does — its ``COVER_TYPES`` value sets, matched
+# in its priority order (overlapping values resolve to the commoner type) —
+# and cached per device id for the life of the process.
+_COVER_TYPES: dict[int, dict[str, Any]] = tinytuya.CoverDevice.COVER_TYPES
+_COVER_TYPE_PRIORITY = (1, 8, 3, 4, 5, 7, 2, 6)
+_cover_types: dict[str, int] = {}
 _BRIGHTNESS_CODES = ("bright_value", "bright_value_v2", "bright_value_1")
 # Tuya's documented raw brightness range per code, used only when a device's
 # mapping does not state its own min/max (issue #870).
@@ -116,6 +122,12 @@ class TuyaDeviceNotFoundError(RuntimeError):
 
 class TuyaCommandError(RuntimeError):
     """Raised when TinyTuya returns an error response or malformed payload."""
+
+
+class TuyaCoverTypeUnknown(TuyaCommandError):
+    """Raised by :func:`set_cover` when a blind's status shows no known cover
+    value set at its control DPS (#901) — distinct from a LAN failure: the
+    blind answered, but writing a guessed value would be acked and ignored."""
 
 
 class TuyaBackoffActive(TuyaCommandError):
@@ -692,14 +704,49 @@ def set_brightness(device_id: str, pct: int) -> dict[str, Any]:
     return response if isinstance(response, dict) else {"response": response}
 
 
+def _cover_type(device_id: str, device: tinytuya.Device, dps: str) -> int:
+    """This blind's TinyTuya cover type, detected from one ``status()`` read
+    on first use and cached after (#901).
+
+    Raises :class:`TuyaCoverTypeUnknown` (logged) when the control DPS holds
+    no value from any known set — never a guess — and leaves the cache empty
+    so a later command re-reads it.
+    """
+    cached = _cover_types.get(device_id)
+    if cached is not None:
+        return cached
+    response = device.status()
+    _raise_for_tinytuya_error(response, f"Read Tuya cover status {device_id}")
+    if not isinstance(response, dict) or not isinstance(response.get("dps"), dict):
+        raise TuyaCommandError(f"Read Tuya cover status {device_id} returned no DPS payload")
+    current = response["dps"].get(dps)
+    if current is not None:
+        for type_id in _COVER_TYPE_PRIORITY:
+            if current in _COVER_TYPES[type_id]["detect_values"]:
+                _cover_types[device_id] = type_id
+                logger.info(
+                    "ℹ️ Tuya cover %s is cover type %d (DPS %s reads %r)",
+                    device_id, type_id, dps, current,
+                )
+                return type_id
+    logger.error(
+        "❌ Tuya cover %s: unknown cover type, DPS %s reads %r — nothing written",
+        device_id, dps, current,
+    )
+    raise TuyaCoverTypeUnknown(
+        f"Device {device_id} reports no known cover value set on DPS {dps} ({current!r})"
+    )
+
+
 def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[str, Any]:
     """Open, close, or stop a Tuya blind via local LAN control.
 
     Writes the mapped control DPS directly rather than through TinyTuya's
     ``CoverDevice`` (#899): its ``open_cover``/``close_cover``/``stop_cover``
     return ``None``, so a blind that never answered was logged as sent and
-    never retried, and each first spent a ``status()`` round trip guessing
-    the value set this mapping already names.
+    never retried. The value written is the one the blind's own cover type
+    uses (#901, see :func:`_cover_type`) — one ``status()`` read per device
+    per process, then a single control frame per command.
 
     Same backoff-bypass contract as :func:`set_switch` — never gated by the
     passive-poll backoff, but its outcome updates the shared state.
@@ -710,8 +757,21 @@ def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[
         raise TuyaCommandError(f"Device {device_id} has no cover control DPS mapping")
 
     device = _connect(device_id)
-    value = _COVER_VALUES.get(control.code, {}).get(action, action)
     logger.info("ℹ️ Sending Tuya cover action %s to %s", action, device_id)
+    try:
+        cover_type = _cover_type(device_id, device, control.dps)
+    except TuyaCoverTypeUnknown:
+        raise  # the blind answered: not a reachability failure
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    value = _COVER_TYPES[cover_type].get(action)
+    if value is None:
+        raise TuyaCommandError(f"Device {device_id} cover type {cover_type} has no {action} value")
+    logger.info(
+        "ℹ️ Tuya cover %s DPS %s: %s -> %r (type %d)",
+        device_id, control.dps, action, value, cover_type,
+    )
     try:
         response = device.set_value(control.dps, value)
         _raise_for_tinytuya_error(response, f"Set Tuya cover {device_id} {action}")

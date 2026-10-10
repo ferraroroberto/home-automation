@@ -432,19 +432,36 @@ def _write_blind(path: Path, code: str = "control") -> None:
     )
 
 
-def _fake_link(monkeypatch: pytest.MonkeyPatch, reply: object) -> list:
-    """TinyTuya's socket layer faked: every frame is recorded, ``reply`` answers it."""
+def _fake_link(monkeypatch: pytest.MonkeyPatch, reply: object, status: object = None) -> list:
+    """TinyTuya's socket layer faked: every frame is recorded and answered.
+
+    A ``status()`` query is answered with ``status`` (DPS 1 still at
+    ``reply``'s value when omitted); every other frame with ``reply``.
+    """
     import tinytuya
 
     frames: list = []
+    if status is None:
+        status = reply
 
     def _generate_payload(self, command, data=None, *_a, **_kw):
         frames.append((command, data))
-        return b""
+        return command
+
+    def _send_receive(self, payload, *_a, **_kw):
+        return status if payload == tinytuya.DP_QUERY else reply
 
     monkeypatch.setattr(tinytuya.Device, "generate_payload", _generate_payload)
-    monkeypatch.setattr(tinytuya.Device, "_send_receive", lambda self, *_a, **_kw: reply)
+    monkeypatch.setattr(tinytuya.Device, "_send_receive", _send_receive)
     return frames
+
+
+@pytest.fixture(autouse=True)
+def _clear_cover_types() -> None:
+    """Isolate the per-device cover-type cache between tests."""
+    T._cover_types.clear()
+    yield
+    T._cover_types.clear()
 
 
 def test_set_cover_raises_when_the_blind_does_not_answer(
@@ -470,7 +487,7 @@ def test_set_cover_raises_when_the_blind_does_not_answer(
 def test_set_cover_writes_the_mapped_dps_in_one_frame(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, code: str, value: str
 ) -> None:
-    """One control frame to the mapped DPS: no ``status()`` probe first."""
+    """Once the blind's cover type is known, a command is one control frame."""
     import tinytuya
 
     path = tmp_path / "devices.json"
@@ -479,4 +496,94 @@ def test_set_cover_writes_the_mapped_dps_in_one_frame(
     frames = _fake_link(monkeypatch, {"dps": {"1": value}})
 
     T.set_cover("blind-x", "stop")
+    frames.clear()
+    T.set_cover("blind-x", "stop")
     assert frames == [(tinytuya.CONTROL, {"1": value})]
+
+
+@pytest.mark.parametrize(
+    "current, action, value",
+    [
+        # Type 3, string-numeric: the blinds that ignored 'close' after #899 (#901).
+        ("1", "open", "1"), ("1", "close", "2"), ("1", "stop", "0"),
+        ("2", "open", "1"), ("0", "close", "2"),
+        # Type 1, Tuya's own enum.
+        ("open", "close", "close"), ("stop", "open", "open"), ("close", "stop", "stop"),
+        # Type 8, the vendor mach_operate set.
+        ("FZ", "open", "ZZ"), ("ZZ", "close", "FZ"), ("STOP", "stop", "STOP"),
+    ],
+)
+def test_set_cover_writes_the_value_set_the_blind_reports(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, current: str, action: str, value: str
+) -> None:
+    """The value written comes from the blind's local status, not the cloud schema (#901).
+
+    A blind whose ``status()`` reports DPS 1 as ``'1'`` acks a write of
+    ``'close'`` and ignores it; it has to be sent ``'2'``.
+    """
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    frames = _fake_link(monkeypatch, {"dps": {"1": value}}, status={"dps": {"1": current}})
+
+    T.set_cover("blind-x", action)
+    assert frames[-1] == (tinytuya.CONTROL, {"1": value})
+
+
+def test_set_cover_detects_the_cover_type_once_per_device(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The cover type is cached: one ``status()`` read, then control frames only."""
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    frames = _fake_link(monkeypatch, {"dps": {"1": "2"}}, status={"dps": {"1": "1"}})
+
+    T.set_cover("blind-x", "close")
+    T.set_cover("blind-x", "open")
+    T.set_cover("blind-x", "stop")
+
+    assert [cmd for cmd, _ in frames].count(tinytuya.DP_QUERY) == 1
+    assert [data for cmd, data in frames if cmd == tinytuya.CONTROL] == [
+        {"1": "2"}, {"1": "1"}, {"1": "0"},
+    ]
+
+
+@pytest.mark.parametrize("status", [{"dps": {}}, {"dps": {"1": "sideways"}}, {"dps": {"1": None}}])
+def test_set_cover_refuses_to_guess_an_unknown_cover_type(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, status: dict, caplog: pytest.LogCaptureFixture
+) -> None:
+    """No known value set at the control DPS: a distinct, logged error, nothing written."""
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    frames = _fake_link(monkeypatch, {"dps": {"1": "close"}}, status=status)
+
+    with caplog.at_level("ERROR", logger=T.logger.name), pytest.raises(T.TuyaCoverTypeUnknown):
+        T.set_cover("blind-x", "close")
+
+    assert tinytuya.CONTROL not in [cmd for cmd, _ in frames]
+    assert "cover type" in caplog.text
+    assert "blind-x" not in T._cover_types  # a later status may resolve it
+
+
+def test_set_cover_unsupported_action_for_the_type_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A relay-style cover (type 2) has no stop value: refuse rather than write ``None``."""
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    frames = _fake_link(monkeypatch, {"dps": {"1": True}}, status={"dps": {"1": True}})
+
+    with pytest.raises(T.TuyaCommandError, match="no stop value"):
+        T.set_cover("blind-x", "stop")
+    assert tinytuya.CONTROL not in [cmd for cmd, _ in frames]
