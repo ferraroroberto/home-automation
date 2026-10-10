@@ -23,7 +23,9 @@ in the background through :func:`src.blind_automation.retry_failed_blinds`
 (#897), so a retry never delays the schedule tick or the alarm path. The event
 record is written once the move has settled, with its attempt count; a blind
 still failing after the last retry sends one Telegram message per move.
-Manual taps keep their single attempt: the owner sees that result at once.
+A manual tap on the Blinds card gets the same retry (#899) through
+:func:`settle_manual_move`: the card hears the first attempt at once, and the
+retries carry on in the background.
 """
 
 from __future__ import annotations
@@ -41,7 +43,6 @@ from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src._schedule_store import daily_due
 from src.blind_automation import (
-    RETRY_DELAYS_S,
     BlindOutcome,
     BlindRetryReport,
     BlindScheduleEntry,
@@ -52,6 +53,7 @@ from src.blind_automation import (
     load_blind_schedules,
     move_blinds,
     presence_allows,
+    retry_delays,
     retry_failed_blinds,
 )
 from src.location_config import load_location_config
@@ -173,13 +175,19 @@ async def _notify(text: str) -> None:
         logger.warning("⚠️ Blind failure Telegram notify failed: %s", exc)
 
 
+def _retried_for(action: str) -> str:
+    """How long ``action``'s retries ran, in words: "~15 s", "~7.5 min"."""
+    total = sum(retry_delays(action))
+    return f"~{total:g} s" if total < 60 else f"~{total / 60:g} min"
+
+
 async def _finish_move(
     action: str,
     outcomes: List[BlindOutcome],
     what: str,
-    record: Callable[[BlindRetryReport], None],
+    record: Optional[Callable[[BlindRetryReport], None]],
 ) -> None:
-    """Retry an automatic move's failed blinds, then record, log and notify.
+    """Retry a move's failed blinds, then record, log and notify.
 
     Full success (first try or after retries) is an info log; a blind still
     failing after the last retry sends exactly one Telegram message for the
@@ -187,7 +195,8 @@ async def _finish_move(
     """
     try:
         report = await retry_failed_blinds(action, outcomes, sleep=_retry_sleep)  # type: ignore[arg-type]
-        record(report)
+        if record is not None:
+            record(report)
         if not report.failed:
             logger.info(
                 "✅ Blinds %s (%s): %d moved, %d superseded, in %d attempt(s)",
@@ -198,10 +207,9 @@ async def _finish_move(
             "⚠️ Blinds %s (%s): %s still failing after %d attempt(s)",
             action, what, ", ".join(report.failed), report.max_attempts,
         )
-        minutes = f"{sum(RETRY_DELAYS_S) / 60:g}"
         await _notify(
             f"🪟 Blinds could not {action}: {', '.join(_blind_names(report.failed))} "
-            f"({what}). Retried for ~{minutes} min."
+            f"({what}). Retried for {_retried_for(action)}."
         )
     except Exception as exc:  # noqa: BLE001 — a background retry must never die unseen
         logger.warning("⚠️ Blind %s retry (%s) failed: %s", action, what, exc)
@@ -211,19 +219,30 @@ async def _settle(
     action: str,
     outcomes: List[BlindOutcome],
     what: str,
-    record: Callable[[BlindRetryReport], None],
+    record: Optional[Callable[[BlindRetryReport], None]],
 ) -> None:
-    """Finish an automatic move: at once when every blind moved, else in the background.
+    """Finish a move: at once when no blind failed, else in the background.
 
     The retries run as their own task, so they never hold up the schedule
-    tick or the alarm path that started the move.
+    tick, the alarm path or the HTTP request that started the move.
     """
-    if all(o.ok for o in outcomes):
+    if all(o.ok or o.superseded for o in outcomes):
         await _finish_move(action, outcomes, what, record)
         return
     task = asyncio.create_task(_finish_move(action, outcomes, what, record), name="blind-retry")
     _RETRY_TASKS.add(task)
     task.add_done_callback(_RETRY_TASKS.discard)
+
+
+async def settle_manual_move(action: str, outcomes: List[BlindOutcome]) -> None:
+    """Retry the blinds a manual Blinds-card tap failed to move (#899).
+
+    The same backoff, supersede rule and single final-failure Telegram as the
+    automatic moves; only a failure is retried in the background, so the
+    request answers with the first attempt at once. No event record: the
+    owner is at the app.
+    """
+    await _settle(action, outcomes, "manual", None)
 
 
 async def _apply(entry: BlindScheduleEntry) -> None:

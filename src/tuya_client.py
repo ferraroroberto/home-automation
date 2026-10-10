@@ -86,6 +86,10 @@ def _record_backoff_success(device_id: str) -> None:
 
 _SWITCH_CODES = ("switch_1", "switch", "switch_led")
 _COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
+# The DPS value per cover action where it is not the action word itself:
+# ``control`` / ``control_back`` take Tuya's own open / stop / close enum,
+# the vendor ``mach_operate`` code its ZZ / FZ / STOP one.
+_COVER_VALUES = {"mach_operate": {"open": "ZZ", "close": "FZ", "stop": "STOP"}}
 _BRIGHTNESS_CODES = ("bright_value", "bright_value_v2", "bright_value_1")
 # Tuya's documented raw brightness range per code, used only when a device's
 # mapping does not state its own min/max (issue #870).
@@ -691,6 +695,12 @@ def set_brightness(device_id: str, pct: int) -> dict[str, Any]:
 def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[str, Any]:
     """Open, close, or stop a Tuya blind via local LAN control.
 
+    Writes the mapped control DPS directly rather than through TinyTuya's
+    ``CoverDevice`` (#899): its ``open_cover``/``close_cover``/``stop_cover``
+    return ``None``, so a blind that never answered was logged as sent and
+    never retried, and each first spent a ``status()`` round trip guessing
+    the value set this mapping already names.
+
     Same backoff-bypass contract as :func:`set_switch` — never gated by the
     passive-poll backoff, but its outcome updates the shared state.
     """
@@ -699,15 +709,11 @@ def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[
     if not control:
         raise TuyaCommandError(f"Device {device_id} has no cover control DPS mapping")
 
-    device = _connect(device_id, tinytuya.CoverDevice)
+    device = _connect(device_id)
+    value = _COVER_VALUES.get(control.code, {}).get(action, action)
     logger.info("ℹ️ Sending Tuya cover action %s to %s", action, device_id)
     try:
-        if action == "open":
-            response = device.open_cover()
-        elif action == "close":
-            response = device.close_cover()
-        else:
-            response = device.stop_cover()
+        response = device.set_value(control.dps, value)
         _raise_for_tinytuya_error(response, f"Set Tuya cover {device_id} {action}")
     except TuyaCommandError:
         _record_backoff_failure(device_id)

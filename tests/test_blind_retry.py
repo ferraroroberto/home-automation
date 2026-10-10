@@ -235,3 +235,113 @@ def test_a_newer_schedule_supersedes_an_older_pending_retry(house, lan, clock) -
     assert house.messages == []  # superseded is not a failure
     outcome, _detail, extra = house.records[0]
     assert outcome == "ok" and extra["superseded"] == ["blind-2"]
+
+
+# ---------------------------------------------- Stop mid-move, manual taps (#899)
+class HeldLan(FakeLan):
+    """A blind whose "open" hangs until released: an unresponsive blind mid-move.
+
+    ``received`` is what the blind actually acted on, in the order it did:
+    a send counts once its call returns, as on the real LAN.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.received: List[tuple] = []
+
+    def set_cover(self, device_id: str, action: str) -> dict:
+        if action == "open":
+            self.entered.set()
+            assert self.release.wait(5), "test never released the held open"
+        with self._lock:
+            self.received.append((device_id, action))
+        return {}
+
+
+@pytest.fixture
+def held(monkeypatch: pytest.MonkeyPatch, lan: FakeLan) -> HeldLan:
+    fake = HeldLan()
+    monkeypatch.setattr(B, "set_cover", fake.set_cover)
+    return fake
+
+
+def _tap_while_open_is_held(held: HeldLan, *later: str) -> List[List[B.BlindOutcome]]:
+    """Tap "open" on blind-2, then each of ``later`` while the open hangs."""
+    async def _go() -> List[List[B.BlindOutcome]]:
+        first = asyncio.create_task(B.move_blinds("open", ["blind-2"]))
+        assert await asyncio.to_thread(held.entered.wait, 5)
+        taps = [asyncio.create_task(B.move_blinds(a, ["blind-2"])) for a in later]  # type: ignore[arg-type]
+        await asyncio.sleep(0.2)  # the later taps reach the blind's queue
+        held.release.set()
+        return list(await asyncio.gather(first, *taps))
+
+    return asyncio.run(_go())
+
+
+def test_stop_tapped_mid_move_lands_after_the_move_never_before(held) -> None:
+    """The last command tapped is the last one the blind receives."""
+    _tap_while_open_is_held(held, "stop")
+    assert held.received == [("blind-2", "open"), ("blind-2", "stop")]
+
+
+def test_a_stale_command_queued_behind_the_move_is_dropped(held) -> None:
+    """Down then Stop tapped while Up hangs: Stop is sent, Down never is."""
+    _up, down, stop = _tap_while_open_is_held(held, "close", "stop")
+    assert held.received == [("blind-2", "open"), ("blind-2", "stop")]
+    assert down[0].superseded and not down[0].ok
+    assert stop[0].ok and not stop[0].superseded
+
+
+def test_stop_cancels_the_pending_retry_of_a_failed_move(house, lan, clock) -> None:
+    """A Stop is never undone: the failed "open" it overtook is not retried."""
+    lan.down = {"blind-2": 1}
+
+    async def _go() -> None:
+        outcomes = await B.move_blinds("open")
+        await engine.settle_manual_move("open", outcomes)
+        await B.move_blinds("stop")
+        while engine._RETRY_TASKS:
+            await asyncio.gather(*list(engine._RETRY_TASKS))
+
+    asyncio.run(_go())
+    assert [a for d, a in lan.sent if d == "blind-2"] == ["open", "stop"]
+    assert house.messages == []
+
+
+def test_manual_move_retries_on_the_backoff_then_notifies_once(house, lan, clock) -> None:
+    lan.down = {"blind-2": 99}
+
+    async def _go() -> None:
+        outcomes = await B.move_blinds("close")
+        await engine.settle_manual_move("close", outcomes)
+        assert clock.slept == [] and engine._RETRY_TASKS  # the tap answered at once
+        while engine._RETRY_TASKS:
+            await asyncio.gather(*list(engine._RETRY_TASKS))
+
+    asyncio.run(_go())
+    assert clock.slept == [30.0, 60.0, 120.0, 240.0]
+    assert lan.tries("blind-2") == 5 and lan.tries("blind-1") == 1
+    assert len(house.messages) == 1
+    assert "could not close" in house.messages[0] and "Renamed Two" in house.messages[0]
+    assert "(manual)" in house.messages[0] and "~7.5 min" in house.messages[0]
+
+
+def test_manual_move_that_recovers_is_log_only(house, lan, clock) -> None:
+    lan.down = {"blind-1": 1}
+    _run_then_drain(lambda: _manual("open"))
+    assert clock.slept == [30.0] and lan.tries("blind-1") == 2
+    assert house.messages == [] and house.events == []  # no event record for a tap
+
+
+def test_a_failed_stop_retries_within_the_travel_time(house, lan, clock) -> None:
+    lan.down = {"blind-1": 99}
+    _run_then_drain(lambda: _manual("stop"))
+    assert clock.slept == list(B.STOP_RETRY_DELAYS_S)
+    assert len(house.messages) == 1 and "could not stop" in house.messages[0]
+    assert "~14 s" in house.messages[0]
+
+
+async def _manual(action: str) -> None:
+    await engine.settle_manual_move(action, await B.move_blinds(action))  # type: ignore[arg-type]
