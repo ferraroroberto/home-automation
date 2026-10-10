@@ -1,8 +1,11 @@
 /* Energy data + Energy-tab controller.
  *
- * Owns everything energy: the compact Home tile, the Energy-tab stacked-area
- * (live flow diagram, deficit/surplus banner, efficiency tiles, today's split
- * cards, savings), the live flowing chart, and the hourly/daily/monthly bars.
+ * Owns everything energy: the compact Home flow card and the Energy tab, which
+ * since #883 (Step 5/8 of #872) is the glance card (the live flow and one line
+ * of self-sufficiency), the Today card (two meters and the day's savings), one
+ * History card (one period picker, an Energy / Money switch, the live flowing
+ * chart behind Live), and the solar forecast. The export-rate editor it used to
+ * carry lives in Settings.
  *
  * Cadence is tab-aware: the live snapshot polls fast (LIVE_MS) only while the
  * Energy tab is open, falling back to SLOW_MS elsewhere so the Home tile still
@@ -28,6 +31,9 @@ import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { confirmAction } from './confirm.js';
 import { setHeadPart } from './head-status.js';
+import { rowEl } from './row.js';
+import { sheet } from './sheet.js';
+import { showSettings } from './tabs.js';
 import {
   arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
 } from './pv-system.js';
@@ -74,7 +80,7 @@ function markEnergyFailure() {
         exceptions: [{ text: 'Live unavailable', tone: 'attention' }],
       });
       if (energyLastGood) {
-        els.liveMeta.textContent = '· ' + energyView.lastUpdatedLabel() + ' · live data unavailable';
+        els.liveMeta.textContent = energyView.lastUpdatedLabel() + ' · live data unavailable';
       }
     },
   });
@@ -85,6 +91,12 @@ function markEnergyFailure() {
 
 function fmtKwh(wh) {
   return wh == null ? '—' : (Number(wh) / 1000).toFixed(2) + ' kWh';
+}
+
+// The same figure without its unit, for a Today meter's split line, where the
+// total beside the bar already says kWh.
+function fmtKwhBare(wh) {
+  return wh == null ? '—' : (Number(wh) / 1000).toFixed(2);
 }
 
 // This tab holds 0–1 fractions; the shared fmtPct takes 0–100.
@@ -132,10 +144,12 @@ function selfConsumptionFrac(solar, house) {
 const energyFlowRefs = {
   pv: els.flowPv, grid: els.flowGrid, house: els.flowHouse,
   nodePv: els.flowNodePv, wirePv: els.wirePv, wireGrid: els.wireGrid,
+  gridName: els.flowGridName,
 };
 const homeFlowRefs = {
   pv: els.homeFlowPv, grid: els.homeFlowGrid, house: els.homeFlowHouse,
   nodePv: els.homeFlowNodePv, wirePv: els.homeWirePv, wireGrid: els.homeWireGrid,
+  gridName: els.homeFlowGridName,
 };
 
 // Fill one flow card from a snapshot, against whichever ref set is passed in.
@@ -145,24 +159,30 @@ function renderFlowCard(r, e, solar) {
   r.house.textContent = fmtW(e.house_consumption_w);
   r.nodePv.classList.toggle('is-idle', !e.inverter_reachable);
 
-  // Solar → Home wire: a green Lucide arrow while producing, a dim dot when
+  // Solar → Home wire: a Lucide arrow while producing, a dim dot when
   // asleep/zero (Lucide glyphs since #779 — no ▶ ◀ · characters as icons).
+  // Direction is not a status, so the arrows carry no colour (#883).
   const producing = solar != null && solar > 0;
   r.wirePv.classList.toggle('is-active', producing);
   r.wirePv.innerHTML = icon(producing ? 'arrow-right' : 'dot');
 
   // Home ↔ Grid wire (Grid sits on the right): left while importing (grid
   // feeds home), right while exporting (home feeds grid back), a dot balanced.
+  // The Grid node's name says the same in words, so the direction never rests
+  // on the arrow alone.
   const surplus = e.pv_surplus_w;
   r.wireGrid.classList.remove('is-import', 'is-export');
   if (surplus != null && surplus > 1) {
     r.wireGrid.classList.add('is-export');
     r.wireGrid.innerHTML = icon('arrow-right');
+    r.gridName.textContent = 'Exporting';
   } else if (surplus != null && surplus < -1) {
     r.wireGrid.classList.add('is-import');
     r.wireGrid.innerHTML = icon('arrow-left');
+    r.gridName.textContent = 'Importing';
   } else {
     r.wireGrid.innerHTML = icon('dot');
+    r.gridName.textContent = 'Grid';
   }
 }
 
@@ -202,9 +222,13 @@ export function renderEnergy(e) {
   els.homeEnergyFlow.hidden = false;
   renderEnergyFeedback();
 
-  // --- Live efficiency tiles. ---
+  // --- The glance card's line: self-sufficiency and self-consumption now. ---
+  // Self-consumption is undefined while nothing is produced (night), so that
+  // half of the line goes rather than reading "— of solar used here".
   els.liveSelfSuff.textContent = fmtFracPct(selfSufficiencyFrac(solar, e.house_consumption_w));
-  els.liveSelfCons.textContent = fmtFracPct(selfConsumptionFrac(solar, e.house_consumption_w));
+  const selfCons = selfConsumptionFrac(solar, e.house_consumption_w);
+  els.liveSelfCons.textContent = fmtFracPct(selfCons);
+  els.liveSelfConsPart.hidden = selfCons == null;
 
   // --- live availability note ---
   // The meter carries grid + house power; without it there is no live snapshot
@@ -218,11 +242,11 @@ export function renderEnergy(e) {
   // plotted as if it were.
   const stale = !!(e.snapshot && e.snapshot.stale);
   const liveNote = stale
-    ? '· Last reading ' + Math.round(e.snapshot.age_seconds / 60) + ' min ago — source not refreshing'
+    ? 'Last reading ' + Math.round(e.snapshot.age_seconds / 60) + ' min ago — source not refreshing'
     : e.meter_reachable === false
       ? (e.inverter_reachable
-        ? '· Grid and home unavailable — the power sensor is reporting invalid readings'
-        : '· Live unavailable — no reading from the inverter')
+        ? 'Grid and home unavailable — the power sensor is reporting invalid readings'
+        : 'Live unavailable — no reading from the inverter')
       : null;
 
   // --- append to the live chart (Generation / Grid-supplied / Consumption) ---
@@ -231,11 +255,11 @@ export function renderEnergy(e) {
       state.liveChart, Math.floor(Date.now() / 1000),
       solar, e.grid_import_w, e.house_consumption_w, LIVE_MAX_POINTS,
     );
-    els.liveMeta.textContent = liveNote || (isSnapshotRestored('energyLive') ? '· ' + snapshotLabel('energyLive') : '· ' + nowLabel());
+    els.liveMeta.textContent = liveNote || (isSnapshotRestored('energyLive') ? snapshotLabel('energyLive') : 'Updated ' + nowLabel());
   } else if (liveNote) {
     els.liveMeta.textContent = liveNote;
   } else if (isSnapshotRestored('energyLive')) {
-    els.liveMeta.textContent = '· ' + snapshotLabel('energyLive');
+    els.liveMeta.textContent = snapshotLabel('energyLive');
   }
 }
 
@@ -284,47 +308,55 @@ function renderFeedGap(el, hours) {
   el.hidden = !text;
 }
 
+// One Today meter (design.md `meter`): the fill is a share, so it has no pace
+// and stays accent; role="meter" carries the same share for assistive tech.
+function setMeter(bar, frac) {
+  bar.style.transform = 'scaleX(' + (frac || 0) + ')';
+  bar.parentElement.setAttribute('aria-valuenow', String(Math.round((frac || 0) * 100)));
+}
+
 function renderToday(b, gapHours) {
   const pvWh = b && !b.pv_missing ? b.pv_wh : null;
   const houseWh = b ? b.house_wh : null;
   const exportWh = b ? (b.export_wh || 0) : 0;
   const importWh = b ? (b.import_wh || 0) : 0;
 
-  // Generation: self-consumed (pv − fed-in) vs grid feed-in.
+  // Made: self-consumed (pv − fed-in) vs grid feed-in.
   els.genTotal.textContent = fmtKwh(pvWh);
   if (pvWh != null && pvWh > 0) {
     const selfWh = Math.max(0, pvWh - exportWh);
     const frac = clamp01(selfWh / pvWh);
-    els.genSelf.textContent = fmtKwh(selfWh);
-    els.genFeed.textContent = fmtKwh(exportWh);
-    els.genBar.style.transform = 'scaleX(' + frac + ')';
-    els.genPct.textContent = fmtFracPct(frac) + ' self-consumed';
+    els.genSelf.textContent = fmtKwhBare(selfWh);
+    els.genFeed.textContent = fmtKwhBare(exportWh);
+    setMeter(els.genBar, frac);
+    els.genPct.textContent = fmtFracPct(frac);
   } else {
     els.genSelf.textContent = '—';
     els.genFeed.textContent = '—';
-    els.genBar.style.transform = 'scaleX(0)';
+    setMeter(els.genBar, 0);
     els.genPct.textContent = '—';
   }
 
-  // Consumption: covered by solar (house − imported) vs grid-supplied.
+  // Used: covered by solar (house − imported) vs grid-supplied.
   els.consTotal.textContent = fmtKwh(houseWh);
   if (houseWh != null && houseWh > 0) {
     const selfWh = Math.max(0, houseWh - importWh);
     const frac = clamp01(selfWh / houseWh);
-    els.consSelf.textContent = fmtKwh(selfWh);
-    els.consGrid.textContent = fmtKwh(importWh);
-    els.consBar.style.transform = 'scaleX(' + frac + ')';
-    els.consPct.textContent = fmtFracPct(frac) + ' self-sufficient';
+    els.consSelf.textContent = fmtKwhBare(selfWh);
+    els.consGrid.textContent = fmtKwhBare(importWh);
+    setMeter(els.consBar, frac);
+    els.consPct.textContent = fmtFracPct(frac);
   } else {
     els.consSelf.textContent = '—';
     els.consGrid.textContent = '—';
-    els.consBar.style.transform = 'scaleX(0)';
+    setMeter(els.consBar, 0);
     els.consPct.textContent = '—';
   }
 
-  // Savings: CO₂/trees credit all of today's clean PV generation. The € figure
-  // is filled by loadSavingsEur() from the tiered tariff (avoided grid cost of
-  // the self-consumed PV) so it agrees with the cost breakdown below.
+  // Savings: CO₂/trees credit all of today's clean PV generation. The €
+  // figures are filled by loadSavingsEur() from the tiered tariff (avoided grid
+  // cost of the self-consumed PV, and export income) so they agree with the
+  // History card's Money view on Day.
   const co2 = pvWh != null ? (pvWh / 1000) * CO2_KG_PER_KWH : null;
   els.savCo2.textContent = co2 != null ? co2.toFixed(1) + ' kg' : '—';
   els.savTrees.textContent = co2 != null ? (co2 / CO2_KG_PER_TREE_YEAR).toFixed(2) : '—';
@@ -357,7 +389,7 @@ export function restoreEnergySnapshots() {
   if (today) renderToday(today && today.bucket, today && today.gap_hours);
 }
 
-// --------------------------------------------------- cost & savings table
+// ---------------------------------------------------- History › Money (#883)
 function currencySymbol(cur) {
   return cur === 'EUR' ? '€' : (cur ? cur + ' ' : '€');
 }
@@ -366,26 +398,26 @@ function num2(v) {
   return Number(v || 0).toFixed(2);
 }
 
-function costRow(label, hours, rate, grid, solar, cost, saved, earned, sym, cls) {
-  const name = '<th scope="row"><span class="cost-period">' + esc(label) + '</span>'
-    + (hours ? '<span class="cost-hours">' + esc(hours) + '</span>' : '') + '</th>';
-  const rateCell = '<td class="cost-rate">' + (rate != null ? sym + Number(rate).toFixed(3) : '') + '</td>';
-  return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>'
-    + name
-    + rateCell
-    + '<td>' + num2(grid) + '</td>'
-    + '<td>' + num2(solar) + '</td>'
-    + '<td>' + sym + num2(cost) + '</td>'
-    + '<td class="cost-saved">' + sym + num2(saved) + '</td>'
-    + '<td class="cost-saved">' + sym + num2(earned) + '</td>'
-    + '</tr>';
+// One figure of a `.kpis` strip: a muted label over a bold tabular value.
+// Figures are plain ink: a good number is not a status (design.md tone map).
+function kpiHtml(label, value) {
+  return '<div class="kpi"><span class="kpi-label">' + esc(label) + '</span>'
+    + '<span class="kpi-value">' + esc(value) + '</span></div>';
 }
 
-function costStat(label, value, cls) {
-  return '<div class="cost-stat"><span class="cost-stat-label">' + esc(label) + '</span>'
-    + '<span class="cost-stat-value' + (cls ? ' ' + cls : '') + '">' + esc(value) + '</span></div>';
+// One label/value line of the All figures sheet (the detail card's `.row`).
+function figureRow(label, value) {
+  return '<div class="row"><span>' + esc(label) + '</span><span class="figure-value">' + esc(value) + '</span></div>';
 }
 
+function rangeLabel(range) {
+  const btn = els.rangeBtns.find(function (b) { return b.dataset.range === range; });
+  return btn ? btn.textContent : range;
+}
+
+// The Money view (one row per tariff period) and the All figures sheet: every
+// figure the old seven-column table and eight-stat strip carried, no longer as
+// a spreadsheet at 390px.
 function renderCost(body) {
   const periods = (body && body.periods) || [];
   const totals = body && body.totals;
@@ -400,35 +432,63 @@ function renderCost(body) {
   }
 
   els.costEmpty.hidden = hasData;
+  els.energyFiguresOpen.disabled = !hasData;
   if (!hasData) {
-    els.costBody.innerHTML = '';
-    els.costFoot.innerHTML = '';
     els.costSummary.innerHTML = '';
+    els.costPeriods.replaceChildren();
+    els.energyFiguresBody.innerHTML = '';
     els.costNote.textContent = '';
     return;
   }
 
-  els.costBody.innerHTML = periods.map(function (p) {
-    return costRow(p.label, p.hours, p.rate_eur_kwh, p.grid_kwh,
-      p.solar_kwh, p.grid_cost, p.savings, p.export_credit, sym, '');
-  }).join('');
-  els.costFoot.innerHTML = totals
-    ? costRow('Total', '', null, totals.grid_kwh, totals.solar_kwh,
-        totals.grid_cost, totals.savings, summary.export_credit, sym, 'cost-total')
-    : '';
-
-  els.costSummary.innerHTML = (summary && totals) ? [
-    costStat('Generated', num2(totals.generation_kwh) + ' kWh'),
-    costStat('Saved', sym + num2(totals.savings), 'cost-pos'),
-    // Surplus-compensation credit already netted into Est. bill; shown so the
-    // figure is visible (renders €0.00 when export_eur_kwh is unconfigured).
-    costStat('Export income', sym + num2(summary.export_credit), 'cost-pos'),
-    costStat('Total solar benefit', sym + num2(summary.total_solar_benefit), 'cost-pos'),
-    costStat('Grid cost', sym + num2(totals.grid_cost)),
-    costStat('Fixed', sym + num2(summary.fixed_cost)),
-    costStat('Est. bill', sym + num2(summary.estimated_bill)),
-    costStat('Without solar', sym + num2(summary.cost_without_solar)),
+  els.costSummary.innerHTML = summary ? [
+    kpiHtml('Bill estimate', sym + num2(summary.estimated_bill)),
+    kpiHtml('Without solar', sym + num2(summary.cost_without_solar)),
+    kpiHtml('Saved', sym + num2(totals.savings)),
   ].join('') : '';
+
+  // A tariff period per row: its rate, grid kWh and hours on the meta line,
+  // what the grid cost in it as the value. The hours go last, so a long list
+  // of them is what an ellipsis cuts; they and the rest of the period's
+  // figures are in the All figures sheet.
+  els.costPeriods.replaceChildren.apply(els.costPeriods, periods.map(function (p) {
+    const meta = [p.rate_eur_kwh != null ? sym + Number(p.rate_eur_kwh).toFixed(3) + '/kWh' : '',
+      num2(p.grid_kwh) + ' kWh grid', p.hours].filter(Boolean).join(' · ');
+    const value = document.createElement('span');
+    value.className = 'row-value';
+    value.textContent = sym + num2(p.grid_cost);
+    return rowEl({ title: p.label, meta: meta, trail: value, className: 'cost-period-row' });
+  }));
+
+  const blocks = [];
+  if (summary) {
+    blocks.push('<div class="energy-figures-group">'
+      + figureRow('Generated', num2(totals.generation_kwh) + ' kWh')
+      + figureRow('Saved', sym + num2(totals.savings))
+      // Surplus-compensation credit already netted into Est. bill; shown so the
+      // figure is visible (renders €0.00 when export_eur_kwh is unconfigured).
+      + figureRow('Export income', sym + num2(summary.export_credit))
+      + figureRow('Total solar benefit', sym + num2(summary.total_solar_benefit))
+      + figureRow('Grid cost', sym + num2(totals.grid_cost))
+      + figureRow('Fixed', sym + num2(summary.fixed_cost))
+      + figureRow('Est. bill', sym + num2(summary.estimated_bill))
+      + figureRow('Without solar', sym + num2(summary.cost_without_solar))
+      + '</div>');
+  }
+  periods.concat(totals ? [Object.assign({ label: 'Total', export_credit: summary && summary.export_credit }, totals)] : [])
+    .forEach(function (p) {
+      blocks.push('<h3 class="energy-figures-head">' + esc(p.label)
+        + (p.hours ? ' <span class="muted">· ' + esc(p.hours) + '</span>' : '') + '</h3>'
+        + '<div class="energy-figures-group">'
+        + (p.rate_eur_kwh != null ? figureRow('Rate', sym + Number(p.rate_eur_kwh).toFixed(3) + ' / kWh') : '')
+        + figureRow('Grid', num2(p.grid_kwh) + ' kWh')
+        + figureRow('Solar', num2(p.solar_kwh) + ' kWh')
+        + figureRow('Spent', sym + num2(p.grid_cost))
+        + figureRow('Saved', sym + num2(p.savings))
+        + figureRow('Earned', sym + num2(p.export_credit))
+        + '</div>');
+    });
+  els.energyFiguresBody.innerHTML = blocks.join('');
 
   if (body && body.configured === false) {
     els.costNote.textContent = 'Flat €0.10/kWh estimate — set config/tariff.json for tiered rates.';
@@ -437,6 +497,7 @@ function renderCost(body) {
   } else {
     els.costNote.textContent = '';
   }
+  els.energyFiguresRange.textContent = rangeLabel(state.range) + ' · ' + els.costNote.textContent;
 }
 
 async function loadCost(range) {
@@ -448,10 +509,20 @@ async function loadCost(range) {
   }
 }
 
+// Re-read the Money view after an export-rate change, if it is on screen.
+function reloadMoney() {
+  if (state.historyView === 'money' && state.range !== 'live') return loadCost(state.range);
+  return Promise.resolve();
+}
+
+// ------------------------------------- export compensation (Settings, #883)
+// The editor lives in Settings since #883; the Money view's Export rate row
+// shows the current rate and opens it there.
 function renderExportRates(body) {
   state.exportRates = (body && body.rates) || [];
   const current = body && body.current_export_eur_kwh;
   els.exportRateCurrent.textContent = current == null ? '—' : '€' + Number(current).toFixed(5) + '/kWh';
+  els.exportRateRowMeta.textContent = current == null ? 'Not set' : '€' + Number(current).toFixed(5) + ' / kWh';
   els.exportRateList.innerHTML = state.exportRates.length ? state.exportRates.slice().reverse().map(function (rate) {
     const date = rate.effective_from === '0001-01-01' ? 'Legacy rate' : rate.effective_from;
     const hourly = Array.isArray(rate.hourly_eur_kwh) ? ' · hourly overrides' : '';
@@ -553,7 +624,7 @@ async function addExportRate() {
     });
     renderExportRates(body);
     resetExportRateForm();
-    await loadCost(state.costRange);
+    await reloadMoney();
     toast('Export rate saved', 'success');
   } catch (exc) {
     if (!isAuthRequired(exc)) toast("Couldn't save the export rate", 'error');
@@ -576,21 +647,24 @@ async function deleteExportRate() {
     });
     renderExportRates(body);
     resetExportRateForm();
-    await loadCost(state.costRange);
+    await reloadMoney();
     toast('Export rate deleted', 'success');
   } catch (exc) {
     if (!isAuthRequired(exc)) toast("Couldn't delete the export rate", 'error');
   }
 }
 
-// The savings card € is always "today" (its own day query), independent of the
-// cost table's selected range, and uses the tiered avoided-cost figure.
+// The Today card's € figures are always "today" (their own day query),
+// independent of the History card's period: the tiered avoided cost, and the
+// export income.
 async function loadSavingsEur() {
   try {
     const body = await jsonApi('/api/energy/cost?range=day');
     const sym = currencySymbol(body && body.currency);
     const s = body && body.totals ? body.totals.savings : null;
+    const x = body && body.summary ? body.summary.export_credit : null;
     els.savEur.textContent = s != null ? sym + Number(s).toFixed(2) : '—';
+    els.savExport.textContent = x != null ? sym + Number(x).toFixed(2) : '—';
   } catch (_) {
     // keep the last rendered value
   }
@@ -604,10 +678,57 @@ function markSegments(btns, key, value) {
   });
 }
 
-function setCostRange(range) {
-  state.costRange = range;
-  markSegments(els.costRangeBtns, 'crange', range);
-  loadCost(range);
+// ------------------------------------------------- History card (#883)
+// One period for both views. Live is the last hour of the flow and has no
+// money view, so while it is selected Money is unavailable, and while Money is
+// shown Live is; the other segment always says why in its title.
+function syncHistory() {
+  const live = state.range === 'live';
+  const money = !live && state.historyView === 'money';
+  markSegments(els.rangeBtns, 'range', state.range);
+  markSegments(els.historyViewBtns, 'view', live ? 'energy' : state.historyView);
+  els.rangeBtns.forEach(function (btn) {
+    const off = btn.dataset.range === 'live' && money;
+    btn.disabled = off;
+    if (off) btn.title = 'Live shows energy only';
+    else btn.removeAttribute('title');
+  });
+  els.historyViewBtns.forEach(function (btn) {
+    const off = btn.dataset.view === 'money' && live;
+    btn.disabled = off;
+    if (off) btn.title = 'Pick a period for money';
+    else btn.removeAttribute('title');
+  });
+  els.historyLive.hidden = !live;
+  els.historyEnergy.hidden = live || money;
+  els.historyMoney.hidden = !money;
+  els.historyMoneyRows.hidden = !money;
+  // A chart created while its view was hidden has no size yet.
+  const shown = live ? state.liveChart : money ? state.exportCreditChart : state.aggChart;
+  if (shown) shown.resize();
+}
+
+// Read whatever the History card now shows.
+function loadHistory() {
+  if (state.range === 'live') {
+    if (state.liveChart) loadLiveHistory();
+  } else if (state.historyView === 'money') {
+    loadCost(state.range);
+  } else if (state.aggChart) {
+    loadAggregate(state.range);
+  }
+}
+
+function setRange(range) {
+  state.range = range;
+  syncHistory();
+  loadHistory();
+}
+
+function setHistoryView(view) {
+  state.historyView = view;
+  syncHistory();
+  loadHistory();
 }
 
 // --------------------------------------------------- solar forecast card
@@ -654,8 +775,8 @@ function renderForecast(body) {
   // agreeing looks like a measurement it isn't (#579).
   const gap = fmtGap(body.actual_gap_hours);
   els.forecastMeta.textContent = body.actual
-    ? '· estimate vs actual' + (gap ? ' · feed offline ' + gap : '')
-    : '· estimate';
+    ? 'estimate vs actual' + (gap ? ' · feed offline ' + gap : '')
+    : 'estimate';
   els.forecastParams.textContent = forecastParamsLine(body.system);
   return total;
 }
@@ -801,11 +922,11 @@ async function loadAggregate(range) {
     }, { production: 0, consumption: 0, grid: 0, exported: 0 });
     sums.solar = Math.max(0, sums.consumption - sums.grid);
     els.energySummary.innerHTML = [
-      costStat('Production', num2(sums.production / 1000) + ' kWh'),
-      costStat('Consumption', num2(sums.consumption / 1000) + ' kWh'),
-      costStat('Solar consumed', num2(sums.solar / 1000) + ' kWh', 'cost-pos'),
-      costStat('Grid imported', num2(sums.grid / 1000) + ' kWh'),
-      costStat('Solar exported', num2(sums.exported / 1000) + ' kWh', 'cost-pos'),
+      kpiHtml('Production', num2(sums.production / 1000) + ' kWh'),
+      kpiHtml('Consumption', num2(sums.consumption / 1000) + ' kWh'),
+      kpiHtml('Solar consumed', num2(sums.solar / 1000) + ' kWh'),
+      kpiHtml('Grid imported', num2(sums.grid / 1000) + ' kWh'),
+      kpiHtml('Solar exported', num2(sums.exported / 1000) + ' kWh'),
     ].join('');
     els.aggEmpty.hidden = buckets.length > 0;
   } catch (_) {
@@ -813,19 +934,23 @@ async function loadAggregate(range) {
   }
 }
 
-function setRange(range) {
-  state.range = range;
-  markSegments(els.rangeBtns, 'range', range);
-  if (state.aggChart) loadAggregate(range);
-}
-
 export function wireEnergyControls() {
   els.rangeBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setRange(btn.dataset.range); });
   });
-  els.costRangeBtns.forEach(function (btn) {
-    btn.addEventListener('click', function () { setCostRange(btn.dataset.crange); });
+  els.historyViewBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () { setHistoryView(btn.dataset.view); });
   });
+  syncHistory();
+  // History › Money: All figures is read-only (Done only); Export rate opens
+  // its editor where it lives now, in Settings (#883).
+  const figures = sheet(els.energyFiguresSheet, {
+    model: 'instant',
+    closeButton: document.getElementById('energyFiguresSheetClose'),
+    doneButton: document.getElementById('energyFiguresSheetDone'),
+  });
+  els.energyFiguresOpen.addEventListener('click', function () { figures.open(els.energyFiguresOpen); });
+  els.exportRateOpen.addEventListener('click', function () { showSettings(els.exportRateCard); });
   els.forecastDayBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setForecastDay(btn.dataset.day); });
   });
@@ -856,12 +981,11 @@ export function onEnergyTab(tab) {
   if (tab === 'energy') {
     // The chart-fed loaders wait for Chart.js, loaded on the first visit (#760).
     ensureCharts().then(function () {
-      loadLiveHistory();
-      loadAggregate(state.range);
-      loadCost(state.costRange);  // cost & savings breakdown table
+      syncHistory();   // size the chart that is showing
+      loadHistory();   // whatever the History card shows: live, energy or money
       loadForecast(state.forecastDay);  // solar expected-generation forecast
     });
-    loadExportRates();
+    loadExportRates();     // the Money view's Export rate row
     loadPvSystem();        // the array config that forecast is computed from
     loadEnergy();          // immediate refresh on entry
     loadToday();           // today's split cards + savings
@@ -872,10 +996,11 @@ export function onEnergyTab(tab) {
     scheduleToday(false);
   }
   // The PV system, Solar boost and sun-position cards live in Settings since
-  // #779. The sun-position diagnostic refreshes only while it is open (#590) —
+  // #779, export compensation since #883. The sun-position diagnostic refreshes only while it is open (#590) —
   // closed, it costs nothing.
   if (tab === 'settings') {
     loadPvSystem();
+    loadExportRates();       // export compensation, moved here from Energy (#883)
     loadBoostCoordinator();  // fleet solar-boost sequencing knobs (#562)
     if (els.sunOverlayCard && els.sunOverlayCard.open) ensureSunOverlay();
   }

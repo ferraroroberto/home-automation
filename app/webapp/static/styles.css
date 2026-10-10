@@ -654,128 +654,123 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .flow-node.is-idle { opacity: 0.4; }
 .flow-icon { width: 1.55rem; height: 1.55rem; color: var(--ink); }
 .flow-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
-.flow-name { font-size: var(--font-caption); font-weight: 600; color: var(--muted); }
+.flow-name { font-size: var(--font-body-sm); font-weight: 600; color: var(--muted); }
 
-/* Wires carry a Lucide arrow/dot (#779); colour + direction are set in JS. */
+/* Wires carry a Lucide arrow/dot (#779), set in JS. Direction is not a
+   status (#883, tone map of #872): a flowing wire is ink, an idle one muted,
+   never green — the Grid node's name says Exporting / Importing in words. */
 .flow-arrow {
   flex: none;
   display: inline-flex;
   color: var(--muted);
 }
 .flow-arrow .icon { width: var(--icon-title); height: var(--icon-title); }
-.flow-arrow.is-active { color: var(--on); }
-.flow-arrow.is-import { color: var(--accent); }
-.flow-arrow.is-export { color: var(--on); }
+.flow-arrow.is-active,
+.flow-arrow.is-import,
+.flow-arrow.is-export { color: var(--ink); }
 
-/* ----------------------------------------------------- efficiency tiles */
-.metric-tiles {
+/* ------------------------------------------- Energy tab (#883, Step 5/8)
+   The glance card's one line under the flow, then the Today, History and
+   forecast cards: open groups on the shared head (.group-head, #882) with
+   their bodies padded like the card. */
+.energy-glance-line {
+  margin: var(--gap) 0 0;
+  padding-top: var(--gap);
+  border-top: 1px solid var(--line-muted);
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.energy-glance-line #liveSelfSuff,
+.energy-glance-line #liveSelfCons { color: var(--ink); font-weight: 600; }
+.energy-today,
+.energy-history,
+.forecast-card { margin-bottom: var(--gap); }
+.energy-today-body,
+.energy-history-body,
+.forecast-body { padding: var(--gap) 14px; }
+.group-note:empty { display: none; }
+/* A Settings card a tab links to (showSettings, #883) lands below the
+   floating nav, never under it. */
+#paneSettings > .card { scroll-margin-top: 80px; }
+
+/* A Today meter: label · bar · total on one line, its split on a muted line
+   under the bar. */
+.today-meter {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--gap);
-  margin-bottom: var(--gap);
+  grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-sm);
+  row-gap: var(--space-xs);
 }
-.metric-tile {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
+.today-meter + .today-meter { margin-top: var(--gap); }
+.today-meter-label { font-weight: 600; }
+.today-meter-value { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.today-meter-meta {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+  font-variant-numeric: tabular-nums;
 }
-.metric-label { font-size: var(--font-caption); color: var(--muted); }
-.metric-value { font-size: var(--font-heading-lg); font-weight: 700; font-variant-numeric: tabular-nums; }
 
-/* ----------------------------------------------------- today split cards */
-.split-card { padding: 12px; margin-bottom: var(--gap); }
-.split-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.split-title { margin: 0; font-size: var(--font-label); }
-.split-total { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
-.split-legend { display: flex; justify-content: space-between; gap: 10px; margin: 10px 0 6px; }
-.split-leg { display: flex; flex-direction: column; gap: 1px; }
-.split-leg-end { align-items: flex-end; text-align: right; }
-.split-leg-name { font-size: var(--font-caption); color: var(--muted); }
-.split-leg-val { font-size: var(--font-label); font-weight: 700; font-variant-numeric: tabular-nums; }
-.split-bar {
-  height: 9px;
+/* design.md `meter`: a 6px pill on the neutral-soft track (the segmented
+   control's track). Its fill is coloured by pace; a Today meter is a share
+   of the day, not usage against a budget, so it has no pace and no tick and
+   stays accent — never green (success is never a bar). transform, not width,
+   so a change animates on the compositor (#367). */
+.meter {
+  display: block;
+  height: 6px;
   border-radius: var(--radius-pill);
-  background: var(--card-off);
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
   overflow: hidden;
 }
-/* transform (not width) so the fill animates on the compositor instead of
-   triggering layout on every value change (issue #367 impeccable pass);
-   width stays 100% and the visible fraction is a scaleX from the left edge. */
-.split-bar-fill {
+.meter-fill {
   display: block; width: 100%; height: 100%;
   border-radius: var(--radius-pill);
+  background: var(--accent);
+  transform: scaleX(0);
   transform-origin: left center;
   transition: transform 0.3s ease;
 }
-.split-bar-gen { background: var(--on); }
-.split-bar-cons { background: var(--accent); }
-.split-pct { display: block; margin-top: 6px; }
 
-/* ----------------------------------------------------------- savings */
-.savings-card { padding: 12px; margin-bottom: var(--gap); }
-.savings-title { margin: 0; font-size: var(--font-label); }
-.savings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); margin-top: 10px; }
-.savings-stat { display: flex; flex-direction: column; gap: 3px; }
-.savings-label { font-size: var(--font-caption); color: var(--muted); }
-.savings-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* A strip of figures: a muted label over a bold value, three to a row. */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap) var(--space-sm);
+  margin-top: var(--space-md);
+}
+.kpi { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; }
+.kpi-label { color: var(--muted); font-size: var(--font-body-sm); }
+.kpi-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi-sub { color: var(--muted); font-size: var(--font-body-sm); font-variant-numeric: tabular-nums; }
 
-/* --------------------------------------------- cost & savings breakdown */
-.cost-card { padding: 12px; margin-bottom: var(--gap); }
-.cost-table-wrap { width: 100%; overflow-x: auto; }
-.cost-table {
-  width: 100%;
-  border-collapse: collapse;
+/* History: two pickers stacked, then the one view that is showing. */
+.history-note { margin: var(--space-sm) 0 0; }
+.cost-periods { border-top: 1px solid var(--line-muted); }
+.row-value {
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: var(--font-label);
+  white-space: nowrap;
 }
-.cost-table th,
-.cost-table td { padding: 7px 6px; text-align: right; white-space: nowrap; }
-.cost-table thead th {
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 600;
-  border-bottom: 1px solid var(--line);
-}
-.cost-table th[scope="row"] { text-align: left; font-weight: 600; }
-.cost-table thead th:first-child { text-align: left; }
-.cost-table tbody td { border-bottom: 1px solid var(--line); }
-.cost-period { display: block; }
-.cost-hours { display: block; font-size: var(--font-caption); font-weight: 400; color: var(--muted); }
-.cost-table .cost-rate { color: var(--muted); }
-.cost-table .cost-saved { color: var(--on); font-weight: 600; }
-.cost-table .cost-total th,
-.cost-table .cost-total td {
-  border-top: 2px solid var(--line);
+
+/* History › Money › All figures: label/value rows, a head per tariff period. */
+.figure-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.energy-figures-head {
+  margin: 18px 0 2px;
+  font-size: var(--font-body);
   font-weight: 700;
 }
-/* Narrow phones: tighten the cells so the 6 columns fit with no horizontal
-   scroll (issue #72) while keeping the 3-decimal tariff rate. */
-@media (max-width: 430px) {
-  .cost-table { font-size: var(--font-caption); }
-  .cost-table th,
-  .cost-table td { padding: 6px 3px; }
-}
-.cost-summary,
-.energy-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-sm);
-  margin-top: 12px;
-}
-.cost-stat { display: flex; flex-direction: column; gap: 2px; }
-.cost-stat-label { font-size: var(--font-caption); color: var(--muted); }
-.cost-stat-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
-.cost-stat-value.cost-pos { color: var(--on); }
-.cost-note { margin: 10px 0 0; }
+.energy-figures-head .muted { font-weight: 400; font-size: var(--font-body-sm); }
 
 /* ------------------------------------------------------- solar forecast */
-.forecast-card { padding: 12px; margin-bottom: var(--gap); }
 /* "Expected generation +X kWh" — neutral primary text (the green identity lives
    on the chart's actual-generation area; the headline is informational). Sized
-   at the body role (like .split-total), not heading-lg, so it stays in scale. */
+   at the body role, not heading-lg, so it stays in scale. */
 .forecast-headline {
-  margin: 4px 0 2px;
+  margin: 0 0 10px;
   font-size: var(--font-body);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -783,8 +778,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 /* The array parameters the curve was computed from, e.g. "1.5 kWp · 35° · S · PR 0.80". */
 .forecast-params {
-  margin: 0 0 10px;
   font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--line-muted);
 }
 
 /* --------------------------------------------------- PV-system editor (#561)
@@ -834,8 +829,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 
 /* ----------------------------------------------------- energy charts */
-.chart-card { padding: 12px; margin-bottom: var(--gap); }
-.chart-title { margin: 0 0 var(--space-sm); font-size: var(--font-label); }
 .chart-wrap { position: relative; width: 100%; }
 .chart-wrap-live { height: 200px; }
 .chart-wrap-agg { height: 230px; }

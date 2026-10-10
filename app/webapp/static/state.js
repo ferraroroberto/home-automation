@@ -126,10 +126,11 @@ export const state = {
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'iot' | 'security', or
   // 'settings' while the header gear's Settings pane is open (#779).
   tab: 'home',
-  // Active history range on the Energy tab: 'day'|'week'|'month'|'year'|'total'.
+  // The Energy tab's History card (#883): one period for both views —
+  // 'live'|'day'|'week'|'month'|'year'|'total' — and what it shows,
+  // 'energy'|'money'. Live is energy only.
   range: 'day',
-  // Active range for the Energy-tab cost & savings breakdown table.
-  costRange: 'day',
+  historyView: 'energy',
   // Active day for the Energy-tab solar-forecast card: 'yesterday'|'today'|'tomorrow'.
   forecastDay: 'today',
   // Live Chart.js instances (created lazily on the Energy tab); kept so the
@@ -671,6 +672,7 @@ export const els = {
   homeFlowNodePv: document.getElementById('homeFlowNodePv'),
   homeWirePv: document.getElementById('homeWirePv'),
   homeWireGrid: document.getElementById('homeWireGrid'),
+  homeFlowGridName: document.getElementById('homeFlowGridName'),
   // Home-tab weather tile (GET /api/weather)
   weatherTile: document.getElementById('weatherTile'),
   // Every page header's theme toggle (#779), and the Settings nav-debug switch
@@ -683,7 +685,7 @@ export const els = {
   wxFcIcon: document.getElementById('wxFcIcon'),
   wxFcMin: document.getElementById('wxFcMin'),
   wxFcMax: document.getElementById('wxFcMax'),
-  // Energy tab: flow diagram (live)
+  // Energy tab: the glance card's flow diagram (live)
   paneEnergy: document.getElementById('paneEnergy'),
   energyFeedback: document.getElementById('energyFeedback'),
   flowPv: document.getElementById('flowPv'),
@@ -692,10 +694,12 @@ export const els = {
   flowNodePv: document.getElementById('flowNodePv'),
   wirePv: document.getElementById('wirePv'),
   wireGrid: document.getElementById('wireGrid'),
-  // Energy tab: live efficiency tiles
+  flowGridName: document.getElementById('flowGridName'),
+  // Energy tab: the glance card's line (self-sufficiency, self-consumption now)
   liveSelfSuff: document.getElementById('liveSelfSuff'),
   liveSelfCons: document.getElementById('liveSelfCons'),
-  // Energy tab: today's split cards
+  liveSelfConsPart: document.getElementById('liveSelfConsPart'),
+  // Energy tab: the Today card's two meters
   genTotal: document.getElementById('genTotal'),
   genSelf: document.getElementById('genSelf'),
   genFeed: document.getElementById('genFeed'),
@@ -707,26 +711,40 @@ export const els = {
   consGrid: document.getElementById('consGrid'),
   consBar: document.getElementById('consBar'),
   consPct: document.getElementById('consPct'),
-  // Energy tab: savings
+  // Energy tab: the Today card's savings figures
   savEur: document.getElementById('savEur'),
   savCo2: document.getElementById('savCo2'),
   savTrees: document.getElementById('savTrees'),
-  // Energy tab: charts, range switcher
+  savExport: document.getElementById('savExport'),
+  // Energy tab: the History card (#883) — one period picker (Live / Day … All,
+  // driven by data-range) and the Energy / Money switch (data-view).
+  rangeBtns: Array.from(document.querySelectorAll('#historyRange .segmented-item')),
+  historyViewBtns: Array.from(document.querySelectorAll('#historyView .segmented-item')),
+  historyLive: document.getElementById('historyLive'),
+  historyEnergy: document.getElementById('historyEnergy'),
+  historyMoney: document.getElementById('historyMoney'),
+  historyMoneyRows: document.getElementById('historyMoneyRows'),
   liveMeta: document.getElementById('liveMeta'),
   liveChart: document.getElementById('liveChart'),
   aggChart: document.getElementById('aggChart'),
   aggEmpty: document.getElementById('aggEmpty'),
   energySummary: document.getElementById('energySummary'),
-  // History range buttons (Day / Week / Month / Year / Σ) — driven by data-range.
-  rangeBtns: Array.from(document.querySelectorAll('#aggRange .segmented-item')),
-  // Energy tab: cost & savings breakdown
-  costBody: document.getElementById('costBody'),
-  costFoot: document.getElementById('costFoot'),
+  // History › Money: the tariff estimate, its period rows and All figures
   costSummary: document.getElementById('costSummary'),
+  costPeriods: document.getElementById('costPeriods'),
   costEmpty: document.getElementById('costEmpty'),
   costNote: document.getElementById('costNote'),
-  costRangeBtns: Array.from(document.querySelectorAll('#costRange .segmented-item')),
   exportCreditChart: document.getElementById('exportCreditChart'),
+  energyFiguresOpen: document.getElementById('energyFiguresOpen'),
+  energyFiguresMeta: document.getElementById('energyFiguresMeta'),
+  energyFiguresSheet: document.getElementById('energyFiguresSheet'),
+  energyFiguresRange: document.getElementById('energyFiguresRange'),
+  energyFiguresBody: document.getElementById('energyFiguresBody'),
+  // The Money view's Export rate row, opening the editor in Settings (#883)
+  exportRateOpen: document.getElementById('exportRateOpen'),
+  exportRateRowMeta: document.getElementById('exportRateRowMeta'),
+  // Settings: export-compensation card (moved off the Energy tab by #883)
+  exportRateCard: document.getElementById('exportRateCard'),
   exportRateCurrent: document.getElementById('exportRateCurrent'),
   exportRateList: document.getElementById('exportRateList'),
   exportRateDate: document.getElementById('exportRateDate'),
