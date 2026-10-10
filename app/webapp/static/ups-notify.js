@@ -1,9 +1,9 @@
-/* UPS power-event notification toggles (Devices tab).
+/* Settings › Notifications › UPS power — power-event Telegram toggles.
  *
- * A folded-by-default card mirroring the alarm Notifications card. Switches
- * map 1:1 to the backend PowerNotifyPrefs; each persists on click via
+ * A Settings sheet since #886, mirroring the alarm one. Switches map 1:1 to
+ * the backend PowerNotifyPrefs; each persists on click via
  * PUT /api/ups/notify-prefs. A hint shows when Telegram isn't configured.
- * The load/save/render flow is shared with the alarm card via toggle-prefs.js.
+ * The load/save/render flow is shared with the alarm sheet via toggle-prefs.js.
  */
 
 'use strict';
@@ -17,6 +17,7 @@ const prefs = createTogglePrefs({
   ],
   url: '/api/ups/notify-prefs',
   noteEl: 'powerNotifyConfiguredNote',
+  valueEl: 'notifyUpsValue',
   labels: {
     loadFailed: 'Power notification settings failed',
     saveFailed: 'Notifications save failed',

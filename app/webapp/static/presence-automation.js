@@ -68,6 +68,17 @@ async function toggleKidsHome() {
   }
 }
 
+// The Settings row's value (#886): which of the two automations are on.
+function renderPresenceAutomationValue() {
+  if (!els.presenceAutomationValue) return;
+  const cfg = state.presenceAutomation || {};
+  const arm = cfg.auto_arm_enabled === true;
+  const disarm = cfg.auto_disarm_enabled === true;
+  els.presenceAutomationValue.textContent = arm && disarm
+    ? 'Arm and disarm'
+    : arm ? 'Arm on leaving' : disarm ? 'Disarm on arrival' : 'Off';
+}
+
 export async function loadPresenceAutomation() {
   if (!els.presenceAutoEnabled) return;
   try {
@@ -78,6 +89,7 @@ export async function loadPresenceAutomation() {
     els.presenceStaleMinutes.value = Math.round((Number(cfg.stale_after_s) || 3600) / 60);
     setToggleState(els.presenceDisarmOnArrival, cfg.auto_disarm_enabled === true);
     renderPresenceAutomationNote();
+    renderPresenceAutomationValue();
   } catch (exc) {
     reportActionFailure(exc, 'Automation settings failed');
   }
@@ -97,6 +109,7 @@ async function savePresenceAutomation() {
       body: JSON.stringify(payload),
     });
     renderPresenceAutomationNote();
+    renderPresenceAutomationValue();
     toast('Automation saved', 'success');
   } catch (exc) {
     reportActionFailure(exc, 'Automation save failed');

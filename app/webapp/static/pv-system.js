@@ -133,7 +133,7 @@ export function renderPvSystem() {
   if (els.pvSystemTotal) {
     els.pvSystemTotal.textContent = state.pvArrays.length
       ? trimNum(Math.round(totalKwp(state.pvArrays) * 100) / 100) + ' kWp'
-      : '—';
+      : 'Not set';
   }
 
   if (!state.pvArrays.length) {

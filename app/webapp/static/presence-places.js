@@ -54,6 +54,12 @@ export function renderPresencePlaces() {
   if (!els.presencePlacesList || !els.presencePlacesNote) return;
   els.presencePlacesList.innerHTML = '';
   state.presencePlacesList = normalizedPlaces();
+  // The Settings row's value (#886): how many places, read without opening.
+  if (els.presencePlacesCount) {
+    els.presencePlacesCount.textContent = state.presencePlacesList.length
+      ? String(state.presencePlacesList.length)
+      : 'None';
+  }
   if (!state.presencePlacesList.length) {
     els.presencePlacesNote.hidden = false;
     els.presencePlacesNote.textContent = 'No places configured yet.';

@@ -50,6 +50,20 @@ def open_settings(page: Page) -> None:
     page.wait_for_selector("#paneSettings", state="visible")
 
 
+def open_settings_sheet(page: Page, sheet_id: str) -> None:
+    """Open Settings, then the sheet one of its rows names (#886).
+
+    Settings is inset groups since #886: each row carries
+    ``data-settings-sheet`` and opens that sheet, which holds the controls
+    the row's closed card held before. Settings has no gear of its own, so
+    an already-open pane is reused.
+    """
+    if not page.locator("#paneSettings").is_visible():
+        open_settings(page)
+    page.locator(f'#paneSettings [data-settings-sheet="{sheet_id}"]').click()
+    page.wait_for_selector(f"#{sheet_id}", state="visible")
+
+
 def hold_reads(page: Page, endpoint: str) -> Callable[[], None]:
     """Hold the page's reads of ``endpoint`` until the returned ``release()``.
 

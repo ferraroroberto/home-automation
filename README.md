@@ -368,7 +368,7 @@ Generate local VAPID keys:
 & .\.venv\Scripts\python.exe scripts\gen_web_push_keys.py mailto:you@example.com
 ```
 
-Restart the webapp, open the installed PWA over HTTPS, open Settings → Presence settings, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`; the private key is stored as the base64url-encoded raw VAPID scalar (not a PEM string — a PEM-armored key fails ASN.1 parsing in `pywebpush`/`py_vapid`, see #284), and an unreadable key logs a single `Web Push private key unreadable — pushes disabled` warning at startup instead of a per-send error. Push delivery is best-effort; a failed notification never blocks arm/disarm. Re-running `gen_web_push_keys.py` rotates the keypair, so any existing browser subscriptions will need to re-subscribe (tap **Enable notifications** again) to pick up the new public key.
+Restart the webapp, open the installed PWA over HTTPS, open Settings › Presence automation, and tap **Enable notifications**. The private key and subscriptions live in gitignored `config/push_config.json` and `config/push_subscriptions.json`; the private key is stored as the base64url-encoded raw VAPID scalar (not a PEM string — a PEM-armored key fails ASN.1 parsing in `pywebpush`/`py_vapid`, see #284), and an unreadable key logs a single `Web Push private key unreadable — pushes disabled` warning at startup instead of a per-send error. Push delivery is best-effort; a failed notification never blocks arm/disarm. Re-running `gen_web_push_keys.py` rotates the keypair, so any existing browser subscriptions will need to re-subscribe (tap **Enable notifications** again) to pick up the new public key.
 
 ## Home-network / Network (Devices › Network)
 
@@ -644,15 +644,19 @@ way (×, Esc, tapping outside) and hands focus back to what opened it; an editor
 saves only on **Save**, a device sheet such as Wi-Fi saves as you change it and
 closes on **Done**.
 
-**Settings** is not a tab: the gear in any page header opens it. It holds the
-former **Net** tab (LAN health, the attached-device inventory, the AP reboot —
-see below) and the configuration that used to be spread across tabs: the one
-**Notifications** card (alarm and UPS Telegram toggles), presence settings and
-places, the PV system, solar boost and sun-position cards, the search engine,
-the voice "What can I say?" reference, the activity log, and the nav debug
-switch. A PWA last left on Net reopens once on Settings.
+**Settings** is not a tab: the gear in any page header opens it. Since #886 it
+is inset groups, each row showing its current value and opening a sheet:
+**Display** (text size, inline), **Notifications** (Alarm and UPS power, the
+Telegram toggles, each row reading "n of N on"), **Home & people** (Home
+location, Places, Presence automation), **Energy** (PV system, Export
+compensation, Solar boost, Sun-position check), **Voice** (Search engine, What
+can I say?) and **Diagnostics** (Activity log, and the Record navigation log
+switch, inline). Each sheet saves as you change it and closes on **Done**; a
+saved item (a place, a panel row) keeps its staged editor on top. The former
+Net tab is the Devices tab's Network group since #884; a PWA last left on Net
+reopens once on Settings.
 
-**Text size** (#820) is the first card in Settings: Small / Default / Large, kept
+**Text size** (#820) is the first group in Settings: Small / Default / Large, kept
 per device in `localStorage` under `home-automation.textsize` and applied to the
 root font-size (93.75% / 100% / 112.5%) before first paint by the same inline
 `<head>` script that stamps the theme. The viewport is zoom-locked, so this is
@@ -884,7 +888,7 @@ input.
 
 ### Sun-position diagnostic (measured vs modelled)
 
-Under the PV system card, the folded-away **Sun-position diagnostic** re-plots a
+In Settings › Energy, the **Sun-position check** sheet re-plots a
 day's *measured* performance ratio against where the sun actually was, next to
 the flat modelled ratio. It exists to answer one question — is the afternoon
 drop-off shading or weather? — from data the app already has, without deriving
@@ -1487,7 +1491,7 @@ above.
 
 ### Devices: Voice PE rooms + push-to-talk
 
-The **Home Assistant** group on the **Devices** tab (on Home until #884, decision 1 of #872) holds three rows. The VM row says the state in words (`Online · up …` / `Off` / unavailable; IP·MAC and stale-snapshot detail sit in its hover tooltip) with the VM **power switch** (start, or confirm-gated stop) as its trailing item. **Voice satellites** (every `assist_satellite` Home Assistant currently owns, with push-to-talk) and **Recent interactions** (hidden until there is one, #805) each open a sheet. **What can I do?** (the capabilities guide) is a Settings card since #884, beside **What can I say?** (below).
+The **Home Assistant** group on the **Devices** tab (on Home until #884, decision 1 of #872) holds three rows. The VM row says the state in words (`Online · up …` / `Off` / unavailable; IP·MAC and stale-snapshot detail sit in its hover tooltip) with the VM **power switch** (start, or confirm-gated stop) as its trailing item. **Voice satellites** (every `assist_satellite` Home Assistant currently owns, with push-to-talk) and **Recent interactions** (hidden until there is one, #805) each open a sheet. **What can I do?** (the capabilities guide, a Settings card since #884) is the "In this app" part of **What can I say?** (below) since #886.
 
 Push-to-talk copies App Launcher's proven local path: the browser records with `MediaRecorder`, sends ordered one-second chunks to this app, and this app proxies Voice Transcriber's stable `POST /api/sessions` → `/chunk` → SSE `/events` → `/finish` contract. Rolling Whisper partials replace the visible text while you speak; Stop settles the canonical transcript and calls HA's `assist_satellite.announce` for that room. Sessions carry `source: home-automation`, so audio/transcript recovery and attribution stay in Voice Transcriber History. Voice Transcriber reuses the already-running `:8090` Whisper process (currently local-LLM-hub-owned); this app loads no model and retains no audio.
 
@@ -1499,7 +1503,7 @@ Runtime API: `GET /api/ha`; `POST /api/ha/satellites/{entity_id}/announce`; and 
 
 ### Settings: "What can I say?" cheat sheet (#437)
 
-The reference companion to the push-to-talk mic above: a **"What can I say?"** card in Settings (folded by default) lists every wired voice command, so remembering one doesn't mean opening GitHub on a phone. Six groups — **Alarm**, **Wake alarms**, **Reminders**, **Family locator**, **Grocery list**, and the **built-ins** HA answers for free (timers, time/weather, exposed-entity on/off) — each command showing a worked example, its other phrasings, and what it speaks back. Phrasings are tagged with their wake word, since that is what picks the language: "Okay Nabu" is English, "Hey Mycroft" is Spanish (the family locator answers on both; grocery is Spanish-only) — swapped from "Hey Jarvis" in #468 because it's the only built-in wake word still on the older, less accurate v1 [microWakeWord](https://github.com/OHF-Voice/micro-wake-word/releases) model. Read-only — commands are wired in Home Assistant, not here. Don't confuse it with the sibling **"What can I do?"** subsection, which covers what *this webapp* does with Home Assistant rather than what you can *say*; the two are styled identically.
+The reference companion to the push-to-talk mic above: the **"What can I say?"** sheet in Settings › Voice lists every wired voice command, so remembering one doesn't mean opening GitHub on a phone. Six groups — **Alarm**, **Wake alarms**, **Reminders**, **Family locator**, **Grocery list**, and the **built-ins** HA answers for free (timers, time/weather, exposed-entity on/off) — each command showing a worked example, its other phrasings, and what it speaks back. Phrasings are tagged with their wake word, since that is what picks the language: "Okay Nabu" is English, "Hey Mycroft" is Spanish (the family locator answers on both; grocery is Spanish-only) — swapped from "Hey Jarvis" in #468 because it's the only built-in wake word still on the older, less accurate v1 [microWakeWord](https://github.com/OHF-Voice/micro-wake-word/releases) model. Read-only — commands are wired in Home Assistant, not here. Its last part, **In this app** (the separate "What can I do?" card until #886), covers what *this webapp* does with Home Assistant rather than what you can *say*.
 
 The content is curated in [`src/voice_commands.py`](src/voice_commands.py) and served by `GET /api/voice-commands`; the card fetches it once on first open and never polls (it only changes when the app is redeployed). It is deliberately **not** derived from `docs/voice-pe-config/custom_sentences/*.yaml`: those are hassil templates rather than readable examples, and they don't cover the multi-turn grocery flow or HA's built-ins. The cost of curating — a second place to update — is paid down by step 6 of [`docs/voice-commands-howto.md`](docs/voice-commands-howto.md)'s recipe, which makes updating the cheat sheet part of wiring any new command. The card never publishes a code or secret: the disarm command shows the same `<your code>` placeholder [`docs/voice-pe-config/README.md`](docs/voice-pe-config/README.md) already does, and `tests/test_voice_commands.py` fails the build if a real one is ever pasted in.
 

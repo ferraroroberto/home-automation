@@ -13,7 +13,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import open_settings
+from tests.e2e._app import open_settings_sheet
 
 _HA_BODY = {"satellites": [], "interactions": [], "voice_transcriber": False}
 
@@ -43,8 +43,7 @@ def _open_cheat_sheet(
     )
     page.goto(base_url + "/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    open_settings(page)  # the voice reference lives in Settings since #779
-    page.locator("#voiceCommandsCard summary").click()
+    open_settings_sheet(page, "voiceSheet")  # Settings since #779, a sheet since #886
     # The list is fetched on first open — the toggle only renders once the
     # bilingual catalogue has loaded.
     page.wait_for_selector('[data-testid="voice-lang-es"]')

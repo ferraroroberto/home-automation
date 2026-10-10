@@ -22,10 +22,11 @@ const NOT_CONFIGURED_NOTE =
  * @param {Array<[string, string]>} cfg.fields  [els key, pref key] pairs.
  * @param {string} cfg.url                      GET/PUT prefs endpoint.
  * @param {string} cfg.noteEl                   els key of the "not configured" note.
+ * @param {string} cfg.valueEl                  els key of the Settings row value (#886).
  * @param {{loadFailed: string, saveFailed: string, saved: string}} cfg.labels
  * @returns {{load: function(): Promise<void>, wire: function(): void}}
  */
-export function createTogglePrefs({ fields, url, noteEl, labels }) {
+export function createTogglePrefs({ fields, url, noteEl, valueEl, labels }) {
   function renderConfiguredNote(configured) {
     const note = els[noteEl];
     if (!note) return;
@@ -33,12 +34,23 @@ export function createTogglePrefs({ fields, url, noteEl, labels }) {
     note.textContent = configured ? '' : NOT_CONFIGURED_NOTE;
   }
 
+  // The Settings row reads without opening its sheet: how many alerts are on,
+  // or that none can arrive because Telegram is not set up.
+  function renderValue(prefs, configured) {
+    const value = els[valueEl];
+    if (!value) return;
+    const on = fields.filter(function ([, prefKey]) { return prefs[prefKey] === true; }).length;
+    value.textContent = configured ? on + ' of ' + fields.length + ' on' : 'Telegram not set up';
+  }
+
   function applyPrefs(payload) {
     const prefs = (payload && payload.prefs) || {};
+    const configured = !!(payload && payload.telegram_configured);
     fields.forEach(function ([elKey, prefKey]) {
       if (els[elKey]) setToggleState(els[elKey], prefs[prefKey] === true);
     });
-    renderConfiguredNote(!!(payload && payload.telegram_configured));
+    renderConfiguredNote(configured);
+    renderValue(prefs, configured);
   }
 
   async function load() {

@@ -78,14 +78,10 @@ function openSettings(onTab) {
   if (onTab) onTab('settings');
 }
 
-// Open Settings at one of its cards, from a link on a tab (the Energy tab's
-// Export rate row, #883): the card opens if it is a disclosure and scrolls
-// into view.
-export function showSettings(card) {
+// Open Settings from a link on a tab (the Energy tab's Export rate row,
+// #883); the caller then opens the row's sheet (settings.js, #886).
+export function showSettings() {
   openSettings(tabHandler);
-  if (!card) return;
-  if (card.tagName === 'DETAILS') card.open = true;
-  requestAnimationFrame(function () { card.scrollIntoView({ block: 'start' }); });
 }
 
 // Open a tab from a link on another one (Home's House card, #885): the nav

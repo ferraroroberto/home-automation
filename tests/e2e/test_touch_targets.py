@@ -13,7 +13,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home, open_settings
+from tests.e2e._app import boot_home, open_settings_sheet
 from tests.e2e._geometry import assert_min_target, assert_no_overlap, effective_rects
 
 
@@ -28,10 +28,8 @@ def test_native_controls_and_stacked_switches_meet_the_44px_floor(
     mock_security()
     mock_presence()
     boot_home(page, base_url)
-    open_settings(page)
-
-    page.locator("details.presence-settings-card > summary").click()
-    inputs = page.locator(".presence-settings .input-native")
+    open_settings_sheet(page, "homeLocationSheet")
+    inputs = page.locator("#homeLocationSheet .presence-settings .input-native")
     expect(inputs.first).to_be_visible()
     assert_min_target(inputs)
     # The visible control stays the 36px `control` height inside the 44px box.
@@ -42,8 +40,9 @@ def test_native_controls_and_stacked_switches_meet_the_44px_floor(
         " return el.clientHeight === 36 && s.borderTopColor === 'rgba(0, 0, 0, 0)'; }"
     )
 
-    page.locator("details.security-notify-card > summary").click()
-    switches = page.locator(".security-notify-card .notify-toggle .toggle")
+    page.locator("#homeLocationSheet [data-sheet-done]").click()
+    page.locator('#paneSettings [data-settings-sheet="notifyAlarmSheet"]').click()
+    switches = page.locator("#notifyAlarmSheet .notify-toggle .toggle")
     expect(switches.first).to_be_visible()
     assert_min_target(switches)
     assert_no_overlap(switches)

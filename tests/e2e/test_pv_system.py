@@ -20,7 +20,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e._app import open_settings
+from tests.e2e._app import open_settings_sheet
 
 
 def _boot_pv_system(
@@ -36,9 +36,7 @@ def _boot_pv_system(
     # Energy tab into Settings in #779.
     page.locator("#tabEnergy").click()
     page.wait_for_selector("#paneEnergy", state="visible")
-    open_settings(page)
-    # Collapsed by default, like every other settings card on the app.
-    page.eval_on_selector("#pvSystemCard", "el => { el.open = true; }")
+    open_settings_sheet(page, "pvSystemSheet")  # a Settings sheet since #886
 
 
 def test_card_renders_a_summary_row_per_panel_row(
