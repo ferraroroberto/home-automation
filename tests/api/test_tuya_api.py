@@ -301,6 +301,7 @@ def test_cover_group_reports_a_partial_failure_per_blind(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     sent = _stub_blinds(monkeypatch, fail=("blind-2",))
+    _spy_settle(monkeypatch)
     response = client.post(
         "/api/tuya/covers", json={"action": "close", "device_ids": ["blind-1", "blind-2"]}
     )
@@ -313,26 +314,45 @@ def test_cover_group_reports_a_partial_failure_per_blind(
     assert sent == [("blind-1", "close")]
 
 
-def test_manual_cover_group_tap_is_a_single_attempt(
+def _spy_settle(monkeypatch: pytest.MonkeyPatch) -> list:
+    """Record what each manual tap hands to the background retry (#899)."""
+    settled: list = []
+
+    async def _settle(action, outcomes):
+        settled.append((action, {o.device_id: o.ok for o in outcomes}))
+
+    monkeypatch.setattr("app.webapp.routers.tuya.settle_manual_move", _settle)
+    return settled
+
+
+def test_manual_cover_group_tap_hands_its_failures_to_the_retry(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Only automatic moves retry (#897): a manual tap reports and stops."""
-    import src.blind_automation as blind_automation
-    from app.webapp import blind_schedules as engine
-
-    tries: list = []
-    real = blind_automation._send_cover
-
-    async def _counting(device_id, action, command):
-        tries.append(device_id)
-        return await real(device_id, action, command)
-
+    """A manual group tap answers with its first attempt, then retries (#899)."""
     _stub_blinds(monkeypatch, fail=("blind-2",))
-    monkeypatch.setattr(blind_automation, "_send_cover", _counting)
+    settled = _spy_settle(monkeypatch)
     response = client.post("/api/tuya/covers", json={"action": "open"})
     assert response.status_code == 200 and response.json()["failed"] == 1
-    assert sorted(tries) == ["blind-1", "blind-2"]
-    assert not engine._RETRY_TASKS
+    assert settled == [("open", {"blind-1": True, "blind-2": False})]
+
+
+def test_manual_single_cover_tap_retries_and_says_so(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_blinds(monkeypatch, fail=("blind-2",))
+    settled = _spy_settle(monkeypatch)
+    response = client.post("/api/tuya/blind-2/cover", json={"action": "close"})
+    assert response.status_code == 502
+    assert "did not answer; retrying" in response.json()["detail"]
+    assert settled == [("close", {"blind-2": False})]
+
+
+def test_manual_single_cover_tap_rejects_a_device_that_is_not_a_blind(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent = _stub_blinds(monkeypatch)
+    response = client.post("/api/tuya/plug-1/cover", json={"action": "open"})
+    assert response.status_code == 404 and sent == []
 
 
 def test_manual_single_cover_tap_supersedes_a_pending_retry(
@@ -346,9 +366,10 @@ def test_manual_single_cover_tap_supersedes_a_pending_retry(
     outcomes = asyncio.run(blind_automation.move_blinds("open"))
     pending = next(o for o in outcomes if not o.ok)
     assert blind_automation.is_newest_command("blind-2", pending.command)
-    monkeypatch.setattr("app.webapp.routers.tuya.set_cover", lambda device_id, action: {})
-    response = client.post("/api/tuya/blind-2/cover", json={"action": "close"})
-    assert response.status_code == 200
+    _stub_blinds(monkeypatch)  # the blind answers again
+    _spy_settle(monkeypatch)
+    response = client.post("/api/tuya/blind-2/cover", json={"action": "stop"})
+    assert response.status_code == 200 and response.json()["ok"] is True
     assert not blind_automation.is_newest_command("blind-2", pending.command)
 
 
@@ -356,9 +377,11 @@ def test_cover_group_is_502_only_when_every_blind_failed(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _stub_blinds(monkeypatch, fail=("blind-1", "blind-2"))
+    settled = _spy_settle(monkeypatch)
     response = client.post("/api/tuya/covers", json={"action": "stop"})
     assert response.status_code == 502
-    assert "no blind accepted stop" in response.json()["detail"]
+    assert "no blind accepted stop, retrying" in response.json()["detail"]
+    assert settled == [("stop", {"blind-1": False, "blind-2": False})]
 
 
 @pytest.mark.parametrize(

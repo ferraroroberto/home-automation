@@ -25,9 +25,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.webapp.blind_schedules import settle_manual_move
 from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, make_display_name_endpoint
-from src.blind_automation import move_blinds, note_blind_command
+from src.blind_automation import BlindOutcome, move_blinds
 from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
 from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
@@ -41,7 +42,6 @@ from src.tuya_client import (
     read_device_state,
     rescan_addresses,
     set_brightness,
-    set_cover,
     set_switch,
 )
 
@@ -284,8 +284,9 @@ async def control_cover_group(payload: CoverGroupPayload) -> Dict[str, Any]:
     """Move several blinds at once — all of them when ``device_ids`` is omitted.
 
     The commands go out in parallel (``src.blind_automation``). A blind that
-    fails is reported per device rather than failing the group; only when
-    *every* blind failed is the whole request a 502.
+    fails is reported per device rather than failing the group, and retried
+    in the background (#899); only when *every* blind failed is the whole
+    request a 502.
     """
     try:
         outcomes = await move_blinds(payload.action, payload.device_ids)  # type: ignore[arg-type]
@@ -293,17 +294,28 @@ async def control_cover_group(payload: CoverGroupPayload) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
     except TuyaConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    TUYA_SNAPSHOT.invalidate()  # no read-back for a cover: refetch next read
+    await _settle_cover_move(payload.action, outcomes)
     results = [
-        {"device_id": o.device_id, "ok": o.ok, "error": o.error} for o in outcomes
+        {"device_id": o.device_id, "ok": o.ok, "error": o.error, "superseded": o.superseded}
+        for o in outcomes
     ]
-    failed = [r for r in results if not r["ok"]]
-    if results and len(failed) == len(results):
+    failed = [o for o in outcomes if not o.ok and not o.superseded]
+    if failed and len(failed) == len(outcomes):
         raise HTTPException(
             status_code=502,
-            detail=f"no blind accepted {payload.action}: " + "; ".join(r["error"] or "" for r in failed),
+            detail=f"no blind accepted {payload.action}, retrying: "
+            + "; ".join(o.error or "" for o in failed),
         )
     return {"action": payload.action, "results": results, "failed": len(failed)}
+
+
+async def _settle_cover_move(action: str, outcomes: List[BlindOutcome]) -> None:
+    """After a manual cover tap: hand failures to the retry, then refetch.
+
+    There is no read-back for a cover, so the snapshot is just invalidated.
+    """
+    await settle_manual_move(action, outcomes)
+    TUYA_SNAPSHOT.invalidate()
 
 
 @router.post("/api/tuya/{device_id}/switch")
@@ -386,19 +398,23 @@ async def control_brightness(device_id: str, payload: BrightnessPayload) -> Dict
 
 @router.post("/api/tuya/{device_id}/cover")
 async def control_cover(device_id: str, request: Request) -> Dict[str, Any]:
+    """Move one blind — the same send, supersede and retry path as the group (#899)."""
     action = await _str_field(request, "action")
     if action not in ("open", "close", "stop"):
         raise HTTPException(status_code=400, detail="action must be open/close/stop")
-    note_blind_command([device_id])  # a manual tap supersedes any pending automatic retry
     try:
-        await asyncio.to_thread(set_cover, device_id, action)  # type: ignore[arg-type]
-    except TuyaDeviceNotFoundError as exc:
+        (outcome,) = await move_blinds(action, [device_id])  # type: ignore[arg-type]
+    except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    except (TuyaCommandError, TuyaConfigError) as exc:
-        TUYA_SNAPSHOT.invalidate()
+    except TuyaConfigError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
-    TUYA_SNAPSHOT.invalidate()  # no read-back for a cover: refetch next read
-    return {"device_id": device_id, "reachable": True, "action": action, "ok": True}
+    await _settle_cover_move(action, [outcome])
+    if not outcome.ok and not outcome.superseded:
+        raise HTTPException(status_code=502, detail=f"{outcome.error}; retrying")
+    return {
+        "device_id": device_id, "reachable": True, "action": action,
+        "ok": outcome.ok, "superseded": outcome.superseded,
+    }
 
 
 make_display_name_endpoint(

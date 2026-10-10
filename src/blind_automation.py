@@ -18,18 +18,26 @@ rippling across the house one LAN round trip at a time.
 One blind failing never stops the others: the result reports each device's
 outcome so the caller can say exactly which blind did not move.
 
-The automatic moves (schedules, follow-the-alarm) then hand the failed blinds
-to :func:`retry_failed_blinds` (#897), which retries only those on a
-30/60/120/240 s backoff. Every command a blind receives is numbered, so a
-newer command — another schedule, a manual tap, another alarm move —
-supersedes the pending retry of an older one: an old "open" can never undo a
-newer "close".
+Every move — automatic (schedules, follow-the-alarm, #897) or a manual tap
+(#899) — then hands the failed blinds to :func:`retry_failed_blinds`, which
+retries only those on a backoff: 30/60/120/240 s for up/down, a few seconds
+for a Stop, which only helps while the blind is still travelling. Every
+command a blind receives is numbered, so a newer command — another schedule,
+a manual tap, a Stop — supersedes the pending retry of an older one: an old
+"open" can never undo a newer "close" or "stop".
+
+Sends to one blind are serialised (:func:`_send_newest`), and each checks it
+is still the newest command once its turn comes, so the last command tapped
+is the last one the blind receives: a Stop tapped while an earlier "open" is
+still waiting on an unresponsive blind goes out right after it, never before
+it, and a stale command queued behind it is dropped instead of sent.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -60,11 +68,20 @@ class BlindOutcome:
     error: Optional[str] = None
     # The command number this outcome belongs to (see note_blind_command).
     command: int = 0
+    # Not sent: a newer command reached this blind first. Neither moved nor failed.
+    superseded: bool = False
 
 
-# Delays before each retry of an automatic move's failed blinds (#897): four
-# retries, about 7.5 minutes in all.
+# Delays before each retry of an up/down move's failed blinds (#897, #899):
+# four retries, about 7.5 minutes in all.
 RETRY_DELAYS_S: tuple[float, ...] = (30.0, 60.0, 120.0, 240.0)
+# A Stop retries within the blind's travel time instead (#899): about 15 s.
+STOP_RETRY_DELAYS_S: tuple[float, ...] = (2.0, 4.0, 8.0)
+
+
+def retry_delays(action: str) -> tuple[float, ...]:
+    """The backoff a failed ``action`` is retried on."""
+    return STOP_RETRY_DELAYS_S if action == "stop" else RETRY_DELAYS_S
 
 # Monotonic command counter and the newest command number per blind. Process
 # lifetime is enough: a pending retry only ever lives in this process too.
@@ -76,8 +93,8 @@ def note_blind_command(device_ids: Iterable[str]) -> int:
     """Number a new command to ``device_ids`` and make it their newest one.
 
     Any pending retry of an older command to those blinds is superseded.
-    Every path that sends a blind a command calls this: :func:`move_blinds`
-    does it itself, the single-blind route calls it directly.
+    Every path that sends a blind a command goes through :func:`move_blinds`,
+    which calls this itself.
     """
     global _command_seq
     _command_seq += 1
@@ -91,12 +108,38 @@ def is_newest_command(device_id: str, command: int) -> bool:
     return _latest_command.get(device_id) == command
 
 
-async def _send_cover(device_id: str, action: CoverAction, command: int) -> BlindOutcome:
-    try:
-        await asyncio.to_thread(set_cover, device_id, action)
-    except (TuyaCommandError, TuyaConfigError, TuyaDeviceNotFoundError) as exc:
-        return BlindOutcome(device_id=device_id, ok=False, error=str(exc), command=command)
+# One lock per blind: a blind takes one command at a time (#899). Threading
+# locks, since the sends run in worker threads.
+_send_locks: Dict[str, threading.Lock] = {}
+_send_locks_guard = threading.Lock()
+
+
+def _send_lock(device_id: str) -> threading.Lock:
+    with _send_locks_guard:
+        return _send_locks.setdefault(device_id, threading.Lock())
+
+
+def _send_newest(device_id: str, action: CoverAction, command: int) -> BlindOutcome:
+    """Send ``action`` once this blind is free, unless a newer command came first.
+
+    Blocking: runs in a worker thread. Holding the blind's lock across the
+    newest-command check and the send is what keeps commands in tap order.
+    """
+    with _send_lock(device_id):
+        if not is_newest_command(device_id, command):
+            logger.info(
+                "ℹ️ Blind %s: %s dropped, a newer command superseded it", device_id, action
+            )
+            return BlindOutcome(device_id=device_id, ok=False, command=command, superseded=True)
+        try:
+            set_cover(device_id, action)
+        except (TuyaCommandError, TuyaConfigError, TuyaDeviceNotFoundError) as exc:
+            return BlindOutcome(device_id=device_id, ok=False, error=str(exc), command=command)
     return BlindOutcome(device_id=device_id, ok=True, command=command)
+
+
+async def _send_cover(device_id: str, action: CoverAction, command: int) -> BlindOutcome:
+    return await asyncio.to_thread(_send_newest, device_id, action, command)
 
 
 def cover_device_ids() -> List[str]:
@@ -133,11 +176,12 @@ async def move_blinds(
     outcomes = list(
         await asyncio.gather(*(_send_cover(device_id, action, command) for device_id in targets))
     )
-    failed = [outcome.device_id for outcome in outcomes if not outcome.ok]
+    failed = [o for o in outcomes if not o.ok and not o.superseded]
     if failed:
         logger.warning(
             "⚠️ Blind group %s: %d of %d blind(s) failed (%s)",
-            action, len(failed), len(outcomes), ", ".join(failed),
+            action, len(failed), len(outcomes),
+            "; ".join(f"{o.device_id}: {o.error}" for o in failed),
         )
     else:
         logger.info("✅ Blind group %s sent to %d blind(s)", action, len(outcomes))
@@ -146,7 +190,7 @@ async def move_blinds(
 
 @dataclass(frozen=True)
 class BlindRetryReport:
-    """The final result of an automatic move once its retries are over."""
+    """The final result of a move once its retries are over."""
 
     action: str
     # Each blind's last outcome: its first attempt, or its last retry.
@@ -175,40 +219,34 @@ async def retry_failed_blinds(
     action: CoverAction,
     outcomes: List[BlindOutcome],
     *,
-    delays: Iterable[float] = RETRY_DELAYS_S,
+    delays: Optional[Iterable[float]] = None,
     sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
 ) -> BlindRetryReport:
     """Retry the failed blinds of a :func:`move_blinds` result on a backoff.
 
-    Only the ``ok=False`` blinds are re-sent, after each delay in turn; a
-    blind leaves the retry set as soon as it moves, and blinds that moved on
-    the first attempt are never re-sent. Before each retry, a blind that has
-    since received a newer command is dropped as superseded. ``sleep`` is
-    injectable so tests drive the backoff with a fake clock.
+    Only the failed blinds are re-sent, after each delay in turn (default:
+    :func:`retry_delays` for ``action``); a blind leaves the retry set as soon
+    as it moves, and blinds that moved on the first attempt are never
+    re-sent. A blind that has since received a newer command is dropped as
+    superseded, never re-sent. ``sleep`` is injectable so tests drive the
+    backoff with a fake clock.
     """
     final = {o.device_id: o for o in outcomes}
     attempts = {o.device_id: 1 for o in outcomes}
-    superseded: List[str] = []
-    pending = [o for o in outcomes if not o.ok]
-    for delay in delays:
+    superseded: List[str] = [o.device_id for o in outcomes if o.superseded]
+    pending = [o for o in outcomes if not o.ok and not o.superseded]
+    for delay in retry_delays(action) if delays is None else delays:
         if not pending:
             break
         await sleep(delay)
-        current: List[BlindOutcome] = []
-        for outcome in pending:
-            if is_newest_command(outcome.device_id, outcome.command):
-                current.append(outcome)
-            else:
-                superseded.append(outcome.device_id)
-                logger.info(
-                    "ℹ️ Blind %s: retry of %s dropped, a newer command superseded it",
-                    outcome.device_id, action,
-                )
         results = await asyncio.gather(
-            *(_send_cover(o.device_id, action, o.command) for o in current)
+            *(_send_cover(o.device_id, action, o.command) for o in pending)
         )
         pending = []
         for result in results:
+            if result.superseded:
+                superseded.append(result.device_id)
+                continue
             attempts[result.device_id] += 1
             final[result.device_id] = result
             if result.ok:

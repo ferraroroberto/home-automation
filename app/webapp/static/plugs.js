@@ -144,16 +144,20 @@ async function coverAction(device, action) {
 // (so a user-hidden blind stays out of it), offline-looking ones included — a
 // user command bypasses the poll backoff, and the blind may well answer. The
 // server sends the commands in parallel and reports each blind's outcome.
-let groupBusy = false;
+// No tap ever waits for an earlier one (#899): a Stop must go out while an
+// All up / All down is still in flight (an unresponsive blind holds that
+// request open), and the server keeps each blind's commands in tap order.
+// Only the latest tap's answer is toasted, so a slow earlier one can't
+// overwrite it.
+let groupSeq = 0;
 
 async function blindsGroupAction(action) {
-  if (groupBusy) return;
   const targets = state.blindsShown;
   if (!targets.length) {
     toast('No blinds to move', 'error');
     return;
   }
-  groupBusy = true;
+  const seq = ++groupSeq;
   try {
     toast('Sending…', 'pending');
     const body = await jsonApi('/api/tuya/covers', {
@@ -164,20 +168,24 @@ async function blindsGroupAction(action) {
         device_ids: targets.map(function (d) { return d.device_id; }),
       }),
     });
-    const failed = ((body && body.results) || []).filter(function (r) { return !r.ok; });
+    if (seq !== groupSeq) return;
+    const failed = ((body && body.results) || []).filter(function (r) {
+      return !r.ok && !r.superseded;
+    });
     if (failed.length) {
       const names = failed.map(function (r) {
         const d = deviceById(r.device_id);
         return d ? plugLabel(d) : r.device_id;
       });
-      toast(failed.length + ' of ' + targets.length + ' blinds failed: ' + names.join(', '), 'error');
+      toast(
+        failed.length + ' of ' + targets.length + ' blinds failed, retrying: ' + names.join(', '),
+        'error',
+      );
     } else {
       toast('All blinds ' + BLIND_WORDS[action], 'success');
     }
   } catch (exc) {
-    reportActionFailure(exc, 'Failed');
-  } finally {
-    groupBusy = false;
+    if (seq === groupSeq) reportActionFailure(exc, 'Failed');
   }
 }
 

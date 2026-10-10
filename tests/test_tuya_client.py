@@ -418,3 +418,65 @@ def test_set_brightness_rejects_a_device_without_brightness(
     monkeypatch.setattr(T, "_DEVICE_FILE", path)
     with pytest.raises(ValueError, match="no brightness"):
         T.set_brightness("p", 50)
+
+
+# ------------------------------------------------------------- set_cover (#899)
+def _write_blind(path: Path, code: str = "control") -> None:
+    _write_devices(
+        path,
+        [{
+            "id": "blind-x", "name": "Test Blind", "key": "0123456789abcdef",
+            "ip": "10.9.9.9", "version": "3.3",
+            "mapping": {"1": {"code": code, "type": "Enum"}},
+        }],
+    )
+
+
+def _fake_link(monkeypatch: pytest.MonkeyPatch, reply: object) -> list:
+    """TinyTuya's socket layer faked: every frame is recorded, ``reply`` answers it."""
+    import tinytuya
+
+    frames: list = []
+
+    def _generate_payload(self, command, data=None, *_a, **_kw):
+        frames.append((command, data))
+        return b""
+
+    monkeypatch.setattr(tinytuya.Device, "generate_payload", _generate_payload)
+    monkeypatch.setattr(tinytuya.Device, "_send_receive", lambda self, *_a, **_kw: reply)
+    return frames
+
+
+def test_set_cover_raises_when_the_blind_does_not_answer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The Stop that never landed (#899): TinyTuya's error reply must surface.
+
+    ``CoverDevice.stop_cover`` returned ``None``, so this logged as sent and
+    nothing ever retried it.
+    """
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    _fake_link(monkeypatch, tinytuya.error_json(tinytuya.ERR_CONNECT))
+
+    with pytest.raises(T.TuyaCommandError, match="Err 901"):
+        T.set_cover("blind-x", "stop")
+
+
+@pytest.mark.parametrize("code, value", [("control", "stop"), ("mach_operate", "STOP")])
+def test_set_cover_writes_the_mapped_dps_in_one_frame(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, code: str, value: str
+) -> None:
+    """One control frame to the mapped DPS: no ``status()`` probe first."""
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path, code)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    frames = _fake_link(monkeypatch, {"dps": {"1": value}})
+
+    T.set_cover("blind-x", "stop")
+    assert frames == [(tinytuya.CONTROL, {"1": value})]

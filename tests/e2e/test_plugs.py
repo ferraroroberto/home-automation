@@ -407,6 +407,30 @@ def test_blinds_group_buttons_move_every_listed_blind(
     assert sorted(body["device_ids"]) == ["cover-1", "cover-2"]
     expect(page.locator("#toast")).to_contain_text("All blinds down")
 
+    # Stop is never held behind a move still in flight (#899): an unresponsive
+    # blind keeps All up's request open, and Stop must go out regardless.
+    held: List = []
+
+    def _hold_up(route) -> None:
+        if (route.request.post_data_json or {}).get("action") == "open":
+            held.append(route)
+        else:
+            route.fallback()
+
+    page.route("**/api/tuya/covers", _hold_up)
+    with page.expect_request("**/api/tuya/covers"):
+        page.locator("#blindsAllUp").click()
+    with page.expect_request("**/api/tuya/covers") as stop:
+        page.locator("#blindsAllStop").click()
+    assert stop.value.post_data_json["action"] == "stop"
+    expect(page.locator("#toast")).to_contain_text("All blinds stopped")
+    assert len(held) == 1  # All up is still unanswered
+    # The late answer to the earlier All up doesn't overwrite Stop's toast.
+    held[0].fulfill(status=200, content_type="application/json",
+                    body='{"action": "open", "results": [], "failed": 0}')
+    page.wait_for_timeout(300)
+    expect(page.locator("#toast")).to_contain_text("All blinds stopped")
+
 
 @pytest.mark.chromium_only
 def test_tuya_light_lists_under_lights_not_plugs(
