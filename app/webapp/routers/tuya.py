@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, make_display_name_endpoint
-from src.blind_automation import move_blinds
+from src.blind_automation import move_blinds, note_blind_command
 from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
 from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
@@ -389,6 +389,7 @@ async def control_cover(device_id: str, request: Request) -> Dict[str, Any]:
     action = await _str_field(request, "action")
     if action not in ("open", "close", "stop"):
         raise HTTPException(status_code=400, detail="action must be open/close/stop")
+    note_blind_command([device_id])  # a manual tap supersedes any pending automatic retry
     try:
         await asyncio.to_thread(set_cover, device_id, action)  # type: ignore[arg-type]
     except TuyaDeviceNotFoundError as exc:

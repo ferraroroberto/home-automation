@@ -313,6 +313,45 @@ def test_cover_group_reports_a_partial_failure_per_blind(
     assert sent == [("blind-1", "close")]
 
 
+def test_manual_cover_group_tap_is_a_single_attempt(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only automatic moves retry (#897): a manual tap reports and stops."""
+    import src.blind_automation as blind_automation
+    from app.webapp import blind_schedules as engine
+
+    tries: list = []
+    real = blind_automation._send_cover
+
+    async def _counting(device_id, action, command):
+        tries.append(device_id)
+        return await real(device_id, action, command)
+
+    _stub_blinds(monkeypatch, fail=("blind-2",))
+    monkeypatch.setattr(blind_automation, "_send_cover", _counting)
+    response = client.post("/api/tuya/covers", json={"action": "open"})
+    assert response.status_code == 200 and response.json()["failed"] == 1
+    assert sorted(tries) == ["blind-1", "blind-2"]
+    assert not engine._RETRY_TASKS
+
+
+def test_manual_single_cover_tap_supersedes_a_pending_retry(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    import src.blind_automation as blind_automation
+
+    _stub_blinds(monkeypatch, fail=("blind-2",))
+    outcomes = asyncio.run(blind_automation.move_blinds("open"))
+    pending = next(o for o in outcomes if not o.ok)
+    assert blind_automation.is_newest_command("blind-2", pending.command)
+    monkeypatch.setattr("app.webapp.routers.tuya.set_cover", lambda device_id, action: {})
+    response = client.post("/api/tuya/blind-2/cover", json={"action": "close"})
+    assert response.status_code == 200
+    assert not blind_automation.is_newest_command("blind-2", pending.command)
+
+
 def test_cover_group_is_502_only_when_every_blind_failed(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
