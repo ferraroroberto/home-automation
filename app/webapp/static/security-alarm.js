@@ -22,7 +22,8 @@ import { icon } from './_vendored/icons/icons.js';
 import { detailModal } from './detail-modal.js';
 import { chipEl } from './chip.js';
 import { setHeadPart } from './head-status.js';
-import { setTabBadge } from './tabs.js';
+import { setTabBadge, showTab } from './tabs.js';
+import { setHousePart } from './home.js';
 
 // The "show hidden detectors" filter, on the shared localStorage wrapper.
 const showHiddenPref = persistedFlag(SECURITY_SHOW_HIDDEN_KEY, false);
@@ -211,11 +212,12 @@ export function renderActions() {
   renderActionsInto(els.homeSecurityActions);
 }
 
-// The state line (#882): a shield glyph and the mode word, with the system
-// exceptions as chips after it. "Alarm state:" stays for assistive tech only;
-// on the card the word and the selected segment already say it. On the
-// Security tab (`openTrouble`) the trouble chip opens the detector.
-function renderStateInto(el, openTrouble) {
+// The Security glance card's state line (#882): a shield glyph and the mode
+// word, with the system exceptions as chips after it. "Alarm state:" stays
+// for assistive tech only; on the card the word and the selected segment
+// already say it. The trouble chip opens the detector.
+function renderSecurityState() {
+  const el = els.securityState;
   if (!el) return;
   const security = state.security;
   const mode = security ? currentMode() : 'unknown';
@@ -231,8 +233,8 @@ function renderStateInto(el, openTrouble) {
   word.textContent = label;
   el.appendChild(word);
   // System-wide AC-power-lost alert (issue #99): an aggregate cloud flag,
-  // dual-rendered onto Home + Security, clearing when false. Attention, not
-  // danger: the panel is on its backup battery and still protecting (#879).
+  // clearing when false. Attention, not danger: the panel is on its backup
+  // battery and still protecting (#879).
   if (security && security.ac_lost) {
     const badge = chipEl('AC power lost', 'attention', 'security-aclost-badge');
     badge.title = 'The alarm panel lost mains power and is running on backup battery';
@@ -243,37 +245,46 @@ function renderStateInto(el, openTrouble) {
   // Ignored ones (a known/accepted trouble) don't contribute, keeping it quiet.
   const troubled = troubledZones();
   if (security && troubled.length > 0) {
-    const text = troubled.length + ' trouble';
-    let badge;
-    if (openTrouble) {
-      // A chip that opens something keeps its status colours on the chip
-      // shape (design.md reference pill): one detector opens its sheet, more
-      // show them at the top of the Detectors group.
-      badge = document.createElement('button');
-      badge.type = 'button';
-      badge.className = 'chip chip-button security-trouble-badge';
-      badge.dataset.tone = 'attention';
-      badge.textContent = text;
-      badge.setAttribute('aria-label', troubled.length === 1
-        ? 'Trouble: open ' + zoneLabel(troubled[0])
-        : troubled.length + ' detectors report trouble: show them');
-      badge.addEventListener('click', function () { showTroubled(badge); });
-    } else {
-      badge = chipEl(text, 'attention', 'security-trouble-badge');
-      badge.title = troubled.length + ' detector(s) reporting trouble — see the Detectors list';
-    }
+    // A chip that opens something keeps its status colours on the chip
+    // shape (design.md reference pill): one detector opens its sheet, more
+    // show them at the top of the Detectors group.
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'chip chip-button security-trouble-badge';
+    badge.dataset.tone = 'attention';
+    badge.textContent = troubled.length + ' trouble';
+    badge.setAttribute('aria-label', troubleLabel(troubled));
+    badge.addEventListener('click', function () { showTroubled(badge); });
     el.appendChild(badge);
   }
+}
+
+function troubleLabel(troubled) {
+  return troubled.length === 1
+    ? 'Trouble: open ' + zoneLabel(troubled[0])
+    : troubled.length + ' detectors report trouble: show them';
+}
+
+// The alarm's exceptions, most urgent first: a triggered alarm (danger),
+// detector trouble the user hasn't ignored and AC power lost (attention).
+// The Security header, the Security tab badge and Home's House card all say
+// these and nothing else; an armed mode is normal and adds nothing
+// (decision 3 of #872).
+function alarmExceptions(security) {
+  const exceptions = [];
+  if (currentMode() === 'triggered') exceptions.push({ text: 'Triggered', tone: 'danger' });
+  const troubled = troubledZones();
+  if (troubled.length) {
+    exceptions.push({ text: troubled.length + ' trouble', tone: 'attention', troubled: troubled });
+  }
+  if (security.ac_lost) exceptions.push({ text: 'AC power lost', tone: 'attention' });
+  return exceptions;
 }
 
 // Detectors reporting trouble that the user hasn't ignored (issue #225).
 function troubledZones() {
   const zones = (state.security && state.security.zones) || [];
   return zones.filter(function (z) { return z.trouble && !z.trouble_ignored; });
-}
-
-function troubledNotIgnoredCount() {
-  return troubledZones().length;
 }
 
 function showTroubled(trigger) {
@@ -291,17 +302,15 @@ function showTroubled(trigger) {
 }
 
 export function renderState() {
-  renderStateInto(els.securityState, true);
-  renderStateInto(els.homeSecurityState, false);
+  renderSecurityState();
   renderSecurityHead();
+  renderHouseAlarm();
 }
 
 // The Security header's live line and the Security tab's count badge
-// (head-status.js, #880; decision 10 of #872): a triggered alarm in danger,
-// detector trouble the user hasn't ignored in attention, AC power lost in
-// attention; else the plain detector count. The badge carries the most
-// urgent of the first two, so it is seen from every other tab. An armed
-// mode is normal and adds nothing (decision 3).
+// (head-status.js, #880; decision 10 of #872): the alarm's exceptions, else
+// the plain detector count. The badge carries the most urgent of a triggered
+// alarm or detector trouble, so it is seen from every other tab.
 function renderSecurityHead() {
   const security = state.security;
   if (!security) {
@@ -316,19 +325,48 @@ function renderSecurityHead() {
     setTabBadge('security', 0);
     return;
   }
-  const triggered = currentMode() === 'triggered';
-  const troubled = troubledNotIgnoredCount();
-  const exceptions = [];
-  if (triggered) exceptions.push({ text: 'Triggered', tone: 'danger' });
-  if (troubled) exceptions.push({ text: troubled + ' trouble', tone: 'attention' });
-  if (security.ac_lost) exceptions.push({ text: 'AC power lost', tone: 'attention' });
+  const exceptions = alarmExceptions(security);
   const detectors = (security.zones || []).filter(function (z) { return !z.hidden; }).length;
   setHeadPart('security', 'alarm', {
     exceptions: exceptions,
     fact: detectors + (detectors === 1 ? ' detector' : ' detectors'),
   });
-  if (triggered) setTabBadge('security', 1, 'triggered', 'danger');
+  const troubled = troubledZones().length;
+  if (currentMode() === 'triggered') setTabBadge('security', 1, 'triggered', 'danger');
   else setTabBadge('security', troubled, 'trouble', 'attention');
+}
+
+// Home's House card (#885): the arm control (renderActions) shows the mode,
+// so the card's head carries only the alarm's exceptions, plus an arming
+// panel (accent, in progress), each a chip opening the Security tab; detector
+// trouble opens the detectors there. The mode in words stays for assistive
+// tech, which reads the pressed segment too.
+function renderHouseAlarm() {
+  const security = state.security;
+  if (els.homeSecurityState) {
+    els.homeSecurityState.textContent = 'Alarm state: ' + (security ? displayLabel() : '—');
+  }
+  if (!security) {
+    setHousePart('alarm', null);
+    return;
+  }
+  const exceptions = security.reachable === false
+    ? [{ text: 'Panel unreachable', tone: 'attention' }]
+    : alarmExceptions(security);
+  if (security.reachable !== false && currentMode() === 'arming') {
+    exceptions.push({ text: 'Arming', tone: 'accent' });
+  }
+  setHousePart('alarm', exceptions.map(function (x) {
+    return {
+      text: x.text,
+      tone: x.tone,
+      label: x.troubled ? troubleLabel(x.troubled) : x.text + ': open Security',
+      onOpen: function (btn) {
+        showTab('security');
+        if (x.troubled) showTroubled(btn);
+      },
+    };
+  }));
 }
 
 // The Recent events group (decision 8 of #872, #882): the last three on the
@@ -366,19 +404,15 @@ function eventWhen(value) {
 
 function eventRow(event) {
   const when = eventWhen(event.time);
-  const lead = document.createElement('span');
-  lead.className = 'row-time';
-  lead.textContent = when.time;
   // Who acted, as words (#362: no actor means no badge, never a bare "-").
   const actor = event.user_id ? 'User ' + event.user_id : '';
   const meta = [when.day, actor].filter(Boolean).join(' · ');
-  const row = rowEl({
+  return rowEl({
     className: 'security-event',
+    time: when.time,
     title: eventTitle(event),
     meta: meta || null,
   });
-  row.querySelector('.action-row-main').prepend(lead);
-  return row;
 }
 
 export function renderEvents() {

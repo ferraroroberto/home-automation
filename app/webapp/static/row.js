@@ -20,6 +20,9 @@
  *
  * rowEl(opts):
  *   glyph, badge     the avatar's icon name and 'up' | 'down' | null
+ *   time             optional tabular time leading the row in place of the
+ *                    avatar (design.md: a leading slot may be a time value),
+ *                    inside the tap target: Recent events, Next up (#885)
  *   title            the row's name
  *   meta             optional muted line: text, or a node when it carries a
  *                    glyph (an arrow is a Lucide icon, never a character)
@@ -62,7 +65,12 @@ export function rowEl(opts) {
     if (opts.openLabel) main.setAttribute('aria-label', opts.openLabel);
     main.addEventListener('click', function () { opts.onOpen(main); });
   }
-  if (opts.glyph) {
+  if (opts.time) {
+    const time = document.createElement('span');
+    time.className = 'row-time';
+    time.textContent = opts.time;
+    main.appendChild(time);
+  } else if (opts.glyph) {
     main.classList.add('has-avatar');
     main.appendChild(avatarEl(opts.glyph, opts.badge));
   }

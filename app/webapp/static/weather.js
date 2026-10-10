@@ -1,33 +1,34 @@
-/* Home Automation — Home-tab weather tile.
+/* Home Automation — the Home header's weather line.
  *
- * Polls GET /api/weather at a slow cadence and fills the Home-tab weather
- * strip: current weather (icon + temp) · today's forecast (min/max + a forecast
- * icon). Hidden until the first successful read; fails quietly like the energy
- * tile (weather is decorative, never load-bearing). The clock was dropped — it
- * just duplicated the phone's status-bar clock (issue #72). */
+ * Polls GET /api/weather at a slow cadence. Since #885 (decision 2 of #872)
+ * the weather is no card: it is the Home page header's live line, the one
+ * header where the quiet line may be a plain fact rather than a count. The
+ * line is the sky now and today's range ("Clear 21° · 9° / 21°"); the
+ * accessible name adds today's forecast sky and the place it is for (the
+ * home location, set in Settings). Fails quietly and keeps the last value:
+ * weather is decorative, never load-bearing. The clock was dropped long ago:
+ * it just duplicated the phone's status-bar clock (issue #72). */
 
 'use strict';
 
-import { els } from './state.js';
 import { jsonApi } from './api.js';
-import { icon } from './_vendored/icons/icons.js';
+import { setHeadPart } from './head-status.js';
 
 const WEATHER_MS = 600_000;  // 10 min — weather barely moves
 
-// WMO weather-code → Lucide glyph name. Day/night split only where it reads
-// differently. https://open-meteo.com/en/docs (WMO Weather interpretation codes)
-function weatherIcon(code, isDay) {
-  if (code === 0) return isDay ? 'sun' : 'moon';                 // clear
-  if (code === 1 || code === 2) return isDay ? 'cloud-sun' : 'cloud-moon'; // mainly/partly clear
-  if (code === 3) return 'cloud';                                // overcast
-  if (code === 45 || code === 48) return 'cloud-fog';            // fog
-  if (code >= 51 && code <= 57) return 'cloud-drizzle';          // drizzle
-  if (code >= 61 && code <= 67) return 'cloud-rain';             // rain
-  if (code >= 71 && code <= 77) return 'cloud-snow';             // snow
-  if (code >= 80 && code <= 82) return 'cloud-rain';             // rain showers
-  if (code === 85 || code === 86) return 'cloud-snow';           // snow showers
-  if (code >= 95) return 'cloud-lightning';                      // thunderstorm
-  return 'thermometer';                                          // fallback
+// WMO weather code → one short word, short enough for the header line at
+// 390px. https://open-meteo.com/en/docs (WMO Weather interpretation codes)
+function weatherWord(code) {
+  if (code === 0) return 'Clear';
+  if (code === 1 || code === 2) return 'Clouds';
+  if (code === 3) return 'Overcast';
+  if (code === 45 || code === 48) return 'Fog';
+  if (code >= 51 && code <= 57) return 'Drizzle';
+  if (code >= 61 && code <= 67) return 'Rain';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'Snow';
+  if (code >= 80 && code <= 82) return 'Showers';
+  if (code >= 95) return 'Storm';
+  return '';
 }
 
 function fmtTemp(v) {
@@ -35,25 +36,18 @@ function fmtTemp(v) {
 }
 
 function render(w) {
-  if (!w || !w.available) return;  // stay hidden, keep last value
+  if (!w || !w.available) return;  // keep the last value
+  const now = [weatherWord(Number(w.weather_code)), fmtTemp(w.temperature_c)].filter(Boolean).join(' ');
+  const range = fmtTemp(w.temp_min_c) + ' / ' + fmtTemp(w.temp_max_c);
+  setHeadPart('home', 'weather', { fact: now + ' · ' + range });
 
-  // Location label — shown when the API returns a non-empty label string.
-  // Standard card-header pattern (icon + bold title), not a "Home:" colon prefix.
-  if (w.label) {
-    els.wxLocationLabel.textContent = w.label;
-    els.wxLocation.hidden = false;
-  }
-
-  els.wxNowIcon.innerHTML = icon(weatherIcon(Number(w.weather_code), w.is_day !== false));
-  els.wxNowTemp.textContent = fmtTemp(w.temperature_c);
-
-  // Today's forecast — daytime icon (the forecast describes the day) + min/max.
-  els.wxFcIcon.innerHTML =
-    w.forecast_code == null ? '—' : icon(weatherIcon(Number(w.forecast_code), true));
-  els.wxFcMin.textContent = fmtTemp(w.temp_min_c);
-  els.wxFcMax.textContent = fmtTemp(w.temp_max_c);
-
-  els.weatherTile.hidden = false;
+  const el = document.querySelector('.home-head .status[data-head="home"]');
+  if (!el) return;
+  const today = w.forecast_code == null ? '' : weatherWord(Number(w.forecast_code));
+  const label = 'Weather' + (w.label ? ' at ' + w.label : '') + ': now ' + now +
+    '; today ' + (today ? today.toLowerCase() + ', ' : '') + fmtTemp(w.temp_min_c) + ' to ' + fmtTemp(w.temp_max_c);
+  el.setAttribute('aria-label', label);
+  el.title = label;
 }
 
 async function loadWeather() {
@@ -61,7 +55,7 @@ async function loadWeather() {
     const body = await jsonApi('/api/weather');
     render(body);
   } catch (_) {
-    // Weather is decorative — fail quietly, keep the tile as-is.
+    // Weather is decorative — fail quietly, keep the line as-is.
   }
 }
 

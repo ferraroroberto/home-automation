@@ -88,6 +88,15 @@ export function showSettings(card) {
   requestAnimationFrame(function () { card.scrollIntoView({ block: 'start' }); });
 }
 
+// Open a tab from a link on another one (Home's House card, #885): the nav
+// switches as if its tab were tapped, then `target`, the part of that tab the
+// link is about, scrolls into view.
+export function showTab(tab, target) {
+  if (!nav) return;
+  nav.setTab(tab);
+  if (target) requestAnimationFrame(function () { target.scrollIntoView({ block: 'start' }); });
+}
+
 export function wireTabs(onTab) {
   tabHandler = onTab;
   migrateStoredTab();

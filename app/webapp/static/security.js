@@ -136,8 +136,8 @@ async function loadSecurityState() {
     reportFetchOk('security');
     securityView.set('ready', { updatedAt: new Date() });
     renderSecurity();
-    // Presence also polls on Home (the locator card, issue #438) — same
-    // precedent as the alarm tile being actionable on Home too (issue #72).
+    // Presence also polls on Home (the House card's who-is-home row, #885) —
+    // same precedent as the arm control being actionable on Home too (#72).
     if (state.tab === 'security' || state.tab === 'home') loadPresence();
   } catch (exc) {
     if (isAuthRequired(exc)) return;
@@ -171,8 +171,8 @@ export async function loadSecurity() {
 const schedule = createPoller(loadSecurityState);
 
 export function onSecurityTab(tab) {
-  // The alarm tile is actionable on Home too, so keep it loaded + polling there
-  // as well as on the Security tab (issue #72).
+  // The arm control is actionable on Home too (its House card, #885), so keep
+  // it loaded + polling there as well as on the Security tab (issue #72).
   if (tab === 'security' || tab === 'home') {
     loadSecurity();
     loadPresence();

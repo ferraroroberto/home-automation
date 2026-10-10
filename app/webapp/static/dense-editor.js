@@ -56,7 +56,8 @@ export function denseListEditor(config) {
         const row = config.listEl.querySelector(
           '[' + config.rowIdAttr + '="' + CSS.escape(editorEntryId) + '"]'
         );
-        if (row) return row.querySelector('.automation-summary-main');
+        // A summary row, or a shared row (row.js) as on Next up (#885).
+        if (row) return row.querySelector('.automation-summary-main, .action-row-main');
       }
       return config.addButton;
     },

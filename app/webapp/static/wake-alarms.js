@@ -1,30 +1,35 @@
-/* Wake alarms + app-native timers (issue #304) — Home-tab card.
+/* Wake alarms + app-native timers (issue #304) — Home's Next up card.
  *
- * Distinct from the RISCO "Alarm controls" card (security.js /
- * security-alarm.js): this feature rings/notifies at a time you set, it
- * never arms/disarms the security system. Alarms are recurring (day-of-week)
- * or one-shot (a specific date); timers are ephemeral countdowns, not
- * persisted (mirrors how Home Assistant's own voice-set timers work).
+ * Distinct from the RISCO alarm (security.js / security-alarm.js): this
+ * feature rings/notifies at a time you set, it never arms/disarms the
+ * security system. Alarms are recurring (day-of-week) or one-shot (a specific
+ * date); timers are ephemeral countdowns, not persisted (mirrors how Home
+ * Assistant's own voice-set timers work).
+ *
+ * Since #885 (Step 7/8 of #872) both are rows of Next up on the shared row
+ * (row.js), led by their time:
+ * - a wake alarm row shows its time, label and days, with its switch; the
+ *   row opens the staged wake alarm editor (denseListEditor, the dense
+ *   collection's contract: Save is the only persistence boundary), which
+ *   replaced inline cards that saved on every keystroke;
+ * - a running timer row counts down, with × to cancel it; Start timer opens
+ *   the timer sheet (presets or minutes), which starts one at once;
+ * - a ringing alarm or a finished timer leads the card with Dismiss.
  */
 
 'use strict';
 
 import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { buildToggle } from './toggle.js';
+import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
 import { localIsoDate, friendlyError } from './format.js';
-
-const DAYS = [
-  ['mon', 'Mon'],
-  ['tue', 'Tue'],
-  ['wed', 'Wed'],
-  ['thu', 'Thu'],
-  ['fri', 'Fri'],
-  ['sat', 'Sat'],
-  ['sun', 'Sun'],
-];
+import { ALL_DAYS, daysSummary, renderDayPicker } from './days.js';
+import { denseListEditor } from './dense-editor.js';
+import { rowEl } from './row.js';
+import { sheet } from './sheet.js';
+import { renderNextUpNote } from './home.js';
 
 function alarmDefaults() {
   return {
@@ -38,14 +43,17 @@ function alarmDefaults() {
   };
 }
 
-function normalizedWakeAlarms() {
-  return (state.wakeAlarms || []).map(function (entry, idx) {
+function normalizedWakeAlarms(entries) {
+  return (entries || state.wakeAlarms || []).map(function (entry, idx) {
+    const days = Array.isArray(entry.days)
+      ? ALL_DAYS.filter(function (day) { return entry.days.includes(day); })
+      : [];
     return {
       id: entry.id || ('alarm-' + (idx + 1)),
       label: entry.label || '',
       enabled: entry.enabled !== false,
       time: entry.time || '07:00',
-      days: Array.isArray(entry.days) && entry.days.length ? entry.days : DAYS.map(function (d) { return d[0]; }),
+      days: days.length ? days : ALL_DAYS.slice(),
       date: entry.date || null,
       ringing: entry.ringing === true,
     };
@@ -59,194 +67,141 @@ function fmtRemaining(seconds) {
   return m + ':' + (rem < 10 ? '0' : '') + rem;
 }
 
+// A one-shot alarm's date in words: Today, Tomorrow, else "Sat 11 Oct".
+function dateWords(iso) {
+  if (iso === localIsoDate()) return 'Today';
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (iso === localIsoDate(tomorrow)) return 'Tomorrow';
+  const day = new Date(iso + 'T00:00:00');
+  if (Number.isNaN(day.getTime())) return iso;
+  return day.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 // -------------------------------------------------------------- ringing UI
+function ringingRow(iconName, text, onDismiss) {
+  const row = document.createElement('div');
+  row.className = 'wake-ringing-row';
+  const words = document.createElement('span');
+  words.innerHTML = icon(iconName) + ' ';
+  words.append(text);
+  row.appendChild(words);
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'wake-ringing-dismiss';
+  dismiss.textContent = 'Dismiss';
+  dismiss.addEventListener('click', onDismiss);
+  row.appendChild(dismiss);
+  return row;
+}
+
 function renderRingingBanner() {
   if (!els.wakeRingingBanner) return;
   const ringingAlarms = (state.wakeAlarms || []).filter(function (e) { return e.ringing; });
   const ringingTimers = (state.wakeTimers || []).filter(function (t) { return t.ringing; });
-  if (!ringingAlarms.length && !ringingTimers.length) {
-    els.wakeRingingBanner.hidden = true;
-    els.wakeRingingBanner.innerHTML = '';
-    return;
-  }
-  els.wakeRingingBanner.hidden = false;
   els.wakeRingingBanner.innerHTML = '';
+  els.wakeRingingBanner.hidden = !ringingAlarms.length && !ringingTimers.length;
   ringingAlarms.forEach(function (entry) {
-    const row = document.createElement('div');
-    row.className = 'wake-ringing-row';
-    const text = document.createElement('span');
-    text.innerHTML = icon('alarm-clock') + ' ';
-    text.append((entry.label || entry.time) + ' is ringing');
-    row.appendChild(text);
-    const dismiss = document.createElement('button');
-    dismiss.type = 'button';
-    dismiss.className = 'wake-ringing-dismiss';
-    dismiss.textContent = 'Dismiss';
-    dismiss.addEventListener('click', function () { dismissWakeAlarm(entry.id); });
-    row.appendChild(dismiss);
-    els.wakeRingingBanner.appendChild(row);
+    els.wakeRingingBanner.appendChild(ringingRow('alarm-clock', (entry.label || entry.time) + ' is ringing',
+      function () { dismissWakeAlarm(entry.id); }));
   });
   ringingTimers.forEach(function (timer) {
-    const row = document.createElement('div');
-    row.className = 'wake-ringing-row';
-    const text = document.createElement('span');
-    text.innerHTML = icon('timer') + ' ';
-    text.append((timer.label || (timer.seconds + 's')) + ' is done');
-    row.appendChild(text);
-    const dismiss = document.createElement('button');
-    dismiss.type = 'button';
-    dismiss.className = 'wake-ringing-dismiss';
-    dismiss.textContent = 'Dismiss';
-    dismiss.addEventListener('click', function () { cancelWakeTimer(timer.id); });
-    row.appendChild(dismiss);
-    els.wakeRingingBanner.appendChild(row);
+    els.wakeRingingBanner.appendChild(ringingRow('timer', (timer.label || 'Timer') + ' is done',
+      function () { cancelWakeTimer(timer.id); }));
   });
 }
 
-// -------------------------------------------------------------------- list
-function renderWakeAlarmsCount() {
-  if (!els.wakeAlarmsCount) return;
-  const enabled = (state.wakeAlarms || []).filter(function (e) { return e.enabled; }).length;
-  if (enabled > 0) {
-    els.wakeAlarmsCount.textContent = enabled + ' active';
-    els.wakeAlarmsCount.hidden = false;
-  } else {
-    els.wakeAlarmsCount.hidden = true;
-  }
+// ------------------------------------------------------------ alarm editor
+function renderEditorWhen() {
+  const staged = alarmEditor.staged;
+  if (!staged) return;
+  const once = !!staged.date;
+  els.wakeAlarmDateRow.hidden = !once;
+  els.wakeAlarmDaysBlock.hidden = once;
+  renderDayPicker(els.wakeAlarmDays, staged.days, function (days) {
+    staged.days = days;
+    renderEditorWhen();
+  });
+}
+
+const alarmEditor = denseListEditor({
+  dialog: els.wakeAlarmDialog,
+  addButton: els.wakeAlarmAdd,
+  closeButton: els.wakeAlarmEditorClose,
+  saveButton: els.wakeAlarmSave,
+  deleteButton: els.wakeAlarmDelete,
+  titleEl: els.wakeAlarmEditorTitle,
+  listEl: els.wakeAlarmsList,
+  focusEl: els.wakeAlarmTime,
+  rowIdAttr: 'data-alarm-id',
+  titles: { add: 'Add wake alarm', edit: 'Edit wake alarm' },
+  deleteConfirm: {
+    title: 'Delete this wake alarm?',
+    message: 'This wake alarm will be removed permanently.',
+  },
+  toasts: { saved: 'Wake alarms saved', failed: "Couldn't save wake alarms" },
+  defaults: alarmDefaults,
+  stage: function (source) {
+    return { ...source, days: source.days.slice() };
+  },
+  getEntries: function () { return state.wakeAlarms; },
+  setEntries: function (entries) { state.wakeAlarms = entries; },
+  normalize: normalizedWakeAlarms,
+  render: renderWakeAlarms,
+  populate: function (staged) {
+    setToggleState(els.wakeAlarmEnabled, staged.enabled);
+    els.wakeAlarmTime.value = staged.time;
+    els.wakeAlarmLabel.value = staged.label;
+    setToggleState(els.wakeAlarmOnce, !!staged.date);
+    els.wakeAlarmDate.value = staged.date || '';
+    renderEditorWhen();
+  },
+  collect: function (staged) {
+    staged.enabled = isToggleOn(els.wakeAlarmEnabled);
+    staged.time = els.wakeAlarmTime.value || '07:00';
+    staged.label = els.wakeAlarmLabel.value.trim().slice(0, 80);
+    // The server fires a one-shot alarm on its local date.
+    staged.date = isToggleOn(els.wakeAlarmOnce) ? (els.wakeAlarmDate.value || localIsoDate()) : null;
+  },
+  endpoint: '/api/wake-alarms',
+  bodyKey: 'entries',
+});
+
+// -------------------------------------------------------------------- rows
+// One wake alarm on the shared row: its time leads, the label (or "Alarm")
+// and when it rings, the switch saves at once like every row switch.
+function alarmRow(entry, idx) {
+  const toggle = buildToggle('wake-alarm-enabled', entry.enabled, function (on) {
+    alarmEditor.save(state.wakeAlarms.map(function (alarm, i) {
+      return i === idx ? { ...alarm, enabled: on } : alarm;
+    }));
+  });
+  toggle.setAttribute('aria-label', (entry.label || 'Wake alarm') + ' at ' + entry.time);
+  const when = entry.date ? 'Once · ' + dateWords(entry.date) : daysSummary(entry.days);
+  const row = rowEl({
+    className: 'wake-alarm-row' + (entry.ringing ? ' is-ringing' : '') + (entry.enabled ? '' : ' is-off'),
+    time: entry.time,
+    title: entry.label || 'Alarm',
+    meta: when,
+    openLabel: 'Edit wake alarm: ' + (entry.label || 'Alarm') + ', ' + entry.time + ', ' + when,
+    onOpen: function (btn) { alarmEditor.open(idx, btn); },
+    trail: toggle,
+  });
+  row.dataset.alarmId = entry.id;
+  return row;
 }
 
 export function renderWakeAlarms() {
-  if (!els.wakeAlarmsList || !els.wakeAlarmsNote) return;
-  els.wakeAlarmsList.innerHTML = '';
+  if (!els.wakeAlarmsList) return;
   state.wakeAlarms = normalizedWakeAlarms();
-  renderWakeAlarmsCount();
+  els.wakeAlarmsList.innerHTML = '';
   renderRingingBanner();
-  if (!state.wakeAlarms.length) {
-    els.wakeAlarmsNote.hidden = false;
-    els.wakeAlarmsNote.textContent = 'No wake alarms yet. Tap Add alarm below to set one.';
-    return;
-  }
-  els.wakeAlarmsNote.hidden = true;
-
-  state.wakeAlarms.forEach(function (entry, idx) {
-    const card = document.createElement('div');
-    card.className = 'schedule-entry alarm-schedule-entry' + (entry.ringing ? ' is-ringing' : '');
-    card.dataset.alarmId = entry.id;
-
-    const head = document.createElement('div');
-    head.className = 'schedule-entry-head';
-
-    const enabled = document.createElement('label');
-    enabled.className = 'schedule-enabled';
-    const enabledText = document.createElement('span');
-    enabledText.textContent = 'Enabled';
-    enabled.appendChild(enabledText);
-    enabled.appendChild(buildToggle('wake-alarm-enabled', entry.enabled, function (on) {
-      state.wakeAlarms[idx].enabled = on;
-      saveWakeAlarms();
-    }));
-    head.appendChild(enabled);
-
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'icon-button danger schedule-delete';
-    del.setAttribute('aria-label', 'Delete wake alarm');
-    del.innerHTML = icon('x');
-    del.addEventListener('click', function () {
-      state.wakeAlarms.splice(idx, 1);
-      saveWakeAlarms();
-    });
-    head.appendChild(del);
-    card.appendChild(head);
-
-    const fields = document.createElement('div');
-    fields.className = 'alarm-schedule-fields';
-
-    const labelWrap = document.createElement('label');
-    const labelText = document.createElement('span');
-    labelText.textContent = 'Label';
-    const labelInput = document.createElement('input');
-    labelInput.type = 'text';
-    labelInput.className = 'input-native wake-alarm-label';
-    labelInput.maxLength = 80;
-    labelInput.placeholder = 'Wake up';
-    labelInput.value = entry.label;
-    labelInput.addEventListener('change', function () {
-      state.wakeAlarms[idx].label = labelInput.value;
-      saveWakeAlarms();
-    });
-    labelWrap.appendChild(labelText);
-    labelWrap.appendChild(labelInput);
-    fields.appendChild(labelWrap);
-
-    const timeLabel = document.createElement('label');
-    const timeText = document.createElement('span');
-    timeText.textContent = 'Time';
-    const time = document.createElement('input');
-    time.type = 'time';
-    time.className = 'input-native alarm-schedule-time';
-    time.value = entry.time;
-    time.addEventListener('change', function () {
-      state.wakeAlarms[idx].time = time.value || '07:00';
-      saveWakeAlarms();
-    });
-    timeLabel.appendChild(timeText);
-    timeLabel.appendChild(time);
-    fields.appendChild(timeLabel);
-    card.appendChild(fields);
-
-    const onceWrap = document.createElement('label');
-    onceWrap.className = 'wake-alarm-once';
-    const onceText = document.createElement('span');
-    onceText.textContent = 'Just once';
-    onceWrap.appendChild(onceText);
-    onceWrap.appendChild(buildToggle('wake-alarm-once-toggle', !!entry.date, function (on) {
-      if (on) {
-        // The server fires a one-shot alarm on the local date.
-        state.wakeAlarms[idx].date = localIsoDate();
-      } else {
-        state.wakeAlarms[idx].date = null;
-      }
-      saveWakeAlarms();
-    }));
-    card.appendChild(onceWrap);
-
-    if (entry.date) {
-      const dateInput = document.createElement('input');
-      dateInput.type = 'date';
-      dateInput.className = 'input-native wake-alarm-date';
-      dateInput.value = entry.date;
-      dateInput.addEventListener('change', function () {
-        state.wakeAlarms[idx].date = dateInput.value || entry.date;
-        saveWakeAlarms();
-      });
-      card.appendChild(dateInput);
-    } else {
-      const days = document.createElement('div');
-      days.className = 'alarm-schedule-days';
-      DAYS.forEach(function (day) {
-        const btn = document.createElement('button');
-        const active = entry.days.includes(day[0]);
-        btn.type = 'button';
-        btn.className = 'alarm-schedule-day' + (active ? ' active' : '');
-        btn.textContent = day[1];
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-        btn.addEventListener('click', function () {
-          const current = state.wakeAlarms[idx].days.slice();
-          const pos = current.indexOf(day[0]);
-          if (pos >= 0 && current.length > 1) current.splice(pos, 1);
-          else if (pos < 0) current.push(day[0]);
-          state.wakeAlarms[idx].days = DAYS.map(function (d) { return d[0]; })
-            .filter(function (value) { return current.includes(value); });
-          saveWakeAlarms();
-        });
-        days.appendChild(btn);
-      });
-      card.appendChild(days);
-    }
-
-    els.wakeAlarmsList.appendChild(card);
-  });
+  // By time of day; the editor still edits by the stored index.
+  state.wakeAlarms
+    .map(function (entry, idx) { return { entry: entry, idx: idx }; })
+    .sort(function (a, b) { return a.entry.time.localeCompare(b.entry.time); })
+    .forEach(function (item) { els.wakeAlarmsList.appendChild(alarmRow(item.entry, item.idx)); });
+  renderNextUpNote();
 }
 
 export async function loadWakeAlarms() {
@@ -254,32 +209,13 @@ export async function loadWakeAlarms() {
   try {
     const body = await jsonApi('/api/wake-alarms');
     state.wakeAlarms = (body && body.entries) || [];
+    renderNextUpNote('alarms', null);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.wakeAlarms = [];
-    if (els.wakeAlarmsNote) {
-      els.wakeAlarmsNote.hidden = false;
-      els.wakeAlarmsNote.textContent = friendlyError(exc, 'Failed to load wake alarms.');
-    }
+    renderNextUpNote('alarms', friendlyError(exc, 'Failed to load wake alarms.'));
   }
   renderWakeAlarms();
-}
-
-async function saveWakeAlarms() {
-  state.wakeAlarms = normalizedWakeAlarms();
-  renderWakeAlarms();
-  try {
-    const body = await jsonApi('/api/wake-alarms', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: state.wakeAlarms }),
-    });
-    state.wakeAlarms = (body && body.entries) || [];
-    renderWakeAlarms();
-    toast('Wake alarms saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Wake alarm save failed');
-  }
 }
 
 async function dismissWakeAlarm(alarmId) {
@@ -292,41 +228,48 @@ async function dismissWakeAlarm(alarmId) {
 }
 
 // ------------------------------------------------------------------ timers
+// A running timer on the shared row: what is left leads (in accent, it is in
+// progress), × cancels it. A finished one says Done and waits in the banner.
+function timerRow(timer, now) {
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'icon-button wake-timer-cancel';
+  cancel.setAttribute('aria-label', 'Cancel ' + (timer.label || 'timer'));
+  cancel.innerHTML = icon('x');
+  cancel.addEventListener('click', function () { cancelWakeTimer(timer.id); });
+  const ends = new Date(timer.ends_at * 1000);
+  const row = rowEl({
+    className: 'wake-timer-row' + (timer.ringing ? ' is-ringing' : ''),
+    time: timer.ringing ? 'Done' : fmtRemaining(timer.ends_at - now),
+    title: timer.label || 'Timer',
+    meta: 'Ends ' + ends.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    trail: cancel,
+  });
+  row.dataset.timerId = timer.id;
+  return row;
+}
+
 export function renderWakeTimers() {
-  if (!els.wakeTimersList || !els.wakeTimersNote) return;
+  if (!els.wakeTimersList) return;
   els.wakeTimersList.innerHTML = '';
   renderRingingBanner();
-  const timers = state.wakeTimers || [];
-  if (!timers.length) {
-    els.wakeTimersNote.hidden = false;
-    return;
-  }
-  els.wakeTimersNote.hidden = true;
-
   const now = Date.now() / 1000;
-  timers.forEach(function (timer) {
-    const row = document.createElement('div');
-    row.className = 'wake-timer-row' + (timer.ringing ? ' is-ringing' : '');
+  (state.wakeTimers || []).forEach(function (timer) {
+    els.wakeTimersList.appendChild(timerRow(timer, now));
+  });
+  renderNextUpNote();
+}
 
-    const label = document.createElement('span');
-    label.className = 'wake-timer-label';
-    label.textContent = timer.label || 'Timer';
-    row.appendChild(label);
-
-    const remaining = document.createElement('span');
-    remaining.className = 'wake-timer-remaining';
-    remaining.textContent = timer.ringing ? 'Done' : fmtRemaining(timer.ends_at - now);
-    row.appendChild(remaining);
-
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'icon-button danger schedule-delete';
-    cancel.setAttribute('aria-label', 'Cancel timer');
-    cancel.innerHTML = icon('x');
-    cancel.addEventListener('click', function () { cancelWakeTimer(timer.id); });
-    row.appendChild(cancel);
-
-    els.wakeTimersList.appendChild(row);
+// The one-second tick between polls: only the countdowns change, in place,
+// so a focused × keeps its focus.
+function tickWakeTimers() {
+  if (!els.wakeTimersList) return;
+  const now = Date.now() / 1000;
+  (state.wakeTimers || []).forEach(function (timer) {
+    if (timer.ringing) return;
+    const row = els.wakeTimersList.querySelector('[data-timer-id="' + CSS.escape(timer.id) + '"]');
+    const time = row && row.querySelector('.row-time');
+    if (time) time.textContent = fmtRemaining(timer.ends_at - now);
   });
 }
 
@@ -339,10 +282,12 @@ export async function loadWakeTimers() {
     if (isAuthRequired(exc)) return;
     state.wakeTimers = [];
   }
+  renderNextUpNote('timers', null);
   renderWakeTimers();
 }
 
 async function createWakeTimer(seconds, label) {
+  timerSheet.close();
   try {
     await jsonApi('/api/wake-timers', {
       method: 'POST',
@@ -365,15 +310,32 @@ async function cancelWakeTimer(timerId) {
   loadWakeTimers();
 }
 
+// The timer sheet starts a timer and closes onto its row; nothing is staged.
+const timerSheet = sheet(els.wakeTimerSheet, {
+  model: 'instant',
+  closeButton: els.wakeTimerSheetClose,
+  fallbackFocus: function () { return els.wakeTimerOpen; },
+});
+
 // ----------------------------------------------------------------- wiring
 export function wireWakeAlarms() {
-  if (els.wakeAlarmAdd) {
-    els.wakeAlarmAdd.addEventListener('click', function () {
-      state.wakeAlarms.push(alarmDefaults());
-      saveWakeAlarms();
+  if (!els.wakeAlarmDialog) return;
+  wireToggle(els.wakeAlarmOnce, function (on) {
+    const staged = alarmEditor.staged;
+    if (!staged) return;
+    staged.date = on ? (els.wakeAlarmDate.value || localIsoDate()) : null;
+    els.wakeAlarmDate.value = staged.date || '';
+    renderEditorWhen();
+  });
+  alarmEditor.wire();
+
+  if (els.wakeTimerOpen) {
+    els.wakeTimerOpen.addEventListener('click', function () {
+      els.wakeTimerCustomMinutes.value = '';
+      timerSheet.open(els.wakeTimerOpen);
     });
   }
-  document.querySelectorAll('.wake-timer-presets .range-tab').forEach(function (btn) {
+  document.querySelectorAll('.wake-timer-presets .segmented-item').forEach(function (btn) {
     btn.addEventListener('click', function () {
       createWakeTimer(parseInt(btn.dataset.seconds, 10), '');
     });
@@ -386,7 +348,6 @@ export function wireWakeAlarms() {
         return;
       }
       createWakeTimer(minutes * 60, '');
-      els.wakeTimerCustomMinutes.value = '';
     });
   }
 }
@@ -395,9 +356,9 @@ export function wireWakeAlarms() {
 // list rarely changes server-side (only via a fire/dismiss), and timers only
 // matter while the user might be looking at the countdown.
 const scheduleWakeAlarms = createPoller(function () { loadWakeAlarms(); loadWakeTimers(); });
-// Re-renders the countdown display from already-fetched state, no network call
-// — smooth ticking between the 10s server polls.
-const scheduleWakeTimersTick = createPoller(renderWakeTimers);
+// Ticks the countdowns from already-fetched state, no network call — smooth
+// ticking between the 10s server polls.
+const scheduleWakeTimersTick = createPoller(tickWakeTimers);
 export function onWakeAlarmsTab(tab) {
   scheduleWakeAlarms(0);
   scheduleWakeTimersTick(0);

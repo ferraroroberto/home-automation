@@ -1,17 +1,20 @@
-/* Local USB UPS: Home's tile and the Devices tab's UPS row + sheet.
+/* Local USB UPS: the Devices tab's UPS row + sheet.
  *
  * Reads GET /api/ups. The backend prefers NUT when available and otherwise uses
  * Windows USB-HID battery telemetry, so the connected PC UPS works without
  * vendor cloud software. On Devices (#884) the UPS is a row of the Power glance
- * card, and its sheet holds the reading and the PC-fleet shutdown (#498). */
+ * card, and its sheet holds the reading and the PC-fleet shutdown (#498). On
+ * Home (#885) the UPS is no tile: an exception (on battery, low, critical) is
+ * a chip on the House card that opens this sheet, and a healthy UPS says
+ * nothing there. */
 
 'use strict';
 
 import { state, els, toast, reportFetchOk } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { emptyStateEl } from './empty-state.js';
-import { esc, fmtPct } from './format.js';
-import { chipEl, chipHtml } from './chip.js';
+import { fmtPct } from './format.js';
+import { chipEl } from './chip.js';
 import { setHeadPart } from './head-status.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
@@ -19,21 +22,13 @@ import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, staleNoteEl, staleText } from './view-state.js';
 import { rowEl } from './row.js';
 import { sheet } from './sheet.js';
+import { setHousePart } from './home.js';
+import { showTab } from './tabs.js';
 
 const POLL_MS = 15_000;
 
 let lastMainsOnline = null;
 const upsView = createViewState('ups');
-
-function renderUpsState(tile, iconName, message, retry) {
-  tile.hidden = false;
-  tile.classList.remove('is-on-battery', 'is-unavailable');
-  tile.innerHTML = '';
-  tile.appendChild(emptyStateEl(iconName, message, retry ? {
-    actionLabel: 'Retry',
-    onAction: function () { loadUps(); },
-  } : null));
-}
 
 function fmtRuntime(seconds) {
   if (seconds == null) return '—';
@@ -47,62 +42,6 @@ function fmtRuntime(seconds) {
 
 // The UPS status chip, for exceptions only (#879): online, charging and full
 // are the normal state and show none. The most urgent condition wins.
-function statusChipHtml(ups) {
-  const status = (ups && ups.status) || '';
-  if (!ups || ups.available !== true) return chipHtml('Unavailable', 'attention', 'ups-status');
-  if (status.indexOf('critical') >= 0) return chipHtml('Critical', 'danger', 'ups-status');
-  if (status.indexOf('low_battery') >= 0) return chipHtml('Low battery', 'danger', 'ups-status');
-  if (ups.mains_online === false) return chipHtml('On battery', 'attention', 'ups-status');
-  return '';
-}
-
-function renderUpsTile(tile, ups) {
-  if (!tile) return;
-  tile.dataset.state = upsView.state;
-  tile.setAttribute('aria-busy', upsView.state === 'loading' ? 'true' : 'false');
-  if (upsView.state === 'loading') {
-    renderUpsState(tile, 'refresh-cw', 'Reading UPS status…', false);
-    return;
-  }
-  if (upsView.state === 'empty') {
-    renderUpsState(tile, 'battery-charging', 'No UPS detected', true);
-    return;
-  }
-  if (upsView.state === 'error') {
-    renderUpsState(tile, 'battery-charging', 'UPS status unavailable', true);
-    return;
-  }
-  tile.hidden = false;
-  const available = ups && ups.available === true;
-  const onBattery = available && ups.mains_online === false;
-  tile.classList.toggle('is-on-battery', onBattery);
-  tile.classList.toggle('is-unavailable', !available);
-
-  const title = 'UPS';
-  const identity =
-    '<div class="ups-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg><span>' + esc(title) + '</span></div>';
-
-  // Home tile (#253): one line at weather-tile height — identity, then bare
-  // charge % and runtime pulled onto the title row (no labels — a % and a
-  // duration read for themselves), then any status chip hard-right.
-  tile.innerHTML =
-    '<div class="ups-main">' +
-    identity +
-    '<span class="ups-line-stats"><span>' + esc(fmtPct(ups && ups.battery_charge_pct)) + '</span>' +
-    '<span>' + esc(fmtRuntime(ups && ups.runtime_seconds)) + '</span></span>' +
-    statusChipHtml(ups) +
-    '</div>';
-  // Shown whenever the tile is stale (a live fetch failed) OR a cached
-  // snapshot painted before the first live fetch has resolved — the union
-  // the old per-card pill and this note used to cover between them, now in
-  // this one thin-line style (issue #522), matching Energy/Plugs/Network/
-  // Security's single-note pattern.
-  if (upsView.state === 'stale' || isSnapshotRestored('ups')) {
-    tile.appendChild(staleNoteEl(staleText(upsView, 'ups'), 'ups-stale-note'));
-  }
-}
-
-// The UPS status chip as a node, for the row (the same exceptions).
 function statusChip(ups) {
   const status = (ups && ups.status) || '';
   if (status.indexOf('critical') >= 0) return chipEl('Critical', 'danger', 'ups-status');
@@ -203,14 +142,14 @@ function openUpsSheet(trigger) {
 }
 
 export function renderUps() {
-  renderUpsTile(els.homeUpsTile, state.ups);
   renderUpsRow();
   if (upsSheet.isOpen()) renderUpsSheet();
   renderUpsHead();
 }
 
-// The UPS's part of the Devices header line (head-status.js, #880): only its
-// exceptions, the same ones the tile chips; a healthy UPS adds nothing.
+// The UPS's part of the Devices header line (head-status.js, #880) and of
+// Home's House card (#885): only its exceptions, the same ones the row chips;
+// a healthy UPS adds nothing. On Home the chip opens the UPS sheet on Devices.
 function renderUpsHead() {
   const ups = state.ups;
   const status = (ups && ups.status) || '';
@@ -221,6 +160,15 @@ function renderUpsHead() {
     else if (ups.mains_online === false) exception = { text: 'On battery', tone: 'attention' };
   }
   setHeadPart('iot', 'ups', exception ? { exceptions: [exception] } : null);
+  setHousePart('ups', exception ? [{
+    text: exception.text,
+    tone: exception.tone,
+    label: exception.text + ': open the UPS',
+    onOpen: function () {
+      showTab('iot');
+      openUpsSheet(els.upsRows ? els.upsRows.querySelector('.action-row-main') : null);
+    },
+  }] : null);
 }
 
 function handleTransition(next) {

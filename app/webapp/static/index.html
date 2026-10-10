@@ -493,14 +493,15 @@
     <!-- ============================== HOME =============================== -->
     <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
       <!-- Page header (#779): every pane opens with the vendored home-head —
-           the tab's title, the theme toggle and the Settings gear. AC, Energy,
-           Devices and Security add the live line (head-status.js, #880); Home's
-           becomes the weather in Step 7/8 (#885). -->
+           the tab's title, the theme toggle and the Settings gear. Home's live
+           line is the weather (#885, decision 2 of #872): a dashboard tab's
+           quiet line may be a plain fact, here the sky, now and today's range. -->
       <div class="card home-head page-head">
         <h2 class="home-title">
           <svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>
           Home
         </h2>
+        <span class="status" data-head="home"></span>
         <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
@@ -510,182 +511,79 @@
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
         </button>
       </div>
-      <!-- Weather strip (GET /api/weather): current weather · today's forecast
-           (min/max + code). Its theme + nav-debug buttons moved out in #779:
-           the theme toggle to every page header, nav debug to Settings.
-           Home-tab only. Hidden until the first successful read; fails quietly
-           like the energy tile. -->
-      <section id="weatherTile" class="card weather-tile" aria-label="Weather" hidden>
-        <div class="weather-info">
-          <span class="weather-location" id="wxLocation" hidden><svg class="icon title-icon" aria-hidden="true"><use href="#i-house"></use></svg><span id="wxLocationLabel"></span></span>
-          <div class="weather-current">
-            <span class="weather-current-icon" id="wxNowIcon">—</span>
-            <span class="weather-current-temp" id="wxNowTemp">—</span>
-          </div>
-          <div class="weather-forecast">
-            <span class="weather-fc-icon" id="wxFcIcon">—</span>
-            <span class="weather-fc-range">
-              <span class="weather-fc-min" id="wxFcMin">—</span>
-              <span class="weather-fc-sep">/</span>
-              <span class="weather-fc-max" id="wxFcMax">—</span>
-            </span>
-          </div>
+
+      <!-- The glance card (#885, Step 7/8 of #872): is the house OK? The arm
+           control (the same component as Security's, #72), the compact energy
+           flow (the Energy tab's, #57) and who is home. Exceptions are chips
+           in the head, each opening the tab that owns it; a normal house shows
+           none. -->
+      <section id="houseCard" class="card action-list house-glance" aria-labelledby="houseTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+          <h3 id="houseTitle" class="group-title">House</h3>
+          <span id="houseChips" class="group-meta house-chips"></span>
         </div>
-      </section>
-
-      <!-- Alarm controls (actionable) — the *same* component as the Security
-           tab, rendered into these home containers too (issue #72). -->
-      <section class="card security-card" aria-label="Alarm controls">
-        <h2 id="homeSecurityState" class="security-state">Alarm state: —</h2>
-        <div id="homeSecurityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
-        <p id="homeSecurityFeedback" class="muted small security-live-feedback" role="status" hidden></p>
-      </section>
-
-      <!-- AC summary: one line per unit with an inline power toggle (issue #72).
-           Mode + vanes still live in the AC tab's per-unit detail modal. -->
-      <section id="acSummary" class="card action-list ac-summary" aria-label="AC summary"></section>
-
-      <!-- Plug summary (informative) — the same totals as the Devices tab's
-           Power card. Loaded once on Home entry; live control stays on Devices
-           (issue #72). Single line at weather-tile height (#253): Plugs icon +
-           label + total, On/Off counts, then total live wattage hard-right (no
-           "Live" label — a total wattage is self-evident). -->
-      <section id="homePlugsStats" class="card plugs-summary plugs-summary-line" aria-label="Plug summary" hidden>
-        <div class="plugs-line">
-          <span class="plugs-line-identity">
-            <svg class="icon title-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
-            <span>Plugs</span>
-            <span class="plugs-stat-value" id="homePlugStatTotal">—</span>
-          </span>
-          <span class="plugs-line-stat">
-            <span class="plugs-stat-label">On</span>
-            <span class="plugs-stat-value" id="homePlugStatOn">—</span>
-          </span>
-          <span class="plugs-line-stat">
-            <span class="plugs-stat-label">Off</span>
-            <span class="plugs-stat-value" id="homePlugStatOff">—</span>
-          </span>
-          <span class="plugs-stat-value plugs-line-watts" id="homePlugStatWatts">—</span>
-        </div>
-      </section>
-
-      <section id="homeUpsTile" class="card ups-tile ups-tile-compact" aria-label="UPS status" hidden></section>
-
-      <!-- Live energy-flow card — the *same* Solar → Home ← Grid view as the
-           Energy tab (issue #57: one shared visualization, not a divergent
-           compact tile). Filled by renderEnergy(); hidden until the first read. -->
-      <section id="homeEnergyFlow" class="card flow-card" aria-label="Energy flow" hidden>
-        <div class="flow-row">
-          <div class="flow-node" id="homeFlowNodePv">
-            <svg class="icon flow-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
-            <span class="flow-value" id="homeFlowPv">—</span>
-            <span class="flow-name">Solar</span>
-          </div>
-          <span class="flow-arrow" id="homeWirePv" aria-hidden="true"></span>
-          <div class="flow-node">
-            <svg class="icon flow-icon" aria-hidden="true"><use href="#i-house"></use></svg>
-            <span class="flow-value" id="homeFlowHouse">—</span>
-            <span class="flow-name">Home</span>
-          </div>
-          <span class="flow-arrow" id="homeWireGrid" aria-hidden="true"></span>
-          <div class="flow-node">
-            <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
-            <span class="flow-value" id="homeFlowGrid">—</span>
-            <span class="flow-name" id="homeFlowGridName">Grid</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Wake alarms & timers (issue #304) — Alexa-style alarms/timers that
-           ring/notify at a set time. Distinct from the RISCO "Alarm controls"
-           card above: this never arms/disarms the security system. Collapsible
-           card, styled exactly like the Security-tab "Schedules" card (same
-           .collapse-summary header + .alarm-schedule-* list + .schedule-add-btn). -->
-      <details class="card card--collapsible wake-alarms-card" aria-label="Wake alarms and timers">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
-            <h3 class="collapse-title">Wake alarms &amp; timers</h3>
-            <span id="wakeAlarmsCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="wake-alarms-body">
-          <p id="wakeRingingBanner" class="wake-ringing-banner" hidden></p>
-
-          <div class="wake-section-head">Alarms</div>
-          <div id="wakeAlarmsList" class="alarm-schedule-list"></div>
-          <p id="wakeAlarmsNote" class="muted small security-note" hidden></p>
-          <button id="wakeAlarmAdd" type="button" class="schedule-add-btn">+ Add alarm</button>
-
-          <div class="wake-timers-section">
-            <div class="wake-section-head">Timers</div>
-            <div class="range-tabs wake-timer-presets">
-              <button type="button" class="range-tab" data-seconds="300">5 min</button>
-              <button type="button" class="range-tab" data-seconds="600">10 min</button>
-              <button type="button" class="range-tab" data-seconds="900">15 min</button>
-              <button type="button" class="range-tab" data-seconds="1800">30 min</button>
+        <div class="house-body">
+          <p id="homeSecurityState" class="visually-hidden" role="status">Alarm state: —</p>
+          <div id="homeSecurityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
+          <p id="homeSecurityFeedback" class="muted small security-live-feedback" role="status" hidden></p>
+          <div id="homeEnergyFlow" class="flow-row house-flow" aria-label="Energy flow" hidden>
+            <div class="flow-node" id="homeFlowNodePv">
+              <svg class="icon flow-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+              <span class="flow-value" id="homeFlowPv">—</span>
+              <span class="flow-name">Solar</span>
             </div>
-            <div class="wake-timer-custom">
-              <input id="wakeTimerCustomMinutes" type="number" min="1" max="1440" class="input-native wake-timer-input" placeholder="Minutes" aria-label="Custom timer minutes" />
-              <button id="wakeTimerCustomAdd" type="button" class="detail-save-btn wake-timer-start-btn">Start timer</button>
+            <span class="flow-arrow" id="homeWirePv" aria-hidden="true"></span>
+            <div class="flow-node">
+              <svg class="icon flow-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+              <span class="flow-value" id="homeFlowHouse">—</span>
+              <span class="flow-name">Home</span>
             </div>
-            <div id="wakeTimersList" class="wake-timers-list"></div>
-            <p id="wakeTimersNote" class="muted small security-note">No active timers. Start one with a preset above.</p>
+            <span class="flow-arrow" id="homeWireGrid" aria-hidden="true"></span>
+            <div class="flow-node">
+              <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
+              <span class="flow-value" id="homeFlowGrid">—</span>
+              <span class="flow-name" id="homeFlowGridName">Grid</span>
+            </div>
           </div>
-
-          <p class="wake-voice-hint muted small">
-            Hands-free via Home Assistant Voice — “Okay Nabu, set a wake alarm for
-            7&nbsp;am on weekdays”, “cancel my wake alarm”, or “set a timer for
-            5&nbsp;minutes”.
-          </p>
         </div>
-      </details>
+        <!-- Who is home, in one row; the people themselves (and the roles the
+             voice locator answers to) are Security › People, one tap away. -->
+        <ul id="housePeople" class="action-rows group-links" hidden></ul>
+      </section>
 
-      <!-- Reminders (issue #314) — bidirectional voice/app free-text
-           reminders: distinct from Wake alarms above (those ring at a set
-           time; these are a checklist you can complete from either surface).
-           Dense-collection card — flat list-row summary + staged edit dialog
-           (home-automation#409 pattern, shared denseListEditor shell also
-           used by the Security-tab Schedules card). -->
-      <details class="card card--collapsible reminders-card" aria-label="Reminders">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
-            <h3 class="collapse-title">Reminders</h3>
-            <span id="remindersCount" class="muted small security-hidden-count" hidden></span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="reminders-body">
-          <div id="remindersList" class="alarm-schedule-list"></div>
-          <p id="remindersNote" class="muted small security-note" hidden></p>
-          <button id="reminderAdd" type="button" class="schedule-add-btn">+ Add reminder</button>
-
-          <p class="wake-voice-hint muted small">
-            Hands-free via Home Assistant Voice — “Okay Nabu, remind me to take
-            out the trash at 6&nbsp;pm tomorrow”, “what are my reminders”, or
-            “mark my reminder done”.
-          </p>
+      <!-- Climate: the AC units on the shared row (row.js, #881), power on the
+           row and the unit sheet one tap away — the AC tab's rows. -->
+      <section id="acSummary" class="card action-list ac-summary" aria-labelledby="climateTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-snowflake"></use></svg>
+          <h3 id="climateTitle" class="group-title">Climate</h3>
+          <span id="climateMeta" class="group-meta"></span>
         </div>
-      </details>
+        <div id="acSummaryList"></div>
+      </section>
 
-      <!-- "Where's mom/dad" locator (issue #438) — resolved current place per
-           tracked (non-hidden) person — role badge when one is set — from the
-           same cached GET /api/presence data the Security-tab Presence card polls
-           (no new network cadence). Collapsible, styled like the wake-alarms
-           card above. -->
-      <details class="card card--collapsible locator-card" aria-label="Family locator">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
-            <h3 class="collapse-title">Mom &amp; Dad locator</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <p id="locatorSourceNote" class="locator-source-note" hidden></p>
-        <div id="locatorList" class="locator-list" aria-live="polite"></div>
-      </details>
+      <!-- Next up (#885): wake alarms (#304), running timers and reminders
+           (#314) as time-led rows. A wake alarm opens its staged editor, a
+           reminder the reminder editor; a timer is cancelled with its ×. A
+           ringing alarm or a finished timer sits first, in attention. Wake
+           alarms ring at a time; they never arm or disarm the security system. -->
+      <section id="nextUpCard" class="card action-list next-up" aria-labelledby="nextUpTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+          <h3 id="nextUpTitle" class="group-title">Next up</h3>
+        </div>
+        <div id="wakeRingingBanner" class="wake-ringing-banner" role="alert" hidden></div>
+        <ul id="wakeAlarmsList" class="action-rows" aria-label="Wake alarms"></ul>
+        <ul id="wakeTimersList" class="action-rows" aria-label="Timers"></ul>
+        <ul id="remindersList" class="action-rows" aria-label="Reminders"></ul>
+        <p id="nextUpNote" class="muted small group-note" role="status" hidden></p>
+        <div class="group-foot">
+          <button id="wakeAlarmAdd" type="button" class="group-foot-btn">Add alarm</button>
+          <button id="wakeTimerOpen" type="button" class="group-foot-btn" aria-haspopup="dialog">Start timer</button>
+          <button id="reminderAdd" type="button" class="group-foot-btn">Add reminder</button>
+        </div>
+      </section>
 
     </section>
 
@@ -1603,7 +1501,7 @@
 
       <!-- People: one line each, the person sheet one tap away; the iCloud
            accounts (trust renewal, #659) and the refresh note in a sheet. -->
-      <section class="card action-list security-group presence-card" aria-labelledby="presenceTitle">
+      <section id="presenceCard" class="card action-list security-group presence-card" aria-labelledby="presenceTitle">
         <div class="group-head">
           <svg class="icon group-icon" aria-hidden="true"><use href="#i-users"></use></svg>
           <h3 id="presenceTitle" class="group-title">People</h3>
@@ -1934,8 +1832,83 @@
     </div>
   </dialog>
 
+  <!-- Wake alarm add/edit dialog (#885) — the staged editor for Next up's
+       alarm rows, the same denseListEditor shell as reminderDialog: Save is the
+       only persistence boundary. Replaces the inline cards that saved on every
+       keystroke (#304). -->
+  <dialog id="wakeAlarmDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 id="wakeAlarmEditorTitle">Wake alarm</h2>
+        <button id="wakeAlarmEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row">
+        <span>Enabled</span>
+        <button id="wakeAlarmEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable wake alarm">
+          <span class="knob"></span><span class="toggle-label">ON</span>
+        </button>
+      </div>
+      <label class="row">
+        <span>Time</span>
+        <input id="wakeAlarmTime" type="time" class="input-native" value="07:00">
+      </label>
+      <label class="row">
+        <span>Label</span>
+        <input id="wakeAlarmLabel" type="text" class="input-native" maxlength="80" placeholder="Wake up">
+      </label>
+      <div class="row">
+        <span>Just once</span>
+        <button id="wakeAlarmOnce" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Ring just once">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <label id="wakeAlarmDateRow" class="row" hidden>
+        <span>Date</span>
+        <input id="wakeAlarmDate" type="date" class="input-native">
+      </label>
+      <div id="wakeAlarmDaysBlock" class="schedule-editor-days-block">
+        <span class="schedule-editor-days-label">Days</span>
+        <div id="wakeAlarmDays" class="alarm-schedule-days"></div>
+      </div>
+
+      <button id="wakeAlarmDelete" type="button" class="schedule-editor-delete" hidden>Delete wake alarm</button>
+      <p class="muted small detail-hint">By voice: “Okay Nabu, set a wake alarm for 7&nbsp;am on weekdays.”</p>
+
+      <div class="detail-actions">
+        <button id="wakeAlarmSave" type="button" class="detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Timer sheet (#885) — Next up's Start timer: a preset or a number of
+       minutes starts one at once (instant), and the sheet closes onto the
+       running row. Timers are ephemeral, never saved. -->
+  <dialog id="wakeTimerSheet" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Timer</h2>
+        <button id="wakeTimerSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="segmented segmented--verbs wake-timer-presets" role="group" aria-label="Start a timer">
+        <button type="button" class="segmented-item" data-seconds="300">5 min</button>
+        <button type="button" class="segmented-item" data-seconds="600">10 min</button>
+        <button type="button" class="segmented-item" data-seconds="900">15 min</button>
+        <button type="button" class="segmented-item" data-seconds="1800">30 min</button>
+      </div>
+      <label class="row">
+        <span>Minutes</span>
+        <input id="wakeTimerCustomMinutes" type="number" min="1" max="1440" inputmode="numeric" class="input-native" placeholder="Minutes" aria-label="Custom timer minutes">
+      </label>
+      <p class="muted small detail-hint">By voice: “Okay Nabu, set a timer for 5&nbsp;minutes.”</p>
+      <div class="detail-actions">
+        <button id="wakeTimerCustomAdd" type="button" class="detail-save-btn">Start timer</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Reminder add/edit dialog (issue #314) — staged editor for the Home tab's
-       Reminders card, same denseListEditor shell as securityScheduleDialog. -->
+       Next up reminder rows, same denseListEditor shell as securityScheduleDialog. -->
   <dialog id="reminderDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
@@ -1966,6 +1939,7 @@
       </div>
 
       <button id="reminderDelete" type="button" class="schedule-editor-delete" hidden>Delete reminder</button>
+      <p class="muted small detail-hint">By voice: “Okay Nabu, remind me to take out the trash at 6&nbsp;pm tomorrow.”</p>
 
       <div class="detail-actions">
         <button id="reminderSave" type="button" class="detail-save-btn">Save</button>

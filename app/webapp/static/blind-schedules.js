@@ -23,17 +23,8 @@ import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { friendlyError } from './format.js';
 import { sheet } from './sheet.js';
+import { ALL_DAYS, daysSummary, renderDayPicker } from './days.js';
 
-const DAYS = [
-  ['mon', 'Mon'],
-  ['tue', 'Tue'],
-  ['wed', 'Wed'],
-  ['thu', 'Thu'],
-  ['fri', 'Fri'],
-  ['sat', 'Sat'],
-  ['sun', 'Sun'],
-];
-const ALL_DAYS = DAYS.map(function (day) { return day[0]; });
 const ACTION_LABELS = { open: 'Up', close: 'Down' };
 const PRESENCE_LABELS = { any: '', home: 'Someone home', away: 'Nobody home' };
 
@@ -81,14 +72,6 @@ function blindName(id) {
   return blind ? blind.name : 'Removed blind';
 }
 
-function daysSummary(days) {
-  if (days.length === 7) return 'Every day';
-  if (days.join(',') === 'mon,tue,wed,thu,fri') return 'Weekdays';
-  if (days.join(',') === 'sat,sun') return 'Weekends';
-  return DAYS.filter(function (day) { return days.includes(day[0]); })
-    .map(function (day) { return day[1]; }).join(', ');
-}
-
 function targetsSummary(targets) {
   if (!targets.length) return 'All blinds';
   if (targets.length === 1) return blindName(targets[0]);
@@ -112,17 +95,10 @@ function chip(text, active, onClick) {
 
 function renderEditorDays() {
   const staged = scheduleEditor.staged;
-  if (!els.blindScheduleDays || !staged) return;
-  els.blindScheduleDays.innerHTML = '';
-  DAYS.forEach(function (day) {
-    els.blindScheduleDays.appendChild(chip(day[1], staged.days.includes(day[0]), function () {
-      const current = staged.days.slice();
-      const pos = current.indexOf(day[0]);
-      if (pos >= 0 && current.length > 1) current.splice(pos, 1);
-      else if (pos < 0) current.push(day[0]);
-      staged.days = ALL_DAYS.filter(function (value) { return current.includes(value); });
-      renderEditorDays();
-    }));
+  if (!staged) return;
+  renderDayPicker(els.blindScheduleDays, staged.days, function (days) {
+    staged.days = days;
+    renderEditorDays();
   });
 }
 

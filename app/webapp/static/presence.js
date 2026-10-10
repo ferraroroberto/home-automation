@@ -2,7 +2,7 @@
  * further split, issue #454).
  *
  * Owns the people list (render, hide, rename), the detail modal, and the
- * "where's mom/dad" locator card — this is a leaf-ish module: it depends only
+ * House card's who-is-home row on Home (#885) — this is a leaf-ish module: it depends only
  * on ./state.js and ./api.js plus its three feature sibling modules (issue
  * #454 maintainability split, mirroring the network.js → network-devices/
  * wifi/dhcp.js boot + feature-module pattern):
@@ -38,6 +38,7 @@ import { confirmAction } from './confirm.js';
 import { friendlyError } from './format.js';
 import { rowEl } from './row.js';
 import { chipEl } from './chip.js';
+import { showTab } from './tabs.js';
 
 // Re-export so callers (security.js, main.js) keep a single import surface —
 // same convention security.js itself uses for its own sub-modules.
@@ -160,93 +161,80 @@ function markPresenceFailure() {
 
 // Fail loud when the Find My diagnostics source itself is broken (#442) —
 // distinct from a person simply being "away, unknown exact location".
-const LOCATOR_BROKEN_SOURCE_REASONS = ['error', '2fa_required', 'terms_required', 'not_configured'];
-function renderLocatorSourceNote() {
-  if (!els.locatorSourceNote) return;
-  const diag = (state.presence && state.presence.diagnostics) || {};
-  const broken = diag.available === false && LOCATOR_BROKEN_SOURCE_REASONS.indexOf(diag.reason) !== -1;
-  if (!broken) {
-    els.locatorSourceNote.hidden = true;
-    els.locatorSourceNote.textContent = '';
-    return;
-  }
-  els.locatorSourceNote.textContent = diag.reason === '2fa_required'
-    ? 'Find My needs iCloud re-authentication (2FA).'
-    : diag.reason === 'terms_required'
-      ? 'Find My is down — an iCloud account must accept Apple’s updated terms.'
-      : 'Find My location tracking is down — needs re-authentication.';
-  els.locatorSourceNote.hidden = false;
+const BROKEN_SOURCE_REASONS = ['error', '2fa_required', 'terms_required', 'not_configured'];
+function brokenSourceText(reason) {
+  if (reason === '2fa_required') return 'Find My needs iCloud sign-in again';
+  if (reason === 'terms_required') return 'Find My needs Apple’s new terms accepted';
+  return 'Find My location tracking is down';
 }
 
-// "Where's mom/dad" Home-tab locator (issue #438) — derives from the same
-// state.presence entities the Security-tab Presence card already polls, so
-// there is no separate fetch/poll cadence for this card.
-function renderLocator() {
-  if (!els.locatorList) return;
-  renderLocatorSourceNote();
-  els.locatorList.innerHTML = '';
-  if (presenceView.state === 'loading' && !state.presence) {
-    els.locatorList.appendChild(emptyStateEl('map-pin', 'Reading locations…'));
-    return;
-  }
+// Who is home, as one row of Home's House card (#885; it replaces the Home
+// locator card of #438): "2 home · 1 away" and who is out, counted over the
+// people the People group lists (not hidden, not this device). The row opens
+// Security › People, where each person's sheet holds their place, last seen
+// and the role the voice locator answers to ("where's dad?"). It derives from
+// the same state.presence the People group polls: no new fetch.
+function renderHousePeople() {
+  const list = els.housePeople;
+  if (!list) return;
+  list.innerHTML = '';
   const presence = state.presence;
+  const diag = (presence && presence.diagnostics) || {};
+  const entities = presence && presence.available !== false
+    ? (presence.entities || []).filter(function (e) { return !e.hidden; })
+    : [];
+  let title;
+  let meta;
+  let chip = null;
   if (!presence) {
-    els.locatorList.appendChild(emptyStateEl('map-pin', 'Locator unavailable'));
+    list.hidden = true;
     return;
   }
-  // Only entities with a role alias appear here — a role is what makes "where's
-  // dad/mom" answerable at all, and it doubles as an explicit opt-in so the
-  // card doesn't list every tracked device/person by default (#442).
-  const visible = (presence.entities || []).filter(function (e) { return !e.hidden && e.role; });
-  if (!visible.length) {
-    els.locatorList.appendChild(emptyStateEl(
-      'map-pin',
-      'No one has a role yet — set one (e.g. "dad", "mom") in a person’s detail modal'
-    ));
+  if (presence.available === false) {
+    title = 'Presence unavailable';
+    meta = BROKEN_SOURCE_REASONS.indexOf(presence.reason) !== -1
+      ? brokenSourceText(presence.reason) : 'Not configured';
+  } else if (!entities.length) {
+    list.hidden = true;
     return;
+  } else {
+    const home = entities.filter(function (e) { return e.at_home === true; });
+    const away = entities.filter(function (e) { return e.at_home === false; });
+    const unknown = entities.length - home.length - away.length;
+    title = home.length + ' home · ' + away.length + ' away' + (unknown ? ' · ' + unknown + ' unknown' : '');
+    if (away.length === 1) {
+      const dist = fmtDistance(away[0].distance_from_home_m);
+      meta = [presenceEntityLabel(away[0]) + ' away', dist !== 'unknown' ? dist : '', placeLabel(away[0])]
+        .filter(Boolean).join(' · ');
+      ensurePlaceLabel(away[0]);
+    } else if (away.length) {
+      meta = away.map(presenceEntityLabel).join(', ') + ' away';
+    } else {
+      meta = home.length ? 'Everyone home' : '';
+    }
+    // A broken Find My source leaves the counts frozen: say so (#442).
+    if (diag.available === false && BROKEN_SOURCE_REASONS.indexOf(diag.reason) !== -1) {
+      chip = chipEl(diag.reason === '2fa_required' ? 'Sign in' : 'Find My down', 'attention', 'house-people-chip');
+      chip.title = brokenSourceText(diag.reason);
+    } else if (presenceView.state === 'stale') {
+      chip = chipEl('Stale', null, 'house-people-chip');
+    }
   }
-  visible
-    .slice()
-    .sort(function (a, b) { return a.role.localeCompare(b.role, undefined, { sensitivity: 'base' }); })
-    .forEach(function (entity) {
-      const row = document.createElement('div');
-      row.className = 'locator-row';
-
-      const main = document.createElement('span');
-      main.className = 'locator-main';
-      const name = document.createElement('span');
-      name.className = 'locator-name';
-      name.textContent = presenceEntityLabel(entity);
-      main.appendChild(name);
-      const role = document.createElement('span');
-      role.className = 'locator-role muted small';
-      role.textContent = entity.role;
-      main.appendChild(role);
-      row.appendChild(main);
-
-      const status = document.createElement('span');
-      status.className = 'locator-status';
-      const place = document.createElement('span');
-      place.className = 'locator-place';
-      place.textContent = entity.current_place === 'Away'
-        ? (placeLabel(entity) || 'Away')
-        : (entity.current_place || 'Unknown');
-      status.appendChild(place);
-      ensurePlaceLabel(entity);
-      if (entity.last_seen) {
-        const seen = document.createElement('span');
-        seen.className = 'locator-meta muted small';
-        seen.textContent = fmtTime(entity.last_seen);
-        status.appendChild(seen);
-      }
-      row.appendChild(status);
-
-      els.locatorList.appendChild(row);
-    });
+  list.appendChild(rowEl({
+    className: 'house-people-row',
+    glyph: 'users',
+    title: title,
+    meta: meta || null,
+    chip: chip,
+    openLabel: title + (meta ? ': ' + meta : '') + '. Open People',
+    onOpen: function () { showTab('security', els.presenceCard); },
+    chevron: true,
+  }));
+  list.hidden = false;
 }
 
 export function renderPresence() {
-  renderLocator();
+  renderHousePeople();
   renderKidsHomeToggle(presenceView.state === 'ready');
   if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
   els.presenceList.innerHTML = '';

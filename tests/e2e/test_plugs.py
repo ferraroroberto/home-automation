@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Callable, Dict, List, NamedTuple, Optional
+from typing import Callable, Dict, List, NamedTuple
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -56,36 +56,38 @@ def test_plugs_tab_renders_all_devices(
 class _FeedbackPanel(NamedTuple):
     endpoint: str
     empty_body: Dict
-    tab: Optional[str]  # tab to open after boot; None = the panel is on Home
+    tab: str  # tab to open after boot
     feedback: str
+    message: str  # the element inside `feedback` that carries the words
     loading_message: str
     empty_message: str
     error_message: str
     leaked_host: str  # named in the 503 detail; must never reach a toast
 
 
-# The Plugs panel and the Home UPS tile render the same feedback contract, so
-# the loading and unavailable states run as one parametrized test each. The
-# stale-on-refresh case stays per panel: the refresh trigger and the last-good
-# content it must preserve differ between them.
+# The Plugs panel and the Devices tab's UPS row (Home's UPS tile until #885)
+# render the same feedback contract, so the loading and unavailable states run
+# as one parametrized test each. The stale-on-refresh case stays per panel: the
+# refresh trigger and the last-good content it must preserve differ between
+# them.
 _FEEDBACK_PANELS = [
     pytest.param(_FeedbackPanel(
-        "/api/tuya", {"devices": []}, "#tabIot", "#plugsFeedback",
+        "/api/tuya", {"devices": []}, "#tabIot", "#plugsFeedback", ".empty-state-message",
         "Reading plugs and blinds…", "No Smart Life devices configured",
         "Plugs and blinds unavailable", "192.0.2.60",
     ), id="plugs"),
     pytest.param(_FeedbackPanel(
-        "/api/ups", {"ups": {"available": False, "source": "none", "error": None}}, None, "#homeUpsTile",
+        "/api/ups", {"ups": {"available": False, "source": "none", "error": None}}, "#tabIot",
+        "#upsRows .ups-row", ".action-row-meta-text",
         "Reading UPS status…", "No UPS detected",
-        "UPS status unavailable", "192.0.2.70",
+        "Status unavailable", "192.0.2.70",
     ), id="ups"),
 ]
 
 def _open_panel(page: Page, base_url: str, panel: _FeedbackPanel) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    if panel.tab:
-        page.locator(panel.tab).click()
+    page.locator(panel.tab).click()
 
 
 @pytest.mark.parametrize("panel", _FEEDBACK_PANELS)
@@ -107,7 +109,7 @@ def test_panel_distinguishes_loading_from_true_empty(
     _open_panel(page, base_url, panel)
 
     feedback = page.locator(panel.feedback)
-    message = page.locator(f"{panel.feedback} .empty-state-message")
+    message = page.locator(f"{panel.feedback} {panel.message}")
     expect(feedback).to_have_attribute("data-state", "loading")
     expect(message).to_have_text(panel.loading_message)
     release()
@@ -134,7 +136,7 @@ def test_panel_shows_contextual_unavailable_state(
     _open_panel(page, base_url, panel)
 
     expect(page.locator(panel.feedback)).to_have_attribute("data-state", "error")
-    expect(page.locator(f"{panel.feedback} .empty-state-message")).to_have_text(panel.error_message)
+    expect(page.locator(f"{panel.feedback} {panel.message}")).to_have_text(panel.error_message)
     expect(page.locator("#toast")).not_to_contain_text(panel.leaked_host)
 
 
@@ -200,29 +202,36 @@ def test_ups_poll_failure_preserves_last_good_status(
     page.route("**/api/ups", handle_ups)
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
-    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "ready")
-    expect(page.locator("#homeUpsTile")).to_contain_text("90%")
+    page.locator("#tabIot").click()
+    row = page.locator("#upsRows .ups-row")
+    expect(row).to_have_attribute("data-state", "ready")
+    expect(row).to_contain_text("90%")
 
     failing["value"] = True
     page.locator("#tabAc").click()
-    page.locator("#tabHome").click()
+    page.locator("#tabIot").click()
 
-    expect(page.locator("#homeUpsTile")).to_have_attribute("data-state", "stale")
-    expect(page.locator("#homeUpsTile")).to_contain_text("90%")
-    expect(page.locator("#homeUpsTile")).to_contain_text("Last updated")
-    expect(page.locator("#homeUpsTile")).to_contain_text("live data unavailable")
-    expect(page.locator("#homeUpsTile")).not_to_contain_text("192.0.2.70")
+    # The row keeps the last reading; the sheet says how old it is (#884).
+    expect(row).to_have_attribute("data-state", "stale")
+    expect(row).to_contain_text("90%")
+    row.locator(".action-row-main").click()
+    status = page.locator("#upsSheetStatus")
+    expect(status).to_contain_text("90%")
+    expect(status).to_contain_text("Last updated")
+    expect(status).to_contain_text("live data unavailable")
+    expect(page.locator("#upsSheet")).not_to_contain_text("192.0.2.70")
 
 
 def test_ups_snapshot_paints_before_live_refresh(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
-    # #522: the UPS tile used to pop a per-card orange pill for this cached-
+    # #522: the UPS used to pop a per-card orange pill for this cached-
     # while-loading window; it must now use the same thin `.ups-stale-note`
     # line the poll-failure case already renders (test above), not just when
     # upsView.state === 'stale' but also while a snapshot is painted ahead of
-    # the first live fetch resolving.
+    # the first live fetch resolving. Home's UPS tile is gone (#885), so the
+    # note is checked in its one home, the UPS sheet on Devices.
     mock_api(sample_units)
     mock_energy()
     mock_tuya([])
@@ -259,13 +268,16 @@ def test_ups_snapshot_paints_before_live_refresh(
     release = hold_reads(page, "/api/ups")
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#paneHome", state="visible")
+    page.locator("#tabIot").click()
+    page.locator("#upsRows .ups-row .action-row-main").click()
 
-    expect(page.locator("#homeUpsTile")).to_contain_text("77%")
-    expect(page.locator("#homeUpsTile .ups-stale-note")).to_contain_text("Last saved")
+    status = page.locator("#upsSheetStatus")
+    expect(status).to_contain_text("77%")
+    expect(status.locator(".ups-stale-note")).to_contain_text("Last saved")
 
     release()
-    expect(page.locator("#homeUpsTile")).to_contain_text("90%")
-    expect(page.locator("#homeUpsTile .ups-stale-note")).to_have_count(0)
+    expect(status).to_contain_text("90%")
+    expect(status.locator(".ups-stale-note")).to_have_count(0)
 
 
 def test_metered_plug_shows_watts(
