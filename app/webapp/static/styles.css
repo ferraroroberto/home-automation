@@ -371,13 +371,47 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .home-head .home-title { margin: 0; }
 .home-head .home-toggle + .home-toggle { margin-left: 0; }
 
-/* Settings pane (#779): cards moved in from other tabs that had no
-   card-level spacing of their own (they were nested subsections). */
-.settings-card,
 .net-dhcp-card { margin-bottom: var(--gap); }
-.settings-card-body { padding: 12px 14px 14px; }
-.notify-group-head { margin: 14px 14px 0; }
-.settings-diagnostics { padding: 12px 14px; }
+
+/* Settings pane (#886, Step 8/8 of #872): design.md `settings group`. Inset
+   groups under an overline (the one legal caps use), each row a lead glyph,
+   the label, its value muted and a chevron to its sheet. The same row is the
+   AC and light sheets' links (.unit-sheet-links). */
+.settings-overline {
+  margin: var(--space-md) 14px var(--space-sm);
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.page-head + .settings-overline { margin-top: 0; }
+.settings-group { margin-bottom: var(--gap); }
+.settings-link {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+}
+/* The label never gives way to its value: the value ellipsizes first. */
+.settings-link .action-row-title { flex: 1 0 auto; overflow: visible; }
+.settings-link-icon { flex: none; width: var(--icon-title); height: var(--icon-title); color: var(--muted); }
+.settings-link-value {
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+}
+.settings-link-value[data-tone="attention"] { color: var(--attention-text); }
+.settings-link-chevron { flex: none; width: var(--icon-inline); height: var(--icon-inline); color: var(--muted); }
+/* A setting changed in place: glyph, label, then its switch. */
+.settings-switch-row { gap: var(--space-sm); padding: 0 14px; }
+.settings-switch-row .action-row-title { flex: 1; min-width: 0; }
+.settings-sheet-note { margin: 0 0 var(--space-sm); }
 /* Text size (#820): label, the vendored range-tab row, one hint line. A single
    minmax(0, 1fr) track so Large can never widen the card past the column. */
 .settings-text-size {
@@ -387,7 +421,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   padding: 12px 14px;
 }
 .settings-text-size .range-tabs { margin-bottom: 0; }
-.settings-text-size-label { font-weight: 600; }
+.settings-text-size-label { display: flex; align-items: center; gap: var(--space-sm); font-weight: 600; }
 .settings-text-size-hint { margin: 0; }
 
 .app {
@@ -820,10 +854,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
    settings-row and dense-collection recipes (see .pv-system-body,
    .presence-settings > .row, .schedule-editor-delete) — only the hairline
    between the system-level rows and the field-validation lines are new. */
-.pv-system-card,
-.export-rate-card,
-.sun-overlay-card,
-.boost-coord-card { margin-bottom: var(--gap); }
 /* The presence settings card separates its rows with grid gap; this body is a
    plain block, so the rows carry the modal's hairline + 12px 0 row padding. */
 .pv-system-body > .row,
@@ -976,11 +1006,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .plugs-note { margin: 10px 4px; }
 .plugs-feedback { margin: 0 0 var(--gap); }
 
-/* The search engine's summary status (Settings, #321). */
-.ha-summary-state { margin-left: auto; white-space: nowrap; }
-.ha-summary-running { color: var(--on); }
-.ha-summary-unavailable { color: var(--deficit); }
-.ha-summary-transition { color: var(--attention); }
 .vm-toggle { flex: none; }
 .ha-note { margin: 9px 0 0; }
 /* Search-engine sub-card Start button (issue #321): .big-btn already
@@ -1061,17 +1086,16 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .voice-group:first-child > .collapse-summary { padding-top: var(--space-xs); }
 .voice-group .collapse-title { font-size: var(--font-label); }
 .voice-group .collapse-icon { color: var(--accent); }
-/* "What can I do?" static guide (index.html, Settings since #884) reuses .voice-group-* naming but
-   is hand-authored markup, not the JS-rendered .collapse-summary structure
-   above — so its <h4> icon + text need their own gap (missing entirely), and
-   each group needs its own top/bottom breathing room around the border-top
-   divider (the .collapse-summary padding above only applies to the cheat
-   sheet's nested <details>). Scoped via the direct-child combinator: the
-   cheat sheet's own .voice-group elements render one level deeper, inside
-   #voiceCommandsList, so they are untouched by this rule. */
+/* The voice sheet's "In this app" guide (the "What can I do?" card until
+   #886) reuses .voice-group-* naming but is hand-authored markup, not the
+   JS-rendered .collapse-summary structure above — so its <h4> icon + text
+   need their own gap, and each group its own breathing room around the
+   border-top divider. Scoped to .voice-app-help's direct children: the
+   catalogue's own .voice-group elements render inside #voiceCommandsList,
+   so they are untouched by this rule. */
 .voice-group-head { display: flex; align-items: center; gap: var(--space-sm); }
-#haHelpCard .settings-card-body > .voice-group { padding: 12px 0; }
-#haHelpCard .settings-card-body > .voice-group:first-child { padding-top: var(--space-xs); }
+.voice-app-help > .voice-group { padding: 12px 0; }
+.voice-app-help > .net-group-head + .voice-group { border-top: 0; padding-top: var(--space-xs); }
 .voice-group-body { padding: 0 0 12px; }
 .voice-group-summary { margin: var(--space-xs) 0 0 26px; line-height: 1.45; }
 .voice-command { margin: var(--space-sm) 0 0 26px; }
@@ -1487,12 +1511,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 .security-bypass.on .toggle-label,
 .security-bypass.off .toggle-label { color: var(--accent-fg); }
-.pv-system-body,
-.export-rate-body,
-.sun-overlay-body,
-.boost-coord-body {
-  padding: 12px 14px 14px;
-}
 /* Completed reminder: struck-through title, same muted convention as
    net-dhcp's staged-removal rows (styles.css .net-dhcp-existing-row.is-removing). */
 .reminder-row.is-done .action-row-title {
@@ -1654,10 +1672,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .presence-settings {
   display: grid;
   gap: var(--space-sm);
-  padding: 14px;
-}
-.presence-places-body {
-  padding: 12px 14px 14px;
 }
 .schedule-editor-days-block {
   padding: 12px 0;
@@ -1725,13 +1739,17 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   width: 5rem;
   text-align: right;
 }
+/* In their Settings sheets (#886) these fields keep the compact widths
+   above, not the editor modal's 55% value column, so no label wraps at
+   390px. */
+.detail-card .presence-settings > .row > .input-native,
+.detail-card .pv-system-body > .row > .input-native,
+.detail-card .sun-overlay-body > .row > .input-native,
+.detail-card .boost-coord-body > .row > .input-native { min-width: 0; }
 /* Notification toggle lists (alarm + power cards): label on the left, the
    canonical .toggle switch flush right — mirrors the detail-modal .row
    convention (issue #360). */
-.notify-toggles {
-  display: grid;
-  padding: 4px 14px 8px;
-}
+.notify-toggles { display: grid; }
 /* One rows.sm (44px) row per toggle, no gap (#779): the switch's ::before
    reaches exactly 44px, so stacked rows meet edge to edge instead of the old
    36px pitch overlapping each neighbour's tap zone. */
@@ -1985,27 +2003,8 @@ body:has(dialog[open]) .app { overflow: hidden; }
 .unit-sheet-label { font-weight: 600; }
 .unit-mode-segmented .segmented-item .icon { width: 18px; height: 18px; }
 .unit-sheet-links { border-top: 1px solid var(--line); }
-.unit-sheet-links .action-row { padding: 0; }
-.unit-sheet-link {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-sm);
-  padding: 0;
-}
-/* The label never gives way to its value: the value ellipsizes first. */
-.unit-sheet-link .action-row-title { flex: 1 0 auto; overflow: visible; }
-.unit-sheet-link-icon { width: 18px; height: 18px; color: var(--muted); }
-.unit-sheet-link-value {
-  min-width: 0;
-  max-width: 55%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-  font-size: var(--font-body-sm);
-}
-.unit-sheet-link-chevron { width: 16px; height: 16px; color: var(--muted); }
+.unit-sheet-links .action-row,
+.unit-sheet-links .settings-link { padding: 0; }
 .unit-sheet-page[data-page="schedules"] .alarm-schedule-list { gap: 0; }
 .detail-hint { margin: 8px 0 2px; }
 .schedule-empty { margin: var(--space-xs) 0 0; }
@@ -3180,20 +3179,6 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-coords-go { font-weight: 600; }
 
 /* ----------------------------------------------------------- Activity log (#289) */
-/* Home launcher button — styled like a card row, opens the telemetry overlay. */
-.activity-open {
-  display: flex; align-items: center; justify-content: space-between;
-  width: 100%; gap: var(--space-md); cursor: pointer;
-  /* Match the single-row Home tiles (weather / VM / UPS): same 12px 14px
-     padding, plus a min-height so this text-only launcher matches the height
-     those tiles get from their taller status pill / toggle, not a short button. */
-  padding: 12px 14px;
-  min-height: 54px;
-  box-sizing: border-box;
-  font: inherit; color: var(--ink); text-align: left;
-}
-.activity-open-identity { display: inline-flex; align-items: center; gap: var(--space-sm); font-weight: 600; }
-
 /* The overlay reuses .detail-dialog / .detail-card. Its title matches the Home
    card identity scale (not the big modal heading) so the app has one font size. */
 .activity-dialog .detail-header h2 { font-size: var(--font-body); }

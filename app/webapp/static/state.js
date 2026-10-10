@@ -267,6 +267,9 @@ export const els = {
   notifyIntrusion: document.getElementById('notifyIntrusion'),
   notifyAcLost: document.getElementById('notifyAcLost'),
   notifyConfiguredNote: document.getElementById('notifyConfiguredNote'),
+  // Settings › Notifications rows: how many switches are on (#886).
+  notifyAlarmValue: document.getElementById('notifyAlarmValue'),
+  notifyUpsValue: document.getElementById('notifyUpsValue'),
   presenceSummary: document.getElementById('presenceSummary'),
   presenceHiddenToggle: document.getElementById('presenceHiddenToggle'),
   presenceList: document.getElementById('presenceList'),
@@ -283,6 +286,9 @@ export const els = {
   presenceTrustNote: document.getElementById('presenceTrustNote'),
   presenceTrustVerify: document.getElementById('presenceTrustVerify'),
   presenceTrustClose: document.getElementById('presenceTrustClose'),
+  // Settings › Home & people row values (#886).
+  locationValue: document.getElementById('locationValue'),
+  presenceAutomationValue: document.getElementById('presenceAutomationValue'),
   locationLabel: document.getElementById('locationLabel'),
   locationLat: document.getElementById('locationLat'),
   locationLon: document.getElementById('locationLon'),
@@ -307,7 +313,8 @@ export const els = {
   presenceOriginalName: document.getElementById('presenceOriginalName'),
   presenceRole: document.getElementById('presenceRole'),
   presenceHiddenDetailToggle: document.getElementById('presenceHiddenDetailToggle'),
-  // Named-places dense-collection card (issue #438).
+  // Named-places dense collection (issue #438), a Settings sheet since #886.
+  presencePlacesCount: document.getElementById('presencePlacesCount'),
   presencePlacesList: document.getElementById('presencePlacesList'),
   presencePlacesNote: document.getElementById('presencePlacesNote'),
   presencePlaceAdd: document.getElementById('presencePlaceAdd'),
@@ -665,7 +672,6 @@ export const els = {
   acSummaryList: document.getElementById('acSummaryList'),
   climateMeta: document.getElementById('climateMeta'),
   // Voice cheat sheet (Settings, issue #437)
-  voiceCommandsCard: document.getElementById('voiceCommandsCard'),
   voiceLangToggle: document.getElementById('voiceLangToggle'),
   voiceCommandsList: document.getElementById('voiceCommandsList'),
   voiceCommandsNote: document.getElementById('voiceCommandsNote'),
@@ -779,8 +785,7 @@ export const els = {
   // The Money view's Export rate row, opening the editor in Settings (#883)
   exportRateOpen: document.getElementById('exportRateOpen'),
   exportRateRowMeta: document.getElementById('exportRateRowMeta'),
-  // Settings: export-compensation card (moved off the Energy tab by #883)
-  exportRateCard: document.getElementById('exportRateCard'),
+  // Settings: export compensation (moved off the Energy tab by #883)
   exportRateCurrent: document.getElementById('exportRateCurrent'),
   exportRateList: document.getElementById('exportRateList'),
   exportRateDate: document.getElementById('exportRateDate'),
@@ -797,8 +802,8 @@ export const els = {
   forecastChart: document.getElementById('forecastChart'),
   forecastEmpty: document.getElementById('forecastEmpty'),
   forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .segmented-item')),
-  // Energy tab: sun-position diagnostic card (issue #590)
-  sunOverlayCard: document.getElementById('sunOverlayCard'),
+  // Settings: sun-position check sheet (issue #590)
+  sunOverlaySheet: document.getElementById('sunOverlaySheet'),
   sunOverlayDate: document.getElementById('sunOverlayDate'),
   sunOverlayChart: document.getElementById('sunOverlayChart'),
   sunOverlayCount: document.getElementById('sunOverlayCount'),

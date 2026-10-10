@@ -8,6 +8,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
+from tests.e2e._app import open_settings_sheet
+
 
 _HA_BODY = {
     "satellites": [
@@ -184,29 +186,25 @@ def test_group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
     assert len(reads) == settled
 
 
-def test_help_card_moved_to_settings(
+def test_help_merged_into_the_voice_sheet(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
     mock_api: Callable,
     mock_energy: Callable,
 ) -> None:
-    """#884: "What can I do?" is a settings card, and keeps its guidance."""
+    """#886: "What can I do?" (a Settings card since #884) is merged into
+    Settings › Voice › What can I say?, and keeps its guidance."""
     _boot(page, base_url, sample_units, mock_api, mock_energy)
-    expect(page.locator("#paneIot #haHelpCard")).to_have_count(0)
+    expect(page.locator("#haHelpCard")).to_have_count(0)
 
-    page.locator("main.app > section.pane:not([hidden]) .settings-open-btn").click()
-    help_card = page.locator("#paneSettings #haHelpCard")
-    expect(help_card).to_be_visible()
-    expect(help_card).not_to_have_attribute("open", "")
-    box = help_card.locator("summary").bounding_box()
-    assert box is not None and box["height"] >= 44
-    help_card.locator("summary").click()
-    expect(help_card).to_have_attribute("open", "")
-    expect(help_card).to_contain_text("See the voice layer")
-    expect(help_card).to_contain_text("Talk to a room")
-    expect(help_card).to_contain_text("Review recent interactions")
-    expect(help_card).to_contain_text("Room and satellite names are owned in Home Assistant")
+    open_settings_sheet(page, "voiceSheet")
+    help_section = page.locator("#voiceSheet #voiceAppHelp")
+    expect(help_section).to_be_visible()
+    expect(help_section).to_contain_text("See the voice layer")
+    expect(help_section).to_contain_text("Talk to a room")
+    expect(help_section).to_contain_text("Review recent interactions")
+    expect(help_section).to_contain_text("Room and satellite names are owned in Home Assistant")
 
 
 def test_streamed_partial_finishes_and_announces_to_selected_room(

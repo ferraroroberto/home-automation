@@ -1,14 +1,12 @@
-/* Voice-command cheat sheet (issue #437) — a folded subsection of the Home
- * Assistant card (#461).
+/* Voice-command cheat sheet (issue #437) — Settings › Voice › What can I
+ * say?, the one voice help since #886 (its "In this app" part, static markup
+ * in index.html, was the separate "What can I do?" card).
  *
- * The companion to that card's push-to-talk mic (#239): its "What can I do?"
- * subsection explains what *this webapp* does with Home Assistant; this one
- * answers the different question of what you can *say* to the pucks. Content
- * is the curated catalogue in src/voice_commands.py, served by
- * GET /api/voice-commands.
+ * What you can *say* to the pucks. Content is the curated catalogue in
+ * src/voice_commands.py, served by GET /api/voice-commands.
  *
- * Static reference — fetched once, on first open, and never polled: it only
- * changes when the app is redeployed with a new command wired.
+ * Static reference — fetched once, the first time the sheet opens, and never
+ * polled: it only changes when the app is redeployed with a new command wired.
  */
 
 'use strict';
@@ -18,6 +16,7 @@ import { jsonApi, isAuthRequired } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { chipEl } from './chip.js';
 import { friendlyError } from './format.js';
+import { onSettingsSheetOpen } from './settings.js';
 
 const LANG_LABELS = { en: 'EN', es: 'ES' };
 
@@ -47,7 +46,7 @@ function filterGroupsByLang(groups, lang) {
   return out;
 }
 
-// Rendered as a segmented control at the top of the "What can I say?" card
+// Rendered as a segmented control at the top of the "What can I say?" sheet
 // body (els.voiceLangToggle, a fixed host in index.html). It sat in the card's
 // <summary> until #779: a control inside a summary is an ambiguous tap (a
 // near-miss folds the card), and its 18px pills were under the 44px floor.
@@ -237,11 +236,10 @@ async function loadVoiceCommands() {
 }
 
 export function wireVoiceCommands() {
-  if (!els.voiceCommandsCard) return;
-  els.voiceCommandsCard.addEventListener('toggle', function () {
+  if (!els.voiceCommandsList) return;
+  onSettingsSheetOpen('voiceSheet', function () {
     // Fetch on first open only: the catalogue is static for the life of the
-    // build, so re-opening the card must not re-hit the API.
-    if (!els.voiceCommandsCard.open) return;
+    // build, so re-opening the sheet must not re-hit the API.
     if ((state.voiceCommands || []).length) return;
     loadVoiceCommands();
   });

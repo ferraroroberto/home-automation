@@ -11,7 +11,7 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import boot_home, hold_reads, open_settings
+from tests.e2e._app import boot_home, hold_reads, open_settings, open_settings_sheet
 from tests.e2e._geometry import chart_dataset_cues, chart_tick_budget
 
 
@@ -103,13 +103,13 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator('#historyView [data-view="money"]')).to_be_enabled()
 
     # Export compensation moved to Settings (#883); Money's Export rate row
-    # shows the current rate and opens the editor there.
+    # shows the current rate and opens its sheet there (#886).
     page.locator('#historyView [data-view="money"]').click()
     expect(page.locator("#exportRateRowMeta")).to_have_text("€0.05000 / kWh")
     page.locator("#exportRateOpen").click()
     expect(page.locator("#paneSettings")).to_be_visible()
-    expect(page.locator("#exportRateCard")).to_have_attribute("open", "")
-    expect(page.locator("#exportRateCurrent")).to_have_text("€0.05000/kWh")
+    expect(page.locator("#exportRateSheet")).to_be_visible()
+    expect(page.locator("#exportRateCurrent")).to_have_text("€0.05000 / kWh")
     page.locator("#exportRateDate").fill("2026-09-05")
     page.locator("#exportRateAdd").click()
     expect(page.locator("#exportRateError")).to_have_text("Enter an export rate.")
@@ -119,7 +119,7 @@ def test_energy_tab_renders_flow_and_charts(
     page.locator("#exportRateValue").fill("0.16774")
     page.locator("#exportRateAdd").click()
     expect(page.locator("#exportRateList")).to_contain_text("2026-09-05")
-    expect(page.locator("#exportRateCurrent")).to_have_text("€0.16774/kWh")
+    expect(page.locator("#exportRateCurrent")).to_have_text("€0.16774 / kWh")
 
     page.locator(".export-rate-edit[data-rate-date='2026-09-05']").click()
     expect(page.locator("#exportRateAdd")).to_have_text("Save changes")
@@ -360,14 +360,14 @@ def test_sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
     boot_home(page, base_url)
     open_settings(page)  # the diagnostic moved off the Energy tab in #779
 
-    card = page.locator("#sunOverlayCard")
-    # Folded away by default — nothing is fetched or drawn until asked for.
-    expect(card).not_to_have_attribute("open", "")
+    # A row in Settings › Energy (#886) — nothing is fetched or drawn until
+    # its sheet opens.
+    expect(page.locator("#sunOverlaySheet")).to_be_hidden()
     assert page.evaluate(
         "() => !window.Chart?.getChart(document.querySelector('#sunOverlayChart'))"
     )
 
-    card.locator("summary").click()
+    page.locator('#paneSettings [data-settings-sheet="sunOverlaySheet"]').click()
     page.wait_for_function(
         "() => window.Chart?.getChart(document.querySelector('#sunOverlayChart'))"
         "?.data.datasets[0].data.length === 3"
@@ -406,8 +406,7 @@ def test_sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
     mock_api(sample_units)
     mock_energy(sun_overlay={"points": [], "excluded": [], "excluded_coverage": 0})
     boot_home(page, base_url)
-    open_settings(page)
-    page.locator("#sunOverlayCard summary").click()
+    open_settings_sheet(page, "sunOverlaySheet")
 
     empty = page.locator("#sunOverlayEmpty")
     expect(empty).to_be_visible()

@@ -216,6 +216,11 @@
       <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
       <circle cx="12" cy="12" r="3" />
     </symbol>
+    <symbol id="i-type" viewBox="0 0 24 24" fill="none">
+      <path d="M12 4v16" />
+      <path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2" />
+      <path d="M9 20h6" />
+    </symbol>
     <symbol id="i-search" viewBox="0 0 24 24" fill="none">
       <path d="m21 21-4.34-4.34" />
       <circle cx="11" cy="11" r="8" />
@@ -1015,14 +1020,13 @@
     </section>
 
     <!-- ============================= SETTINGS =========================== -->
-    <!-- No tab since #779: every page header's gear opens this pane. It holds
-         the former Net tab (rarely-used, admin-shaped) and the configuration
-         cards that used to be spread across the other tabs.
-         Home-network (LAN) section: internet health + opt-in speed test, AP/router
-         health with the confirm-gated AP reboot, and the attached-device
-         inventory grouped by band (weakest signal first). Read-mostly; polls
-         only while open (the AP SOAP read is comparatively expensive). The
-         speed test never auto-runs — it is an explicit button (issue #129). -->
+    <!-- No tab since #779: every page header's gear opens this pane. Since
+         #886 (Step 8/8 of #872) it is inset groups (design.md `settings
+         group`): an overline per group, then one row per setting, its current
+         value muted and a chevron to an instant sheet (settings.js). The two
+         settings changed in place stay inline: the text size and the
+         navigation log switch. The value spans keep the ids their modules
+         already write. -->
     <section id="paneSettings" class="pane" aria-label="Settings" hidden>
       <div class="card home-head page-head">
         <h2 class="home-title">
@@ -1034,396 +1038,158 @@
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
       </div>
+
+      <h3 id="settingsDisplayHead" class="settings-overline">Display</h3>
       <!-- Text size (#820): the vendored text-size control (text-size.html). The
            zoom lock fails WCAG 1.4.4 without it; main.js binds it with the
            home-automation prefix, the boot script stamps it before first paint. -->
-      <section class="card settings-card settings-text-size" aria-label="Text size">
-        <span class="settings-text-size-label">Text size</span>
+      <section class="card settings-group settings-text-size" aria-labelledby="settingsDisplayHead">
+        <span class="settings-text-size-label">
+          <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-type"></use></svg>
+          Text size
+        </span>
         <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
           <button type="button" class="range-tab" data-textsize="small">Small</button>
           <button type="button" class="range-tab" data-textsize="default">Default</button>
           <button type="button" class="range-tab" data-textsize="large">Large</button>
         </nav>
-        <p class="muted small settings-text-size-hint">Applies to this device only. Buttons and spacing stay the same size.</p>
+        <p class="muted small settings-text-size-hint">This device only. Buttons and spacing stay the same size.</p>
       </section>
-      <!-- ---------------- configuration moved here from the other tabs (#779) -->
-      <!-- Notifications (#779): the alarm and UPS Telegram preferences, once
-           two cards on two tabs, are one card here — two groups, same
-           element ids, so security-notify.js and ups-notify.js are untouched. -->
-      <details class="card card--collapsible security-card security-notify-card" aria-label="Notifications">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-bell"></use></svg>
-            <h3 class="collapse-title">Notifications</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <h4 class="net-group-head notify-group-head">Alarm</h4>
-        <p class="muted small security-note">
-          Telegram alerts for <strong>automatic</strong> alarm actions only. Manual arm/disarm from this app is never notified — you're already here.
-        </p>
-        <div class="notify-toggles">
-          <div class="notify-toggle">
-            <span>Automatic arm (schedule)</span>
-            <button id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
+
+      <h3 id="settingsNotifyHead" class="settings-overline">Notifications</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsNotifyHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyAlarmSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
+              <span class="action-row-title">Alarm</span>
+              <span id="notifyAlarmValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyUpsSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg>
+              <span class="action-row-title">UPS power</span>
+              <span id="notifyUpsValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsPeopleHead" class="settings-overline">Home &amp; people</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsPeopleHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="homeLocationSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+              <span class="action-row-title">Home location</span>
+              <span id="locationValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="presencePlacesSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+              <span class="action-row-title">Places</span>
+              <span id="presencePlacesCount" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="presenceAutomationSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-users"></use></svg>
+              <span class="action-row-title">Presence automation</span>
+              <span id="presenceAutomationValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsEnergyHead" class="settings-overline">Energy</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsEnergyHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="pvSystemSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+              <span class="action-row-title">PV system</span>
+              <span id="pvSystemTotal" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="exportRateSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-euro"></use></svg>
+              <span class="action-row-title">Export compensation</span>
+              <span id="exportRateCurrent" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="boostCoordSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+              <span class="action-row-title">Solar boost</span>
+              <span id="boostCoordSummary" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="sunOverlaySheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>
+              <span class="action-row-title">Sun-position check</span>
+              <span id="sunOverlayCount" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsVoiceHead" class="settings-overline">Voice</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsVoiceHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="searxngSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+              <span class="action-row-title">Search engine</span>
+              <span id="searxngSummaryState" class="settings-link-value">Reading…</span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="voiceSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
+              <span class="action-row-title">What can I say?</span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsDiagnosticsHead" class="settings-overline">Diagnostics</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsDiagnosticsHead">
+        <ul class="action-rows settings-links">
+          <!-- Activity log (#289): the unified, filterable event history (arm and
+               disarm, plug switches, power, presence, panel events). activity.js
+               opens its own overlay from this row. -->
+          <li class="action-row">
+            <button id="activityOpen" type="button" class="action-row-main settings-link" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+              <span class="action-row-title">Activity log</span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <!-- The on-device navigation recorder (#300), a switch saved as it
+               changes (main.js). -->
+          <li class="action-row settings-switch-row">
+            <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-activity"></use></svg>
+            <span id="navDebugLabel" class="action-row-title">Record navigation log</span>
+            <button id="navDebugBtn" type="button" class="toggle" role="switch" aria-checked="false" aria-labelledby="navDebugLabel">
               <span class="knob"></span><span class="toggle-label">OFF</span>
             </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Automatic disarm (schedule)</span>
-            <button id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Arm on everyone-away (presence)</span>
-            <button id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Disarm on arrival (presence)</span>
-            <button id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Error on any automatic arm/disarm</span>
-            <button id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Alarm triggered (intrusion)</span>
-            <button id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Panel mains power lost/restored</span>
-            <button id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-        </div>
-        <p id="notifyConfiguredNote" class="muted small security-note" hidden></p>
-        <h4 class="net-group-head notify-group-head">UPS power</h4>
-        <p class="muted small security-note">
-          Telegram alerts when the PC &amp; Wi-Fi UPS loses or regains mains power, and a safety
-          auto-shutdown when the battery runs critically low.
-        </p>
-        <div class="notify-toggles">
-          <div class="notify-toggle">
-            <span>Mains power lost (on UPS battery)</span>
-            <button id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <div class="notify-toggle">
-            <span>Power restored (back on mains)</span>
-            <button id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-        </div>
-        <p id="powerNotifyConfiguredNote" class="muted small security-note" hidden></p>
-      </details>
-
-      <details class="card card--collapsible settings-card presence-settings-card" aria-label="Presence settings">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-settings"></use></svg>
-            <h3 class="collapse-title">Presence settings</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="presence-settings">
-          <label class="row">
-            <span>Home label</span>
-            <input id="locationLabel" type="text" class="input-native" placeholder="Home">
-          </label>
-          <label class="row">
-            <span>Latitude</span>
-            <input id="locationLat" type="number" step="0.000001" class="input-native" placeholder="—">
-          </label>
-          <label class="row">
-            <span>Longitude</span>
-            <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
-          </label>
-          <button id="locationUseBrowser" type="button" class="big-btn">Use this device location</button>
-          <div class="row">
-            <span>Auto arm on departure</span>
-            <button id="presenceAutoEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto arm on departure">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <label class="row">
-            <span>Away minutes before arm</span>
-            <input id="presenceArmMinutes" type="number" min="0" step="1" class="input-native" value="15">
-          </label>
-          <label class="row">
-            <span>Stale after minutes</span>
-            <input id="presenceStaleMinutes" type="number" min="1" step="1" class="input-native" value="60">
-          </label>
-          <div class="row">
-            <span>Auto disarm on arrival</span>
-            <button id="presenceDisarmOnArrival" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto disarm on arrival">
-              <span class="knob"></span><span class="toggle-label">OFF</span>
-            </button>
-          </div>
-          <p id="presenceAutomationNote" class="muted small security-note" hidden></p>
-          <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
-        </div>
-      </details>
-
-      <!-- Named places for the "where's mom/dad" voice locator (issue #438).
-           Dense-collection editor — same summary-row + staged-dialog contract
-           as the alarm-schedules card above. -->
-      <details class="card card--collapsible settings-card presence-places-card" id="presencePlacesCard" aria-label="Places">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
-            <h3 class="collapse-title">Places</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="presence-places-body">
-          <p class="muted small">Named places (e.g. "the gym", "Roberto's work") the voice locator can name instead of just a distance from home.</p>
-          <div id="presencePlacesList" class="alarm-schedule-list"></div>
-          <p id="presencePlacesNote" class="muted small security-note" hidden></p>
-          <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
-        </div>
-      </details>
-
-      <!-- PV system — the array the forecast above is computed from (issue
-           #561). Dense-collection editor: one summary row per physically-
-           uniform panel row, edited in a staged dialog; the system-level
-           fields (shared derate + the home coordinates) are inline and save on
-           blur. Writes config/pv_system.json, which stays hand-editable. -->
-      <details class="card card--collapsible pv-system-card" id="pvSystemCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
-            <h3 class="collapse-title">PV system</h3>
-            <span id="pvSystemTotal" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="pv-system-body">
-          <p class="muted small">Panel rows the forecast is computed from — one row per orientation.</p>
-          <div id="pvArrayList" class="alarm-schedule-list"></div>
-          <button id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
-
-          <label class="row">
-            <span>Performance ratio</span>
-            <input id="pvPerformanceRatio" type="number" min="0.05" max="1" step="0.01" inputmode="decimal" class="input-native" placeholder="0.80">
-          </label>
-          <label class="row">
-            <span>Latitude</span>
-            <input id="pvLat" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
-          </label>
-          <label class="row">
-            <span>Longitude</span>
-            <input id="pvLon" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
-          </label>
-          <p class="muted small pv-system-note">A rough estimate — the derate folds inverter, wiring, thermal and soiling losses into one factor (typically 0.75–0.85).</p>
-
-          <!-- Horizon / shading profile (issue #578 part b) — obstruction
-               elevation by compass azimuth, entered here so the geometry is
-               ready whenever it gets armed. Not applied to the forecast yet:
-               the switch has no control here, on purpose (see docs/pv-forecast.md). -->
-          <h4 class="net-group-head">Horizon / shading profile</h4>
-          <p class="muted small">Obstruction height by compass direction — not yet applied to the forecast.</p>
-          <div id="pvHorizonList" class="alarm-schedule-list"></div>
-          <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
-        </div>
-      </details>
-
-      <!-- Export compensation (moved here from the Energy tab by #883, Step 5/8
-           of #872): the export-rate history and its editor are a rare,
-           settings-shaped job. The Energy tab's Money view links here. -->
-      <details class="card card--collapsible export-rate-card" id="exportRateCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-euro"></use></svg>
-            <h3 class="collapse-title">Export compensation</h3>
-            <span id="exportRateCurrent" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="export-rate-body">
-          <p class="muted small">Add the rate from the date it takes effect. Earlier entries stay in the history.</p>
-          <div id="exportRateList" class="alarm-schedule-list"></div>
-          <div class="export-rate-form">
-            <input id="exportRateOriginalDate" type="hidden">
-            <label><span>Effective from</span><input id="exportRateDate" type="date" class="input-native"></label>
-            <label><span>EUR / kWh</span><input id="exportRateValue" type="number" min="0" max="10" step="0.00001" inputmode="decimal" class="input-native" placeholder="0.00000"></label>
-            <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
-            <div class="export-rate-actions">
-              <button id="exportRateDelete" type="button" class="button-ghost" hidden>Delete</button>
-              <button id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
-            </div>
-          </div>
-          <p id="exportRateError" class="field-error" role="alert" hidden></p>
-        </div>
-      </details>
-
-      <!-- Solar boost sequencing (issue #562) — the fleet-level knobs deciding
-           how A/C units enter and leave solar boost: one at a time, measuring
-           real surplus between steps, instead of every eligible unit reacting to
-           the same reading in the same tick. Global by design; the per-unit
-           opt-in stays in each unit's detail modal. Inline rows that save on
-           blur, the same shape as the PV-system card's system-level fields. -->
-      <details class="card card--collapsible boost-coord-card" id="boostCoordCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
-            <h3 class="collapse-title">Solar boost</h3>
-            <span id="boostCoordSummary" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="boost-coord-body">
-          <p class="muted small">Units enter and leave boost one at a time, so their combined draw never outruns the surplus they are all reacting to.</p>
-
-          <label class="row">
-            <span>Settle interval (min)</span>
-            <input id="boostSettleMin" type="number" min="5" max="60" step="1" inputmode="numeric" class="input-native" placeholder="5">
-          </label>
-          <label class="row">
-            <span>Admission margin (W)</span>
-            <input id="boostAdmissionMargin" type="number" min="0" step="50" inputmode="numeric" class="input-native" placeholder="0">
-          </label>
-          <label class="row">
-            <span>Fast-shed import (W)</span>
-            <input id="boostHardDeficit" type="number" min="0" step="100" inputmode="numeric" class="input-native" placeholder="1000">
-          </label>
-
-          <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. Units are admitted in a fixed order by unit id.</p>
-        </div>
-      </details>
-
-      <!-- Sun-position diagnostic — the day's measured performance ratio
-           plotted against where the sun actually was, beside the modelled
-           ratio (issue #590). Read-only and folded away by default: it
-           answers "is the afternoon drop-off shading or weather?", which is
-           an occasional question, not a glanceable one. Collapsed also means
-           its extra irradiance read only happens when someone opens it. -->
-      <details class="card card--collapsible sun-overlay-card" id="sunOverlayCard">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
-            <h3 class="collapse-title">Sun-position diagnostic</h3>
-            <span id="sunOverlayCount" class="muted small security-hidden-count">—</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="sun-overlay-body">
-          <p class="muted small">Measured performance ratio per hour against the sun's azimuth. A dip that lands at the same azimuth every day is fixed shading; one that moves with the clock is weather. Hours the feed only partly reached are left out — a gap would read as shade.</p>
-          <label class="row">
-            <span>Day</span>
-            <input id="sunOverlayDate" type="date" class="input-native">
-          </label>
-          <div class="chart-wrap chart-wrap-forecast"><canvas id="sunOverlayChart"></canvas></div>
-          <p class="muted small" id="sunOverlayNote"></p>
-          <p id="sunOverlayEmpty" class="muted small chart-empty" hidden>No measured hours for this day.</p>
-        </div>
-      </details>
-
-      <!-- Search-engine status for the voice assistant's Tier-3 web-search
-           function (issue #321): SearXNG runs as a Docker container on the
-           hub PC (GET /api/searxng). Read-only status + a Start button when
-           the container is down — mirrors the satellites subsection's
-           shape, minus the polling richness of the VM tile (this rarely
-           changes, so it is read on open and on a slow interval). -->
-      <details id="searxngCard" class="card card--collapsible settings-card" aria-label="Search engine">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-globe"></use></svg>
-            <h3 class="collapse-title">Search engine</h3>
-            <span id="searxngSummaryState" class="muted small">Reading status…</span>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="settings-card-body">
-          <p id="searxngNote" class="muted small ha-note">Backs "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
-          <button id="searxngStartBtn" type="button" class="big-btn searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
-        </div>
-      </details>
-
-      <!-- Voice cheat sheet (issue #437, folded into this card in #461) — the
-           companion to the push-to-talk mic above: "What can I do?" covers
-           what this webapp does with Home Assistant, this one covers what you
-           can *say* to the pucks. Content comes from GET /api/voice-commands
-           (curated in src/voice_commands.py), fetched on first open and never
-           polled. -->
-      <details id="voiceCommandsCard" class="card card--collapsible settings-card" aria-label="What can I say?">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
-            <h3 class="collapse-title">What can I say?</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="settings-card-body">
-          <div id="voiceLangToggle" class="range-tabs voice-lang-toggle" role="group" aria-label="Filter voice commands by language" hidden></div>
-          <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
-          <p id="voiceCommandsNote" class="muted small ha-note">Open to load the voice commands.</p>
-        </div>
-      </details>
-
-      <!-- "What can I do?" (#239, moved from the Home Assistant card in #884):
-           what this app does with Home Assistant. Merges with "What can I
-           say?" in Step 8/8 of #872. -->
-      <details id="haHelpCard" class="card card--collapsible settings-card" aria-label="What can I do?">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-circle-help"></use></svg>
-            <h3 class="collapse-title">What can I do?</h3>
-          </span>
-          <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
-        </summary>
-        <div class="settings-card-body">
-          <section class="voice-group">
-            <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h4>
-            <p class="voice-group-summary muted small">Check each Home Assistant room, whether its Voice satellite is online, what it is doing, and its current speaker volume.</p>
-          </section>
-          <section class="voice-group">
-            <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h4>
-            <p class="voice-group-summary muted small">Tap that room’s microphone, speak, then tap Stop. You will see the transcript while you talk; the final text is announced through that room’s satellite.</p>
-          </section>
-          <section class="voice-group">
-            <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h4>
-            <p class="voice-group-summary muted small">See what Home Assistant heard, which local or fallback intent handled it, what action ran, and the spoken response.</p>
-            <ul class="voice-group-notes muted small">
-              <li>Room and satellite names are owned in Home Assistant; change them there.</li>
-              <li>Only one microphone records at a time. Push-to-talk announces transcribed text, not the original voice recording or an assistant command.</li>
-              <li>Recent interactions are best-effort and are collected only while this webapp is running.</li>
-            </ul>
-          </section>
-        </div>
-      </details>
-
-      <!-- Activity log (#289): a button — not a tab — opening the admin/telemetry
-           overlay with the unified, filterable event history (arm/disarm, plug
-           toggles, power, presence, panel events). -->
-      <button id="activityOpen" type="button" class="card settings-card activity-open" aria-haspopup="dialog">
-        <span class="activity-open-identity">
-          <svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
-          <span>Activity log</span>
-        </span>
-        <span class="activity-open-hint muted small">events &amp; telemetry</span>
-      </button>
-
-      <!-- Diagnostics (#779): the on-device nav forensics recorder (#300), moved
-           out of the Home header — a debug control, not an everyday action. -->
-      <section class="card settings-card settings-diagnostics" aria-label="Diagnostics">
-        <div class="notify-toggle">
-          <span>Record nav debug log</span>
-          <button id="navDebugBtn" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Record nav debug log">
-            <span class="knob"></span><span class="toggle-label">OFF</span>
-          </button>
-        </div>
+          </li>
+        </ul>
       </section>
     </section>
 
@@ -1594,6 +1360,374 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Settings sheets (#886, Step 8/8 of #872): one per Settings row, all
+       instant (settings.js wires them through sheet.js). Each holds the
+       controls its card held before, under the same element ids, so the
+       modules that load and save them are unchanged. Switches save as they
+       change, text and numbers on change or blur, each with a toast; a saved
+       item (a place, a panel row, a horizon point) keeps its staged editor on
+       top. Done only closes. -->
+  <dialog id="notifyAlarmSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Alarm notifications</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small settings-sheet-note">Telegram alerts for automatic arm and disarm. Arming from this app is never notified.</p>
+      <div class="notify-toggles">
+        <div class="notify-toggle">
+          <span>Automatic arm (schedule)</span>
+          <button id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Automatic disarm (schedule)</span>
+          <button id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Arm on everyone-away (presence)</span>
+          <button id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Disarm on arrival (presence)</span>
+          <button id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Error on any automatic arm/disarm</span>
+          <button id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Alarm triggered (intrusion)</span>
+          <button id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Panel mains power lost/restored</span>
+          <button id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+      </div>
+      <p id="notifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="notifyUpsSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>UPS notifications</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small settings-sheet-note">Telegram alerts when the PC and Wi-Fi UPS loses or regains mains power. The low-battery shutdown is in Devices › UPS.</p>
+      <div class="notify-toggles">
+        <div class="notify-toggle">
+          <span>Mains power lost (on UPS battery)</span>
+          <button id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Power restored (back on mains)</span>
+          <button id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+      </div>
+      <p id="powerNotifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="homeLocationSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Home location</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="presence-settings">
+        <label class="row">
+          <span>Home label</span>
+          <input id="locationLabel" type="text" class="input-native" placeholder="Home">
+        </label>
+        <label class="row">
+          <span>Latitude</span>
+          <input id="locationLat" type="number" step="0.000001" class="input-native" placeholder="—">
+        </label>
+        <label class="row">
+          <span>Longitude</span>
+          <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
+        </label>
+        <button id="locationUseBrowser" type="button" class="big-btn">Use this device location</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Named places for the "where's mom/dad" voice locator (issue #438): the
+       dense collection, each place edited in the staged presencePlaceDialog. -->
+  <dialog id="presencePlacesSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Places</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="presence-places-body">
+        <p class="muted small settings-sheet-note">Places the voice locator names instead of a distance from home.</p>
+        <div id="presencePlacesList" class="alarm-schedule-list"></div>
+        <p id="presencePlacesNote" class="muted small settings-sheet-note" hidden></p>
+        <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="presenceAutomationSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Presence automation</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="presence-settings">
+        <div class="row">
+          <span>Auto arm on departure</span>
+          <button id="presenceAutoEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto arm on departure">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <label class="row">
+          <span>Away minutes before arm</span>
+          <input id="presenceArmMinutes" type="number" min="0" step="1" class="input-native" value="15">
+        </label>
+        <label class="row">
+          <span>Stale after minutes</span>
+          <input id="presenceStaleMinutes" type="number" min="1" step="1" class="input-native" value="60">
+        </label>
+        <div class="row">
+          <span>Auto disarm on arrival</span>
+          <button id="presenceDisarmOnArrival" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto disarm on arrival">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <p id="presenceAutomationNote" class="muted small settings-sheet-note" hidden></p>
+        <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- PV system — the array the forecast is computed from (issue #561). Dense
+       collection: one summary row per physically-uniform panel row, edited in
+       a staged dialog; the system-level fields (shared derate + the home
+       coordinates) save on blur. Writes config/pv_system.json, which stays
+       hand-editable. -->
+  <dialog id="pvSystemSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>PV system</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="pv-system-body">
+        <p class="muted small settings-sheet-note">One panel row per orientation. The forecast is computed from these.</p>
+        <div id="pvArrayList" class="alarm-schedule-list"></div>
+        <button id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
+
+        <label class="row">
+          <span>Performance ratio</span>
+          <input id="pvPerformanceRatio" type="number" min="0.05" max="1" step="0.01" inputmode="decimal" class="input-native" placeholder="0.80">
+        </label>
+        <label class="row">
+          <span>Latitude</span>
+          <input id="pvLat" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+        </label>
+        <label class="row">
+          <span>Longitude</span>
+          <input id="pvLon" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+        </label>
+        <p class="muted small pv-system-note">The ratio folds inverter, wiring, heat and dirt losses into one factor, typically 0.75 to 0.85.</p>
+
+        <!-- Horizon / shading profile (issue #578 part b) — obstruction
+             elevation by compass azimuth, entered here so the geometry is
+             ready whenever it gets armed. Not applied to the forecast yet:
+             the switch has no control here, on purpose (see docs/pv-forecast.md). -->
+        <h3 class="net-group-head">Horizon and shading</h3>
+        <p class="muted small settings-sheet-note">Obstruction height by compass direction. Not applied to the forecast yet.</p>
+        <div id="pvHorizonList" class="alarm-schedule-list"></div>
+        <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Export compensation (moved to Settings from the Energy tab by #883):
+       the export-rate history and its form. The Energy tab's Money view
+       opens this sheet from its Export rate row. -->
+  <dialog id="exportRateSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Export compensation</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="export-rate-body">
+        <p class="muted small settings-sheet-note">Add a rate from the date it takes effect. Earlier rates stay in the history.</p>
+        <div id="exportRateList" class="alarm-schedule-list"></div>
+        <div class="export-rate-form">
+          <input id="exportRateOriginalDate" type="hidden">
+          <label><span>Effective from</span><input id="exportRateDate" type="date" class="input-native"></label>
+          <label><span>EUR / kWh</span><input id="exportRateValue" type="number" min="0" max="10" step="0.00001" inputmode="decimal" class="input-native" placeholder="0.00000"></label>
+          <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
+          <div class="export-rate-actions">
+            <button id="exportRateDelete" type="button" class="button-ghost" hidden>Delete</button>
+            <button id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
+          </div>
+        </div>
+        <p id="exportRateError" class="field-error" role="alert" hidden></p>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Solar boost sequencing (issue #562) — the fleet-level knobs deciding
+       how A/C units enter and leave solar boost: one at a time, measuring
+       real surplus between steps. Global by design; the per-unit opt-in stays
+       in each unit's sheet. Fields save on blur. -->
+  <dialog id="boostCoordSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Solar boost</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="boost-coord-body">
+        <p class="muted small settings-sheet-note">Units enter and leave boost one at a time, so their combined draw never outruns the surplus.</p>
+
+        <label class="row">
+          <span>Settle interval (min)</span>
+          <input id="boostSettleMin" type="number" min="5" max="60" step="1" inputmode="numeric" class="input-native" placeholder="5">
+        </label>
+        <label class="row">
+          <span>Admission margin (W)</span>
+          <input id="boostAdmissionMargin" type="number" min="0" step="50" inputmode="numeric" class="input-native" placeholder="0">
+        </label>
+        <label class="row">
+          <span>Fast-shed import (W)</span>
+          <input id="boostHardDeficit" type="number" min="0" step="100" inputmode="numeric" class="input-native" placeholder="1000">
+        </label>
+
+        <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. Units are admitted in a fixed order by unit id.</p>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Sun-position check (issue #590): the day's measured performance ratio
+       plotted against where the sun actually was, beside the modelled ratio.
+       Read only when the sheet opens (energy.js), so it costs nothing until
+       someone asks whether the afternoon drop-off is shading or weather. -->
+  <dialog id="sunOverlaySheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Sun-position check</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="sun-overlay-body">
+        <p class="muted small settings-sheet-note">Measured performance by hour against the sun's direction. A dip at the same direction every day is shading; one that moves with the clock is weather.</p>
+        <label class="row">
+          <span>Day</span>
+          <input id="sunOverlayDate" type="date" class="input-native">
+        </label>
+        <div class="chart-wrap chart-wrap-forecast"><canvas id="sunOverlayChart"></canvas></div>
+        <p class="muted small" id="sunOverlayNote"></p>
+        <p id="sunOverlayEmpty" class="muted small chart-empty" hidden>No measured hours for this day.</p>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Search engine for the voice assistant's web-search answers (issue
+       #321): SearXNG in a Docker container on the hub PC (GET /api/searxng),
+       with Start while it is down. Read on entering Settings, then slowly. -->
+  <dialog id="searxngSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>Search engine</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="searxngNote" class="muted small settings-sheet-note">Answers "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
+      <button id="searxngStartBtn" type="button" class="big-btn searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- What can I say? (issue #437): one voice help (#886). The catalogue of
+       spoken commands comes from GET /api/voice-commands (curated in
+       src/voice_commands.py), fetched the first time the sheet opens and
+       never polled. "In this app" below it is what used to be the separate
+       "What can I do?" card (#239): what this app does with Home Assistant. -->
+  <dialog id="voiceSheet" class="detail-dialog settings-sheet voice-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2>What can I say?</h2>
+        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="voiceLangToggle" class="range-tabs voice-lang-toggle" role="group" aria-label="Filter voice commands by language" hidden></div>
+      <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
+      <p id="voiceCommandsNote" class="muted small settings-sheet-note">Loading the voice commands…</p>
+      <section id="voiceAppHelp" class="voice-app-help" aria-labelledby="voiceAppHelpHead">
+        <h3 id="voiceAppHelpHead" class="net-group-head">In this app</h3>
+        <section class="voice-group">
+          <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h4>
+          <p class="voice-group-summary muted small">Devices › Home Assistant shows each room, whether its voice satellite is online, what it is doing and its speaker volume.</p>
+        </section>
+        <section class="voice-group">
+          <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h4>
+          <p class="voice-group-summary muted small">Tap that room’s microphone, speak, then tap Stop. You see the transcript while you talk; the final text is announced through that room’s satellite.</p>
+        </section>
+        <section class="voice-group">
+          <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h4>
+          <p class="voice-group-summary muted small">See what Home Assistant heard, which intent handled it, what action ran and the spoken response.</p>
+          <ul class="voice-group-notes muted small">
+            <li>Room and satellite names are owned in Home Assistant; change them there.</li>
+            <li>Only one microphone records at a time. Push-to-talk announces the transcribed text, not the recording or an assistant command.</li>
+            <li>Recent interactions are collected only while this app is running.</li>
+          </ul>
+        </section>
+      </section>
+      <div class="detail-actions">
+        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- The Security tab's Automations (#882): each saved collection is a sheet
        (sheet.js, instant) holding its dense rows; a row's switch saves as it
@@ -2153,35 +2287,35 @@
              the label, the current value muted and a chevron to its page. -->
         <ul class="action-rows unit-sheet-links">
           <li id="detailVanesLink" class="action-row" hidden>
-            <button type="button" class="action-row-main unit-sheet-link" data-page-to="vanes">
-              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-wind"></use></svg>
+            <button type="button" class="action-row-main settings-link" data-page-to="vanes">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-wind"></use></svg>
               <span class="action-row-title">Vanes</span>
-              <span id="detailVanesValue" class="unit-sheet-link-value"></span>
-              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              <span id="detailVanesValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main unit-sheet-link" data-page-to="rule">
-              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-thermometer"></use></svg>
+            <button type="button" class="action-row-main settings-link" data-page-to="rule">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-thermometer"></use></svg>
               <span class="action-row-title">Temperature rule</span>
-              <span id="detailRuleValue" class="unit-sheet-link-value"></span>
-              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              <span id="detailRuleValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main unit-sheet-link" data-page-to="schedules">
-              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+            <button type="button" class="action-row-main settings-link" data-page-to="schedules">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
               <span class="action-row-title">Schedules</span>
-              <span id="detailSchedValue" class="unit-sheet-link-value"></span>
-              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              <span id="detailSchedValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main unit-sheet-link" data-page-to="name">
-              <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
+            <button type="button" class="action-row-main settings-link" data-page-to="name">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
               <span class="action-row-title">Name</span>
-              <span id="detailNameValue" class="unit-sheet-link-value"></span>
-              <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              <span id="detailNameValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
             </button>
           </li>
         </ul>
@@ -2371,11 +2505,11 @@
       <div id="lightSheetControls" class="light-controls"></div>
       <ul class="action-rows unit-sheet-links">
         <li class="action-row">
-          <button id="lightSheetEdit" type="button" class="action-row-main unit-sheet-link" aria-haspopup="dialog">
-            <svg class="icon unit-sheet-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
+          <button id="lightSheetEdit" type="button" class="action-row-main settings-link" aria-haspopup="dialog">
+            <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
             <span class="action-row-title">Name and details</span>
-            <span id="lightSheetEditMeta" class="unit-sheet-link-value"></span>
-            <svg class="icon unit-sheet-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            <span id="lightSheetEditMeta" class="settings-link-value"></span>
+            <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
           </button>
         </li>
       </ul>

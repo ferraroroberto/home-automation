@@ -138,6 +138,16 @@ async function refreshPresenceDiagnostics() {
   }
 }
 
+// The Settings row's value (#886): the home label, or whether a location
+// is set at all.
+function renderLocationValue() {
+  if (!els.locationValue) return;
+  const loc = state.location || {};
+  els.locationValue.textContent = loc.lat == null || loc.lon == null
+    ? 'Not set'
+    : (loc.label || 'Set');
+}
+
 export async function loadLocation() {
   if (!els.locationLat || !els.locationLon) return;
   try {
@@ -145,6 +155,7 @@ export async function loadLocation() {
     els.locationLabel.value = state.location.label || '';
     els.locationLat.value = state.location.lat == null ? '' : state.location.lat;
     els.locationLon.value = state.location.lon == null ? '' : state.location.lon;
+    renderLocationValue();
     if (hydrateThisDeviceLocation()) renderPresence();
     refreshThisDeviceLocation();
   } catch (exc) {
@@ -171,6 +182,7 @@ export async function putLocation(payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  renderLocationValue();
   return state.location;
 }
 

@@ -21,6 +21,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { jsonApi, hideLogin } from './api.js';
 import { wireTabs } from './tabs.js';
+import { wireSettings } from './settings.js';
 import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';
 import { setToggleState, wireToggle } from './toggle.js';
 import {
@@ -133,7 +134,8 @@ bindTextSize(document.getElementById('textSizeControl'), 'home-automation');
 (function initNavDebug() {
   installNavDebug();
   if (!els.navDebugBtn) return;
-  // A Settings switch since #779 (was an icon button in the Home header).
+  // A Settings switch since #779 (was an icon button in the Home header),
+  // Diagnostics › Record navigation log since #886.
   setToggleState(els.navDebugBtn, isNavDebugEnabled());
   wireToggle(els.navDebugBtn, setNavDebugEnabled);
 })();
@@ -176,6 +178,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // so it is wired at boot rather than by whichever feature tab happens to own
   // it — the layering the #574 move to confirm.js was about.
   wireConfirmDialog();
+  wireSettings();
   wireUnitsControls();
   wireEnergyControls();
   wirePlugsToggle();

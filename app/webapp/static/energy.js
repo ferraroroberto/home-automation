@@ -34,6 +34,7 @@ import { setHeadPart } from './head-status.js';
 import { rowEl } from './row.js';
 import { sheet } from './sheet.js';
 import { showSettings } from './tabs.js';
+import { onSettingsSheetOpen, openSettingsSheet } from './settings.js';
 import {
   arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
 } from './pv-system.js';
@@ -522,8 +523,9 @@ function reloadMoney() {
 function renderExportRates(body) {
   state.exportRates = (body && body.rates) || [];
   const current = body && body.current_export_eur_kwh;
-  els.exportRateCurrent.textContent = current == null ? '—' : '€' + Number(current).toFixed(5) + '/kWh';
-  els.exportRateRowMeta.textContent = current == null ? 'Not set' : '€' + Number(current).toFixed(5) + ' / kWh';
+  const rate = current == null ? 'Not set' : '€' + Number(current).toFixed(5) + ' / kWh';
+  els.exportRateCurrent.textContent = rate;
+  els.exportRateRowMeta.textContent = rate;
   els.exportRateList.innerHTML = state.exportRates.length ? state.exportRates.slice().reverse().map(function (rate) {
     const date = rate.effective_from === '0001-01-01' ? 'Legacy rate' : rate.effective_from;
     const hourly = Array.isArray(rate.hourly_eur_kwh) ? ' · hourly overrides' : '';
@@ -837,19 +839,17 @@ function renderSunOverlay(body) {
     els.sunOverlayEmpty.textContent =
       SUN_OVERLAY_NOTES[body && body.reason] || 'Sun-position diagnostic is unavailable right now.';
     els.sunOverlayNote.textContent = '';
-    els.sunOverlayCount.textContent = '—';
+    els.sunOverlayCount.textContent = '';
     return;
   }
   els.sunOverlayEmpty.hidden = points.length > 0;
   els.sunOverlayEmpty.textContent = 'No measured hours for this day.';
   els.sunOverlayNote.textContent = sunOverlayNote(body);
-  els.sunOverlayCount.textContent = points.length
-    ? points.length + ' h'
-    : '—';
+  els.sunOverlayCount.textContent = points.length ? points.length + ' h' : '';
 }
 
 async function loadSunOverlay(day) {
-  if (!els.sunOverlayCard) return;
+  if (!els.sunOverlaySheet) return;
   try {
     const body = await jsonApi('/api/energy/sun-overlay?date=' + encodeURIComponent(day));
     renderSunOverlay(body);
@@ -860,8 +860,8 @@ async function loadSunOverlay(day) {
 
 async function ensureSunOverlay() {
   if (!els.sunOverlayChart) return;
-  // Created on first open, not on tab entry: a canvas inside a closed
-  // <details> has no layout box, so Chart.js would size it to zero.
+  // Created on first open, not on entering Settings: a canvas inside a
+  // closed sheet has no layout box, so Chart.js would size it to zero.
   if (!state.sunOverlayChart) {
     try { await loadChartJs(); } catch (_) { return; }
     if (!state.sunOverlayChart) state.sunOverlayChart = createSunOverlayChart(els.sunOverlayChart);
@@ -877,11 +877,9 @@ async function ensureSunOverlay() {
 }
 
 function wireSunOverlay() {
-  if (!els.sunOverlayCard) return;
+  if (!els.sunOverlaySheet) return;
   els.sunOverlayDate.max = localIsoDate();
-  els.sunOverlayCard.addEventListener('toggle', function () {
-    if (els.sunOverlayCard.open) ensureSunOverlay();
-  });
+  onSettingsSheetOpen('sunOverlaySheet', ensureSunOverlay);
   els.sunOverlayDate.addEventListener('change', function () {
     const day = els.sunOverlayDate.value;
     if (!day) return;
@@ -944,14 +942,17 @@ export function wireEnergyControls() {
   });
   syncHistory();
   // History › Money: All figures is read-only (Done only); Export rate opens
-  // its editor where it lives now, in Settings (#883).
+  // its editor where it lives now, Settings › Energy (#883, a sheet since #886).
   const figures = sheet(els.energyFiguresSheet, {
     model: 'instant',
     closeButton: document.getElementById('energyFiguresSheetClose'),
     doneButton: document.getElementById('energyFiguresSheetDone'),
   });
   els.energyFiguresOpen.addEventListener('click', function () { figures.open(els.energyFiguresOpen); });
-  els.exportRateOpen.addEventListener('click', function () { showSettings(els.exportRateCard); });
+  els.exportRateOpen.addEventListener('click', function () {
+    showSettings();
+    openSettingsSheet('exportRateSheet');
+  });
   els.forecastDayBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setForecastDay(btn.dataset.day); });
   });
@@ -996,14 +997,14 @@ export function onEnergyTab(tab) {
     schedule(SLOW_MS);
     scheduleToday(false);
   }
-  // The PV system, Solar boost and sun-position cards live in Settings since
-  // #779, export compensation since #883. The sun-position diagnostic refreshes only while it is open (#590) —
-  // closed, it costs nothing.
+  // The PV system, Solar boost and sun-position sheets live in Settings since
+  // #779, export compensation since #883. The sun-position check reads only
+  // while its sheet is open (#590): closed, it costs nothing.
   if (tab === 'settings') {
     loadPvSystem();
     loadExportRates();       // export compensation, moved here from Energy (#883)
     loadBoostCoordinator();  // fleet solar-boost sequencing knobs (#562)
-    if (els.sunOverlayCard && els.sunOverlayCard.open) ensureSunOverlay();
+    if (els.sunOverlaySheet && els.sunOverlaySheet.open) ensureSunOverlay();
   }
 }
 

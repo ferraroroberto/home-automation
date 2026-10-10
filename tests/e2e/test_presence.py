@@ -14,7 +14,7 @@ from typing import Callable, Dict, List
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e._app import boot_home, hold_reads, open_settings
+from tests.e2e._app import boot_home, hold_reads, open_settings_sheet
 
 
 @pytest.mark.chromium_only
@@ -133,29 +133,39 @@ def test_presence_settings_use_compact_right_aligned_controls(
     mock_security()
     mock_presence()
     boot_home(page, base_url)
-    open_settings(page)  # Presence settings live in Settings since #779
-    page.locator("details.presence-settings-card > summary").click()
+    # Settings since #779; two sheets of Settings › Home & people since #886.
+    boxes = {}
+    for sheet_id, control_ids in (
+        ("homeLocationSheet", ["locationLabel", "locationLat", "locationLon"]),
+        ("presenceAutomationSheet", [
+            "presenceAutoEnabled",
+            "presenceArmMinutes",
+            "presenceStaleMinutes",
+            "presenceDisarmOnArrival",
+        ]),
+    ):
+        open_settings_sheet(page, sheet_id)
+        sheet_boxes = {
+            control_id: page.locator(f"#{control_id}").bounding_box()
+            for control_id in control_ids
+        }
+        assert all(box is not None for box in sheet_boxes.values())
+        right_edges = {
+            round(box["x"] + box["width"])
+            for box in sheet_boxes.values()
+            if box is not None
+        }
+        assert len(right_edges) == 1, sheet_boxes
 
-    control_ids = [
-        "locationLabel",
-        "locationLat",
-        "locationLon",
-        "presenceAutoEnabled",
-        "presenceArmMinutes",
-        "presenceStaleMinutes",
-        "presenceDisarmOnArrival",
-    ]
-    boxes = {
-        control_id: page.locator(f"#{control_id}").bounding_box()
-        for control_id in control_ids
-    }
-    assert all(box is not None for box in boxes.values())
-    right_edges = {
-        round(box["x"] + box["width"])
-        for box in boxes.values()
-        if box is not None
-    }
-    assert len(right_edges) == 1, boxes
+        rows = page.locator(f"#{sheet_id} .presence-settings > .row")
+        for index in range(rows.count()):
+            label_box = rows.nth(index).locator(":scope > span").bounding_box()
+            control_box = rows.nth(index).locator(":scope > input, :scope > button").bounding_box()
+            assert label_box is not None and control_box is not None
+            assert label_box["x"] + label_box["width"] <= control_box["x"] - 8
+        boxes.update(sheet_boxes)
+        page.locator(f"#{sheet_id} [data-sheet-done]").click()
+        expect(page.locator(f"#{sheet_id}")).to_be_hidden()
 
     assert boxes["locationLabel"]["width"] == boxes["locationLat"]["width"]
     assert boxes["locationLabel"]["width"] == boxes["locationLon"]["width"]
@@ -163,13 +173,6 @@ def test_presence_settings_use_compact_right_aligned_controls(
     assert boxes["locationLon"]["width"] <= 144
     assert boxes["presenceArmMinutes"]["width"] <= 88
     assert boxes["presenceStaleMinutes"]["width"] <= 88
-
-    rows = page.locator(".presence-settings > .row")
-    for index in range(rows.count()):
-        label_box = rows.nth(index).locator(":scope > span").bounding_box()
-        control_box = rows.nth(index).locator(":scope > input, :scope > button").bounding_box()
-        assert label_box is not None and control_box is not None
-        assert label_box["x"] + label_box["width"] <= control_box["x"] - 8
 
 
 @pytest.mark.chromium_only

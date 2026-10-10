@@ -1,6 +1,7 @@
-/* Search-engine (SearXNG) status sub-card, inside the Home Assistant card
- * (issue #321). Reads GET /api/searxng and brings the container up via
- * POST /api/searxng/start. Lighter than vm.js: starting a search engine
+/* Search-engine (SearXNG) status, Settings › Voice › Search engine
+ * (issue #321; a Settings sheet since #886). Reads GET /api/searxng and
+ * brings the container up via POST /api/searxng/start. Lighter than vm.js:
+ * starting a search engine
  * isn't destructive, so there is no confirm gate and no stop control, and
  * no snapshot restore (an offline view just re-fetches on the next poll).
  */
@@ -18,24 +19,32 @@ const POLL_MS = 30_000;
 let busy = false;
 const searxngView = createViewState();
 
+// The Settings row's value, muted while it runs or starts; only "Not
+// started" is an exception, in the attention tone.
 function renderSummaryState(text, modifier) {
   if (!els.searxngSummaryState) return;
   els.searxngSummaryState.textContent = text;
-  els.searxngSummaryState.className = 'muted small ha-summary-state ha-summary-' + modifier;
+  if (modifier === 'unavailable') els.searxngSummaryState.dataset.tone = 'attention';
+  else delete els.searxngSummaryState.dataset.tone;
+}
+
+// Docker's own state words (exited, paused, restarting...), sentence case.
+function containerWord(status) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 function statusBadge(sx) {
-  if (sx && sx.available === true) return { mod: 'running', text: 'online' };
+  if (sx && sx.available === true) return { mod: 'running', text: 'Running' };
   if (sx && sx.container_status && sx.container_status !== 'not_found' && sx.container_status !== 'running') {
-    return { mod: 'transition', text: sx.container_status };
+    return { mod: 'transition', text: containerWord(sx.container_status) };
   }
-  if (sx && sx.container_status === 'running') return { mod: 'transition', text: 'starting…' };
-  return { mod: 'unavailable', text: 'not started' };
+  if (sx && sx.container_status === 'running') return { mod: 'transition', text: 'Starting…' };
+  return { mod: 'unavailable', text: 'Not started' };
 }
 
 function render(sx) {
   if (searxngView.state === 'loading') {
-    renderSummaryState('Reading status…', 'transition');
+    renderSummaryState('Reading…', 'transition');
     if (els.searxngStartBtn) els.searxngStartBtn.hidden = true;
     return;
   }
@@ -43,7 +52,7 @@ function render(sx) {
   renderSummaryState(badge.text, badge.mod);
   if (els.searxngNote) {
     els.searxngNote.textContent = (sx && sx.available)
-      ? 'Backs "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).'
+      ? 'Answers "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).'
       : friendlyError(sx && sx.error, 'Search engine is unavailable.');
   }
   if (els.searxngStartBtn) {
@@ -110,7 +119,7 @@ export async function loadSearxng() {
 
 const schedule = createPoller(loadSearxng);
 
-// The Search engine card lives in Settings since #779 (was a Home HA subsection).
+// The Search engine row lives in Settings since #779 (was a Home HA subsection).
 export function onSearxngTab(tab) {
   if (tab === 'settings') {
     loadSearxng();
