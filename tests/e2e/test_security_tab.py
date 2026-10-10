@@ -431,8 +431,8 @@ def test_glance_card_shows_next_schedule_and_trouble_opens_the_detector(
     chip = page.locator("#securityState button.security-trouble-badge")
     expect(chip).to_have_text("1 trouble")
     expect(chip).to_have_attribute("data-tone", "attention")
-    # The Home card shows the same chip, but as a plain status chip.
-    expect(page.locator("#homeSecurityState button")).to_have_count(0)
+    # Home's House card carries the same exception as its own chip (#885).
+    expect(page.locator("#houseChips .house-chip")).to_have_text(["1 trouble"])
     chip.click()
     expect(page.locator("#zoneDialog")).to_be_visible()
     expect(page.locator("#zoneDetailName")).to_have_text("Garage")

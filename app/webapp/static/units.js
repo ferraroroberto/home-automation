@@ -279,25 +279,28 @@ function renderAll() {
   if (state.units.length) els.acUnits.appendChild(unitList());
 }
 
-// ------------------------------------------------ AC rows on Home
+// ------------------------------------- Home's Climate group (#885)
+// The AC tab's rows, under a group head whose meta is the AC header's plain
+// fact ("2 running").
 function renderAcSummary() {
-  els.acSummary.innerHTML = '';
+  const list = els.acSummaryList;
+  list.innerHTML = '';
   renderAcHead();
   if (!state.units.length) {
     const empty = document.createElement('p');
-    empty.className = 'muted small ac-summary-empty';
+    empty.className = 'muted small group-note ac-summary-empty';
     if (acView.state === 'loading') empty.textContent = 'Reading AC units…';
     else if (acView.state === 'error') empty.textContent = 'AC units unavailable.';
     else empty.textContent = 'No AC units configured.';
-    els.acSummary.appendChild(empty);
+    list.appendChild(empty);
     return;
   }
-  els.acSummary.appendChild(unitList());
+  list.appendChild(unitList());
   if (acView.state === 'stale') {
     const note = document.createElement('p');
     note.className = 'muted small snapshot-note ac-snapshot-note';
     note.textContent = staleText(acView, 'units');
-    els.acSummary.appendChild(note);
+    list.appendChild(note);
   }
 }
 
@@ -307,16 +310,20 @@ function renderAcSummary() {
 function renderAcHead() {
   if (acView.state !== 'ready' && acView.state !== 'empty') {
     setHeadPart('ac', 'units', null);
+    if (els.climateMeta) els.climateMeta.textContent = '';
     return;
   }
   const offline = state.units.filter(isOffline).length;
   const running = state.units.filter(function (u) {
     return u.power === true && !isOffline(u);
   }).length;
+  const fact = state.units.length ? running + ' running' : 'No units';
   setHeadPart('ac', 'units', {
     exceptions: offline ? [{ text: offline + ' offline', tone: 'attention' }] : [],
-    fact: state.units.length ? running + ' running' : 'No units',
+    fact: fact,
   });
+  // Offline units carry their own chip on their row.
+  if (els.climateMeta) els.climateMeta.textContent = fact;
 }
 
 // ------------------------------------------------------------ the sheet

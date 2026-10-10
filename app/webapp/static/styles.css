@@ -556,12 +556,11 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 
 /* ----------------------------------------------------------- AC rows */
-/* Home's AC rows and the AC tab's are the one shared row (row.js, #880, #881)
-   on the vendored action-row, so each card holds full-bleed rows; only Home's
-   notes need an inset. */
+/* Home's AC rows (its Climate group, #885) and the AC tab's are the one
+   shared row (row.js, #880, #881) on the vendored action-row, so each card
+   holds full-bleed rows; only Home's notes need an inset. */
 .ac-summary,
 .ac-units { margin-bottom: var(--gap); }
-.ac-summary-empty { margin: 0; padding: var(--space-sm) 14px; }
 .snapshot-note { margin: 10px 0 0; }
 .ac-snapshot-note { margin: 0; padding: var(--space-sm) 14px; border-top: 1px solid var(--line-muted); }
 
@@ -627,6 +626,40 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 .action-row-trail { flex: none; margin-right: 10px; }
 .row-meta-arrow { width: 14px; height: 14px; margin: 0 2px; vertical-align: -2px; }
+
+/* ------------------------------------------- Home tab (#885, Step 7/8)
+   A pure dashboard: the House glance card (is the house OK?), the Climate
+   group and Next up, each an open group on the shared head. */
+.house-glance,
+.next-up { margin-bottom: var(--gap); }
+.house-body { padding: 0 12px 12px; }
+/* The compact flow under the arm control, the Energy tab's flow-row. */
+.house-flow {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-muted);
+}
+/* The head's exception chips: buttons whose 44px targets reach past the
+   chip, so the meta slot must not clip them; several wrap. */
+.house-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  overflow: visible;
+}
+/* Next up's rows lead with a time; a reminder with no due time keeps its
+   bell avatar on the same column as the times. */
+.next-up .action-row-main.has-avatar .row-avatar {
+  margin-right: calc(3.2 * var(--font-body-sm) - 36px);
+}
+.wake-alarm-row.is-off .row-time { color: var(--muted); }
+.wake-timer-row .row-time { color: var(--accent-text); }
+.wake-alarm-row.is-ringing .row-time,
+.wake-timer-row.is-ringing .row-time { color: var(--attention-text); }
+.next-up .action-rows:empty { display: none; }
+.next-up .action-rows:not(:empty) ~ .action-rows:not(:empty) { border-top: 1px solid var(--line-muted); }
 
 /* ------------------------------------------------- energy flow diagram */
 .energy-feedback { margin: 0 0 var(--gap); }
@@ -784,7 +817,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 
 /* --------------------------------------------------- PV-system editor (#561)
    The card body and its row/dialog internals reuse the existing disclosure,
-   settings-row and dense-collection recipes (see .wake-alarms-body,
+   settings-row and dense-collection recipes (see .pv-system-body,
    .presence-settings > .row, .schedule-editor-delete) — only the hairline
    between the system-level rows and the field-validation lines are new. */
 .pv-system-card,
@@ -880,54 +913,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   border-radius: var(--radius);
 }
 
-/* Weather strip (Home tab): current weather + today's forecast on the left, a
-   small transparent theme toggle on the right (issue #72). The clock was
-   dropped (it duplicated the phone status bar). Location label added (#255). */
-.weather-tile {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  margin-bottom: var(--gap);
-}
-.weather-info { display: flex; align-items: center; gap: 18px; min-width: 0; }
-/* Standard card-header pattern: leading icon + bold title, same as every
-   other card (savings/cost/internet/AP …) instead of a bare "Home:" prefix. */
-.weather-location {
-  display: inline-flex;
-  align-items: center;
-  font-size: var(--font-body);
-  font-weight: 600;
-  color: var(--ink);
-  white-space: nowrap;
-}
-.weather-current { display: flex; align-items: center; gap: var(--space-sm); }
-.weather-current-icon { font-size: var(--font-heading-lg); line-height: 1; color: var(--ink); }
-.weather-current-temp {
-  font-size: var(--font-body);
-  font-weight: 700;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.weather-forecast {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  white-space: nowrap;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.weather-fc-icon { font-size: var(--font-heading-lg); line-height: 1; color: var(--ink); }
-.weather-fc-range {
-  font-size: var(--font-body);
-  color: var(--ink);
-  font-weight: 700;
-  white-space: nowrap;
-}
-.weather-fc-sep { color: var(--muted); margin: 0 1px; }
-
 /* power toggle */
 /* shadcn-style switch: a compact track + sliding thumb, no text label.
    https://ui.shadcn.com/docs/components/base/switch — one canonical size for
@@ -988,106 +973,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 
 /* ----------------------------------------------------- plugs (Smart Life) */
-/* Home's plug summary line (#72, #253); the Devices tab's totals are its
-   Power glance card since #884. */
-.plugs-summary { padding: var(--space-md); margin-bottom: var(--gap); }
-.plugs-stat-label { font-size: var(--font-caption); color: var(--muted); }
-.plugs-stat-value {
-  font-size: var(--font-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
 .plugs-note { margin: 10px 4px; }
 .plugs-feedback { margin: 0 0 var(--gap); }
-
-/* Home-tab plug summary as a single line at the weather-tile height (#253):
-   identity (icon + "Plugs" + total) left, On/Off counts inline, the total live
-   wattage pushed hard-right. Comes after .plugs-summary so the padding
-   override wins on equal specificity. */
-.plugs-summary-line { padding: 12px 14px; }
-.plugs-line {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-.plugs-line-identity {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45em;
-  flex: none;
-  font-weight: 700;
-  color: var(--ink);
-}
-.plugs-line-identity .title-icon { width: 1.1em; height: 1.1em; flex: none; }
-.plugs-line-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-/* No "Live" label — a total wattage is self-evident; push it to the right edge. */
-.plugs-line-watts { margin-left: auto; }
-
-.ups-tile {
-  /* Symmetric padding so the status pill sits an equal distance from the top
-     and right edges when pinned to the corner (#207 follow-up). */
-  position: relative;
-  padding: var(--space-md);
-  margin-bottom: var(--gap);
-}
-.ups-tile.is-on-battery {
-  border-color: color-mix(in srgb, var(--deficit) 55%, var(--line));
-}
-.ups-tile.is-unavailable {
-  opacity: 0.75;
-}
-.ups-tile > .empty-state { padding: var(--space-sm) 0; }
-.ups-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  row-gap: var(--space-sm);
-}
-.ups-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45em;
-  min-width: 0;
-  font-weight: 700;
-  color: var(--ink);
-}
-.ups-title .title-icon {
-  width: 1.1em;
-  height: 1.1em;
-  flex: none;
-}
-.ups-title > span:first-of-type {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Home-tab UPS tile as a single line at the weather-tile height (#253):
-   identity, then bare charge % + runtime on the same row, then the exception
-   chip hard-right (#879); a healthy UPS shows none. */
-.ups-tile-compact { padding: 12px 14px; }
-.ups-tile-compact .ups-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.ups-line-stats {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 14px;
-  font-size: var(--font-body);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-  white-space: nowrap;
-}
-.ups-tile-compact .ups-status { margin-left: auto; }
 
 /* The search engine's summary status (Settings, #321). */
 .ha-summary-state { margin-left: auto; white-space: nowrap; }
@@ -1096,8 +983,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .ha-summary-transition { color: var(--attention); }
 .vm-toggle { flex: none; }
 .ha-note { margin: 9px 0 0; }
-/* Search-engine sub-card Start button (issue #321) — same ghost sizing as
-   .wake-timer-start-btn, .big-btn already supplies the base look. */
+/* Search-engine sub-card Start button (issue #321): .big-btn already
+   supplies the base look. */
 .searxng-start-btn {
   margin-top: 10px;
   width: auto;
@@ -1600,8 +1487,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 .security-bypass.on .toggle-label,
 .security-bypass.off .toggle-label { color: var(--accent-fg); }
-.wake-alarms-body,
-.reminders-body,
 .pv-system-body,
 .export-rate-body,
 .sun-overlay-body,
@@ -1610,7 +1495,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 /* Completed reminder: struck-through title, same muted convention as
    net-dhcp's staged-removal rows (styles.css .net-dhcp-existing-row.is-removing). */
-.reminder-row.is-done .automation-summary-title {
+.reminder-row.is-done .action-row-title {
   text-decoration: line-through;
   opacity: 0.6;
 }
@@ -1658,9 +1543,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 .automation-summary-chevron { width: 18px; height: 18px; color: var(--muted); }
 .automation-summary-row > .toggle { margin-inline: 5px; }
-.alarm-schedule-entry .schedule-entry-head {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
 .alarm-schedule-days {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -1683,38 +1565,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   border-color: var(--accent-border-strong);
   color: var(--accent-text);
 }
-.alarm-schedule-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
-  gap: 10px;
-  margin-top: var(--space-sm);
-}
-.alarm-schedule-fields label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 600;
-}
-.alarm-schedule-fields .input-native,
-.alarm-schedule-fields .select-native {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-/* iOS renders <input type="time"> taller/wider than <select> with its own
-   intrinsic sizing — normalize it so Time and Action share one height and the
-   Time field can't overflow into the Action column. */
-.alarm-schedule-fields .alarm-schedule-time {
-  -webkit-appearance: none;
-  appearance: none;
-  height: var(--hit-min);
-  text-align: center;
-}
-.wake-alarms-body .schedule-add-btn {
-  margin-top: 10px;
-}
 /* Which blinds an entry moves: "All blinds" plus one chip per blind, the day
    chips' toggle style, wrapping since names are longer than "Mon". */
 .blind-schedule-targets {
@@ -1725,58 +1575,16 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 .blind-schedule-targets .alarm-schedule-day { padding: 0 12px; }
 @media (max-width: 420px) {
-  .alarm-schedule-entry .schedule-entry-head { grid-template-columns: 1fr auto; }
-  .alarm-schedule-entry .schedule-enabled { grid-column: 1 / -1; }
   .alarm-schedule-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .alarm-schedule-fields { grid-template-columns: 1fr; }
 }
 
-/* Wake alarms & timers (issue #304) — a collapsible card styled like the
-   Security-tab "Schedules" card (shared .collapse-summary + .alarm-schedule-*
-   list + .schedule-add-btn), reusing .range-tab for the timer presets. The
-   rest here is unique to this card. */
-/* Home cards space themselves with their own bottom margin (there is no flex
-   gap on the pane) — match the --gap the ac-summary/plugs-summary siblings use
-   so the gap below this card equals the others. */
-.wake-alarms-card,
-.reminders-card,
-.locator-card { margin-bottom: var(--gap); }
-.locator-source-note {
-  margin: 0 4px var(--space-sm);
-  color: var(--attention);
-  font-size: var(--font-caption);
-}
-.wake-section-head {
-  /* Sentence case, weight for hierarchy (#779): caps are the overline
-     role's alone, and this is a section label, not a list group header. */
-  color: var(--muted);
-  font-size: var(--font-label);
-  font-weight: 700;
-  margin-bottom: var(--space-sm);
-}
-.wake-alarm-once {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: var(--space-sm);
-  color: var(--muted);
-  font-size: var(--font-caption);
-  font-weight: 600;
-}
-.wake-alarm-date {
-  width: 100%;
-  box-sizing: border-box;
-  margin-top: var(--space-sm);
-}
-.alarm-schedule-entry.is-ringing {
-  border-color: color-mix(in srgb, var(--attention) 40%, var(--line));
-  background: color-mix(in srgb, var(--attention) 8%, var(--card));
-}
+/* Next up's ringing line (#885): first under the card's head, in attention,
+   with Dismiss. */
 .wake-ringing-banner {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 0 0 var(--gap);
+  padding: 12px 14px 0;
 }
 .wake-ringing-row {
   display: flex;
@@ -1802,102 +1610,17 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   font-weight: 700;
   cursor: pointer;
 }
-.wake-timers-section {
-  margin-top: 18px;
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--line-muted);
-}
-/* .wake-timer-presets is a .range-tabs instance; drop its default bottom margin
-   so the custom-timer row's own margin-top is the single source of the gap. */
-.wake-timer-presets { margin-bottom: 0; }
-.wake-timer-custom {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-sm);
-  margin-top: 10px;
-}
-.wake-timer-input {
-  width: 100%;
-  box-sizing: border-box;
-}
-/* Descendant selector (0,2,0) so the ghost colors below beat the base
-   .detail-save-btn's solid fill, which is later in the file at equal
-   specificity — keeps this button's compact size/font, swaps only the colors
-   to match the Net-tab .big-btn ghost style (accent tint + text + soft border). */
-.wake-alarms-body .wake-timer-start-btn {
-  width: auto;
-  padding: 0 16px;
-  white-space: nowrap;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-border-soft);
-}
-.wake-timers-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-top: 10px;
-}
-/* Tiny footer explaining the voice path (the differentiator over a phone
-   alarm). Separated from the timers block like .wake-timers-section is. */
-.wake-voice-hint {
-  margin: 18px 0 0;
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--line-muted);
-  line-height: 1.5;
-}
-.wake-timer-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--line);
-}
-.wake-timer-row:first-child { border-top: 0; }
-.wake-timer-row.is-ringing .wake-timer-remaining { color: var(--attention); }
-.wake-timer-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wake-timer-remaining {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: var(--muted);
-}
-/* The Home locator's list (#438); the Security People group is the shared
-   row since #882. */
-.locator-list {
-  display: flex;
-  flex-direction: column;
-  padding: 0 14px 14px;
-}
-.locator-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-sm);
-  align-items: center;
-  border-top: 1px solid var(--line);
-}
-.locator-row:first-child { border-top: 0; }
-.presence-main,
-.locator-main {
+.presence-main {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
-.presence-name,
-.locator-name {
+.presence-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
-}
-.locator-status {
-  justify-self: end;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  text-align: right;
 }
 /* Per-account iCloud rows + Renew trust (issue #659) — the .presence-row grid
    (name + trust state left, one .range-tab action right), state as plain
@@ -1928,22 +1651,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .presence-account-row.is-untrusted .presence-account-state { color: var(--attention); }
 .presence-account-row.is-broken .presence-account-state { color: var(--deficit); }
 .presence-account-renew { flex: none; white-space: nowrap; }
-/* Home-tab "Mom & Dad locator" card (issue #438) — shares .presence-list /
-   .presence-row's grid (name+role left, resolved place+last-seen right); only
-   the deltas live here. */
-.locator-row { padding: var(--space-sm) 0; }
-.locator-role {
-  text-transform: capitalize;
-}
-.locator-place {
-  font-size: var(--font-caption);
-  font-weight: 700;
-  white-space: normal;
-  word-break: break-word;
-}
-.locator-meta {
-  white-space: nowrap;
-}
 .presence-settings {
   display: grid;
   gap: var(--space-sm);
@@ -2126,17 +1833,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .place-map-pin {
   color: var(--accent);
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
-}
-@media (max-width: 430px) {
-  .locator-row {
-    grid-template-columns: 1fr;
-    gap: 2px;
-  }
-  .locator-status {
-    justify-self: start;
-    align-items: flex-start;
-    text-align: left;
-  }
 }
 
 /* ----------------------------------------------------------- detail modal */

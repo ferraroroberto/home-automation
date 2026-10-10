@@ -66,10 +66,11 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     # + the Security tab's Schedules, Scene capture, Override and Accounts
     # sheets (#882) + the Energy tab's All figures sheet (#883) + the Devices
     # tab's UPS, light, blind schedule, voice satellites, recent interactions
-    # and Network sheets (#884); the HA capabilities help left the census when
-    # #461 made it a folded subsection instead of a modal.
-    expect(close_buttons).to_have_count(39)
-    expect(page.locator(".detail-close.hit-target")).to_have_count(39)
+    # and Network sheets (#884) + Home's wake alarm editor and timer sheet
+    # (#885); the HA capabilities help left the census when #461 made it a
+    # folded subsection instead of a modal.
+    expect(close_buttons).to_have_count(41)
+    expect(page.locator(".detail-close.hit-target")).to_have_count(41)
 
     target = effective_rect(page.locator("#detailClose"))
     # Exact compact-control contract: 34px visual box, 44px effective hit area.

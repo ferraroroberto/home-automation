@@ -346,15 +346,15 @@ A voice-queryable locator layered on top of the same presence data above — rea
 - **Places** (Presence card → **Places**): named places (e.g. "the gym", "Roberto's work") with a radius, so the locator can say "Roberto is at the gym" instead of just a distance from home. Add one by typing coordinates, tapping **Use my current location**, or **Pick on map…** (an interactive Leaflet map — click/drag the pin, then confirm; the label auto-suggests via reverse-geocoding the picked point).
 - **Role** (a person's detail modal → **Role**): an optional household-role alias (e.g. "dad", "mom") alongside their display name, so "where's dad" and "where's Roberto" resolve to the same person. Display name and role are edited together and persisted with an explicit **Save** button (issue #442) — matching every other rename modal in the app — rather than the old save-on-blur behavior.
 
-`GET /api/presence` gains a `current_place` field per entity — the closest configured place within its radius, else "Home"/"Away" (from cached Find My coordinates for iCloud entities, or the webhook `home`/`away` state for Shortcut-backed people, which carry no coordinates). A collapsible **"Mom & Dad locator"** card on the Home tab shows this for every tracked (non-hidden) person **that has a role set** (issue #442) — an untagged Find My device or person doesn't clutter the card just for being tracked; a role is what makes it locatable by voice in the first place. Sourced from the same poll as the Presence card (no extra network cadence).
+`GET /api/presence` gains a `current_place` field per entity — the closest configured place within its radius, else "Home"/"Away" (from cached Find My coordinates for iCloud entities, or the webhook `home`/`away` state for Shortcut-backed people, which carry no coordinates). The role a person answers to is set in their person sheet (Security › People); since #885 Home shows who is home as one row of its House card ("2 home · 1 away", and who is out) that opens Security › People, instead of the former Home locator card. Sourced from the same poll as the People group (no extra network cadence).
 
 The voice bridge (`GET /api/presence/locate?who=<text>&lang=<en|es>`, resolved via role → display name → raw name, in that order) is wired as a Tier-1 deterministic Home Assistant command — see [`docs/voice-pe-config/README.md`](docs/voice-pe-config/README.md#family-locator-issue-438--wheres-momdad) for the installed sentence list and [`docs/voice-control.md`](docs/voice-control.md) for the architecture.
 
 **Tolerant name matching + Spanish locate (issue #446).** Resolution folds accents, doubled letters ("Anna" ↔ "Ana"), and common kinship variants ("mum"/"mummy"/"mama"/"mamá" → the mom role; "daddy"/"papa"/"papá" → the dad role) — a deterministic variant table, not fuzzy matching, so Whisper's legitimate alternate spellings of a correctly-heard word resolve instead of failing on an exact string compare. The locator is also on the Spanish "Hey Mycroft" pipeline (`custom_sentences/es/locate.yaml` — "¿dónde está papá?", "localiza a Roberto"), which passes `lang=es` so the endpoint answers in Spanish ("Roberto está en casa"); since the Spanish Whisper hint hears "papá"/"mamá" unambiguously, this also sidesteps the English "dad"→"that" mishearing tracked in #444. Probe either language without speaking: `… -m scripts.ha_config_sync probe --text "donde esta papa" --language es --actuate`.
 
-**Near-real-time locate + fail-loud on a broken source (issue #442).** `GET /api/presence` still only reads the shared background cache (no extra network cadence). `GET /api/presence/locate` is different: a locate query is user-initiated and rare, so when the cache is older than `PRESENCE_LOCATE_STALE_AFTER_S` (default `120`, or was never refreshed), it awaits one bounded on-demand refresh — capped at `PRESENCE_LOCATE_REFRESH_TIMEOUT_S` (default `12`, raised from `5` in #491 since a real Find My locate routinely takes longer than that, especially when Apple has to wake a device for a live fix) — before resolving, falling back to whatever is cached on timeout or failure. Every configured iCloud account is fetched concurrently rather than sequentially (#491), so a 2-account setup shares this timeout budget instead of splitting it in half. The background refresh cadence (`PRESENCE_ICLOUD_REFRESH_INTERVAL_S`) is unchanged either way. If the Find My source itself is down (iCloud diagnostics `reason` is `2fa_required`, `terms_required`, `error`, or `not_configured`; `terms_required` gets its own "an iCloud account must accept Apple's updated terms" wording), a role/name known only through Find My answers with a distinct "location tracking needs re-authentication" speech instead of a generic "away — I don't know exactly where" or a raw error, and the Home-tab locator card shows the same note above the list. Genuinely "away, unknown exact location" (a real, current Find My read that just lacks coordinates) still gets the generic away message — only a broken *source* gets the re-auth wording.
+**Near-real-time locate + fail-loud on a broken source (issue #442).** `GET /api/presence` still only reads the shared background cache (no extra network cadence). `GET /api/presence/locate` is different: a locate query is user-initiated and rare, so when the cache is older than `PRESENCE_LOCATE_STALE_AFTER_S` (default `120`, or was never refreshed), it awaits one bounded on-demand refresh — capped at `PRESENCE_LOCATE_REFRESH_TIMEOUT_S` (default `12`, raised from `5` in #491 since a real Find My locate routinely takes longer than that, especially when Apple has to wake a device for a live fix) — before resolving, falling back to whatever is cached on timeout or failure. Every configured iCloud account is fetched concurrently rather than sequentially (#491), so a 2-account setup shares this timeout budget instead of splitting it in half. The background refresh cadence (`PRESENCE_ICLOUD_REFRESH_INTERVAL_S`) is unchanged either way. If the Find My source itself is down (iCloud diagnostics `reason` is `2fa_required`, `terms_required`, `error`, or `not_configured`; `terms_required` gets its own "an iCloud account must accept Apple's updated terms" wording), a role/name known only through Find My answers with a distinct "location tracking needs re-authentication" speech instead of a generic "away — I don't know exactly where" or a raw error, and Home's who-is-home row carries an attention chip for it. Genuinely "away, unknown exact location" (a real, current Find My read that just lacks coordinates) still gets the generic away message — only a broken *source* gets the re-auth wording.
 
-A located person who just isn't within any configured **Place** no longer reads as a bare "Away" either: both the locator card and the voice speech reverse-geocode the coordinates (the same OpenStreetMap Nominatim lookup and cache `GET /api/location/reverse` already uses for the Presence card's address line) into something like "Ana is at Carrer Maria Benlliure, Barcelona." The card resolves this client-side (cached per rounded coordinate, same as the Presence card); the voice endpoint resolves it server-side against the same cache, bounded by Nominatim's own request timeout, and falls back to the generic "away" wording if the lookup is unavailable.
+A located person who just isn't within any configured **Place** no longer reads as a bare "Away" either: both the People rows and the voice speech reverse-geocode the coordinates (the same OpenStreetMap Nominatim lookup and cache `GET /api/location/reverse` already uses for the Presence card's address line) into something like "Ana is at Carrer Maria Benlliure, Barcelona." The card resolves this client-side (cached per rounded coordinate, same as the Presence card); the voice endpoint resolves it server-side against the same cache, bounded by Nominatim's own request timeout, and falls back to the generic "away" wording if the lookup is unavailable.
 
 **"Last seen" recency (issue #492).** `GET /api/presence/locate`'s spoken answer now states how current the location is — "Ana is at the gym, last seen 3 minutes ago" / "last seen unos 15 minutos" in Spanish — under a minute reads as "just now" rather than a misleadingly precise "1 minute ago". The JSON payload carries the same fix as a `last_seen` ISO timestamp (`null` when unknown) so callers can derive their own age without re-deriving the wording. For an iCloud/Find My entity this is its coordinate fix (`PresenceEntity.last_seen`); for a webhook-backed person (no coordinate fix) it's their `PersonPresence.updated_at` heartbeat instead. The phrasing reuses the same hour/minute conventions as the ETA speech (`_duration_phrase`, #474) rather than a new scale.
 
@@ -606,10 +606,12 @@ The solar/energy read above answers *how much* the house is importing or exporti
 ## Energy monitoring & history
 
 The PWA splits into five tabs (#779), each opening with the same page header —
-the tab's title, the theme toggle, and a **Settings** gear: **Home** (a consolidated dashboard — weather strip,
-the actionable alarm tile, a one-line-per-unit AC summary with inline power
-toggles, a plug summary, and the same live ☀️ Solar · 🏠 Home · 🗼 Grid energy-flow
-card as the Energy tab; alarm + AC act, the rest inform),
+the tab's title, the theme toggle, and a **Settings** gear: **Home** (a pure
+dashboard since #885 — the weather as the header's live line, then a **House**
+card with the arm control, the compact ☀️ Solar · 🏠 Home · 🗼 Grid flow, who is
+home and an exception chip only when something needs you, a **Climate** group
+with the AC rows and their power switches, and **Next up**: wake alarms, timers
+and reminders as time-led rows),
 **AC** (one row per unit with its power switch; the unit sheet holds the rest),
 **Energy** (on the shared system since #883: a glance card with the live
 ☀️ Solar · 🏠 Home · 🗼 Grid flow row — the arrows and the Grid node's name,
@@ -786,14 +788,12 @@ Cost, measured rather than estimated: ~78 bytes/row, ~108 KB/day, ~43 MB at the 
 
 ## Weather
 
-The **Home tab** shows a compact weather strip — current weather (icon +
-temperature) and today's forecast (min / max + a forecast icon) — for the home
-location, read from **Open-Meteo** (keyless — no account, no API key). The clock
-was dropped (it duplicated the phone's status bar) and the `label` is **not**
-rendered (it's obviously home), so the strip stays on a single line. The
-**theme toggle** and the **Settings** gear live in the shared page header above
-the strip — every tab's header carries both since #779 — not in the weather
-strip itself.
+The **Home tab**'s page header carries the weather as its live line (#885,
+decision 2 of #872): the sky and temperature now, then today's min / max
+("Clear 21° · 9° / 21°"), for the home location, read from **Open-Meteo**
+(keyless — no account, no API key). The line's accessible name adds today's
+forecast sky and the location label. The clock was dropped (it duplicated the
+phone's status bar).
 
 - **Location config:** the home coordinates live in `config/location.json`
   (`lat` / `lon` / optional `label`). This file is **gitignored** — the repo is
@@ -1412,10 +1412,10 @@ API: `GET`/`PUT /api/hvac/boost-coordinator`.
 
 ## Wake alarms & timers
 
-Alexa-style **wake alarms** and countdown **timers**, managed from a collapsible card on the Home tab. This is deliberately **separate from the RISCO "Alarm controls"** card — a wake alarm rings/notifies at a set time, it never arms or disarms the security system (issue #304, Step 1/2; the voice-control wiring is Step 2/2, #306).
+Alexa-style **wake alarms** and countdown **timers**, managed from the Home tab's **Next up** card (#885): each alarm is a time-led row with its switch that opens a staged editor (time, label, days or just once, delete; Save is the only write), a running timer is a row counting down with × to cancel, and **Start timer** opens a sheet of presets and minutes. This is deliberately **separate from the RISCO "Alarm controls"** card — a wake alarm rings/notifies at a set time, it never arms or disarms the security system (issue #304, Step 1/2; the voice-control wiring is Step 2/2, #306).
 
 - **Wake alarms** — recurring (any set of weekdays) or one-shot (a specific date). Each has a label, a `HH:MM` time, and an Enabled toggle. When one comes due the tray-owned webapp marks it "ringing" (shown in the card + a best-effort Telegram notify via the existing notifier), then rearms a weekly alarm for its next matching day or auto-disables a one-shot. Evaluated server-side so they fire while the PWA is closed. Persisted to gitignored `config/wake_alarms.json` (committed `…sample.json` shows the shape).
-- **Timers** — one-off countdowns started from the card (presets 5/10/15/30 min or a custom minute count). Deliberately **in-memory and unpersisted**, mirroring Home Assistant's own ephemeral voice-set timers — a webapp restart clears active timers.
+- **Timers** — one-off countdowns started from the timer sheet (presets 5/10/15/30 min or a custom minute count). Deliberately **in-memory and unpersisted**, mirroring Home Assistant's own ephemeral voice-set timers — a webapp restart clears active timers.
 
 API: `GET`/`PUT /api/wake-alarms` (list/replace), `POST /api/wake-alarms/{id}/test` (fire immediately) + `…/dismiss`; `GET`/`POST /api/wake-timers` and `DELETE /api/wake-timers/{id}`.
 
@@ -1432,7 +1432,7 @@ Optional `.env` knobs:
 
 ## Reminders
 
-A free-text **reminders** checklist, bidirectional between the app and Home Assistant Voice — a reminder created by voice shows up in the app, and one created in the app is speakable/listable/completable by voice (issue #314). Managed from a collapsible **Reminders** card on the Home tab, right after Wake alarms — deliberately distinct from that feature: a wake alarm rings at a set time, a reminder is a checklist item you complete, optionally due on a date/time.
+A free-text **reminders** checklist, bidirectional between the app and Home Assistant Voice — a reminder created by voice shows up in the app, and one created in the app is speakable/listable/completable by voice (issue #314). Managed from the Home tab's **Next up** card (#885), as rows led by their due time, with the done switch and the staged editor one tap away — deliberately distinct from that feature: a wake alarm rings at a set time, a reminder is a checklist item you complete, optionally due on a date/time.
 
 - **Card:** dense-collection list — each reminder is a flat row (text, an optional due-date caption, and a Done toggle) with a staged **Add/Edit reminder** dialog (text + an optional "Due date" toggle revealing date/time fields). Same shared `denseListEditor` shell as the Security tab's Schedules card.
 - Persisted to gitignored `config/reminders.json` (committed `…sample.json` shows the shape). No recurring reminders and no active "due now" firing/notification — this is a passive list/complete surface, not a second alarm.

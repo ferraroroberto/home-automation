@@ -328,9 +328,8 @@ export const els = {
   presenceMapPicker: document.getElementById('presenceMapPicker'),
   presenceMapPickerCoords: document.getElementById('presenceMapPickerCoords'),
   presenceMapPickerConfirm: document.getElementById('presenceMapPickerConfirm'),
-  // Home-tab "Mom & Dad locator" card (issue #438).
-  locatorList: document.getElementById('locatorList'),
-  locatorSourceNote: document.getElementById('locatorSourceNote'),
+  // The People group, which Home's who-is-home row opens (#885).
+  presenceCard: document.getElementById('presenceCard'),
   presenceDetailSave: document.getElementById('presenceDetailSave'),
   // Detector (zone) detail + rename modal
   zoneDialog: document.getElementById('zoneDialog'),
@@ -441,13 +440,6 @@ export const els = {
   blindSchedulesSheet: document.getElementById('blindSchedulesSheet'),
   blindSchedulesSheetClose: document.getElementById('blindSchedulesSheetClose'),
   blindSchedulesSheetDone: document.getElementById('blindSchedulesSheetDone'),
-  // Plug summary mirrored onto the Home tab (informative).
-  homePlugsStats: document.getElementById('homePlugsStats'),
-  homePlugStatTotal: document.getElementById('homePlugStatTotal'),
-  homePlugStatOn: document.getElementById('homePlugStatOn'),
-  homePlugStatOff: document.getElementById('homePlugStatOff'),
-  homePlugStatWatts: document.getElementById('homePlugStatWatts'),
-  homeUpsTile: document.getElementById('homeUpsTile'),
   notifyPowerLost: document.getElementById('notifyPowerLost'),
   notifyPowerRestored: document.getElementById('notifyPowerRestored'),
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
@@ -668,27 +660,41 @@ export const els = {
   confirmClose: document.getElementById('confirmClose'),
   confirmCancel: document.getElementById('confirmCancel'),
   confirmOk: document.getElementById('confirmOk'),
-  // Read-only AC summary (Home tab)
+  // Home tab (#885): the Climate group's AC rows
   acSummary: document.getElementById('acSummary'),
-  // Voice cheat sheet (Home tab, issue #437)
+  acSummaryList: document.getElementById('acSummaryList'),
+  climateMeta: document.getElementById('climateMeta'),
+  // Voice cheat sheet (Settings, issue #437)
   voiceCommandsCard: document.getElementById('voiceCommandsCard'),
   voiceLangToggle: document.getElementById('voiceLangToggle'),
   voiceCommandsList: document.getElementById('voiceCommandsList'),
   voiceCommandsNote: document.getElementById('voiceCommandsNote'),
-  // Wake alarms + timers (Home tab, issue #304)
+  // Home tab's Next up (#885): wake alarms + timers (issue #304) and
+  // reminders (issue #314)
+  nextUpNote: document.getElementById('nextUpNote'),
   wakeRingingBanner: document.getElementById('wakeRingingBanner'),
   wakeAlarmsList: document.getElementById('wakeAlarmsList'),
-  wakeAlarmsNote: document.getElementById('wakeAlarmsNote'),
-  wakeAlarmsCount: document.getElementById('wakeAlarmsCount'),
   wakeAlarmAdd: document.getElementById('wakeAlarmAdd'),
+  wakeAlarmDialog: document.getElementById('wakeAlarmDialog'),
+  wakeAlarmEditorTitle: document.getElementById('wakeAlarmEditorTitle'),
+  wakeAlarmEditorClose: document.getElementById('wakeAlarmEditorClose'),
+  wakeAlarmEnabled: document.getElementById('wakeAlarmEnabled'),
+  wakeAlarmTime: document.getElementById('wakeAlarmTime'),
+  wakeAlarmLabel: document.getElementById('wakeAlarmLabel'),
+  wakeAlarmOnce: document.getElementById('wakeAlarmOnce'),
+  wakeAlarmDateRow: document.getElementById('wakeAlarmDateRow'),
+  wakeAlarmDate: document.getElementById('wakeAlarmDate'),
+  wakeAlarmDaysBlock: document.getElementById('wakeAlarmDaysBlock'),
+  wakeAlarmDays: document.getElementById('wakeAlarmDays'),
+  wakeAlarmDelete: document.getElementById('wakeAlarmDelete'),
+  wakeAlarmSave: document.getElementById('wakeAlarmSave'),
   wakeTimersList: document.getElementById('wakeTimersList'),
-  wakeTimersNote: document.getElementById('wakeTimersNote'),
+  wakeTimerOpen: document.getElementById('wakeTimerOpen'),
+  wakeTimerSheet: document.getElementById('wakeTimerSheet'),
+  wakeTimerSheetClose: document.getElementById('wakeTimerSheetClose'),
   wakeTimerCustomMinutes: document.getElementById('wakeTimerCustomMinutes'),
   wakeTimerCustomAdd: document.getElementById('wakeTimerCustomAdd'),
-  // Reminders (Home tab, issue #314)
   remindersList: document.getElementById('remindersList'),
-  remindersNote: document.getElementById('remindersNote'),
-  remindersCount: document.getElementById('remindersCount'),
   reminderAdd: document.getElementById('reminderAdd'),
   reminderDialog: document.getElementById('reminderDialog'),
   reminderEditorTitle: document.getElementById('reminderEditorTitle'),
@@ -700,7 +706,10 @@ export const els = {
   reminderTime: document.getElementById('reminderTime'),
   reminderDelete: document.getElementById('reminderDelete'),
   reminderSave: document.getElementById('reminderSave'),
-  // Energy-flow card (GET /api/energy), Home tab — same view as the Energy tab.
+  // Home tab's House card (#885): its exception chips, who is home, and the
+  // compact energy flow (GET /api/energy) — the Energy tab's view.
+  houseChips: document.getElementById('houseChips'),
+  housePeople: document.getElementById('housePeople'),
   homeEnergyFlow: document.getElementById('homeEnergyFlow'),
   homeFlowPv: document.getElementById('homeFlowPv'),
   homeFlowGrid: document.getElementById('homeFlowGrid'),
@@ -709,18 +718,9 @@ export const els = {
   homeWirePv: document.getElementById('homeWirePv'),
   homeWireGrid: document.getElementById('homeWireGrid'),
   homeFlowGridName: document.getElementById('homeFlowGridName'),
-  // Home-tab weather tile (GET /api/weather)
-  weatherTile: document.getElementById('weatherTile'),
   // Every page header's theme toggle (#779), and the Settings nav-debug switch
   themeToggleBtns: Array.from(document.querySelectorAll('.theme-toggle-btn')),
   navDebugBtn: document.getElementById('navDebugBtn'),
-  wxLocation: document.getElementById('wxLocation'),
-  wxLocationLabel: document.getElementById('wxLocationLabel'),
-  wxNowIcon: document.getElementById('wxNowIcon'),
-  wxNowTemp: document.getElementById('wxNowTemp'),
-  wxFcIcon: document.getElementById('wxFcIcon'),
-  wxFcMin: document.getElementById('wxFcMin'),
-  wxFcMax: document.getElementById('wxFcMax'),
   // Energy tab: the glance card's flow diagram (live)
   paneEnergy: document.getElementById('paneEnergy'),
   energyFeedback: document.getElementById('energyFeedback'),

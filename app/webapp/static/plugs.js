@@ -398,24 +398,22 @@ function patchPlug(id, patch) {
 // ----------------------------------------------------------- summary stats
 // Totals over every known plug (state.plugs, Tuya lights excluded — the
 // Lights group counts those, #181), independent of the list filters: switches
-// on and off, and live watts on reachable metered plugs. They feed the
-// Devices tab's Power glance card (#884) and Home's plug line (#72).
+// on and live watts on reachable metered plugs. They feed the
+// Devices tab's Power glance card (#884), their one home since #885 retired
+// Home's plug line.
 function renderStats() {
   const devices = state.plugs.filter(function (d) { return !d.is_light; });
   if (!devices.length) {
-    if (els.homePlugsStats) els.homePlugsStats.hidden = true;
     if (els.powerNow) els.powerNow.hidden = true;
     if (els.powerOnCount) els.powerOnCount.textContent = '';
     setHeadPart('iot', 'plugs', null);
     return;
   }
   let on = 0;
-  let off = 0;
   let watts = 0;
   const drawing = [];
   devices.forEach(function (d) {
     if (d.switch_on === true) on += 1;
-    else if (d.has_switch && d.switch_on === false) off += 1;
     if (d.metered && d.reachable && d.power_w != null) {
       watts += Number(d.power_w);
       if (Number(d.power_w) > 0) drawing.push(d);
@@ -423,11 +421,6 @@ function renderStats() {
   });
   const wattStr = fmtW(watts);
   const set = function (el, v) { if (el) el.textContent = v; };
-  set(els.homePlugStatTotal, String(devices.length));
-  set(els.homePlugStatOn, String(on));
-  set(els.homePlugStatOff, String(off));
-  set(els.homePlugStatWatts, wattStr);
-  if (els.homePlugsStats) els.homePlugsStats.hidden = false;
 
   // The glance card: the live total, then the three biggest draws by name.
   set(els.powerOnCount, on + ' on');
@@ -640,11 +633,6 @@ export function onPlugsTab(tab) {
   if (tab === 'iot') {
     loadPlugs();            // immediate refresh on entry (also the first load)
     schedule(POLL_MS);
-  } else if (tab === 'home') {
-    // Home shows the (informative) plug summary: load once on entry, but do not
-    // start the comparatively expensive LAN polling on the default tab (#72).
-    loadPlugs();
-    schedule(0);
   } else {
     schedule(0);
   }

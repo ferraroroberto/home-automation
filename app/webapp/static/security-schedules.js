@@ -15,16 +15,7 @@ import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
 import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
 import { denseListEditor, renderSummaryRow } from './dense-editor.js';
 import { friendlyError } from './format.js';
-
-const DAYS = [
-  ['mon', 'Mon'],
-  ['tue', 'Tue'],
-  ['wed', 'Wed'],
-  ['thu', 'Thu'],
-  ['fri', 'Fri'],
-  ['sat', 'Sat'],
-  ['sun', 'Sun'],
-];
+import { DAYS, daysSummary, renderDayPicker } from './days.js';
 
 function scheduleDefaults() {
   return {
@@ -113,38 +104,12 @@ function renderNextSchedule() {
   els.securityNext.hidden = false;
 }
 
-function daysSummary(days) {
-  const active = DAYS.map(function (day) { return day[0]; }).filter(function (day) {
-    return days.includes(day);
-  });
-  if (active.length === 7) return 'Every day';
-  if (active.join(',') === 'mon,tue,wed,thu,fri') return 'Weekdays';
-  if (active.join(',') === 'sat,sun') return 'Weekends';
-  return DAYS.filter(function (day) { return active.includes(day[0]); })
-    .map(function (day) { return day[1]; }).join(', ');
-}
-
 function renderEditorDays() {
   const staged = scheduleEditor.staged;
-  if (!els.securityScheduleDays || !staged) return;
-  els.securityScheduleDays.innerHTML = '';
-  DAYS.forEach(function (day) {
-    const btn = document.createElement('button');
-    const active = staged.days.includes(day[0]);
-    btn.type = 'button';
-    btn.className = 'alarm-schedule-day' + (active ? ' active' : '');
-    btn.textContent = day[1];
-    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    btn.addEventListener('click', function () {
-      const current = staged.days.slice();
-      const pos = current.indexOf(day[0]);
-      if (pos >= 0 && current.length > 1) current.splice(pos, 1);
-      else if (pos < 0) current.push(day[0]);
-      staged.days = DAYS.map(function (d) { return d[0]; })
-        .filter(function (value) { return current.includes(value); });
-      renderEditorDays();
-    });
-    els.securityScheduleDays.appendChild(btn);
+  if (!staged) return;
+  renderDayPicker(els.securityScheduleDays, staged.days, function (days) {
+    staged.days = days;
+    renderEditorDays();
   });
 }
 

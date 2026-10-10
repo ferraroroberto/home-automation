@@ -139,8 +139,9 @@ function selfConsumptionFrac(solar, house) {
 }
 
 // ----------------------------------------------------- render a live snapshot
-// Element groupings for the two *identical* Solar → Home ← Grid flow cards: the
-// Energy tab's and the Home tab's. Same view, rendered once (issue #57).
+// Element groupings for the two *identical* Solar → Home ← Grid flows: the
+// Energy tab's glance card and the Home tab's House card (#885). Same view,
+// rendered once (issue #57).
 const energyFlowRefs = {
   pv: els.flowPv, grid: els.flowGrid, house: els.flowHouse,
   nodePv: els.flowNodePv, wirePv: els.wirePv, wireGrid: els.wireGrid,
@@ -216,7 +217,7 @@ export function renderEnergy(e) {
   const solar = e.inverter_reachable ? e.pv_power_w : null;
   renderEnergyHead(e);
 
-  // Energy-tab flow card + the matching Home-tab card (revealed once it has data).
+  // Energy-tab flow + the matching one in Home's House card (revealed once it has data).
   renderFlowCard(energyFlowRefs, e, solar);
   renderFlowCard(homeFlowRefs, e, solar);
   els.homeEnergyFlow.hidden = false;
