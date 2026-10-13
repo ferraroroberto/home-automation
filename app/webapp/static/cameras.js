@@ -319,7 +319,7 @@ function streamUrl(cameraId) {
 
 function setRecButton(on) {
   liveRecording = on;
-  els.cameraRecBtn.classList.toggle('active', on);
+  els.cameraRecBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
 async function openLiveView(cameraId) {
@@ -346,18 +346,17 @@ function closeLiveView() {
   closeDialog(els.cameraLiveDialog);
 }
 
-// --- PTZ: mode toggle + step/hold buttons -----------------------------------
+// --- PTZ: Step · Hold mode + step/hold buttons -------------------------------
 function applyPtzMode() {
-  const step = state.cameraPtzMode === 'step';
-  els.cameraPtzModeBtn.textContent = step ? 'Step' : 'Hold';
-  els.cameraPtzModeBtn.setAttribute('aria-pressed', step ? 'true' : 'false');
-  els.cameraPtzModeBtn.title = step
-    ? 'One click = one step (precise). Tap to switch to press-and-hold.'
-    : 'Press and hold to move. Tap to switch to single-step.';
+  els.cameraPtzMode.querySelectorAll('.segmented-item').forEach(function (seg) {
+    seg.setAttribute('aria-pressed', seg.dataset.ptzMode === state.cameraPtzMode ? 'true' : 'false');
+  });
 }
 
-function togglePtzMode() {
-  state.cameraPtzMode = state.cameraPtzMode === 'step' ? 'hold' : 'step';
+function pickPtzMode(ev) {
+  const seg = ev.target.closest('.segmented-item');
+  if (!seg || seg.dataset.ptzMode === state.cameraPtzMode) return;
+  state.cameraPtzMode = seg.dataset.ptzMode;
   applyPtzMode();
 }
 
@@ -701,7 +700,7 @@ export function wireCameras() {
   bindPtzButton(els.cameraPtzRight, { direction: 'right' });
   bindPtzButton(els.cameraZoomIn, { zoom: 'in' });
   bindPtzButton(els.cameraZoomOut, { zoom: 'out' });
-  els.cameraPtzModeBtn.addEventListener('click', togglePtzMode);
+  els.cameraPtzMode.addEventListener('click', pickPtzMode);
   els.cameraPresetSave.addEventListener('click', savePreset);
   if (els.cameraPresetNameDialog) {
     els.cameraPresetNameClose.addEventListener('click', function () { closePresetNamePrompt(null); });

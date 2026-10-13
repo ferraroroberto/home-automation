@@ -375,7 +375,7 @@ export const els = {
   cameraZoomIn: document.getElementById('cameraZoomIn'),
   cameraZoomOut: document.getElementById('cameraZoomOut'),
   // Precise-PTZ + presets + snapshot zoom (issue #190)
-  cameraPtzModeBtn: document.getElementById('cameraPtzModeBtn'),
+  cameraPtzMode: document.getElementById('cameraPtzMode'),
   cameraPresetsRow: document.getElementById('cameraPresetsRow'),
   cameraPresetsList: document.getElementById('cameraPresetsList'),
   cameraPresetSave: document.getElementById('cameraPresetSave'),

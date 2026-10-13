@@ -37,6 +37,9 @@
   <link rel="stylesheet" href="/static/_vendored/text-size/text-size.css">
   <link rel="stylesheet" href="/static/_vendored/icon-button/icon-button.css">
   <link rel="stylesheet" href="/static/_vendored/action-row/action-row.css">
+  <link rel="stylesheet" href="/static/_vendored/button/button.css">
+  <link rel="stylesheet" href="/static/_vendored/segmented/segmented.css">
+  <link rel="stylesheet" href="/static/_vendored/modal/modal.css">
   <link rel="stylesheet" href="/static/styles.css">
   <title>Home Automation</title>
 </head>
@@ -1048,11 +1051,11 @@
           <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-type"></use></svg>
           Text size
         </span>
-        <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
-          <button type="button" class="range-tab" data-textsize="small">Small</button>
-          <button type="button" class="range-tab" data-textsize="default">Default</button>
-          <button type="button" class="range-tab" data-textsize="large">Large</button>
-        </nav>
+        <div class="segmented" id="textSizeControl" role="group" aria-label="Text size" data-track="settings.text-size">
+          <button type="button" class="segmented-item" aria-pressed="false" data-textsize="small">Small</button>
+          <button type="button" class="segmented-item" aria-pressed="true" data-textsize="default">Default</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-textsize="large">Large</button>
+        </div>
         <p class="muted small settings-text-size-hint">This device only. Buttons and spacing stay the same size.</p>
       </section>
 
@@ -1372,7 +1375,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Alarm notifications</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p class="muted small settings-sheet-note">Telegram alerts for automatic arm and disarm. Arming from this app is never notified.</p>
       <div class="notify-toggles">
@@ -1421,7 +1424,7 @@
       </div>
       <p id="notifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1430,7 +1433,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>UPS notifications</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p class="muted small settings-sheet-note">Telegram alerts when the PC and Wi-Fi UPS loses or regains mains power. The low-battery shutdown is in Devices › UPS.</p>
       <div class="notify-toggles">
@@ -1449,7 +1452,7 @@
       </div>
       <p id="powerNotifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1458,7 +1461,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Home location</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="presence-settings">
         <label class="row">
@@ -1473,10 +1476,10 @@
           <span>Longitude</span>
           <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
         </label>
-        <button id="locationUseBrowser" type="button" class="big-btn">Use this device location</button>
+        <button id="locationUseBrowser" type="button" class="button-tint">Use this device location</button>
       </div>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1487,7 +1490,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Places</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="presence-places-body">
         <p class="muted small settings-sheet-note">Places the voice locator names instead of a distance from home.</p>
@@ -1496,7 +1499,7 @@
         <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
       </div>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1505,7 +1508,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Presence automation</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="presence-settings">
         <div class="row">
@@ -1529,10 +1532,10 @@
           </button>
         </div>
         <p id="presenceAutomationNote" class="muted small settings-sheet-note" hidden></p>
-        <button id="pushSubscribe" type="button" class="big-btn">Enable notifications</button>
+        <button id="pushSubscribe" type="button" class="button-tint">Enable notifications</button>
       </div>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1546,7 +1549,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>PV system</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="pv-system-body">
         <p class="muted small settings-sheet-note">One panel row per orientation. The forecast is computed from these.</p>
@@ -1577,7 +1580,7 @@
         <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
       </div>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1589,7 +1592,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Export compensation</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="export-rate-body">
         <p class="muted small settings-sheet-note">Add a rate from the date it takes effect. Earlier rates stay in the history.</p>
@@ -1600,14 +1603,14 @@
           <label><span>EUR / kWh</span><input id="exportRateValue" type="number" min="0" max="10" step="0.00001" inputmode="decimal" class="input-native" placeholder="0.00000"></label>
           <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
           <div class="export-rate-actions">
-            <button id="exportRateDelete" type="button" class="button-ghost" hidden>Delete</button>
+            <button id="exportRateDelete" type="button" class="button-tint danger" hidden>Delete</button>
             <button id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
           </div>
         </div>
         <p id="exportRateError" class="field-error" role="alert" hidden></p>
       </div>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1620,7 +1623,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Solar boost</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="boost-coord-body">
         <p class="muted small settings-sheet-note">Units enter and leave boost one at a time, so their combined draw never outruns the surplus.</p>
@@ -1641,7 +1644,7 @@
         <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. Units are admitted in a fixed order by unit id.</p>
       </div>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1654,7 +1657,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Sun-position check</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="sun-overlay-body">
         <p class="muted small settings-sheet-note">Measured performance by hour against the sun's direction. A dip at the same direction every day is shading; one that moves with the clock is weather.</p>
@@ -1667,7 +1670,7 @@
         <p id="sunOverlayEmpty" class="muted small chart-empty" hidden>No measured hours for this day.</p>
       </div>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1679,12 +1682,12 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Search engine</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="searxngNote" class="muted small settings-sheet-note">Answers "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
-      <button id="searxngStartBtn" type="button" class="big-btn searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
+      <button id="searxngStartBtn" type="button" class="button-tint searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1698,9 +1701,9 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>What can I say?</h2>
-        <button type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
-      <div id="voiceLangToggle" class="range-tabs voice-lang-toggle" role="group" aria-label="Filter voice commands by language" hidden></div>
+      <div id="voiceLangToggle" class="segmented voice-lang-toggle" role="group" data-track="voice.lang" aria-label="Filter voice commands by language" hidden></div>
       <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
       <p id="voiceCommandsNote" class="muted small settings-sheet-note">Loading the voice commands…</p>
       <section id="voiceAppHelp" class="voice-app-help" aria-labelledby="voiceAppHelpHead">
@@ -1724,7 +1727,7 @@
         </section>
       </section>
       <div class="detail-actions">
-        <button type="button" class="detail-save-btn" data-sheet-done>Done</button>
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -1736,14 +1739,14 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Schedules</h2>
-        <button id="securitySchedulesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="securitySchedulesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="securitySchedules" class="alarm-schedule-list"></div>
       <p id="securitySchedulesNote" class="muted small schedule-empty" hidden></p>
       <button id="securityScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
       <p class="muted small detail-hint">Arms or disarms the alarm at the set time on the chosen days.</p>
       <div class="detail-actions">
-        <button id="securitySchedulesSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="securitySchedulesSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -1752,14 +1755,14 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Scene capture</h2>
-        <button id="scenePairingsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="scenePairingsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="scenePairings" class="alarm-schedule-list"></div>
       <p id="scenePairingsNote" class="muted small schedule-empty" hidden></p>
       <button id="scenePairingAdd" type="button" class="schedule-add-btn">+ Add pairing</button>
       <p class="muted small detail-hint">When a paired detector trips, its camera takes a picture and the AI judges a real or false alarm.</p>
       <div class="detail-actions">
-        <button id="scenePairingsSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="scenePairingsSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -1768,14 +1771,14 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Override</h2>
-        <button id="securityOverridesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="securityOverridesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="securityOverrides" class="alarm-schedule-list"></div>
       <p id="securityOverridesNote" class="muted small schedule-empty" hidden></p>
       <button id="securityOverrideAdd" type="button" class="schedule-add-btn">+ Add override</button>
       <p class="muted small detail-hint">After N triggers in one armed session, the detector is bypassed until the next arm.</p>
       <div class="detail-actions">
-        <button id="securityOverridesSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="securityOverridesSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -1788,12 +1791,12 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>All figures</h2>
-        <button id="energyFiguresSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="energyFiguresSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="energyFiguresRange" class="muted small detail-hint"></p>
       <div id="energyFiguresBody" class="energy-figures"></div>
       <div class="detail-actions">
-        <button id="energyFiguresSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="energyFiguresSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -1804,14 +1807,14 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Accounts</h2>
-        <button id="presenceAccountsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="presenceAccountsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="presenceAccounts" class="presence-accounts" data-testid="presence-accounts" hidden>
         <div id="presenceAccountsList" class="presence-accounts-list"></div>
       </div>
       <p id="presenceRefreshNote" class="muted small detail-hint"></p>
       <div class="detail-actions">
-        <button id="presenceAccountsSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="presenceAccountsSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -1820,7 +1823,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="securityOverrideEditorTitle">Override</h2>
-        <button id="securityOverrideEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="securityOverrideEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
@@ -1838,10 +1841,10 @@
         <select id="securityOverrideRetries" class="select-native"></select>
       </label>
 
-      <button id="securityOverrideDelete" type="button" class="schedule-editor-delete" hidden>Delete override</button>
+      <button id="securityOverrideDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete override</button>
 
       <div class="detail-actions">
-        <button id="securityOverrideSave" type="button" class="detail-save-btn">Save</button>
+        <button id="securityOverrideSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -1850,7 +1853,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="scenePairingEditorTitle">Scene pairing</h2>
-        <button id="scenePairingEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="scenePairingEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
@@ -1872,10 +1875,10 @@
         <select id="scenePairingPreset" class="select-native"></select>
       </label>
 
-      <button id="scenePairingDelete" type="button" class="schedule-editor-delete" hidden>Delete pairing</button>
+      <button id="scenePairingDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete pairing</button>
 
       <div class="detail-actions">
-        <button id="scenePairingSave" type="button" class="detail-save-btn">Save</button>
+        <button id="scenePairingSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -1884,7 +1887,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="securityScheduleEditorTitle">Schedule</h2>
-        <button id="securityScheduleEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="securityScheduleEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
@@ -1906,10 +1909,10 @@
         <div id="securityScheduleDays" class="alarm-schedule-days"></div>
       </div>
 
-      <button id="securityScheduleDelete" type="button" class="schedule-editor-delete" hidden>Delete schedule</button>
+      <button id="securityScheduleDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete schedule</button>
 
       <div class="detail-actions">
-        <button id="securityScheduleSave" type="button" class="detail-save-btn">Save</button>
+        <button id="securityScheduleSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -1921,7 +1924,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="blindScheduleEditorTitle">Schedule</h2>
-        <button id="blindScheduleEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="blindScheduleEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
@@ -1958,10 +1961,10 @@
         <div id="blindScheduleTargets" class="blind-schedule-targets"></div>
       </div>
 
-      <button id="blindScheduleDelete" type="button" class="schedule-editor-delete" hidden>Delete schedule</button>
+      <button id="blindScheduleDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete schedule</button>
 
       <div class="detail-actions">
-        <button id="blindScheduleSave" type="button" class="detail-save-btn">Save</button>
+        <button id="blindScheduleSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -1974,7 +1977,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="wakeAlarmEditorTitle">Wake alarm</h2>
-        <button id="wakeAlarmEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="wakeAlarmEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
@@ -2006,11 +2009,11 @@
         <div id="wakeAlarmDays" class="alarm-schedule-days"></div>
       </div>
 
-      <button id="wakeAlarmDelete" type="button" class="schedule-editor-delete" hidden>Delete wake alarm</button>
+      <button id="wakeAlarmDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete wake alarm</button>
       <p class="muted small detail-hint">By voice: “Okay Nabu, set a wake alarm for 7&nbsp;am on weekdays.”</p>
 
       <div class="detail-actions">
-        <button id="wakeAlarmSave" type="button" class="detail-save-btn">Save</button>
+        <button id="wakeAlarmSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -2022,7 +2025,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Timer</h2>
-        <button id="wakeTimerSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="wakeTimerSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="segmented segmented--verbs wake-timer-presets" role="group" aria-label="Start a timer">
         <button type="button" class="segmented-item" data-seconds="300">5 min</button>
@@ -2036,7 +2039,7 @@
       </label>
       <p class="muted small detail-hint">By voice: “Okay Nabu, set a timer for 5&nbsp;minutes.”</p>
       <div class="detail-actions">
-        <button id="wakeTimerCustomAdd" type="button" class="detail-save-btn">Start timer</button>
+        <button id="wakeTimerCustomAdd" type="button" class="button-primary detail-save-btn">Start timer</button>
       </div>
     </div>
   </dialog>
@@ -2047,7 +2050,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="reminderEditorTitle">Reminder</h2>
-        <button id="reminderEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="reminderEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -2072,11 +2075,11 @@
         </label>
       </div>
 
-      <button id="reminderDelete" type="button" class="schedule-editor-delete" hidden>Delete reminder</button>
+      <button id="reminderDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete reminder</button>
       <p class="muted small detail-hint">By voice: “Okay Nabu, remind me to take out the trash at 6&nbsp;pm tomorrow.”</p>
 
       <div class="detail-actions">
-        <button id="reminderSave" type="button" class="detail-save-btn">Save</button>
+        <button id="reminderSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -2087,7 +2090,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="presencePlaceEditorTitle">Place</h2>
-        <button id="presencePlaceEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="presencePlaceEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -2108,14 +2111,14 @@
       </label>
 
       <div class="place-coord-btns">
-        <button id="presencePlaceUseBrowser" type="button" class="big-btn">Use my current location</button>
-        <button id="presencePlacePickMap" type="button" class="big-btn">Pick on map…</button>
+        <button id="presencePlaceUseBrowser" type="button" class="button-tint">Use my current location</button>
+        <button id="presencePlacePickMap" type="button" class="button-tint">Pick on map…</button>
       </div>
 
-      <button id="presencePlaceDelete" type="button" class="schedule-editor-delete" hidden>Delete place</button>
+      <button id="presencePlaceDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete place</button>
 
       <div class="detail-actions">
-        <button id="presencePlaceSave" type="button" class="detail-save-btn">Save</button>
+        <button id="presencePlaceSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -2127,7 +2130,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="presenceTrustTitle">Renew iCloud trust</h2>
-        <button id="presenceTrustClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="presenceTrustClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="presenceTrustHint" class="muted small">Apple pushed a 6-digit code to the account's trusted devices.</p>
       <label class="row">
@@ -2136,7 +2139,7 @@
       </label>
       <p id="presenceTrustNote" class="muted small security-note" role="status" hidden></p>
       <div class="detail-actions">
-        <button id="presenceTrustVerify" type="button" class="detail-save-btn" data-testid="presence-trust-verify">Verify</button>
+        <button id="presenceTrustVerify" type="button" class="button-primary detail-save-btn" data-testid="presence-trust-verify">Verify</button>
       </div>
     </div>
   </dialog>
@@ -2149,13 +2152,13 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Pick a location</h2>
-        <button id="presenceMapPickerClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="presenceMapPickerClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p class="muted small">Tap or drag the pin to the place you mean.</p>
       <div id="presenceMapPicker" class="place-map-picker"></div>
       <p id="presenceMapPickerCoords" class="muted small">—</p>
       <div class="detail-actions">
-        <button id="presenceMapPickerConfirm" type="button" class="detail-save-btn">Use this location</button>
+        <button id="presenceMapPickerConfirm" type="button" class="button-primary detail-save-btn">Use this location</button>
       </div>
     </div>
   </dialog>
@@ -2168,7 +2171,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="pvArrayEditorTitle">Panel row</h2>
-        <button id="pvArrayEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="pvArrayEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -2193,10 +2196,10 @@
       </p>
       <p id="pvArrayAzimuthError" class="pv-field-error" role="alert" hidden></p>
 
-      <button id="pvArrayDelete" type="button" class="schedule-editor-delete" hidden>Delete panel row</button>
+      <button id="pvArrayDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete panel row</button>
 
       <div class="detail-actions">
-        <button id="pvArraySave" type="button" class="detail-save-btn">Save</button>
+        <button id="pvArraySave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -2210,7 +2213,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="pvHorizonEditorTitle">Horizon point</h2>
-        <button id="pvHorizonEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="pvHorizonEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -2229,10 +2232,10 @@
       </label>
       <p id="pvHorizonElevationError" class="pv-field-error" role="alert" hidden></p>
 
-      <button id="pvHorizonDelete" type="button" class="schedule-editor-delete" hidden>Delete horizon point</button>
+      <button id="pvHorizonDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete horizon point</button>
 
       <div class="detail-actions">
-        <button id="pvHorizonSave" type="button" class="detail-save-btn">Save</button>
+        <button id="pvHorizonSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -2245,9 +2248,9 @@
   <dialog id="detailDialog" class="detail-dialog unit-sheet">
     <div class="detail-card">
       <div class="detail-header">
-        <button id="detailBack" type="button" class="detail-close hit-target unit-sheet-back" aria-label="Back" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
+        <button id="detailBack" type="button" class="icon-button detail-close unit-sheet-back" aria-label="Back" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
         <h2 id="detailName">Unit</h2>
-        <button id="detailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="detailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <!-- Shown when the unit's adapter has lost its cloud connection (#520):
@@ -2384,7 +2387,7 @@
       </div>
 
       <div class="detail-actions">
-        <button id="detailDone" type="button" class="detail-save-btn">Done</button>
+        <button id="detailDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -2396,7 +2399,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="acScheduleEditorTitle">Schedule</h2>
-        <button id="acScheduleEditorClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="acScheduleEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
@@ -2444,10 +2447,10 @@
         </label>
       </div>
 
-      <button id="acScheduleDelete" type="button" class="schedule-editor-delete" hidden>Delete schedule</button>
+      <button id="acScheduleDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete schedule</button>
 
       <div class="detail-actions">
-        <button id="acScheduleSave" type="button" class="detail-save-btn">Save</button>
+        <button id="acScheduleSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -2463,7 +2466,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>UPS</h2>
-        <button id="upsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="upsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="upsSheetStatus" class="ups-sheet-status"></div>
       <h3 class="sheet-section-head"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg>Fleet shutdown</h3>
@@ -2482,7 +2485,7 @@
       <p id="pcFleetNote" class="muted small security-note" role="status" hidden></p>
       <p class="muted small detail-hint">The hub host shuts down last. Mains-loss alerts are in Settings › Notifications.</p>
       <div class="detail-actions">
-        <button id="upsSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="upsSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -2493,7 +2496,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="lightSheetName">Light</h2>
-        <button id="lightSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="lightSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="lightSheetOffline" class="muted small detail-hint" hidden>Not reachable right now.</p>
       <div class="row">
@@ -2514,7 +2517,7 @@
         </li>
       </ul>
       <div class="detail-actions">
-        <button id="lightSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="lightSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -2525,7 +2528,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Blind schedule</h2>
-        <button id="blindSchedulesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="blindSchedulesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="blindSchedules" class="alarm-schedule-list"></div>
       <p id="blindSchedulesNote" class="muted small schedule-empty" hidden></p>
@@ -2538,7 +2541,7 @@
       </div>
       <p class="muted small detail-hint blind-alarm-note">All down when everyone leaves and the alarm arms full; all up on the first arrival, in daytime only. Kids home leaves them up.</p>
       <div class="detail-actions">
-        <button id="blindSchedulesSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="blindSchedulesSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -2549,13 +2552,13 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Voice satellites</h2>
-        <button id="haSatellitesSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="haSatellitesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="haSatellitesList" class="ha-satellite-list" aria-live="polite"></div>
       <p id="haSatellitesNote" class="muted small ha-note">Reading Home Assistant rooms…</p>
       <p class="muted small detail-hint">Tap Talk, speak, then Stop: the text is announced in that room. One microphone records at a time.</p>
       <div class="detail-actions">
-        <button id="haSatellitesSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="haSatellitesSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -2564,12 +2567,12 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Recent interactions</h2>
-        <button id="haInteractionsSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="haInteractionsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="haInteractionsList" class="ha-interaction-list"></div>
       <p class="muted small detail-hint">Collected only while this app is running.</p>
       <div class="detail-actions">
-        <button id="haInteractionsSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="haInteractionsSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -2583,7 +2586,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Network</h2>
-        <button id="networkSheetClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="networkSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="networkBody" class="network-body">
         <div id="netFeedback" class="network-feedback" role="status" hidden></div>
@@ -2597,7 +2600,7 @@
           <p id="netInternetMeta" class="muted small net-internet-meta">— no data</p>
           <p id="netSpeedResult" class="net-speed-result" hidden>—</p>
           <div id="netTrends" class="net-trends" data-testid="net-trends" hidden></div>
-          <button id="netSpeedBtn" type="button" class="big-btn net-speed-btn" data-testid="net-speedtest">
+          <button id="netSpeedBtn" type="button" class="button-tint net-speed-btn" data-testid="net-speedtest">
             <svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg>Run speed test
           </button>
           <!-- Opt-in nightly run (#840), off until switched on. The 03:00 here is
@@ -2623,14 +2626,14 @@
           <section class="card net-health-card" id="netApCard">
             <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-wifi"></use></svg><span id="netApName">Access point</span></h3>
             <p id="netApMeta" class="muted small net-health-meta">— no data</p>
-            <button id="netApReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-ap-reboot" hidden>
+            <button id="netApReboot" type="button" class="button-tint net-reboot-btn" data-testid="net-ap-reboot" hidden>
               <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot AP
             </button>
           </section>
           <section class="card net-health-card" id="netRouterCard">
             <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-router"></use></svg><span id="netRouterName">Router</span></h3>
             <p id="netRouterMeta" class="muted small net-health-meta">— no data</p>
-            <button id="netRouterReboot" type="button" class="big-btn net-reboot-btn" data-testid="net-router-reboot" disabled
+            <button id="netRouterReboot" type="button" class="button-tint net-reboot-btn" data-testid="net-router-reboot" disabled
                     title="Router login required to reboot">
               <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot
             </button>
@@ -2652,7 +2655,7 @@
           </summary>
           <div class="net-wifi-body">
             <div class="card-toolbar">
-              <button id="netWifiHiddenToggle" type="button" class="range-tab" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
+              <button id="netWifiHiddenToggle" type="button" class="button-surface utility-btn" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
             </div>
             <p id="netWifiMeta" class="muted small net-wifi-meta">—</p>
             <div id="netWifiRecommendations" class="net-wifi-recommendations" hidden></div>
@@ -2697,7 +2700,7 @@
             <div id="netSurveyDeviceRow" class="net-survey-device">
               <svg class="icon net-survey-device-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
               <span id="netSurveyDeviceName" class="net-survey-device-name">No device picked</span>
-              <button id="netSurveyDevicePick" type="button" class="range-tab net-survey-action" data-testid="net-survey-pick">Pick device</button>
+              <button id="netSurveyDevicePick" type="button" class="button-surface utility-btn net-survey-action" data-testid="net-survey-pick">Pick device</button>
             </div>
 
             <div id="netSurveyForm" class="net-survey-form">
@@ -2705,7 +2708,7 @@
                      placeholder="Room (e.g. Kitchen)" aria-label="Room" autocomplete="off"
                      data-testid="net-survey-room">
               <datalist id="netSurveyRoomList"></datalist>
-              <button id="netSurveyRecord" type="button" class="range-tab net-survey-action net-survey-record"
+              <button id="netSurveyRecord" type="button" class="button-surface utility-btn net-survey-action net-survey-record"
                       data-testid="net-survey-record">Record here</button>
             </div>
             <p id="netSurveyProgress" class="muted small net-survey-progress" role="status" aria-live="polite" hidden></p>
@@ -2734,8 +2737,8 @@
                 <button id="netSortAlpha" type="button" class="net-sort-btn active" data-sort="az">A-Z</button>
                 <button id="netSortSignal" type="button" class="net-sort-btn" data-sort="signal">Signal</button>
               </div>
-              <button id="netOfflineToggle" type="button" class="range-tab" data-testid="net-show-offline" hidden>Offline hidden</button>
-              <button id="netHiddenToggle" type="button" class="range-tab" data-testid="net-show-hidden" hidden>Show hidden</button>
+              <button id="netOfflineToggle" type="button" class="button-surface utility-btn" data-testid="net-show-offline" hidden>Offline hidden</button>
+              <button id="netHiddenToggle" type="button" class="button-surface utility-btn" data-testid="net-show-hidden" hidden>Show hidden</button>
             </div>
 
             <!-- Group by: the user's own device groups (issue #513, the default —
@@ -2772,7 +2775,7 @@
             <div class="net-dhcp-head">
               <p class="muted small net-dhcp-intro">Mark reservations to remove and tick suggestions to add, then apply everything at once. The router holds 10 reservations.</p>
               <div class="net-dhcp-actions">
-                <button id="netDhcpRefresh" type="button" class="range-tab" data-testid="net-dhcp-refresh">
+                <button id="netDhcpRefresh" type="button" class="button-surface utility-btn" data-testid="net-dhcp-refresh">
                   <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh
                 </button>
               </div>
@@ -2797,7 +2800,7 @@
                 <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="Hardware address (AA:BB:CC:DD:EE:FF)" aria-label="Hardware address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
                 <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="Network address (192.168.0.x)" aria-label="Network address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
                 <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" aria-label="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
-                <button id="netDhcpManualAdd" type="button" class="range-tab net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
+                <button id="netDhcpManualAdd" type="button" class="button-surface utility-btn net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
                   <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> Stage
                 </button>
               </div>
@@ -2808,8 +2811,8 @@
             <div id="netDhcpApplyBar" class="net-dhcp-applybar" hidden>
               <span id="netDhcpBudget" class="net-dhcp-budget"></span>
               <div class="net-dhcp-applybar-actions">
-                <button id="netDhcpClear" type="button" class="range-tab net-dhcp-clear" data-testid="net-dhcp-clear">Clear</button>
-                <button id="netDhcpApply" type="button" class="range-tab net-dhcp-apply" data-testid="net-dhcp-apply">
+                <button id="netDhcpClear" type="button" class="button-surface utility-btn net-dhcp-clear" data-testid="net-dhcp-clear">Clear</button>
+                <button id="netDhcpApply" type="button" class="button-surface utility-btn net-dhcp-apply" data-testid="net-dhcp-apply">
                   <svg class="icon" aria-hidden="true"><use href="#i-router"></use></svg> Apply changes
                 </button>
               </div>
@@ -2821,7 +2824,7 @@
 
       </div>
       <div class="detail-actions">
-        <button id="networkSheetDone" type="button" class="detail-save-btn">Done</button>
+        <button id="networkSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -2832,7 +2835,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="lightDetailName">Light</h2>
-        <button id="lightDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="lightDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -2849,7 +2852,7 @@
       <p id="lightIdentifier" class="muted small zone-original-name"></p>
 
       <div class="detail-actions">
-        <button id="lightSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="lightSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -2860,7 +2863,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="plugDetailName">Device</h2>
-        <button id="plugDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="plugDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -2879,7 +2882,7 @@
       </div>
 
       <div class="detail-actions">
-        <button id="plugSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="plugSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -2898,7 +2901,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="circuitDetailName">Circuit</h2>
-        <button id="circuitDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="circuitDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <!-- One channel's live readings. Hidden when the dialog is showing a
@@ -2951,7 +2954,7 @@
       </div>
 
       <div class="detail-actions">
-        <button id="circuitSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="circuitSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -2963,7 +2966,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="zoneDetailName">Detector</h2>
-        <button id="zoneDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="zoneDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Type</span><span id="zoneDetailType" class="muted">—</span></div>
@@ -2994,7 +2997,7 @@
       </div>
 
       <div class="detail-actions">
-        <button id="zoneSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="zoneSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -3004,7 +3007,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cameraDetailName">Camera</h2>
-        <button id="cameraDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="cameraDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <img id="cameraSnapshot" class="camera-snapshot" alt="Camera snapshot">
       <div id="cameraSnapshotEmpty" class="camera-snapshot-empty" hidden>
@@ -3018,11 +3021,11 @@
       </label>
       <!-- Live view is a secondary verb in the body; Save is the footer's one
            primary (J-02 of #872, #882). -->
-      <button id="cameraLiveBtn" type="button" class="big-btn camera-live-open">
+      <button id="cameraLiveBtn" type="button" class="button-tint camera-live-open">
         <svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg> Open live view
       </button>
       <div class="detail-actions">
-        <button id="cameraSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="cameraSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -3032,7 +3035,7 @@
     <div class="detail-card camera-live-card">
       <div class="detail-header">
         <h2 id="cameraLiveName">Camera</h2>
-        <button id="cameraLiveClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="cameraLiveClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="camera-live-stage">
         <img id="cameraLiveImg" class="camera-live-img" alt="Live camera view">
@@ -3049,22 +3052,25 @@
              beside the pad; the capture actions get their own row so no label wraps
              or clips at phone width (#859). -->
         <div class="camera-live-side">
-          <button id="cameraPtzModeBtn" type="button" class="range-tab camera-mode-toggle" aria-pressed="true" title="One click = one step (precise) vs press-and-hold">Step</button>
+          <div id="cameraPtzMode" class="segmented camera-mode" role="group" aria-label="Pan and tilt mode" data-track="camera.ptz-mode">
+            <button type="button" class="segmented-item" aria-pressed="true" data-ptz-mode="step" title="One click = one step (precise)">Step</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-ptz-mode="hold" title="Press and hold to move">Hold</button>
+          </div>
           <div class="camera-zoom-pair" role="group" aria-label="Zoom">
-            <button id="cameraZoomOut" type="button" class="range-tab camera-zoom">Zoom out</button>
-            <button id="cameraZoomIn" type="button" class="range-tab camera-zoom">Zoom in</button>
+            <button id="cameraZoomOut" type="button" class="button-surface utility-btn camera-zoom">Zoom out</button>
+            <button id="cameraZoomIn" type="button" class="button-surface utility-btn camera-zoom">Zoom in</button>
           </div>
         </div>
         <div class="camera-live-actions">
-          <button id="cameraSnapBtn" data-track="camera.snapshot" type="button" class="range-tab camera-action"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>Screenshot</button>
-          <button id="cameraRecBtn" data-track="camera.record" type="button" class="range-tab camera-rec camera-action"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg>Record</button>
+          <button id="cameraSnapBtn" data-track="camera.snapshot" type="button" class="button-surface utility-btn camera-action"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>Screenshot</button>
+          <button id="cameraRecBtn" data-track="camera.record" type="button" class="button-surface utility-btn camera-rec camera-action" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg>Record</button>
         </div>
       </div>
       <!-- Saved position presets (issue #190). Hidden when the camera has no preset support. -->
       <div id="cameraPresetsRow" class="camera-presets" hidden>
         <span class="camera-controls-label">Presets</span>
         <div id="cameraPresetsList" class="camera-presets-list"></div>
-        <button id="cameraPresetSave" type="button" class="range-tab camera-preset-save">+ Save</button>
+        <button id="cameraPresetSave" type="button" class="button-surface utility-btn camera-preset-save">+ Save</button>
       </div>
       <!-- Manual coordinates (issue #190). Hidden unless the camera supports absolute moves. -->
       <div id="cameraCoordsRow" class="camera-coords" hidden>
@@ -3073,7 +3079,7 @@
         <label class="camera-coord"><span>Tilt</span><input id="cameraTiltInput" type="number" step="0.01" class="input-native"></label>
         <label class="camera-coord camera-coord-zoom"><span>Zoom</span><input id="cameraZoomInput" type="number" step="0.01" class="input-native"></label>
         <button id="cameraCoordsRefresh" type="button" class="icon-button" aria-label="Read current position"><svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg></button>
-        <button id="cameraCoordsGo" type="button" class="range-tab camera-coords-go">Go</button>
+        <button id="cameraCoordsGo" type="button" class="button-surface utility-btn camera-coords-go">Go</button>
       </div>
     </div>
   </dialog>
@@ -3083,7 +3089,7 @@
     <div class="detail-card camera-zoom-card">
       <div class="detail-header">
         <h2 id="cameraZoomName">Camera</h2>
-        <button id="cameraZoomClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="cameraZoomClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <img id="cameraZoomImg" class="camera-zoom-img" alt="Last camera snapshot">
     </div>
@@ -3097,7 +3103,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="cameraPresetNameTitle">Preset name</h2>
-        <button id="cameraPresetNameClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="cameraPresetNameClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -3106,7 +3112,7 @@
       </label>
 
       <div class="detail-actions">
-        <button id="cameraPresetNameSave" type="button" class="detail-save-btn">Save</button>
+        <button id="cameraPresetNameSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -3116,7 +3122,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="presenceDetailName">Presence</h2>
-        <button id="presenceDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="presenceDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Status</span><span id="presenceDetailStatus" class="muted">—</span></div>
@@ -3147,7 +3153,7 @@
       </div>
 
       <div class="detail-actions">
-        <button id="presenceDetailSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="presenceDetailSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -3160,7 +3166,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="netDeviceDetailName">Device</h2>
-        <button id="netDeviceDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="netDeviceDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Status</span><span id="netDeviceStatus" class="muted">—</span></div>
@@ -3216,7 +3222,7 @@
       <p id="netDeviceMac" class="muted small zone-original-name"></p>
 
       <div class="detail-actions">
-        <button id="netDeviceSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="netDeviceSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -3229,7 +3235,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="netGroupDialogTitle">Group</h2>
-        <button id="netGroupDialogClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="netGroupDialogClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Devices</span><span id="netGroupMembers" class="muted">—</span></div>
@@ -3243,10 +3249,10 @@
            .schedule-editor-delete secondary every other editor modal here uses
            (#570) — the design.md modal footer carries exactly one full-width
            solid-accent primary, never a second always-visible action. -->
-      <button id="netGroupDelete" type="button" class="schedule-editor-delete" data-testid="net-group-delete">Delete group</button>
+      <button id="netGroupDelete" type="button" class="button-tint danger schedule-editor-delete" data-testid="net-group-delete">Delete group</button>
 
       <div class="detail-actions">
-        <button id="netGroupSave" type="button" class="detail-save-btn" disabled>Save</button>
+        <button id="netGroupSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
       </div>
     </div>
   </dialog>
@@ -3257,7 +3263,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="netWifiDetailName">Wi-Fi</h2>
-        <button id="netWifiDetailClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="netWifiDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row"><span>Status</span><span id="netWifiDetailStatus" class="muted">—</span></div>
@@ -3282,7 +3288,7 @@
       <!-- An instant sheet (#880): each field saves as it changes, so the one
            primary is Done, which only closes. -->
       <div class="detail-actions">
-        <button id="netWifiDone" type="button" class="detail-save-btn">Done</button>
+        <button id="netWifiDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -3295,7 +3301,7 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2>Which device is this?</h2>
-        <button id="netSurveyDialogClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="netSurveyDialogClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p class="muted small net-survey-picker-hint">
         Pick the phone or tablet you’re holding. On iPhone, open Settings, then Wi-Fi, tap the
@@ -3313,12 +3319,12 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2 id="confirmTitle">Confirm</h2>
-        <button id="confirmClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="confirmClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="confirmMessage" class="muted confirm-message">— no data</p>
       <div class="confirm-actions">
-        <button id="confirmCancel" type="button" class="big-btn confirm-cancel">Cancel</button>
-        <button id="confirmOk" type="button" class="big-btn confirm-ok" data-testid="confirm-ok">Confirm</button>
+        <button id="confirmCancel" type="button" class="button-tint confirm-cancel">Cancel</button>
+        <button id="confirmOk" type="button" class="button-tint confirm-ok" data-testid="confirm-ok">Confirm</button>
       </div>
     </div>
   </dialog>
@@ -3331,13 +3337,13 @@
     <div class="detail-card">
       <div class="detail-header">
         <h2><svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Activity log</h2>
-        <button id="activityClose" type="button" class="detail-close hit-target" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button id="activityClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
-      <nav class="range-tabs activity-modes" role="tablist" aria-label="View">
-        <button id="activityModeEvents" type="button" class="range-tab active" role="tab" aria-selected="true" data-mode="events">Events</button>
-        <button id="activityModeReadings" type="button" class="range-tab" role="tab" aria-selected="false" data-mode="readings">Readings</button>
-      </nav>
+      <div class="segmented activity-modes" role="group" aria-label="View" data-track="activity.mode">
+        <button id="activityModeEvents" type="button" class="segmented-item" aria-pressed="true" data-mode="events">Events</button>
+        <button id="activityModeReadings" type="button" class="segmented-item" aria-pressed="false" data-mode="readings">Readings</button>
+      </div>
 
       <!-- Legend (#296): a collapsible glossary so each event type / reading
            metric / severity colour is self-explaining. Pure HTML <details>,
@@ -3395,7 +3401,7 @@
       <h2><svg class="icon title-icon" aria-hidden="true"><use href="#i-log-in"></use></svg>Sign in</h2>
       <p class="muted small">Enter the password to control your units.</p>
       <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required>
-      <button type="submit" class="big-btn">Unlock</button>
+      <button type="submit" class="button-tint">Unlock</button>
       <div id="loginError" class="login-error" hidden></div>
     </form>
   </div>

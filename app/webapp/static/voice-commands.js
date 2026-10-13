@@ -58,7 +58,7 @@ function renderLangToggle() {
     const btn = document.createElement('button');
     const pressed = (state.voiceLang || 'all') === filter.id;
     btn.type = 'button';
-    btn.className = 'range-tab' + (pressed ? ' active' : '');
+    btn.className = 'segmented-item';
     btn.textContent = filter.label;
     btn.dataset.testid = 'voice-lang-' + filter.id;
     btn.setAttribute('aria-pressed', String(pressed));

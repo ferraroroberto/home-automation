@@ -2,8 +2,9 @@
  *
  * The `icon()` helper this composes lives in the vendored fleet component at
  * _vendored/icons/icons.js (adopted verbatim in issue #407); this file keeps
- * only the app-specific empty-state builder, whose action button rides the
- * app's `range-tab` class rather than the fleet empty-state component's CSS.
+ * only the app-specific empty-state builder, whose action button is the
+ * vendored `button-surface` tier (#906) rather than the fleet empty-state
+ * component's CSS.
  */
 
 'use strict';
@@ -26,7 +27,7 @@ export function emptyStateEl(name, message, opts) {
   if (opts && opts.actionLabel) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'range-tab empty-state-action';
+    btn.className = 'button-surface utility-btn empty-state-action';
     btn.textContent = opts.actionLabel;
     if (opts.onAction) btn.addEventListener('click', opts.onAction);
     wrap.appendChild(btn);

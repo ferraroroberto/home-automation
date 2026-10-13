@@ -135,7 +135,6 @@ function renderWifiHiddenToggle(hiddenCount) {
   if (!els.netWifiHiddenToggle) return;
   els.netWifiHiddenToggle.hidden = hiddenCount === 0;
   els.netWifiHiddenToggle.textContent = state.networkShowHiddenWifi ? 'Hide' : 'Show hidden';
-  els.netWifiHiddenToggle.classList.toggle('active', state.networkShowHiddenWifi);
   els.netWifiHiddenToggle.setAttribute('aria-pressed', state.networkShowHiddenWifi ? 'true' : 'false');
 }
 

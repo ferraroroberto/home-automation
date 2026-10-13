@@ -327,7 +327,6 @@ function renderOfflineToggle(dormantCount) {
   if (!btn) return;
   btn.hidden = dormantCount === 0;
   btn.textContent = state.networkShowOffline ? 'Offline shown' : 'Offline hidden';
-  btn.classList.toggle('active', state.networkShowOffline);
 }
 
 function renderDeviceHiddenToggle(hiddenCount) {
@@ -339,7 +338,6 @@ function renderDeviceHiddenToggle(hiddenCount) {
   if (!btn) return;
   btn.hidden = hiddenCount === 0;
   btn.textContent = state.networkShowHiddenDevices ? 'Hide' : 'Show hidden';
-  btn.classList.toggle('active', state.networkShowHiddenDevices);
   btn.setAttribute('aria-pressed', state.networkShowHiddenDevices ? 'true' : 'false');
 }
 
