@@ -15,7 +15,18 @@ real `logs/*.jsonl` trail.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from pathlib import Path
+
 import pytest
+
+# The usage-log router (#906) binds its SQLite path when `app.webapp.server`
+# builds the app at import, before any fixture runs, so the redirect has to be
+# in the environment before the first test module imports the server. One
+# throwaway file per run; the suite never reads the real usage.sqlite3.
+USAGE_TEST_DB = Path(tempfile.mkdtemp(prefix="ha_usage_")) / "usage.sqlite3"
+os.environ["USAGE_LOG_DB_PATH"] = str(USAGE_TEST_DB)
 
 
 @pytest.fixture(autouse=True)

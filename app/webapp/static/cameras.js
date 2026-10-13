@@ -190,6 +190,7 @@ function cameraRow(cam) {
     });
   }
   const row = rowEl({
+    track: 'camera.row',
     className: 'camera-row ' + (cam.reachable ? 'is-online' : 'is-offline'),
     lead: buildThumb(cam),
     title: cameraLabel(cam),

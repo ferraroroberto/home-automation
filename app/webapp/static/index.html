@@ -507,11 +507,11 @@
           Home
         </h2>
         <span class="status" data-head="home"></span>
-        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
-        <button type="button" class="icon-button home-toggle hit-target settings-open-btn"
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
                 title="Settings" aria-label="Settings">
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
         </button>
@@ -584,9 +584,9 @@
         <ul id="remindersList" class="action-rows" aria-label="Reminders"></ul>
         <p id="nextUpNote" class="muted small group-note" role="status" hidden></p>
         <div class="group-foot">
-          <button id="wakeAlarmAdd" type="button" class="group-foot-btn">Add alarm</button>
-          <button id="wakeTimerOpen" type="button" class="group-foot-btn" aria-haspopup="dialog">Start timer</button>
-          <button id="reminderAdd" type="button" class="group-foot-btn">Add reminder</button>
+          <button id="wakeAlarmAdd" data-track="alarms.add" type="button" class="group-foot-btn">Add alarm</button>
+          <button id="wakeTimerOpen" data-track="timers.open" type="button" class="group-foot-btn" aria-haspopup="dialog">Start timer</button>
+          <button id="reminderAdd" data-track="reminders.add" type="button" class="group-foot-btn">Add reminder</button>
         </div>
       </section>
 
@@ -600,11 +600,11 @@
           AC
         </h2>
         <span class="status" data-head="ac"></span>
-        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
-        <button type="button" class="icon-button home-toggle hit-target settings-open-btn"
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
                 title="Settings" aria-label="Settings">
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
         </button>
@@ -623,11 +623,11 @@
           Energy
         </h2>
         <span class="status" data-head="energy"></span>
-        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
-        <button type="button" class="icon-button home-toggle hit-target settings-open-btn"
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
                 title="Settings" aria-label="Settings">
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
         </button>
@@ -723,7 +723,7 @@
           <h3 id="energyHistoryTitle" class="group-title">History</h3>
         </div>
         <div class="energy-history-body">
-          <div class="segmented" id="historyRange" role="group" aria-label="History period">
+          <div class="segmented" id="historyRange" role="group" aria-label="History period" data-track="energy.history-range">
             <button type="button" class="segmented-item" aria-pressed="false" data-range="live">Live</button>
             <button type="button" class="segmented-item" aria-pressed="true" data-range="day">Day</button>
             <button type="button" class="segmented-item" aria-pressed="false" data-range="week">Week</button>
@@ -731,7 +731,7 @@
             <button type="button" class="segmented-item" aria-pressed="false" data-range="year">Year</button>
             <button type="button" class="segmented-item" aria-pressed="false" data-range="total">All</button>
           </div>
-          <div class="segmented" id="historyView" role="group" aria-label="History shows">
+          <div class="segmented" id="historyView" role="group" aria-label="History shows" data-track="energy.history-view">
             <button type="button" class="segmented-item" aria-pressed="true" data-view="energy">Energy</button>
             <button type="button" class="segmented-item" aria-pressed="false" data-view="money">Money</button>
           </div>
@@ -757,7 +757,7 @@
           <ul id="costPeriods" class="action-rows cost-periods"></ul>
           <ul class="action-rows group-links">
             <li class="action-row">
-              <button id="energyFiguresOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <button id="energyFiguresOpen" data-track="energy.figures" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
                 <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg></span>
                 <span class="action-row-text">
                   <span class="action-row-title">All figures</span>
@@ -767,7 +767,7 @@
               </button>
             </li>
             <li class="action-row">
-              <button id="exportRateOpen" type="button" class="action-row-main has-avatar group-link">
+              <button id="exportRateOpen" data-track="energy.export-rate" type="button" class="action-row-main has-avatar group-link">
                 <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-euro"></use></svg></span>
                 <span class="action-row-text">
                   <span class="action-row-title">Export rate</span>
@@ -792,7 +792,7 @@
           <span id="forecastMeta" class="group-meta"></span>
         </div>
         <div class="forecast-body">
-          <div class="segmented" id="forecastDay" role="group" aria-label="Forecast day">
+          <div class="segmented" id="forecastDay" role="group" aria-label="Forecast day" data-track="energy.forecast-day">
             <button type="button" class="segmented-item" aria-pressed="false" data-day="yesterday">Yesterday</button>
             <button type="button" class="segmented-item" aria-pressed="true" data-day="today">Today</button>
             <button type="button" class="segmented-item" aria-pressed="false" data-day="tomorrow">Tomorrow</button>
@@ -818,11 +818,11 @@
           Devices
         </h2>
         <span class="status" data-head="iot"></span>
-        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
-        <button type="button" class="icon-button home-toggle hit-target settings-open-btn"
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
                 title="Settings" aria-label="Settings">
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
         </button>
@@ -856,9 +856,9 @@
         <div id="lightsList" class="device-rows" aria-label="Lights" aria-live="polite"></div>
         <p id="lightsNote" class="muted small group-note" role="status" hidden></p>
         <div class="group-foot">
-          <button id="lightsAllOn" type="button" class="group-foot-btn" data-testid="lights-all-on">All on</button>
-          <button id="lightsAllOff" type="button" class="group-foot-btn" data-testid="lights-all-off">All off</button>
-          <button id="lightsRefresh" type="button" class="group-foot-btn" data-testid="lights-refresh">Refresh</button>
+          <button id="lightsAllOn" data-track="lights.all-on" type="button" class="group-foot-btn" data-testid="lights-all-on">All on</button>
+          <button id="lightsAllOff" data-track="lights.all-off" type="button" class="group-foot-btn" data-testid="lights-all-off">All off</button>
+          <button id="lightsRefresh" data-track="lights.refresh" type="button" class="group-foot-btn" data-testid="lights-refresh">Refresh</button>
         </div>
       </section>
 
@@ -881,16 +881,16 @@
               </span>
             </div>
             <div class="segmented segmented--row action-row-trail" role="group" aria-label="Move all blinds">
-              <button id="blindsAllUp" type="button" class="segmented-item" data-testid="blinds-all-up" title="All up" aria-label="All up"><svg class="icon" aria-hidden="true"><use href="#i-chevron-up"></use></svg></button>
-              <button id="blindsAllStop" type="button" class="segmented-item" data-testid="blinds-all-stop" title="All stop" aria-label="All stop"><svg class="icon blind-stop-icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
-              <button id="blindsAllDown" type="button" class="segmented-item" data-testid="blinds-all-down" title="All down" aria-label="All down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+              <button id="blindsAllUp" data-track="blinds.all-up" type="button" class="segmented-item" data-testid="blinds-all-up" title="All up" aria-label="All up"><svg class="icon" aria-hidden="true"><use href="#i-chevron-up"></use></svg></button>
+              <button id="blindsAllStop" data-track="blinds.all-stop" type="button" class="segmented-item" data-testid="blinds-all-stop" title="All stop" aria-label="All stop"><svg class="icon blind-stop-icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
+              <button id="blindsAllDown" data-track="blinds.all-down" type="button" class="segmented-item" data-testid="blinds-all-down" title="All down" aria-label="All down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
             </div>
           </li>
         </ul>
         <div id="blindsList" class="device-rows" aria-label="Blinds"></div>
         <ul class="action-rows group-links">
           <li class="action-row">
-            <button id="blindSchedulesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="blindSchedulesOpen" data-track="blinds.schedules" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Schedule</span>
@@ -912,8 +912,8 @@
         </div>
         <div id="plugsList" class="device-rows" aria-label="Plugs"></div>
         <div class="group-foot">
-          <button id="plugsHiddenToggle" type="button" class="group-foot-btn" data-testid="plugs-show-hidden-toggle" aria-controls="plugsList" hidden>Show hidden</button>
-          <button id="plugsPair" type="button" class="group-foot-btn" data-testid="plugs-pair">Add device</button>
+          <button id="plugsHiddenToggle" data-track="devices.show-hidden" type="button" class="group-foot-btn" data-testid="plugs-show-hidden-toggle" aria-controls="plugsList" hidden>Show hidden</button>
+          <button id="plugsPair" data-track="devices.pair" type="button" class="group-foot-btn" data-testid="plugs-pair">Add device</button>
         </div>
       </section>
       <p id="plugsNote" class="muted small plugs-note" hidden></p>
@@ -932,7 +932,7 @@
         <div id="circuitsList" class="device-rows" aria-label="Circuits" aria-live="polite"></div>
         <p id="circuitsNote" class="muted small group-note" role="status" hidden></p>
         <div class="group-foot">
-          <button id="circuitsHiddenToggle" type="button" class="group-foot-btn" data-testid="circuits-show-hidden-toggle" aria-controls="circuitsList" hidden>Show hidden</button>
+          <button id="circuitsHiddenToggle" data-track="circuits.show-hidden" type="button" class="group-foot-btn" data-testid="circuits-show-hidden-toggle" aria-controls="circuitsList" hidden>Show hidden</button>
         </div>
       </section>
 
@@ -954,14 +954,14 @@
                 <span class="action-row-meta"><span id="homeAssistantSummaryState" class="action-row-meta-text">Reading status…</span></span>
               </span>
             </div>
-            <button id="homeVmToggle" type="button" class="toggle vm-toggle action-row-trail" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
+            <button id="homeVmToggle" data-track="vm.power" type="button" class="toggle vm-toggle action-row-trail" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
               <span class="knob"></span><span class="toggle-label">OFF</span>
             </button>
           </li>
         </ul>
         <ul class="action-rows group-links">
           <li class="action-row">
-            <button id="haSatellitesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="haSatellitesOpen" data-track="ha.satellites" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Voice satellites</span>
@@ -973,7 +973,7 @@
           <!-- Hidden until the first interaction arrives (#805): an always-empty
                sheet offered nothing to do. -->
           <li id="haInteractionsCard" class="action-row" hidden>
-            <button id="haInteractionsOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="haInteractionsOpen" data-track="ha.interactions" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Recent interactions</span>
@@ -996,7 +996,7 @@
         </div>
         <ul class="action-rows group-links">
           <li class="action-row">
-            <button id="networkInternetOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="networkInternetOpen" data-track="network.internet" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span id="networkInternetAvatar" class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-globe"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Internet</span>
@@ -1006,7 +1006,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button id="networkDevicesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="networkDevicesOpen" data-track="network.devices" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Attached devices</span>
@@ -1033,7 +1033,7 @@
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
           Settings
         </h2>
-        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
@@ -1060,7 +1060,7 @@
       <section class="card action-list settings-group" aria-labelledby="settingsNotifyHead">
         <ul class="action-rows settings-links">
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyAlarmSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyAlarmSheet" data-track="settings.notifyAlarmSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
               <span class="action-row-title">Alarm</span>
               <span id="notifyAlarmValue" class="settings-link-value"></span>
@@ -1068,7 +1068,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyUpsSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyUpsSheet" data-track="settings.notifyUpsSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg>
               <span class="action-row-title">UPS power</span>
               <span id="notifyUpsValue" class="settings-link-value"></span>
@@ -1082,7 +1082,7 @@
       <section class="card action-list settings-group" aria-labelledby="settingsPeopleHead">
         <ul class="action-rows settings-links">
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="homeLocationSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="homeLocationSheet" data-track="settings.homeLocationSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-house"></use></svg>
               <span class="action-row-title">Home location</span>
               <span id="locationValue" class="settings-link-value"></span>
@@ -1090,7 +1090,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="presencePlacesSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="presencePlacesSheet" data-track="settings.presencePlacesSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
               <span class="action-row-title">Places</span>
               <span id="presencePlacesCount" class="settings-link-value"></span>
@@ -1098,7 +1098,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="presenceAutomationSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="presenceAutomationSheet" data-track="settings.presenceAutomationSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-users"></use></svg>
               <span class="action-row-title">Presence automation</span>
               <span id="presenceAutomationValue" class="settings-link-value"></span>
@@ -1112,7 +1112,7 @@
       <section class="card action-list settings-group" aria-labelledby="settingsEnergyHead">
         <ul class="action-rows settings-links">
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="pvSystemSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="pvSystemSheet" data-track="settings.pvSystemSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
               <span class="action-row-title">PV system</span>
               <span id="pvSystemTotal" class="settings-link-value"></span>
@@ -1120,7 +1120,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="exportRateSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="exportRateSheet" data-track="settings.exportRateSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-euro"></use></svg>
               <span class="action-row-title">Export compensation</span>
               <span id="exportRateCurrent" class="settings-link-value"></span>
@@ -1128,7 +1128,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="boostCoordSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="boostCoordSheet" data-track="settings.boostCoordSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
               <span class="action-row-title">Solar boost</span>
               <span id="boostCoordSummary" class="settings-link-value"></span>
@@ -1136,7 +1136,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="sunOverlaySheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="sunOverlaySheet" data-track="settings.sunOverlaySheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>
               <span class="action-row-title">Sun-position check</span>
               <span id="sunOverlayCount" class="settings-link-value"></span>
@@ -1150,7 +1150,7 @@
       <section class="card action-list settings-group" aria-labelledby="settingsVoiceHead">
         <ul class="action-rows settings-links">
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="searxngSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="searxngSheet" data-track="settings.searxngSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-search"></use></svg>
               <span class="action-row-title">Search engine</span>
               <span id="searxngSummaryState" class="settings-link-value">Reading…</span>
@@ -1158,7 +1158,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-settings-sheet="voiceSheet" aria-haspopup="dialog">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="voiceSheet" data-track="settings.voiceSheet" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
               <span class="action-row-title">What can I say?</span>
               <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
@@ -1174,7 +1174,7 @@
                disarm, plug switches, power, presence, panel events). activity.js
                opens its own overlay from this row. -->
           <li class="action-row">
-            <button id="activityOpen" type="button" class="action-row-main settings-link" aria-haspopup="dialog">
+            <button id="activityOpen" data-track="settings.activity" type="button" class="action-row-main settings-link" aria-haspopup="dialog">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
               <span class="action-row-title">Activity log</span>
               <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
@@ -1201,11 +1201,11 @@
           Security
         </h2>
         <span class="status" data-head="security"></span>
-        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn"
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
                 title="Toggle theme" aria-label="Toggle dark mode">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         </button>
-        <button type="button" class="icon-button home-toggle hit-target settings-open-btn"
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
                 title="Settings" aria-label="Settings">
           <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
         </button>
@@ -1229,7 +1229,7 @@
               </span>
             </div>
             <span id="presenceKidsHomeHint" class="visually-hidden">Arm perimeter only, not full, when everyone leaves. Resets on the next disarm.</span>
-            <button id="presenceKidsHome" type="button" class="toggle action-row-trail" role="switch" aria-checked="false" aria-labelledby="presenceKidsHomeLabel" aria-describedby="presenceKidsHomeHint">
+            <button id="presenceKidsHome" data-track="presence.kids-home" type="button" class="toggle action-row-trail" role="switch" aria-checked="false" aria-labelledby="presenceKidsHomeLabel" aria-describedby="presenceKidsHomeHint">
               <span class="knob"></span><span class="toggle-label">OFF</span>
             </button>
           </li>
@@ -1251,8 +1251,8 @@
         <div id="securityZones" class="security-zones"></div>
         <p id="securityZonesNote" class="muted small group-note" hidden></p>
         <div class="group-foot">
-          <button id="securityZonesMore" type="button" class="group-foot-btn" aria-controls="securityZones" hidden>Show all</button>
-          <button id="securityHiddenToggle" type="button" class="group-foot-btn" data-testid="detectors-show-hidden-toggle" aria-controls="securityZones" hidden>Show hidden</button>
+          <button id="securityZonesMore" data-track="security.zones-more" type="button" class="group-foot-btn" aria-controls="securityZones" hidden>Show all</button>
+          <button id="securityHiddenToggle" data-track="security.show-hidden" type="button" class="group-foot-btn" data-testid="detectors-show-hidden-toggle" aria-controls="securityZones" hidden>Show hidden</button>
         </div>
       </section>
 
@@ -1277,7 +1277,7 @@
         <p id="presenceNote" class="muted small group-note" role="status" hidden></p>
         <ul class="action-rows group-links">
           <li class="action-row">
-            <button id="presenceAccountsOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="presenceAccountsOpen" data-track="presence.accounts" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-smartphone"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Accounts</span>
@@ -1288,7 +1288,7 @@
           </li>
         </ul>
         <div class="group-foot">
-          <button id="presenceHiddenToggle" type="button" class="group-foot-btn" data-testid="presence-show-hidden-toggle" aria-controls="presenceList" hidden>Show hidden</button>
+          <button id="presenceHiddenToggle" data-track="presence.show-hidden" type="button" class="group-foot-btn" data-testid="presence-show-hidden-toggle" aria-controls="presenceList" hidden>Show hidden</button>
         </div>
       </section>
 
@@ -1303,7 +1303,7 @@
         <p id="securityEventsNote" class="muted small group-note" hidden></p>
         <ul class="action-rows group-links">
           <li class="action-row">
-            <button id="securityEventsAll" type="button" class="action-row-main group-link" aria-haspopup="dialog">
+            <button id="securityEventsAll" data-track="security.events" type="button" class="action-row-main group-link" aria-haspopup="dialog">
               <span class="action-row-text"><span class="action-row-title">All events</span></span>
               <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
             </button>
@@ -1320,7 +1320,7 @@
         </div>
         <ul class="action-rows group-links">
           <li class="action-row">
-            <button id="securitySchedulesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="securitySchedulesOpen" data-track="security.schedules" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Schedules</span>
@@ -1330,7 +1330,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button id="scenePairingsOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="scenePairingsOpen" data-track="security.scene-pairings" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Scene capture</span>
@@ -1340,7 +1340,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button id="securityOverridesOpen" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+            <button id="securityOverridesOpen" data-track="security.overrides" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
               <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-shield-check"></use></svg></span>
               <span class="action-row-text">
                 <span class="action-row-title">Override</span>
@@ -2275,12 +2275,12 @@
 
         <div class="unit-sheet-field">
           <span id="detailModeLabel" class="unit-sheet-label">Mode</span>
-          <div id="detailMode" class="segmented unit-mode-segmented" role="group" aria-labelledby="detailModeLabel"></div>
+          <div id="detailMode" class="segmented unit-mode-segmented" role="group" aria-labelledby="detailModeLabel" data-track="ac.mode"></div>
         </div>
 
         <div id="detailFanSpeedRow" class="unit-sheet-field" hidden>
           <span id="detailFanLabel" class="unit-sheet-label">Fan</span>
-          <div id="detailFanSpeed" class="segmented" role="group" aria-labelledby="detailFanLabel"></div>
+          <div id="detailFanSpeed" class="segmented" role="group" aria-labelledby="detailFanLabel" data-track="ac.fan"></div>
         </div>
 
         <!-- Settings-group rows (design.md `settings group`): a lead glyph,
@@ -3056,8 +3056,8 @@
           </div>
         </div>
         <div class="camera-live-actions">
-          <button id="cameraSnapBtn" type="button" class="range-tab camera-action"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>Screenshot</button>
-          <button id="cameraRecBtn" type="button" class="range-tab camera-rec camera-action"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg>Record</button>
+          <button id="cameraSnapBtn" data-track="camera.snapshot" type="button" class="range-tab camera-action"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>Screenshot</button>
+          <button id="cameraRecBtn" data-track="camera.record" type="button" class="range-tab camera-rec camera-action"><svg class="icon" aria-hidden="true"><use href="#i-video"></use></svg>Record</button>
         </div>
       </div>
       <!-- Saved position presets (issue #190). Hidden when the camera has no preset support. -->

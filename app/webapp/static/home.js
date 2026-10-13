@@ -42,6 +42,7 @@ export function setHousePart(source, exceptions) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'chip chip-button house-chip';
+    btn.dataset.track = 'home.house-chip';
     if (x.tone) btn.dataset.tone = x.tone;
     btn.textContent = x.text;
     if (x.label) btn.setAttribute('aria-label', x.label);

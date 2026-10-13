@@ -134,6 +134,7 @@ _TEARDOWN_TIMEOUT_S = float(os.environ.get("E2E_TEARDOWN_TIMEOUT_S", "15"))
 # Throwaway telemetry DB for the autobooted webapp, so a control action in the
 # e2e flow can't mirror events into the real webapp/telemetry.sqlite3 (#296).
 _E2E_TELEMETRY_DB = Path(tempfile.gettempdir()) / "ha_e2e_telemetry.sqlite3"
+_E2E_USAGE_DB = Path(tempfile.gettempdir()) / "ha_e2e_usage.sqlite3"
 
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
@@ -471,6 +472,9 @@ def base_url() -> Iterator[str]:
             # actions in the e2e flow (arm/disarm/plug toggles) can't mirror
             # events into the real webapp/telemetry.sqlite3 (#296).
             "TELEMETRY_DB_PATH": str(_E2E_TELEMETRY_DB),
+            # The browser posts views and taps to /api/usage/events (#906);
+            # keep a test boot's clicks out of the real usage log.
+            "USAGE_LOG_DB_PATH": str(_E2E_USAGE_DB),
             # Same for the HVAC automation engine: never drive real units from a
             # test boot (the dormant-tick short-circuit makes it harmless with no
             # config, but keep it explicitly off like the sampler).

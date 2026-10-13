@@ -217,6 +217,7 @@ function acRow(u) {
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'toggle ac-line-toggle' + (on ? ' on' : '');
+  toggle.dataset.track = 'ac.power';
   toggle.setAttribute('role', 'switch');
   toggle.setAttribute('aria-checked', on ? 'true' : 'false');
   toggle.setAttribute('aria-label', 'Power ' + label);
@@ -250,6 +251,7 @@ function acRow(u) {
   }
   const row = rowEl({
     className: 'ac-row',
+    track: 'ac.row',
     glyph: modeIcon(u.operation_mode),
     badge: offline ? 'down' : (on ? 'up' : null),
     title: label,
