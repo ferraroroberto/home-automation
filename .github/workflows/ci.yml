@@ -1,0 +1,106 @@
+# Web-app CI gate: install, then the repo's own pre-ship gate on a clean runner.
+#
+# Adopted from project-scaffolding's canonical `ci.yml.template` (home-automation#905,
+# project-scaffolding#351; adoption notes in its docs/ci-conventions.md ->
+# "Web-app CI template"). Only the template's `# ADAPT:` lines changed, plus the
+# gate step below (see its comment): it follows every rule in docs/ci-conventions.md
+# (dated runner, Node-24 action majors, one run per commit, a timeout that caps a
+# wedge).
+#
+# CI IS ADVISORY. The local gate (scripts/verify-before-ship.ps1) is the contract;
+# this job is the clean-machine second opinion: a fresh .venv from the requirements
+# files, committed files only, the commit rather than somebody's working tree. The
+# duration and the flaky leg are declared in CLAUDE.md -> "CI expectations".
+#
+# QUIET BY DESIGN. No third-party service, no secret beyond the implicit
+# GITHUB_TOKEN (read-only below), no machine-local file read. A gitignored config
+# that is missing on the runner must make a test skip or use the repo's fixture
+# data, never fail; the seed step below supplies the committed samples. No device,
+# camera, calendar or push service is reachable from here, and every automation
+# engine stays off (HOME_AUTOMATION_ENGINES is never set).
+name: ci
+
+on:
+  push:
+    branches: [main]          # post-merge integration gate on main only
+  pull_request:
+    branches: [main]          # validates every feature branch via the PR event
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  gate:
+    runs-on: windows-2025          # not windows-latest -- pin the OS image
+    # Cap a wedge: GitHub's default is 6 h. The WebKit/phone projection is the part
+    # that can hang on the slower hosted runner; a wedge is a flake, not the diff.
+    timeout-minutes: 45            # ADAPT: ~4x this repo's typical green
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'   # ADAPT: the repo's Python
+
+      - name: Create .venv and install deps
+        # The install is part of what this job checks: the requirements files
+        # must produce a working environment on a machine with nothing on it.
+        # Each native call is checked -- a step only fails on the exit code of
+        # its LAST command, so an early pip failure would otherwise pass.
+        run: |
+          python -m venv .venv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\.venv\Scripts\python.exe -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install Playwright browsers
+        run: .\.venv\Scripts\python.exe -m playwright install chromium webkit
+
+      - name: Seed gitignored config from committed samples
+        # Config files are gitignored; only the `*.sample.*` templates are
+        # committed, and they carry no credential. Copy each to its live name
+        # when absent, so the suite runs against demo data instead of silently
+        # skipping an authed fixture. Loopback traffic bypasses the bearer
+        # middleware, so a sample token is enough.
+        run: |
+          Get-ChildItem -Path config -Filter '*.sample.*' -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $dest = Join-Path $_.DirectoryName ($_.Name -replace '\.sample(?=\.)', '')
+            if (-not (Test-Path $dest)) { Copy-Item $_.FullName $dest }
+          }
+
+      - name: Pre-ship gate (byte-compile, unit suite, e2e chromium + webkit/iPhone)
+        # ADAPT: the repo's own gate instead of the template's separate pytest
+        # steps. verify-before-ship.ps1 is the contract locally and already knows
+        # CI: with CI=true it skips diff routing and runs the whole tests/e2e
+        # suite. That suite boots its own disposable app instance (conftest
+        # fixture) and runs both projections itself -- Chromium desktop and WebKit
+        # projected onto an iPhone -- so the template's separate phone step (a
+        # `phone` marker + `--device`) has nothing to add and is dropped.
+        # PYTEST_ADDOPTS keeps the template's failure artifacts: a trace and a
+        # screenshot only for a failing test, uploaded below only on failure.
+        env:
+          PYTEST_ADDOPTS: --tracing retain-on-failure --screenshot only-on-failure --output test-results
+        run: .\scripts\verify-before-ship.ps1
+
+      - name: Upload e2e traces and screenshots
+        # Only on failure: a green run uploads nothing.
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failure-artifacts
+          path: |
+            test-results
+            webapp/verify-progress.run.log
+            webapp/e2e-autoboot.log
+          if-no-files-found: ignore
+          retention-days: 7

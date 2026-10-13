@@ -1623,6 +1623,15 @@ change to the e2e harness itself) gets the full Chromium + WebKit run. Any
 mixed, unmatched, or ambiguous diff fails safe to the full suite — routing
 never narrows coverage on uncertainty. On CI the full suite always runs.
 
+CI (`.github/workflows/ci.yml`) runs this same gate on a clean Windows runner
+for every PR and every push to `main`: a fresh `.venv` from the requirements
+files, only committed files, and each `config/*.sample.json` copied to its live
+name. It is advisory (no branch protection); the local gate is the contract.
+CI needs no secret, and no test or workflow step reaches a real device, camera,
+calendar or push service. A failing run uploads its Playwright traces and
+screenshots as an artifact. To reproduce a clean-runner red locally, run the
+suite from a checkout that has only the sample config files.
+
 Every gate run writes a per-test progress log: phase markers from the script,
 plus a `START`/`DONE (<s>)` line per browser test and a traceback excerpt under
 each `FAILED` line from the `tests/_progress_log.py` pytest plugin. The live
