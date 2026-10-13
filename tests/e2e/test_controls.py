@@ -18,7 +18,14 @@ from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rect
 
 def _boot(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    page.locator("#tabAc").click()
+    # Home's boot read already drew the AC rows, so they are visible the moment
+    # the tab opens; the tab's own read then redraws them. Wait for that read
+    # and its render, or a measurement can land on a row being replaced and
+    # read a detached node's all-zero rect (the intermittent red seen in #906).
+    with page.expect_response("**/api/units") as units:
+        page.locator("#tabAc").click()
+    units.value.finished()
+    page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))")
     page.wait_for_selector("#acUnits .ac-row", state="visible")
 
 
