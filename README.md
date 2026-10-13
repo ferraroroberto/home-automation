@@ -790,6 +790,15 @@ Cost, measured rather than estimated: ~78 bytes/row, ~108 KB/day, ~43 MB at the 
 
 > **Extensible by design (#283):** the `readings`/`events` tables are narrow (one row per observation/event) with a JSON sidecar column, so a new device type or field becomes new *rows*, never an `ALTER TABLE`. A new domain just needs a small pure adapter in `src/telemetry_adapters.py` (mapping its reading object → rows) wired into the sampler.
 
+## Usage log (views and taps)
+
+So a design review can read how the app is really used instead of asking, the PWA records which tabs are opened and which main controls are tapped, and on which device class (#906). It is the vendored `usage-log` component from `project-scaffolding`, both halves byte-identical: `app/webapp/static/_vendored/usage-log/usage-log.js` batches events and posts them to this app's own `POST /api/usage/events`, and `src/usage_log.py` stores them in `usage.sqlite3` under the fleet runtime-data dir for `home-automation` (`src/runtime_data.py`). `GET /api/usage/summary` and project-scaffolding's `scripts/usage_summary.py` read it back.
+
+- **What is stored:** event kind, view id (the tab), control id, a random per-visit session id, device class (phone/tablet/desktop), OS class and a server timestamp. Never names, values, URLs with queries, IPs or the user-agent; the server drops anything outside that.
+- **Control ids** are developer-chosen constants in `data-track` (`ac.power`, `energy.history-range`, `settings.text-size`, …), never derived from what an element says. Add one to a control a review would ask about, not to every button.
+- **Auth:** the router sits behind the same bearer middleware as every `/api` route; the client sends the token per request, like `api()`.
+- **Tests:** `USAGE_LOG_DB_PATH` overrides the file. The backend suite and every e2e boot point it at a temp file, so no test writes to the real log.
+
 ## Weather
 
 The **Home tab**'s page header carries the weather as its live line (#885,
