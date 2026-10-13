@@ -221,9 +221,15 @@ def test_camera_ptz_status_and_absolute_routes(
 
 
 def test_camera_preset_routes(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """Presets list / save / goto / delete drive the client without a camera."""
+    # The list route overlays the household's own preset names; point that store
+    # at an empty file so the assertion never depends on config/ (a clone seeded
+    # from the committed sample would otherwise rename "garden::1").
+    monkeypatch.setattr(
+        "src.camera_preset_names.DEFAULT_PATH", tmp_path / "camera_preset_names.json"
+    )
     store: List[dict] = [{"token": "1", "name": "Position 1"}]
     events: List[str] = []
 

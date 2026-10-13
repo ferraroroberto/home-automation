@@ -136,9 +136,13 @@ def test_energy_tab_renders_flow_and_charts(
 
 def test_energy_tab_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
-    mock_api: Callable,
+    mock_api: Callable, mock_security: Callable,
 ) -> None:
     mock_api(sample_units)
+    # The Home pane also reads /api/security on boot. Unstubbed it reaches the
+    # real RISCO cloud (a toast of its own when the instance has no credentials,
+    # as on a clean runner), and that toast would replace the energy one below.
+    mock_security()
     page.route(
         "**/api/energy",
         lambda route: route.fulfill(
