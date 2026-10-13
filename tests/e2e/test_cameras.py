@@ -80,7 +80,7 @@ _LABEL_FIT_JS = """els => els.map(el => {
 
 _CENTRE_JS = "el => { const r = el.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }"
 
-_LIVE_LABELS = ["Step", "Zoom out", "Zoom in", "Screenshot", "Record"]
+_LIVE_LABELS = ["Step", "Hold", "Zoom out", "Zoom in", "Screenshot", "Record"]
 
 
 @pytest.mark.chromium_only
@@ -226,7 +226,7 @@ def test_camera_live_controls_fit_a_phone(
     assert_min_target(controls)
     assert_no_overlap(controls)
 
-    fits = dialog.locator(".camera-live-controls .range-tab").evaluate_all(_LABEL_FIT_JS)
+    fits = dialog.locator(".camera-live-controls :is(.segmented-item, .utility-btn)").evaluate_all(_LABEL_FIT_JS)
     assert [fit["label"] for fit in fits] == _LIVE_LABELS
     for fit in fits:
         assert not fit["clipped"], f"{fit['label']!r} spills out of its button"

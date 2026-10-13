@@ -28,7 +28,7 @@ export function confirmAction(opts) {
   els.confirmTitle.textContent = (opts && opts.title) || 'Confirm';
   els.confirmMessage.textContent = (opts && opts.message) || '';
   els.confirmOk.textContent = (opts && opts.okLabel) || 'Confirm';
-  els.confirmOk.classList.toggle('is-danger', !!(opts && opts.danger));
+  els.confirmOk.classList.toggle('danger', !!(opts && opts.danger));
   return new Promise(function (resolve) {
     confirmResolver = resolve;
     openDialog(els.confirmDialog);

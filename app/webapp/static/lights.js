@@ -241,6 +241,7 @@ function powerSwitch(on, name, onClick) {
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'toggle' + (on ? ' on' : '');
+  toggle.dataset.track = 'light.power';
   toggle.setAttribute('role', 'switch');
   toggle.setAttribute('aria-checked', on ? 'true' : 'false');
   toggle.setAttribute('aria-label', 'Power ' + name);
@@ -271,6 +272,7 @@ function tuyaMeta(device) {
 function lightRow(opts) {
   const row = rowEl({
     className: 'light-row',
+    track: 'light.row',
     glyph: 'lightbulb',
     badge: opts.reachable ? null : 'down',
     title: opts.name,

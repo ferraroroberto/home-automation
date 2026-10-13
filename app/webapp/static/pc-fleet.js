@@ -96,7 +96,7 @@ function machineRow(machine) {
   if ((rawState === 'down' || rawState === 'dormant') && actions.wake === true) {
     const wake = document.createElement('button');
     wake.type = 'button';
-    wake.className = 'range-tab pc-fleet-wake';
+    wake.className = 'button-surface utility-btn pc-fleet-wake';
     wake.dataset.machineId = machine.id;
     wake.textContent = 'Wake';
     rail.appendChild(wake);

@@ -209,6 +209,7 @@ export function tuyaSwitch(device, label) {
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'toggle' + (on ? ' on' : '');
+  toggle.dataset.track = 'device.power';
   toggle.setAttribute('role', 'switch');
   toggle.setAttribute('aria-checked', on ? 'true' : 'false');
   toggle.setAttribute('aria-label', 'Power ' + (label || plugLabel(device) || 'device'));
@@ -235,6 +236,7 @@ function hiddenChip(device) {
 function plugRow(device) {
   const row = rowEl({
     className: 'plug-row',
+    track: 'device.row',
     glyph: 'plug-zap',
     title: plugLabel(device) || 'Device',
     meta: plugMeta(device),
@@ -285,6 +287,7 @@ const BLIND_WORDS = { open: 'up', stop: 'stopped', close: 'down' };
 function blindVerbs(name, act) {
   const group = document.createElement('div');
   group.className = 'segmented segmented--row';
+  group.dataset.track = 'blind.move';
   group.setAttribute('role', 'group');
   group.setAttribute('aria-label', 'Move ' + name);
   BLIND_VERBS.forEach(function (spec) {
@@ -305,6 +308,7 @@ function blindRow(device) {
   const name = plugLabel(device) || 'Blind';
   const row = rowEl({
     className: 'blind-row',
+    track: 'blind.row',
     glyph: 'blinds',
     badge: device.reachable ? null : 'down',
     title: name,

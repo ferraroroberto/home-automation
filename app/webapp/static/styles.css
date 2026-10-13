@@ -30,7 +30,9 @@
   /* status TEXT on its own tint (badge, chip, tinted button) — the base hue
      stays for fills, dots and borders; on its 16% tint it drops under AA
      (design.md "A hue used as text and as a fill needs two tokens", #779). */
+  --success: #1a7f37;
   --success-text: #116329;
+  --neutral-soft: color-mix(in srgb, var(--muted) 16%, transparent);
   --danger-text: #a40e26;
   --attention-text: #7d4e00;
   /* colors — the five saturated icon-tile fills (only saturated surfaces) */
@@ -138,6 +140,7 @@
   --on: #3fb950;            /* success */
   --deficit: #f85149;       /* danger */
   --attention: #d29922;     /* attention */
+  --success: #3fb950;
   --success-text: #56d364;
   --danger-text: #ff7b72;
   --attention-text: #e3b341;
@@ -354,13 +357,13 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   display: flex;
   justify-content: flex-end;
   gap: var(--space-sm);
-  /* The bottom 4px holds the range-tab's own 44px expansion (36 + 2x4), so it
+  /* The bottom 4px holds the utility button's own 44px expansion (36 + 2x4), so it
      never reaches into the first row's tap zone below. */
   padding-block: var(--space-sm) var(--space-xs);
 }
 .card-toolbar:not(:has(> :not([hidden]))) { display: none; }
 .card-toolbar--inset { padding-inline: 14px; }
-.card-toolbar .range-tab { flex: none; }
+.card-toolbar .utility-btn { flex: none; }
 .net-wifi-body > .card-toolbar { padding-top: 0; margin-bottom: var(--space-sm); }
 
 /* Page header (#779): the vendored home-head (_vendored/home-head/) opens every
@@ -412,7 +415,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .settings-switch-row { gap: var(--space-sm); padding: 0 14px; }
 .settings-switch-row .action-row-title { flex: 1; min-width: 0; }
 .settings-sheet-note { margin: 0 0 var(--space-sm); }
-/* Text size (#820): label, the vendored range-tab row, one hint line. A single
+/* Text size (#820): label, the vendored segmented control, one hint line. A single
    minmax(0, 1fr) track so Large can never widen the card past the column. */
 .settings-text-size {
   display: grid;
@@ -420,7 +423,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   gap: 8px;
   padding: 12px 14px;
 }
-.settings-text-size .range-tabs { margin-bottom: 0; }
+.settings-text-size .segmented { margin-bottom: 0; }
 .settings-text-size-label { display: flex; align-items: center; gap: var(--space-sm); font-weight: 600; }
 .settings-text-size-hint { margin: 0; }
 
@@ -471,72 +474,16 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .chip[data-tone="attention"] { --tone: var(--attention); --tone-text: var(--attention-text); }
 .chip[data-tone="danger"] { --tone: var(--deficit); --tone-text: var(--danger-text); }
 
-/* The page header's live line (head-status.js, #880): the vendored home-head
-   draws the slot muted; an exception part takes its tone's text colour, the
-   same *-text the chips use. Moves upstream in project-scaffolding#343. */
-.home-head .status .head-exception[data-tone="attention"] { color: var(--attention-text); }
-.home-head .status .head-exception[data-tone="danger"] { color: var(--danger-text); }
-
-/* The tab count badge is the vendored nav's (attention, card text). A
-   triggered alarm repaints the Security badge in danger, card text still
-   clearing 4.5:1 (5.4:1 light, 5.2:1 dark), until the nav takes a tone
-   itself (project-scaffolding#342; decision 10 of #872). */
-.tabs .tab[data-badge-tone="danger"] .tab-badge { background: var(--deficit); }
 
 /* ----------------------------------------------- segmented control (#879, #888)
-   One exclusive choice of 2-6 options: the alarm mode, the energy and money
-   periods, the forecast day. The selected segment IS the state (never a
-   sentence above faded options). Drawn as in the #872 mockup: no outer
-   border, a neutral-soft track with a 3px inset, borderless segments, and the
-   selected one raised on the card surface with a soft shadow, in fg. An armed
-   alarm is therefore never red (decision 3 of #872). Every label is fg on the
-   track (12.9:1 light, 11.9:1 dark); unavailable ones keep fg too, because
-   fg-muted on the track is 4.3:1 light and 3.8:1 dark, under AA. They read as
-   unavailable through disabled (screen readers), their title and the cursor,
-   never opacity. Segments are adjacent, so each reaches the 44px floor with
-   real height (verbs) or a vertical-only ::before band (pickers) that can't
-   overlap its neighbour. */
-.segmented {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  padding: 3px;
-  margin-bottom: 12px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--muted) 16%, transparent);
-  min-width: 0;
-}
-.segmented-item {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  height: calc(var(--control-h) - 6px);
-  padding: 0 4px;
-  border: 0;
-  border-radius: calc(var(--radius-md) - 3px);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--font-label);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.segmented-item::before { content: ""; position: absolute; inset: -8px 0; }
-.segmented-item:not(:disabled):not([aria-pressed="true"]):hover {
-  background: color-mix(in srgb, var(--muted) 10%, transparent);
-}
-.segmented-item[aria-pressed="true"] {
-  background: var(--card);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-}
-.segmented-item:disabled { cursor: not-allowed; }
-.segmented-item[aria-pressed="true"]:disabled { cursor: default; }
-/* Verbs that act on the house (the alarm mode) get the real 44px row. */
+   The control is the vendored one (_vendored/segmented/, #906), normalized
+   upstream from this app's own (project-scaffolding#341): the track, the
+   raised selected segment that IS the state, the 44px bands, the dark fill,
+   and the real 44px row of .segmented--verbs. It carries no outer margin, so
+   its placement is this app's: a picker sits 12px above what it changes, the
+   alarm verbs 12px below the state they change. */
+.segmented { margin-bottom: 12px; }
 .segmented--verbs { margin: 12px 0 0; }
-.segmented--verbs .segmented-item { height: calc(var(--hit-min) - 6px); }
-.segmented--verbs .segmented-item::before { inset: -4px 0; }
 
 /* ---------------------------------------------------- icons (Lucide) */
 /* Every app icon is <svg class="icon"><use href="#i-NAME"></use></svg>, drawn
@@ -898,41 +845,24 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .chart-wrap-forecast { height: 230px; }
 .chart-empty { margin: var(--space-sm) 0 0; text-align: center; }
 
-.range-tabs { display: flex; gap: 5px; margin-bottom: 12px; }
-/* Canonical range-tab: one height everywhere (--control-h, 36px — issue #361
-   census found 34/32/24px across energy/forecast/wake-timer/security/net
-   instances). Height is fixed and content is flex-centered so a smaller
-   font-size override in a compact context (e.g. .net-devices-head) changes
-   only the label, never the box. The ::before extends the tap target to
-   >=44px vertically (36 + 2x4 = 44) without inflating the visual pill —
-   width is left alone since every real instance is already wider than 44px
-   (fleet nav/switch pattern). */
-.range-tab {
+/* Labelled utility buttons (Refresh, Show hidden, Zoom in, Wake, ...) are the
+   vendored .button-surface tier (_vendored/button/, #906): it owns the fill,
+   hairline, --control-h height, label colour and the flat disabled recipe.
+   This class carries only the layout the retired pill row gave them, so
+   no row shifts: it grows in a flex row, centres an inline glyph beside its
+   word, and the ::before extends the tap target to >=44px
+   vertically (36 + 2x4) without inflating the box. A choice among peers is
+   never one of these; that is the vendored segmented control. */
+.utility-btn {
   position: relative;
   flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: var(--control-h);
-  background: var(--card-off);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 0 10px;
-  color: var(--muted);
-  font-size: var(--font-label);
-  font-weight: 600;
-  cursor: pointer;
+  gap: 5px;
 }
-.range-tab::before { content: ""; position: absolute; inset: -4px 0; }
-.range-tab.active {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-border-strong);
-}
-.range-tab:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+.utility-btn::before { content: ""; position: absolute; inset: -4px 0; }
+.utility-btn .icon { width: 16px; height: 16px; flex: none; }
 
 /* ----------------------------------------------------------- card */
 /* Cards sit one step above the canvas via surface color + a hairline border,
@@ -1008,7 +938,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 
 .vm-toggle { flex: none; }
 .ha-note { margin: 9px 0 0; }
-/* Search-engine sub-card Start button (issue #321): .big-btn already
+/* Search-engine sub-card Start button (issue #321): .button-tint already
    supplies the base look. */
 .searxng-start-btn {
   margin-top: 10px;
@@ -1126,8 +1056,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .voice-reply .icon { width: 16px; height: 16px; vertical-align: -3px; }
 .voice-group-notes { margin: var(--space-sm) 0 0 26px; padding-left: 18px; line-height: 1.45; }
 .voice-group-notes li + li { margin-top: var(--space-xs); }
-/* Voice-command language filter (#466): a segmented .range-tabs row at the
-   top of the "What can I say?" body — out of the summary since #779. */
+/* Voice-command language filter (#466): the vendored segmented control at
+   the top of the "What can I say?" body — out of the summary since #779. */
 .voice-lang-toggle { margin-bottom: var(--space-sm); }
 
 
@@ -1439,7 +1369,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .segmented--row .segmented-item::before { inset: -3px 0; }
 .segmented--row .segmented-item .icon { width: 18px; height: 18px; }
 .segmented--row .segmented-item .blind-stop-icon { width: 16px; height: 16px; }
-.segmented-item:active:not(:disabled) { transform: scale(0.96); }
 /* The All blinds row and the blind rows are two lists: one hairline between. */
 .blinds-all-row { border-bottom: 1px solid var(--line-muted); }
 /* The Offline fold: its chevron turns down while the plugs are listed. */
@@ -1489,18 +1418,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 /* A collapsible card's summary count and tools (other tabs' cards share these
    since the Detectors card was their first user, #104). */
 .security-hidden-count { line-height: 1; white-space: nowrap; }
-.security-zones-tools {
-  grid-column: 2;
-  justify-self: end;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-.security-zones-tools .range-tab {
-  flex: none;
-  padding: 0 8px;
-  font-size: var(--font-caption);
-}
 /* Original RISCO name under the rename field in the detector modal (#104). */
 .zone-original-name { margin: 6px 0 0; }
 /* Bypass is a state toggle: bypassed (off) keeps the danger fill; monitored
@@ -1641,7 +1558,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   font-weight: 600;
 }
 /* Per-account iCloud rows + Renew trust (issue #659) — the .presence-row grid
-   (name + trust state left, one .range-tab action right), state as plain
+   (name + trust state left, one .utility-btn action right), state as plain
    colour-coded caption text, no pill. Untrusted is
    amber (attention), not red: Find My keeps serving, only fresh sign-ins get
    expensive; a really broken account is red. */
@@ -1678,18 +1595,13 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   border-top: 1px solid var(--line);
 }
 .schedule-editor-days-label { font-weight: 600; }
+/* The look is the vendored outlined destructive button (.button-tint.danger,
+   #779, #906): red text on a hairline, never a filled button, so a destructive
+   action is the least prominent control in its dialog. Layout only here. */
 .schedule-editor-delete {
   width: 100%;
   min-height: 44px;
   margin-top: var(--space-sm);
-  border: 1px solid color-mix(in srgb, var(--deficit) 30%, var(--line));
-  border-radius: var(--radius-md);
-  /* Ghost, not tinted (#779): a destructive action is the least prominent
-     control in its dialog — red text on a hairline, never a filled button. */
-  background: transparent;
-  color: var(--danger-text);
-  font-weight: 700;
-  cursor: pointer;
 }
 .ac-feedback { margin: 0 0 var(--gap); }
 .presence-settings > .row,
@@ -1793,7 +1705,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   gap: 12px;
 }
 .pc-fleet-host-note { white-space: nowrap; }
-/* Wake button: a compact utility button that must not stretch (range-tab's
+/* Wake button: a compact utility button that must not stretch (.utility-btn's
    flex:1) and needs a >=44px effective tap target on its 36px visual box. */
 .pc-fleet-wake { flex: 0 0 auto; }
 .pc-fleet-wake::before { content: ""; position: absolute; inset: -4px; }
@@ -1818,8 +1730,8 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 }
 /* Place editor's two lat/lon fill helpers share one full-width row (so
    "Pick on map…" ends flush right, aligned with Delete/Save below) and take
-   .detail-save-btn as the size reference: same min-height and inherited font
-   instead of .big-btn's 48px / --font-body. flex-wrap + an auto basis lets
+   a compact size: the 44px floor and inherited font instead of the tint's
+   48px / --font-body. flex-wrap + an auto basis lets
    the pair stack, each full width, when both labels don't fit one line (the
    old nowrap + flex: 1 pushed "Pick on map…" past the card at 390px, #861);
    min-width: 0 + wrapping text keeps a lone button inside the card at 320px. */
@@ -1828,7 +1740,7 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   flex-wrap: wrap;
   gap: 8px;
 }
-.place-coord-btns .big-btn {
+.place-coord-btns .button-tint {
   flex: 1 1 auto;
   min-width: 0;
   min-height: var(--hit-min);
@@ -1853,83 +1765,10 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
 }
 
-/* ----------------------------------------------------------- detail modal */
-.detail-dialog {
-  border: none;
-  border-radius: var(--radius);
-  padding: 0;
-  width: min(440px, 92vw);
-  /* Cap to the viewport and scroll the card *inside* the dialog so a tall modal
-     never spills past the screen and drags the page behind it (iOS Safari leaves
-     the document scrollable behind a <dialog> that overflows the viewport, which
-     also rode the modal up off-screen — #214). overscroll-behavior keeps the
-     touch from chaining to the body once the card hits its scroll end. */
-  max-height: 92vh;
-  max-height: 92dvh;
-  overflow: auto;
-  overscroll-behavior: contain;
-  background: transparent;
-}
-.detail-dialog::backdrop { background: var(--scrim); }
-/* Top-anchor every .detail-dialog on mobile instead of leaning on the UA's
-   default vertical auto-centering over `92vh`/`92dvh` (#300). That centering
-   left an asymmetric, wrongly-coloured gap near the bottom of the screen on
-   iOS — roughly where the (hidden) floating nav normally sits — because the
-   UA-computed centering math doesn't reliably track the true visual viewport
-   across a dialog open/close. Anchoring `top` explicitly with the same
-   safe-area technique the nav bar already relies on, and letting
-   `margin-bottom: auto` absorb the remainder instead of stretching the box,
-   removes that guesswork: short dialogs sit just under the top gap (generous
-   room for the notch/camera) and tall ones (e.g. Activity Log) are capped by
-   `max-height` well short of the physical bottom edge, so there is nothing
-   left uncovered by the dialog + its backdrop. Desktop keeps the original
-   UA-centered behaviour untouched. */
-@media (pointer: coarse) and (max-width: 520px) {
-  .detail-dialog {
-    margin: calc(env(safe-area-inset-top, 0px) + var(--space-lg)) auto auto;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--space-lg) - var(--gap));
-    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--space-lg) - var(--gap));
-  }
-}
-/* Lock the page while any modal is open so the background can't scroll behind it
-   (#214). That stray scroll also fed a non-zero visualViewport.offsetTop into
-   tabs.js' nav pinning, whose stale translate stranded the floating bar
-   mid-screen on close — locking the scroll keeps offsetTop at 0 (builds on
-   #205). Global, not media-gated: a centred desktop modal shouldn't scroll its
-   backdrop either. */
-body:has(dialog[open]) { overflow: hidden; }
-/* Standalone shell (#303): the rule above must NOT apply — body overflow
-   propagates to the viewport, and an unscrollable standalone document
-   contracts the layout viewport (932 → 873 on-device), which iOS then
-   re-expands 1px per frame on dialog close, repainting the nav behind a slow
-   "curtain". The document only ever has the shell's untouchable 1px spacer
-   range, and the real background scroller (.app) is locked by the rule
-   below, so nothing meaningful is left unlocked. Placed after the hidden
-   rule on purpose — same specificity, source order decides. */
-@media (display-mode: standalone) and (pointer: coarse) and (max-width: 520px) {
-  body:has(dialog[open]) { overflow: visible; }
-}
-/* Same lock for the standalone shell (#303), where `.app` — not the document —
-   is the scroller. `overflow: hidden` on an element scroller IS respected for
-   touch (the iOS quirk that forced scroll-lock.js's position:fixed body pin
-   only afflicts the document scroller) and preserves scrollTop, so the scroll
-   position survives the dialog round-trip with no save/restore. Inert outside
-   the standalone shell, where .app isn't a scroll container. */
-body:has(dialog[open]) .app { overflow: hidden; }
-.detail-card {
-  background: var(--card);
-  border-radius: var(--radius);
-  color: var(--ink);
-  padding: 18px;
-}
-.detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.detail-header h2 { margin: 0; font-size: var(--font-heading-lg); }
-.detail-close {
-  background: var(--close-bg); border: none; border-radius: var(--radius-md);
-  width: 34px; height: 34px; cursor: pointer; color: var(--muted);
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.detail-close .icon { width: 18px; height: 18px; }
+/* ----------------------------------------------------------- detail modal
+   The shell is the vendored modal (_vendored/modal/modal.css, #906): the
+   dialog, its iOS anchoring and scroll lock, the header and its icon-button
+   close, the rows and the sticky footer. Only this app's additions follow. */
 /* Banner explaining why the unit's mode/fan/vane selects are disabled (#520).
    Attention-toned like the card's Offline chip (same 16% tint), tinted rather
    than solid so it reads the same in light and dark. */
@@ -1942,13 +1781,6 @@ body:has(dialog[open]) .app { overflow: hidden; }
   font-size: var(--font-caption);
   font-weight: 600;
 }
-.detail-card .row {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 12px 0; border-top: 1px solid var(--line);
-}
-.detail-card .row span { color: var(--ink); font-weight: 600; }
-.detail-card .row .select-native,
-.detail-card .row .input-native { min-width: 55%; }
 .input-native {
   font-size: var(--font-label);
   padding: 0 10px;
@@ -2053,47 +1885,10 @@ body:has(dialog[open]) .app { overflow: hidden; }
   .schedule-enabled { grid-column: 1 / -1; }
 }
 
-/* Detail-modal Save footer (#202): settings stage locally and commit only here.
-   Sticky to the bottom of the modal so it stays reachable on long detail cards;
-   disabled until something changes. */
-.detail-actions {
-  position: sticky;
-  bottom: 0;
-  margin: 14px -18px -18px;
-  padding: 12px 18px;
-  background: var(--card);
-  border-top: 1px solid var(--line);
-  border-radius: 0 0 var(--radius) var(--radius);
-}
-.detail-save-btn {
-  position: relative;
-  width: 100%;
-  min-height: var(--control-h);
-  border: 1px solid var(--accent-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--accent-fill);
-  color: var(--accent-fg);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-/* 36px height is below the 44px floor (#wakeTimerCustomAdd among others,
-   issue #361 review); the ::before extends the tap target vertically without
-   inflating the visual button (issue #367). */
-.detail-save-btn::before { content: ""; position: absolute; inset: -4px 0; }
-/* One disabled recipe for both themes (issue #362): opacity on the solid
-   accent fill blends unevenly per theme (white text vanishes against the
-   light canvas' white while it only greys against the dark canvas' near-
-   black — sub-AA either way, ~2.2:1 light / ~2.5:1 dark). Swapping to the
-   flat --card-off/--muted/--line trio (the same "quiet, unselected" look
-   already used by .range-tab) reads identically greyed-out in both themes
-   and passes AA: ~4.9:1 light, ~5.5:1 dark. */
-.detail-save-btn:disabled {
-  background: var(--card-off);
-  border-color: var(--line);
-  color: var(--muted);
-  cursor: default;
-}
+/* Detail-modal Save footer (#202): settings stage locally and commit only in
+   the vendored modal's sticky .detail-actions, whose one full-width
+   .button-primary is disabled until something changes (button.css owns the
+   48px height and the disabled recipe). */
 /* No danger/split variant of the footer: the design.md modal contract wants
    exactly one full-width solid-accent primary, so a destructive action goes in
    the dialog body as .schedule-editor-delete (#570 moved the device-group
@@ -2146,14 +1941,6 @@ body:has(dialog[open]) .app { overflow: hidden; }
   font-size: var(--font-body); padding: 12px; border-radius: var(--radius-md);
   border: 1px solid var(--control-border); background: var(--input-bg);
 }
-.big-btn {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border: 1px solid var(--accent-border-soft);
-  border-radius: var(--radius-md); padding: 13px; min-height: 48px;
-  font-size: var(--font-body); font-weight: 700; cursor: pointer;
-}
-.big-btn:active { transform: scale(0.98); }
 .login-error { color: var(--deficit); font-size: var(--font-label); }
 .muted { color: var(--muted); }
 .small { font-size: var(--font-caption); }
@@ -2376,7 +2163,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   gap: var(--space-sm);
   min-width: 0;
 }
-.net-wifi-summary .range-tab:not([hidden]) {
+.net-wifi-summary .utility-btn:not([hidden]) {
   padding: 0 8px;
   font-size: var(--font-caption);
   white-space: nowrap;
@@ -2482,7 +2269,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   .net-wifi-summary {
     gap: 6px;
   }
-  .net-wifi-summary .range-tab:not([hidden]) {
+  .net-wifi-summary .utility-btn:not([hidden]) {
     padding-inline: 7px;
   }
   .net-wifi-charts { grid-template-columns: 1fr; }
@@ -2527,7 +2314,7 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   margin: 14px 0 0;
 }
 .net-survey-room { flex: 1 1 auto; min-width: 0; }
-/* The two trailing actions are the same component (range-tab at the shared
+/* The two trailing actions are the same component (button-surface at the shared
    --control-h, so they line up with the room input) pinned to one width, so
    Change and Record here read as a single right-hand column rather than two
    differently-sized buttons. The width is set here rather than left to content
@@ -2538,20 +2325,14 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
   white-space: nowrap;
 }
 /* Accent tint marks Record as the card's primary action — same geometry as the
-   Change button beside it, only the emphasis differs. */
-.net-survey-record {
+   Change button beside it, only the emphasis differs. Doubled with the tier
+   class so it outranks button.css's dark label rule; disabled falls through
+   to the tier's flat recipe, so the tint never washes out below AA. */
+.button-surface.net-survey-record:not(:disabled) {
   background: var(--accent-soft);
   border-color: var(--accent-border-soft);
   color: var(--accent-text);
   font-weight: 700;
-}
-/* The one flat disabled recipe rather than .range-tab's opacity fade, which
-   would wash the tint out below AA. */
-.net-survey-record:disabled {
-  opacity: 1;
-  background: var(--card-off);
-  border-color: var(--line);
-  color: var(--muted);
 }
 .net-survey-progress { margin: 8px 0 0; }
 
@@ -2751,7 +2532,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   min-height: var(--control-h);
   margin-bottom: 10px;
 }
-.net-devices-head .range-tab:not([hidden]) {
+.net-devices-head .utility-btn:not([hidden]) {
   flex: 0 0 auto;
   padding: 0 6px;
   font-size: var(--font-caption);
@@ -2830,15 +2611,11 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 #netDeviceStatus.is-offline { color: var(--muted); }
 
 /* Reusable confirm modal (issue #129) — same shell as the detail dialogs, with
-   a side-by-side Cancel / confirm action row. */
+   a side-by-side Cancel / confirm action row. A destructive confirm is the
+   vendored outlined .button-tint.danger (confirm.js sets `danger`). */
 .confirm-message { margin: var(--space-xs) 0 var(--space-md); }
 .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .confirm-cancel { background: var(--card-off); color: var(--ink); }
-.confirm-ok.is-danger {
-  background: color-mix(in srgb, var(--deficit) 18%, transparent);
-  border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
-  color: var(--danger-text);
-}
 
 /* ------------------------------------------------ DHCP reservation plan (#170)
    Read-only section: a category-grouped MAC→IP list, copy-ready for the router's
@@ -2849,10 +2626,10 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .net-dhcp-intro { flex: 1 1 auto; margin: 0; }
 .net-dhcp-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
-.net-dhcp-head .range-tab { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
-.net-dhcp-head .range-tab .icon { width: 16px; height: 16px; }
-/* The opt-in write action stands out from the neutral Refresh tab (#176). */
-.net-dhcp-apply {
+.net-dhcp-head .utility-btn { flex: 0 0 auto; }
+/* The opt-in write action stands out from the neutral Refresh button (#176);
+   doubled with the tier class to outrank button.css's dark label rule. */
+.button-surface.net-dhcp-apply:not(:disabled) {
   border-color: var(--accent-border-strong);
   background: var(--accent-soft);
   color: var(--accent-text); font-weight: 700;
@@ -2984,8 +2761,6 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .net-dhcp-budget.is-over { color: var(--attention); font-weight: 700; }
 .net-dhcp-applybar-actions { display: inline-flex; align-items: center; gap: 6px; }
-.net-dhcp-applybar .range-tab { display: inline-flex; align-items: center; gap: 5px; }
-.net-dhcp-applybar .range-tab .icon { width: 16px; height: 16px; }
 
 /* ----------------------------------------------------------- cameras (#161) */
 /* An image row (#879): the leading thumbnail is the picture itself, drawn
@@ -3104,31 +2879,27 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-ptz-btn.ptz-up .icon { transform: rotate(-90deg); }
 .camera-ptz-btn.ptz-down .icon { transform: rotate(90deg); }
 .camera-ptz-btn.ptz-left .icon { transform: rotate(180deg); }
-/* Stacked range-tabs: the space-sm gap clears their 4px-each vertical
-   target expansion, so the mode toggle and zoom pair never overlap. */
+/* Stacked controls: the space-sm gap clears their 4px-each vertical
+   target expansion, so the mode control and zoom pair never overlap. */
 .camera-live-side {
   flex: 1 1 170px; max-width: 280px;
   display: flex; flex-direction: column; gap: var(--space-sm);
 }
-/* In the column, .range-tab's flex: 1 would size the toggle's height, not
-   its width; it keeps the control height instead. */
-.camera-live-side > .range-tab { flex: none; }
 .camera-zoom-pair, .camera-live-actions { display: flex; gap: var(--space-sm); }
 .camera-live-actions { flex: 1 1 100%; justify-content: center; }
-.camera-live-controls .range-tab { white-space: nowrap; }
-.camera-live-actions .range-tab { flex: 1 1 0; max-width: 200px; gap: 6px; }
+.camera-live-controls .utility-btn { white-space: nowrap; }
+.camera-live-actions .utility-btn { flex: 1 1 0; max-width: 200px; gap: 6px; }
 .camera-live-actions .icon { width: var(--icon-inline); height: var(--icon-inline); }
-.camera-rec.active {
+.button-surface.camera-rec[aria-pressed="true"] {
   background: color-mix(in srgb, var(--deficit) 18%, transparent);
   border-color: color-mix(in srgb, var(--deficit) 30%, transparent);
   color: var(--danger-text);
 }
 
-/* Precise-PTZ controls: mode toggle, presets, manual coordinates (issue #190).
-   The mode toggle spans the side column above the zoom pair (#859). */
-.camera-mode-toggle[aria-pressed="true"] {
-  background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text);
-}
+/* Precise-PTZ controls: mode, presets, manual coordinates (issue #190). The
+   Step · Hold segmented control spans the side column above the zoom pair
+   (#859); the column's gap spaces it, not a margin. */
+.camera-mode { margin-bottom: 0; }
 .camera-controls-label {
   font-size: var(--font-caption); color: var(--muted); font-weight: 600;
   flex: none; align-self: center;
@@ -3141,7 +2912,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    expansion, so a second row of presets never overlaps the first. */
 .camera-presets-list { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
 .camera-presets-empty { font-size: var(--font-caption); }
-/* A preset chip is one range-tab-height pill (#859): the Recall label, then
+/* A preset chip is one control-height pill (#859): the Recall label, then
    the rename and delete glyphs on the vendored icon-button. No overflow
    clipping — it would cut the icon buttons' invisible 44px targets back to
    their box. Their gap is hit-min minus box (the icon-button-group rule), so
@@ -3166,7 +2937,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .camera-preset-go:hover { background: var(--accent-soft); }
 /* One add-button affordance app-wide (issue #367): dashed border, matching
    the dominant .schedule-add-btn idiom used by every other "+ Add" control,
-   rather than the solid range-tab outline this used to share with its
+   rather than the solid button outline this used to share with its
    sibling icon buttons. */
 .camera-preset-save { flex: none; font-weight: 600; border-style: dashed; }
 .camera-coord {
@@ -3183,8 +2954,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
    card identity scale (not the big modal heading) so the app has one font size. */
 .activity-dialog .detail-header h2 { font-size: var(--font-body); }
 
-/* Events/Readings selector = the shared ghost segmented control (.range-tabs):
-   transparent, the active tab a subtle accent tint — never a solid fill. */
+/* Events/Readings selector: the vendored segmented control. */
 .activity-modes { margin-bottom: var(--space-sm); }
 
 /* Legend: stacked term-over-description at the shared caption text size.

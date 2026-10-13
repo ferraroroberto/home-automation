@@ -40,6 +40,8 @@ with the router set the way the old exhaustive table did (#453).
     voice_commands     → /api/voice-commands                 (read-only voice cheat-sheet catalogue, issue #437)
     web_search         → /api/voice/search                   (Spanish voice web search: SearXNG es + hub summary, issue #865)
     pc_fleet           → /api/pc-fleet*                     (UPS-triggered fleet-shutdown prefs + hub proxy)
+    actions            → /api/actions/{action_id}           (generalized action alias, issue #641)
+    usage_log          → /api/usage/events, /api/usage/summary  (vendored local-only view/tap log, #906)
 
 Run with::
 
@@ -87,6 +89,8 @@ from app.webapp.ha_trace_collector import start_ha_trace_collector
 from app.webapp.searxng_watchdog import start_searxng_watchdog
 from src import telemetry
 from src.push_notifications import validate_push_config
+from src.runtime_data import runtime_db_path
+from src.usage_log import usage_router
 from src.webapp_config import load_webapp_config
 
 logger = logging.getLogger(__name__)
@@ -347,6 +351,13 @@ def create_app() -> FastAPI:
     app.include_router(web_search.router)
     app.include_router(pc_fleet.router)
     app.include_router(actions.router)
+    # Which views and controls get used, and on which device class, so a design
+    # review reads frequencies instead of asking (#906, project-scaffolding#349).
+    # Local SQLite only, behind BearerTokenMiddleware like every /api route.
+    # USAGE_LOG_DB_PATH keeps test and e2e boots off the real file.
+    app.include_router(usage_router(
+        runtime_db_path("home-automation", "usage.sqlite3", env_var="USAGE_LOG_DB_PATH")
+    ))
 
     logger.info(
         "ℹ️  webapp build %s (fleet %s) built %s",

@@ -37,6 +37,8 @@
  *                    camera's last-frame thumbnail zooms, #882)
  *   trail            optional trailing element (a switch, a value)
  *   className        extra class on the row
+ *   track            optional usage-log control id (`data-track`) on the
+ *                    tap target: a developer-chosen constant, never the title
  * Returns the <li>; the caller appends it to a `<ul class="action-rows">`
  * inside a `.card.action-list`.
  */
@@ -63,6 +65,7 @@ export function rowEl(opts) {
   if (opts.onOpen) {
     main.type = 'button';
     if (opts.openLabel) main.setAttribute('aria-label', opts.openLabel);
+    if (opts.track) main.dataset.track = opts.track;
     main.addEventListener('click', function () { opts.onOpen(main); });
   }
   if (opts.time) {

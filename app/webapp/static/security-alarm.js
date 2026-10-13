@@ -192,6 +192,7 @@ function renderActionsInto(el) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'segmented-item security-action security-action-' + action;
+    btn.dataset.track = 'alarm.' + action;
     btn.textContent = SEGMENT_LABELS[action];
     btn.setAttribute('aria-pressed', action === selected ? 'true' : 'false');
     btn.disabled = !available || actionBusy;
@@ -466,6 +467,7 @@ function zoneRow(zone) {
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'toggle security-bypass' + (active ? ' on' : ' off');
+  toggle.dataset.track = 'zone.bypass';
   toggle.setAttribute('role', 'switch');
   toggle.setAttribute('aria-checked', active ? 'true' : 'false');
   toggle.setAttribute('aria-label', 'Detector active ' + zoneLabel(zone));

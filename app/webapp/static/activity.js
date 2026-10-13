@@ -202,10 +202,8 @@ function applyMode(next) {
 
 function applyModeButtons() {
   const isReadings = mode === 'readings';
-  el('activityModeEvents').classList.toggle('active', !isReadings);
-  el('activityModeEvents').setAttribute('aria-selected', String(!isReadings));
-  el('activityModeReadings').classList.toggle('active', isReadings);
-  el('activityModeReadings').setAttribute('aria-selected', String(isReadings));
+  el('activityModeEvents').setAttribute('aria-pressed', String(!isReadings));
+  el('activityModeReadings').setAttribute('aria-pressed', String(isReadings));
   el('activityTypeRow').hidden = isReadings;
   el('activityMetricRow').hidden = !isReadings;
 }

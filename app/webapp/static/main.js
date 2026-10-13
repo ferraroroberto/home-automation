@@ -13,12 +13,14 @@
 
 import {
   els,
+  readToken,
   tokenFromUrl,
   writeToken,
   THEME_KEY,
 } from './state.js';
 import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
+import { initUsageLog } from './_vendored/usage-log/usage-log.js';
 import { jsonApi, hideLogin } from './api.js';
 import { wireTabs } from './tabs.js';
 import { wireSettings } from './settings.js';
@@ -169,6 +171,16 @@ els.loginForm.addEventListener('submit', async function (ev) {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
 
+  // Local-only usage log (#906, project-scaffolding#349): which tabs and
+  // [data-track] controls get used, posted to this app's own /api/usage. The
+  // token is read per send, like api(), since a phone off loopback needs it.
+  const usage = initUsageLog({
+    headers: function () {
+      const token = readToken();
+      return token ? { Authorization: 'Bearer ' + token } : {};
+    },
+  });
+
   // Lock background scroll whenever a modal opens — iOS Safari scrolls the page
   // behind a <dialog> despite the CSS overflow lock (#214). Patch before any
   // dialog can open.
@@ -223,6 +235,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // Energy, Plugs, Lights, Network, and Security each adjust their own
   // polling cadence on tab change.
   wireTabs(function (tab) {
+    usage.trackView(tab);
     onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onCircuitsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onBlindSchedulesTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
   });
 
