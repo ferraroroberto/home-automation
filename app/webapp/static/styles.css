@@ -471,17 +471,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .chip[data-tone="attention"] { --tone: var(--attention); --tone-text: var(--attention-text); }
 .chip[data-tone="danger"] { --tone: var(--deficit); --tone-text: var(--danger-text); }
 
-/* The page header's live line (head-status.js, #880): the vendored home-head
-   draws the slot muted; an exception part takes its tone's text colour, the
-   same *-text the chips use. Moves upstream in project-scaffolding#343. */
-.home-head .status .head-exception[data-tone="attention"] { color: var(--attention-text); }
-.home-head .status .head-exception[data-tone="danger"] { color: var(--danger-text); }
-
-/* The tab count badge is the vendored nav's (attention, card text). A
-   triggered alarm repaints the Security badge in danger, card text still
-   clearing 4.5:1 (5.4:1 light, 5.2:1 dark), until the nav takes a tone
-   itself (project-scaffolding#342; decision 10 of #872). */
-.tabs .tab[data-badge-tone="danger"] .tab-badge { background: var(--deficit); }
 
 /* ----------------------------------------------- segmented control (#879, #888)
    One exclusive choice of 2-6 options: the alarm mode, the energy and money

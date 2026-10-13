@@ -34,17 +34,12 @@ let nav = null;
 // wireTabs' tab-change handler, kept so showSettings can run it too.
 let tabHandler = null;
 
-// A tab's count badge (#880, decision 10 of #872). The vendored setBadge
-// paints attention only; `tone` 'danger' marks the tab button so styles.css
-// can repaint that one badge, until the nav takes a tone itself
-// (project-scaffolding#342). Pass 0 to clear it.
+// A tab's count badge (#880, decision 10 of #872), painted by the vendored
+// nav's setBadge: `tone` 'danger' repaints that one badge in the danger fill
+// (project-scaffolding#342), anything else is attention. Pass 0 to clear it.
 export function setTabBadge(tab, count, noun, tone) {
   if (!nav) return;
-  nav.setBadge(tab, count, noun);
-  const btn = document.querySelector('nav.tabs .tab[data-tab="' + tab + '"]');
-  if (!btn) return;
-  if (count > 0 && tone === 'danger') btn.dataset.badgeTone = 'danger';
-  else delete btn.dataset.badgeTone;
+  nav.setBadge(tab, count, noun, tone);
 }
 
 function migrateStoredTab() {

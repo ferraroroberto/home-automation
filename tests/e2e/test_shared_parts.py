@@ -83,14 +83,14 @@ def test_security_badge_counts_trouble_and_turns_danger_when_triggered(
     badge = tab.locator(".tab-badge")
     expect(badge).to_have_text("2")
     expect(tab).to_have_accessible_name(re.compile(r"Security, 2 trouble"))
-    expect(tab).not_to_have_attribute("data-badge-tone", "danger")
+    expect(badge).to_have_attribute("data-tone", "attention")
     attention_bg = badge.evaluate("el => getComputedStyle(el).backgroundColor")
 
     # Triggered outranks trouble: one danger badge, still AA on its fill.
     mock_security(_security("triggered", troubled=2))
     page.reload(wait_until="domcontentloaded")
     expect(badge).to_have_text("1")
-    expect(tab).to_have_attribute("data-badge-tone", "danger")
+    expect(badge).to_have_attribute("data-tone", "danger")
     expect(tab).to_have_accessible_name(re.compile(r"Security, 1 triggered"))
     assert badge.evaluate("el => getComputedStyle(el).backgroundColor") != attention_bg
     assert badge.evaluate(_CONTRAST_JS) >= 4.5
