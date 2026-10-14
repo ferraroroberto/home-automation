@@ -61,6 +61,12 @@ Windows / PowerShell:
 
 Run the browser suite directly when iterating: `& .\.venv\Scripts\python.exe -m pytest tests/e2e` — boots its own disposable instance by default (#538), Chromium + WebKit projections; `--browser chromium` for a faster loop. To run against the tray's occupied :8447 instead, set `E2E_LIVE=1` — read-only adoption only, guarded by the vendored `tests/e2e/_e2e_live_guard.py` (a bare run with the port occupied and no flag refuses). `[e2e]` table schema: `project-scaffolding/docs/e2e-routing.md`; anti-drift guard `tests/test_classify_e2e.py` loads the real `.fleet.toml` and must be updated in the same PR as any new e2e-relevant directory.
 
+## CI expectations
+- Workflow `.github/workflows/ci.yml`, job `gate`, on every PR and every push to `main`. **Advisory, not required** (no branch protection) — the local gate is the contract. It runs `scripts/verify-before-ship.ps1` on a clean `windows-2025` runner (fresh `.venv` from both requirements files, committed files plus the `config/*.sample.json` twins only; with `CI=true` the gate skips diff routing and runs the whole `tests/e2e` suite), uploading traces and screenshots only on failure. No secret, no device, camera, calendar or push service is reachable, and the automation engines stay off.
+- Typical green: **~12 min** (11m39s on the first hosted run). Investigate at **>24 min**; treat as wedged at **>45 min** (the job's `timeout-minutes`).
+- Flaky leg: the WebKit/iPhone projection of `tests/e2e` can wedge on the hosted runner. `timeout-minutes: 45` caps a wedge. A wedge is a flake, not the diff.
+- CI's only signal beyond the local gate is a clean machine: the same e2e suite the gate already runs, on a checkout with no gitignored config. Its e2e surface = `app/webapp/`, `app/tray/`, `tests/e2e/`, and the files the workflow runs (`requirements*.txt`, `config/*.sample.json`, `.github/workflows/ci.yml`). A diff touching **none** of these gains nothing from CI.
+
 ## Internal architecture
 
 [`docs/architecture.mmd`](docs/architecture.mmd) — hand-authored Mermaid of this repo's internal structure (device clients in `src/`, the FastAPI + PWA product in `app/webapp/`, the tray, the Home Assistant integration, ops scripts); per `fleet-config#256`. Update it in the same PR as any material structural change (new device integration, relocated automation task, moved script) — same anti-staleness contract as `.fleet.toml`'s `description`. Not auto-generated, not covered by the verification gate; exhaustive per-file inventory: [`docs/architecture.md`](docs/architecture.md).
