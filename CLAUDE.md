@@ -63,7 +63,7 @@ Run the browser suite directly when iterating: `& .\.venv\Scripts\python.exe -m 
 
 ## CI expectations
 - Workflow `.github/workflows/ci.yml`, job `gate`, on every PR and every push to `main`. **Advisory, not required** (no branch protection) — the local gate is the contract. It runs `scripts/verify-before-ship.ps1` on a clean `windows-2025` runner (fresh `.venv` from both requirements files, committed files plus the `config/*.sample.json` twins only; with `CI=true` the gate skips diff routing and runs the whole `tests/e2e` suite), uploading traces and screenshots only on failure. No secret, no device, camera, calendar or push service is reachable, and the automation engines stay off.
-- Typical green: **~[N] min**. Investigate at **>[2N] min**; treat as wedged at **>[4N] min**.
+- Typical green: **~12 min** (11m39s on the first hosted run). Investigate at **>24 min**; treat as wedged at **>45 min** (the job's `timeout-minutes`).
 - Flaky leg: the WebKit/iPhone projection of `tests/e2e` can wedge on the hosted runner. `timeout-minutes: 45` caps a wedge. A wedge is a flake, not the diff.
 - CI's only signal beyond the local gate is a clean machine: the same e2e suite the gate already runs, on a checkout with no gitignored config. Its e2e surface = `app/webapp/`, `app/tray/`, `tests/e2e/`, and the files the workflow runs (`requirements*.txt`, `config/*.sample.json`, `.github/workflows/ci.yml`). A diff touching **none** of these gains nothing from CI.
 
