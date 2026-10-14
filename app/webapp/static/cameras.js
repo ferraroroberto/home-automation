@@ -181,9 +181,10 @@ function cameraRow(cam) {
   if (cam.reachable) {
     live = document.createElement('button');
     live.type = 'button';
-    live.className = 'camera-row-live';
+    live.className = 'icon-button action-row-verb camera-row-live';
+    live.title = 'Live view';
     live.setAttribute('aria-label', 'Live view ' + cameraLabel(cam));
-    live.innerHTML = icon('video') + 'Live';
+    live.innerHTML = icon('video');
     live.addEventListener('click', function () {
       state.selectedCameraId = cam.id;
       openLiveView(cam.id);

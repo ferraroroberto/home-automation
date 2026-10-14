@@ -3,7 +3,7 @@
 Drives the Devices tab against stubbed local-Tuya fixtures (no LAN, no cloud)
 on both the Chromium-desktop and WebKit/iPhone projections. Plugs and blinds
 are open groups on the shared row (#884): these tests cover a metered plug's
-watts, a switch round-trip, the blind segmented verb, the Power glance card,
+watts, a switch round-trip, the blind icon-button group, the Power glance card,
 and the Offline row the unreachable plugs fold into.
 """
 
@@ -17,7 +17,11 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import hold_reads
-from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rects
+from tests.e2e._geometry import (
+    assert_no_horizontal_overflow,
+    assert_unpainted,
+    effective_rects,
+)
 
 
 def _boot_plugs(
@@ -345,10 +349,13 @@ def test_blind_has_labelled_controls(
     page.set_viewport_size({"width": 390, "height": 844})
     _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
 
-    # The blind's one trailing item is the Up · Stop · Down segmented verb
-    # (decision 6 of #872): glyphs, each named in words for assistive tech.
+    # The blind's one trailing item is the Up · Stop · Down icon-button group
+    # (fleet-config#1420): glyphs on no track, each named in words for
+    # assistive tech.
     buttons = page.locator('[data-device-id="cover-1"] .blind-btn')
     expect(buttons).to_have_count(3)
+    assert_unpainted(page, buttons)
+    assert page.locator('[data-device-id="cover-1"] .segmented').count() == 0
     for button, word in zip(buttons.all(), ["Up", "Stop", "Down"]):
         expect(button).to_have_attribute("aria-label", f"{word} Test Blind")
         expect(button).to_have_attribute("title", word)
@@ -391,8 +398,9 @@ def test_blinds_group_buttons_move_every_listed_blind(
         mock_api, mock_energy, mock_tuya,
     )
 
-    # The house-wide move is the first row's segmented verb.
-    group = page.locator("#blindsCard .blinds-all-row .segmented-item")
+    # The house-wide move is the first row's icon-button group.
+    group = page.locator("#blindsCard .blinds-all-row .icon-button")
+    assert_unpainted(page, group)
     for button, label in zip(group.all(), ["All up", "All stop", "All down"]):
         expect(button).to_have_attribute("aria-label", label)
     expect(page.locator("#blindsAllMeta")).to_have_text("2 blinds")

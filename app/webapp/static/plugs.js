@@ -199,7 +199,7 @@ export function wireBlindsGroup() {
 // ------------------------------------------------------------- the rows
 // Every Tuya device is the shared row (row.js, #880) since #884 (Step 6/8 of
 // #872): the kind glyph, the name, one muted meta line, and one trailing item
-// (a plug's switch, a blind's segmented verb). Tapping the row opens the
+// (a plug's switch, a blind's icon-button group). Tapping the row opens the
 // device's rename / hide dialog. An unreachable device says so in words; its
 // connection error and address stay out of the copy (#879).
 
@@ -273,8 +273,8 @@ function offlineRow(count) {
   return row;
 }
 
-// Up · Stop · Down as one segmented verb (decision 6 of #872): the row's one
-// trailing item, each segment a real 44px target. Glyphs on the row, the
+// Up · Stop · Down as one track-less icon-button group (fleet-config#1420): the row's one
+// trailing item, each verb a real 44px target. Glyphs on the row, the
 // household's own word for each (roller blinds go up and down, #181) as the
 // accessible name and title; the API keeps Tuya's open / stop / close.
 const BLIND_VERBS = [
@@ -286,18 +286,18 @@ const BLIND_WORDS = { open: 'up', stop: 'stopped', close: 'down' };
 
 function blindVerbs(name, act) {
   const group = document.createElement('div');
-  group.className = 'segmented segmented--row';
+  group.className = 'icon-button-group';
   group.dataset.track = 'blind.move';
   group.setAttribute('role', 'group');
   group.setAttribute('aria-label', 'Move ' + name);
   BLIND_VERBS.forEach(function (spec) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'segmented-item blind-btn';
+    btn.className = 'icon-button action-row-verb blind-btn';
     btn.dataset.action = spec[0];
     btn.title = spec[1];
     btn.setAttribute('aria-label', spec[1] + ' ' + name);
-    btn.innerHTML = icon(spec[2], spec[0] === 'stop' ? 'blind-stop-icon' : '');
+    btn.innerHTML = icon(spec[2]);
     btn.addEventListener('click', function () { act(spec[0]); });
     group.appendChild(btn);
   });

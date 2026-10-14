@@ -20,6 +20,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._geometry import assert_min_target, assert_unpainted
+
 
 def _sample_machines() -> List[Dict]:
     """Four fake machines covering each render branch: the hub host (always
@@ -218,6 +220,16 @@ def test_wake_button_visibility_and_no_confirm_post(
     expect(page.locator('[data-machine-id="hub-host"] .pc-fleet-wake')).to_have_count(0)
     expect(page.locator('[data-machine-id="workstation"] .pc-fleet-wake')).to_have_count(0)
     expect(page.locator('[data-machine-id="old-laptop"] .pc-fleet-wake')).to_have_count(0)
+
+    # Wake is a plain power icon-button (fleet-config#1420): named for the
+    # machine, glyph only, unpainted at rest, a real 44px target.
+    wake = page.locator('[data-machine-id="media-pc"] .pc-fleet-wake')
+    expect(wake).to_have_attribute("aria-label", "Wake Fixture Media PC")
+    expect(wake).to_have_attribute("title", "Wake")
+    expect(wake).to_have_text("")
+    expect(wake.locator("use")).to_have_attribute("href", "#i-power")
+    assert_unpainted(page, wake)
+    assert_min_target(wake)
 
     # Clicking Wake POSTs /wake/{id} with no confirm dialog blocking it.
     dialogs: List[str] = []

@@ -16,13 +16,13 @@ runtime_data = { src = "src/runtime_data.py", sha = "4c699636afecd5cae5e966bc2bc
 nav = { src = "app/webapp/static/_vendored/nav", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/nav" }
 home-head = { src = "app/webapp/static/_vendored/home-head", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/home-head" }
 text-size = { src = "app/webapp/static/_vendored/text-size", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/text-size" }
-icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/icon-button" }
-action-row = { src = "app/webapp/static/_vendored/action-row", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/action-row" }
+icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/icon-button" }
+action-row = { src = "app/webapp/static/_vendored/action-row", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/action-row" }
 notify = { src = "src/notify", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "src/notify" }
 usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/usage-log" }
 usage_log = { src = "src/usage_log.py", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "src/usage_log.py" }
 button = { src = "app/webapp/static/_vendored/button", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/button" }
-segmented = { src = "app/webapp/static/_vendored/segmented", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/segmented" }
+segmented = { src = "app/webapp/static/_vendored/segmented", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/segmented" }
 modal = { src = "app/webapp/static/_vendored/modal", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/modal" }
 
 # /perf-review (fleet-config skills/perf-review): "ready" is the energy-flow tile

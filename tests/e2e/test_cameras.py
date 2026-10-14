@@ -13,7 +13,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
-from tests.e2e._geometry import assert_min_target, assert_no_overlap
+from tests.e2e._geometry import assert_min_target, assert_no_overlap, assert_unpainted
 
 _CAMERA = {
     "id": "front-door",
@@ -52,7 +52,14 @@ def _open_live_view(page: Page, base_url: str, camera: Dict, presets: List[Dict]
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
     live = page.locator("#camerasList .camera-row-live")
-    expect(live).to_have_text("Live")
+    # Live is a plain video icon-button (fleet-config#1420): glyph only, named
+    # and titled, unpainted at rest, a real 44px target.
+    expect(live).to_have_text("")
+    expect(live).to_have_attribute("aria-label", "Live view Front door")
+    expect(live).to_have_attribute("title", "Live view")
+    expect(live.locator("use")).to_have_attribute("href", "#i-video")
+    assert_unpainted(page, live)
+    assert_min_target(live)
     live.click()
     expect(page.locator("#cameraLiveDialog")).to_be_visible()
 
