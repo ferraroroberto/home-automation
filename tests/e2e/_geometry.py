@@ -161,6 +161,48 @@ def assert_no_overlap(targets: Locator | Iterable[Locator]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Unpainted row verbs (fleet-config#1420)
+
+_UNPAINTED_JS = """els => els.map(el => {
+  const cs = getComputedStyle(el);
+  const borders = ['Top', 'Right', 'Bottom', 'Left']
+    .reduce((sum, side) => sum + parseFloat(cs['border' + side + 'Width']), 0);
+  return {
+    fill: cs.backgroundColor,
+    image: cs.backgroundImage,
+    borders,
+    shadow: cs.boxShadow,
+  };
+})"""
+
+
+def assert_unpainted(page: Page, locator: Locator) -> None:
+    """Every match is a plain icon-button at rest: no fill, border or shadow,
+    in both themes (the verb is a glyph on nothing, fleet-config#1420).
+
+    The dark leg stamps ``dataset.theme`` for a computed-style read only — the
+    palette is pure CSS tokens, so no boot mechanism is under test here.
+    """
+    original = page.evaluate("document.documentElement.dataset.theme || ''")
+    try:
+        for theme in ("light", "dark"):
+            page.evaluate("t => { document.documentElement.dataset.theme = t; }", theme)
+            styles = locator.evaluate_all(_UNPAINTED_JS)
+            assert styles, f"no matches for {locator}"
+            for index, style in enumerate(styles):
+                assert style["fill"] in ("rgba(0, 0, 0, 0)", "transparent"), (theme, index, style)
+                assert style["image"] == "none", (theme, index, style)
+                assert style["borders"] == 0, (theme, index, style)
+                assert style["shadow"] == "none", (theme, index, style)
+    finally:
+        page.evaluate(
+            "t => { if (t) document.documentElement.dataset.theme = t;"
+            " else delete document.documentElement.dataset.theme; }",
+            original,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Page overflow
 
 def assert_no_horizontal_overflow(page: Page) -> None:

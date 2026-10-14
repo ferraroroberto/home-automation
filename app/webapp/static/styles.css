@@ -1358,17 +1358,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 /* A load circuit reading below zero means the clamp is still fitted
    backwards: attention (a thing to fix), not danger (a thing that failed). */
 .row-value.circuit-watts-negative { color: var(--attention-text); }
-/* A segmented verb as the trailing item (decision 6 of #872): adjacent
-   segments at real 44px geometry (the track's 3px inset plus a 38px
-   segment), widened to the floor by a vertical-only band, never overlapping. */
-.segmented--row {
-  grid-auto-columns: var(--hit-min);
-  margin: 0 10px 0 0;
-}
-.segmented--row .segmented-item { height: calc(var(--hit-min) - 6px); }
-.segmented--row .segmented-item::before { inset: -3px 0; }
-.segmented--row .segmented-item .icon { width: 18px; height: 18px; }
-.segmented--row .segmented-item .blind-stop-icon { width: 16px; height: 16px; }
 /* The All blinds row and the blind rows are two lists: one hairline between. */
 .blinds-all-row { border-bottom: 1px solid var(--line-muted); }
 /* The Offline fold: its chevron turns down while the plugs are listed. */
@@ -1705,10 +1694,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
   gap: 12px;
 }
 .pc-fleet-host-note { white-space: nowrap; }
-/* Wake button: a compact utility button that must not stretch (.utility-btn's
-   flex:1) and needs a >=44px effective tap target on its 36px visual box. */
-.pc-fleet-wake { flex: 0 0 auto; }
-.pc-fleet-wake::before { content: ""; position: absolute; inset: -4px; }
 .presence-map-link {
   display: inline-flex;
   align-items: center;
@@ -2782,22 +2767,6 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 }
 .camera-thumb.is-empty { cursor: default; }
 .camera-thumb-glyph { width: 18px; height: 18px; color: var(--muted); }
-/* Live is the row's one dominant verb (design.md action-row): the tint
-   recipe at real 44px geometry. */
-.camera-row-live {
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 6px; min-width: var(--hit-min); height: var(--row-sm); padding: 0 12px;
-  border: 1px solid var(--accent-border-soft);
-  border-radius: var(--radius-md);
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font: inherit;
-  font-size: var(--font-label);
-  font-weight: 600;
-  cursor: pointer;
-}
-.camera-row-live .icon { width: var(--icon-inline); height: var(--icon-inline); }
-
 /* Snapshot zoom: the persisted last frame at full size. */
 .camera-zoom-dialog { width: min(96vw, 880px); }
 .camera-zoom-img {

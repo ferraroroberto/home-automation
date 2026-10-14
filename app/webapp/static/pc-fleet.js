@@ -18,6 +18,7 @@ import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle, buildToggle } from './toggle.js';
 import { esc } from './format.js';
 import { chipEl } from './chip.js';
+import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
 
 const POLL_MS = 15_000;
@@ -96,9 +97,11 @@ function machineRow(machine) {
   if ((rawState === 'down' || rawState === 'dormant') && actions.wake === true) {
     const wake = document.createElement('button');
     wake.type = 'button';
-    wake.className = 'button-surface utility-btn pc-fleet-wake';
+    wake.className = 'icon-button action-row-verb pc-fleet-wake';
     wake.dataset.machineId = machine.id;
-    wake.textContent = 'Wake';
+    wake.title = 'Wake';
+    wake.setAttribute('aria-label', 'Wake ' + (machine.display_name || machine.id));
+    wake.innerHTML = icon('power');
     rail.appendChild(wake);
   }
 
