@@ -148,8 +148,8 @@ the `Alarm state` line, not by a highlighted pill. Tapping Disarm also clears a
 trouble/alarm-memory condition. Every action shows an optimistic neutral
 frosted toast on tap, then re-renders from the panel's live state.
 
-**Weekly alarm schedules.** The Alarm tab includes a collapsible **Schedules**
-card for multiple local weekly schedule entries. Each entry can be enabled,
+**Weekly alarm schedules.** **Security tab → Automations → Schedules** (a
+sheet) holds multiple local weekly schedule entries. Each entry can be enabled,
 assigned to any weekday combination, given a time, and set to `Disarm`,
 `Partial`, `Perimeter`, or `Full`. Saved schedules appear as compact summary
 rows; tap a row or **Add schedule** to edit in a dialog, where **Save** commits
@@ -160,9 +160,9 @@ retried on the next poll. The entries live in gitignored
 `config/security_schedules.json`; copy `config/security_schedules.sample.json`
 for the persisted shape if editing by hand.
 
-**Automatic-alarm notifications (Telegram) — issue #231.** Settings has a
-collapsible **Notifications** card (folded by default; its Alarm group) that
-pushes a short Telegram message when the home **automatically** arms or disarms —
+**Automatic-alarm notifications (Telegram) — issue #231.** **Settings ›
+Notifications › Alarm** pushes a short Telegram message when the home
+**automatically** arms or disarms —
 and, by default, whenever an automatic attempt **fails** (e.g. the panel is
 offline during a power cut, the incident that motivated this), plus the two
 adverse panel events (intrusion + panel mains-power loss). Seven independent
@@ -310,7 +310,7 @@ POST https://<host>:8447/api/presence/webhooks/roberto/home
 Authorization: Bearer <PRESENCE_WEBHOOK_SECRET>
 ```
 
-Use `home` for the Arrive automation and `away` for the Leave automation. Create one stable person id per phone, for example `roberto` and `ana`. The Security tab's Presence card can rename those ids, hide non-household Find My entities behind Show hidden, edit `config/location.json`, set the alarm automation thresholds, and toggle the **Kids home** override (see below). The automation defaults off and, once enabled, acts on every fresh webhook-backed person — the Presence card's **Show hidden** toggle only declutters that list's display and never excludes anyone from the arm/disarm decision (issue #490: hiding a person used to silently blind the automation to them).
+Use `home` for the Arrive automation and `away` for the Leave automation. Create one stable person id per phone, for example `roberto` and `ana`. Security › People rows can rename those ids and hide non-household Find My entities behind Show hidden; Settings › Home & people edits `config/location.json` and sets the alarm automation thresholds; the **Kids home** override (see below) is on the Security glance card. The automation defaults off and, once enabled, acts on every fresh webhook-backed person — the People group's **Show hidden** toggle only declutters that list's display and never excludes anyone from the arm/disarm decision (issue #490: hiding a person used to silently blind the automation to them).
 
 Set up each iPhone with two Personal Automations in Shortcuts:
 
@@ -325,7 +325,7 @@ The browser-only **This device** row is diagnostic: it uses the browser Geolocat
 
 **Staleness corroboration (issue #653).** The Shortcut webhook path is edge-triggered only (Arrive/Leave geofence crossings, no periodic heartbeat), so a person who simply stays continuously home or away past `stale_after_s` goes stale even though nothing is broken — and staleness in *any* tracked person used to silently stop the automation from acting on *anyone*, with zero alert. To fix that, a stale person's last known state can now be corroborated by their iCloud/Find My diagnostic entity instead of unconditionally blocking: if that entity's `last_seen` is within `icloud_corroboration_window_s` (default `21600`, 6h; `config/presence_automation.json`) **and** its home/away reading agrees with the stale webhook state, the person still counts as fresh. The link between a webhook person id and its iCloud entity is automatic — a case-insensitive match against the entity's display name (e.g. person id `roberto` matches the iCloud entity displayed as "Roberto"), reusing whatever names are already configured. No corroborating entity, a corroboration read that's itself stale, or a source disagreement all fail safe exactly as before (still blocks) — but a block that persists past `arm_block_notify_after_s` now pages the same Telegram alert as the existing "someone's still home" diagnostic, instead of staying silent forever.
 
-Home location is editable in the Presence card. The **Use this device location** button asks the browser for the current GPS position and writes it to `config/location.json`; the latitude/longitude fields can also be typed manually. Saving the location automatically re-runs the Find My diagnostics so distances recalculate from the new origin (the on-demand Refresh button was removed — the background refresher owns the cadence).
+Home location is editable in Settings › Home & people. The **Use this device location** button asks the browser for the current GPS position and writes it to `config/location.json`; the latitude/longitude fields can also be typed manually. Saving the location automatically re-runs the Find My diagnostics so distances recalculate from the new origin (the on-demand Refresh button was removed — the background refresher owns the cadence).
 
 Alarm behavior:
 
@@ -341,9 +341,9 @@ Alarm behavior:
 
 ### Family locator — "where's mom/dad" (#438)
 
-A voice-queryable locator layered on top of the same presence data above — read-only, no new iCloud locate cost. Two pieces, both configured from the Security tab's Presence card:
+A voice-queryable locator layered on top of the same presence data above — read-only, no new iCloud locate cost. Two pieces, both configured from Settings › Home & people:
 
-- **Places** (Presence card → **Places**): named places (e.g. "the gym", "Roberto's work") with a radius, so the locator can say "Roberto is at the gym" instead of just a distance from home. Add one by typing coordinates, tapping **Use my current location**, or **Pick on map…** (an interactive Leaflet map — click/drag the pin, then confirm; the label auto-suggests via reverse-geocoding the picked point).
+- **Places** (Settings › Home & people → **Places**): named places (e.g. "the gym", "Roberto's work") with a radius, so the locator can say "Roberto is at the gym" instead of just a distance from home. Add one by typing coordinates, tapping **Use my current location**, or **Pick on map…** (an interactive Leaflet map — click/drag the pin, then confirm; the label auto-suggests via reverse-geocoding the picked point).
 - **Role** (a person's detail modal → **Role**): an optional household-role alias (e.g. "dad", "mom") alongside their display name, so "where's dad" and "where's Roberto" resolve to the same person. Display name and role are edited together and persisted with an explicit **Save** button (issue #442) — matching every other rename modal in the app — rather than the old save-on-blur behavior.
 
 `GET /api/presence` gains a `current_place` field per entity — the closest configured place within its radius, else "Home"/"Away" (from cached Find My coordinates for iCloud entities, or the webhook `home`/`away` state for Shortcut-backed people, which carry no coordinates). The role a person answers to is set in their person sheet (Security › People); since #885 Home shows who is home as one row of its House card ("2 home · 1 away", and who is out) that opens Security › People, instead of the former Home locator card. Sourced from the same poll as the People group (no extra network cadence).
@@ -763,7 +763,7 @@ documented in [`docs/tariff-model.md`](docs/tariff-model.md).
 
 ## Activity log (events & telemetry)
 
-The **Home tab** has an **Activity log** button (not a tab — an admin/telemetry overlay) that shows the unified, filterable history of everything the home does: alarm arm/disarm, plug toggles, UPS power lost/restored, presence transitions, and RISCO panel events. It is the read surface over `src/telemetry.py`'s `events` store — the queryable successor to the previously write-only `logs/*.jsonl` trail and the otherwise-ephemeral RISCO event feed.
+**Settings › Diagnostics → Activity log** opens an overlay (not a tab — an admin/telemetry surface) that shows the unified, filterable history of everything the home does: alarm arm/disarm, plug toggles, UPS power lost/restored, presence transitions, and RISCO panel events. It is the read surface over `src/telemetry.py`'s `events` store — the queryable successor to the previously write-only `logs/*.jsonl` trail and the otherwise-ephemeral RISCO event feed.
 
 Events are recorded by their producers automatically: the shared `src/activity_log.append_activity` writer mirrors every alarm/power/presence event into the store, plug toggles are recorded in the Tuya router, and `GET /api/security/events` persists the live RISCO feed (deduped, so re-polling and restarts never double-insert). The overlay reads `GET /api/activity?domain=&type=&since=&limit=`, filtering **server-side** via the domain dropdown and the type box (a **substring** match — typing `w` finds `power_w`). Rows are labelled with the device's rename (e.g. "<device rename>") rather than a raw id, and a **"What do these mean?"** legend inside the overlay explains every event type, reading metric, and the severity colours. Readings with no value at all (an offline or non-metering device) are **not** stored — the device simply shows a gap, so the log isn't flooded with empty `—` rows.
 
@@ -820,7 +820,7 @@ phone's status bar).
   is missing). When `config/location.json` is absent or Open-Meteo is unreachable
   it returns `{available: false, reason}` with HTTP 200 — weather is decorative,
   never a 500. The tile stays hidden until the first successful read and fails
-  quietly thereafter. The clock ticks client-side, independent of the poll.
+  quietly thereafter.
 - **Cadence:** the frontend polls every ~10 minutes (weather barely moves).
 
 ## Solar forecast (expected generation)
@@ -965,7 +965,8 @@ Lights lived on their own top-level tab until #136: they are local device contro
 
 The Power card's **UPS** row shows the local UPS (on mains or on battery · charge% · runtime, an exception chip when it needs you), and its sheet the full reading; Home keeps its one-line tile. `GET /api/ups` reads the USB-connected APC Smart-UPS through NUT when the local `upsc` server is available, falls back to a one-shot NUT USB-HID probe, then falls back to Windows battery telemetry. The current APC SMT1000IC USB-HID path reliably exposes status, charge, runtime, battery voltage, model, manufacturer, and serial; it does **not** expose `ups.load`, `input.voltage`, or `output.voltage` through NUT on this machine.
 
-**Power notifications (Telegram).** The **UPS power** group of Settings' folded-by-default **Notifications** card (merged with the alarm toggles in #779) has two toggles — **Mains power lost** and **Power restored** — both default **on**; they push a Telegram message when the UPS crosses between mains and battery. Persisted to gitignored `config/power_notify_prefs.json` (`…sample.json` committed) via `GET`/`PUT /api/ups/notify-prefs`. (The former third toggle, *Auto-shutdown PC*, was superseded by the PC-fleet master switch below — issue #498.) Because the browser tile only polls while the Devices tab is open, reliable alerts need a server-side watcher: a background **power monitor** (`app/webapp/power_monitor.py`, started in the webapp lifespan) reads the UPS every `POWER_MONITOR_POLL_INTERVAL_S` (default 60 s) in a worker thread and fires edge-triggered on the `mains_online` transition. Set `POWER_MONITOR_ENABLED=0` to disable it. Uses the same `src/notify/` Telegram credentials as the alarm alerts; transitions are recorded to gitignored `logs/power.jsonl` via the shared activity log.
+**Power notifications (Telegram).** **Settings › Notifications › UPS power**
+(merged with the alarm toggles in #779) has two toggles — **Mains power lost** and **Power restored** — both default **on**; they push a Telegram message when the UPS crosses between mains and battery. Persisted to gitignored `config/power_notify_prefs.json` (`…sample.json` committed) via `GET`/`PUT /api/ups/notify-prefs`. (The former third toggle, *Auto-shutdown PC*, was superseded by the PC-fleet master switch below — issue #498.) Because the browser tile only polls while the Devices tab is open, reliable alerts need a server-side watcher: a background **power monitor** (`app/webapp/power_monitor.py`, started in the webapp lifespan) reads the UPS every `POWER_MONITOR_POLL_INTERVAL_S` (default 60 s) in a worker thread and fires edge-triggered on the `mains_online` transition. Set `POWER_MONITOR_ENABLED=0` to disable it. Uses the same `src/notify/` Telegram credentials as the alarm alerts; transitions are recorded to gitignored `logs/power.jsonl` via the shared activity log.
 
 **PC-fleet shutdown on low UPS runtime (issue #498).** The **UPS sheet** (Devices › Power › UPS; a card of its own until #884) holds the fleet shutdown: a master switch ("Shut down fleet on low UPS runtime", default on), a configurable trigger threshold (runtime-remaining ≤ X minutes, default 15, clamped 1–240 — replaces the old hardcoded value), and a live machine roster pulled from the local-llm-hub's machine API (`GET /api/pc-fleet/machines` proxies the hub's `GET /admin/api/machines/status` on loopback `127.0.0.1:8000`, overridable via `PC_FLEET_HUB_BASE`) — a machine enrolled in the hub registry appears here automatically, with a per-machine include toggle and a **Wake** button (proxying the hub's Wake-on-LAN endpoint, local-llm-hub#356) on down machines. Prefs persist to gitignored `config/pc_fleet.json` (`…sample.json` committed; `enabled` seeds once from the legacy `auto_shutdown_low_battery` value on first load) via `GET`/`PUT /api/pc-fleet/prefs`.
 
@@ -1046,7 +1047,7 @@ restart the webapp.
 
 ## Cameras
 
-The **Security** tab has a collapsible **📹 Cameras** tile for open
+The **Security** tab has an open **📹 Cameras** group for open
 RTSP/ONVIF cameras (a **Reolink E1 Outdoor Pro** today) — no vendor cloud, hub,
 or subscription (path 2 from the #85 feasibility study; the #89 spike findings
 and go/no-go are in [`docs/camera-spike.md`](docs/camera-spike.md)). Each camera
@@ -1182,7 +1183,7 @@ persisted to gitignored `config/security_override_session.json`. Each
 auto-bypass/restore is logged to the unified activity log (`GET
 /api/activity?domain=security`, `event_type` `auto_bypass` / `auto_unbypass`).
 
-**Configure** in the **Security tab → Override** card. Saved rules appear as
+**Configure** in **Security tab → Automations → Override**. Saved rules appear as
 compact detector + threshold rows; tap a row or **Add override** to edit the
 detector and "bypass after N triggers" threshold in a dialog. Closing without
 **Save** discards the change. Rules can also be edited by hand in gitignored
@@ -1414,7 +1415,7 @@ Solar-surplus boost (#554): a per-unit opt-in (`boost_enabled` + `boost_offset_c
 
 On admission (and symmetrically on shed) the unit's **actual setpoint is commanded in that same tick**, computed straight from the boosted target rather than the usual single 0.5 °C step — otherwise a 2 °C boost would express as ~0.5 °C per 15 minutes and take about an hour to arrive, so a sequencer measuring 5 minutes later would see no added draw and admit the whole fleet before any of it materialised. That immediate write is scoped to the transition only: a unit that is already boosted goes straight back to the normal one-step-per-`HVAC_ADJUST_INTERVAL_S` steering law. It is a **setpoint write only** — the coordinator never toggles power, so the compressor is never cycled. Every decision leaves a breadcrumb in the Activity log with a distinct reason: `admitted` on `boost_start`, `shed_sequential` / `shed_deficit` on `boost_stop`, and `boost_hold` / `held_margin` when a candidate is waiting for headroom (logged once per hold episode, not once per poll).
 
-The coordinator knobs are **fleet-wide** and edited from the Energy tab's **Solar boost** card — persisted to gitignored `config/hvac_boost.json` (committed `…sample.json` shows the shape) and re-read every tick, so a change is live with **no tray restart**. The per-unit `boost_enabled` / `boost_offset_c` stay per unit in the unit sheet; rooms are deliberately opted in one by one and that never becomes a global policy. The `HVAC_BOOST_*` hysteresis knobs above remain `.env`-only (they are read once at start-up).
+The coordinator knobs are **fleet-wide** and edited from **Settings › Energy › Solar boost** — persisted to gitignored `config/hvac_boost.json` (committed `…sample.json` shows the shape) and re-read every tick, so a change is live with **no tray restart**. The per-unit `boost_enabled` / `boost_offset_c` stay per unit in the unit sheet; rooms are deliberately opted in one by one and that never becomes a global policy. The `HVAC_BOOST_*` hysteresis knobs above remain `.env`-only (they are read once at start-up).
 
 | Key (`config/hvac_boost.json`) | Default | Meaning |
 |-----|---------|---------|
@@ -1564,13 +1565,13 @@ The VM is pinned to **`192.168.0.4`** via a **static MAC + router DHCP reservati
 
 The voice assistant's Tier-3 freeform brain (see `docs/voice-control.md`) had no way to answer questions needing current info — it just said "I don't know". [SearXNG](https://docs.searxng.org/) (self-hosted, no API key, no cloud) now backs a new `web_search` function on the English ("Okay Nabu") `extended_openai_conversation` agent. Full decision record, verified transcripts, and latency numbers: `docs/voice-control.md` "Web search (Tier 3)".
 
-Runs as a Docker container on this same PC (the `local-llm-hub` repo's `docker/searxng/` stack, `start_searxng.bat`/`stop_searxng.bat`) — the Home Assistant disclosure's **Search engine** sub-card shows its live status (`GET /api/searxng`) and a Start button when it's down (`POST /api/searxng/start`). `SEARXNG_URL` / `SEARXNG_COMPOSE_PATH` in `.env` point the webapp at it (see `.env.example`).
+Runs as a Docker container on this same PC (the `local-llm-hub` repo's `docker/searxng/` stack, `start_searxng.bat`/`stop_searxng.bat`) — **Settings › Voice › Search engine** shows its live status (`GET /api/searxng`) and a Start button when it's down (`POST /api/searxng/start`). `SEARXNG_URL` / `SEARXNG_COMPOSE_PATH` in `.env` point the webapp at it (see `.env.example`).
 
 **Supervised since #716.** The container is watched by the webapp (`app/webapp/searxng_watchdog.py`, a 120-second lifespan loop): a stopped stack is brought back automatically via the same code path as the Start button, and one that is running but not answering `/healthz` is restarted after a ~6-minute grace window — the failure shape no Docker `restart:` policy catches. Attempts back off exponentially (2-minute base, 30-minute cap) and log only on state changes. This exists because the container once sat stopped for eight days while the puck answered current-affairs questions from the model's training cutoff, confidently and with no caveat — a wrong answer rather than a missing one. Details: `docs/voice-control.md` "Backend supervision".
 
 **Spanish search endpoint (#865, part of #842).** `POST /api/voice/search` (`{query}` → `{ok, speech, source}`, always 200) is the app-owned search path for the deterministic Spanish pipeline: SearXNG queried with `language=es`, top 8 hits × 200-char snippets, one summarising pass through the local hub (`qwen3.5-4b-nothink`). It never answers from the model's training cutoff — SearXNG down, no results and a failing hub each return their own fixed Spanish sentence and `source` (`searxng_down` / `no_results` / `hub_error`), and every query leaves one info log line (length, result count, latency; never the query text). Core in `src/web_search.py`. Home Assistant calls it from the Spanish `WebSearch` intent (#866, `docs/voice-pe-config/`); try it on loopback with `curl -k -X POST https://127.0.0.1:8447/api/voice/search -H "Content-Type: application/json" -d '{"query":"quién ganó el último mundial"}'`.
 
-**English only for now.** The Spanish pipeline's conversation agent is deliberately deterministic-only (no LLM fallback), so a Spanish search-shaped question gets a clear "search is English-only for now" reply (`docs/voice-pe-config/custom_sentences/es/websearch.yaml` + the `WebSearchUnavailable` intent_script) instead of a silent-seeming "no entiendo".
+**Spanish goes through the app endpoint.** A Spanish search-shaped question routes to `POST /api/voice/search` via the `WebSearch` intent (#866, `docs/voice-pe-config/custom_sentences/es/websearch.yaml`), not the English agent's LLM path — the broader Spanish LLM fallback is still tracked separately in #842.
 
 ## CLI
 
