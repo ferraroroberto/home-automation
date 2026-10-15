@@ -1929,6 +1929,16 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .login-error { color: var(--deficit); font-size: var(--font-label); }
 .muted { color: var(--muted); }
 .small { font-size: var(--font-caption); }
+/* design.md `code-inline` (COMP-17): inline code is mono at 0.875em of the text
+   around it on the neutral-soft fill, never caption-sized. */
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.875em;
+  background: var(--neutral-soft);
+  color: var(--ink);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
 
 /* One thin "showing older data" line for every tab (issue #571) — this used to
    be six per-tab classes, four of them byte-identical. Only the two genuinely
@@ -2933,11 +2943,11 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 .activity-legend { margin-bottom: var(--space-sm); }
 .activity-legend > .collapse-summary { padding: var(--space-xs) 0; min-height: var(--row-sm); }
 .activity-legend > .collapse-summary .collapse-main { color: var(--accent); font-weight: 600; }
-.activity-legend-body { padding: var(--space-xs) 0 var(--space-sm); font-size: var(--font-caption); }
+.activity-legend-body { padding: var(--space-xs) 0 var(--space-sm); font-size: var(--font-body-sm); }
 .activity-legend-body dl { margin: 2px 0 14px; }
 .activity-legend-body dt { font-weight: 600; color: var(--accent); margin-top: 10px; line-height: 1.35; }
 .activity-legend-body dd { margin: 2px 0 0; color: var(--muted); line-height: 1.45; }
-.activity-legend-body p { margin: 10px 0 2px; color: var(--muted); }
+.activity-legend-body p { margin: 10px 0 2px; color: var(--muted); font-size: inherit; }  /* beats .small: the chip is 0.875em of body-sm */
 .legend-swatch {
   display: inline-block; width: 9px; height: 9px; border-radius: 50%;
   vertical-align: middle; margin: 0 2px;
