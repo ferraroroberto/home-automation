@@ -13,6 +13,10 @@ from typing import Callable
 
 from playwright.sync_api import Page
 
+# The fleet design review's LAYOUT-10 budget (fleet-config#1354): px a tab's
+# first card may grow between its first paint and its settled height.
+LAYOUT_10_MAX_GROWTH_PX = 8
+
 # Holds every browser fetch of one endpoint until the test releases it. The
 # request itself still goes through Playwright's routing (and its stubs) once
 # released, so the held read returns exactly what the test stubbed.
@@ -22,7 +26,9 @@ _HOLD_READS_SCRIPT = """
   const originalFetch = window.fetch.bind(window);
   let release;
   const released = new Promise(function (resolve) { release = resolve; });
-  window.__e2eReleaseHeldReads = function () { release(); };
+  // Chained, so a test holding several endpoints releases them all at once.
+  const releasePrevious = window.__e2eReleaseHeldReads;
+  window.__e2eReleaseHeldReads = function () { if (releasePrevious) releasePrevious(); release(); };
   window.fetch = function (input, init) {
     const url = typeof input === 'string' ? input : input.url;
     if (url === heldUrl || url.endsWith(heldUrl)) {

@@ -416,7 +416,10 @@ function patchPlug(id, patch) {
 function renderStats() {
   const devices = state.plugs.filter(function (d) { return !d.is_light; });
   if (!devices.length) {
-    if (els.powerNow) els.powerNow.hidden = true;
+    // Still reading: keep the dashes index.html draws, so the card does not
+    // grow when the plugs land (LAYOUT-10, #924). Only a settled "none" hides it.
+    const reading = plugsView.state === 'idle' || plugsView.state === 'loading';
+    if (!reading && els.powerNow) els.powerNow.hidden = true;
     if (els.powerOnCount) els.powerOnCount.textContent = '';
     setHeadPart('iot', 'plugs', null);
     return;
@@ -438,9 +441,10 @@ function renderStats() {
   set(els.powerOnCount, on + ' on');
   set(els.powerWatts, wattStr);
   drawing.sort(function (a, b) { return Number(b.power_w) - Number(a.power_w); });
+  // The line is always there (a dash at first paint), so it never appears late.
   set(els.powerTop, drawing.slice(0, 3).map(function (d) {
     return (plugLabel(d) || 'Device') + ' ' + Math.round(Number(d.power_w));
-  }).join(' · '));
+  }).join(' · ') || 'Nothing drawing power');
   if (els.powerNow) els.powerNow.hidden = false;
 
   // The Devices header's plain fact (head-status.js, #880): what is on and

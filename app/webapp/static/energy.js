@@ -218,10 +218,9 @@ export function renderEnergy(e) {
   const solar = e.inverter_reachable ? e.pv_power_w : null;
   renderEnergyHead(e);
 
-  // Energy-tab flow + the matching one in Home's House card (revealed once it has data).
+  // Energy-tab flow + the matching one in Home's House card (dashes until it has data).
   renderFlowCard(energyFlowRefs, e, solar);
   renderFlowCard(homeFlowRefs, e, solar);
-  els.homeEnergyFlow.hidden = false;
   renderEnergyFeedback();
 
   // --- The glance card's line: self-sufficiency and self-consumption now. ---

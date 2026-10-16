@@ -84,11 +84,16 @@ const NEXT_VERBS = {
 
 // The glance card's one schedule line (#882): what the alarm does next on its
 // own, so "will it arm tonight?" needs no tap. Hidden with no schedule on.
+// index.html draws it as "Next: —"; until the schedules have been read it stays
+// that way, so the glance card does not grow when they land (LAYOUT-10, #924).
+let schedulesRead = false;
+
 function renderNextSchedule() {
   if (!els.securityNext) return;
   const now = new Date();
   const next = nextSchedule(state.securitySchedules, now);
   if (!next) {
+    if (!schedulesRead) return;
     els.securityNext.hidden = true;
     els.securityNext.textContent = '';
     return;
@@ -206,6 +211,7 @@ export async function loadSecuritySchedules() {
       els.securitySchedulesNote.textContent = friendlyError(exc, 'Failed to load schedules.');
     }
   }
+  schedulesRead = true;
   renderSchedules();
 }
 
