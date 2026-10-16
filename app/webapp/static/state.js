@@ -34,6 +34,9 @@ export const state = {
   // Discovery/read problem text for the Circuits card, kept separate from an
   // empty meter list: "mDNS could not run" and "no meters here" differ (#25).
   circuitsError: '',
+  // "Last reading HH:MM; refreshing..." when the server's answer is past its
+  // staleness bound (#926), else ''. An error note wins over it.
+  circuitsStaleNote: '',
   // Channel key ("<meter_id>:<channel>") whose rename modal is open, or null.
   selectedCircuitKey: null,
   // Reveal user-hidden circuit channels (issue #619), and how many there are.

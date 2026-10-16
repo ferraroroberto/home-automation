@@ -325,10 +325,20 @@ async function loadNetwork(opts) {
     state.network = await jsonApi(url);
     reportFetchOk('network');
     if (!speedtest) saveSnapshot('network', state.network);
-    networkView.set('ready', {
-      updatedAt: new Date(),
-      liveUnavailable: false,
-    });
+    // The server answers from memory (#926) and says when that reading is
+    // old: show it as last-saved data with its real time, and come back once
+    // for the read it started behind this answer (one catch-up, no loop).
+    const snap = state.network.snapshot;
+    if (snap && snap.stale) {
+      state.snapshotUpdatedAt.network = snap.built_at || null;
+      networkView.set('stale', { liveUnavailable: false });
+      if (!(opts && opts.catchUp)) scheduleNetworkCatchUp();
+    } else {
+      networkView.set('ready', {
+        updatedAt: new Date(),
+        liveUnavailable: false,
+      });
+    }
     renderNetwork();
     // Trends are context under the live figures: fetched after the read that
     // just recorded a sample, never blocking or failing the tile itself.
@@ -341,6 +351,21 @@ async function loadNetwork(opts) {
   } finally {
     networkLoading = false;
   }
+}
+
+// A stale answer means the server just started the ~8 s AP read behind it;
+// one follow-up after it lands picks the fresh reading up even when the
+// Network sheet's poll isn't running. That read is already in flight, so the
+// follow-up costs the AP nothing.
+const NETWORK_CATCH_UP_MS = 9_000;
+let networkCatchUp = null;
+
+function scheduleNetworkCatchUp() {
+  if (networkCatchUp) return;
+  networkCatchUp = setTimeout(function () {
+    networkCatchUp = null;
+    if (activeTab === 'iot') loadNetwork({ catchUp: true });
+  }, NETWORK_CATCH_UP_MS);
 }
 
 export function restoreNetworkSnapshot() {

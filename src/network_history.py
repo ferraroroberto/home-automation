@@ -134,6 +134,19 @@ def _row_to_record(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
+def load_snapshot(path: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+    """The whole registry, read-only — what a cached ``/api/network`` answer merges.
+
+    Unlike :func:`record_and_snapshot` it observes nothing: an answer served from
+    memory is not a sighting, so it must not bump ``last_seen``/``times_seen``
+    (#926). It still reflects every write since, such as an ``important`` toggle.
+    """
+    init_db(path)
+    with _connect(path) as conn:
+        rows = conn.execute("SELECT * FROM devices").fetchall()
+    return {str(r["mac"]): _row_to_record(r) for r in rows}
+
+
 # --------------------------------------------------------------- writes
 def record_and_snapshot(
     seen: Iterable[Dict[str, Any]],

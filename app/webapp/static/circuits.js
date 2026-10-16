@@ -321,6 +321,17 @@ function toggleCircuitHidden() {
 }
 
 // ------------------------------------------------------------- render
+// The server answers from memory (#926); past its staleness bound it says so,
+// and the card says when the reading it shows was taken. The card's own 15 s
+// poll picks the fresh one up.
+function staleReadingNote(snapshot) {
+  if (!snapshot || !snapshot.stale) return '';
+  const taken = new Date(snapshot.built_at || '');
+  if (Number.isNaN(taken.getTime())) return 'Older reading; refreshing...';
+  return 'Last reading ' + taken.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+    '; refreshing...';
+}
+
 function setNote(message) {
   if (!els.circuitsNote) return;
   els.circuitsNote.textContent = message || '';
@@ -363,7 +374,7 @@ export function renderCircuits() {
       'No meters yet. They appear once powered and on the Wi-Fi.'));
     return;
   }
-  setNote(state.circuitsError || '');
+  setNote(state.circuitsError || state.circuitsStaleNote || '');
 
   // Meters A→Z by name; each meter's clamps in physical terminal order, then
   // the meter's own row. Sorted on a copy — state.circuits mirrors the server.
@@ -389,6 +400,7 @@ export async function loadCircuits() {
     // A discovery problem is reported as its own fact, never folded into
     // "no meters" — the two need different actions from whoever is reading.
     state.circuitsError = body && body.error ? friendlyError(body.error, 'Meter discovery failed.') : '';
+    state.circuitsStaleNote = staleReadingNote(body && body.snapshot);
     renderCircuits();
   } catch (exc) {
     if (isAuthRequired(exc)) return;

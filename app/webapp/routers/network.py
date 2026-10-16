@@ -33,9 +33,16 @@ Partial data is normal and returned with 200: an unreachable AP or router is
 reported as ``reachable=false`` on its card, not a 500 — only an unexpected
 failure of the whole read surfaces as a 502. The opt-in throughput test
 (``?speedtest=1``) takes ~13 s and saturates the link, so it is a deliberate,
-separate call the 15 s poll never triggers. Each read also leaves one throttled
-internet sample (:mod:`src.network_history`), and
+separate call the 15 s poll never triggers. Each real read also leaves one
+throttled internet sample (:mod:`src.network_history`), and
 ``GET /api/network/internet-history`` serves them as the tile's sparklines (#840).
+
+The snapshot is answered from memory (#926): the AP's SOAP read alone takes
+~8 s, so once a value exists ``GET /api/network`` serves it at once, aged, and
+one shared refresh runs behind it (see ``NETWORK_SNAPSHOT``). The device and
+internet history are recorded per *real* read, never per answer; the
+user-owned overlays (names, groups, hidden, the ``important`` flag) are merged
+per request, so an edit shows on the very next read.
 
 The DHCP reservation planner + staged reservation manager (issue #170/#176)
 used to live here too; it was split out to :mod:`app.webapp.routers.dhcp_plan`
@@ -58,8 +65,10 @@ from typing import Any, Dict, Mapping, Optional, Set
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
+from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import make_bool_prefs_router, make_display_name_endpoint
 from src.network_client import (
+    InternetHealth,
     NetDevice,
     NetworkCommandError,
     NetworkConfigError,
@@ -94,6 +103,7 @@ from src.network_hidden import (
 from src.network_history import (
     internet_history,
     is_new,
+    load_snapshot,
     record_and_snapshot,
     record_internet_sample,
     set_important,
@@ -118,6 +128,56 @@ from src.speedtest_prefs import SpeedtestPrefs, load_speedtest_prefs, save_speed
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def _read_network(include_speedtest: bool = False) -> NetworkState:
+    """One real AP/router/host read, recorded once into the device + internet history.
+
+    Recording lives here rather than per answer: a snapshot served from memory
+    is not a new sighting, so it must not bump ``times_seen`` or add a latency
+    sample. Both stores are best-effort — a history failure must not break the
+    live read, so it is logged and the read is still returned.
+    """
+    state = await fetch_network_state(include_speedtest=include_speedtest)
+    now = int(time.time())
+    seen = [
+        {
+            "mac": normalize_mac(d.mac),
+            "ip": d.ip,
+            "name": d.name,
+            "conn_type": d.conn_type,
+            "ssid": d.ssid,
+        }
+        for d in state.devices
+        if d.mac and not is_randomized_mac(d.mac)
+    ]
+    try:
+        await asyncio.to_thread(record_and_snapshot, seen, now)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  network history update failed: %s", exc)
+    # Feed the tile's latency/throughput sparklines (#840).
+    try:
+        await asyncio.to_thread(record_internet_sample, _internet_dict(state.internet), now)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("⚠️  internet sample not recorded: %s", exc)
+    return state
+
+
+# The LAN snapshot, answered from memory (#926): the AP's SOAP read takes ~8 s,
+# which every Devices-tab load used to wait out. Serve-stale, so once a value
+# exists a read answers at once and one shared refresh runs behind it —
+# concurrent readers share that one AP read. No tick (demand_window_s=0): a
+# refresh only ever follows a read, and a read inside max_age_s (under the 15 s
+# sheet poll) triggers none, so the AP and router see no more reads than when
+# each request read them itself. Past stale_after_s the answer says ``stale``.
+NETWORK_SNAPSHOT: ReadSnapshot[NetworkState] = ReadSnapshot(
+    "network",
+    lambda: _read_network(),  # looked up per call, so tests can patch the fetch
+    max_age_s=12.0,
+    tick_s=15.0,
+    demand_window_s=0,
+    stale_after_s=60.0,
+)
 
 
 def _device_dict(
@@ -302,6 +362,19 @@ def _wifi_dict(
     }
 
 
+def _internet_dict(net: InternetHealth) -> Dict[str, Any]:
+    """The internet tile's figures — also the shape a history sample records."""
+    return {
+        "online": net.online,
+        "gateway_ms": net.gateway_ms,
+        "external_ms": net.external_ms,
+        "packet_loss_pct": net.packet_loss_pct,
+        "download_mbps": net.download_mbps,
+        "upload_mbps": net.upload_mbps,
+        "speedtest_server": net.speedtest_server,
+    }
+
+
 def _network_dict(
     s: NetworkState,
     overrides: Mapping[str, str],
@@ -313,7 +386,6 @@ def _network_dict(
     now: int,
 ) -> Dict[str, Any]:
     """Flatten a :class:`NetworkState` (+ history) into a JSON-serialisable dict."""
-    net = s.internet
     ap = s.access_point
     r = s.router
 
@@ -329,15 +401,7 @@ def _network_dict(
             )
 
     return {
-        "internet": {
-            "online": net.online,
-            "gateway_ms": net.gateway_ms,
-            "external_ms": net.external_ms,
-            "packet_loss_pct": net.packet_loss_pct,
-            "download_mbps": net.download_mbps,
-            "upload_mbps": net.upload_mbps,
-            "speedtest_server": net.speedtest_server,
-        },
+        "internet": _internet_dict(s.internet),
         "access_point": {
             "reachable": ap.reachable,
             "model": ap.model,
@@ -370,8 +434,14 @@ def _network_dict(
 async def get_network(
     speedtest: bool = Query(False, description="run an opt-in throughput test (~13 s)"),
 ) -> Dict[str, Any]:
+    snapshot: Optional[Dict[str, Any]] = None
     try:
-        state = await fetch_network_state(include_speedtest=speedtest)
+        if speedtest:
+            # A deliberate, link-saturating measurement: always live, never from
+            # memory, and it carries no snapshot block (it is not one).
+            state = await _read_network(include_speedtest=True)
+        else:
+            state, snapshot = await NETWORK_SNAPSHOT.read()
     except NetworkConfigError as exc:
         # Missing NETWORK_* env — surface the guidance, don't 500.
         raise HTTPException(status_code=503, detail=str(exc))
@@ -385,26 +455,13 @@ async def get_network(
     wifi_overrides = load_network_wifi_display_names()
     hidden_wifi_ids = load_hidden_wifi_ids()
     now = int(time.time())
-    # Record the live, non-randomised devices and get back the full registry
-    # snapshot (the new-this-cycle MAC list is discarded — the 24 h ``is_new``
-    # badge is computed per row from the snapshot instead). Best-effort: a
-    # history failure must not break the live read, so fall back to no history
-    # rather than 502.
-    seen = [
-        {
-            "mac": normalize_mac(d.mac),
-            "ip": d.ip,
-            "name": d.name,
-            "conn_type": d.conn_type,
-            "ssid": d.ssid,
-        }
-        for d in state.devices
-        if d.mac and not is_randomized_mac(d.mac)
-    ]
+    # The registry as it is now (the read itself was recorded in _read_network),
+    # so an ``important`` toggle shows even on an answer served from memory.
+    # Best-effort: fall back to no history rather than 502.
     try:
-        _new_list, known = await asyncio.to_thread(record_and_snapshot, seen, now)
+        known = await asyncio.to_thread(load_snapshot)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  network history update failed: %s", exc)
+        logger.warning("⚠️  network history read failed: %s", exc)
         known = {}
     payload = _network_dict(
         state,
@@ -416,12 +473,8 @@ async def get_network(
         known,
         now,
     )
-    # Feed the tile's latency/throughput sparklines (#840). Best-effort, like
-    # the device history above: a store failure must not break the live read.
-    try:
-        await asyncio.to_thread(record_internet_sample, payload["internet"], now)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  internet sample not recorded: %s", exc)
+    if snapshot is not None:
+        payload["snapshot"] = snapshot
     return payload
 
 
