@@ -13,11 +13,11 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from src import _backoff as _backoff_module
 from src import huawei_client
 from src.huawei_client import (
     EnergyState,
     _apply,
-    _backoff_for,
     _is_settled,
     _is_stale,
     _latest_aligned,
@@ -35,13 +35,11 @@ _real_get_client = huawei_client._get_client
 @pytest.fixture(autouse=True)
 def _reset_backoff():
     """The backoff lives in module state — don't leak it between tests."""
-    huawei_client._failure_until = 0.0
-    huawei_client._failure_streak = 0
+    huawei_client._backoff.record_success()
     huawei_client._stats_cache = None
     huawei_client._last_log_key = None
     yield
-    huawei_client._failure_until = 0.0
-    huawei_client._failure_streak = 0
+    huawei_client._backoff.record_success()
     huawei_client._stats_cache = None
     huawei_client._last_log_key = None
 
@@ -368,16 +366,15 @@ def test_backoff_doubles_then_caps():
     Observed live: an expired session became a login storm and the portal then
     refused the long-lived process outright.
     """
-    assert _backoff_for(1) == 60
-    assert _backoff_for(2) == 120
-    assert _backoff_for(3) == 240
+    delays = [huawei_client._backoff.record_failure() for _ in range(50)]
+    assert delays[:3] == [60, 120, 240]
     # ...and it stops doubling rather than growing without bound.
-    assert _backoff_for(9) == 900
-    assert _backoff_for(50) == 900
+    assert delays[8] == 900
+    assert delays[49] == 900
 
 
 def test_no_backoff_before_any_failure():
-    assert _backoff_for(0) == 0
+    assert huawei_client._backoff.seconds_remaining() is None
 
 
 def test_a_failing_read_stops_calling_the_cloud_and_serves_the_last_payload():
@@ -472,18 +469,22 @@ def test_a_plant_dn_resolution_failure_also_drops_the_cached_client():
         huawei_client._plant_dn = None
 
 
-def test_failures_accumulate_and_success_clears_them():
-    _note_failure(1000.0)
-    assert huawei_client._failure_streak == 1
-    assert huawei_client._failure_until == 1060.0
+def test_failures_accumulate_and_success_clears_them(monkeypatch):
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(_backoff_module.time, "monotonic", lambda: clock["now"])
 
-    _note_failure(1060.0)
-    assert huawei_client._failure_streak == 2
-    assert huawei_client._failure_until == 1180.0
+    _note_failure()
+    assert huawei_client._backoff.consecutive_failures == 1
+    assert huawei_client._backoff.next_retry_at == 1060.0
+
+    clock["now"] = 1060.0
+    _note_failure()
+    assert huawei_client._backoff.consecutive_failures == 2
+    assert huawei_client._backoff.next_retry_at == 1180.0
 
     _note_success()
-    assert huawei_client._failure_streak == 0
-    assert huawei_client._failure_until == 0.0
+    assert huawei_client._backoff.consecutive_failures == 0
+    assert huawei_client._backoff.seconds_remaining() is None
 
 
 # --------------------------------------------------------------------------

@@ -15,7 +15,6 @@ uses for its own module-state backoff.
 from __future__ import annotations
 
 import asyncio
-import time
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 
@@ -23,6 +22,7 @@ import aiohttp
 import pytest
 
 import src.pv_forecast as pf
+from src import _backoff as _backoff_module
 from src.location_config import LocationConfig
 from src.pv_system_config import PvArray, PvHorizonPoint, PvSystemConfig
 from src.sun_position import SunPosition
@@ -37,13 +37,11 @@ def _reset_module_state():
     leak them between tests."""
     pf._forecast_cache.clear()
     pf._session = None
-    pf._failure_until = 0.0
-    pf._failure_streak = 0
+    pf._backoff.record_success()
     yield
     pf._forecast_cache.clear()
     pf._session = None
-    pf._failure_until = 0.0
-    pf._failure_streak = 0
+    pf._backoff.record_success()
 
 
 def _hourly_payload(
@@ -633,8 +631,8 @@ def test_a_429_is_reported_as_rate_limited_and_opens_backoff(
     assert result.available is False
     assert result.reason == "rate_limited"
     assert result.reason != "unreachable"
-    assert pf._failure_streak == 1
-    assert pf._failure_until > 0.0
+    assert pf._backoff.consecutive_failures == 1
+    assert pf._backoff.seconds_remaining() is not None
 
 
 def test_while_an_existing_backoff_is_active_the_last_good_curve_is_served(
@@ -652,8 +650,7 @@ def test_while_an_existing_backoff_is_active_the_last_good_curve_is_served(
     key = pf._cache_key(_TODAY, _ONE_ARRAY, _LOCATION)
     ts, cached = pf._forecast_cache[key]
     pf._forecast_cache[key] = (ts - pf._CACHE_TTL_S - 1, cached)
-    pf._failure_until = time.monotonic() + 60
-    pf._failure_streak = 1
+    pf._backoff.record_failure()
 
     limited = _RateLimitedSession({})
     _patch_session(monkeypatch, limited)
@@ -696,7 +693,7 @@ def test_a_429_on_a_live_refetch_still_serves_the_stale_cached_curve(
     assert served.available is True
     assert served.expected == result.expected
     assert limited.requested == [(30, 0)]  # a live attempt was made, and it 429'd
-    assert pf._failure_streak == 1
+    assert pf._backoff.consecutive_failures == 1
 
 
 def test_a_429_with_no_cache_at_all_reports_rate_limited_without_a_curve(
@@ -732,24 +729,35 @@ def test_a_non_429_failure_does_not_open_the_backoff(
 
     assert result.available is False
     assert result.reason == "unreachable"
-    assert pf._failure_streak == 0
-    assert pf._failure_until == 0.0
+    assert pf._backoff.consecutive_failures == 0
+    assert pf._backoff.seconds_remaining() is None
 
 
-def test_backoff_doubles_per_streak_and_success_clears_it() -> None:
-    pf._note_failure(1000.0)
-    assert pf._failure_streak == 1
-    assert pf._failure_until == 1000.0 + pf._FAILURE_BACKOFF_BASE_S
+def test_backoff_doubles_per_streak_and_success_clears_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(_backoff_module.time, "monotonic", lambda: clock["now"])
 
-    pf._note_failure(pf._failure_until)
-    assert pf._failure_streak == 2
-    assert pf._failure_until == pytest.approx(
+    pf._note_failure()
+    assert pf._backoff.consecutive_failures == 1
+    assert pf._backoff.next_retry_at == 1000.0 + pf._FAILURE_BACKOFF_BASE_S
+
+    clock["now"] = pf._backoff.next_retry_at
+    pf._note_failure()
+    assert pf._backoff.consecutive_failures == 2
+    assert pf._backoff.next_retry_at == pytest.approx(
         1000.0 + pf._FAILURE_BACKOFF_BASE_S + pf._FAILURE_BACKOFF_BASE_S * 2
     )
 
+    # ...and it stops doubling at the ceiling rather than growing without bound.
+    for _ in range(20):
+        pf._note_failure()
+    assert pf._backoff.next_retry_at == pytest.approx(clock["now"] + pf._FAILURE_BACKOFF_MAX_S)
+
     pf._note_success()
-    assert pf._failure_streak == 0
-    assert pf._failure_until == 0.0
+    assert pf._backoff.consecutive_failures == 0
+    assert pf._backoff.seconds_remaining() is None
 
 
 def test_a_successful_fetch_prunes_cache_entries_past_the_stale_serve_horizon(
