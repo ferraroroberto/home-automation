@@ -16,7 +16,7 @@ import { api, jsonApi, isAuthRequired } from './api.js';
 import { icon } from './_vendored/icons/icons.js';
 import { createPoller } from './poll.js';
 import { els, readToken, state, toast } from './state.js';
-import { esc, friendlyError } from './format.js';
+import { esc, friendlyError, staleReadingNote } from './format.js';
 import { chipHtml } from './chip.js';
 import { sheet } from './sheet.js';
 
@@ -125,13 +125,15 @@ function renderSatellitesMeta(rows) {
     els.haSatellitesMeta.textContent = online === rows.length
       ? online + ' online'
       : online + ' of ' + rows.length + ' online';
+    if (state.haStaleNote) els.haSatellitesMeta.textContent += ' · older reading';
   }
 }
 
 function renderSatellites(rows) {
   els.haSatellitesList.innerHTML = '';
   renderSatellitesMeta(rows);
-  els.haSatellitesNote.hidden = rows.length > 0;
+  els.haSatellitesNote.hidden = rows.length > 0 && !state.haStaleNote;
+  if (rows.length && state.haStaleNote) els.haSatellitesNote.textContent = state.haStaleNote;
   if (!rows.length) {
     els.haSatellitesNote.textContent = haViewState === 'error'
       ? 'Home Assistant is offline or unavailable.'
@@ -174,6 +176,10 @@ async function loadHa() {
   try {
     state.ha = await jsonApi('/api/ha');
     haViewState = 'ready';
+    // The server answers from memory (#928) and says when that reading is old;
+    // come back once for the read it started behind this answer (no loop).
+    state.haStaleNote = staleReadingNote(state.ha.snapshot);
+    if (state.haStaleNote) scheduleHaCatchUp();
     renderHa();
   } catch (exc) {
     if (isAuthRequired(exc)) return;
@@ -184,6 +190,21 @@ async function loadHa() {
 }
 
 const schedule = createPoller(loadHa);
+
+// A stale answer means the server just started the ~8 s Home Assistant read
+// behind it; one follow-up after it lands picks the fresh reading up even when
+// no sheet is open to poll. That read is already in flight, so the follow-up
+// costs Home Assistant nothing.
+const HA_CATCH_UP_MS = 9_000;
+let haCatchUp = null;
+
+function scheduleHaCatchUp() {
+  if (haCatchUp) return;
+  haCatchUp = setTimeout(function () {
+    haCatchUp = null;
+    loadHa();
+  }, HA_CATCH_UP_MS);
+}
 
 // Both sheets are the instant sheet shell (sheet.js): nothing to save, Done
 // closes. Closing the satellites sheet ends a recording in progress.

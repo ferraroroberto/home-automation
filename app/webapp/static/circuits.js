@@ -24,7 +24,7 @@ import {
   state, els, reportFetchOk, persistedFlag, CIRCUITS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { fmtW, friendlyError } from './format.js';
+import { fmtW, friendlyError, staleReadingNote } from './format.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup } from './toggle.js';
 import { detailModal } from './detail-modal.js';
@@ -321,17 +321,6 @@ function toggleCircuitHidden() {
 }
 
 // ------------------------------------------------------------- render
-// The server answers from memory (#926); past its staleness bound it says so,
-// and the card says when the reading it shows was taken. The card's own 15 s
-// poll picks the fresh one up.
-function staleReadingNote(snapshot) {
-  if (!snapshot || !snapshot.stale) return '';
-  const taken = new Date(snapshot.built_at || '');
-  if (Number.isNaN(taken.getTime())) return 'Older reading; refreshing...';
-  return 'Last reading ' + taken.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-    '; refreshing...';
-}
-
 function setNote(message) {
   if (!els.circuitsNote) return;
   els.circuitsNote.textContent = message || '';

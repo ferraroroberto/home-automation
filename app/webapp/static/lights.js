@@ -25,7 +25,7 @@ import { createPoller } from './poll.js';
 import { toggleMarkup, setToggleState } from './toggle.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { openPlugDetail, setTuyaBrightness, toggleSwitch, tuyaSwitch } from './plugs.js';
-import { friendlyError } from './format.js';
+import { friendlyError, staleReadingNote } from './format.js';
 import { rowEl } from './row.js';
 import { chipEl } from './chip.js';
 import { sheet } from './sheet.js';
@@ -511,6 +511,11 @@ export function renderLights() {
   } else if (lightsView.state === 'stale' && lightsView.liveUnavailable) {
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = lightsView.lastUpdatedLabel() + ' · live data unavailable';
+  } else if (state.lightsStaleNote) {
+    // Answered from the server's memory past its staleness bound (#928); the
+    // card's own 15 s poll picks up the refresh that answer started.
+    els.lightsNote.hidden = false;
+    els.lightsNote.textContent = state.lightsStaleNote;
   } else if (isSnapshotRestored('lights')) {
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = snapshotLabel('lights');
@@ -541,6 +546,7 @@ export async function loadLights() {
     reportFetchOk('lights');
     saveSnapshot('lights', body);
     state.lights = (body && body.lights) || [];
+    state.lightsStaleNote = staleReadingNote(body && body.snapshot);
     lightsView.set(state.lights.length ? 'ready' : 'empty', {
       updatedAt: new Date(),
       liveUnavailable: false,
@@ -584,6 +590,7 @@ export function wireLightControls() {
         reportFetchOk('lights');
         saveSnapshot('lights', body);
         state.lights = (body && body.lights) || [];
+        state.lightsStaleNote = '';  // a forced refresh is a live read
         lightsView.set(state.lights.length ? 'ready' : 'empty', {
           updatedAt: new Date(),
           liveUnavailable: false,

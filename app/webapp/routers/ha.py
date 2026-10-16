@@ -8,13 +8,14 @@ import re
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.webapp.read_snapshot import ReadSnapshot
 from src import telemetry
 from src.ha_client import HaClientError, HomeAssistantClient
 from src.voice_client import VoiceTranscriberClient, VoiceTranscriberError, load_base_url
@@ -50,13 +51,42 @@ def _interaction_rows(events: list[Dict[str, Any]], satellites: list[Dict[str, A
     return result
 
 
+# The satellite read, answered from memory (#928): a cold Home Assistant
+# websocket round trip took ~8 s and every Devices-tab load sat in it. Serve-
+# stale like the LAN snapshot (#926): once a value exists a read answers at once
+# and one shared refresh runs behind it. No tick (demand_window_s=0), so a
+# refresh only ever follows a read and Home Assistant sees no more reads than
+# the 15 s sheet poll made before. Past stale_after_s the answer says ``stale``.
+# The interaction log is a local file and stays a per-request read.
+HA_SNAPSHOT: ReadSnapshot[List[Dict[str, Any]]] = ReadSnapshot(
+    "ha",
+    lambda: _read_satellites(),  # looked up per call, so tests can patch the client
+    max_age_s=12.0,
+    tick_s=15.0,
+    demand_window_s=0,
+    stale_after_s=60.0,
+)
+
+# The app whose lifespan-owned HTTP pool the snapshot's refresh reuses. A
+# refresh runs behind a request with no request of its own, so the last reader
+# leaves its app here; ``None`` (a test without a lifespan) means a temporary
+# session.
+_pool_app: Optional[Any] = None
+
+
+async def _read_satellites() -> List[Dict[str, Any]]:
+    async with _http_session(_pool_app) as session:
+        return await HomeAssistantClient(session).satellites()
+
+
 @router.get("/api/ha")
 async def get_home_assistant(request: Request) -> Dict[str, Any]:
     """Return HA-owned Voice PE room/state data and compact recent interactions."""
 
+    global _pool_app
+    _pool_app = request.app
     try:
-        async with _http_session(request) as session:
-            satellites = await HomeAssistantClient(session).satellites()
+        satellites, snapshot = await HA_SNAPSHOT.read()
     except HaClientError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
     try:
@@ -70,6 +100,7 @@ async def get_home_assistant(request: Request) -> Dict[str, Any]:
         "satellites": satellites,
         "interactions": _interaction_rows(events, satellites),
         "voice_transcriber": bool(load_base_url()),
+        "snapshot": snapshot,
     }
 
 
@@ -85,7 +116,7 @@ async def announce(
     if not _SATELLITE_ID.fullmatch(entity_id):
         raise HTTPException(status_code=400, detail="invalid Assist satellite entity")
     try:
-        async with _http_session(request) as session:
+        async with _http_session(request.app) as session:
             client = HomeAssistantClient(session)
             satellite_state = await client.state(entity_id)
             if str(satellite_state.get("state") or "unknown") in {"unknown", "unavailable"}:
@@ -125,10 +156,10 @@ async def announce(
 
 
 @asynccontextmanager
-async def _http_session(request: Optional[Request]):
+async def _http_session(app: Optional[Any]):
     """Reuse the lifespan-owned pool; create a temporary one in no-lifespan tests."""
 
-    shared = getattr(request.app.state, "outbound_http", None) if request else None
+    shared = getattr(app.state, "outbound_http", None) if app is not None else None
     if shared is not None and not shared.closed:
         yield shared
         return
@@ -138,7 +169,7 @@ async def _http_session(request: Optional[Request]):
 
 @asynccontextmanager
 async def _voice_client(request: Request):
-    async with _http_session(request) as session:
+    async with _http_session(request.app) as session:
         yield VoiceTranscriberClient(session)
 
 
