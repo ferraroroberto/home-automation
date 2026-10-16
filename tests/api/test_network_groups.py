@@ -139,6 +139,10 @@ def test_offline_row_keeps_its_group_and_last_known_band(
         return _state(net[1])
 
     monkeypatch.setattr("app.webapp.routers.network.fetch_network_state", only_second)
+    # The next real AP read, not the first one answered again from memory (#926).
+    from app.webapp.routers.network import NETWORK_SNAPSHOT
+
+    NETWORK_SNAPSHOT.invalidate()
 
     devices = _devices_by_mac(client)
     gone = devices["A4:CF:12:00:00:01"]

@@ -513,7 +513,12 @@ def test_network_route_tracks_offline_and_important(
     assert resp.json() == {"mac": "B8:27:EB:11:22:33", "important": True}
 
     # Next read: the important device drops off → a synthesised offline row.
+    # Invalidated so it is the next real AP read, not the first one answered
+    # again from memory (#926).
+    from app.webapp.routers.network import NETWORK_SNAPSHOT
+
     holder["state"] = NetworkState(devices=(dev_a,), **base)
+    NETWORK_SNAPSHOT.invalidate()
     body = client.get("/api/network").json()
     by_mac = {d["mac"]: d for d in body["devices"]}
     assert by_mac["5C:CF:7F:AA:BB:CC"]["online"] is True

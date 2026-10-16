@@ -22,6 +22,12 @@ refreshes it. The age alone isn't left to say "upstream is down": past
 source not refreshing" is its own state. A write's dirty mark still refetches
 inline, and so does the very first read (nothing to serve yet).
 
+**No tick** (``demand_window_s=0``, #926) is for a source this app must never
+poll on its own (the LAN's access point and router, the CT-clamp meters): the
+snapshot only ever refreshes behind a read, so the device sees at most the
+reads it saw before the snapshot existed. ``tick_s`` then only spaces retries
+of a failing serve-stale refresh.
+
 **Writes.** A write in this process either applies its read-back as a patch
 (:meth:`ReadSnapshot.update`) or marks the snapshot dirty
 (:meth:`ReadSnapshot.invalidate`) so the next read refetches. Both are
@@ -193,7 +199,7 @@ class ReadSnapshot(Generic[T]):
 
     async def tick_once(self) -> None:
         """Refetch if someone read recently and nobody just did."""
-        if time.monotonic() - self._last_demand > self.demand_window_s:
+        if self.demand_window_s <= 0 or time.monotonic() - self._last_demand > self.demand_window_s:
             return
         async with self._lock:
             if self._value is not None and self._dirty_seq == 0 and (
@@ -218,6 +224,8 @@ class ReadSnapshot(Generic[T]):
                 logger.warning("⚠️ %s snapshot warm-up failed; the first read fetches inline: %s", self.name, exc)
 
     async def tick_forever(self) -> None:
+        if self.demand_window_s <= 0:
+            return  # no tick: refreshed only behind a read
         while True:
             await asyncio.sleep(self.tick_s)
             try:

@@ -15,6 +15,10 @@ Partial data is normal and returned with 200, the same contract as
 every other meter stays live. ``null`` is never collapsed into ``0`` — 0 W is a
 real answer here (an idle circuit, or a channel with no clamp yet) and has to
 stay distinguishable from "not measured".
+
+The read is answered from memory (#926): a meter's SSE snapshot takes 2-4 s and
+a lapsed mDNS discovery adds seconds more, which every Devices-tab load used to
+wait out. See ``CIRCUITS_SNAPSHOT``.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import make_display_name_endpoint
 from src.athom_client import (
     CircuitReading,
@@ -45,6 +50,21 @@ from src.circuit_prefs import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# The meters, answered from memory (#926) with the same shape as the LAN
+# snapshot: serve-stale, so a read past max_age_s answers at once and one shared
+# refresh runs behind it; no tick (demand_window_s=0), so a refresh only ever
+# follows a read and the meters see no more reads than the 15 s card poll made
+# before. Past stale_after_s the answer says ``stale``. The telemetry sampler
+# reads the meters itself and never goes through this.
+CIRCUITS_SNAPSHOT: ReadSnapshot[CircuitsState] = ReadSnapshot(
+    "circuits",
+    lambda: fetch_circuits_state(),  # looked up per call, so tests can patch it
+    max_age_s=12.0,
+    tick_s=15.0,
+    demand_window_s=0,
+    stale_after_s=60.0,
+)
 
 #: A meter id that is a real MAC, as :func:`src.athom_client._normalise_mac`
 #: writes it. A statically-configured meter (``ATHOM_METER_HOSTS``) instead gets
@@ -131,11 +151,11 @@ def _circuits_dict(state: CircuitsState) -> Dict[str, Any]:
 @router.get("/api/circuits")
 async def get_circuits() -> Dict[str, Any]:
     try:
-        state = await fetch_circuits_state()
+        state, snapshot = await CIRCUITS_SNAPSHOT.read()
     except Exception as exc:  # noqa: BLE001 — surface any unexpected error
         logger.warning("⚠️  Failed to read circuits: %s", exc)
         raise HTTPException(status_code=502, detail=f"failed to read circuits: {exc}")
-    return _circuits_dict(state)
+    return {**_circuits_dict(state), "snapshot": snapshot}
 
 
 @router.post("/api/circuits/refresh")
@@ -150,6 +170,7 @@ async def refresh_circuits() -> Dict[str, Any]:
     meter it simply missed this time (issue #615).
     """
     clear_read_cache()
+    CIRCUITS_SNAPSHOT.invalidate()  # the next GET shows what this sweep found
     try:
         state = await fetch_circuits_state(force=True)
     except Exception as exc:  # noqa: BLE001 — surface any unexpected error
@@ -202,6 +223,7 @@ async def update_invert(key: str, payload: InvertPayload) -> Dict[str, Any]:
     # *read* cache — re-running discovery here can come back empty and blank the
     # card for a flipped clamp, which is exactly what happened in testing.
     clear_read_cache()
+    CIRCUITS_SNAPSHOT.invalidate()
     return {"key": key, "invert": payload.invert}
 
 
