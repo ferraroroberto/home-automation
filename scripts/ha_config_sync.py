@@ -216,9 +216,20 @@ def compute_diff(old: str, new: str, path: str) -> str:
     return "".join(diff)
 
 
+def backup_key(remote_path: str) -> str:
+    """Backup file stem for a live file: its path under /config, ``/`` → ``__``.
+
+    Keyed on the whole relative path, not the basename: ``custom_sentences/en/``
+    and ``custom_sentences/es/`` share ``alarm.yaml`` & co., and a basename key
+    made their backups overwrite each other (audit #916).
+    """
+    rel = remote_path.removeprefix("/config/").lstrip("/")
+    return rel.replace("/", "__")
+
+
 def backup_remote_path(remote_path: str, stamp: str) -> str:
     """Timestamped backup path under BACKUP_DIR for a live file."""
-    return f"{BACKUP_DIR}/{Path(remote_path).name}.{stamp}.bak"
+    return f"{BACKUP_DIR}/{backup_key(remote_path)}.{stamp}.bak"
 
 
 def utc_stamp(now: Optional[datetime.datetime] = None) -> str:
@@ -365,12 +376,12 @@ class HaSsh:
         rc, _, _ = self.run("command -v ha")
         return rc == 0
 
-    def list_backups(self, basename: str) -> list:
-        """Most-recent-first backup paths for *basename* under BACKUP_DIR."""
+    def list_backups(self, key: str) -> list:
+        """Most-recent-first backup paths for *key* (see ``backup_key``) under BACKUP_DIR."""
         rc, out, _ = self.run(f"ls -1 {BACKUP_DIR} 2>/dev/null")
         if rc != 0:
             return []
-        names = [n for n in out.splitlines() if n.startswith(f"{basename}.") and n.endswith(".bak")]
+        names = [n for n in out.splitlines() if n.startswith(f"{key}.") and n.endswith(".bak")]
         names.sort(reverse=True)
         return [f"{BACKUP_DIR}/{n}" for n in names]
 
@@ -652,7 +663,7 @@ def cmd_rollback(cfg: HaConfig) -> int:
         ssh.connect()
         restored = 0
         for remote_path in (REMOTE_CONFIG, *(r for _, r in SENTENCE_FILES)):
-            backups = ssh.list_backups(Path(remote_path).name)
+            backups = ssh.list_backups(backup_key(remote_path))
             if not backups:
                 _info(f"No backup found for {remote_path} — skipped.")
                 continue

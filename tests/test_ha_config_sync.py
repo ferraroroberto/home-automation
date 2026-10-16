@@ -204,3 +204,57 @@ def test_sentence_files_globs_every_repo_yaml() -> None:
         assert f"{H.REMOTE_SENTENCES_ROOT}/{lang}/{name}" in remotes
     for local_file, _ in H.SENTENCE_FILES:
         assert local_file.exists(), f"missing sentence source: {local_file}"
+
+
+# ------------------------------------------- same-basename backups (audit #916)
+class _FakeSsh(H.HaSsh):
+    """In-memory remote: real ``list_backups`` / ``cmd_rollback`` logic, no network."""
+
+    def __init__(self, files: dict) -> None:
+        self.files = files
+
+    def connect(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def run(self, command: str):
+        if command.startswith("ls -1"):
+            prefix = f"{H.BACKUP_DIR}/"
+            return 0, "\n".join(p[len(prefix):] for p in self.files if p.startswith(prefix)), ""
+        return 0, "", ""
+
+    def has_ha_cli(self) -> bool:
+        return False
+
+    def read(self, remote_path: str):
+        return self.files.get(remote_path)
+
+    def write(self, remote_path: str, content: str) -> None:
+        self.files[remote_path] = content
+
+
+def test_backup_remote_path_distinguishes_same_basename_across_languages() -> None:
+    en = H.backup_remote_path(f"{H.REMOTE_SENTENCES_ROOT}/en/alarm.yaml", "20260628T141502Z")
+    es = H.backup_remote_path(f"{H.REMOTE_SENTENCES_ROOT}/es/alarm.yaml", "20260628T141502Z")
+    assert en != es
+
+
+def test_rollback_restores_each_language_from_its_own_backup(monkeypatch) -> None:
+    en_path = f"{H.REMOTE_SENTENCES_ROOT}/en/alarm.yaml"
+    es_path = f"{H.REMOTE_SENTENCES_ROOT}/es/alarm.yaml"
+    stamp = "20260628T141502Z"
+    # What deploy leaves behind: the pre-deploy contents, backed up per file.
+    files = {
+        H.backup_remote_path(en_path, stamp): "english-before\n",
+        H.backup_remote_path(es_path, stamp): "spanish-before\n",
+        en_path: "english-after\n",
+        es_path: "spanish-after\n",
+    }
+    monkeypatch.setattr(H, "HaSsh", lambda _cfg: _FakeSsh(files))
+
+    assert H.cmd_rollback(object()) == 0
+
+    assert files[en_path] == "english-before\n"
+    assert files[es_path] == "spanish-before\n"
