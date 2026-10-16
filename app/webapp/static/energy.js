@@ -4,8 +4,10 @@
  * since #883 (Step 5/8 of #872) is the glance card (the live flow and one line
  * of self-sufficiency), the Today card (two meters and the day's savings), one
  * History card (one period picker, an Energy / Money switch, the live flowing
- * chart behind Live), and the solar forecast. The export-rate editor it used to
- * carry lives in Settings.
+ * chart behind Live), and the solar forecast. The Settings editors that used to
+ * live here are their own modules: ./export-rates.js (export compensation,
+ * #883) and ./sun-overlay.js (sun-position diagnostic, #590). This module wires
+ * them and keeps the Money view's Export rate row that opens the former.
  *
  * Cadence is tab-aware: the live snapshot polls fast (LIVE_MS) only while the
  * Energy tab is open, falling back to SLOW_MS elsewhere so the Home tile still
@@ -17,7 +19,7 @@
 
 import { state, els, reportFetchOk, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
-import { esc, group, fmtW, fmtPct, localIsoDate } from './format.js';
+import { esc, group, fmtW, fmtPct } from './format.js';
 import { icon } from './_vendored/icons/icons.js';
 import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
 import {
@@ -25,16 +27,17 @@ import {
   createAggChart, setAggData, restyle,
   createExportCreditChart, setExportCreditData, restyleExportCredit,
   createForecastChart, setForecastData, restyleForecast,
-  createSunOverlayChart, setSunOverlayData, restyleSunOverlay, loadChartJs,
+  restyleSunOverlay, loadChartJs,
 } from './charts.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
-import { confirmAction } from './confirm.js';
 import { setHeadPart } from './head-status.js';
 import { rowEl } from './row.js';
 import { sheet } from './sheet.js';
 import { showSettings } from './tabs.js';
-import { onSettingsSheetOpen, openSettingsSheet } from './settings.js';
+import { openSettingsSheet } from './settings.js';
+import { loadExportRates, wireExportRates } from './export-rates.js';
+import { ensureSunOverlay, wireSunOverlay } from './sun-overlay.js';
 import {
   arraySummary, loadPvSystem, setPvSystemSavedHook, wirePvSystem,
 } from './pv-system.js';
@@ -516,146 +519,6 @@ function reloadMoney() {
   return Promise.resolve();
 }
 
-// ------------------------------------- export compensation (Settings, #883)
-// The editor lives in Settings since #883; the Money view's Export rate row
-// shows the current rate and opens it there.
-function renderExportRates(body) {
-  state.exportRates = (body && body.rates) || [];
-  const current = body && body.current_export_eur_kwh;
-  const rate = current == null ? 'Not set' : '€' + Number(current).toFixed(5) + ' / kWh';
-  els.exportRateCurrent.textContent = rate;
-  els.exportRateRowMeta.textContent = rate;
-  els.exportRateList.innerHTML = state.exportRates.length ? state.exportRates.slice().reverse().map(function (rate) {
-    const date = rate.effective_from === '0001-01-01' ? 'Legacy rate' : rate.effective_from;
-    const hourly = Array.isArray(rate.hourly_eur_kwh) ? ' · hourly overrides' : '';
-    return '<div class="list-row automation-summary-row"><button type="button" class="automation-summary-main export-rate-edit" data-rate-date="'
-      + esc(rate.effective_from) + '"><span class="automation-summary-copy">'
-      + '<span class="automation-summary-title">' + esc(date) + '</span>'
-      + '<span class="automation-summary-meta">€' + Number(rate.export_eur_kwh).toFixed(5) + ' / kWh' + hourly + '</span>'
-      + '</span><svg class="icon automation-summary-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></div>';
-  }).join('') : '<p class="muted small">No export-compensation rate yet.</p>';
-  els.exportRateList.querySelectorAll('.export-rate-edit').forEach(function (button) {
-    button.addEventListener('click', function () { editExportRate(button.dataset.rateDate); });
-  });
-}
-
-function resetExportRateForm() {
-  els.exportRateOriginalDate.value = '';
-  els.exportRateDate.value = localIsoDate();
-  els.exportRateValue.value = '';
-  els.exportRateHourly.value = '';
-  els.exportRateAdd.textContent = 'Add rate';
-  els.exportRateDelete.hidden = true;
-}
-
-function editExportRate(effectiveFrom) {
-  const rate = state.exportRates.find(function (entry) { return entry.effective_from === effectiveFrom; });
-  if (!rate || effectiveFrom === '0001-01-01') return;
-  els.exportRateOriginalDate.value = effectiveFrom;
-  els.exportRateDate.value = effectiveFrom;
-  els.exportRateValue.value = rate.export_eur_kwh;
-  els.exportRateHourly.value = Array.isArray(rate.hourly_eur_kwh)
-    ? rate.hourly_eur_kwh.map(function (value) { return value == null ? '' : value; }).join(', ')
-    : '';
-  els.exportRateAdd.textContent = 'Save changes';
-  els.exportRateDelete.hidden = false;
-  els.exportRateDate.focus();
-}
-
-function parseHourlyRates() {
-  const raw = els.exportRateHourly.value.trim();
-  if (!raw) return null;
-  const values = raw.split(',').map(function (part) {
-    const value = part.trim();
-    return value === '' ? null : Number(value);
-  });
-  if (values.length !== 24 || values.some(function (value) {
-    return value != null && (!Number.isFinite(value) || value < 0 || value > 10);
-  })) return false;
-  return values;
-}
-
-async function loadExportRates() {
-  if (!els.exportRateList) return;
-  try {
-    renderExportRates(await jsonApi('/api/energy/export-rates'));
-  } catch (exc) {
-    if (!isAuthRequired(exc)) els.exportRateList.innerHTML = '<p class="muted small">Rates unavailable.</p>';
-  }
-}
-
-async function addExportRate() {
-  const effectiveFrom = els.exportRateDate.value;
-  const rawValue = els.exportRateValue.value.trim();
-  const value = Number(rawValue);
-  const hourly = parseHourlyRates();
-  els.exportRateError.hidden = true;
-  if (!effectiveFrom) {
-    els.exportRateError.textContent = 'Choose the date this rate takes effect.';
-    els.exportRateError.hidden = false;
-    els.exportRateDate.focus();
-    return;
-  }
-  if (!rawValue) {
-    els.exportRateError.textContent = 'Enter an export rate.';
-    els.exportRateError.hidden = false;
-    els.exportRateValue.focus();
-    return;
-  }
-  if (!Number.isFinite(value) || value < 0 || value > 10) {
-    els.exportRateError.textContent = 'Rate must be between 0 and 10 EUR/kWh.';
-    els.exportRateError.hidden = false;
-    els.exportRateValue.focus();
-    return;
-  }
-  if (hourly === false) {
-    els.exportRateError.textContent = 'Hourly overrides must contain exactly 24 comma-separated rates (blank hours use the default).';
-    els.exportRateError.hidden = false;
-    els.exportRateHourly.focus();
-    return;
-  }
-  try {
-    const body = await jsonApi('/api/energy/export-rates', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        effective_from: effectiveFrom,
-        export_eur_kwh: value,
-        hourly_eur_kwh: hourly,
-        replace_effective_from: els.exportRateOriginalDate.value || null,
-      }),
-    });
-    renderExportRates(body);
-    resetExportRateForm();
-    await reloadMoney();
-    toast('Export rate saved', 'success');
-  } catch (exc) {
-    if (!isAuthRequired(exc)) toast("Couldn't save the export rate", 'error');
-  }
-}
-
-async function deleteExportRate() {
-  const effectiveFrom = els.exportRateOriginalDate.value;
-  if (!effectiveFrom) return;
-  const confirmed = await confirmAction({
-    title: 'Delete this export rate?',
-    message: 'Historical export on and after this date may be repriced using an earlier entry.',
-    okLabel: 'Delete rate',
-    danger: true,
-  });
-  if (!confirmed) return;
-  try {
-    const body = await jsonApi('/api/energy/export-rates?effective_from=' + encodeURIComponent(effectiveFrom), {
-      method: 'DELETE',
-    });
-    renderExportRates(body);
-    resetExportRateForm();
-    await reloadMoney();
-    toast('Export rate deleted', 'success');
-  } catch (exc) {
-    if (!isAuthRequired(exc)) toast("Couldn't delete the export rate", 'error');
-  }
-}
-
 // The Today card's € figures are always "today" (their own day query),
 // independent of the History card's period: the tiered avoided cost, and the
 // export income.
@@ -799,94 +662,6 @@ function setForecastDay(day) {
   loadForecast(day);
 }
 
-// ------------------------------------------- sun-position diagnostic (#590)
-// Read-only companion to the forecast card: the day's measured performance
-// ratio against where the sun actually was. Folded away by default, and only
-// loaded once opened — it costs an extra irradiance read, and it answers an
-// occasional question rather than a glanceable one.
-const SUN_OVERLAY_NOTES = {
-  not_configured: 'Add your panel rows in the PV system card in Settings.',
-  no_location: 'Set the home coordinates in the PV system card in Settings.',
-  too_old: 'Irradiance history only reaches back about three months.',
-  rate_limited: 'Weather provider is rate-limiting us right now — retrying shortly.',
-};
-
-function plural(n, noun) {
-  return n + ' ' + noun + (n === 1 ? '' : 's');
-}
-
-// Named, never merely absent: an hour silently dropped would leave the day
-// looking better-measured than it was — the same class of quiet error the
-// overlay exists to avoid making about shading.
-function sunOverlayNote(body) {
-  const parts = [plural((body.points || []).length, 'hour') + ' plotted'];
-  const short = Number(body.excluded_coverage) || 0;
-  const absent = Number(body.excluded_no_data) || 0;
-  if (short) parts.push(plural(short, 'hour') + ' excluded — feed coverage too short');
-  if (absent) parts.push(plural(absent, 'daylight hour') + ' never measured');
-  return parts.join(' · ');
-}
-
-function renderSunOverlay(body) {
-  const available = !!(body && body.available);
-  const points = available ? (body.points || []) : [];
-  if (state.sunOverlayChart) {
-    setSunOverlayData(state.sunOverlayChart, points, body && body.modelled_pr);
-  }
-  if (!available) {
-    els.sunOverlayEmpty.hidden = false;
-    els.sunOverlayEmpty.textContent =
-      SUN_OVERLAY_NOTES[body && body.reason] || 'Sun-position diagnostic is unavailable right now.';
-    els.sunOverlayNote.textContent = '';
-    els.sunOverlayCount.textContent = '';
-    return;
-  }
-  els.sunOverlayEmpty.hidden = points.length > 0;
-  els.sunOverlayEmpty.textContent = 'No measured hours for this day.';
-  els.sunOverlayNote.textContent = sunOverlayNote(body);
-  els.sunOverlayCount.textContent = points.length ? points.length + ' h' : '';
-}
-
-async function loadSunOverlay(day) {
-  if (!els.sunOverlaySheet) return;
-  try {
-    const body = await jsonApi('/api/energy/sun-overlay?date=' + encodeURIComponent(day));
-    renderSunOverlay(body);
-  } catch (_) {
-    renderSunOverlay(null);
-  }
-}
-
-async function ensureSunOverlay() {
-  if (!els.sunOverlayChart) return;
-  // Created on first open, not on entering Settings: a canvas inside a
-  // closed sheet has no layout box, so Chart.js would size it to zero.
-  if (!state.sunOverlayChart) {
-    try { await loadChartJs(); } catch (_) { return; }
-    if (!state.sunOverlayChart) state.sunOverlayChart = createSunOverlayChart(els.sunOverlayChart);
-  }
-  if (!state.sunOverlayDate) {
-    state.sunOverlayDate = localIsoDate();
-    els.sunOverlayDate.value = state.sunOverlayDate;
-  }
-  // Re-stamped here, not only at wiring time: an installed PWA can sit open
-  // across midnight, after which yesterday's ceiling would reject today.
-  els.sunOverlayDate.max = localIsoDate();
-  loadSunOverlay(state.sunOverlayDate);
-}
-
-function wireSunOverlay() {
-  if (!els.sunOverlaySheet) return;
-  els.sunOverlayDate.max = localIsoDate();
-  onSettingsSheetOpen('sunOverlaySheet', ensureSunOverlay);
-  els.sunOverlayDate.addEventListener('change', function () {
-    const day = els.sunOverlayDate.value;
-    if (!day) return;
-    state.sunOverlayDate = day;
-    loadSunOverlay(day);
-  });
-}
-
 // --------------------------------------------------------------- charts
 // Resolves once Chart.js is loaded and the charts exist; offline, it resolves
 // with the charts still absent and every loader below skips them.
@@ -955,11 +730,7 @@ export function wireEnergyControls() {
   els.forecastDayBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setForecastDay(btn.dataset.day); });
   });
-  if (els.exportRateAdd) {
-    els.exportRateDate.value = localIsoDate();
-    els.exportRateAdd.addEventListener('click', addExportRate);
-    els.exportRateDelete.addEventListener('click', deleteExportRate);
-  }
+  wireExportRates(reloadMoney);
   // Editing the array/coordinates changes what the forecast is computed from,
   // so every successful save re-reads the curve for the day on screen — and
   // the resolved estimate feeds the save toast (issue #564).
