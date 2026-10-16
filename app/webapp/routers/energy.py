@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import date, datetime
+from datetime import date, datetime, tzinfo
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
@@ -285,8 +285,25 @@ _HOUR_S = 3600
 _MIN_PROJECTION_ELAPSED_S = 600
 
 
-def _actual_curve(buckets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """A day's measured generation as 24 hourly points (``wh`` ``None`` = no PV).
+def _slot_hour(bucket: Dict[str, Any], tz: Optional[tzinfo] = None) -> int:
+    """The local clock hour (0–23) a day-frame slot starts at (#934).
+
+    Read from the slot's own epoch ``key``, never from its position: on Spain's
+    spring-forward day the frame has 23 slots and on the fall-back day 25, so an
+    index is an hour off after the change (``hourly_day``, #932). ``tz`` defaults
+    to the host's local zone, like ``hourly_day``; tests pass an explicit one.
+    """
+    return datetime.fromtimestamp(int(bucket["key"]), tz).hour
+
+
+def _actual_curve(
+    buckets: List[Dict[str, Any]], tz: Optional[tzinfo] = None
+) -> List[Dict[str, Any]]:
+    """A day's measured generation as hourly points (``wh`` ``None`` = no PV).
+
+    One point per slot of the day frame — 24 normally, 23 or 25 on a DST-change
+    day — each carrying its own local clock ``hour`` (a repeated hour appears
+    twice on the fall-back day).
 
     ``pv_missing`` hours (asleep inverter, or no sample yet) stay ``None`` so the
     client draws a gap, never a misleading 0 — the same rule the live chart uses.
@@ -310,13 +327,13 @@ def _actual_curve(buckets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     the normal path and the only one where the raw integral is the truth.
     ``measured_wh`` always carries the untouched measurement either way.
 
-    Takes the day's 24 hourly buckets rather than fetching them, so the caller
+    Takes the day's hourly buckets rather than fetching them, so the caller
     reads the day once and derives both the curve and :func:`_feed_gap_hours`
     from the same snapshot.
     """
     now = int(time.time())
     out: List[Dict[str, Any]] = []
-    for i, b in enumerate(buckets):
+    for b in buckets:
         measured = None if b["pv_missing"] else b["pv_wh"]
         partial = bool(b.get("partial"))
         gap = bool(b.get("pv_gap"))
@@ -342,7 +359,7 @@ def _actual_curve(buckets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             )
         out.append(
             {
-                "hour": i,
+                "hour": _slot_hour(b, tz),
                 "wh": wh,
                 "partial": partial,
                 "estimated": estimated,
@@ -442,6 +459,7 @@ def _sun_overlay_points(
     performance_ratio: float,
     lat: float,
     lon: float,
+    tz: Optional[tzinfo] = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """``(points, excluded)`` — effective PR per hour against the sun's position.
 
@@ -483,21 +501,24 @@ def _sun_overlay_points(
     points: List[Dict[str, Any]] = []
     excluded: List[Dict[str, Any]] = []
 
-    for i, bucket in enumerate(buckets):
-        expected_wh = expected_by_hour.get(i, 0.0)
+    for bucket in buckets:
+        # The slot's local clock hour, not its index: the frame has 23 or 25
+        # slots on a DST-change day (#934).
+        hour = _slot_hour(bucket, tz)
+        expected_wh = expected_by_hour.get(hour, 0.0)
         gti = expected_wh / reference if reference > 0 else 0.0
         if gti < _MIN_DIAGNOSTIC_GTI_W:
             continue  # dark — no signal to read, and nothing went wrong
 
         if bool(bucket.get("partial")):
-            excluded.append({"hour": i, "reason": _EXCLUDED_IN_PROGRESS})
+            excluded.append({"hour": hour, "reason": _EXCLUDED_IN_PROGRESS})
             continue
         if bucket.get("pv_missing"):
-            excluded.append({"hour": i, "reason": _EXCLUDED_NO_DATA})
+            excluded.append({"hour": hour, "reason": _EXCLUDED_NO_DATA})
             continue
         coverage = bucket.get("pv_coverage")
         if coverage is None or float(coverage) < MIN_TRUSTED_COVERAGE:
-            excluded.append({"hour": i, "reason": _EXCLUDED_COVERAGE})
+            excluded.append({"hour": hour, "reason": _EXCLUDED_COVERAGE})
             continue
 
         # Mid-hour is the representative instant: the sun moves ~15°/h, so the
@@ -508,7 +529,7 @@ def _sun_overlay_points(
         actual_wh = float(bucket.get("pv_wh") or 0.0)
         points.append(
             {
-                "hour": i,
+                "hour": hour,
                 "azimuth_deg": sun.azimuth_deg,
                 "elevation_deg": sun.elevation_deg,
                 "effective_pr": round(performance_ratio * actual_wh / expected_wh, 4),
