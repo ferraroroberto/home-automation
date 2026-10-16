@@ -223,7 +223,7 @@ async def get_export_rates() -> Dict[str, Any]:
         "configured": tariff.configured,
         "currency": tariff.currency,
         "current_export_eur_kwh": rate_for(now, tariff),
-        "rates": export_rates_payload(tariff),
+        "rates": export_rates_payload(tariff.export_rates),
     }
 
 
@@ -244,7 +244,7 @@ async def update_export_rate(payload: ExportRatePayload) -> Dict[str, Any]:
         "configured": tariff.configured,
         "currency": tariff.currency,
         "current_export_eur_kwh": rate_for(now, tariff),
-        "rates": export_rates_payload(tariff),
+        "rates": export_rates_payload(tariff.export_rates),
     }
 
 
@@ -262,7 +262,7 @@ async def remove_export_rate(
         "configured": tariff.configured,
         "currency": tariff.currency,
         "current_export_eur_kwh": rate_for(now, tariff),
-        "rates": export_rates_payload(tariff),
+        "rates": export_rates_payload(tariff.export_rates),
     }
 
 
