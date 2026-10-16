@@ -57,7 +57,7 @@ def _record_runs(monkeypatch, stdout: str) -> List[Dict[str, Any]]:
 def test_tailscale_status_spawn_is_windowless(monkeypatch) -> None:
     calls = _record_runs(monkeypatch, '{"Self": {"DNSName": "tower.example.ts.net."}}')
 
-    assert gen_tailscale_cert._tailscale_hostname() == "tower.example.ts.net"
+    assert gen_tailscale_cert._tailscale_hostname("tailscale") == "tower.example.ts.net"
 
     assert calls[0]["cmd"] == ["tailscale", "status", "--json"]
     assert calls[0]["creationflags"] == NO_WINDOW
@@ -67,7 +67,7 @@ def test_cert_provision_spawn_is_windowless(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(gen_tailscale_cert, "CERT_DIR", tmp_path / "certificates")
     calls = _record_runs(monkeypatch, "")
 
-    gen_tailscale_cert._provision("tower.example.ts.net")
+    gen_tailscale_cert._provision("tower.example.ts.net", "tailscale")
 
     assert calls[0]["cmd"][:2] == ["tailscale", "cert"]
     assert calls[0]["creationflags"] == NO_WINDOW

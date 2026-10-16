@@ -99,28 +99,46 @@ def cert_paths(project_root: Optional[Path] = None) -> Optional[tuple[Path, Path
     return None
 
 
+# gen_tailscale_cert.py --check runs synchronously before uvicorn binds, so
+# this has to be generous enough for a real ACME round-trip (seconds, not
+# minutes) to finish without ever stalling boot on a stuck tailscale daemon.
+_RENEW_CHECK_TIMEOUT_S = 60
+
+
 def _renew_tailscale_cert() -> None:
     """Best-effort auto-renew of the Tailscale (Let's Encrypt) cert before spawn.
 
     Mirrors the ``webapp.bat`` ``--check`` hook so the tray-owned boot path also
     self-heals a cert expiring within 30 days. No-op when the cert is missing or
-    is not a ``.ts.net`` cert; never raises, so a renewal hiccup can't block the
-    webapp from starting.
+    is not a ``.ts.net`` cert. Never raises — a renewal hiccup can't block the
+    webapp from starting — but a renewal that *was* due and failed is logged at
+    warning level (exit code + any ``[WARN]``/``[INFO]`` output) rather than
+    silently discarded: under the ``pythonw`` tray this call's own stdout/
+    stderr never reaches a console, so a lost failure here previously had no
+    trace anywhere until the cert actually expired (#914).
     """
     script = PROJECT_ROOT / "scripts" / "gen_tailscale_cert.py"
     if not script.exists():
         return
     try:
-        subprocess.run(
+        result = subprocess.run(
             [sys.executable, str(script), "--check"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=_RENEW_CHECK_TIMEOUT_S,
             creationflags=NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning("⚠️  Tailscale cert renew check failed: %s", exc)
+        return
+    if result.returncode != 0:
+        detail = (result.stdout or result.stderr or "").strip()
+        logger.warning(
+            "⚠️  Tailscale cert renewal failed (exit %s): %s",
+            result.returncode,
+            detail,
+        )
 
 
 def _probe_url(scheme: str, host: str, port: int) -> str:

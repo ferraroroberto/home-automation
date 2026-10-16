@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import datetime
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -41,11 +40,12 @@ RENEW_WITHIN_DAYS = 30
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src._no_window import NO_WINDOW  # noqa: E402  — sys.path tweak above
+from src._tailscale_binary import tailscale_binary  # noqa: E402
 
 
-def _tailscale_hostname() -> str:
+def _tailscale_hostname(binary: str) -> str:
     result = subprocess.run(
-        ["tailscale", "status", "--json"],
+        [binary, "status", "--json"],
         capture_output=True,
         text=True,
         creationflags=NO_WINDOW,
@@ -88,14 +88,14 @@ def _expiring_within(cert_path: Path, days: int) -> bool:
         return False
 
 
-def _provision(hostname: str) -> None:
+def _provision(hostname: str, binary: str) -> None:
     CERT_DIR.mkdir(parents=True, exist_ok=True)
     cert_path = CERT_DIR / "cert.pem"
     key_path = CERT_DIR / "key.pem"
 
     result = subprocess.run(
         [
-            "tailscale", "cert",
+            binary, "cert",
             "--cert-file", str(cert_path),
             "--key-file", str(key_path),
             hostname,
@@ -117,44 +117,58 @@ def _provision(hostname: str) -> None:
     print(f"[OK] key.pem  -> {key_path}")
 
 
-def _check_and_renew() -> None:
+def _check_and_renew() -> bool:
     """Renew the cert if it is a Tailscale cert expiring within RENEW_WITHIN_DAYS days.
-    Always exits cleanly — startup must not be blocked by cert errors."""
+
+    Never raises — a renewal hiccup must not block webapp startup — but the
+    return value tells the caller whether renewal was actually needed and
+    succeeded, so a boot path that runs this via ``--check`` can log a failed
+    *due* renewal instead of silently discarding it (#914). ``True`` covers
+    both "nothing was due" and "renewed OK"; ``False`` means renewal was due
+    and did not happen.
+    """
     cert_path = CERT_DIR / "cert.pem"
     if not cert_path.exists():
-        return
+        return True
 
     hostname = _tailscale_hostname_from_cert(cert_path)
     if hostname is None:
-        return  # self-signed / non-tailnet cert; leave it alone
+        return True  # self-signed / non-tailnet cert; leave it alone
 
     if not _expiring_within(cert_path, RENEW_WITHIN_DAYS):
-        return
+        return True
 
     print(f"[INFO] Tailscale cert for {hostname} expires within {RENEW_WITHIN_DAYS} days — renewing.")
-    if shutil.which("tailscale") is None:
-        print("[WARN] tailscale not found on PATH; skipping cert renewal.")
-        return
+    binary = tailscale_binary()
+    if binary is None:
+        print("[WARN] tailscale not found on PATH or the standard Windows install directory; skipping cert renewal.")
+        return False
     try:
-        _provision(hostname)
+        _provision(hostname, binary)
         print("[OK] Tailscale cert renewed.")
+        return True
     except SystemExit as exc:
         print(f"[WARN] Cert renewal failed: {exc}")
+        return False
 
 
 def main() -> None:
     args = sys.argv[1:]
 
     if args and args[0] == "--check":
-        _check_and_renew()
-        return
+        # Exit code (not just printed text) is the signal a caller like
+        # app.webapp.manager._renew_tailscale_cert can check without parsing
+        # stdout — 0 means "nothing was due, or it renewed", 1 means a due
+        # renewal failed.
+        sys.exit(0 if _check_and_renew() else 1)
 
-    if shutil.which("tailscale") is None:
-        raise SystemExit("tailscale not found on PATH.")
+    binary = tailscale_binary()
+    if binary is None:
+        raise SystemExit("tailscale not found on PATH or the standard Windows install directory.")
 
-    hostname = args[0] if args else _tailscale_hostname()
+    hostname = args[0] if args else _tailscale_hostname(binary)
     print(f"Provisioning Tailscale cert for: {hostname}")
-    _provision(hostname)
+    _provision(hostname, binary)
     print()
     print("Restart the app (tray.bat --restart, or webapp.bat), then open:")
     print(f"  https://{hostname}:8447")

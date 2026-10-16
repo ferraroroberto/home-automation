@@ -20,8 +20,6 @@ from __future__ import annotations
 import datetime
 import json
 import logging
-import os
-import shutil
 import subprocess
 import sys
 import threading
@@ -39,6 +37,7 @@ from app.webapp.manager import (
 from app.tray.single_instance import SingleInstance
 from app.tray.watchdog import BreadcrumbLog, DEFAULT_STARTUP_RETRY_DELAYS_S, retry_with_backoff
 from src._no_window import NO_WINDOW
+from src._tailscale_binary import tailscale_binary
 from src.webapp_config import append_auth_token, load_webapp_config
 
 logger = logging.getLogger(__name__)
@@ -90,28 +89,6 @@ def _clipboard_copy(text: str) -> bool:
     return False
 
 
-def _tailscale_binary() -> Optional[str]:
-    """Locate the tailscale CLI — PATH first, then the standard Windows install.
-
-    The GUI installer drops ``tailscale.exe`` under ``Program Files`` but
-    doesn't always add it to PATH, and the tray is often started at login
-    with a minimal environment — so PATH alone isn't enough.
-    """
-    found = shutil.which("tailscale")
-    if found:
-        return found
-    candidates = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
-        / "Tailscale" / "tailscale.exe",
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
-        / "Tailscale" / "tailscale.exe",
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return str(candidate)
-    return None
-
-
 def _ts_debug(msg: str) -> None:
     """Append a breadcrumb to the Tailscale debug log (best-effort)."""
     logger.debug(f"tailscale: {msg}")
@@ -153,7 +130,7 @@ def _tailscale_hostname() -> Optional[str]:
     Every failure path leaves a breadcrumb in ``webapp/tailscale_debug.log``
     since the windowless tray has no console.
     """
-    binary = _tailscale_binary()
+    binary = tailscale_binary()
     if binary is None:
         _ts_debug("CLI not found on PATH or under Program Files")
         return None
