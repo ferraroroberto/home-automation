@@ -40,7 +40,7 @@ import logging
 import sqlite3
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, ContextManager, Dict, List, Optional
 
@@ -690,23 +690,31 @@ def hourly_day(
     offset_days: int = 0,
     now: Optional[int] = None,
     path: Optional[Path] = None,
+    tz: Optional[tzinfo] = None,
 ) -> List[Dict[str, Any]]:
-    """24 padded hourly buckets for a single local day (``offset_days`` from today).
+    """Padded hourly buckets for a single local day (``offset_days`` from today).
 
     ``0`` is today, ``-1`` yesterday, ``+1`` tomorrow. Like the ``day`` branch of
     :func:`framed_buckets` but for any day, so the solar-forecast view (issue #39)
     can overlay a past day's *actual* generation against the forecast. Hours with
     no sample (a future day, or before the app first ran) come back as empty 0-Wh
-    buckets so the result is always a continuous 24-slot frame.
+    buckets so the result is always a continuous frame.
+
+    The frame runs from local midnight to the next local midnight, so it has 24
+    slots on an ordinary day, 23 on a spring-forward day and 25 on a fall-back
+    day (audit #916). Each slot is labelled with its own local clock hour
+    (``"02"``, ``"03"``, … — ``"02"`` twice on a 25-hour day), not its index.
+    ``tz`` defaults to the host's local zone; tests pass an explicit one.
     """
     current = int(now if now is not None else time.time())
-    dt_now = datetime.fromtimestamp(current)
-    start = datetime(dt_now.year, dt_now.month, dt_now.day) + timedelta(days=offset_days)
+    dt_now = datetime.fromtimestamp(current, tz)
+    start = datetime(dt_now.year, dt_now.month, dt_now.day, tzinfo=tz) + timedelta(days=offset_days)
     since = int(start.timestamp())
+    until = int((start + timedelta(days=1)).timestamp())
     by_hour = {int(h["hour_start"]): h for h in _hourly_since(since, path)}
     out = []
-    for i in range(24):
-        hs = since + i * _HOUR
+    for hs in range(since, until, _HOUR):
         hours = [by_hour[hs]] if hs in by_hour else []
-        out.append(_frame_bucket(str(hs), "%02d" % i, hours))
+        label = datetime.fromtimestamp(hs, tz).strftime("%H")
+        out.append(_frame_bucket(str(hs), label, hours))
     return _mark_hourly_coverage(_mark_hourly_partial(out, current), current)
