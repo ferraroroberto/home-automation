@@ -16,7 +16,7 @@ from typing import Callable, Dict, List, NamedTuple
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import hold_reads
+from tests.e2e._app import LAYOUT_10_MAX_GROWTH_PX, hold_reads
 from tests.e2e._geometry import (
     assert_no_horizontal_overflow,
     assert_unpainted,
@@ -568,3 +568,21 @@ def test_tuya_dimmer_brightness_slider_round_trips(
     assert request.value.post_data_json == {"brightness": 70}
     expect(page.locator("#lightSheetControls .light-number")).to_have_value("70")
     expect(row.locator(".action-row-meta-text")).to_have_text("Off")
+
+
+def test_power_card_keeps_its_height_when_the_plugs_land(
+    page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    """LAYOUT-10 (#924): the watts and the biggest draws are dashes until the plugs are read."""
+    release = hold_reads(page, "/api/tuya")
+    _boot_plugs(page, base_url, sample_units, sample_plugs, mock_api, mock_energy, mock_tuya)
+
+    card = page.locator("#powerCard")
+    expect(page.locator("#powerWatts")).to_have_text("—")
+    first_px = card.evaluate("el => el.offsetHeight")
+
+    release()
+    expect(page.locator("#powerTop")).to_have_text("Test Heater 1450")
+    settled_px = card.evaluate("el => el.offsetHeight")
+    assert settled_px - first_px <= LAYOUT_10_MAX_GROWTH_PX, (first_px, settled_px)

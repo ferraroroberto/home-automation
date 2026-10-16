@@ -15,7 +15,7 @@ from typing import Callable, Dict, List
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
-from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._app import LAYOUT_10_MAX_GROWTH_PX, boot_home, hold_reads
 from tests.e2e._geometry import (
     EffectiveRect,
     assert_min_target,
@@ -549,3 +549,37 @@ def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
     expect(rows.nth(0).locator(".chip")).to_have_text(["Bypassed", "Trouble"])
     expect(rows.nth(0).locator('.chip[data-tone="attention"]')).to_have_text("Trouble")
     expect(rows.nth(1).locator(".chip")).to_have_count(0)
+
+
+def test_security_glance_card_keeps_its_height_when_the_schedule_lands(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+    mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
+) -> None:
+    """LAYOUT-10 (#924): the 'Next:' line is drawn at first paint, then filled in place."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    every_day = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    page.route(
+        "**/api/security/schedules",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"entries": [
+                {"id": "s1", "enabled": True, "time": "23:59", "days": every_day, "action": "arm"},
+            ]}),
+        ),
+    )
+    release = hold_reads(page, "/api/security/schedules")
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    card = page.locator(".security-glance")
+    expect(page.locator("#securityNext")).to_have_text("Next: —")
+    first_px = card.evaluate("el => el.offsetHeight")
+
+    release()
+    expect(page.locator("#securityNext")).to_contain_text("Next: Arm full")
+    settled_px = card.evaluate("el => el.offsetHeight")
+    assert settled_px - first_px <= LAYOUT_10_MAX_GROWTH_PX, (first_px, settled_px)

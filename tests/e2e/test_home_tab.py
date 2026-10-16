@@ -23,7 +23,7 @@ from typing import Callable, Dict, List, Optional
 
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e._app import boot_home
+from tests.e2e._app import LAYOUT_10_MAX_GROWTH_PX, boot_home, hold_reads
 from tests.e2e._geometry import (
     assert_min_target,
     assert_no_horizontal_overflow,
@@ -368,3 +368,32 @@ def test_perf_review_ready_selector_is_visible_on_home(
 def _perf_review_ready_selector() -> str:
     fleet = Path(__file__).resolve().parents[2] / ".fleet.toml"
     return tomllib.loads(fleet.read_text(encoding="utf-8"))["perf"]["review"]["ready_selector"]
+
+
+def test_house_card_keeps_its_height_while_its_reads_land(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+    mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
+) -> None:
+    """LAYOUT-10 (#924): the card under the header is drawn at its final height.
+
+    The arm control, the energy flow and the people row are dashes until their
+    reads land, then fill in place; the card growing 196 px under the content
+    below it was the jump the design review measured.
+    """
+    page.set_viewport_size({"width": 390, "height": 844})
+    _stub_next_up(page)
+    release = hold_reads(page, "/api/security")
+    hold_reads(page, "/api/energy")
+    hold_reads(page, "/api/presence")
+    _boot(page, base_url, sample_units, mock_api, mock_energy, mock_security, mock_presence)
+
+    house = page.locator("#houseCard")
+    expect(page.locator("#homeFlowHouse")).to_have_text("—")
+    first_px = house.evaluate("el => el.offsetHeight")
+
+    release()
+    expect(house.locator('.security-action[aria-pressed="true"]')).to_have_text("Off")
+    expect(page.locator("#homeFlowHouse")).not_to_have_text("—")
+    expect(page.locator("#housePeople .action-row-title")).to_have_text("1 home · 1 away · 1 unknown")
+    settled_px = house.evaluate("el => el.offsetHeight")
+    assert settled_px - first_px <= LAYOUT_10_MAX_GROWTH_PX, (first_px, settled_px)

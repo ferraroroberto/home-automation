@@ -177,19 +177,18 @@ function brokenSourceText(reason) {
 function renderHousePeople() {
   const list = els.housePeople;
   if (!list) return;
-  list.innerHTML = '';
   const presence = state.presence;
-  const diag = (presence && presence.diagnostics) || {};
-  const entities = presence && presence.available !== false
+  // Nothing read yet: leave the dashed row index.html draws at first paint, so
+  // the card keeps its height until the real row replaces it (LAYOUT-10, #924).
+  if (!presence) return;
+  list.innerHTML = '';
+  const diag = presence.diagnostics || {};
+  const entities = presence.available !== false
     ? (presence.entities || []).filter(function (e) { return !e.hidden; })
     : [];
   let title;
   let meta;
   let chip = null;
-  if (!presence) {
-    list.hidden = true;
-    return;
-  }
   if (presence.available === false) {
     title = 'Presence unavailable';
     meta = BROKEN_SOURCE_REASONS.indexOf(presence.reason) !== -1

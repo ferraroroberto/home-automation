@@ -537,9 +537,16 @@
         </div>
         <div class="house-body">
           <p id="homeSecurityState" class="visually-hidden" role="status">Alarm state: —</p>
-          <div id="homeSecurityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
+          <!-- First paint (LAYOUT-10, #924): the four segments and the flow's dashes are
+               drawn at their final height and filled in place when the reads land. -->
+          <div id="homeSecurityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode">
+            <button type="button" class="segmented-item security-action security-action-disarm" aria-pressed="false" disabled>Off</button>
+            <button type="button" class="segmented-item security-action security-action-partial" aria-pressed="false" disabled>Partial</button>
+            <button type="button" class="segmented-item security-action security-action-perimeter" aria-pressed="false" disabled>Perimeter</button>
+            <button type="button" class="segmented-item security-action security-action-arm" aria-pressed="false" disabled>Full</button>
+          </div>
           <p id="homeSecurityFeedback" class="muted small security-live-feedback" role="status" hidden></p>
-          <div id="homeEnergyFlow" class="flow-row house-flow" aria-label="Energy flow" hidden>
+          <div id="homeEnergyFlow" class="flow-row house-flow" aria-label="Energy flow">
             <div class="flow-node" id="homeFlowNodePv">
               <svg class="icon flow-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
               <span class="flow-value" id="homeFlowPv">—</span>
@@ -561,7 +568,17 @@
         </div>
         <!-- Who is home, in one row; the people themselves (and the roles the
              voice locator answers to) are Security › People, one tap away. -->
-        <ul id="housePeople" class="action-rows group-links" hidden></ul>
+        <ul id="housePeople" class="action-rows group-links">
+          <li class="action-row house-people-row" aria-hidden="true">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">— home · — away</span>
+                <span class="action-row-meta"><span class="action-row-meta-text">—</span></span>
+              </span>
+            </div>
+          </li>
+        </ul>
       </section>
 
       <!-- Climate: the AC units on the shared row (row.js, #881), power on the
@@ -843,9 +860,9 @@
           <h3 id="powerTitle" class="group-title">Power</h3>
           <span id="powerOnCount" class="group-meta"></span>
         </div>
-        <div id="powerNow" class="power-now" hidden>
+        <div id="powerNow" class="power-now">
           <span id="powerWatts" class="power-watts">—</span>
-          <span id="powerTop" class="power-top"></span>
+          <span id="powerTop" class="power-top">—</span>
         </div>
         <ul id="upsRows" class="action-rows group-links"></ul>
       </section>
@@ -1225,7 +1242,7 @@
       <section class="card security-card security-glance" aria-label="Alarm">
         <h2 id="securityState" class="security-state">Alarm state: —</h2>
         <div id="securityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
-        <p id="securityNext" class="security-next" hidden></p>
+        <p id="securityNext" class="security-next">Next: —</p>
         <ul class="action-rows security-glance-rows">
           <li class="action-row security-kids-row">
             <div class="action-row-main has-avatar">
