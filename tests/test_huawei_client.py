@@ -505,3 +505,33 @@ def test_an_unprovable_timestamp_is_treated_as_fresh():
     """Staleness cannot be proven, so a good read is not thrown away."""
     assert _is_stale(None, 900) is False
     assert _is_stale("not a timestamp", 900) is False
+
+
+# --------------------------------------------------------------------------
+# .env knobs
+
+
+def test_load_config_int_knobs_default_parse_and_warn_on_garbage(monkeypatch, caplog):
+    """Blank → default, a number → that number, garbage → default plus a
+    warning naming the knob — the shared ``src._env`` semantics (#912)."""
+    monkeypatch.setattr(huawei_client, "load_dotenv", lambda **_kwargs: None)
+    monkeypatch.setenv("FUSIONSOLAR_MAX_STALENESS_S", "")
+    monkeypatch.delenv("FUSIONSOLAR_CACHE_TTL_S", raising=False)
+    config = huawei_client._load_config()
+    assert config.max_staleness_s == huawei_client._DEFAULT_MAX_STALENESS_S
+    assert config.cache_ttl_s == huawei_client._DEFAULT_CACHE_TTL_S
+
+    monkeypatch.setenv("FUSIONSOLAR_MAX_STALENESS_S", " 1200 ")
+    monkeypatch.setenv("FUSIONSOLAR_CACHE_TTL_S", "30")
+    config = huawei_client._load_config()
+    assert (config.max_staleness_s, config.cache_ttl_s) == (1200, 30)
+
+    monkeypatch.setenv("FUSIONSOLAR_MAX_STALENESS_S", "soon")
+    monkeypatch.setenv("FUSIONSOLAR_CACHE_TTL_S", "1.5")
+    with caplog.at_level("WARNING"):
+        config = huawei_client._load_config()
+    assert config.max_staleness_s == huawei_client._DEFAULT_MAX_STALENESS_S
+    assert config.cache_ttl_s == huawei_client._DEFAULT_CACHE_TTL_S
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("FUSIONSOLAR_MAX_STALENESS_S=soon" in m for m in messages)
+    assert any("FUSIONSOLAR_CACHE_TTL_S=1.5" in m for m in messages)

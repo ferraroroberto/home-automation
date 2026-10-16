@@ -71,6 +71,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
 from src._backoff import BackoffTracker
+from src._env import _env_int
 
 logger = logging.getLogger("huawei")
 
@@ -245,27 +246,8 @@ def _load_config() -> EnergyConfig:
     ).strip() or _DEFAULT_SUBDOMAIN
     plant_dn = (os.getenv("FUSIONSOLAR_PLANT_DN") or "").strip() or None
 
-    raw_staleness = (os.getenv("FUSIONSOLAR_MAX_STALENESS_S") or "").strip()
-    try:
-        max_staleness_s = (
-            int(raw_staleness) if raw_staleness else _DEFAULT_MAX_STALENESS_S
-        )
-    except ValueError:
-        logger.warning(
-            "⚠️ Invalid FUSIONSOLAR_MAX_STALENESS_S=%s; using %s",
-            raw_staleness, _DEFAULT_MAX_STALENESS_S,
-        )
-        max_staleness_s = _DEFAULT_MAX_STALENESS_S
-
-    raw_ttl = (os.getenv("FUSIONSOLAR_CACHE_TTL_S") or "").strip()
-    try:
-        cache_ttl_s = int(raw_ttl) if raw_ttl else _DEFAULT_CACHE_TTL_S
-    except ValueError:
-        logger.warning(
-            "⚠️ Invalid FUSIONSOLAR_CACHE_TTL_S=%s; using %s",
-            raw_ttl, _DEFAULT_CACHE_TTL_S,
-        )
-        cache_ttl_s = _DEFAULT_CACHE_TTL_S
+    max_staleness_s = _env_int("FUSIONSOLAR_MAX_STALENESS_S", _DEFAULT_MAX_STALENESS_S)
+    cache_ttl_s = _env_int("FUSIONSOLAR_CACHE_TTL_S", _DEFAULT_CACHE_TTL_S)
 
     return EnergyConfig(
         user, password, subdomain, plant_dn, max_staleness_s, cache_ttl_s
