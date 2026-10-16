@@ -16,7 +16,7 @@ A second account (``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2``) is listed too when
 configured (issue #478). 2FA is per Apple ID, so target one account at a time.
 
 Renewing Apple's ~30-day browser trust (issue #659) — the attended CLI fallback
-to the app's Presence card → **Renew trust** button::
+to the app's Security → People → Accounts → **Renew trust** button::
 
     & .\.venv\Scripts\python.exe -m src.list_presence --account 1 --renew-trust
 
@@ -159,7 +159,7 @@ def _renew_trust(config: PresenceConfig) -> None:
     if not sys.stdin.isatty():
         raise SystemExit(
             "❌ --renew-trust is attended: run it from a terminal (a 6-digit code "
-            "must be typed), or use the app's Presence card → Renew trust."
+            "must be typed), or use the app's Security → People → Accounts → Renew trust."
         )
     who = config.display_name
     print(f"Requesting a 2FA code for {who} (account {config.label})…")

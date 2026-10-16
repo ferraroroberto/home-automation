@@ -16,7 +16,7 @@ import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 import { loadPresence, presenceById, presenceEntityLabel } from './presence.js';
 
 // Kids home is a switch on the Security glance card (#882; a pressed pill
-// inside the Presence card before), live only once presence has been read.
+// inside the People card before), live only once presence has been read.
 export function renderKidsHomeToggle(viewReady) {
   if (!els.presenceKidsHome) return;
   setToggleState(els.presenceKidsHome, !!(state.presence && state.presence.kids_home_override));

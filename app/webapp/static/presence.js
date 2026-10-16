@@ -1,4 +1,4 @@
-/* Presence card controller — boot/core (split out of security.js, issue #197;
+/* People card controller — boot/core (split out of security.js, issue #197;
  * further split, issue #454).
  *
  * Owns the people list (render, hide, rename), the detail modal, and the

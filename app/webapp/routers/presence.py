@@ -419,7 +419,7 @@ async def _reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
 
     Shared by the browser-facing ``/api/location/reverse`` endpoint and the
     voice-bridge locate resolution (#442) — same cache, so a coordinate already
-    looked up for the Presence card's place label costs nothing to reuse for
+    looked up for the People card's place label costs nothing to reuse for
     speech.
     """
 

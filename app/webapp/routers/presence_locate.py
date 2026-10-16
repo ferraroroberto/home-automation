@@ -14,7 +14,7 @@ error.
 Reverse-geocoding an unmatched "Away" location (#442) reuses
 ``routers.presence._reverse_geocode`` — the same Nominatim cache the
 ``/api/location/reverse`` endpoint serves, so a coordinate already looked up
-for the Presence card's place label costs nothing to reuse for speech. Kept
+for the People card's place label costs nothing to reuse for speech. Kept
 as a call through the sibling module (not a plain ``from``-import) so tests
 that monkeypatch ``app.webapp.routers.presence._reverse_geocode`` still take
 effect here.
@@ -142,7 +142,7 @@ def _broken_source_speech(
 async def _resolved_away_place(entity: PresenceEntity, place: str) -> str:
     """Reverse-geocode a located-but-unmatched-place entity instead of a bare
     "Away" (#442) — e.g. "Gran Via, Barcelona", mirroring the reverse-geocoded
-    label the Presence card already shows for the same coordinates. Only
+    label the People card already shows for the same coordinates. Only
     "Away" (real coordinates, no configured place matched) is eligible; a
     named-place match or a missing location passes through unchanged."""
 

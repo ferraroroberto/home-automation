@@ -204,7 +204,7 @@ def test_kids_home_is_a_switch_on_the_glance_card(
     mock_presence: Callable,
 ) -> None:
     """#882: "Kids home" is a switch row on the Security glance card, one tap
-    from the tab (inside a closed Presence card before, #805)."""
+    from the tab (inside a closed People card before, #805)."""
     mock_api(sample_units)
     mock_energy()
     mock_security()

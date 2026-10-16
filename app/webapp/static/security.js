@@ -6,7 +6,7 @@
  * lives in three sibling modules:
  *   - ./security-alarm.js     alarm state, action pills, detectors + zone modals
  *   - ./security-schedules.js weekly alarm-schedule CRUD
- *   - ./presence.js           presence card, location, automation, push
+ *   - ./presence.js           People card, location, automation, push
  *
  * main.js imports every Security name from here. onSecurityTab and
  * wireSecuritySheets live in this module; the other wire* functions are
@@ -177,7 +177,7 @@ export function onSecurityTab(tab) {
     loadSecurity();
     loadPresence();
     if (tab === 'security') {
-      // The Kids-home pill on the Presence card reads the automation prefs.
+      // The Kids-home pill on the People card reads the automation prefs.
       loadPresenceAutomation();
       loadSecuritySchedules();
       loadScenePairings();

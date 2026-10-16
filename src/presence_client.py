@@ -295,7 +295,7 @@ def fetch_presence(
         if _is_auth_failure(exc):
             raise PresenceAuthError(
                 f"iCloud Find My refused the session ({type(exc).__name__}: {exc}). "
-                "Re-trust it from the app (Presence card → Renew trust) or via "
+                "Re-trust it from the app (Security → People → Accounts → Renew trust) or via "
                 "src.list_presence --account <N> --renew-trust."
             ) from exc
         raise
@@ -335,8 +335,8 @@ def _warn_once_if_untrusted(api: Any, config: PresenceConfig) -> None:
     logger.warning(
         "⚠️ iCloud account %s: Find My is serving on an untrusted session "
         "(browser trust expired). Locations keep flowing; each fresh sign-in "
-        "costs a password login until re-trusted from the app (Presence card → "
-        "Renew trust) or via src.list_presence --account %s --renew-trust.",
+        "costs a password login until re-trusted from the app (Security → People → "
+        "Accounts → Renew trust) or via src.list_presence --account %s --renew-trust.",
         config.label,
         config.label,
     )
