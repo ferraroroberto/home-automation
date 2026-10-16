@@ -103,8 +103,8 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   aliases / display names (`src.presence_roles`), then answers with the person's current
   place from cached Find My data matched against user-configured named places
   (`src.presence_places`) — home, a named place (e.g. "the gym"), or away. No new iCloud
-  locate cost. Configured entirely from the webapp (Security tab → Presence card →
-  per-person "Role" + "Places"), not from YAML. Resolution is variant-tolerant (accents,
+  locate cost. Configured entirely from the webapp (a person's "Role" in Security › People, named
+  places in Settings › Home & people › Places), not from YAML. Resolution is variant-tolerant (accents,
   "Anna"↔"Ana", "mum"/"mamá"→mom — #446) and the locator also answers in Spanish on the
   "Hey Mycroft" pipeline ("¿dónde está papá?" → "Roberto está en casa"). When the person
   is **away**, the same reply also speaks a traffic-aware ETA (`GET /api/presence/eta` →
