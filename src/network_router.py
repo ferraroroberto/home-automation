@@ -807,6 +807,7 @@ def _add_bindings_on_client(
             by_mac[norm] = {"name": name, "mac": mac, "ip": ip, "inst_id": None}
             if is_create:
                 free -= 1
+                table_full = table_full or free <= 0
             logger.info("ℹ️ DHCP binding written: %s → %s", mac, ip)
         except DhcpReservationLost as exc:
             # Worse than an ordinary failed write (issue #347): the prior binding

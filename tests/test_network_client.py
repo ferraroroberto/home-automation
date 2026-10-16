@@ -772,6 +772,30 @@ def test_apply_skips_creates_when_table_full_but_keeps_replaces(monkeypatch) -> 
     assert ("00:00:00:00:00:00", "192.168.0.200", True) in fake.written
 
 
+def test_apply_skips_creates_once_its_own_batch_fills_the_table(monkeypatch) -> None:
+    """One free slot, two creates: the first lands, the second is skipped as
+    "table is full" — never sent for the router to reject (audit #916)."""
+    fake = _FakeFullRouter()
+    fake._existing.pop()  # exactly one free slot
+    monkeypatch.setattr(network_client, "_router_creds", lambda: ("h", "u", "p"))
+    monkeypatch.setattr(network_client, "RouterClient", lambda *a, **k: fake)
+
+    rows = [
+        {"name": "first", "mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.0.51"},
+        {"name": "second", "mac": "AA:BB:CC:DD:EE:02", "ip": "192.168.0.52"},
+        {"name": "moved", "mac": "00:00:00:00:00:00", "ip": "192.168.0.200"},  # replace
+    ]
+    by_mac = {r["mac"]: r for r in network_client._apply_dhcp_bindings_sync(rows)}
+
+    assert by_mac["AA:BB:CC:DD:EE:01"]["ok"] is True
+    assert by_mac["AA:BB:CC:DD:EE:02"]["ok"] is False
+    assert by_mac["AA:BB:CC:DD:EE:02"]["skipped"] is True
+    assert "table is full" in by_mac["AA:BB:CC:DD:EE:02"]["error"]
+    assert all(w[0] != "AA:BB:CC:DD:EE:02" for w in fake.written)
+    # The slot-neutral replace still applies after the table filled.
+    assert by_mac["00:00:00:00:00:00"]["ok"] is True
+
+
 def test_write_binding_wraps_create_failure_as_reservation_lost_after_delete(
     monkeypatch,
 ) -> None:
