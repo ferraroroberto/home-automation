@@ -406,7 +406,8 @@ _LOCATOR = VoiceCommandGroup(
     notes=(
         "Works by first name or household role. Nicknames, accents and kinship words all fold to the right person "
         "(mum/mamá → mom, daddy/papá → dad).",
-        "Roles and named places are set on the Security tab's Presence card — no voice config to touch when someone new arrives.",
+        "Roles are set in each person's sheet (Security › People) and named places in Settings › Home & people › Places "
+        "— no voice config to touch when someone new arrives.",
         "The ETA-home part only speaks when the person is away, and uses live traffic. If they're already home, it "
         "just says so — no follow-up question, it's all one reply.",
     ),

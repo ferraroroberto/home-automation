@@ -98,6 +98,16 @@ def test_locator_is_bilingual_and_grocery_is_spanish_only() -> None:
     )
 
 
+def test_locator_notes_point_at_the_surfaces_that_exist() -> None:
+    """Roles live in the person sheet, places in Settings; the Presence card is gone (#882/#886)."""
+
+    locator = next(g for g in VOICE_COMMAND_GROUPS if g.id == "locator")
+    notes = " ".join(locator.notes)
+    assert "Security › People" in notes
+    assert "Settings › Home & people › Places" in notes
+    assert "Presence card" not in notes
+
+
 def test_disarm_never_publishes_a_code() -> None:
     """Only a placeholder — ``<your code>`` (en) / ``<tu código>`` (es) — the
     voice-pe README already ships, never a real code.
