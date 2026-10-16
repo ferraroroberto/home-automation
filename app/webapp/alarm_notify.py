@@ -29,12 +29,12 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from weakref import WeakKeyDictionary
 
 from app.webapp import read_snapshot
-from src.activity_log import append_activity
+from src._atomic_json import write_json_atomic
+from src.activity_log import LOGS_DIR, append_activity
 from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
@@ -79,7 +79,7 @@ CONFIRM_RETRY_DELAYS_S: tuple[int, ...] = (30, 60, 120)
 
 # Per-day error-notify de-dupe: dedupe_key -> "YYYY-MM-DD".
 # Persisted to disk so a tray restart does not re-fire the same-day alert.
-_DEDUPE_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "alarm_notify_dedupe.json"
+_DEDUPE_PATH = LOGS_DIR / "alarm_notify_dedupe.json"
 
 # Schedule and presence run as independent tasks on the webapp event loop. Keep
 # one lock per loop so tests that create a fresh loop for each case do not reuse
@@ -109,10 +109,7 @@ def _load_dedupe() -> Dict[str, str]:
 
 def _save_dedupe(state: Dict[str, str]) -> None:
     try:
-        _DEDUPE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _DEDUPE_PATH.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(_DEDUPE_PATH)
+        write_json_atomic(_DEDUPE_PATH, state, indent=None)
     except OSError as exc:
         logger.warning("⚠️ Could not persist alarm de-dupe state: %s", exc)
 
@@ -385,9 +382,7 @@ async def record_alarm_action(
 # tray restart doesn't re-hit the "first observation" no-alert branch below
 # and silently forget an already-active condition (#527) — before this, the
 # tracker was in-memory only and reset to blank on every restart.
-_SECURITY_STATE_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "logs" / "alarm_security_state.json"
-)
+_SECURITY_STATE_PATH = LOGS_DIR / "alarm_security_state.json"
 
 
 def _load_security_state() -> Dict[str, Optional[bool]]:
@@ -402,10 +397,7 @@ def _load_security_state() -> Dict[str, Optional[bool]]:
 
 def _save_security_state(state: Dict[str, Optional[bool]]) -> None:
     try:
-        _SECURITY_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _SECURITY_STATE_PATH.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(_SECURITY_STATE_PATH)
+        write_json_atomic(_SECURITY_STATE_PATH, state, indent=None)
     except OSError as exc:
         logger.warning("⚠️ Could not persist alarm security state: %s", exc)
 

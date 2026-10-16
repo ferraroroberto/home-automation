@@ -907,3 +907,36 @@ def test_already_outcome_disarm_reminder_is_delivered_when_error_toggle_on(tmp_p
     assert len(notifier.sent) == 1
     assert "FAILED" not in notifier.sent[0]
     assert "forget" in notifier.sent[0]
+
+
+# ----------------------------------------------------- persisted state writes
+
+def _state_writers():
+    import app.webapp.security_automation as SA
+
+    return [
+        (AN, "_DEDUPE_PATH", AN._save_dedupe),
+        (AN, "_SECURITY_STATE_PATH", AN._save_security_state),
+        (SA, "_LAST_FIRE_PATH", SA._save_last_fire_day),
+    ]
+
+
+def test_state_writes_are_compact_atomic_and_never_raise(tmp_path: Path, monkeypatch, caplog) -> None:
+    """The three small engine-state files (#912): compact UTF-8 JSON, no
+    leftover ``.tmp``, and a filesystem error is logged rather than raised —
+    a failed persist must never take an alarm engine down with it."""
+
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a directory", encoding="utf-8")
+    for module, attr, save in _state_writers():
+        path = tmp_path / f"{attr}.json"
+        monkeypatch.setattr(module, attr, path)
+        save({"k": "ü"})
+        assert path.read_text(encoding="utf-8") == '{"k": "ü"}'
+        assert list(tmp_path.glob("*.tmp")) == []
+
+        monkeypatch.setattr(module, attr, blocker / "state.json")
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            save({"k": "v"})
+        assert any("Could not persist" in r.message for r in caplog.records), attr
