@@ -293,10 +293,10 @@ def rate_for(dt: datetime, tariff: Tariff) -> float:
     return 0.0
 
 
-def export_rates_payload(tariff: Tariff) -> List[Dict[str, Any]]:
-    """Return the public JSON shape for a tariff's dated export rates."""
+def export_rates_payload(rates: List[ExportRate]) -> List[Dict[str, Any]]:
+    """Return the public JSON shape for dated export rates."""
     payload = []
-    for rate in tariff.export_rates:
+    for rate in rates:
         entry: Dict[str, Any] = {
             "effective_from": rate.effective_from.isoformat(),
             "export_eur_kwh": rate.export_eur_kwh,
@@ -350,9 +350,7 @@ def save_export_rate(
             raise ValueError("replace_effective_from must be YYYY-MM-DD") from exc
     by_date[rate_date] = ExportRate(rate_date, value, hourly)
     raw.pop("export_eur_kwh", None)
-    raw["export_rates"] = export_rates_payload(Tariff(
-        "EUR", "", "flat", 0, 0, sorted(by_date.values()), {}, [], frozenset(), {}, True
-    ))
+    raw["export_rates"] = export_rates_payload(sorted(by_date.values()))
     save_json(target, raw)
     logger.info("💶 Saved export rate %.6f EUR/kWh from %s", value, effective_from)
     return load_tariff(target)
@@ -375,9 +373,7 @@ def delete_export_rate(effective_from: str, path: Optional[Path] = None) -> Tari
     remaining = [rate for rate in rates if rate.effective_from != target_date]
     if len(remaining) == len(rates):
         raise ValueError(f"no export rate exists for {effective_from}")
-    raw["export_rates"] = export_rates_payload(Tariff(
-        "EUR", "", "flat", 0, 0, remaining, {}, [], frozenset(), {}, True
-    ))
+    raw["export_rates"] = export_rates_payload(remaining)
     save_json(target, raw)
     logger.info("🗑️ Deleted export rate effective %s", effective_from)
     return load_tariff(target)

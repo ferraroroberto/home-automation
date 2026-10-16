@@ -89,6 +89,42 @@ def test_save_export_rate_migrates_legacy_scalar_and_preserves_tariff(tmp_path: 
     assert T.rate_for(datetime(2026, 9, 5), loaded) == 0.16774
 
 
+def test_save_export_rate_pins_persisted_payload_with_hourly_override(tmp_path: Path) -> None:
+    cfg = _tariff_config()
+    cfg["export_eur_kwh"] = 0.04
+    path = tmp_path / "tariff.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    hourly = [None] * 24
+    hourly[12] = 0.2
+
+    T.save_export_rate("2026-09-05", 0.16774, path, hourly_eur_kwh=hourly)
+    T.save_export_rate("2026-08-01", 0.07, path)
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+
+    assert persisted["export_rates"] == [
+        {"effective_from": "0001-01-01", "export_eur_kwh": 0.04},
+        {"effective_from": "2026-08-01", "export_eur_kwh": 0.07},
+        {"effective_from": "2026-09-05", "export_eur_kwh": 0.16774, "hourly_eur_kwh": hourly},
+    ]
+
+
+def test_delete_export_rate_pins_persisted_payload(tmp_path: Path) -> None:
+    cfg = _tariff_config()
+    cfg["custom_note"] = "keep me"
+    cfg["export_rates"] = [
+        {"effective_from": "2026-01-01", "export_eur_kwh": 0.05},
+        {"effective_from": "2026-09-05", "export_eur_kwh": 0.17},
+    ]
+    path = tmp_path / "tariff.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+
+    T.delete_export_rate("2026-09-05", path)
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+
+    assert persisted["export_rates"] == [{"effective_from": "2026-01-01", "export_eur_kwh": 0.05}]
+    assert persisted["custom_note"] == "keep me"
+
+
 def test_cost_breakdown_prices_export_per_hour_at_effective_rate() -> None:
     tariff = _two_0td(export_rates=[
         T.ExportRate(datetime(2026, 9, 4).date(), 0.10),
