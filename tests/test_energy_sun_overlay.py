@@ -11,7 +11,9 @@ coordinates are all passed in.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -69,7 +71,7 @@ def _expected(**by_hour: float) -> List[Dict[str, Any]]:
 
 def _overlay(buckets, expected, kwp: float = _KWP, pr: float = _PR):
     return E._sun_overlay_points(
-        buckets, expected, kwp, pr, _MADRID_LAT, _MADRID_LON
+        buckets, expected, kwp, pr, _MADRID_LAT, _MADRID_LON, tz=timezone.utc
     )
 
 
@@ -232,3 +234,68 @@ def test_azimuth_rises_with_the_hour_across_the_day() -> None:
     azimuths = [p["azimuth_deg"] for p in points]
     assert [p["hour"] for p in points] == hours
     assert azimuths == sorted(azimuths)
+
+
+# ------------------------------------------------- DST-change days (#934)
+_MADRID = ZoneInfo("Europe/Madrid")
+
+
+def _local_day(day: datetime) -> List[Dict[str, Any]]:
+    """What ``hourly_day`` frames for a Madrid day: local midnight to midnight."""
+    start = day.replace(tzinfo=_MADRID)
+    end = start + timedelta(days=1)
+    return [
+        {
+            "key": str(epoch), "pv_wh": 0.0, "pv_missing": True,
+            "partial": False, "pv_seconds": 0.0, "pv_coverage": 0.0,
+            "pv_gap": False,
+        }
+        for epoch in range(int(start.timestamp()), int(end.timestamp()), _HOUR)
+    ]
+
+
+def _madrid_overlay(buckets, expected):
+    return E._sun_overlay_points(
+        buckets, expected, _KWP, _PR, _MADRID_LAT, _MADRID_LON, tz=_MADRID
+    )
+
+
+def test_spring_forward_day_reads_the_modelled_curve_at_the_local_hour() -> None:
+    """Slot index 12 is 13:00 local on the 23 h day, so it takes h13's model."""
+    modelled = _gti_wh(700.0)
+    slots = _local_day(datetime(2026, 3, 29))
+    assert len(slots) == 23
+    slots[12].update(_covered(modelled))
+
+    points, excluded = _madrid_overlay(slots, _expected(h13=modelled))
+
+    assert excluded == []
+    assert [p["hour"] for p in points] == [13]
+    assert points[0]["effective_pr"] == pytest.approx(_PR)
+
+
+def test_fall_back_day_reads_the_modelled_curve_at_the_local_hour() -> None:
+    """Slot index 13 is 12:00 local on the 25 h day, so it takes h12's model."""
+    modelled = _gti_wh(700.0)
+    slots = _local_day(datetime(2026, 10, 25))
+    assert len(slots) == 25
+    slots[13].update(_covered(modelled))
+
+    points, excluded = _madrid_overlay(slots, _expected(h12=modelled))
+
+    assert excluded == []
+    assert [p["hour"] for p in points] == [12]
+    assert points[0]["effective_pr"] == pytest.approx(_PR)
+
+
+def test_the_repeated_fall_back_hour_is_reported_once_per_slot() -> None:
+    """02:00 happens twice on the 25 h day; each slot is its own exclusion."""
+    modelled = _gti_wh(500.0)
+    slots = _local_day(datetime(2026, 10, 25))  # no PV data anywhere
+
+    _, excluded = _madrid_overlay(slots, _expected(h2=modelled))
+
+    assert excluded == [
+        {"hour": 2, "reason": "no_data"},
+        {"hour": 2, "reason": "no_data"},
+    ]

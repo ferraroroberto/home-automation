@@ -15,8 +15,10 @@ injected.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo
 
 from app.webapp.routers import energy as E
 
@@ -59,7 +61,7 @@ def _covered(wh: float, **extra: Any) -> Dict[str, Any]:
 
 def _curve(monkeypatch, slots: List[Dict[str, Any]], now: int) -> List[Dict[str, Any]]:
     monkeypatch.setattr(E, "time", SimpleNamespace(time=lambda: now))
-    return E._actual_curve(slots)
+    return E._actual_curve(slots, tz=timezone.utc)
 
 
 # ------------------------------------------------- the in-progress hour (#557)
@@ -196,3 +198,46 @@ def test_feed_gap_hours_sums_only_partly_covered_hours() -> None:
 def test_feed_gap_hours_never_counts_the_night() -> None:
     """Every hour of an untouched day is uncovered — none of it is an outage."""
     assert E._feed_gap_hours(_day({})) == 0.0
+
+
+# ------------------------------------------------- DST-change days (#934)
+_MADRID = ZoneInfo("Europe/Madrid")
+_SPRING_FORWARD = datetime(2026, 3, 29)  # 23 h: 02:00 → 03:00
+_FALL_BACK = datetime(2026, 10, 25)      # 25 h: 03:00 → 02:00
+
+
+def _local_day(day: datetime) -> List[Dict[str, Any]]:
+    """What ``hourly_day`` frames for a Madrid day: local midnight to midnight."""
+    start = day.replace(tzinfo=_MADRID)
+    end = start + timedelta(days=1)
+    slots = []
+    for epoch in range(int(start.timestamp()), int(end.timestamp()), _HOUR):
+        slots.append({
+            "key": str(epoch), "pv_wh": 0.0, "pv_missing": True,
+            "partial": False, "pv_seconds": 0.0, "pv_coverage": 0.0,
+            "pv_gap": False,
+        })
+    return slots
+
+
+def test_spring_forward_day_has_23_slots_labelled_by_local_hour() -> None:
+    curve = E._actual_curve(_local_day(_SPRING_FORWARD), tz=_MADRID)
+
+    assert [p["hour"] for p in curve] == [*range(0, 2), *range(3, 24)]
+    assert len(curve) == 23
+
+
+def test_fall_back_day_has_25_slots_with_the_repeated_hour_twice() -> None:
+    curve = E._actual_curve(_local_day(_FALL_BACK), tz=_MADRID)
+
+    assert [p["hour"] for p in curve] == [*range(0, 3), *range(2, 24)]
+    assert len(curve) == 25
+
+
+def test_a_measurement_lands_on_its_own_local_hour_after_the_change() -> None:
+    """Index 12 on the spring day is 13:00 local — the old label said 12."""
+    slots = _local_day(_SPRING_FORWARD)
+    slots[12].update(_covered(900.0))
+    curve = E._actual_curve(slots, tz=_MADRID)
+
+    assert [p["hour"] for p in curve if p["wh"] is not None] == [13]
