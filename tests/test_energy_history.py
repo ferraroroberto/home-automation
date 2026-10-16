@@ -310,3 +310,45 @@ def test_hourly_range_unknown_period_raises(tmp_path: Path) -> None:
         pass
     else:
         raise AssertionError("expected ValueError for an unknown period")
+
+
+# ------------------------------------------- DST-change days (audit #916)
+def _madrid_day(y: int, m: int, d: int, tmp_path: Path):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("Europe/Madrid")
+    db = tmp_path / "h.sqlite3"
+    H.init_db(db)
+    noon = int(datetime(y, m, d, 12, tzinfo=tz).timestamp())
+    midnight = int(datetime(y, m, d, tzinfo=tz).timestamp())
+    next_midnight = int(datetime(y, m, d + 1, tzinfo=tz).timestamp())
+    out = H.hourly_day(0, now=noon, path=db, tz=tz)
+    return out, midnight, next_midnight
+
+
+def test_hourly_day_ordinary_day_has_24_labelled_slots(tmp_path: Path) -> None:
+    out, midnight, next_midnight = _madrid_day(2026, 6, 15, tmp_path)
+    assert [b["label"] for b in out] == ["%02d" % i for i in range(24)]
+    assert int(out[0]["key"]) == midnight
+    assert int(out[-1]["key"]) + H._HOUR == next_midnight
+
+
+def test_hourly_day_spring_forward_day_is_23_slots_labelled_by_clock_hour(tmp_path: Path) -> None:
+    """02:00 does not exist on 2026-03-29: no "02" slot, and "23" is still 23:00 local."""
+    out, midnight, next_midnight = _madrid_day(2026, 3, 29, tmp_path)
+    labels = [b["label"] for b in out]
+    assert labels == ["%02d" % i for i in range(24) if i != 2]
+    assert int(out[0]["key"]) == midnight
+    assert int(out[-1]["key"]) + H._HOUR == next_midnight  # no spill into the 30th
+
+
+def test_hourly_day_fall_back_day_is_25_slots_and_keeps_23h(tmp_path: Path) -> None:
+    """02:00 happens twice on 2026-10-25, and 23:00 must stay in the frame."""
+    out, midnight, next_midnight = _madrid_day(2026, 10, 25, tmp_path)
+    labels = [b["label"] for b in out]
+    assert len(out) == 25
+    assert labels.count("02") == 2
+    assert labels[-1] == "23"
+    assert int(out[0]["key"]) == midnight
+    assert int(out[-1]["key"]) + H._HOUR == next_midnight
