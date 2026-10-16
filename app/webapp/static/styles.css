@@ -305,14 +305,10 @@ button, input, select, textarea {
    the button reaches exactly 44px inside its own row and never meets a
    neighbour's (#779). The inset is derived from the button's own height, so a
    taller (2-line) name simply needs none. */
-button.device-row-name,
 button.net-wifi-row-name,
-button.net-device-name,
-button.circuit-meter-name { position: relative; }
-button.device-row-name::before,
+button.net-device-name { position: relative; }
 button.net-wifi-row-name::before,
-button.net-device-name::before,
-button.circuit-meter-name::before {
+button.net-device-name::before {
   content: "";
   position: absolute;
   inset: min(0px, calc((100% - var(--hit-min)) / 2)) 0;
@@ -320,10 +316,8 @@ button.circuit-meter-name::before {
 /* The same row names read as plain text: strip the native button chrome and
    keep them left-aligned with a hover underline. Each rule below this block
    keeps only its deltas (colour, weight, flex/grid placement, line clamp). */
-button.device-row-name,
 button.net-wifi-row-name,
-button.net-device-name,
-button.circuit-meter-name {
+button.net-device-name {
   appearance: none;
   border: 0;
   background: none;
@@ -336,18 +330,13 @@ button.circuit-meter-name {
   font-weight: 600;
   cursor: pointer;
 }
-/* One line, ellipsised (the device name ellipsises its inner text span
-   instead). */
-button.device-row-name,
-button.circuit-meter-name,
+/* One line, ellipsised. */
 button.net-wifi-row-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-button.device-row-name:hover,
-button.net-wifi-row-name:hover,
-button.circuit-meter-name:hover { text-decoration: underline; }
+button.net-wifi-row-name:hover { text-decoration: underline; }
 
 /* A card's filter/toolbar row (#779): controls that used to sit in the
    disclosure summary, where a near-miss folds the card (LAYOUT-05). Hidden
@@ -1824,29 +1813,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
 .unit-sheet-page[data-page="schedules"] .alarm-schedule-list { gap: 0; }
 .detail-hint { margin: 8px 0 2px; }
 .schedule-empty { margin: var(--space-xs) 0 0; }
-.schedule-entry {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 10px;
-  background: var(--card-off);
-}
-.schedule-entry-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
-  gap: var(--space-sm);
-  align-items: center;
-}
-.schedule-enabled {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-size: var(--font-label);
-  font-weight: 600;
-}
-/* One destructive-× idiom app-wide (issue #367): the vendored icon-button.danger
-   (quiet at rest, danger glyph on hover) at the control height. */
-.schedule-delete { --icon-btn-box: var(--control-h); }
 .schedule-add-btn {
   position: relative;
   width: 100%;
@@ -1864,10 +1830,6 @@ button.circuit-meter-name:hover { text-decoration: underline; }
    among others, issue #361 review) needs the vertical extension (#367). */
 .schedule-add-btn::before { content: ""; position: absolute; inset: -4px 0; }
 .schedule-add-btn:disabled { color: var(--muted); cursor: default; }
-@media (max-width: 420px) {
-  .schedule-entry-head { grid-template-columns: 1fr 1fr auto; }
-  .schedule-enabled { grid-column: 1 / -1; }
-}
 
 /* Detail-modal Save footer (#202): settings stage locally and commit only in
    the vendored modal's sticky .detail-actions, whose one full-width

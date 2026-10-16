@@ -15,13 +15,6 @@ export function toggleMarkup(on) {
   return '<span class="knob"></span><span class="toggle-label">' + (on ? 'ON' : 'OFF') + '</span>';
 }
 
-// String form for call sites that build rows via innerHTML template
-// literals (e.g. units.js's schedule-entry cards) rather than DOM nodes.
-export function toggleHtml(className, on) {
-  return '<button type="button" class="toggle' + (className ? ' ' + className : '') + (on ? ' on' : '') +
-    '" role="switch" aria-checked="' + (on ? 'true' : 'false') + '">' + toggleMarkup(on) + '</button>';
-}
-
 export function setToggleState(btn, on) {
   if (!btn) return;
   btn.classList.toggle('on', !!on);
