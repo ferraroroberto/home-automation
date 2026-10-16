@@ -105,6 +105,24 @@ def _safe_kill(proc: asyncio.subprocess.Process) -> None:
 _STREAM_DONE = object()
 
 
+def _put_latest(q: "queue.Queue[object]", item: object) -> None:
+    """Enqueue ``item`` without ever blocking, dropping the oldest entry if full.
+
+    Called from the single proactor-loop thread, so a blocking ``put`` on a
+    queue nobody drains any more (the viewer left) would wedge every later
+    camera call. The pump is the only producer, so the retry always converges.
+    """
+    while True:
+        try:
+            q.put_nowait(item)
+            return
+        except queue.Full:
+            try:
+                q.get_nowait()
+            except queue.Empty:
+                pass
+
+
 # --------------------------------------------------------------------------- #
 # Snapshot persistence                                                        #
 # --------------------------------------------------------------------------- #
@@ -227,14 +245,7 @@ async def mjpeg_frames(
                         break
                     frame, buf = buf[:nxt], buf[nxt:]
                     if frame.startswith(_JPEG_SOI):
-                        try:
-                            frame_queue.put_nowait(frame)
-                        except queue.Full:
-                            try:
-                                frame_queue.get_nowait()  # drop the oldest, keep the feed live
-                            except queue.Empty:
-                                pass
-                            frame_queue.put_nowait(frame)
+                        _put_latest(frame_queue, frame)  # drop-oldest keeps the feed live
         finally:
             with_suppressed = (ProcessLookupError, PermissionError)
             try:
@@ -245,7 +256,7 @@ async def mjpeg_frames(
                 await proc.wait()
             except with_suppressed:
                 pass
-            frame_queue.put(_STREAM_DONE)
+            _put_latest(frame_queue, _STREAM_DONE)  # never block the proactor thread
 
     loop = _ensure_proactor_loop()
     pump_future = asyncio.run_coroutine_threadsafe(_pump(), loop)
