@@ -52,6 +52,10 @@ export const state = {
   searxng: null,
   // Elgato light cards from GET /api/lights.
   lights: [],
+  // "Last reading HH:MM; refreshing..." when the server's answer is past its
+  // staleness bound (#928), else ''. Same for the Home Assistant satellites.
+  lightsStaleNote: '',
+  haStaleNote: '',
   // device_id whose rename modal is open (or null).
   selectedPlugId: null,
   // Unreachable plugs fold into one Offline row (#884); true lists them

@@ -113,3 +113,14 @@ export function friendlyError(exc, fallback) {
   console.warn('[home-automation] failure detail withheld from the UI:', raw);
   return generic;
 }
+
+/** The line a card shows under an answer the server served from memory past its
+ *  staleness bound (#926, #928): when that reading was taken, and that a fresh
+ *  one is on its way. '' while the answer is fresh. */
+export function staleReadingNote(snapshot) {
+  if (!snapshot || !snapshot.stale) return '';
+  const taken = new Date(snapshot.built_at || '');
+  if (Number.isNaN(taken.getTime())) return 'Older reading; refreshing...';
+  return 'Last reading ' + taken.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+    '; refreshing...';
+}
