@@ -8,15 +8,17 @@ reusing :mod:`src._schedule_store`'s read/save/id helpers.
 
 from __future__ import annotations
 
-import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
-from src._schedule_store import read_json, safe_id, save_json
+from src._schedule_store import (
+    clean_entry_list,
+    load_entry_list,
+    safe_id,
+    save_entry_list,
+)
 from src.presence_client import distance_m
-
-logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 PLACES_PATH = _CONFIG_DIR / "presence_places.json"
@@ -67,22 +69,14 @@ def load_presence_places(path: Optional[Path] = None) -> List[PresencePlace]:
     """Return the persisted named-place list, or ``[]`` if absent."""
 
     target = Path(path) if path is not None else PLACES_PATH
-    raw = read_json(target, [])
-    if not isinstance(raw, list):
-        logger.warning("⚠️ %s is not a JSON list; returning empty", target)
-        return []
-    return [
-        clean_place(item, f"place-{idx}")
-        for idx, item in enumerate(raw, start=1)
-        if isinstance(item, dict)
-    ]
+    return load_entry_list(target, clean_place, "place")
 
 
 def save_presence_places(places: List[PresencePlace], path: Optional[Path] = None) -> None:
     """Atomically persist the whole named-place list."""
 
     target = Path(path) if path is not None else PLACES_PATH
-    save_json(target, [asdict(place) for place in places])
+    save_entry_list(target, places)
 
 
 def set_presence_places(
@@ -90,11 +84,7 @@ def set_presence_places(
 ) -> List[PresencePlace]:
     """Replace the named-place list with normalized entries and return it."""
 
-    places = [
-        clean_place(item, f"place-{idx}")
-        for idx, item in enumerate(raw_places, start=1)
-        if isinstance(item, dict)
-    ]
+    places = clean_entry_list(raw_places, clean_place, "place")
     save_presence_places(places, path)
     return places
 

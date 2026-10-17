@@ -9,17 +9,20 @@ absent entirely) — ``done`` marks it complete rather than firing/disabling it.
 
 from __future__ import annotations
 
-import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src._schedule_store import clean_date, read_json, safe_id, save_json
+from src._schedule_store import (
+    clean_date,
+    clean_entry_list,
+    load_entry_list,
+    safe_id,
+    save_entry_list,
+)
 from src._spoken_time import extract_date, extract_time
-
-logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 REMINDERS_PATH = _CONFIG_DIR / "reminders.json"
@@ -72,32 +75,20 @@ def load_reminders(path: Optional[Path] = None) -> List[ReminderEntry]:
     """Return the persisted reminder list, or ``[]`` if absent."""
 
     target = Path(path) if path is not None else REMINDERS_PATH
-    raw = read_json(target, [])
-    if not isinstance(raw, list):
-        logger.warning("⚠️ %s is not a JSON list; returning empty", target)
-        return []
-    return [
-        clean_entry(item, f"reminder-{idx}")
-        for idx, item in enumerate(raw, start=1)
-        if isinstance(item, dict)
-    ]
+    return load_entry_list(target, clean_entry, "reminder")
 
 
 def save_reminders(entries: List[ReminderEntry], path: Optional[Path] = None) -> None:
     """Atomically persist the whole reminder list."""
 
     target = Path(path) if path is not None else REMINDERS_PATH
-    save_json(target, [asdict(entry) for entry in entries])
+    save_entry_list(target, entries)
 
 
 def set_reminders(raw_entries: List[dict], path: Optional[Path] = None) -> List[ReminderEntry]:
     """Replace the reminder list with normalized entries and return it."""
 
-    entries = [
-        clean_entry(item, f"reminder-{idx}")
-        for idx, item in enumerate(raw_entries, start=1)
-        if isinstance(item, dict)
-    ]
+    entries = clean_entry_list(raw_entries, clean_entry, "reminder")
     save_reminders(entries, path)
     return entries
 

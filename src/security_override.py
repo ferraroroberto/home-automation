@@ -18,11 +18,16 @@ template. Atomic temp-file + ``os.replace`` write, the same load/save shape as
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
-from src._schedule_store import read_json, safe_id, save_json
+from src._schedule_store import (
+    clean_entry_list,
+    load_entry_list,
+    safe_id,
+    save_entry_list,
+)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 OVERRIDES_PATH = _CONFIG_DIR / "security_override.json"
@@ -74,31 +79,19 @@ def clean_override(raw: dict, fallback_id: str) -> Optional[OverrideEntry]:
     )
 
 
-def _clean_list(raw: Any) -> List[OverrideEntry]:
-    if not isinstance(raw, list):
-        return []
-    out: List[OverrideEntry] = []
-    for idx, item in enumerate(raw, start=1):
-        if not isinstance(item, dict):
-            continue
-        entry = clean_override(item, f"override-{idx}")
-        if entry is not None:
-            out.append(entry)
-    return out
-
-
 def load_overrides(path: Optional[Path] = None) -> List[OverrideEntry]:
     """Return the persisted override list, or ``[]`` if absent/unreadable."""
 
     target = Path(path) if path is not None else OVERRIDES_PATH
-    return _clean_list(read_json(target, []))
+    # Silent on a non-list file, unlike the schedule stores (kept as before).
+    return load_entry_list(target, clean_override, "override", warn_not_list=False)
 
 
 def save_overrides(entries: List[OverrideEntry], path: Optional[Path] = None) -> None:
     """Atomically persist the whole override list."""
 
     target = Path(path) if path is not None else OVERRIDES_PATH
-    save_json(target, [asdict(entry) for entry in entries])
+    save_entry_list(target, entries)
 
 
 def set_overrides(
@@ -106,6 +99,6 @@ def set_overrides(
 ) -> List[OverrideEntry]:
     """Replace the override list with normalized entries and return it."""
 
-    entries = _clean_list(raw_entries)
+    entries = clean_entry_list(raw_entries, clean_override, "override")
     save_overrides(entries, path)
     return entries

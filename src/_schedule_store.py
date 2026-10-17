@@ -6,7 +6,9 @@ helpers below were duplicated verbatim across :mod:`src.wake_alarms` and
 :mod:`src.hvac_automation`, per its README note that ``wake_alarms`` was
 "cloned from security_schedules.py's atomic store"). Centralized here;
 callers keep their own dataclass shape and entry-cleaning logic — only the
-read/save mechanics and the id/time/days field cleaners are shared.
+read/save mechanics, the list-of-entries load/save pair
+(:func:`load_entry_list` / :func:`save_entry_list`, issue #912) and the
+id/time/days field cleaners are shared.
 """
 
 from __future__ import annotations
@@ -15,13 +17,16 @@ import json
 import logging
 import re
 import time
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional, Sequence, TypeVar
 
 from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _DAY_SET = frozenset(DAYS)
@@ -91,6 +96,55 @@ def save_json(path: Path, data: Any) -> None:
 
     write_json_atomic(path, data)
     logger.info("💾 Saved %s", path)
+
+
+def clean_entry_list(
+    raw: Any, clean: Callable[[dict, str], Optional[T]], id_prefix: str
+) -> List[T]:
+    """Run ``clean`` over every dict in ``raw``; anything else is dropped.
+
+    ``clean`` gets the item and a ``f"{id_prefix}-{n}"`` fallback id (``n``
+    counts from 1 over *all* items, so a skipped non-dict still consumes a
+    number). A cleaner may return ``None`` to reject an item. A non-list
+    ``raw`` yields ``[]``.
+    """
+
+    if not isinstance(raw, list):
+        return []
+    out: List[T] = []
+    for idx, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            continue
+        entry = clean(item, f"{id_prefix}-{idx}")
+        if entry is not None:
+            out.append(entry)
+    return out
+
+
+def load_entry_list(
+    path: Path,
+    clean: Callable[[dict, str], Optional[T]],
+    id_prefix: str,
+    *,
+    warn_not_list: bool = True,
+) -> List[T]:
+    """Return the cleaned entry list persisted at ``path``, or ``[]`` if absent.
+
+    A file holding something other than a JSON list also reads as ``[]``
+    (logged unless ``warn_not_list`` is ``False``). An unreadable file still
+    raises :class:`StoreUnreadableError` — see :func:`read_json`.
+    """
+
+    raw = read_json(path, [])
+    if warn_not_list and not isinstance(raw, list):
+        logger.warning("⚠️ %s is not a JSON list; returning empty", path)
+    return clean_entry_list(raw, clean, id_prefix)
+
+
+def save_entry_list(path: Path, entries: Sequence[Any]) -> None:
+    """Atomically persist dataclass ``entries`` as a JSON list."""
+
+    save_json(path, [asdict(entry) for entry in entries])
 
 
 def safe_id(value: Any, fallback: str) -> str:
