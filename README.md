@@ -1748,6 +1748,16 @@ verdict breakdown; it can also be run standalone before removing a worktree:
 & .\.venv\Scripts\python.exe tests\e2e\_browser_sweep.py E:\automation\home-automation-wt-1 --dry-run
 ```
 
+The sweep's `wedged:out-of-scope` count is host-wide and cumulative: it holds
+every earlier run's unkillable residue. So the session also snapshots the
+wedged helpers at start and prints `[e2e] browser helpers newly wedged during
+this run: N` (`UNKNOWN` when the state can't be read). The gate repeats it as
+its own `[INFO]`/`[WARN]` line, advisory and never part of the PASS (#971).
+That line, the sweep summary and any teardown-watchdog firing
+(`teardown watchdog fired: browser.close() [webkit] …`) all land in the
+progress log, so a wedge can be diagnosed from the gate log alone. The count
+is host-wide, so a concurrent gate in another checkout can add to it.
+
 **Read that `zombie` count as "not inspected", not "harmless" (#681).** The
 sweep infers "already exited" from `GetExitCodeProcess`, and a helper
 force-killed by the teardown watchdog can wedge *inside* termination: the exit
