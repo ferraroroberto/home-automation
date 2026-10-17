@@ -457,8 +457,9 @@ def _fake_link(monkeypatch: pytest.MonkeyPatch, reply: object, status: object = 
 
 
 @pytest.fixture(autouse=True)
-def _clear_cover_types() -> None:
-    """Isolate the per-device cover-type cache between tests."""
+def _clear_cover_types(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Isolate the per-device cover-type cache and its on-disk store between tests."""
+    monkeypatch.setattr(T, "_COVER_TYPES_FILE", tmp_path / "tuya_cover_types.json")
     T._cover_types.clear()
     yield
     T._cover_types.clear()
@@ -587,3 +588,99 @@ def test_set_cover_unsupported_action_for_the_type_is_refused(
     with pytest.raises(T.TuyaCommandError, match="no stop value"):
         T.set_cover("blind-x", "stop")
     assert tinytuya.CONTROL not in [cmd for cmd, _ in frames]
+
+
+# ------------------------------------------------- cover type survives restarts (#965)
+def _restart() -> None:
+    """A webapp restart: the in-memory cache is gone, the disk store is not."""
+    T._cover_types.clear()
+
+
+def test_a_poll_teaches_the_cover_type_and_a_restart_keeps_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A blind that reads '3' at rest must not lose its type to a restart (#965).
+
+    The passive poll already reads the blind's status; a known control value
+    there is recorded and persisted, so after the restart the first command
+    needs no detection read — which is the read that failed on a resting blind.
+    """
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    _fake_link(monkeypatch, {"dps": {"1": "1"}}, status={"dps": {"1": "1"}})
+    T.read_device_state("blind-x")  # learned while the blind was mid-cycle
+
+    _restart()
+    frames = _fake_link(monkeypatch, {"dps": {"1": "1"}}, status={"dps": {"1": "3"}})
+    T.set_cover("blind-x", "close")
+    T.set_cover("blind-x", "stop")
+
+    assert tinytuya.DP_QUERY not in [cmd for cmd, _ in frames]
+    assert [data for cmd, data in frames if cmd == tinytuya.CONTROL] == [{"1": "2"}, {"1": "0"}]
+
+
+def test_a_detected_cover_type_is_persisted_for_the_next_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    _fake_link(monkeypatch, {"dps": {"1": "1"}}, status={"dps": {"1": "2"}})
+    T.set_cover("blind-x", "open")
+
+    _restart()
+    frames = _fake_link(monkeypatch, {"dps": {"1": "1"}}, status={"dps": {"1": "3"}})
+    T.set_cover("blind-x", "open")
+    assert frames == [(tinytuya.CONTROL, {"1": "1"})]
+
+
+def test_a_blind_reading_3_with_no_known_type_is_still_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """'3' is in no TinyTuya detect set and its meaning is unproven: never a guess."""
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    frames = _fake_link(monkeypatch, {"dps": {"1": "1"}}, status={"dps": {"1": "3"}})
+
+    with pytest.raises(T.TuyaCoverTypeUnknown):
+        T.set_cover("blind-x", "open")
+    assert tinytuya.CONTROL not in [cmd for cmd, _ in frames]
+    assert not T._COVER_TYPES_FILE.exists()
+
+
+def test_a_poll_reading_an_unknown_value_learns_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    _fake_link(monkeypatch, {"dps": {"1": "3"}}, status={"dps": {"1": "3"}})
+    T.read_device_state("blind-x")
+    assert T._cover_types == {}
+    assert not T._COVER_TYPES_FILE.exists()
+
+
+@pytest.mark.parametrize("stored", ['{"blind-x": "99"}', '{"blind-x": "x"}', "[1, 2]", "not json"])
+def test_a_bad_cover_type_store_falls_back_to_detection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, stored: str
+) -> None:
+    """A corrupt store is ignored: the blind is detected live instead."""
+    import tinytuya
+
+    path = tmp_path / "devices.json"
+    _write_blind(path)
+    monkeypatch.setattr(T, "_DEVICE_FILE", path)
+    T._COVER_TYPES_FILE.write_text(stored, encoding="utf-8")
+    frames = _fake_link(monkeypatch, {"dps": {"1": "1"}}, status={"dps": {"1": "2"}})
+
+    T.set_cover("blind-x", "close")
+    assert (tinytuya.CONTROL, {"1": "2"}) in frames
+    assert tinytuya.DP_QUERY in [cmd for cmd, _ in frames]

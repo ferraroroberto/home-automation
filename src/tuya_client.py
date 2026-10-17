@@ -92,10 +92,12 @@ _COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
 # So each device's set is detected from its own ``status()`` exactly as
 # TinyTuya's ``CoverDevice`` does — its ``COVER_TYPES`` value sets, matched
 # in its priority order (overlapping values resolve to the commoner type) —
-# and cached per device id for the life of the process.
+# and cached per device id, persisted to ``_COVER_TYPES_FILE`` (gitignored) so
+# a restart keeps it (#965).
 _COVER_TYPES: dict[int, dict[str, Any]] = tinytuya.CoverDevice.COVER_TYPES
 _COVER_TYPE_PRIORITY = (1, 8, 3, 4, 5, 7, 2, 6)
 _cover_types: dict[str, int] = {}
+_COVER_TYPES_FILE = Path(__file__).resolve().parent.parent / "config" / "tuya_cover_types.json"
 _BRIGHTNESS_CODES = ("bright_value", "bright_value_v2", "bright_value_1")
 # Tuya's documented raw brightness range per code, used only when a device's
 # mapping does not state its own min/max (issue #870).
@@ -619,6 +621,12 @@ def read_device_state(device_id: str) -> dict[str, Any]:
     _record_backoff_success(device_id)
     dps = status["dps"]
 
+    cover = _first_mapping(metadata.raw, _COVER_CONTROL_CODES)
+    if cover and cover.dps in dps:
+        type_id = _detect_cover_type(dps[cover.dps])
+        if type_id is not None:
+            _remember_cover_type(device_id, type_id, dps[cover.dps])
+
     result: dict[str, Any] = {
         "device_id": device_id,
         "reachable": True,
@@ -704,9 +712,64 @@ def set_brightness(device_id: str, pct: int) -> dict[str, Any]:
     return response if isinstance(response, dict) else {"response": response}
 
 
+def _detect_cover_type(current: Any) -> Optional[int]:
+    """The cover type whose detect set holds ``current``, or None (never a guess)."""
+    if current is None:
+        return None
+    for type_id in _COVER_TYPE_PRIORITY:
+        if current in _COVER_TYPES[type_id]["detect_values"]:
+            return type_id
+    return None
+
+
+def _load_cover_types() -> dict[str, int]:
+    """The persisted ``{device_id: cover type}`` store; empty when absent or unusable.
+
+    Unreadable or malformed content is ignored (logged), never overwritten
+    blind: the blind is simply detected live as before.
+    """
+    try:
+        raw = json.loads(_COVER_TYPES_FILE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        logger.warning("⚠️ Tuya cover-type store %s unreadable: %s", _COVER_TYPES_FILE, exc)
+        return {}
+    if not isinstance(raw, dict):
+        logger.warning("⚠️ Tuya cover-type store %s is not an object — ignored", _COVER_TYPES_FILE)
+        return {}
+    return {
+        str(device_id): int(type_id)
+        for device_id, type_id in raw.items()
+        if str(type_id).isdigit() and int(type_id) in _COVER_TYPES
+    }
+
+
+def _remember_cover_type(device_id: str, type_id: int, reading: Any) -> None:
+    """Cache this blind's cover type and persist it so a restart keeps it (#965).
+
+    A blind can read ``'3'`` — in no TinyTuya detect set — when a fresh process
+    looks at it, leaving a detection read nothing to match (#965). The type is a
+    fixed property of the hardware: learn it from any status that does show a
+    known value (the passive poll reads one anyway), and keep it across restarts.
+    """
+    if _cover_types.get(device_id) == type_id:
+        return
+    _cover_types[device_id] = type_id
+    logger.info("ℹ️ Tuya cover %s is cover type %d (DPS reads %r)", device_id, type_id, reading)
+    stored = _load_cover_types()
+    if stored.get(device_id) == type_id:
+        return
+    stored[device_id] = type_id
+    try:
+        write_json_atomic(_COVER_TYPES_FILE, stored)
+    except OSError as exc:
+        logger.warning("⚠️ Could not persist Tuya cover type for %s: %s", device_id, exc)
+
+
 def _cover_type(device_id: str, device: tinytuya.Device, dps: str) -> int:
-    """This blind's TinyTuya cover type, detected from one ``status()`` read
-    on first use and cached after (#901).
+    """This blind's TinyTuya cover type: cached, else persisted from an earlier
+    process (#965), else detected from one ``status()`` read (#901).
 
     Raises :class:`TuyaCoverTypeUnknown` (logged) when the control DPS holds
     no value from any known set — never a guess — and leaves the cache empty
@@ -715,20 +778,19 @@ def _cover_type(device_id: str, device: tinytuya.Device, dps: str) -> int:
     cached = _cover_types.get(device_id)
     if cached is not None:
         return cached
+    persisted = _load_cover_types().get(device_id)
+    if persisted is not None:
+        _cover_types[device_id] = persisted
+        return persisted
     response = device.status()
     _raise_for_tinytuya_error(response, f"Read Tuya cover status {device_id}")
     if not isinstance(response, dict) or not isinstance(response.get("dps"), dict):
         raise TuyaCommandError(f"Read Tuya cover status {device_id} returned no DPS payload")
     current = response["dps"].get(dps)
-    if current is not None:
-        for type_id in _COVER_TYPE_PRIORITY:
-            if current in _COVER_TYPES[type_id]["detect_values"]:
-                _cover_types[device_id] = type_id
-                logger.info(
-                    "ℹ️ Tuya cover %s is cover type %d (DPS %s reads %r)",
-                    device_id, type_id, dps, current,
-                )
-                return type_id
+    type_id = _detect_cover_type(current)
+    if type_id is not None:
+        _remember_cover_type(device_id, type_id, current)
+        return type_id
     logger.error(
         "❌ Tuya cover %s: unknown cover type, DPS %s reads %r — nothing written",
         device_id, dps, current,
