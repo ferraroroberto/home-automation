@@ -28,7 +28,7 @@ import {
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { emptyStateEl } from './empty-state.js';
-import { toggleMarkup } from './toggle.js';
+import { setToggleState } from './toggle.js';
 import { createViewState } from './view-state.js';
 import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocationControls } from './presence-location.js';
 import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
@@ -747,9 +747,7 @@ function renderPresenceHiddenToggle(entity) {
   const hidden = !!entity.hidden;
   btn.disabled = isThisDevice;
   btn.title = isThisDevice ? 'This device is always shown when browser location is enabled' : '';
-  btn.className = 'toggle' + (hidden ? ' on' : ' off');
-  btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(hidden);
+  setToggleState(btn, hidden);
 }
 
 // This device's label is local-only (browser GPS, no server entity): it never

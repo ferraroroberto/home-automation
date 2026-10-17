@@ -17,7 +17,7 @@ import { jsonApi, reportActionFailure } from './api.js';
 import { renderSecurity } from './security.js';
 import { openActivity } from './activity.js';
 import { rowEl } from './row.js';
-import { toggleMarkup } from './toggle.js';
+import { toggleMarkup, setToggleState } from './toggle.js';
 import { icon } from './_vendored/icons/icons.js';
 import { detailModal } from './detail-modal.js';
 import { chipEl } from './chip.js';
@@ -589,18 +589,14 @@ function renderZoneHiddenToggle(zone) {
   const btn = els.zoneHiddenToggle;
   if (!btn) return;
   const hidden = !!zone.hidden;
-  btn.className = 'toggle' + (hidden ? ' on' : ' off');
-  btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(hidden);
+  setToggleState(btn, hidden);
 }
 
 function renderZoneTroubleIgnoreToggle(zone) {
   const btn = els.zoneTroubleIgnoreToggle;
   if (!btn) return;
   const ignored = !!zone.trouble_ignored;
-  btn.className = 'toggle' + (ignored ? ' on' : ' off');
-  btn.setAttribute('aria-checked', ignored ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(ignored);
+  setToggleState(btn, ignored);
 }
 
 // Detail-modal staging (#203, shared shell #699): name + Hidden commit on

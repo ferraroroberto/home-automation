@@ -47,7 +47,7 @@ import { renderSignalBar } from './format.js';
 import { chipEl } from './chip.js';
 import { isSnapshotRestored, snapshotLabel } from './snapshots.js';
 import { renderNetwork } from './network.js';
-import { toggleMarkup } from './toggle.js';
+import { setToggleState } from './toggle.js';
 import { openGroupDialog } from './network-groups.js';
 import { detailModal } from './detail-modal.js';
 
@@ -577,18 +577,14 @@ function renderImportantToggle(d) {
   if (!btn) return;
   if (els.netDeviceImportantRow) els.netDeviceImportantRow.hidden = !!d.randomized;
   const on = !!d.important;
-  btn.className = 'toggle' + (on ? ' on' : ' off');
-  btn.setAttribute('aria-checked', on ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(on);
+  setToggleState(btn, on);
 }
 
 function renderNetDeviceHiddenToggle(d) {
   const btn = els.netDeviceHiddenToggle;
   if (!btn) return;
   const on = !!d.hidden;
-  btn.className = 'toggle' + (on ? ' on' : ' off');
-  btn.setAttribute('aria-checked', on ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(on);
+  setToggleState(btn, on);
 }
 
 // Detail-modal staging (#203, shared shell #699): the display name, Important

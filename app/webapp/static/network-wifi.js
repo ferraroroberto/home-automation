@@ -25,7 +25,7 @@ import {
 import { renderSignalBar, friendlyError } from './format.js';
 import { chipEl } from './chip.js';
 import { renderNetwork } from './network.js';
-import { toggleMarkup } from './toggle.js';
+import { setToggleState } from './toggle.js';
 import { sheet } from './sheet.js';
 
 const WIFI_BAND_LABELS = { '2.4GHz': '2.4 GHz', '5GHz': '5 GHz', '6GHz': '6 GHz' };
@@ -227,9 +227,7 @@ function renderNetWifiHiddenToggle(b) {
   const btn = els.netWifiHiddenDetailToggle;
   if (!btn) return;
   const on = !!b.hidden;
-  btn.className = 'toggle' + (on ? ' on' : ' off');
-  btn.setAttribute('aria-checked', on ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(on);
+  setToggleState(btn, on);
 }
 
 // An instant sheet (sheet.js, #880): the name saves on blur and Hidden on
