@@ -23,7 +23,7 @@ import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from
 import { emptyStateEl } from './empty-state.js';
 import { createPoller } from './poll.js';
 import { toggleMarkup, setToggleState } from './toggle.js';
-import { closeDialog, openDialog } from './dialog.js';
+import { detailModal } from './detail-modal.js';
 import { openPlugDetail, setTuyaBrightness, toggleSwitch, tuyaSwitch } from './plugs.js';
 import { friendlyError, staleReadingNote } from './format.js';
 import { rowEl } from './row.js';
@@ -405,58 +405,57 @@ function onSheetPower() {
 function onSheetEdit() {
   const entity = sheetEntity();
   if (!entity) return;
-  if (sheetLight.kind === 'elgato') openLightDetail(entity.light_id);
+  if (sheetLight.kind === 'elgato') openLightDetail(entity.light_id, els.lightSheetEdit);
   else openPlugDetail(entity.device_id, els.lightSheetEdit);
 }
 
 // ------------------------------------------- Elgato name + details dialog
-function openLightDetail(lightId) {
-  const light = lightById(lightId);
-  if (!light) return;
-  state.selectedLightId = lightId;
-  els.lightDetailName.textContent = label(light);
-  els.lightDisplayName.value = light.display_name || '';
-  els.lightDisplayName.placeholder = originalName(light);
-  els.lightOriginalName.textContent = originalName(light);
-  els.lightProduct.textContent = light.product_name || '—';
-  els.lightHost.textContent = light.host || '—';
-  els.lightPort.textContent = light.port == null ? '—' : String(light.port);
-  els.lightMac.textContent = light.mac_address || 'Unavailable';
-  els.lightFirmware.textContent = light.firmware || '—';
-  els.lightIdentifier.textContent = light.light_id || '—';
-  els.lightTemperatureMeta.textContent = fmtTemperatureDetail(light);
-  if (els.lightSave) els.lightSave.disabled = true;
-  openDialog(els.lightDialog);
-  els.lightDisplayName.focus();
-}
-
-function closeLightDetail() {
-  state.selectedLightId = null;
-  closeDialog(els.lightDialog);
-}
-
-async function saveLightName() {
-  if (!state.selectedLightId) return;
-  const lightId = state.selectedLightId;
-  const displayKey = (lightById(lightId) || {}).display_key || lightId;
-  const displayName = els.lightDisplayName.value.trim();
-  try {
-    await jsonApi('/api/lights/' + encodeURIComponent(lightId) + '/display_name', {
+// The staged name edit rides the shared detailModal() shell (#912).
+const lightModal = detailModal({
+  dialog: els.lightDialog,
+  closeButton: els.lightDetailClose,
+  onClose: function () { state.selectedLightId = null; },
+  saveButton: els.lightSave,
+  focusEl: els.lightDisplayName,
+  getEntity: lightById,
+  populate: function (staged, light) {
+    els.lightDetailName.textContent = label(light);
+    els.lightDisplayName.value = light.display_name || '';
+    els.lightDisplayName.placeholder = originalName(light);
+    els.lightOriginalName.textContent = originalName(light);
+    els.lightProduct.textContent = light.product_name || '—';
+    els.lightHost.textContent = light.host || '—';
+    els.lightPort.textContent = light.port == null ? '—' : String(light.port);
+    els.lightMac.textContent = light.mac_address || 'Unavailable';
+    els.lightFirmware.textContent = light.firmware || '—';
+    els.lightIdentifier.textContent = light.light_id || '—';
+    els.lightTemperatureMeta.textContent = fmtTemperatureDetail(light);
+  },
+  buildOps: function (lightId, staged, light) {
+    const displayKey = light.display_key || lightId;
+    const displayName = els.lightDisplayName.value.trim();
+    return [jsonApi('/api/lights/' + encodeURIComponent(lightId) + '/display_name', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ display_name: displayName, display_key: displayKey }),
-    });
-    state.lights = state.lights.map(function (light) {
-      return light.light_id === lightId ? Object.assign({}, light, { display_name: displayName || null }) : light;
-    });
+    }).then(function () {
+      state.lights = state.lights.map(function (item) {
+        return item.light_id === lightId ? Object.assign({}, item, { display_name: displayName || null }) : item;
+      });
+    })];
+  },
+  afterSave: function (lightId) {
     const updatedLight = lightById(lightId);
     if (updatedLight) els.lightDetailName.textContent = label(updatedLight);
-    renderLights();
-    if (els.lightSave) els.lightSave.disabled = true;
-    toast('Saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to save name');
-  }
+  },
+  failedToast: 'Failed to save name',
+  render: renderLights,
+});
+
+function openLightDetail(lightId, trigger) {
+  if (!lightById(lightId)) return;
+  state.selectedLightId = lightId;
+  lightModal.open(lightId, trigger);
 }
 
 // ------------------------------------------------------------- render
@@ -614,15 +613,9 @@ export function wireLightControls() {
   }
   if (els.lightSheetPower) els.lightSheetPower.addEventListener('click', onSheetPower);
   if (els.lightSheetEdit) els.lightSheetEdit.addEventListener('click', onSheetEdit);
-  els.lightDetailClose.addEventListener('click', closeLightDetail);
-  els.lightDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.lightDialog) closeLightDetail();
-  });
-  els.lightDisplayName.addEventListener('input', function () {
-    if (els.lightSave) els.lightSave.disabled = false;
-  });
-  if (els.lightSave) els.lightSave.addEventListener('click', saveLightName);
+  els.lightDisplayName.addEventListener('input', lightModal.markDirty);
+  if (els.lightSave) els.lightSave.addEventListener('click', lightModal.save);
   els.lightDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); saveLightName(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); lightModal.save(); }
   });
 }

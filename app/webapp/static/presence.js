@@ -34,6 +34,7 @@ import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocat
 import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
 import { wirePresencePushControls } from './presence-push.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { detailModal } from './detail-modal.js';
 import { confirmAction } from './confirm.js';
 import { friendlyError } from './format.js';
 import { rowEl } from './row.js';
@@ -635,31 +636,73 @@ export async function loadPresence() {
 }
 
 // --------------------------------------------------- presence detail + config
-let presenceDetailOpener = null;
+// The staged name + role edit rides the shared detailModal() shell (#912).
+const presenceModal = detailModal({
+  dialog: els.presenceDialog,
+  closeButton: els.presenceDetailClose,
+  onClose: function () { state.selectedPresenceId = null; },
+  saveButton: els.presenceDetailSave,
+  focusEl: els.presenceDisplayName,
+  // A save re-renders the list, so the opener may be gone: find its replacement.
+  fallbackFocus: function () {
+    const id = state.selectedPresenceId;
+    return id && els.presenceList
+      ? els.presenceList.querySelector('.presence-row[data-entity-id="' + CSS.escape(id) + '"] .action-row-main')
+      : null;
+  },
+  getEntity: presenceById,
+  populate: function (staged, entity) {
+    els.presenceDetailName.textContent = presenceEntityLabel(entity);
+    els.presenceDetailStatus.textContent = presenceLabel(entity) + (entity.stale ? ' · stale' : '');
+    els.presenceDetailSource.textContent = sourceLabel(entity);
+    els.presenceDetailLastSeen.textContent = entity.last_seen ? fmtTime(entity.last_seen) : '—';
+    els.presenceDetailDistance.textContent = fmtDistance(entity.distance_from_home_m);
+    els.presenceDetailPlace.textContent = placeLabel(entity) || '—';
+    renderPresenceMap(entity);
+    els.presenceDisplayName.value = entity.display_name || '';
+    els.presenceDisplayName.placeholder = entity.name || entity.entity_id || 'Custom label…';
+    els.presenceOriginalName.textContent = 'System name: ' + (entity.name || entity.entity_id || 'Unknown');
+    if (els.presenceRole) {
+      els.presenceRole.value = entity.role || '';
+      els.presenceRole.disabled = isThisDevice(entity);
+    }
+    renderPresenceHiddenToggle(entity);
+  },
+  buildOps: function (id) {
+    const newName = els.presenceDisplayName.value.trim();
+    const newRole = els.presenceRole ? els.presenceRole.value.trim() : '';
+    return [Promise.all([
+      jsonApi('/api/presence/entity-display-name', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity_id: id, display_name: newName }),
+      }),
+      jsonApi('/api/presence/role', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity_id: id, role: newRole }),
+      }),
+    ]).then(function () {
+      if (state.presence && Array.isArray(state.presence.entities)) {
+        state.presence.entities = state.presence.entities.map(function (e) {
+          return e.entity_id === id
+            ? Object.assign({}, e, { display_name: newName || null, role: newRole || null })
+            : e;
+        });
+      }
+    })];
+  },
+  afterSave: function (id) {
+    const entity = presenceById(id);
+    if (entity) els.presenceDetailName.textContent = presenceEntityLabel(entity);
+  },
+  render: renderPresence,
+});
 
 function openPresenceDetail(entityId, trigger) {
-  const entity = presenceById(entityId);
-  if (!entity) return;
-  presenceDetailOpener = trigger || null;
+  if (!presenceById(entityId)) return;
   state.selectedPresenceId = entityId;
-  els.presenceDetailName.textContent = presenceEntityLabel(entity);
-  els.presenceDetailStatus.textContent = presenceLabel(entity) + (entity.stale ? ' · stale' : '');
-  els.presenceDetailSource.textContent = sourceLabel(entity);
-  els.presenceDetailLastSeen.textContent = entity.last_seen ? fmtTime(entity.last_seen) : '—';
-  els.presenceDetailDistance.textContent = fmtDistance(entity.distance_from_home_m);
-  els.presenceDetailPlace.textContent = placeLabel(entity) || '—';
-  renderPresenceMap(entity);
-  els.presenceDisplayName.value = entity.display_name || '';
-  els.presenceDisplayName.placeholder = entity.name || entity.entity_id || 'Custom label…';
-  els.presenceOriginalName.textContent = 'System name: ' + (entity.name || entity.entity_id || 'Unknown');
-  if (els.presenceRole) {
-    els.presenceRole.value = entity.role || '';
-    els.presenceRole.disabled = isThisDevice(entity);
-  }
-  renderPresenceHiddenToggle(entity);
-  if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
-  openDialog(els.presenceDialog);
-  els.presenceDisplayName.focus();
+  presenceModal.open(entityId, trigger);
 }
 
 function mapUrl(entity) {
@@ -709,51 +752,20 @@ function renderPresenceHiddenToggle(entity) {
   btn.innerHTML = toggleMarkup(hidden);
 }
 
-function closePresenceDetail() {
-  state.selectedPresenceId = null;
-  closeDialog(els.presenceDialog);
-}
-
-async function savePresenceDetail() {
-  if (!state.selectedPresenceId) return;
-  const id = state.selectedPresenceId;
-  const newName = els.presenceDisplayName.value.trim();
+// This device's label is local-only (browser GPS, no server entity): it never
+// reaches the shared Save, which would PUT and toast.
+function savePresenceDetail() {
+  const id = presenceModal.id;
+  if (!id) return;
   if (id === '__this_device__') {
+    const newName = els.presenceDisplayName.value.trim();
     state.thisDevicePresence = Object.assign({}, state.thisDevicePresence, { display_name: newName || null });
     els.presenceDetailName.textContent = presenceEntityLabel(state.thisDevicePresence);
     renderPresence();
-    if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
+    presenceModal.clearDirty();
     return;
   }
-  const newRole = els.presenceRole ? els.presenceRole.value.trim() : '';
-  try {
-    await Promise.all([
-      jsonApi('/api/presence/entity-display-name', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity_id: id, display_name: newName }),
-      }),
-      jsonApi('/api/presence/role', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity_id: id, role: newRole }),
-      }),
-    ]);
-    if (state.presence && Array.isArray(state.presence.entities)) {
-      state.presence.entities = state.presence.entities.map(function (e) {
-        return e.entity_id === id
-          ? Object.assign({}, e, { display_name: newName || null, role: newRole || null })
-          : e;
-      });
-    }
-    const entity = presenceById(id);
-    if (entity) els.presenceDetailName.textContent = presenceEntityLabel(entity);
-    renderPresence();
-    if (els.presenceDetailSave) els.presenceDetailSave.disabled = true;
-    toast('Saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Failed to save');
-  }
+  presenceModal.save();
 }
 
 async function togglePresenceHidden() {
@@ -800,29 +812,9 @@ export function wirePresenceControls() {
   wirePresencePushControls();
   wirePresenceTrustDialog();
 
-  if (els.presenceDetailClose) els.presenceDetailClose.addEventListener('click', closePresenceDetail);
-  if (els.presenceDialog) {
-    els.presenceDialog.addEventListener('click', function (ev) {
-      if (ev.target === els.presenceDialog) closePresenceDetail();
-    });
-    // However it closed (×, Esc, backdrop), focus goes back to the row that
-    // opened it, or its re-rendered replacement.
-    els.presenceDialog.addEventListener('close', function () {
-      const id = state.selectedPresenceId;
-      state.selectedPresenceId = null;
-      let target = presenceDetailOpener;
-      presenceDetailOpener = null;
-      if ((!target || !target.isConnected) && id && els.presenceList) {
-        target = els.presenceList.querySelector('.presence-row[data-entity-id="' + CSS.escape(id) + '"] .action-row-main');
-      }
-      if (target && target.isConnected) target.focus();
-    });
-  }
   [els.presenceDisplayName, els.presenceRole].forEach(function (el) {
     if (!el) return;
-    el.addEventListener('input', function () {
-      if (els.presenceDetailSave) els.presenceDetailSave.disabled = false;
-    });
+    el.addEventListener('input', presenceModal.markDirty);
     el.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); savePresenceDetail(); }
     });
