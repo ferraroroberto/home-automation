@@ -20,7 +20,7 @@ import { fmtW, friendlyError } from './format.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { createPoller } from './poll.js';
 import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
-import { toggleMarkup } from './toggle.js';
+import { toggleMarkup, setToggleState } from './toggle.js';
 import { confirmAction } from './confirm.js';
 import { detailModal } from './detail-modal.js';
 import { setHeadPart } from './head-status.js';
@@ -338,9 +338,7 @@ function setListCard(card, countEl, n, present) {
 function renderPlugHiddenToggle(hidden) {
   const btn = els.plugHiddenToggle;
   if (!btn) return;
-  btn.className = 'toggle' + (hidden ? ' on' : ' off');
-  btn.setAttribute('aria-checked', hidden ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(hidden);
+  setToggleState(btn, hidden);
 }
 
 const plugModal = detailModal({

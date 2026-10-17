@@ -26,7 +26,7 @@ import {
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW, friendlyError, staleReadingNote } from './format.js';
 import { createPoller } from './poll.js';
-import { toggleMarkup } from './toggle.js';
+import { setToggleState } from './toggle.js';
 import { detailModal } from './detail-modal.js';
 import { rowEl } from './row.js';
 import { chipEl } from './chip.js';
@@ -167,9 +167,7 @@ function circuitEntity(key) {
 
 function renderToggle(btn, on, label) {
   if (!btn) return;
-  btn.className = 'toggle' + (on ? ' on' : ' off');
-  btn.setAttribute('aria-checked', on ? 'true' : 'false');
-  btn.innerHTML = toggleMarkup(on);
+  setToggleState(btn, on);
   if (label) btn.setAttribute('aria-label', label);
 }
 
