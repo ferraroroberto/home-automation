@@ -354,30 +354,50 @@ export function createForecastChart(canvas) {
   });
 }
 
-// Fixed 24-hour x axis ("00".."23"), so expected and actual align by hour.
-function hourLabels() {
-  const out = [];
-  for (let h = 0; h < 24; h++) out.push(h < 10 ? '0' + h : '' + h);
-  return out;
+function hourLabel(h) { return h < 10 ? '0' + h : '' + h; }
+
+// The x axis is one slot per local clock hour ("00".."23"), so expected and
+// actual align by hour. A day that repeats a clock hour (the autumn change: 25
+// slots, "02" twice) cannot be keyed by hour — the second reading would
+// overwrite the first — so that day is plotted slot by slot, in the order the
+// server sent them (#956). Spring-forward keeps the 24-slot axis with its
+// missing hour left as a gap.
+function repeatsAnHour(actual) {
+  const seen = {};
+  return (actual || []).some(function (p) {
+    if (seen[p.hour]) return true;
+    seen[p.hour] = true;
+    return false;
+  });
 }
 
 export function setForecastData(chart, expected, actual) {
   const expMap = {};
   (expected || []).forEach(function (p) { expMap[p.hour] = p.wh; });
   const hasActual = Array.isArray(actual);
-  const actMap = {};
-  if (hasActual) actual.forEach(function (p) { actMap[p.hour] = p.wh; });
 
-  const labels = hourLabels();
-  chart.data.labels = labels;
-  chart.data.datasets[0].data = labels.map(function (_, h) {
+  // Per x slot: its clock hour, and the actual point drawn there (if any).
+  let hours;
+  let points;
+  if (hasActual && repeatsAnHour(actual)) {
+    hours = actual.map(function (p) { return Number(p.hour); });
+    points = actual;
+  } else {
+    const actMap = {};
+    if (hasActual) actual.forEach(function (p) { actMap[p.hour] = p; });
+    hours = [];
+    for (let h = 0; h < 24; h++) hours.push(h);
+    points = hours.map(function (h) { return actMap[h]; });
+  }
+
+  chart.data.labels = hours.map(hourLabel);
+  chart.data.datasets[0].data = hours.map(function (h) {
     return h in expMap ? kwh(expMap[h]) : 0;
   });
   // No actuals (tomorrow) → empty series, so only the dashed forecast draws.
   chart.data.datasets[1].data = hasActual
-    ? labels.map(function (_, h) {
-        const v = actMap[h];
-        return v == null ? null : kwh(v);   // null hour → gap (asleep / no sample)
+    ? points.map(function (p) {
+        return p == null || p.wh == null ? null : kwh(p.wh);   // null hour → gap (asleep / no sample)
       })
     : [];
   // Two kinds of hour arrive projected to a full-hour rate so they stay
@@ -386,13 +406,12 @@ export function setForecastData(chart, expected, actual) {
   // drawn hollow + dashed so they read as the inference they are, never as a
   // measurement — which is the whole point: an under-measured hour plotted
   // solid is indistinguishable from a real production collapse. The series is
-  // plotted on a fixed 24-hour axis, so a point's own `hour` is its chart
-  // index; an hour with nothing to plot yet (too little data to project) is
-  // left unmarked.
+  // plotted slot by slot, so a point's slot index is its chart index; an hour
+  // with nothing to plot yet (too little data to project) is left unmarked.
   const estimatedIdx = [];
   if (hasActual) {
-    actual.forEach(function (p) {
-      if (p && p.estimated && p.wh != null) estimatedIdx.push(Number(p.hour));
+    points.forEach(function (p, i) {
+      if (p && p.estimated && p.wh != null) estimatedIdx.push(i);
     });
   }
   markInProgress(chart.data.datasets[1], estimatedIdx);
