@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Callable, Dict, Optional
@@ -29,15 +28,11 @@ from src.presence_client import (
     fetch_presence,
     invalidate_session,
     load_presence_configs,
+    readable_detail,
     session_trust_state,
 )
 
 logger = logging.getLogger(__name__)
-
-# A real tag, comment or doctype opener — not a bare "<" in prose ("a < b").
-_MARKUP_START = re.compile(r"<\s*[A-Za-z!/?]")
-# What may dangle between Apple's message and the body it was glued to.
-_DETAIL_JOINERS = " \t\r\n:;-—"
 
 
 @dataclass
@@ -82,22 +77,6 @@ class PresenceDiagnosticsCache:
 
 
 _CACHE = PresenceDiagnosticsCache(entities=[])
-
-
-def _readable_detail(text: str) -> str:
-    """The human-readable part of an exception text, markup dropped (#963).
-
-    pyicloud appends Apple's raw response body to its message
-    (``"<reason> (<code>): <body>"``), and for a 409 that body is a whole HTML
-    page of script/template markup. The message always comes first, so keep
-    what precedes the first tag; plain text passes through whole. Nothing
-    readable left → ``""``, and callers show the status reason alone.
-    """
-
-    match = _MARKUP_START.search(text)
-    if match:
-        text = text[: match.start()]
-    return text.strip(_DETAIL_JOINERS)
 
 
 def _aggregate_status(
@@ -339,7 +318,7 @@ def _account_status(
         config.label,
         available,
         reason,
-        _readable_detail(detail),
+        readable_detail(detail),
         entity_count=entity_count,
         display_name=_account_display_name(config),
         trusted=session_trust_state(config),
@@ -427,7 +406,7 @@ def _fetch_account(
         logger.warning(
             "⚠️ iCloud account %s needs re-auth (2fa_required): %s",
             config.label,
-            _readable_detail(str(exc)),
+            readable_detail(str(exc)),
         )
         entities = []
         status = _account_status(
@@ -456,7 +435,7 @@ def _fetch_account(
         logger.warning(
             "⚠️ iCloud account %s not configured: %s",
             config.label,
-            _readable_detail(str(exc)),
+            readable_detail(str(exc)),
         )
         entities = []
         status = _account_status(
@@ -471,7 +450,7 @@ def _fetch_account(
         logger.warning(
             "⚠️ Failed to refresh iCloud account %s: %s",
             config.label,
-            _readable_detail(str(exc)),
+            readable_detail(str(exc)),
         )
         entities = []
         status = _account_status(

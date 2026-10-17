@@ -52,6 +52,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import re
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -64,6 +65,11 @@ from src._env import _env_float
 from src.location_config import LocationConfig, load_location_config
 
 logger = logging.getLogger("presence")
+
+# A real tag, comment or doctype opener — not a bare "<" in prose ("a < b").
+_MARKUP_START = re.compile(r"<\s*[A-Za-z!/?]")
+# What may dangle between Apple's message and the body it was glued to.
+_DETAIL_JOINERS = " \t\r\n:;-—"
 
 DEFAULT_SESSION_DIR = (
     Path(__file__).resolve().parent.parent / "webapp" / "icloud_session"
@@ -815,10 +821,26 @@ def _stop_background_refresh(api: Any) -> None:
         stop.set()
 
 
+def readable_detail(text: str) -> str:
+    """The human-readable part of an exception text, markup dropped (#963, #966).
+
+    pyicloud appends Apple's raw response body to its message
+    (``"<reason> (<code>): <body>"``), and for a 409 that body is a whole HTML
+    page of script/template markup. The message always comes first, so keep
+    what precedes the first tag; plain text passes through whole. Nothing
+    readable left → ``""``, and callers show the status reason alone.
+    """
+
+    match = _MARKUP_START.search(text)
+    if match:
+        text = text[: match.start()]
+    return text.strip(_DETAIL_JOINERS)
+
+
 def _apple_detail(exc: BaseException) -> str:
     """Apple's own message for a failed step, or a neutral fallback."""
 
-    text = str(exc).strip()
+    text = readable_detail(str(exc))
     return text or "Apple did not accept the sign-in; try again in a few minutes."
 
 
