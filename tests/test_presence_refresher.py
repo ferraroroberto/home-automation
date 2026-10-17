@@ -740,3 +740,89 @@ def test_terms_alert_names_accepting_terms_not_renew_trust_or_password(
     assert "PASSWORD" not in text.upper()
     # The remedy is stated once, not echoed again from the status detail.
     assert text.count("icloud.com") == 1
+
+
+_HTML_409_BODY = (
+    '<script type="text/stache" id="jstache_fixture"> <div class="graphite-icon '
+    '{{symbolName}} {{symbolType}}{{#if wrapperClasses}} {{wrapperClasses}}{{/if}}">'
+    "</div></script>"
+)
+
+
+class _FakeHttpResponse:
+    """The one attribute pyicloud's exception reads off a response."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+def _apple_409(body: str = _HTML_409_BODY) -> Exception:
+    """The real exception shape behind #963: message, code, then Apple's raw body."""
+
+    from pyicloud.exceptions import PyiCloudAPIResponseException
+
+    return PyiCloudAPIResponseException(
+        "Authentication required for Account.", 409, _FakeHttpResponse(body)
+    )
+
+
+def test_markup_in_apple_failure_never_reaches_alert_or_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#963: pyicloud appends Apple's HTML response body to the exception text.
+    The Telegram alert, the diagnostics row and the aggregate all read the one
+    recorded status detail, so none may carry markup."""
+
+    configs = [_config("1", friendly_name="Fixture")]
+    monkeypatch.setattr(R, "load_presence_configs", lambda: configs)
+
+    def refuse(*, config: PresenceConfig) -> list[PresenceEntity]:
+        raise _apple_409()
+
+    monkeypatch.setattr(R, "fetch_presence", refuse)
+    monkeypatch.setattr(R, "invalidate_session", lambda config: None)
+    notifier = _FakeNotifier()
+
+    for _ in range(R._alert_after_failures()):
+        cache = asyncio.run(R.refresh_once(notifier_factory=lambda: notifier))
+
+    assert len(notifier.sent) == 1
+    text = notifier.sent[0]
+    assert "[error] Authentication required for Account. (409)" in text
+    for leaked in ("<", "{{", "stache", "graphite"):
+        assert leaked not in text
+        assert leaked not in cache.accounts[0].detail
+        assert leaked not in cache.detail
+    assert cache.accounts[0].detail == "Authentication required for Account. (409)"
+    assert cache.detail == cache.accounts[0].detail
+
+
+def test_plain_text_failure_detail_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache = _run_refresh(
+        monkeypatch,
+        [_config("1")],
+        {"1": PresenceAuthError("Invalid email/password combination.")},
+    )
+
+    assert cache.accounts[0].detail == "Invalid email/password combination."
+
+
+def test_detail_with_nothing_readable_falls_back_to_the_reason_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A detail that is nothing but markup records empty, so the alert reads
+    ``[error]`` rather than an HTML string."""
+
+    cache = _run_refresh(
+        monkeypatch, [_config("1")], {"1": RuntimeError(_HTML_409_BODY)}
+    )
+    status = cache.accounts[0]
+
+    assert status.reason == "error"
+    assert status.detail == ""
+    text = R._stuck_alert_text(
+        _config("1"), status, now=R.datetime.now(R.timezone.utc)
+    )
+    assert "— [error]\n" in text
