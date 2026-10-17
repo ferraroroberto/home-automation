@@ -990,3 +990,75 @@ def test_no_code_path_accepts_apple_terms_on_the_account_holders_behalf() -> Non
             if re.search(r"accept_terms\s*=\s*True|--accept-terms", text):
                 offenders.append(str(path.relative_to(root)))
     assert offenders == []
+
+
+_HTML_409_BODY = (
+    '<script type="text/stache" id="jstache_fixture"> <div class="graphite-icon '
+    '{{symbolName}} {{symbolType}}{{#if wrapperClasses}} {{wrapperClasses}}{{/if}}">'
+    "</div></script>"
+)
+
+
+class _FakeHttpResponse:
+    """The one attribute pyicloud's exception reads off a response."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+def _apple_409() -> Exception:
+    """The real exception shape behind #966: message, code, then Apple's raw body."""
+
+    from pyicloud.exceptions import PyiCloudAPIResponseException
+
+    return PyiCloudAPIResponseException(
+        "Authentication required for Account.", 409, _FakeHttpResponse(_HTML_409_BODY)
+    )
+
+
+def _assert_sheet_text_is_markup_free(detail: str) -> None:
+    for leaked in ("<", "{{", "stache", "graphite"):
+        assert leaked not in detail
+    assert detail == "Authentication required for Account. (409)"
+
+
+def test_begin_trust_renewal_failure_detail_carries_no_markup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """#966: pyicloud appends Apple's HTML response body to its exception text;
+    the Renew-trust sheet shows ``detail`` verbatim, so it must be stripped."""
+
+    def refuse_build(config: P.PresenceConfig) -> object:
+        raise _apple_409()
+
+    monkeypatch.setattr(P, "_build_service", refuse_build)
+
+    state = P.begin_trust_renewal(_trust_cfg(tmp_path))
+
+    assert state.status == "failed"
+    _assert_sheet_text_is_markup_free(state.detail)
+
+
+def test_complete_trust_renewal_failure_detail_carries_no_markup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    api = _FakeTrustApi()
+
+    def refuse_code(code: str) -> bool:
+        raise _apple_409()
+
+    api.validate_2fa_code = refuse_code  # type: ignore[method-assign]
+    monkeypatch.setattr(P, "_build_service", lambda config: api)
+    cfg = _trust_cfg(tmp_path)
+    assert P.begin_trust_renewal(cfg).status == "code_sent"
+
+    state = P.complete_trust_renewal(cfg, "123456")
+
+    assert state.status == "failed"
+    _assert_sheet_text_is_markup_free(state.detail)
+
+
+def test_apple_detail_with_nothing_readable_falls_back_to_the_neutral_message() -> None:
+    assert P._apple_detail(RuntimeError(_HTML_409_BODY)) == (
+        "Apple did not accept the sign-in; try again in a few minutes."
+    )
