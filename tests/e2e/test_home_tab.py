@@ -260,6 +260,29 @@ def test_home_shows_ac_summary_line_per_unit(
     expect(page.locator("#detailDialog")).not_to_have_attribute("open", "")
 
 
+def test_wake_alarm_row_keeps_its_card_inset(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """#954 control: rows in a padding-less card keep the shared row's own 14 px
+    inset (4 on the <li> + 10 on the main button or trailing slot) on both sides;
+    only the lists inside sheets drop it."""
+    _stub_next_up(page, alarms=[{
+        "id": "a1", "label": "Wake up", "enabled": True, "time": "07:00",
+        "days": _WEEKDAYS, "date": None, "ringing": False,
+    }])
+    mock_api(sample_units)
+    mock_energy()
+    boot_home(page, base_url)
+
+    card = page.locator("#nextUpCard").bounding_box()
+    row = page.locator('#wakeAlarmsList [data-alarm-id="a1"]')
+    time = row.locator(".row-time").bounding_box()
+    toggle = row.locator(".toggle").bounding_box()
+    assert abs((time["x"] - card["x"]) - 14) <= 1, (time["x"], card["x"])
+    assert abs((card["x"] + card["width"] - (toggle["x"] + toggle["width"])) - 14) <= 1, (toggle, card)
+
+
 def test_wake_alarm_editor_is_staged(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
