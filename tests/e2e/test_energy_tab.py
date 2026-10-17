@@ -121,13 +121,13 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#exportRateList")).to_contain_text("2026-09-05")
     expect(page.locator("#exportRateCurrent")).to_have_text("€0.16774 / kWh")
 
-    page.locator(".export-rate-edit[data-rate-date='2026-09-05']").click()
+    page.locator("[data-rate-date='2026-09-05'] .action-row-main").click()
     expect(page.locator("#exportRateAdd")).to_have_text("Save changes")
     page.locator("#exportRateValue").fill("0.18000")
     page.locator("#exportRateAdd").click()
     expect(page.locator("#exportRateList")).to_contain_text("€0.18000 / kWh")
 
-    page.locator(".export-rate-edit[data-rate-date='2026-09-05']").click()
+    page.locator("[data-rate-date='2026-09-05'] .action-row-main").click()
     page.locator("#exportRateDelete").click()
     expect(page.locator("#confirmDialog")).to_be_visible()
     page.locator("#confirmOk").click()

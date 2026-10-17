@@ -239,7 +239,7 @@ def test_schedules_add_through_the_staged_editor(
     expect(page.locator("#acScheduleProfile")).to_be_hidden()
     page.locator("#acScheduleSave").click()
 
-    rows = page.locator("#schedList .automation-summary-row")
+    rows = page.locator("#schedList .action-row")
     expect(rows).to_have_count(2)
     expect(rows.nth(1)).to_contain_text("Off")
     page.locator("#detailBack").click()

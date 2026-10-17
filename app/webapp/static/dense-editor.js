@@ -37,8 +37,6 @@
 import { toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { confirmAction } from './confirm.js';
-import { buildToggle } from './toggle.js';
-import { icon } from './_vendored/icons/icons.js';
 import { sheet } from './sheet.js';
 
 export function denseListEditor(config) {
@@ -56,8 +54,7 @@ export function denseListEditor(config) {
         const row = config.listEl.querySelector(
           '[' + config.rowIdAttr + '="' + CSS.escape(editorEntryId) + '"]'
         );
-        // A summary row, or a shared row (row.js) as on Next up (#885).
-        if (row) return row.querySelector('.automation-summary-main, .action-row-main');
+        if (row) return row.querySelector('.action-row-main');
       }
       return config.addButton;
     },
@@ -160,63 +157,4 @@ export function denseListEditor(config) {
     save: save,
     get staged() { return staged; },
   };
-}
-
-/* One summary row in a dense-collection list (issue #571).
- *
- * `security-schedules` / `security-scene` / `security-override` / `reminders`
- * each hand-rolled the same ~30 lines: a `.list-row.automation-summary-row`
- * holding a full-width summary button (title + optional meta + chevron) that
- * opens the editor, plus a trailing enable/done toggle. This owns that
- * scaffolding; each caller supplies only its own copy and handlers.
- *
- * `opts`:
- *   id / idAttr  entry id and the camelCase `dataset` key it lands on
- *   rowClass     extra class on the row (e.g. reminders' `reminder-row is-done`)
- *   title        the row's headline text
- *   meta         optional second line; omitted when falsy
- *   openLabel    aria-label on the summary button
- *   onOpen(btn)  click handler, passed the button so it can be refocused
- *   toggleName   `buildToggle`'s class name; omit it for a row with no toggle
- *   toggleOn     the toggle's current state
- *   toggleLabel  aria-label on the toggle
- *   onToggle(on) toggle handler
- *
- * The trailing toggle is optional (issue #664): `presence-places` is a plain
- * open-to-edit list with nothing to enable, and was the one dense-list editor
- * still hand-rolling this scaffolding because of it.
- */
-export function renderSummaryRow(opts) {
-  const row = document.createElement('div');
-  row.className = 'list-row automation-summary-row' + (opts.rowClass ? ' ' + opts.rowClass : '');
-  if (opts.idAttr) row.dataset[opts.idAttr] = opts.id;
-
-  const main = document.createElement('button');
-  main.type = 'button';
-  main.className = 'automation-summary-main';
-  main.setAttribute('aria-label', opts.openLabel);
-
-  const copy = document.createElement('span');
-  copy.className = 'automation-summary-copy';
-  const title = document.createElement('span');
-  title.className = 'automation-summary-title';
-  title.textContent = opts.title;
-  copy.appendChild(title);
-  if (opts.meta) {
-    const meta = document.createElement('span');
-    meta.className = 'automation-summary-meta';
-    meta.textContent = opts.meta;
-    copy.appendChild(meta);
-  }
-  main.appendChild(copy);
-  main.insertAdjacentHTML('beforeend', icon('chevron-right', 'automation-summary-chevron'));
-  main.addEventListener('click', function () { opts.onOpen(main); });
-  row.appendChild(main);
-
-  if (opts.toggleName) {
-    const toggle = buildToggle(opts.toggleName, opts.toggleOn, opts.onToggle);
-    toggle.setAttribute('aria-label', opts.toggleLabel);
-    row.appendChild(toggle);
-  }
-  return row;
 }

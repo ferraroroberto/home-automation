@@ -31,12 +31,12 @@ import { icon } from './_vendored/icons/icons.js';
 import { chipEl } from './chip.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { restoreSnapshot, saveSnapshot } from './snapshots.js';
-import { toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
+import { buildToggle, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
 import { createViewState, markTabFailure, renderFeedback, staleText } from './view-state.js';
 import { createPoller } from './poll.js';
 import { rowEl } from './row.js';
 import { sheet } from './sheet.js';
-import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { denseListEditor } from './dense-editor.js';
 import { setHeadPart } from './head-status.js';
 
 const DEFAULT_RANGE = [16, 31];
@@ -756,22 +756,21 @@ function renderScheduleList() {
     .sort(function (a, b) { return (a.entry.time || '').localeCompare(b.entry.time || ''); })
     .forEach(function (item) {
       const entry = item.entry;
-      els.schedList.appendChild(renderSummaryRow({
-        id: entry.id,
-        idAttr: 'acScheduleId',
+      const toggle = buildToggle('ac-schedule-enabled', entry.enabled !== false, function (on) {
+        scheduleEditor.save(currentScheduleEntries.map(function (e, index) {
+          return index === item.idx ? Object.assign({}, e, { enabled: on }) : e;
+        }));
+      });
+      toggle.setAttribute('aria-label', 'Enable schedule at ' + entry.time);
+      const row = rowEl({
         title: entry.time || '08:00',
         meta: scheduleMeta(entry),
         openLabel: 'Edit schedule at ' + entry.time,
         onOpen: function (main) { scheduleEditor.open(item.idx, main); },
-        toggleName: 'ac-schedule-enabled',
-        toggleOn: entry.enabled !== false,
-        toggleLabel: 'Enable schedule at ' + entry.time,
-        onToggle: function (on) {
-          scheduleEditor.save(currentScheduleEntries.map(function (e, index) {
-            return index === item.idx ? Object.assign({}, e, { enabled: on }) : e;
-          }));
-        },
-      }));
+        trail: toggle,
+      });
+      row.dataset.acScheduleId = entry.id;
+      els.schedList.appendChild(row);
     });
   const unit = state.selectedId ? unitById(state.selectedId) : null;
   if (unit) els.detailSchedValue.textContent = scheduleSummary(unit);

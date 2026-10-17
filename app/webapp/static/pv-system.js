@@ -28,6 +28,7 @@ import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { denseListEditor } from './dense-editor.js';
 import { emptyStateEl } from './empty-state.js';
+import { rowEl } from './row.js';
 import { putLocation } from './presence-location.js';
 
 const DEFAULT_PERFORMANCE_RATIO = 0.8;
@@ -125,6 +126,13 @@ function totalKwp(entries) {
   return (entries || []).reduce(function (sum, a) { return sum + (Number(a.kwp) || 0); }, 0);
 }
 
+// The lists are `<ul class="action-rows">`, so the empty state is a list item.
+function emptyItem(message) {
+  const item = document.createElement('li');
+  item.appendChild(emptyStateEl('sun', message));
+  return item;
+}
+
 export function renderPvSystem() {
   if (!els.pvArrayList) return;
   els.pvArrayList.innerHTML = '';
@@ -138,43 +146,20 @@ export function renderPvSystem() {
 
   if (!state.pvArrays.length) {
     els.pvArrayList.appendChild(
-      emptyStateEl('sun', 'No panel rows yet — add one to enable the solar forecast.')
+      emptyItem('No panel rows yet — add one to enable the solar forecast.')
     );
     return;
   }
 
   state.pvArrays.forEach(function (entry, idx) {
-    const row = document.createElement('div');
-    row.className = 'list-row automation-summary-row';
+    const row = rowEl({
+      title: arraySummary(entry),
+      meta: COMPASS_LONG[azimuthCompass(entry.azimuth_deg)] || '',
+      openLabel: 'Edit panel row ' + arraySummary(entry),
+      onOpen: function (main) { arrayEditor.open(idx, main); },
+      chevron: true,
+    });
     row.dataset.pvArrayId = entry.id;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'automation-summary-main';
-    main.setAttribute('aria-label', 'Edit panel row ' + arraySummary(entry));
-
-    const copy = document.createElement('span');
-    copy.className = 'automation-summary-copy';
-    const title = document.createElement('span');
-    title.className = 'automation-summary-title';
-    title.textContent = arraySummary(entry);
-    const meta = document.createElement('span');
-    meta.className = 'automation-summary-meta';
-    meta.textContent = COMPASS_LONG[azimuthCompass(entry.azimuth_deg)] || '';
-    copy.appendChild(title);
-    copy.appendChild(meta);
-    main.appendChild(copy);
-
-    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    chevron.setAttribute('class', 'icon automation-summary-chevron');
-    chevron.setAttribute('aria-hidden', 'true');
-    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', '#i-chevron-right');
-    chevron.appendChild(use);
-    main.appendChild(chevron);
-
-    main.addEventListener('click', function () { arrayEditor.open(idx, main); });
-    row.appendChild(main);
     els.pvArrayList.appendChild(row);
   });
 }
@@ -214,43 +199,20 @@ export function renderPvHorizonProfile() {
 
   if (!state.pvHorizonProfile.length) {
     els.pvHorizonList.appendChild(
-      emptyStateEl('sun', 'No horizon points yet — the shading term stays inert either way.')
+      emptyItem('No horizon points yet — the shading term stays inert either way.')
     );
     return;
   }
 
   state.pvHorizonProfile.forEach(function (entry, idx) {
-    const row = document.createElement('div');
-    row.className = 'list-row automation-summary-row';
+    const row = rowEl({
+      title: horizonSummary(entry),
+      meta: COMPASS_LONG[compassFromNorth(entry.azimuth_deg)] || '',
+      openLabel: 'Edit horizon point ' + horizonSummary(entry),
+      onOpen: function (main) { horizonEditor.open(idx, main); },
+      chevron: true,
+    });
     row.dataset.pvHorizonId = entry.id;
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'automation-summary-main';
-    main.setAttribute('aria-label', 'Edit horizon point ' + horizonSummary(entry));
-
-    const copy = document.createElement('span');
-    copy.className = 'automation-summary-copy';
-    const title = document.createElement('span');
-    title.className = 'automation-summary-title';
-    title.textContent = horizonSummary(entry);
-    const meta = document.createElement('span');
-    meta.className = 'automation-summary-meta';
-    meta.textContent = COMPASS_LONG[compassFromNorth(entry.azimuth_deg)] || '';
-    copy.appendChild(title);
-    copy.appendChild(meta);
-    main.appendChild(copy);
-
-    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    chevron.setAttribute('class', 'icon automation-summary-chevron');
-    chevron.setAttribute('aria-hidden', 'true');
-    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', '#i-chevron-right');
-    chevron.appendChild(use);
-    main.appendChild(chevron);
-
-    main.addEventListener('click', function () { horizonEditor.open(idx, main); });
-    row.appendChild(main);
     els.pvHorizonList.appendChild(row);
   });
 }

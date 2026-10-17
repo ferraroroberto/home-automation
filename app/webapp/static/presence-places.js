@@ -2,8 +2,8 @@
  * (issue #438). Same summary-row + staged-dialog contract as
  * ./security-schedules.js (list-row summary → Edit opens a staged <dialog>;
  * Save is the only persistence boundary; the whole list is PUT back), and
- * since #664 the same shared `renderSummaryRow` scaffolding too — a place has
- * nothing to enable, so it passes no `toggleName`.
+ * since #912 the same shared `rowEl` too — a place has nothing to enable, so
+ * its row closes on a chevron instead of a switch.
  *
  * The "Pick on map" flow adds a second, stacked <dialog> with a vendored
  * Leaflet map (static/vendor/leaflet/) so a place doesn't have to be typed
@@ -14,7 +14,8 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
-import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { denseListEditor } from './dense-editor.js';
+import { rowEl } from './row.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { loadScript, loadStyle } from './lazy-script.js';
 import { friendlyError } from './format.js';
@@ -68,14 +69,15 @@ export function renderPresencePlaces() {
   els.presencePlacesNote.hidden = true;
 
   state.presencePlacesList.forEach(function (entry, idx) {
-    els.presencePlacesList.appendChild(renderSummaryRow({
-      id: entry.id,
-      idAttr: 'placeId',
+    const row = rowEl({
       title: entry.label,
       meta: fmtRadius(entry.radius_m),
       openLabel: 'Edit place ' + entry.label,
       onOpen: function (btn) { placeEditor.open(idx, btn); },
-    }));
+      chevron: true,
+    });
+    row.dataset.placeId = entry.id;
+    els.presencePlacesList.appendChild(row);
   });
 }
 

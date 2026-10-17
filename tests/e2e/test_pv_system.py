@@ -51,7 +51,7 @@ def test_card_renders_a_summary_row_per_panel_row(
         ],
     )
 
-    rows = page.locator("#pvArrayList .automation-summary-row")
+    rows = page.locator("#pvArrayList .action-row")
     expect(rows).to_have_count(2)
     expect(rows.first).to_contain_text("7.9 kWp · 15° · S")
     expect(rows.first).to_contain_text("facing south")
@@ -82,7 +82,7 @@ def test_adding_a_row_validates_then_updates_the_forecast_and_its_toast(
         page, base_url, sample_units, mock_api, mock_energy,
         pv_arrays=[{"kwp": 7.9, "tilt_deg": 15.0, "azimuth_deg": 0.0}],
     )
-    rows = page.locator("#pvArrayList .automation-summary-row")
+    rows = page.locator("#pvArrayList .action-row")
     dialog = page.locator("#pvArrayDialog")
     toast = page.locator("#toast")
     expect(page.locator("#forecastParams")).to_have_text("7.9 kWp · 15° · S · PR 0.80")

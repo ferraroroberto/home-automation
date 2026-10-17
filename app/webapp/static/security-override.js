@@ -17,8 +17,9 @@
 import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
-import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor } from './dense-editor.js';
+import { rowEl } from './row.js';
 import { friendlyError } from './format.js';
 
 const RETRY_OPTIONS = [1, 2, 3];
@@ -117,24 +118,23 @@ export function renderSecurityOverrides() {
   els.securityOverridesNote.hidden = true;
 
   state.securityOverrides.forEach(function (entry, idx) {
-    els.securityOverrides.appendChild(renderSummaryRow({
-      id: entry.id,
-      idAttr: 'overrideId',
+    const toggle = buildToggle('security-override-enabled', entry.enabled, function (on) {
+      const proposed = state.securityOverrides.map(function (override, overrideIndex) {
+        return overrideIndex === idx ? { ...override, enabled: on } : override;
+      });
+      overrideEditor.save(proposed);
+    });
+    toggle.setAttribute('aria-label', 'Enable override for ' + detectorName(entry.zone_id));
+    const row = rowEl({
       title: detectorName(entry.zone_id),
       meta: 'Bypass after ' + entry.max_retries +
         (entry.max_retries === 1 ? ' trigger' : ' triggers'),
       openLabel: 'Edit override for ' + detectorName(entry.zone_id),
       onOpen: function (main) { overrideEditor.open(idx, main); },
-      toggleName: 'security-override-enabled',
-      toggleOn: entry.enabled,
-      toggleLabel: 'Enable override for ' + detectorName(entry.zone_id),
-      onToggle: function (on) {
-        const proposed = state.securityOverrides.map(function (override, overrideIndex) {
-          return overrideIndex === idx ? { ...override, enabled: on } : override;
-        });
-        overrideEditor.save(proposed);
-      },
-    }));
+      trail: toggle,
+    });
+    row.dataset.overrideId = entry.id;
+    els.securityOverrides.appendChild(row);
   });
 }
 

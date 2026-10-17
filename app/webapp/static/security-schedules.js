@@ -12,8 +12,9 @@
 import { state, els } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { ACTIONS, ACTION_LABELS } from './security-alarm.js';
-import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor } from './dense-editor.js';
+import { rowEl } from './row.js';
 import { friendlyError } from './format.js';
 import { DAYS, daysSummary, renderDayPicker } from './days.js';
 
@@ -178,23 +179,22 @@ export function renderSchedules() {
   els.securitySchedulesNote.hidden = true;
 
   state.securitySchedules.forEach(function (entry, idx) {
-    els.securitySchedules.appendChild(renderSummaryRow({
-      id: entry.id,
-      idAttr: 'scheduleId',
+    const toggle = buildToggle('alarm-schedule-enabled', entry.enabled, function (on) {
+      const proposed = state.securitySchedules.map(function (schedule, scheduleIndex) {
+        return scheduleIndex === idx ? { ...schedule, enabled: on } : schedule;
+      });
+      scheduleEditor.save(proposed);
+    });
+    toggle.setAttribute('aria-label', 'Enable schedule at ' + entry.time);
+    const row = rowEl({
       title: entry.time,
       meta: ACTION_LABELS[entry.action] + ' · ' + daysSummary(entry.days),
       openLabel: 'Edit schedule at ' + entry.time,
       onOpen: function (main) { scheduleEditor.open(idx, main); },
-      toggleName: 'alarm-schedule-enabled',
-      toggleOn: entry.enabled,
-      toggleLabel: 'Enable schedule at ' + entry.time,
-      onToggle: function (on) {
-        const proposed = state.securitySchedules.map(function (schedule, scheduleIndex) {
-          return scheduleIndex === idx ? { ...schedule, enabled: on } : schedule;
-        });
-        scheduleEditor.save(proposed);
-      },
-    }));
+      trail: toggle,
+    });
+    row.dataset.scheduleId = entry.id;
+    els.securitySchedules.appendChild(row);
   });
 }
 

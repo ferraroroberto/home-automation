@@ -16,8 +16,9 @@
 import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
 import { detectorName, detectorOptions, setSelectOptions } from './security-shared.js';
-import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor } from './dense-editor.js';
+import { rowEl } from './row.js';
 import { friendlyError } from './format.js';
 
 // cameraId -> [{token, name}], fetched lazily so we don't hit every camera up front.
@@ -182,23 +183,22 @@ export function renderScenePairings() {
   els.scenePairingsNote.hidden = true;
 
   state.scenePairings.forEach(function (entry, idx) {
-    els.scenePairings.appendChild(renderSummaryRow({
-      id: entry.id,
-      idAttr: 'pairingId',
+    const toggle = buildToggle('scene-pairing-enabled', entry.enabled, function (on) {
+      const proposed = state.scenePairings.map(function (pairing, pairingIndex) {
+        return pairingIndex === idx ? { ...pairing, enabled: on } : pairing;
+      });
+      pairingEditor.save(proposed);
+    });
+    toggle.setAttribute('aria-label', 'Enable scene pairing for ' + detectorName(entry.zone_id));
+    const row = rowEl({
       title: detectorName(entry.zone_id),
       meta: cameraName(entry.camera_id) + ' · ' + (entry.preset_name || 'Current position'),
       openLabel: 'Edit scene pairing for ' + detectorName(entry.zone_id),
       onOpen: function (main) { pairingEditor.open(idx, main); },
-      toggleName: 'scene-pairing-enabled',
-      toggleOn: entry.enabled,
-      toggleLabel: 'Enable scene pairing for ' + detectorName(entry.zone_id),
-      onToggle: function (on) {
-        const proposed = state.scenePairings.map(function (pairing, pairingIndex) {
-          return pairingIndex === idx ? { ...pairing, enabled: on } : pairing;
-        });
-        pairingEditor.save(proposed);
-      },
-    }));
+      trail: toggle,
+    });
+    row.dataset.pairingId = entry.id;
+    els.scenePairings.appendChild(row);
   });
 }
 
