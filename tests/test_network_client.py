@@ -1171,3 +1171,138 @@ def test_fetch_network_state_promotes_a_ping_reachable_nolink_device(monkeypatch
 
     assert len(state.devices) == 1
     assert state.devices[0].ping_reachable is True
+
+
+# ---- integrity-signed router POSTs (binding writes + reboot), fakes only ---- #
+
+_HOME_HTML = (
+    'pubKey = "-----BEGIN PUBLIC KEY-----\nKEY\n-----END PUBLIC KEY-----"; '
+    r'_sessionTmpToken = "\x48\x4f\x4d\x45";'
+)
+_PAGE_HTML = r'_sessionTmpToken = "\x52\x4f\x54";'  # the rotated token: "ROT"
+
+
+class _FakeRouterSession:
+    """Records the signed-POST sequence; never touches a network."""
+
+    def __init__(self, *, post_text: str = "<IF_ERRORSTR>SUCC</IF_ERRORSTR>",
+                 post_exc: Exception | None = None, get_exc: Exception | None = None,
+                 page_html: str = _PAGE_HTML, home_html: str = _HOME_HTML) -> None:
+        self.post_text, self.post_exc, self.get_exc = post_text, post_exc, get_exc
+        self.page_html, self.home_html = page_html, home_html
+        self.gets: list[str] = []
+        self.posts: list[dict] = []
+
+    def get(self, url: str, headers: Any = None, timeout: Any = None) -> SimpleNamespace:
+        if self.get_exc is not None:
+            raise self.get_exc
+        self.gets.append(url)
+        return SimpleNamespace(text=self.page_html if "menuView" in url else self.home_html)
+
+    def post(self, url: str, data: str, headers: dict, timeout: Any = None) -> SimpleNamespace:
+        self.posts.append({"url": url, "data": data, "headers": headers})
+        if self.post_exc is not None:
+            raise self.post_exc
+        return SimpleNamespace(text=self.post_text)
+
+
+def _signed_client(monkeypatch, session: _FakeRouterSession) -> Any:
+    client = network_router.RouterClient("h", "u", "p")
+    client._session = session
+    monkeypatch.setattr(network_router, "_asy_encode", lambda pem, src: f"sig[{pem}|{src}]")
+    return client
+
+
+def _expected_check(body: str) -> str:
+    import hashlib
+
+    pem = "-----BEGIN PUBLIC KEY-----\nKEY\n-----END PUBLIC KEY-----"
+    return f"sig[{pem}|{hashlib.sha256(body.encode()).hexdigest()}]"
+
+
+def test_binding_post_signs_body_with_the_rotated_token(monkeypatch) -> None:
+    session = _FakeRouterSession(post_text="<ok/>")
+    client = _signed_client(monkeypatch, session)
+
+    assert client._binding_post("IF_ACTION=Apply&x=1") == "<ok/>"
+
+    assert session.gets == ["http://h/", "http://h/?_type=menuView&_tag=lanMgrIpv4"]
+    (post,) = session.posts
+    assert post["url"] == "http://h" + client._DHCP_BIND_FEED
+    assert post["data"] == "IF_ACTION=Apply&x=1&_sessionTOKEN=ROT"
+    assert post["headers"]["Referer"] == "http://h/?_type=menuView&_tag=lanMgrIpv4"
+    assert post["headers"]["Check"] == _expected_check(post["data"])
+
+
+def test_binding_post_surfaces_a_transport_error(monkeypatch) -> None:
+    import requests
+
+    session = _FakeRouterSession(post_exc=requests.ConnectionError("reset"))
+    client = _signed_client(monkeypatch, session)
+    with pytest.raises(requests.RequestException):
+        client._binding_post("IF_ACTION=Apply")
+
+
+def test_reboot_signs_the_restart_body_and_accepts_succ(monkeypatch) -> None:
+    session = _FakeRouterSession()
+    client = _signed_client(monkeypatch, session)
+
+    client.reboot()
+
+    assert session.gets == ["http://h/", "http://h/?_type=menuView&_tag=rebootAndReset"]
+    (post,) = session.posts
+    assert post["url"] == "http://h" + client._REBOOT_FEED
+    assert post["data"] == "IF_ACTION=Restart&_sessionTOKEN=ROT"
+    assert post["headers"]["Referer"] == "http://h/?_type=menuView&_tag=rebootAndReset"
+    assert post["headers"]["Check"] == _expected_check(post["data"])
+
+
+def test_signed_post_falls_back_to_the_home_token(monkeypatch) -> None:
+    session = _FakeRouterSession(page_html="page without a token")
+    client = _signed_client(monkeypatch, session)
+    client.reboot()
+    assert session.posts[0]["data"] == "IF_ACTION=Restart&_sessionTOKEN=HOME"
+
+
+def test_binding_post_without_a_key_raises_its_own_message(monkeypatch) -> None:
+    client = _signed_client(monkeypatch, _FakeRouterSession(home_html="no key here"))
+    with pytest.raises(
+        network_router.NetworkCommandError,
+        match="router binding write: missing session token or key",
+    ):
+        client._binding_post("IF_ACTION=Apply")
+
+
+def test_reboot_treats_a_dropped_post_connection_as_accepted(monkeypatch) -> None:
+    import requests
+
+    session = _FakeRouterSession(post_exc=requests.ConnectionError("router went down"))
+    client = _signed_client(monkeypatch, session)
+    client.reboot()  # no raise: the device drops the connection as it restarts
+    assert len(session.posts) == 1
+
+
+def test_reboot_does_not_swallow_a_failure_before_the_post(monkeypatch) -> None:
+    """Only the restart POST's own transport error means "accepted" — a router
+    unreachable before anything was sent must still fail loudly."""
+    import requests
+
+    session = _FakeRouterSession(get_exc=requests.ConnectionError("unreachable"))
+    client = _signed_client(monkeypatch, session)
+    with pytest.raises(requests.RequestException):
+        client.reboot()
+    assert session.posts == []
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"home_html": "no key here"}, "router reboot: missing session token or key"),
+        ({"post_text": "SessionTimeout"}, "session/token"),
+        ({"post_text": "<IF_ERRORSTR>Busy</IF_ERRORSTR>"}, "rejected reboot: Busy"),
+    ],
+)
+def test_reboot_rejections_raise_network_command_error(monkeypatch, kwargs, match) -> None:
+    client = _signed_client(monkeypatch, _FakeRouterSession(**kwargs))
+    with pytest.raises(network_router.NetworkCommandError, match=match):
+        client.reboot()

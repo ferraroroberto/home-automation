@@ -55,6 +55,11 @@ def _router_creds() -> tuple[str, str, str]:
     )
 
 
+class _PostDropped(requests.RequestException):
+    """The signed POST itself failed in transport, after everything before it
+    succeeded; see :meth:`RouterClient._signed_post`."""
+
+
 # --------------------------------------------------------------------------- #
 # Router (Vodafone ZXHN F6600P / ZTE)                                         #
 # --------------------------------------------------------------------------- #
@@ -379,30 +384,44 @@ class RouterClient:
         body = f"IF_ACTION=Delete&_InstID={inst_id}"
         return self._check_binding_result(self._binding_post(body, timeout), "delete")
 
-    def _binding_post(self, body: str, timeout: int = 10) -> str:
-        """Integrity-checked POST to the DHCP-binding feed (create / delete).
+    def _signed_post(self, page_tag: str, feed: str, body: str, timeout: int, *, what: str) -> str:
+        """Integrity-checked POST of ``body`` to ``feed``; returns the response text.
 
-        Reuses the ``commConf.IntegCheck`` scheme proven by :meth:`reboot`: load
-        the LAN page (which rotates ``_sessionTOKEN``), sign ``body`` + the rolling
-        token with the RSA ``Check`` header, POST to the static-rule feed, and
-        return the raw response text.
+        The web UI gates writes behind ``commConf.IntegCheck``: each POST carries
+        the rolling ``_sessionTOKEN`` in the body plus a ``Check`` header =
+        base64(RSA-PKCS1v15(sha256(body))) under the page's embedded public key.
+        ``what`` prefixes the missing-token error. A transport error from the POST
+        itself is raised as :class:`_PostDropped` (still a ``RequestException``),
+        so a caller can tell "sent, then the connection dropped" from a failure
+        before anything was sent.
         """
         s, base = self._session, self._base
         home = s.get(base + "/", timeout=timeout).text
-        pubkey = _extract_pubkey(home)  # the PEM lives on the home frame
-        page = self._menu_view(self._DHCP_BIND_PAGE, timeout)  # rotates the token
+        pubkey = _extract_pubkey(home)  # the PEM lives only on the home frame
+        # Loading the page ROTATES the session token: the POST must carry the
+        # token embedded in *that* page's response, not the earlier home one
+        # (using the stale token gets "this page has expired"). Verified live.
+        page = self._menu_view(page_tag, timeout)
         token = _extract_token(page) or _extract_token(home)
         if not token or not pubkey:
-            raise NetworkCommandError("router binding write: missing session token or key")
+            raise NetworkCommandError(f"{what}: missing session token or key")
         full = f"{body}&_sessionTOKEN={token}"
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Referer": f"{base}/?_type=menuView&_tag={self._DHCP_BIND_PAGE}",
+            "Referer": f"{base}/?_type=menuView&_tag={page_tag}",
             "Check": _asy_encode(pubkey, hashlib.sha256(full.encode()).hexdigest()),
         }
-        return s.post(
-            base + self._DHCP_BIND_FEED, data=full, headers=headers, timeout=timeout
-        ).text
+        try:
+            return s.post(base + feed, data=full, headers=headers, timeout=timeout).text
+        except requests.RequestException as exc:
+            raise _PostDropped(exc) from exc
+
+    def _binding_post(self, body: str, timeout: int = 10) -> str:
+        """Integrity-checked POST to the DHCP-binding feed (create / delete)."""
+        return self._signed_post(
+            self._DHCP_BIND_PAGE, self._DHCP_BIND_FEED, body, timeout,
+            what="router binding write",
+        )
 
     @staticmethod
     def _check_binding_result(text: str, action: str) -> bool:
@@ -433,34 +452,18 @@ class RouterClient:
         )
 
     def reboot(self, timeout: int = 10) -> None:
-        """Reboot the router via the authenticated POST + RSA integrity header.
+        """Reboot the router via the integrity-checked POST (:meth:`_signed_post`).
 
-        The web UI gates writes behind ``commConf.IntegCheck``: each POST carries
-        the rolling ``_sessionTOKEN`` in the body plus a ``Check`` header =
-        base64(RSA-PKCS1v15(sha256(body))) under the page's embedded public key.
-        The device drops the connection as it restarts, so a post-accept transport
-        error is treated as success, not failure.
+        The device drops the connection as it restarts, so a transport error on
+        the restart POST itself is treated as success, not failure; one before
+        the POST went out still raises.
         """
-        s, base = self._session, self._base
-        home = s.get(base + "/", timeout=timeout).text
-        pubkey = _extract_pubkey(home)  # the PEM lives only on the home frame
-        # Loading the reboot page ROTATES the session token: the POST must carry
-        # the token embedded in *that* page's response, not the earlier home one
-        # (using the stale token gets "this page has expired"). Verified live.
-        page = self._menu_view("rebootAndReset", timeout)
-        token = _extract_token(page) or _extract_token(home)
-        if not token or not pubkey:
-            raise NetworkCommandError("router reboot: missing session token or key")
-        body = f"IF_ACTION=Restart&_sessionTOKEN={token}"
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Referer": f"{base}/?_type=menuView&_tag=rebootAndReset",
-            "Check": _asy_encode(pubkey, hashlib.sha256(body.encode()).hexdigest()),
-        }
         try:
-            text = s.post(base + self._REBOOT_FEED, data=body, headers=headers,
-                          timeout=timeout).text
-        except requests.RequestException as exc:
+            text = self._signed_post(
+                "rebootAndReset", self._REBOOT_FEED, "IF_ACTION=Restart", timeout,
+                what="router reboot",
+            )
+        except _PostDropped as exc:
             logger.info("ℹ️ router connection dropped during reboot (%s) — treating as accepted", exc)
             return
         if "SessionTimeout" in text:
