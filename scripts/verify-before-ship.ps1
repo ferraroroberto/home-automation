@@ -161,6 +161,20 @@ try {
         $label = if ($e2eBrowsers) { $e2eBrowsers } else { "suite-default" }
         $e2eRan = $true
         Invoke-Stage "pytest e2e (${tier}: $e2eTarget, $label)" { & $py -m pytest @e2eArgs }
+
+        # Browser helpers this run left wedged mid-exit (#971): its own state,
+        # advisory, never folded into the PASS above — a wedge is unkillable
+        # residue, not a test failure. Written by tests/e2e/conftest.py.
+        $wedgedLine = Select-String -Path $progressLog -SimpleMatch "browser helpers newly wedged during this run:" |
+            Select-Object -Last 1
+        if (-not $wedgedLine) {
+            Write-Host "[WARN] browser helpers newly wedged during this run: UNKNOWN (no count reported)" -ForegroundColor Yellow
+        } elseif ($wedgedLine.Line -match "during this run: 0$") {
+            Write-Host "[INFO] browser helpers newly wedged during this run: 0" -ForegroundColor DarkGray
+        } else {
+            $count = ($wedgedLine.Line -split "during this run: ", 2)[1]
+            Write-Host "[WARN] browser helpers newly wedged during this run: $count - advisory, see home-automation#971" -ForegroundColor Yellow
+        }
     }
 
     $gateResult = "PASS"

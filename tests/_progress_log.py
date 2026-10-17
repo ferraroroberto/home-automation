@@ -69,6 +69,12 @@ def _write(line: str, detail: Iterable[str] = ()) -> None:
         pass
 
 
+def note(line: str) -> None:
+    """Append one free-form diagnostic line — the e2e conftest's teardown
+    watchdog and browser-sweep breadcrumbs (#971). No-op outside the gate."""
+    _write(line)
+
+
 def failure_excerpt(report: pytest.TestReport) -> List[str]:
     """The last ``EXCERPT_MAX_LINES`` non-blank lines of a report's failure text."""
     lines = [ln.rstrip() for ln in report.longreprtext.splitlines() if ln.strip()]

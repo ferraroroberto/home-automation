@@ -78,7 +78,13 @@ import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, Route, sync_playwright
 
 from app.webapp.event_loop import LOOP_FACTORY
-from tests.e2e._browser_sweep import sweep_browser_helpers
+from tests._progress_log import note as progress_note
+from tests.e2e._browser_sweep import (
+    STATE_WEDGED,
+    SweepResult,
+    enumerate_browser_helpers,
+    sweep_browser_helpers,
+)
 from tests.e2e._e2e_live_guard import require_disposable_instance
 
 logger = logging.getLogger(__name__)
@@ -367,6 +373,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if not selected:
         selected.extend(["chromium", "webkit"])
     _reap_orphaned_webkit_zombies()
+    config.stash[_WEDGED_AT_START] = _wedged_helper_pids()
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]) -> None:
@@ -412,8 +419,53 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     """
     result = sweep_browser_helpers(_REPO_ROOT)
     print(f"\n{result.summary()}")
+    progress_note(result.summary())
     for entry in result.killed:
         print(f"  reclaimed leaked helper: {entry}")
+        progress_note(f"  reclaimed leaked helper: {entry}")
+    line = _newly_wedged_line(session.config.stash.get(_WEDGED_AT_START, None), result)
+    print(line)
+    progress_note(line)
+
+
+#: Wedged helper PIDs seen at session start, or ``None`` when unknown (#971).
+_WEDGED_AT_START = pytest.StashKey[Optional[frozenset]]()
+#: The gate (``scripts/verify-before-ship.ps1``) greps the progress log for
+#: this prefix to print the count as its own state line.
+NEWLY_WEDGED_PREFIX = "[e2e] browser helpers newly wedged during this run:"
+
+
+def _wedged_helper_pids() -> Optional[frozenset]:
+    """PIDs of browser helpers wedged inside termination right now (#971).
+
+    Only wedged PIDs are snapshotted: a wedged process keeps its PID for good
+    (nothing can reap it), so a finish-time PID absent from this set is a
+    genuinely new wedge, never a recycled PID. ``None`` when the state can't
+    be read (non-Windows) — unknown, not zero.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        return frozenset(p.pid for p in enumerate_browser_helpers() if p.state == STATE_WEDGED)
+    except Exception:
+        logger.warning("⚠️ wedged-helper snapshot failed", exc_info=True)
+        return None
+
+
+def _newly_wedged_line(at_start: Optional[frozenset], result: SweepResult) -> str:
+    """This run's wedged-helper residue as its own advisory state (#971).
+
+    The sweep's ``wedged:out-of-scope`` count mixes every earlier run's
+    unkillable residue with this run's; the diff against the session-start
+    snapshot isolates what this run added. Host-wide, so a concurrent gate
+    in another checkout can contribute — the line says "during", not "by".
+    Never touches ``exitstatus``: a wedge is not a test failure.
+    """
+    if at_start is None or not result.supported:
+        return f"{NEWLY_WEDGED_PREFIX} UNKNOWN (helper state unreadable on this host)"
+    new = sorted(e.process.pid for e in result.wedged if e.process.pid not in at_start)
+    pids = f" (pids {', '.join(map(str, new))})" if new else ""
+    return f"{NEWLY_WEDGED_PREFIX} {len(new)}{pids}"
 
 
 @pytest.fixture(scope="session")
@@ -561,6 +613,12 @@ def _bounded_teardown(fn: Callable[[], None], label: str, driver_pid: Optional[i
     driver's OS process; that breaks the pipe ``fn`` is blocked reading from,
     which Playwright's own error path (`Connection.cleanup()`) turns into an
     exception rather than a silent hang, letting pytest proceed.
+
+    The watchdog is downstream of the wedge, not its cause (#971, measured on
+    Playwright 1.60 / webkit-2287): a per-context ``WebKitNetworkProcess``
+    wedged inside termination at an ordinary per-test ``context.close()``
+    mid-run, and the *next* ``browser.close()`` hung waiting on it. When it
+    fires, it leaves a line in the gate's progress log.
     """
     done = threading.Event()
     timed_out = threading.Event()
@@ -573,6 +631,12 @@ def _bounded_teardown(fn: Callable[[], None], label: str, driver_pid: Optional[i
             "⚠️ %s did not complete within %.0fs — force-killing the driver "
             "process (known WebKitNetworkProcess zombie hang, #440)",
             label, _TEARDOWN_TIMEOUT_S,
+        )
+        # The warning above only reaches pytest's capture; the gate log is
+        # where a wedged-helper investigation starts (#971).
+        progress_note(
+            f"teardown watchdog fired: {label} did not complete within "
+            f"{_TEARDOWN_TIMEOUT_S:.0f}s, force-killing driver pid {driver_pid}"
         )
         if driver_pid is None:
             return
@@ -617,8 +681,10 @@ def _neutral_driver_cwd() -> Iterator[str]:
     its helpers. A helper killed that way can wedge *inside* termination —
     ``ExitStatus`` set (so ``taskkill`` answers "no running instance" and
     ``GetExitCodeProcess`` reports a clean 0), yet ``GetProcessTimes`` reports
-    no exit time, a thread still alive, and the cwd handle still held. It can
-    never be reaped, so the directory it pins is pinned for good. #440 knew the
+    no exit time, a thread still alive, and the cwd handle still held. (#971
+    later caught the same wedge arising at a plain per-test context close,
+    before any kill.) It can never be reaped, so the directory it pins is
+    pinned for good. #440 knew the
     watchdog leaked helpers; what it could not know is that the leak is
     unkillable, which is why every mitigation aimed at *reaping* them (#480's
     startup sweep, #583's ``_browser_sweep``) was aiming at the wrong half.
@@ -675,10 +741,14 @@ def playwright(browser_name: str) -> Iterator[Playwright]:
 
 
 @pytest.fixture(scope="session")
-def browser(launch_browser: Callable[..., Browser], playwright: Playwright) -> Iterator[Browser]:
+def browser(
+    launch_browser: Callable[..., Browser], playwright: Playwright, browser_name: str
+) -> Iterator[Browser]:
     browser_instance = launch_browser()
     yield browser_instance
-    _bounded_teardown(browser_instance.close, "browser.close()", _driver_pid(playwright))
+    _bounded_teardown(
+        browser_instance.close, f"browser.close() [{browser_name}]", _driver_pid(playwright)
+    )
 
 
 @pytest.fixture(scope="session")

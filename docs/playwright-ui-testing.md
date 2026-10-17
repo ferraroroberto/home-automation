@@ -20,6 +20,15 @@ Read that doc first; this file only adds what's specific to this repo.
   scaffold doc's "bounded WebKit driver teardown" and "freeing a pinned
   directory" sections — read those sections there for the *why*, these files
   here for the *how it's wired in this repo*.
+- Wedged WebKit helpers (#971): on Playwright 1.60 / webkit-2287 a
+  per-context `WebKitNetworkProcess` occasionally wedged inside termination
+  at an ordinary per-test `context.close()`. That is a WebKit-side wedge the
+  repo can't prevent or reap, and the next `browser.close()` then hung until
+  the teardown watchdog fired. 1.61 / webkit-2311 measured clean (0 in 5 full
+  runs vs. 2 in 4), so `requirements-dev.txt` floors `playwright>=1.61`. If
+  wedges return, the gate's `browser helpers newly wedged during this run`
+  line and the `teardown watchdog fired` breadcrumb in
+  `webapp/verify-progress.log` say so per run.
 - Mobile projection: the regression suite runs `test_design_matrix.py`'s
   geometry matrix (4 viewports × 2 themes) across Chromium + WebKit — see
   `tests/e2e/_geometry.py`.

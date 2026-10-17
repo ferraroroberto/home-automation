@@ -10,6 +10,10 @@ httpx>=0.27
 # Playwright browser-E2E suite (tests/e2e). After install, fetch browsers:
 #   .venv\Scripts\python.exe -m playwright install chromium webkit
 pytest-playwright>=0.5
+# Floor, not a pin: 1.60 (webkit-2287) left ~1 WebKitNetworkProcess per two
+# full runs wedged mid-exit for good; 1.61 (webkit-2311) left none in five
+# (#971). After raising it, re-run the `playwright install` line above.
+playwright>=1.61
 
 # Voice Tier-2 model benchmark (scripts/voice_bench, issue #234): reads the
 # utterance dataset (YAML) and validates model output against the intent schema.
