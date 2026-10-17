@@ -16,7 +16,7 @@ import pytest
 
 from app.webapp import blind_schedules as engine
 from src import blind_automation as B
-from src._schedule_store import daily_due
+from src._schedule_store import StoreUnreadableError, daily_due
 
 # 2026-10-05 is a Monday, 2026-10-10 a Saturday.
 MONDAY_0800 = datetime(2026, 10, 5, 8, 0, 30)
@@ -50,6 +50,30 @@ def test_store_round_trips_and_missing_file_is_empty(tmp_path: Path) -> None:
     assert B.load_blind_schedules(path) == saved
     on_disk = json.loads(path.read_text(encoding="utf-8"))
     assert on_disk[0]["action"] == "close" and on_disk[0]["targets"] == ["blind-2"]
+
+
+def test_load_path_pins_missing_non_list_junk_and_corrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Missing file: empty, no warning.
+    path = tmp_path / "blind_schedules.json"
+    assert B.load_blind_schedules(path) == []
+
+    # Valid list: junk items are skipped, but still consume a fallback-id number.
+    path.write_text(json.dumps([{"time": "07:00"}, "junk", {"time": "09:00"}]), encoding="utf-8")
+    assert [e.id for e in B.load_blind_schedules(path)] == ["schedule-1", "schedule-3"]
+
+    # Valid JSON that is not a list: empty, with the warning.
+    path.write_text(json.dumps({"id": "a"}), encoding="utf-8")
+    with caplog.at_level("WARNING"):
+        assert B.load_blind_schedules(path) == []
+    assert "is not a JSON list" in caplog.text
+
+    # Corrupt file: unknown, never folded into "empty" (issue #689).
+    monkeypatch.setattr("src._schedule_store.time.sleep", lambda _s: None)
+    path.write_text("{not json", encoding="utf-8")
+    with pytest.raises(StoreUnreadableError):
+        B.load_blind_schedules(path)
 
 
 def test_committed_sample_parses() -> None:

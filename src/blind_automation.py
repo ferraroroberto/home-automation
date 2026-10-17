@@ -43,7 +43,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Literal, Optional, Tuple
 
-from src._schedule_store import clean_days, clean_time, read_json, safe_id, save_json
+from src._schedule_store import (
+    clean_days,
+    clean_time,
+    load_entry_list,
+    safe_id,
+    save_json,
+)
 from src._toggle_prefs import load_toggle_prefs, save_toggle_prefs
 from src.tuya_client import (
     TuyaCommandError,
@@ -319,15 +325,7 @@ def clean_schedule_entry(raw: Dict[str, Any], fallback_id: str) -> BlindSchedule
 def load_blind_schedules(path: Optional[Path] = None) -> List[BlindScheduleEntry]:
     """Return the persisted blind schedule list, or ``[]`` if absent."""
     target = Path(path) if path is not None else SCHEDULES_PATH
-    raw = read_json(target, [])
-    if not isinstance(raw, list):
-        logger.warning("⚠️ %s is not a JSON list; returning empty", target)
-        return []
-    return [
-        clean_schedule_entry(item, f"schedule-{idx}")
-        for idx, item in enumerate(raw, start=1)
-        if isinstance(item, dict)
-    ]
+    return load_entry_list(target, clean_schedule_entry, "schedule")
 
 
 def set_blind_schedules(
