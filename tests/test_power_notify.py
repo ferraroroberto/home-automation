@@ -230,6 +230,126 @@ def test_low_battery_shutdown_cancelled_logs_and_cancels(tmp_path: Path, monkeyp
     assert _read_power_log(tmp_path)[0]["event"] == "low_battery_shutdown_cancelled"
 
 
+# -------------------------------------------- tower_action = hibernate (#962)
+
+
+def _hibernate_prefs() -> PcFleetPrefs:
+    return PcFleetPrefs(enabled=True, tower_action="hibernate")
+
+
+def test_low_battery_hibernate_waits_grace_then_hibernates(tmp_path: Path, monkeypatch) -> None:
+    """Dispatch: hibernate is chosen, shutdown is not, and the alert names it."""
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    notifier = FakeNotifier()
+    hibernated: List[bool] = []
+    shut: List[dict] = []
+
+    async def scenario() -> bool:
+        result = await power_notify.record_low_battery_shutdown(
+            grace_seconds=0,
+            pc_fleet_loader=_hibernate_prefs,
+            notifier_factory=lambda: notifier,
+            shutdown_fn=lambda **kw: shut.append(kw) or True,
+            hibernate_fn=lambda: hibernated.append(True) or True,
+            fleet_shutdown_fn=_fleet_noop(),
+        )
+        await power_notify._pending_hibernate  # the grace window elapses
+        return result
+
+    assert asyncio.run(scenario()) is True
+    assert hibernated == [True] and shut == []
+    assert "Tower hibernating last" in notifier.sent[0]
+    events = [r["event"] for r in _read_power_log(tmp_path)]
+    assert events == ["low_battery_shutdown", "low_battery_hibernate"]
+    assert _read_power_log(tmp_path)[0]["tower_action"] == "hibernate"
+
+
+def test_low_battery_hibernate_does_not_fire_before_grace_elapses(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    hibernated: List[bool] = []
+
+    async def scenario() -> None:
+        await power_notify.record_low_battery_shutdown(
+            grace_seconds=3600,
+            pc_fleet_loader=_hibernate_prefs,
+            notifier_factory=lambda: None,
+            hibernate_fn=lambda: hibernated.append(True) or True,
+            fleet_shutdown_fn=_fleet_noop(),
+        )
+        await asyncio.sleep(0)  # let the timer task start
+        assert not power_notify._pending_hibernate.done()
+        power_notify._cancel_pending_hibernate()
+
+    asyncio.run(scenario())
+    assert hibernated == []
+
+
+def test_mains_return_cancels_pending_hibernate(tmp_path: Path, monkeypatch) -> None:
+    """The cancel path: mains back inside the window -> nothing hibernates, and
+    the activity log records the cancellation."""
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    hibernated: List[bool] = []
+    cancels: List[bool] = []
+
+    async def scenario() -> None:
+        await power_notify.record_low_battery_shutdown(
+            grace_seconds=0.05,
+            pc_fleet_loader=_hibernate_prefs,
+            notifier_factory=lambda: None,
+            hibernate_fn=lambda: hibernated.append(True) or True,
+            fleet_shutdown_fn=_fleet_noop(),
+        )
+        task = power_notify._pending_hibernate
+        power_notify.record_low_battery_shutdown_cancelled(
+            cancel_fn=lambda: cancels.append(True) or True
+        )
+        await asyncio.sleep(0.15)  # well past the grace window
+        assert task.cancelled()
+
+    asyncio.run(scenario())
+    assert hibernated == [] and cancels == [True]
+    log = _read_power_log(tmp_path)
+    assert log[-1]["event"] == "low_battery_shutdown_cancelled"
+    assert log[-1]["hibernate_cancelled"] is True
+
+
+def test_failed_hibernate_falls_back_to_a_shutdown(tmp_path: Path, monkeypatch) -> None:
+    """Hibernation disabled in Windows must not leave the tower to run flat."""
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    shut: List[dict] = []
+
+    async def scenario() -> None:
+        await power_notify.record_low_battery_shutdown(
+            grace_seconds=0,
+            pc_fleet_loader=_hibernate_prefs,
+            notifier_factory=lambda: None,
+            shutdown_fn=lambda **kw: shut.append(kw) or True,
+            hibernate_fn=lambda: False,
+            fleet_shutdown_fn=_fleet_noop(),
+        )
+        await power_notify._pending_hibernate
+
+    asyncio.run(scenario())
+    assert len(shut) == 1
+    assert shut[0]["grace_seconds"] == power_notify._HIBERNATE_FALLBACK_GRACE_S
+    assert _read_power_log(tmp_path)[-1]["event"] == "low_battery_hibernate_failed"
+
+
+def test_default_tower_action_still_uses_the_os_shutdown(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(activity_log, "LOGS_DIR", tmp_path)
+    shut: List[dict] = []
+    hibernated: List[bool] = []
+    asyncio.run(power_notify.record_low_battery_shutdown(
+        pc_fleet_loader=lambda: PcFleetPrefs(enabled=True),
+        notifier_factory=lambda: None,
+        shutdown_fn=lambda **kw: shut.append(kw) or True,
+        hibernate_fn=lambda: hibernated.append(True) or True,
+        fleet_shutdown_fn=_fleet_noop(),
+    ))
+    assert len(shut) == 1 and hibernated == []
+    assert power_notify._pending_hibernate is None or power_notify._pending_hibernate.done()
+
+
 # ----------------------------------------------------- power_monitor.tick
 
 

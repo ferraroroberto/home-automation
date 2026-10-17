@@ -462,6 +462,7 @@ export const els = {
   pcFleetEnabled: document.getElementById('pcFleetEnabled'),
   pcFleetThreshold: document.getElementById('pcFleetThreshold'),
   pcFleetCaption: document.getElementById('pcFleetCaption'),
+  pcFleetTowerActionBtns: Array.from(document.querySelectorAll('#pcFleetTowerAction .segmented-item')),
   pcFleetMachines: document.getElementById('pcFleetMachines'),
   pcFleetNote: document.getElementById('pcFleetNote'),
   // Home Assistant group (Devices tab since #884; the VM switch is #240,

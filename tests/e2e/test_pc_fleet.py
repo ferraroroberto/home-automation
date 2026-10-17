@@ -260,3 +260,28 @@ def test_hub_unreachable_shows_note_and_keeps_prefs_editable(
     last = store["put_bodies"][-1]
     assert last["enabled"] is True
     assert last["excluded"] == ["ghost-pc"], last
+
+
+def test_tower_action_segmented_puts_hibernate(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    """#962: the tower's low-runtime action is a two-way segmented control that
+    defaults to Shut down and PUTs ``tower_action`` on a change."""
+    store = _boot_pc_fleet(page, base_url, sample_units, mock_api, mock_energy, mock_tuya,
+                           {"enabled": True, "threshold_minutes": 15, "excluded": [],
+                            "tower_action": "shutdown"},
+                           _sample_machines())
+
+    shut = page.locator("#pcFleetTowerAction [data-action='shutdown']")
+    hib = page.locator("#pcFleetTowerAction [data-action='hibernate']")
+    expect(shut).to_have_attribute("aria-pressed", "true")
+    expect(hib).to_have_attribute("aria-pressed", "false")
+
+    hib.click()
+    expect(hib).to_have_attribute("aria-pressed", "true")
+    expect(shut).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#toast")).to_have_text("Fleet shutdown saved")
+    last = store["put_bodies"][-1]
+    assert last["tower_action"] == "hibernate", last
+    assert last["enabled"] is True and last["threshold_minutes"] == 15

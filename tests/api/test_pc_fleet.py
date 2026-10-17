@@ -30,7 +30,12 @@ def test_pc_fleet_prefs_defaults(client: TestClient, monkeypatch, tmp_path) -> N
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "pc_fleet.json")
 
     body = client.get("/api/pc-fleet/prefs").json()
-    assert body == {"enabled": True, "threshold_minutes": 15, "excluded": []}
+    assert body == {
+        "enabled": True,
+        "threshold_minutes": 15,
+        "excluded": [],
+        "tower_action": "shutdown",
+    }
 
 
 def test_pc_fleet_prefs_put_persists_and_rereads(
@@ -49,6 +54,7 @@ def test_pc_fleet_prefs_put_persists_and_rereads(
         "enabled": False,
         "threshold_minutes": 30,
         "excluded": ["fake-host-1"],
+        "tower_action": "shutdown",
     }
 
     reread = client.get("/api/pc-fleet/prefs").json()
@@ -56,6 +62,7 @@ def test_pc_fleet_prefs_put_persists_and_rereads(
         "enabled": False,
         "threshold_minutes": 30,
         "excluded": ["fake-host-1"],
+        "tower_action": "shutdown",
     }
 
 
@@ -162,3 +169,25 @@ def test_pc_fleet_wake_hub_timeout_is_clean_502(client: TestClient, monkeypatch)
     resp = client.post("/api/pc-fleet/wake/fake-tower")
     assert resp.status_code == 502
     assert resp.json() == {"detail": "hub unreachable"}
+
+
+def test_pc_fleet_prefs_put_tower_action_round_trips_and_validates(
+    client: TestClient, monkeypatch, tmp_path
+) -> None:
+    """#962: hibernate persists; an unknown value falls back to the default; an
+    omitted key keeps what was saved."""
+    import src.pc_fleet_prefs as prefs_mod
+
+    monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "pc_fleet.json")
+
+    resp = client.put("/api/pc-fleet/prefs", json={"tower_action": "hibernate"})
+    assert resp.status_code == 200
+    assert resp.json()["tower_action"] == "hibernate"
+    assert client.get("/api/pc-fleet/prefs").json()["tower_action"] == "hibernate"
+
+    # A partial PUT that omits the key must not reset it.
+    resp = client.put("/api/pc-fleet/prefs", json={"threshold_minutes": 20})
+    assert resp.json()["tower_action"] == "hibernate"
+
+    resp = client.put("/api/pc-fleet/prefs", json={"tower_action": "sleep"})
+    assert resp.json()["tower_action"] == "shutdown"

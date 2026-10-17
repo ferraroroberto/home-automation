@@ -4,7 +4,8 @@
  * Owns the fleet's desired-state shutdown prefs (GET/PUT /api/pc-fleet/prefs)
  * plus a live machine roster read from the hub (GET /api/pc-fleet/machines,
  * polled every ~15s while the Devices tab is open). Each backend PUT sends the whole prefs
- * object — master enable, the runtime-remaining threshold, and the `excluded`
+ * object — master enable, the runtime-remaining threshold, the tower's
+ * `tower_action` (shut down | hibernate, #962), and the `excluded`
  * id list (a machine's include-toggle OFF = its id in `excluded`). The hub
  * host row always participates (shut down last over its local path) and has no
  * include toggle. A per-machine Wake button appears only for a down/dormant
@@ -28,7 +29,7 @@ const THRESHOLD_MAX = 240;
 // Module state: the last-known prefs and machine roster. `excluded` is kept
 // here (not recomputed from the DOM) so a master-toggle/threshold save while
 // the hub is unreachable — no machine rows rendered — never wipes it.
-let prefs = { enabled: false, threshold_minutes: 15, excluded: [] };
+let prefs = { enabled: false, threshold_minutes: 15, excluded: [], tower_action: 'shutdown' };
 let machines = [];
 let hubUnreachable = false;
 
@@ -53,10 +54,17 @@ function clampThreshold(value) {
 function renderPrefs() {
   if (els.pcFleetEnabled) setToggleState(els.pcFleetEnabled, prefs.enabled === true);
   if (els.pcFleetThreshold) els.pcFleetThreshold.value = prefs.threshold_minutes;
+  renderTowerAction();
   if (els.pcFleetCaption) {
     els.pcFleetCaption.textContent = 'Trigger when UPS runtime-remaining ≤ ' +
       prefs.threshold_minutes + ' min.';
   }
+}
+
+function renderTowerAction() {
+  (els.pcFleetTowerActionBtns || []).forEach(function (btn) {
+    btn.setAttribute('aria-pressed', btn.dataset.action === prefs.tower_action ? 'true' : 'false');
+  });
 }
 
 function renderNote() {
@@ -142,6 +150,7 @@ function applyPrefs(payload) {
     enabled: payload.enabled === true,
     threshold_minutes: clampThreshold(payload.threshold_minutes),
     excluded: Array.isArray(payload.excluded) ? payload.excluded.slice() : [],
+    tower_action: payload.tower_action === 'hibernate' ? 'hibernate' : 'shutdown',
   };
   renderPrefs();
   renderMachines();
@@ -154,6 +163,7 @@ async function savePrefs() {
       ? clampThreshold(els.pcFleetThreshold.value)
       : prefs.threshold_minutes,
     excluded: prefs.excluded || [],
+    tower_action: prefs.tower_action,
   };
   try {
     applyPrefs(await jsonApi('/api/pc-fleet/prefs', {
@@ -208,6 +218,14 @@ export function wirePcFleet() {
   if (els.pcFleetThreshold) {
     els.pcFleetThreshold.addEventListener('change', savePrefs);
   }
+  (els.pcFleetTowerActionBtns || []).forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (btn.dataset.action === prefs.tower_action) return;
+      prefs.tower_action = btn.dataset.action;
+      renderTowerAction();
+      savePrefs();
+    });
+  });
   // Wake buttons are re-rendered on every machine refresh — delegate off the
   // stable container so a single listener survives re-renders. (Include
   // toggles carry their own handler via buildToggle.)

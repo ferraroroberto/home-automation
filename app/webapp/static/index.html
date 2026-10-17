@@ -2502,6 +2502,14 @@
         <input id="pcFleetThreshold" type="number" min="1" max="240" step="1" class="input-native" value="15" aria-label="Runtime-remaining threshold in minutes">
       </label>
       <p id="pcFleetCaption" class="muted small pc-fleet-caption">Trigger when UPS runtime-remaining ≤ 15 min.</p>
+      <div class="pc-fleet-action">
+        <span class="pc-fleet-action-label">This PC, last</span>
+        <div id="pcFleetTowerAction" class="segmented" role="group" aria-label="What this PC does on low runtime" data-track="ups.tower-action">
+          <button type="button" class="segmented-item" aria-pressed="true" data-action="shutdown">Shut down</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-action="hibernate">Hibernate</button>
+        </div>
+        <p class="muted small pc-fleet-action-hint">Hibernate keeps your open work and resumes when power returns. Other PCs always shut down.</p>
+      </div>
       <div id="pcFleetMachines" class="pc-fleet-machines" aria-label="Fleet machines" aria-live="polite"></div>
       <p id="pcFleetNote" class="muted small security-note" role="status" hidden></p>
       <p class="muted small detail-hint">The hub host shuts down last. Mains-loss alerts are in Settings › Notifications.</p>
