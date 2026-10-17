@@ -16,6 +16,7 @@ from typing import Callable, Dict, List, Optional
 import pytest
 
 from app.webapp import blind_schedules as engine
+from app.webapp._task_loop import BACKGROUND_TASKS
 from src import blind_automation as B
 from src.tuya_client import TuyaCommandError, TuyaDeviceInfo
 
@@ -142,8 +143,8 @@ def _run_then_drain(coro_factory, check_before_drain=None):
         result = await coro_factory()
         if check_before_drain is not None:
             check_before_drain()
-        while engine._RETRY_TASKS:
-            await asyncio.gather(*list(engine._RETRY_TASKS))
+        while BACKGROUND_TASKS:
+            await asyncio.gather(*list(BACKGROUND_TASKS))
         return result
 
     return asyncio.run(_go())
@@ -169,7 +170,7 @@ def test_schedule_retries_in_the_background_without_holding_the_tick(house, lan,
     state = engine._EngineState()
 
     def _tick_returned_before_any_retry() -> None:
-        assert clock.slept == [] and engine._RETRY_TASKS
+        assert clock.slept == [] and BACKGROUND_TASKS
         assert state.last_fire_day["up"] == "2026-10-05"  # settled for today already
 
     _tick_schedule(state, _tick_returned_before_any_retry)
@@ -212,7 +213,7 @@ def test_follow_alarm_returns_at_once_then_retries_and_notifies(house, lan, cloc
     lan.down = {"blind-1": 99}
 
     def _returned_before_any_retry() -> None:
-        assert clock.slept == [] and engine._RETRY_TASKS
+        assert clock.slept == [] and BACKGROUND_TASKS
 
     result = _run_then_drain(
         lambda: engine.follow_alarm("arm", "arm"), _returned_before_any_retry
@@ -302,8 +303,8 @@ def test_stop_cancels_the_pending_retry_of_a_failed_move(house, lan, clock) -> N
         outcomes = await B.move_blinds("open")
         await engine.settle_manual_move("open", outcomes)
         await B.move_blinds("stop")
-        while engine._RETRY_TASKS:
-            await asyncio.gather(*list(engine._RETRY_TASKS))
+        while BACKGROUND_TASKS:
+            await asyncio.gather(*list(BACKGROUND_TASKS))
 
     asyncio.run(_go())
     assert [a for d, a in lan.sent if d == "blind-2"] == ["open", "stop"]
@@ -316,9 +317,9 @@ def test_manual_move_retries_on_the_backoff_then_notifies_once(house, lan, clock
     async def _go() -> None:
         outcomes = await B.move_blinds("close")
         await engine.settle_manual_move("close", outcomes)
-        assert clock.slept == [] and engine._RETRY_TASKS  # the tap answered at once
-        while engine._RETRY_TASKS:
-            await asyncio.gather(*list(engine._RETRY_TASKS))
+        assert clock.slept == [] and BACKGROUND_TASKS  # the tap answered at once
+        while BACKGROUND_TASKS:
+            await asyncio.gather(*list(BACKGROUND_TASKS))
 
     asyncio.run(_go())
     assert clock.slept == [30.0, 60.0, 120.0, 240.0]

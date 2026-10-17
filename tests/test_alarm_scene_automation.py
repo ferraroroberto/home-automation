@@ -37,11 +37,10 @@ def test_baseline_due_respects_interval() -> None:
 
 
 def test_event_scan_due_respects_interval() -> None:
-    auto._state["last_event_scan"] = None
-    cfg = auto.AlarmSceneConfig(event_scan_interval_s=20)
-    assert auto._event_scan_due(cfg, now=1000.0) is True     # first call
-    assert auto._event_scan_due(cfg, now=1010.0) is False    # within window
-    assert auto._event_scan_due(cfg, now=1000.0 + 21) is True  # window elapsed
+    auto._scanner.last_scan = None
+    assert auto._scanner.due(20, now=1000.0) is True       # first call
+    assert auto._scanner.due(20, now=1010.0) is False      # within window
+    assert auto._scanner.due(20, now=1000.0 + 21) is True  # window elapsed
 
 
 def test_onset_skips_and_logs_when_no_pairing(monkeypatch) -> None:
@@ -101,25 +100,6 @@ def test_onset_captures_analyses_delivers_and_logs(monkeypatch) -> None:
     assert rec["captures"][0]["camera_id"] == "garden"
 
 
-def test_spawn_background_task_holds_strong_ref_until_done() -> None:
-    """Issue #703: ``asyncio.create_task``'s return value used to be
-    discarded outright, leaving only a weak reference — eligible for GC
-    mid-flight, which would leave ``_state["event_scan_running"]`` wedged
-    ``True`` forever since the task's ``finally`` never runs. The task must
-    be tracked (a strong ref) while in flight and untracked once done."""
-
-    async def _slow() -> None:
-        await asyncio.sleep(0)
-
-    async def _run() -> None:
-        task = auto._spawn_background_task(_slow(), name="test-task")
-        assert task in auto._background_tasks
-        await task
-        assert task not in auto._background_tasks
-
-    asyncio.run(_run())
-
-
 def test_consider_security_read_disabled_is_noop(monkeypatch) -> None:
     monkeypatch.setattr(auto, "load_alarm_scene_config",
                         lambda: auto.AlarmSceneConfig(enabled=False))
@@ -138,7 +118,7 @@ def test_consider_security_read_skips_scan_on_unreadable_flags(monkeypatch) -> N
                         lambda: auto.AlarmSceneConfig(enabled=True))
     scheduled: list = []
     monkeypatch.setattr(
-        auto, "_spawn_background_task",
+        auto, "spawn_background_task",
         lambda coro, name=None: (scheduled.append(name), coro.close())[0],
     )
     security = SecurityState(
@@ -152,10 +132,10 @@ def test_consider_security_read_skips_scan_on_unreadable_flags(monkeypatch) -> N
 def test_consider_security_read_schedules_event_scan_when_intruding(monkeypatch) -> None:
     monkeypatch.setattr(auto, "load_alarm_scene_config",
                         lambda: auto.AlarmSceneConfig(enabled=True, event_scan_interval_s=20))
-    auto._state["last_event_scan"] = None
+    auto._scanner.last_scan = None
     scheduled: list = []
     monkeypatch.setattr(
-        auto, "_spawn_background_task",
+        auto, "spawn_background_task",
         lambda coro, name=None: (scheduled.append(name), coro.close())[0],
     )
     security = _security(ongoing=True, zones=[(3, "Garden")])
@@ -314,7 +294,7 @@ def test_two_concurrent_scans_only_deliver_once(monkeypatch, tmp_path) -> None:
     cfg = auto.AlarmSceneConfig()
 
     async def scan():
-        auto._state["event_scan_running"] = False  # a second process shares no in-memory state
+        auto._scanner.running = False  # a second process shares no in-memory state
         await auto._run_event_scan(security, cfg)
 
     async def run_both():
@@ -358,7 +338,7 @@ def test_run_event_scan_survives_restart_by_resuming_from_persisted_cursor(monke
     unlike the old in-memory-only edge detector it replaces.
     """
 
-    auto._state["last_event_scan"] = None  # simulate a fresh process
+    auto._scanner.last_scan = None  # simulate a fresh process
 
     events = [_alarm_event("2026-07-02T09:40:00Z", 12)]
 
@@ -393,12 +373,75 @@ def test_run_event_scan_guards_against_overlap(monkeypatch) -> None:
         return []
 
     monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
-    auto._state["event_scan_running"] = True
+    auto._scanner.running = True
     try:
         asyncio.run(auto._run_event_scan(_security(), auto.AlarmSceneConfig()))
     finally:
-        auto._state["event_scan_running"] = False
+        auto._scanner.running = False
     assert calls["fetch"] == 0
+
+
+def test_run_event_scan_onset_failure_keeps_claim_and_releases_guard(monkeypatch, tmp_path) -> None:
+    """#912 pin: the claim is saved before the onset runs, so an onset that
+    raises is never retried — the cursor already holds its event. Nothing in
+    the scan catches it (``_run_onset`` isolates its own failures; this is the
+    backstop), later alarms wait for the next scan, and the overlap guard is
+    released so that next scan runs."""
+
+    import functools
+
+    import pytest
+
+    from src import alarm_scene_cursor as cursor_mod
+
+    cursor_path = tmp_path / "cursor.json"
+    monkeypatch.setattr(
+        auto, "load_last_alarm_event_time",
+        functools.partial(cursor_mod.load_last_alarm_event_time, path=cursor_path),
+    )
+    monkeypatch.setattr(
+        auto, "save_last_alarm_event_time",
+        functools.partial(cursor_mod.save_last_alarm_event_time, path=cursor_path),
+    )
+    auto.save_last_alarm_event_time("2026-07-03T14:15:00Z")
+    first, second = "2026-07-03T14:16:00Z", "2026-07-03T14:17:00Z"
+
+    async def fake_fetch_events(*a, **k):
+        return [_alarm_event(first, 12), _alarm_event(second, 12)]
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+
+    async def failing_onset(zones, config):
+        raise RuntimeError("vision hub down")
+
+    monkeypatch.setattr(auto, "_run_onset", failing_onset)
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    with pytest.raises(RuntimeError, match="vision hub down"):
+        asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+    assert auto.load_last_alarm_event_time() == first
+
+    fired: list = []
+
+    async def fake_run_onset(zones, config):
+        fired.append(zones)
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+    assert fired == [[(12, "PUERTA JARDIN")]]  # only `second`; `first` is not retried
+    assert auto.load_last_alarm_event_time() == second
+
+
+def test_run_event_scan_fetch_failure_saves_nothing(monkeypatch, caplog) -> None:
+    async def failing_fetch(*a, **k):
+        raise RuntimeError("cloud down")
+
+    monkeypatch.setattr(auto, "fetch_events", failing_fetch)
+    saved: list[str] = []
+    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
+    with caplog.at_level("WARNING", logger=auto.logger.name):
+        asyncio.run(auto._run_event_scan(_security(), auto.AlarmSceneConfig()))
+    assert saved == []
+    assert "Alarm scene event-log read failed: cloud down" in caplog.text
 
 
 class _FakeNotifier:

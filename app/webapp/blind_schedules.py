@@ -35,12 +35,12 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
-from app.webapp._task_loop import run_loop
+from app.webapp._task_loop import run_loop, spawn_background_task
 from src._schedule_store import daily_due
 from src.blind_automation import (
     BlindOutcome,
@@ -124,9 +124,6 @@ def _record(
 
 
 # ----------------------------------------------------- retries (#897)
-# Background retries of automatic moves, held so none is garbage-collected
-# mid-backoff.
-_RETRY_TASKS: Set[asyncio.Task] = set()
 
 
 async def _retry_sleep(delay: float) -> None:
@@ -224,14 +221,13 @@ async def _settle(
     """Finish a move: at once when no blind failed, else in the background.
 
     The retries run as their own task, so they never hold up the schedule
-    tick, the alarm path or the HTTP request that started the move.
+    tick, the alarm path or the HTTP request that started the move; it is
+    held by ``spawn_background_task`` so it can't be GC'd mid-backoff.
     """
     if all(o.ok or o.superseded for o in outcomes):
         await _finish_move(action, outcomes, what, record)
         return
-    task = asyncio.create_task(_finish_move(action, outcomes, what, record), name="blind-retry")
-    _RETRY_TASKS.add(task)
-    task.add_done_callback(_RETRY_TASKS.discard)
+    spawn_background_task(_finish_move(action, outcomes, what, record), name="blind-retry")
 
 
 async def settle_manual_move(action: str, outcomes: List[BlindOutcome]) -> None:

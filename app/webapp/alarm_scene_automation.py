@@ -63,9 +63,11 @@ import urllib.error
 import urllib.request
 import uuid
 from dataclasses import dataclass
-from typing import Any, Coroutine, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._event_log_scan import ALARM_EVENT_TYPE, EventLogScanner
+from app.webapp._task_loop import spawn_background_task
 from app.webapp._zone_lookup import _zone_name_for
 from src.activity_log import append_activity
 from src.alarm_scene import (
@@ -95,11 +97,6 @@ _LOG_CONSUMER = "alarm_scene"
 _TELEGRAM_CAPTION_MAX = 1024
 _TELEGRAM_PHOTO_API = "https://api.telegram.org/bot{token}/sendPhoto"
 _TELEGRAM_TIMEOUT_S = 20
-
-# pyrisco's event-log ``type`` for a genuine "system has gone off" alarm entry
-# (as opposed to e.g. "zone bypassed" / "zone omitted"). Confirmed live against
-# production RISCO events (issue #325).
-_ALARM_EVENT_TYPE = "triggered"
 
 # Verdict → alert glyph, so the push/Telegram copy reads at a glance.
 _VERDICT_EMOJI = {
@@ -148,27 +145,25 @@ def load_alarm_scene_config() -> AlarmSceneConfig:
     )
 
 
-# Process-lifetime cadence state (baseline refresh + event-scan throttle +
-# overlap guard). Onset detection itself is driven by the disk-persisted
-# cursor in ``src.alarm_scene_cursor`` — not this dict — precisely so a
-# process restart doesn't lose track of which alarms were already captured.
-_state: Dict[str, object] = {"last_baseline": None, "last_event_scan": None, "event_scan_running": False}
+# Process-lifetime cadence state (baseline refresh here; event-scan throttle +
+# overlap guard in ``_scanner``). Onset detection itself is driven by the
+# disk-persisted cursor in ``src.alarm_scene_cursor`` — not this state —
+# precisely so a process restart doesn't lose track of which alarms were
+# already captured.
+_state: Dict[str, object] = {"last_baseline": None}
 
-# Strong references to the detached scan/refresh tasks below — without this,
-# asyncio only holds a weak reference to a task once its `create_task()`
-# return value is discarded, so the task is eligible for GC mid-flight and can
-# vanish before its `finally` clears `_state["event_scan_running"]`, wedging
-# the gate in `consider_security_read()` closed forever (issue #703).
-_background_tasks: set[asyncio.Task] = set()
-
-
-def _spawn_background_task(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task:
-    """``asyncio.create_task`` that can't be silently GC'd before it finishes."""
-
-    task = asyncio.create_task(coro, name=name)
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-    return task
+# Each alarm is claimed before the capture+vision+deliver pipeline runs, not
+# after as this used to do: that shrinks the cross-process race window from
+# several seconds of network/vision work down to a couple of local file
+# reads, which is what makes the claim actually protective. Confirmed live:
+# two deliveries of the same frame/event a few hundred ms to ~5s apart in
+# `logs/alarm_scene.jsonl`, consistent with the old save-after-delivery
+# ordering leaving the whole pipeline as an open race window (issue #339).
+_scanner = EventLogScanner(
+    logger=logger,
+    read_fail_msg="⚠️ Alarm scene event-log read failed: %s",
+    claim_before_handle=True,
+)
 
 
 def _resolve_pairings(
@@ -342,66 +337,23 @@ async def _run_event_scan(security: object, config: AlarmSceneConfig) -> None:
     only ever transitions once per still-armed session even when RISCO reports
     several distinct alarms. Never raises; guarded against overlapping runs
     since a slow capture+vision call can outlast one throttle window. The
-    in-process guard above only protects one process; the cursor is claimed
+    in-process guard only protects one process; the cursor is claimed
     per-event right before delivery (not after) so two concurrently-running
     scans (e.g. two processes) can't both deliver the same alarm (issue #339).
     """
 
-    if _state.get("event_scan_running"):
-        return
-    _state["event_scan_running"] = True
-    try:
-        try:
-            events = await fetch_events()
-        except Exception as exc:  # noqa: BLE001 — a detached task must never crash silently
-            logger.warning("⚠️ Alarm scene event-log read failed: %s", exc)
-            return
+    async def onset(event: Any) -> None:
+        zone_id = int(event.zone_id)
+        await _run_onset([(zone_id, _zone_name_for(zone_id, security))], config)
 
-        alarms = sorted(
-            (
-                e for e in events
-                if getattr(e, "type", None) == _ALARM_EVENT_TYPE
-                and getattr(e, "zone_id", None) is not None
-            ),
-            key=lambda e: e.time,
-        )
-        if not alarms:
-            return
-
-        cursor = load_last_alarm_event_time()
-        if cursor is None:
-            # No prior cursor (first run ever) - establish the baseline without
-            # replaying fetch_events()'s full history window as new onsets.
-            save_last_alarm_event_time(alarms[-1].time)
-            return
-
-        new_alarms = [e for e in alarms if e.time > cursor]
-        if not new_alarms:
-            return
-
-        for event in new_alarms:
-            # Re-check the persisted cursor immediately before claiming this
-            # event: a concurrent scan (e.g. an orphaned webapp process still
-            # alive after a tray restart, or two instances running at once)
-            # may have read the same stale on-disk cursor and already be
-            # mid-flight on this exact alarm. Claiming (saving) before the
-            # capture+vision+deliver pipeline runs - instead of after, as this
-            # used to do - shrinks the race window from several seconds of
-            # network/vision work down to a couple of local file reads, which
-            # is what makes the claim actually protective. Confirmed live: two
-            # deliveries of the same frame/event a few hundred ms to ~5s apart
-            # in `logs/alarm_scene.jsonl`, consistent with the old
-            # save-after-delivery ordering leaving the whole pipeline as an
-            # open race window.
-            latest = load_last_alarm_event_time()
-            if latest is not None and latest >= event.time:
-                continue
-            zone_id = int(event.zone_id)
-            zone_name = _zone_name_for(zone_id, security)
-            save_last_alarm_event_time(event.time)
-            await _run_onset([(zone_id, zone_name)], config)
-    finally:
-        _state["event_scan_running"] = False
+    await _scanner.guarded(lambda: _scanner.scan(
+        fetch=fetch_events,
+        wanted=lambda e: getattr(e, "type", None) == ALARM_EVENT_TYPE
+        and getattr(e, "zone_id", None) is not None,
+        load_cursor=load_last_alarm_event_time,
+        save_cursor=save_last_alarm_event_time,
+        handle=onset,
+    ))
 
 
 async def _run_baseline_refresh(config: AlarmSceneConfig) -> None:
@@ -431,17 +383,6 @@ def _baseline_due(config: AlarmSceneConfig, *, now: Optional[float] = None) -> b
     return True
 
 
-def _event_scan_due(config: AlarmSceneConfig, *, now: Optional[float] = None) -> bool:
-    """True when enough time has elapsed since the last event-log scan."""
-
-    instant = time.monotonic() if now is None else now
-    last = _state.get("last_event_scan")
-    if last is not None and (instant - float(last)) < config.event_scan_interval_s:
-        return False
-    _state["last_event_scan"] = instant
-    return True
-
-
 def consider_security_read(security: object) -> None:
     """Entry point called from the presence loop with its one RISCO read.
 
@@ -464,7 +405,7 @@ def consider_security_read(security: object) -> None:
         return
     intrusion = bool(ongoing or memory)
     if intrusion:
-        if _event_scan_due(config):
-            _spawn_background_task(_run_event_scan(security, config), name="alarm-scene-event-scan")
+        if _scanner.due(config.event_scan_interval_s):
+            spawn_background_task(_run_event_scan(security, config), name="alarm-scene-event-scan")
     elif _baseline_due(config):
-        _spawn_background_task(_run_baseline_refresh(config), name="alarm-scene-baseline")
+        spawn_background_task(_run_baseline_refresh(config), name="alarm-scene-baseline")

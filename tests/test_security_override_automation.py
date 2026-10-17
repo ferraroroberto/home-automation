@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 
 import app.webapp.security_override_automation as engine
@@ -37,24 +38,6 @@ def _async_return(value):
         return value
 
     return _f
-
-
-def test_spawn_background_task_holds_strong_ref_until_done() -> None:
-    """Issue #703: same shape as ``alarm_scene_automation``'s fix — the
-    detached event-scan task must be tracked (a strong ref) while in
-    flight, or it's eligible for GC before its ``finally`` clears
-    ``_state["scan_running"]``, wedging the auto-bypass gate closed."""
-
-    async def _slow() -> None:
-        await asyncio.sleep(0)
-
-    async def _run() -> None:
-        task = engine._spawn_background_task(_slow(), name="test-task")
-        assert task in engine._background_tasks
-        await task
-        assert task not in engine._background_tasks
-
-    asyncio.run(_run())
 
 
 def test_override_bypasses_after_max_retries_and_restores_on_rearm(monkeypatch, tmp_path) -> None:
@@ -218,3 +201,211 @@ def test_scan_skips_fetch_when_nothing_configured_or_pending(monkeypatch, tmp_pa
     asyncio.run(engine._run_event_scan(config))
 
     assert called["n"] == 0  # no overrides configured, nothing pending restoration
+
+
+# ---------------------------------------------------------------------------
+# Event-log scan contract (#912): pinned against the pre-refactor engine so
+# the shared scanner provably keeps it. Throttle, overlap guard, cursor
+# baseline / re-check / claim and failure handling, each through the
+# ``_run_event_scan`` / ``consider_security_read`` seams only.
+
+_CURSOR = "2026-07-04T10:00:00Z"
+_SCAN_CONFIG = engine.OverrideAutomationConfig(enabled=True, event_scan_interval_s=20)
+
+
+def _alarm(time: str) -> _FakeEvent:
+    return _FakeEvent(time, name="Alarm - 'PUERTA JARDIN'", type="triggered", zone_id=12)
+
+
+def _store(monkeypatch, tmp_path, *, cursor=_CURSOR) -> None:
+    """Real on-disk override + session stores under ``tmp_path``, one override configured."""
+
+    monkeypatch.setattr(override_cfg, "OVERRIDES_PATH", tmp_path / "security_override.json")
+    monkeypatch.setattr(session_cfg, "SESSION_PATH", tmp_path / "security_override_session.json")
+    set_overrides([{"id": "jardin", "zone_id": 12, "max_retries": 3}], path=override_cfg.OVERRIDES_PATH)
+    if cursor is not None:
+        session_cfg.save_override_session(session_cfg.OverrideSession(last_event_time=cursor))
+
+
+def _cursor():
+    return session_cfg.load_override_session().last_event_time
+
+
+def _record_handled(monkeypatch) -> list:
+    """Replace the per-event action; record (event time, cursor seen while handling)."""
+
+    handled: list = []
+
+    async def fake_handle(event, overrides_by_zone):
+        handled.append((event.time, _cursor()))
+
+    monkeypatch.setattr(engine, "_handle_event", fake_handle)
+    return handled
+
+
+def test_scan_handles_each_new_event_once_oldest_first_claiming_after(monkeypatch, tmp_path) -> None:
+    """Every event type counts (arm events too); an event at or before the
+    cursor, or with no time, is skipped. Each new event is handled before its
+    claim is saved, so the handler still sees the previous cursor."""
+
+    _store(monkeypatch, tmp_path)
+    handled = _record_handled(monkeypatch)
+    events = [
+        _alarm("2026-07-04T10:07:00Z"),
+        _FakeEvent("2026-07-04T10:05:00Z", name="Full Set - 'USER 1 MASTER', WEB", type="armed"),
+        _alarm(_CURSOR),  # at the cursor: already processed
+        _alarm("2026-07-04T09:00:00Z"),  # before the cursor
+        _FakeEvent(None, type="triggered", zone_id=12),  # no time: ignored
+    ]
+    monkeypatch.setattr(engine, "fetch_events", _async_return(events))
+
+    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    assert handled == [
+        ("2026-07-04T10:05:00Z", _CURSOR),
+        ("2026-07-04T10:07:00Z", "2026-07-04T10:05:00Z"),
+    ]
+    assert _cursor() == "2026-07-04T10:07:00Z"
+
+    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))  # same log again: nothing new
+    assert len(handled) == 2
+
+
+def test_scan_rechecks_cursor_before_each_event(monkeypatch, tmp_path) -> None:
+    """#339 shape: a concurrent scan claiming a later event between this scan's
+    claims must make this scan skip it, not act on it a second time."""
+
+    _store(monkeypatch, tmp_path)
+    handled = _record_handled(monkeypatch)
+    first, second = "2026-07-04T10:05:00Z", "2026-07-04T10:06:00Z"
+    monkeypatch.setattr(engine, "fetch_events", _async_return([_alarm(first), _alarm(second)]))
+
+    real_save = session_cfg.save_override_session
+
+    def save_then_race(session, path=None):
+        real_save(session, path)
+        if session.last_event_time == first:  # another process claims `second` right after
+            real_save(session_cfg.OverrideSession(last_event_time=second), path)
+
+    monkeypatch.setattr(engine, "save_override_session", save_then_race)
+
+    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    assert [t for t, _ in handled] == [first]
+    assert _cursor() == second
+
+
+def test_scan_first_run_sets_baseline_without_handling(monkeypatch, tmp_path) -> None:
+    _store(monkeypatch, tmp_path, cursor=None)
+    handled = _record_handled(monkeypatch)
+    events = [
+        _FakeEvent("2026-07-04T11:00:00Z", name="Full Set - 'USER 1 MASTER', WEB", type="armed"),
+        _alarm("2026-07-04T10:05:00Z"),
+    ]
+    monkeypatch.setattr(engine, "fetch_events", _async_return(events))
+
+    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    assert handled == []
+    assert _cursor() == "2026-07-04T11:00:00Z"
+
+
+def test_scan_handler_failure_leaves_cursor_and_retries_next_scan(monkeypatch, tmp_path, caplog) -> None:
+    """A handler that raises stops the scan before that event's claim: the
+    cursor stays put, later events wait, nothing escapes the detached task,
+    and the overlap guard is released so the next scan retries the event."""
+
+    _store(monkeypatch, tmp_path)
+    first, second = "2026-07-04T10:05:00Z", "2026-07-04T10:06:00Z"
+    monkeypatch.setattr(engine, "fetch_events", _async_return([_alarm(first), _alarm(second)]))
+
+    attempts: list = []
+
+    async def failing_handle(event, overrides_by_zone):
+        attempts.append(event.time)
+        raise RuntimeError("RISCO Cloud hiccup")
+
+    monkeypatch.setattr(engine, "_handle_event", failing_handle)
+    with caplog.at_level("WARNING", logger=engine.logger.name):
+        asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    assert attempts == [first]
+    assert _cursor() == _CURSOR
+    assert "Security override event scan failed: RISCO Cloud hiccup" in caplog.text
+
+    handled = _record_handled(monkeypatch)
+    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    assert [t for t, _ in handled] == [first, second]
+    assert _cursor() == second
+
+
+def test_scan_fetch_failure_leaves_cursor_and_releases_guard(monkeypatch, tmp_path, caplog) -> None:
+    _store(monkeypatch, tmp_path)
+    handled = _record_handled(monkeypatch)
+
+    async def failing_fetch():
+        raise RuntimeError("cloud down")
+
+    monkeypatch.setattr(engine, "fetch_events", failing_fetch)
+    with caplog.at_level("WARNING", logger=engine.logger.name):
+        asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    assert handled == [] and _cursor() == _CURSOR
+    assert "Alarm-override event-log read failed: cloud down" in caplog.text
+
+    monkeypatch.setattr(engine, "fetch_events", _async_return([_alarm("2026-07-04T10:05:00Z")]))
+    asyncio.run(engine._run_event_scan(_SCAN_CONFIG))
+    assert [t for t, _ in handled] == ["2026-07-04T10:05:00Z"]
+
+
+def test_scan_guards_against_overlap(monkeypatch, tmp_path) -> None:
+    """A scan still in flight (a slow RISCO read) makes a second one a no-op;
+    once it finishes the guard is released for the next."""
+
+    _store(monkeypatch, tmp_path)
+    _record_handled(monkeypatch)
+    fetches = {"n": 0}
+
+    async def run() -> None:
+        release = asyncio.Event()
+
+        async def slow_fetch():
+            fetches["n"] += 1
+            await release.wait()
+            return []
+
+        monkeypatch.setattr(engine, "fetch_events", slow_fetch)
+        first = asyncio.create_task(engine._run_event_scan(_SCAN_CONFIG))
+        await asyncio.sleep(0)
+        await engine._run_event_scan(_SCAN_CONFIG)  # overlaps the first: skipped
+        assert fetches["n"] == 1
+        release.set()
+        await first
+        await engine._run_event_scan(_SCAN_CONFIG)
+        assert fetches["n"] == 2
+
+    asyncio.run(run())
+
+
+def test_consider_security_read_throttles_scans(monkeypatch) -> None:
+    """A scan is spawned at most once per ``event_scan_interval_s`` of
+    monotonic time; exactly one interval later is due again."""
+
+    monkeypatch.setattr(engine, "load_override_automation_config", lambda: _SCAN_CONFIG)
+    scans: list = []
+
+    async def fake_scan(config):
+        scans.append(config)
+
+    monkeypatch.setattr(engine, "_run_event_scan", fake_scan)
+    base = 1e12  # far past any real monotonic reading an earlier test left behind
+    due: list = []
+
+    async def run() -> None:
+        for offset in (0, 10, 19.9, 20, 25, 39.9, 40):
+            before = len(scans)
+            with monkeypatch.context() as m:
+                m.setattr(time, "monotonic", lambda: base + offset)
+                engine.consider_security_read(object())
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            if len(scans) > before:
+                due.append(offset)
+
+    asyncio.run(run())
+    assert due == [0, 20, 40]
