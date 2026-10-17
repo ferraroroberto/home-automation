@@ -1644,6 +1644,9 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   justify-content: center;
   min-height: 38px;
   margin: 2px 0 6px;
+  /* The chip's side padding (design.md reference-pill: 2px × spacing.sm),
+     so the label clears the hairline (#958). */
+  padding: 0 var(--space-sm);
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   color: var(--accent);

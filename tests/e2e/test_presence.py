@@ -15,6 +15,7 @@ import pytest
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings_sheet
+from tests.e2e._geometry import apply_matrix_leg
 
 
 @pytest.mark.chromium_only
@@ -395,3 +396,49 @@ def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
     expect(rows.nth(0)).not_to_contain_text("broken:")
     expect(rows.nth(0).get_by_test_id("presence-account-renew")).to_have_count(0)
     expect(rows.nth(1).get_by_test_id("presence-account-renew")).to_have_text("Renew trust")
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_presence_open_map_pill_has_chip_horizontal_padding(
+    theme: str, page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """The detail's "Open map" link keeps the chip's 8px side padding (#958).
+
+    Computed padding alone would pass a rule that is overridden later, so the
+    rendered inset of the label inside its border box is measured as well.
+    """
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    # The embedded map frame points at a third party; no test touches it.
+    page.route("https://www.openstreetmap.org/**", lambda route: route.abort())
+    boot_home(page, base_url)
+    apply_matrix_leg(page, 390, theme)
+
+    page.locator("#tabSecurity").click()
+    page.locator('.presence-row[data-entity-id="home-phone"] .action-row-main').click()
+    link = page.locator("#presenceMapLink")
+    expect(link).to_be_visible()
+
+    sides = link.evaluate(
+        """el => {
+          const cs = getComputedStyle(el);
+          const box = el.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const text = range.getBoundingClientRect();
+          return {
+            padLeft: parseFloat(cs.paddingLeft),
+            padRight: parseFloat(cs.paddingRight),
+            insetLeft: text.left - box.left,
+            insetRight: box.right - text.right,
+          };
+        }"""
+    )
+    assert sides["padLeft"] == 8 and sides["padRight"] == 8, sides
+    # The 1px border sits inside the box edge, so the label inset is at least
+    # the padding, never less.
+    assert sides["insetLeft"] >= 8 and sides["insetRight"] >= 8, sides
