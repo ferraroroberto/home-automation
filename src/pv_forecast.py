@@ -60,7 +60,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 
-from src._backoff import compute_delay
+from src._backoff import BackoffTracker
 from src.location_config import LocationConfig, load_location_config
 from src.pv_system_config import (
     PvArray,
@@ -143,10 +143,9 @@ _session_lock: Optional[asyncio.Lock] = None
 # call share one cache entry, the way huawei_client shares one FusionSolar read.
 _forecast_cache: Dict[tuple, Tuple[float, "PvForecast"]] = {}
 
-# Monotonic deadline before which no upstream call is attempted after a 429,
-# and the streak that set it — see :func:`_note_failure` / :func:`_note_success`.
-_failure_until: float = 0.0
-_failure_streak: int = 0
+# The 429 backoff window and the streak that set it — see :func:`_note_failure`
+# / :func:`_note_success`.
+_backoff = BackoffTracker(base_s=_FAILURE_BACKOFF_BASE_S, max_s=_FAILURE_BACKOFF_MAX_S)
 
 
 @dataclass
@@ -213,36 +212,25 @@ def _prune_cache(now: float) -> None:
         del _forecast_cache[k]
 
 
-def _backoff_for(streak: int) -> float:
-    """Seconds to stay quiet after ``streak`` consecutive 429s."""
-    if streak < 1:
-        return 0.0
-    return compute_delay(streak, base_s=_FAILURE_BACKOFF_BASE_S, max_s=_FAILURE_BACKOFF_MAX_S)
-
-
-def _note_failure(now: float) -> None:
+def _note_failure() -> None:
     """Open (or lengthen) the backoff window after a 429."""
-    global _failure_until, _failure_streak
-
-    _failure_streak += 1
-    wait = _backoff_for(_failure_streak)
-    _failure_until = now + wait
+    wait = _backoff.record_failure()
     logger.warning(
         "⚠️ PV forecast rate-limited by Open-Meteo (%d consecutive 429(s)); "
         "not retrying for %ds",
-        _failure_streak,
+        _backoff.consecutive_failures,
         wait,
     )
 
 
 def _note_success() -> None:
     """Clear the backoff after a good read."""
-    global _failure_until, _failure_streak
-
-    if _failure_streak:
-        logger.info("✅ PV forecast recovered after %d rate-limited attempt(s)", _failure_streak)
-    _failure_streak = 0
-    _failure_until = 0.0
+    if _backoff.consecutive_failures:
+        logger.info(
+            "✅ PV forecast recovered after %d rate-limited attempt(s)",
+            _backoff.consecutive_failures,
+        )
+    _backoff.record_success()
 
 
 def _get_session_lock() -> asyncio.Lock:
@@ -465,7 +453,7 @@ async def fetch_pv_forecast_for_date(
     if cached is not None and now - cached[0] < _CACHE_TTL_S:
         return _relabel(cached[1], day)
 
-    if now < _failure_until:
+    if _backoff.seconds_remaining() is not None:
         # Backing off a 429 — serve the last good curve rather than a blank
         # card, as long as it isn't too old to still describe today's weather.
         if cached is not None and now - cached[0] < _STALE_SERVE_MAX_S:
@@ -494,7 +482,7 @@ async def fetch_pv_forecast_for_date(
         )
     except aiohttp.ClientResponseError as exc:
         if exc.status == 429:
-            _note_failure(now)
+            _note_failure()
             if cached is not None and now - cached[0] < _STALE_SERVE_MAX_S:
                 logger.info(
                     "ℹ️ PV forecast serving cached curve (%.0fs old) after a 429",

@@ -70,7 +70,7 @@ from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
-from src._backoff import compute_delay
+from src._backoff import BackoffTracker
 
 logger = logging.getLogger("huawei")
 
@@ -178,10 +178,9 @@ _plant_dn: Optional[str] = None
 # (monotonic timestamp, day-series payload) — see :func:`_fetch_stats`.
 _stats_cache: Optional[tuple[float, Dict[str, Any]]] = None
 
-# Monotonic deadline before which no cloud call is attempted, and the number of
-# consecutive failures that set it — see :func:`_note_failure`.
-_failure_until: float = 0.0
-_failure_streak: int = 0
+# The window in which no cloud call is attempted, and the number of consecutive
+# failures that set it — see :func:`_note_failure`.
+_backoff = BackoffTracker(base_s=_FAILURE_BACKOFF_BASE_S, max_s=_FAILURE_BACKOFF_MAX_S)
 
 
 # Key of the last state line emitted — see :func:`_log_state`.
@@ -206,38 +205,22 @@ def _log_state(level: int, key: tuple, msg: str, *args: Any) -> None:
     logger.log(level, msg, *args)
 
 
-def _backoff_for(streak: int) -> int:
-    """Seconds to stay quiet after ``streak`` consecutive failures."""
-    if streak < 1:
-        return 0
-    return int(
-        compute_delay(streak, base_s=_FAILURE_BACKOFF_BASE_S, max_s=_FAILURE_BACKOFF_MAX_S)
-    )
-
-
-def _note_failure(now: float) -> None:
+def _note_failure() -> None:
     """Open (or lengthen) the backoff window after a failed read."""
-    global _failure_until, _failure_streak
-
-    _failure_streak += 1
-    wait = _backoff_for(_failure_streak)
-    _failure_until = now + wait
+    wait = _backoff.record_failure()
     logger.warning(
         "⚠️ FusionSolar unavailable (%d consecutive failure(s)); "
         "not retrying for %ds",
-        _failure_streak,
+        _backoff.consecutive_failures,
         wait,
     )
 
 
 def _note_success() -> None:
     """Clear the backoff after a good read."""
-    global _failure_until, _failure_streak
-
-    if _failure_streak:
-        logger.info("✅ FusionSolar recovered after %d failure(s)", _failure_streak)
-    _failure_streak = 0
-    _failure_until = 0.0
+    if _backoff.consecutive_failures:
+        logger.info("✅ FusionSolar recovered after %d failure(s)", _backoff.consecutive_failures)
+    _backoff.record_success()
 
 
 def _get_lock() -> asyncio.Lock:
@@ -561,7 +544,7 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
         # login path already says so once per call at info level.
         return None
 
-    if now < _failure_until:
+    if _backoff.seconds_remaining() is not None:
         # Backing off. Serve the last good payload rather than nothing — its own
         # as-of timestamp still gates freshness downstream, so a genuinely dead
         # feed is reported unavailable by the staleness guard, not by silence.
@@ -569,7 +552,7 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
 
     client = await _get_client(config)
     if client is None:
-        _note_failure(now)
+        _note_failure()
         return None
 
     plant_dn = await _resolve_plant_dn(client, config)
@@ -581,7 +564,7 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
         # of the same broken one (#556).
         _client = None
         _plant_dn = None
-        _note_failure(now)
+        _note_failure()
         return None
 
     try:
@@ -593,12 +576,12 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
         # just the request. Force a fresh client/session on the next try (#556).
         _client = None
         _plant_dn = None
-        _note_failure(now)
+        _note_failure()
         return None
 
     if not isinstance(stats, dict):
         logger.warning("⚠️ FusionSolar returned an unexpected payload: %r", type(stats))
-        _note_failure(now)
+        _note_failure()
         return None
 
     _note_success()

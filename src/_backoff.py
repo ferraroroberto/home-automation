@@ -8,8 +8,9 @@ constants, since a FusionSolar cloud login tolerates a different retry cadence t
 local NUT/Tuya poll). This is the single home for the math and the stateful tracker,
 following this repo's ``_no_window.py`` / ``_mac.py`` / ``_atomic_json.py`` convention.
 ``ups_client.py`` and ``tuya_client.py`` use the tracker's defaults as they are;
-``huawei_client.py`` keeps its own constants. Each client keeps its own locking
-and log messages — those genuinely differ per source.
+``huawei_client.py`` and ``pv_forecast.py`` (Open-Meteo 429s, #912) each hold one
+tracker with their own constants. Each client keeps its own locking and log
+messages — those genuinely differ per source.
 """
 
 from __future__ import annotations
