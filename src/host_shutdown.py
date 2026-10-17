@@ -1,7 +1,7 @@
 """OS-level graceful shutdown for the UPS low-battery safety trigger.
 
-Wraps Windows ``shutdown.exe``. Deliberately thin — :func:`initiate_shutdown`
-and :func:`cancel_shutdown` are the only two operations, both easily
+Wraps Windows ``shutdown.exe``. Deliberately thin — :func:`initiate_shutdown`,
+:func:`initiate_hibernate` and :func:`cancel_shutdown` are the operations, all easily
 monkeypatched in tests. Hard-blocked under pytest (mirrors
 :func:`src.notify_config.build_alarm_notifier`'s pytest guard) so the backend
 test suite can never trigger a real shutdown on a dev or CI machine.
@@ -61,6 +61,44 @@ def initiate_shutdown(*, grace_seconds: int = 180, message: str = "") -> bool:
         )
         return False
     logger.warning("🔻 Host shutdown scheduled in %ds (low UPS battery)", grace_seconds)
+    return True
+
+
+def initiate_hibernate() -> bool:
+    """Hibernate this machine now: state goes to disk, the session resumes on wake.
+
+    ``shutdown /h`` is the explicit hibernate call (it never degrades to sleep,
+    unlike ``SetSuspendState``) and, as Windows has no scheduled hibernate, it
+    takes no ``/t`` — the caller owns the grace window. It exits nonzero when
+    hibernation is not enabled. Returns ``True`` if Windows accepted it. Never
+    raises, and is hard-blocked under pytest like :func:`initiate_shutdown`.
+    """
+
+    if "pytest" in sys.modules:
+        logger.info("🧪 Hibernate suppressed under pytest")
+        return False
+    try:
+        result = subprocess.run(
+            ["shutdown", "/h"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding=console_encoding(),
+            errors="replace",
+            timeout=10,
+            creationflags=NO_WINDOW,
+        )
+    except OSError as exc:
+        logger.warning("⚠️ Failed to invoke shutdown /h: %s", exc)
+        return False
+    if result.returncode != 0:
+        logger.warning(
+            "⚠️ shutdown /h returned %d: %s",
+            result.returncode,
+            (result.stderr or result.stdout or "").strip(),
+        )
+        return False
+    logger.warning("🔻 Host hibernating (low UPS battery)")
     return True
 
 

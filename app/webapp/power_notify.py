@@ -37,7 +37,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 import httpx
 
 from src.activity_log import append_activity
-from src.host_shutdown import cancel_shutdown, initiate_shutdown
+from src.host_shutdown import cancel_shutdown, initiate_hibernate, initiate_shutdown
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
 from src.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
@@ -269,7 +269,62 @@ async def _shutdown_fleet_satellites(
         return FleetShutdownResult(hub_reachable=False)
 
 
-def _compose_shutdown_message(detail: Optional[str], fleet: FleetShutdownResult) -> str:
+# Windows has no scheduled, cancellable hibernate (``shutdown /h`` takes no
+# ``/t``), so the grace window is an in-process timer. It lives only in this
+# process: a webapp restart inside the window drops it, and the power monitor
+# re-fires the trigger on its first tick (a safety trigger is not suppressed on
+# first observation) with a fresh window - see :func:`record_low_battery_shutdown`.
+_pending_hibernate: Optional["asyncio.Task[None]"] = None
+
+# If hibernate is refused (e.g. hibernation disabled in Windows) the tower must
+# still go down rather than run the UPS flat: fall back to a short shutdown.
+_HIBERNATE_FALLBACK_GRACE_S = 30
+
+
+def _cancel_pending_hibernate() -> bool:
+    """Cancel the grace-window hibernate timer; ``True`` if one was pending."""
+    global _pending_hibernate
+    task, _pending_hibernate = _pending_hibernate, None
+    if task is None or task.done():
+        return False
+    task.cancel()
+    return True
+
+
+async def _hibernate_after_grace(
+    grace_seconds: int,
+    hibernate_fn: Callable[[], bool],
+    shutdown_fn: Callable[..., bool],
+) -> None:
+    """Wait out the grace window, then hibernate (shutdown if hibernate fails).
+
+    Cancelled by :func:`record_low_battery_shutdown_cancelled` when mains
+    returns. Runs the blocking OS call in a worker thread so the event loop
+    stays free; never raises out of the task.
+    """
+    await asyncio.sleep(grace_seconds)
+    try:
+        hibernated = await asyncio.to_thread(hibernate_fn)
+        if hibernated:
+            append_activity("power", {"event": "low_battery_hibernate"})
+            return
+        logger.warning("⚠️ Hibernate failed — falling back to a shutdown in %ds", _HIBERNATE_FALLBACK_GRACE_S)
+        append_activity("power", {"event": "low_battery_hibernate_failed"})
+        await asyncio.to_thread(
+            shutdown_fn,
+            grace_seconds=_HIBERNATE_FALLBACK_GRACE_S,
+            message="Low UPS battery — hibernate unavailable, shutting down to avoid data loss",
+        )
+    except Exception as exc:  # noqa: BLE001 — a timer task must never die silently
+        logger.warning("⚠️ Low-battery hibernate task failed: %s", exc)
+
+
+def _compose_shutdown_message(
+    detail: Optional[str],
+    fleet: FleetShutdownResult,
+    tower_action: str = "shutdown",
+    grace_seconds: int = 180,
+) -> str:
     suffix = f" · {detail}" if detail else ""
     lines = [f"🔴 UPS battery critically low — shutting the PC fleet down{suffix}"]
     if not fleet.hub_reachable:
@@ -278,7 +333,12 @@ def _compose_shutdown_message(detail: Optional[str], fleet: FleetShutdownResult)
         lines += [f"• {o.name}: {o.outcome}" for o in fleet.outcomes]
     else:
         lines.append("• No satellites enrolled")
-    lines.append("Tower shutting down last.")
+    if tower_action == "hibernate":
+        lines.append(
+            f"Tower hibernating last, in {grace_seconds // 60} min unless mains returns."
+        )
+    else:
+        lines.append("Tower shutting down last.")
     return "\n".join(lines)
 
 
@@ -290,6 +350,7 @@ async def record_low_battery_shutdown(
     pc_fleet_loader: Callable[[], PcFleetPrefs] = load_pc_fleet_prefs,
     notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
     shutdown_fn: Callable[..., bool] = initiate_shutdown,
+    hibernate_fn: Callable[[], bool] = initiate_hibernate,
     fleet_shutdown_fn: Callable[..., Awaitable[FleetShutdownResult]] = _shutdown_fleet_satellites,
 ) -> bool:
     """Log a critically-low UPS battery and, if enabled, orchestrate shutdown.
@@ -304,8 +365,14 @@ async def record_low_battery_shutdown(
     hub's loopback API (best-effort, per-machine outcomes recorded — the
     tower's own shutdown is never blocked on a satellite failure or an
     unreachable hub), the Telegram alert reports the per-machine outcomes, and
-    only then does the tower's local ``shutdown_fn`` fire (it goes last).
-    Returns ``True`` only when the tower shutdown was actually scheduled.
+    only then does the tower act (it goes last): ``shutdown_fn`` for the
+    default ``tower_action`` of ``"shutdown"`` (an OS-scheduled, cancellable
+    shutdown), or for ``"hibernate"`` an in-process timer that hibernates via
+    ``hibernate_fn`` after ``grace_seconds`` unless
+    :func:`record_low_battery_shutdown_cancelled` cancels it first (#962). That
+    timer does not survive a webapp restart; the monitor re-fires the trigger
+    on its next tick if the outage is still on, restarting the window.
+    Returns ``True`` only when the tower action was actually scheduled.
     """
 
     record: Dict[str, Any] = {"event": "low_battery_shutdown"}
@@ -324,6 +391,7 @@ async def record_low_battery_shutdown(
     # Satellites first, over the hub — never let this block the tower.
     fleet = await fleet_shutdown_fn(excluded=prefs.excluded)
     record["fleet_enabled"] = True
+    record["tower_action"] = prefs.tower_action
     record["hub_reachable"] = fleet.hub_reachable
     record["fleet"] = [
         {"id": o.machine_id, "name": o.name, "outcome": o.outcome} for o in fleet.outcomes
@@ -336,12 +404,21 @@ async def record_low_battery_shutdown(
             # See record_power_event: blocking send + retry, threaded off the
             # event loop so it can't stall the webapp.
             await asyncio.to_thread(
-                _send_with_retry, notifier, _compose_shutdown_message(detail, fleet)
+                _send_with_retry, notifier, _compose_shutdown_message(detail, fleet, prefs.tower_action, grace_seconds),
             )
         except NotifierError as exc:  # delivery must never break the monitor loop
             logger.warning("⚠️ Telegram low-battery shutdown notification failed: %s", exc)
 
     # The tower goes last — after the satellites have been told to power off.
+    if prefs.tower_action == "hibernate":
+        global _pending_hibernate
+        if _pending_hibernate is None or _pending_hibernate.done():
+            _pending_hibernate = asyncio.create_task(
+                _hibernate_after_grace(grace_seconds, hibernate_fn, shutdown_fn),
+                name="low-battery-hibernate",
+            )
+            logger.warning("🔻 Host hibernate scheduled in %ds (low UPS battery)", grace_seconds)
+        return True
     return shutdown_fn(
         grace_seconds=grace_seconds,
         message="Low UPS battery — PC shutting down to avoid data loss",
@@ -352,15 +429,19 @@ def record_low_battery_shutdown_cancelled(
     *,
     cancel_fn: Callable[[], bool] = cancel_shutdown,
 ) -> None:
-    """Log + cancel a previously-scheduled low-battery shutdown.
+    """Log + cancel a previously-scheduled low-battery shutdown or hibernate.
 
-    Called when mains power returns before the scheduled OS shutdown
-    completes. Cancelling is unconditional (not gated on the master switch) —
+    Called when mains power returns before the scheduled OS shutdown (or the
+    in-process hibernate timer) completes. Cancelling is unconditional (not gated on the master switch) —
     it is always safe/idempotent to cancel a shutdown that may or may not
     actually be pending. Note this only cancels the **tower's** local
     shutdown: the satellites already received their fire-and-forget SSH
     shutdown from :func:`record_low_battery_shutdown` and cannot be recalled.
     """
 
-    append_activity("power", {"event": "low_battery_shutdown_cancelled"})
+    record: Dict[str, Any] = {"event": "low_battery_shutdown_cancelled"}
+    if _cancel_pending_hibernate():
+        record["hibernate_cancelled"] = True
+        logger.info("✅ Pending host hibernate cancelled (mains power restored)")
+    append_activity("power", record)
     cancel_fn()

@@ -1616,6 +1616,17 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   text-align: right;
 }
 .pc-fleet-caption { margin: 2px 0 6px; }
+/* What the tower does last: label, the vendored segmented control, one hint
+   line. A single minmax(0, 1fr) track so the control never widens the sheet. */
+.pc-fleet-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+.pc-fleet-action .segmented { margin-bottom: 0; }
+.pc-fleet-action-label { font-weight: 600; }
+.pc-fleet-action-hint { margin: 0; }
 .pc-fleet-machines { padding: 0 0 4px; }
 .pc-fleet-machine {
   display: grid;

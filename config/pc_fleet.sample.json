@@ -1,5 +1,6 @@
 {
   "enabled": true,
   "threshold_minutes": 15,
-  "excluded": ["example-host-id"]
+  "excluded": ["example-host-id"],
+  "tower_action": "shutdown"
 }
