@@ -7,17 +7,22 @@ entries, and rearms (weekly) or auto-disables (one-shot) them afterward.
 
 from __future__ import annotations
 
-import logging
 import re
 import unicodedata
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src._schedule_store import clean_date, clean_days, clean_time, read_json, safe_id, save_json
-
-logger = logging.getLogger(__name__)
+from src._schedule_store import (
+    clean_date,
+    clean_days,
+    clean_entry_list,
+    clean_time,
+    load_entry_list,
+    safe_id,
+    save_entry_list,
+)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 WAKE_ALARMS_PATH = _CONFIG_DIR / "wake_alarms.json"
@@ -69,22 +74,14 @@ def load_wake_alarms(path: Optional[Path] = None) -> List[WakeAlarmEntry]:
     """Return the persisted wake-alarm list, or ``[]`` if absent."""
 
     target = Path(path) if path is not None else WAKE_ALARMS_PATH
-    raw = read_json(target, [])
-    if not isinstance(raw, list):
-        logger.warning("⚠️ %s is not a JSON list; returning empty", target)
-        return []
-    return [
-        clean_entry(item, f"alarm-{idx}")
-        for idx, item in enumerate(raw, start=1)
-        if isinstance(item, dict)
-    ]
+    return load_entry_list(target, clean_entry, "alarm")
 
 
 def save_wake_alarms(entries: List[WakeAlarmEntry], path: Optional[Path] = None) -> None:
     """Atomically persist the whole wake-alarm list."""
 
     target = Path(path) if path is not None else WAKE_ALARMS_PATH
-    save_json(target, [asdict(entry) for entry in entries])
+    save_entry_list(target, entries)
 
 
 def set_wake_alarms(raw_entries: List[dict], path: Optional[Path] = None) -> List[WakeAlarmEntry]:

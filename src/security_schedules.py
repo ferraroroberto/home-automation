@@ -6,16 +6,20 @@ loads that same list and applies due entries through ``src.risco_client``.
 
 from __future__ import annotations
 
-import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
-from src._schedule_store import clean_days, clean_time, read_json, safe_id, save_json
+from src._schedule_store import (
+    clean_days,
+    clean_entry_list,
+    clean_time,
+    load_entry_list,
+    safe_id,
+    save_entry_list,
+)
 from src.risco_client import ACTIONS
-
-logger = logging.getLogger(__name__)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 SCHEDULES_PATH = _CONFIG_DIR / "security_schedules.json"
@@ -58,15 +62,7 @@ def load_security_schedules(path: Optional[Path] = None) -> List[SecuritySchedul
     """Return the persisted alarm schedule list, or ``[]`` if absent."""
 
     target = Path(path) if path is not None else SCHEDULES_PATH
-    raw = read_json(target, [])
-    if not isinstance(raw, list):
-        logger.warning("⚠️ %s is not a JSON list; returning empty", target)
-        return []
-    return [
-        clean_entry(item, f"schedule-{idx}")
-        for idx, item in enumerate(raw, start=1)
-        if isinstance(item, dict)
-    ]
+    return load_entry_list(target, clean_entry, "schedule")
 
 
 def save_security_schedules(
@@ -76,17 +72,13 @@ def save_security_schedules(
     """Atomically persist the whole alarm schedule list."""
 
     target = Path(path) if path is not None else SCHEDULES_PATH
-    save_json(target, [asdict(entry) for entry in entries])
+    save_entry_list(target, entries)
 
 
 def set_security_schedules(raw_entries: List[dict], path: Optional[Path] = None) -> List[SecurityScheduleEntry]:
     """Replace the schedule list with normalized entries and return it."""
 
-    entries = [
-        clean_entry(item, f"schedule-{idx}")
-        for idx, item in enumerate(raw_entries, start=1)
-        if isinstance(item, dict)
-    ]
+    entries = clean_entry_list(raw_entries, clean_entry, "schedule")
     save_security_schedules(entries, path)
     return entries
 

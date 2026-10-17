@@ -19,11 +19,16 @@ same load/save shape as ``security_schedules`` / ``display_names``.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional
 
-from src._schedule_store import read_json, safe_id, save_json
+from src._schedule_store import (
+    clean_entry_list,
+    load_entry_list,
+    safe_id,
+    save_entry_list,
+)
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 PAIRINGS_PATH = _CONFIG_DIR / "alarm_scene_pairings.json"
@@ -70,24 +75,12 @@ def clean_pairing(raw: dict, fallback_id: str) -> Optional[ScenePairing]:
     )
 
 
-def _clean_list(raw: Any) -> List[ScenePairing]:
-    if not isinstance(raw, list):
-        return []
-    out: List[ScenePairing] = []
-    for idx, item in enumerate(raw, start=1):
-        if not isinstance(item, dict):
-            continue
-        pairing = clean_pairing(item, f"pairing-{idx}")
-        if pairing is not None:
-            out.append(pairing)
-    return out
-
-
 def load_scene_pairings(path: Optional[Path] = None) -> List[ScenePairing]:
     """Return the persisted pairing list, or ``[]`` if absent/unreadable."""
 
     target = Path(path) if path is not None else PAIRINGS_PATH
-    return _clean_list(read_json(target, []))
+    # Silent on a non-list file, unlike the schedule stores (kept as before).
+    return load_entry_list(target, clean_pairing, "pairing", warn_not_list=False)
 
 
 def save_scene_pairings(
@@ -96,7 +89,7 @@ def save_scene_pairings(
     """Atomically persist the whole pairing list."""
 
     target = Path(path) if path is not None else PAIRINGS_PATH
-    save_json(target, [asdict(pairing) for pairing in pairings])
+    save_entry_list(target, pairings)
 
 
 def set_scene_pairings(
@@ -104,7 +97,7 @@ def set_scene_pairings(
 ) -> List[ScenePairing]:
     """Replace the pairing list with normalized entries and return it."""
 
-    pairings = _clean_list(raw_entries)
+    pairings = clean_entry_list(raw_entries, clean_pairing, "pairing")
     save_scene_pairings(pairings, path)
     return pairings
 
