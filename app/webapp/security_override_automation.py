@@ -27,14 +27,14 @@ read rather than starting a competing poll loop.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
 from dataclasses import dataclass
-from typing import Any, Coroutine, Dict, Optional
+from typing import Dict, Optional
 
 from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_int
+from app.webapp._event_log_scan import ALARM_EVENT_TYPE, EventLogScanner
+from app.webapp._task_loop import spawn_background_task
 from app.webapp._zone_lookup import _zone_name_for
 from src import telemetry
 from src.risco_client import SecurityState, fetch_events, set_zone_bypass
@@ -42,10 +42,6 @@ from src.security_override import load_overrides
 from src.security_override_session import load_override_session, save_override_session
 
 logger = logging.getLogger(__name__)
-
-# pyrisco's event-log ``type`` for a genuine "system has gone off" alarm entry
-# (matches ``alarm_scene_automation._ALARM_EVENT_TYPE``, confirmed live #325).
-_ALARM_EVENT_TYPE = "triggered"
 
 # RISCO event-log ``name`` prefixes for an arming action — confirmed live
 # against production events (see issue #341): "Full Set - 'USER 1 MASTER',
@@ -80,24 +76,23 @@ def load_override_automation_config() -> OverrideAutomationConfig:
 # Process-lifetime cadence/overlap guard only — the actual scan progress (the
 # cursor + per-zone counts + which zones are auto-bypassed) is persisted to
 # disk via ``src.security_override_session``, precisely so a restart doesn't
-# lose track mid-session (same reasoning as issue #325's cursor).
-_state: Dict[str, object] = {"last_scan": None, "scan_running": False}
-
-# Strong references to the detached scan task below — without this, asyncio
-# only holds a weak reference to a task once its `create_task()` return value
-# is discarded, so the task is eligible for GC mid-flight and can vanish
-# before its `finally` clears `_state["scan_running"]`, wedging the gate
-# closed forever (issue #703, same shape as `alarm_scene_automation.py`).
-_background_tasks: set[asyncio.Task] = set()
+# lose track mid-session (same reasoning as issue #325's cursor). Claims after
+# handling: the handler rewrites the same session file the cursor lives in.
+_scanner = EventLogScanner(
+    logger=logger,
+    read_fail_msg="⚠️ Alarm-override event-log read failed: %s",
+    claim_before_handle=False,
+)
 
 
-def _spawn_background_task(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task:
-    """``asyncio.create_task`` that can't be silently GC'd before it finishes."""
+def _load_cursor() -> Optional[str]:
+    return load_override_session().last_event_time
 
-    task = asyncio.create_task(coro, name=name)
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-    return task
+
+def _save_cursor(event_time: str) -> None:
+    session = load_override_session()
+    session.last_event_time = event_time
+    save_override_session(session)
 
 
 async def _set_bypass(zone_id: int, bypass: bool) -> SecurityState:
@@ -175,7 +170,7 @@ async def _restore_after_rearm() -> None:
 
 async def _handle_event(event: object, overrides_by_zone: Dict[int, object]) -> None:
     name = str(getattr(event, "name", "") or "")
-    if getattr(event, "type", None) == _ALARM_EVENT_TYPE and getattr(event, "zone_id", None) is not None:
+    if getattr(event, "type", None) == ALARM_EVENT_TYPE and getattr(event, "zone_id", None) is not None:
         zone_id = int(event.zone_id)
         entry = overrides_by_zone.get(zone_id)
         if entry is None:
@@ -193,16 +188,17 @@ async def _handle_event(event: object, overrides_by_zone: Dict[int, object]) -> 
 async def _run_event_scan(config: OverrideAutomationConfig) -> None:
     """Diff RISCO's event log against the persisted cursor; act on each new event.
 
-    Never raises. Guarded against overlapping runs the same way
-    ``alarm_scene_automation._run_event_scan`` is; the on-disk cursor is
-    re-checked immediately before each event is handled and claimed right
-    after, so two concurrently-running scans can't both act on the same event
-    (mirrors the cross-process fix in issue #339).
+    Never raises. The shared :class:`EventLogScanner` guards against
+    overlapping runs and re-checks the on-disk cursor immediately before each
+    event is handled, claiming it right after, so two concurrently-running
+    scans can't both act on the same event (the cross-process fix in issue
+    #339).
     """
 
-    if _state.get("scan_running"):
-        return
-    _state["scan_running"] = True
+    await _scanner.guarded(_scan_once)
+
+
+async def _scan_once() -> None:
     try:
         overrides_by_zone = {e.zone_id: e for e in load_overrides() if e.enabled}
         session = load_override_session()
@@ -211,39 +207,14 @@ async def _run_event_scan(config: OverrideAutomationConfig) -> None:
             # RISCO Cloud call entirely rather than polling for no reason.
             return
 
-        try:
-            events = await fetch_events()
-        except Exception as exc:  # noqa: BLE001 — a detached task must never crash silently
-            logger.warning("⚠️ Alarm-override event-log read failed: %s", exc)
-            return
-
-        relevant = sorted(
-            (e for e in events if getattr(e, "time", None)),
-            key=lambda e: e.time,
+        await _scanner.scan(
+            fetch=fetch_events,
+            # Every timed event, not only alarms: arm events restore zones.
+            wanted=lambda e: bool(getattr(e, "time", None)),
+            load_cursor=_load_cursor,
+            save_cursor=_save_cursor,
+            handle=lambda event: _handle_event(event, overrides_by_zone),
         )
-        if not relevant:
-            return
-
-        cursor = session.last_event_time
-        if cursor is None:
-            # First run ever — establish the baseline without replaying
-            # fetch_events()'s full history window as new events.
-            session.last_event_time = relevant[-1].time
-            save_override_session(session)
-            return
-
-        new_events = [e for e in relevant if e.time > cursor]
-        if not new_events:
-            return
-
-        for event in new_events:
-            latest = load_override_session()
-            if latest.last_event_time is not None and latest.last_event_time >= event.time:
-                continue
-            await _handle_event(event, overrides_by_zone)
-            latest = load_override_session()
-            latest.last_event_time = event.time
-            save_override_session(latest)
     except Exception as exc:  # noqa: BLE001 — the docstring's "never raises" contract
         # This coroutine is dispatched detached (`asyncio.create_task`) with no
         # handler, so anything escaping here would surface only at GC time, if at
@@ -251,19 +222,6 @@ async def _run_event_scan(config: OverrideAutomationConfig) -> None:
         # `load_overrides()` / `load_override_session()` raise on an unreadable
         # store rather than degrade to empty. The next scan simply retries.
         logger.warning("⚠️ Security override event scan failed: %s", exc)
-    finally:
-        _state["scan_running"] = False
-
-
-def _scan_due(config: OverrideAutomationConfig, *, now: Optional[float] = None) -> bool:
-    """True when enough time has elapsed since the last event-log scan."""
-
-    instant = time.monotonic() if now is None else now
-    last = _state.get("last_scan")
-    if last is not None and (instant - float(last)) < config.event_scan_interval_s:
-        return False
-    _state["last_scan"] = instant
-    return True
 
 
 def consider_security_read(security: object) -> None:
@@ -278,5 +236,5 @@ def consider_security_read(security: object) -> None:
     config = load_override_automation_config()
     if not config.enabled:
         return
-    if _scan_due(config):
-        _spawn_background_task(_run_event_scan(config), name="security-override-event-scan")
+    if _scanner.due(config.event_scan_interval_s):
+        spawn_background_task(_run_event_scan(config), name="security-override-event-scan")
