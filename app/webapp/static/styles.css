@@ -1411,50 +1411,6 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   text-decoration: line-through;
   opacity: 0.6;
 }
-.alarm-schedule-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.automation-summary-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--space-sm);
-  border-top: 1px solid var(--line);
-}
-.automation-summary-row:first-child { border-top: 0; }
-.automation-summary-main {
-  appearance: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-sm);
-  min-width: 0;
-  min-height: 56px;
-  padding: var(--space-sm) 0;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-}
-.automation-summary-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.automation-summary-title { font-weight: 700; font-variant-numeric: tabular-nums; }
-.automation-summary-meta {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: var(--font-caption);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.automation-summary-chevron { width: 18px; height: 18px; color: var(--muted); }
-.automation-summary-row > .toggle { margin-inline: 5px; }
 .alarm-schedule-days {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -1810,7 +1766,6 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 .unit-sheet-links { border-top: 1px solid var(--line); }
 .unit-sheet-links .action-row,
 .unit-sheet-links .settings-link { padding: 0; }
-.unit-sheet-page[data-page="schedules"] .alarm-schedule-list { gap: 0; }
 .detail-hint { margin: 8px 0 2px; }
 .schedule-empty { margin: var(--space-xs) 0 0; }
 .schedule-add-btn {

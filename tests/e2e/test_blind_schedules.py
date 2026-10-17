@@ -90,10 +90,10 @@ def test_blind_schedule_lists_and_adds_an_entry(
 
     # The existing entry renders as a summary row in the schedule sheet.
     _open_schedule_sheet(page)
-    rows = page.locator("#blindSchedules .automation-summary-row")
+    rows = page.locator("#blindSchedules .action-row")
     expect(rows).to_have_count(1)
-    expect(rows.first.locator(".automation-summary-title")).to_have_text("21:30")
-    expect(rows.first.locator(".automation-summary-meta")).to_have_text("Down · Every day · All blinds")
+    expect(rows.first.locator(".action-row-title")).to_have_text("21:30")
+    expect(rows.first.locator(".action-row-meta")).to_have_text("Down · Every day · All blinds")
     assert_no_horizontal_overflow(page)
 
     # Add a weekend "up" for one blind, only when someone is home.
@@ -119,12 +119,41 @@ def test_blind_schedule_lists_and_adds_an_entry(
     assert added["days"] == ["sat", "sun"]
     assert added["targets"] == ["blind-b"]
     assert added["presence"] == "home"
-    expect(rows.first.locator(".automation-summary-meta")).to_have_text(
+    expect(rows.first.locator(".action-row-meta")).to_have_text(
         "Up · Weekends · Someone home · Test Blind B"
     )
     expect(page.locator("#blindSchedulesMeta")).to_have_text("2 on")
     page.locator("#blindSchedulesSheetDone").click()
     expect(page.locator("#blindSchedulesSheet")).to_be_hidden()
+
+
+def test_schedule_row_tap_opens_editor_and_switch_does_not(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    """The shared row's contract on a migrated schedule list (#912): the text
+    column opens the staged editor, the enable switch saves at once and never
+    opens it."""
+    puts = _boot(page, base_url, sample_units, mock_api, mock_energy, mock_tuya, [
+        {"id": "down", "enabled": True, "time": "21:30", "action": "close",
+         "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "targets": [],
+         "presence": "any"},
+    ])
+    _open_schedule_sheet(page)
+    row = page.locator("#blindSchedules .action-row")
+    dialog = page.locator("#blindScheduleDialog")
+    expect(row).to_have_count(1)
+
+    with page.expect_request(
+        lambda r: r.url.endswith("/api/blinds/schedules") and r.method == "PUT"
+    ) as request:
+        row.locator(".toggle").click()
+    assert request.value.post_data_json["entries"][0]["enabled"] is False
+    expect(dialog).to_be_hidden()
+
+    row.locator(".action-row-main").click()
+    expect(dialog).to_be_visible()
+    expect(page.locator("#blindScheduleTime")).to_have_value("21:30")
 
 
 def test_blinds_follow_alarm_switch_saves(

@@ -19,8 +19,9 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { isToggleOn, setToggleState, wireToggle } from './toggle.js';
-import { denseListEditor, renderSummaryRow } from './dense-editor.js';
+import { buildToggle, isToggleOn, setToggleState, wireToggle } from './toggle.js';
+import { denseListEditor } from './dense-editor.js';
+import { rowEl } from './row.js';
 import { friendlyError } from './format.js';
 import { sheet } from './sheet.js';
 import { ALL_DAYS, daysSummary, renderDayPicker } from './days.js';
@@ -204,22 +205,21 @@ export function renderBlindSchedules() {
     .sort(function (a, b) { return a.entry.time.localeCompare(b.entry.time); });
   sorted.forEach(function (item) {
     const entry = item.entry;
-    els.blindSchedules.appendChild(renderSummaryRow({
-      id: entry.id,
-      idAttr: 'blindScheduleId',
+    const toggle = buildToggle('blind-schedule-enabled', entry.enabled, function (on) {
+      scheduleEditor.save(state.blindSchedules.map(function (schedule, index) {
+        return index === item.idx ? Object.assign({}, schedule, { enabled: on }) : schedule;
+      }));
+    });
+    toggle.setAttribute('aria-label', 'Enable blind schedule at ' + entry.time);
+    const row = rowEl({
       title: entry.time,
       meta: entryMeta(entry),
       openLabel: 'Edit blind schedule at ' + entry.time,
       onOpen: function (main) { scheduleEditor.open(item.idx, main); },
-      toggleName: 'blind-schedule-enabled',
-      toggleOn: entry.enabled,
-      toggleLabel: 'Enable blind schedule at ' + entry.time,
-      onToggle: function (on) {
-        scheduleEditor.save(state.blindSchedules.map(function (schedule, index) {
-          return index === item.idx ? Object.assign({}, schedule, { enabled: on }) : schedule;
-        }));
-      },
-    }));
+      trail: toggle,
+    });
+    row.dataset.blindScheduleId = entry.id;
+    els.blindSchedules.appendChild(row);
   });
 }
 

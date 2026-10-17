@@ -14,8 +14,9 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
-import { esc, localIsoDate } from './format.js';
+import { localIsoDate } from './format.js';
 import { confirmAction } from './confirm.js';
+import { rowEl } from './row.js';
 
 // Called after a successful add or delete so the Money view, if it is on
 // screen, re-reads the cost it priced with the old rates. Registered through
@@ -28,17 +29,22 @@ function renderExportRates(body) {
   const rate = current == null ? 'Not set' : '€' + Number(current).toFixed(5) + ' / kWh';
   els.exportRateCurrent.textContent = rate;
   els.exportRateRowMeta.textContent = rate;
-  els.exportRateList.innerHTML = state.exportRates.length ? state.exportRates.slice().reverse().map(function (rate) {
+  els.exportRateList.innerHTML = '';
+  if (!state.exportRates.length) {
+    els.exportRateList.innerHTML = '<li><p class="muted small">No export-compensation rate yet.</p></li>';
+    return;
+  }
+  state.exportRates.slice().reverse().forEach(function (rate) {
     const date = rate.effective_from === '0001-01-01' ? 'Legacy rate' : rate.effective_from;
     const hourly = Array.isArray(rate.hourly_eur_kwh) ? ' · hourly overrides' : '';
-    return '<div class="list-row automation-summary-row"><button type="button" class="automation-summary-main export-rate-edit" data-rate-date="'
-      + esc(rate.effective_from) + '"><span class="automation-summary-copy">'
-      + '<span class="automation-summary-title">' + esc(date) + '</span>'
-      + '<span class="automation-summary-meta">€' + Number(rate.export_eur_kwh).toFixed(5) + ' / kWh' + hourly + '</span>'
-      + '</span><svg class="icon automation-summary-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button></div>';
-  }).join('') : '<p class="muted small">No export-compensation rate yet.</p>';
-  els.exportRateList.querySelectorAll('.export-rate-edit').forEach(function (button) {
-    button.addEventListener('click', function () { editExportRate(button.dataset.rateDate); });
+    const row = rowEl({
+      title: date,
+      meta: '€' + Number(rate.export_eur_kwh).toFixed(5) + ' / kWh' + hourly,
+      onOpen: function () { editExportRate(rate.effective_from); },
+      chevron: true,
+    });
+    row.dataset.rateDate = rate.effective_from;
+    els.exportRateList.appendChild(row);
   });
 }
 
@@ -83,7 +89,7 @@ export async function loadExportRates() {
   try {
     renderExportRates(await jsonApi('/api/energy/export-rates'));
   } catch (exc) {
-    if (!isAuthRequired(exc)) els.exportRateList.innerHTML = '<p class="muted small">Rates unavailable.</p>';
+    if (!isAuthRequired(exc)) els.exportRateList.innerHTML = '<li><p class="muted small">Rates unavailable.</p></li>';
   }
 }
 

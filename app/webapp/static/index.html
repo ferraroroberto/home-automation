@@ -1515,7 +1515,7 @@
       </div>
       <div class="presence-places-body">
         <p class="muted small settings-sheet-note">Places the voice locator names instead of a distance from home.</p>
-        <div id="presencePlacesList" class="alarm-schedule-list"></div>
+        <ul id="presencePlacesList" class="action-rows" aria-label="Places"></ul>
         <p id="presencePlacesNote" class="muted small settings-sheet-note" hidden></p>
         <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
       </div>
@@ -1574,7 +1574,7 @@
       </div>
       <div class="pv-system-body">
         <p class="muted small settings-sheet-note">One panel row per orientation. The forecast is computed from these.</p>
-        <div id="pvArrayList" class="alarm-schedule-list"></div>
+        <ul id="pvArrayList" class="action-rows" aria-label="Panel rows"></ul>
         <button id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
 
         <label class="row">
@@ -1597,7 +1597,7 @@
              the switch has no control here, on purpose (see docs/pv-forecast.md). -->
         <h3 class="net-group-head">Horizon and shading</h3>
         <p class="muted small settings-sheet-note">Obstruction height by compass direction. Not applied to the forecast yet.</p>
-        <div id="pvHorizonList" class="alarm-schedule-list"></div>
+        <ul id="pvHorizonList" class="action-rows" aria-label="Horizon points"></ul>
         <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
       </div>
       <div class="detail-actions">
@@ -1617,7 +1617,7 @@
       </div>
       <div class="export-rate-body">
         <p class="muted small settings-sheet-note">Add a rate from the date it takes effect. Earlier rates stay in the history.</p>
-        <div id="exportRateList" class="alarm-schedule-list"></div>
+        <ul id="exportRateList" class="action-rows" aria-label="Export rates"></ul>
         <div class="export-rate-form">
           <input id="exportRateOriginalDate" type="hidden">
           <label><span>Effective from</span><input id="exportRateDate" type="date" class="input-native"></label>
@@ -1762,7 +1762,7 @@
         <h2 tabindex="-1" autofocus>Schedules</h2>
         <button id="securitySchedulesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
-      <div id="securitySchedules" class="alarm-schedule-list"></div>
+      <ul id="securitySchedules" class="action-rows" aria-label="Alarm schedules"></ul>
       <p id="securitySchedulesNote" class="muted small schedule-empty" hidden></p>
       <button id="securityScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
       <p class="muted small detail-hint">Arms or disarms the alarm at the set time on the chosen days.</p>
@@ -1778,7 +1778,7 @@
         <h2 tabindex="-1" autofocus>Scene capture</h2>
         <button id="scenePairingsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
-      <div id="scenePairings" class="alarm-schedule-list"></div>
+      <ul id="scenePairings" class="action-rows" aria-label="Scene pairings"></ul>
       <p id="scenePairingsNote" class="muted small schedule-empty" hidden></p>
       <button id="scenePairingAdd" type="button" class="schedule-add-btn">+ Add pairing</button>
       <p class="muted small detail-hint">When a paired detector trips, its camera takes a picture and the AI judges a real or false alarm.</p>
@@ -1794,7 +1794,7 @@
         <h2 tabindex="-1" autofocus>Override</h2>
         <button id="securityOverridesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
-      <div id="securityOverrides" class="alarm-schedule-list"></div>
+      <ul id="securityOverrides" class="action-rows" aria-label="Overrides"></ul>
       <p id="securityOverridesNote" class="muted small schedule-empty" hidden></p>
       <button id="securityOverrideAdd" type="button" class="schedule-add-btn">+ Add override</button>
       <p class="muted small detail-hint">After N triggers in one armed session, the detector is bypassed until the next arm.</p>
@@ -2393,7 +2393,7 @@
       <!-- Schedules: a dense collection (design.md): one summary row per
            entry with its switch, and Add / Edit open the staged editor. -->
       <div class="unit-sheet-page" data-page="schedules" data-title="Schedules" hidden>
-        <div id="schedList" class="alarm-schedule-list"></div>
+        <ul id="schedList" class="action-rows" aria-label="Schedules"></ul>
         <p id="schedNote" class="muted small schedule-empty" hidden>No schedules yet.</p>
         <button id="schedAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
         <p class="muted small detail-hint">Each runs once a day. An Off entry only turns the unit off.</p>
@@ -2551,7 +2551,7 @@
         <h2 tabindex="-1" autofocus>Blind schedule</h2>
         <button id="blindSchedulesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
-      <div id="blindSchedules" class="alarm-schedule-list"></div>
+      <ul id="blindSchedules" class="action-rows" aria-label="Blind schedules"></ul>
       <p id="blindSchedulesNote" class="muted small schedule-empty" hidden></p>
       <button id="blindScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
       <div class="row">

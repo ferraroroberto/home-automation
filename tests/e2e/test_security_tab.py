@@ -129,7 +129,7 @@ def test_security_schedule_editor_cancels_then_adds(
     page.locator("#securitySchedulesOpen").click()
     expect(page.locator("#securitySchedulesSheet")).to_have_attribute("data-save-model", "instant")
     dialog = page.locator("#securityScheduleDialog")
-    rows = page.locator("#securitySchedules .automation-summary-row")
+    rows = page.locator("#securitySchedules .action-row")
 
     page.locator("#securityScheduleAdd").click()
     page.locator("#securityScheduleTime").fill("05:45")
@@ -155,7 +155,7 @@ def test_security_schedule_editor_cancels_then_adds(
     expect(page.locator("#securitySchedulesCount")).to_contain_text("1 active")
     expect(page.locator("#securityScheduleAdd")).to_be_focused()
 
-    rows.locator(".automation-summary-main").click()
+    rows.locator(".action-row-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#securityScheduleTime")).to_have_value("22:30")
     expect(page.locator("#securityScheduleAction")).to_have_value("perimeter")
@@ -203,7 +203,7 @@ def test_scene_pairing_editor_cancels_then_adds(
     page.locator("#tabSecurity").click()
     page.locator("#scenePairingsOpen").click()
     dialog = page.locator("#scenePairingDialog")
-    rows = page.locator("#scenePairings .automation-summary-row")
+    rows = page.locator("#scenePairings .action-row")
 
     page.locator("#scenePairingAdd").click()
     page.locator("#scenePairingZone").select_option("1")
@@ -228,7 +228,7 @@ def test_scene_pairing_editor_cancels_then_adds(
     expect(page.locator("#scenePairingsCount")).to_contain_text("1 active")
     expect(page.locator("#scenePairingAdd")).to_be_focused()
 
-    rows.locator(".automation-summary-main").click()
+    rows.locator(".action-row-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#scenePairingZone")).to_have_value("1")
     expect(page.locator("#scenePairingCamera")).to_have_value("front-camera")
@@ -262,7 +262,7 @@ def test_security_override_editor_cancels_then_adds(
     page.locator("#tabSecurity").click()
     page.locator("#securityOverridesOpen").click()
     dialog = page.locator("#securityOverrideDialog")
-    rows = page.locator("#securityOverrides .automation-summary-row")
+    rows = page.locator("#securityOverrides .action-row")
 
     page.locator("#securityOverrideAdd").click()
     page.locator("#securityOverrideZone").select_option("1")
@@ -285,7 +285,7 @@ def test_security_override_editor_cancels_then_adds(
     expect(page.locator("#securityOverridesCount")).to_contain_text("1 active")
     expect(page.locator("#securityOverrideAdd")).to_be_focused()
 
-    rows.locator(".automation-summary-main").click()
+    rows.locator(".action-row-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#securityOverrideZone")).to_have_value("1")
     expect(page.locator("#securityOverrideRetries")).to_have_value("2")
