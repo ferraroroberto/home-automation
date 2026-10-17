@@ -121,6 +121,11 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#exportRateList")).to_contain_text("2026-09-05")
     expect(page.locator("#exportRateCurrent")).to_have_text("€0.16774 / kWh")
 
+    # The list sits flush with the sheet's own text, not 14 px in (#954).
+    note = page.locator("#exportRateSheet .settings-sheet-note").bounding_box()
+    title = page.locator("#exportRateList .action-row-title").first.bounding_box()
+    assert abs(title["x"] - note["x"]) <= 1, (title["x"], note["x"])
+
     page.locator("[data-rate-date='2026-09-05'] .action-row-main").click()
     expect(page.locator("#exportRateAdd")).to_have_text("Save changes")
     page.locator("#exportRateValue").fill("0.18000")

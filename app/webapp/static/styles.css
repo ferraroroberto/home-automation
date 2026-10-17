@@ -1766,6 +1766,15 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
 .unit-sheet-links { border-top: 1px solid var(--line); }
 .unit-sheet-links .action-row,
 .unit-sheet-links .settings-link { padding: 0; }
+/* A summary list inside a sheet (#954). The shared rows pad themselves (4px on
+   the <li>, 10px on the main button and the trailing slot) because they are
+   built to sit full-bleed in a padding-less card; the sheet already pads its
+   content, so the two stacked 14px in. Cancel the row's side padding here (the
+   vendored action-row.css stays verbatim) and the text, switch and chevron
+   line up with the sheet's titles and controls. */
+.sheet-rows > .action-row { padding-inline: 0; }
+.sheet-rows .action-row-main { padding-inline: 0; }
+.sheet-rows .action-row-trail { margin-right: 0; }
 .detail-hint { margin: 8px 0 2px; }
 .schedule-empty { margin: var(--space-xs) 0 0; }
 .schedule-add-btn {

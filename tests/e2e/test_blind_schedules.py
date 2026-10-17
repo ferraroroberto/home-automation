@@ -181,3 +181,31 @@ def test_blinds_follow_alarm_switch_saves(
     # The group's schedule row reflects it once the sheet is closed.
     page.locator("#blindSchedulesSheetDone").click()
     expect(page.locator("#blindSchedulesMeta")).to_have_text("None · follows alarm")
+
+
+def test_schedule_row_text_is_flush_with_the_sheet_content_edge(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
+) -> None:
+    """#954: the shared row's own padding is for a full-bleed card, so in a sheet
+    it stacked on the sheet's padding and the list read 14 px in from the
+    "+ Add schedule" button and the follow-alarm row beneath it."""
+    _boot(page, base_url, sample_units, mock_api, mock_energy, mock_tuya, [
+        {"id": "down", "enabled": True, "time": "21:30", "action": "close",
+         "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "targets": [],
+         "presence": "any"},
+    ])
+    _open_schedule_sheet(page)
+    row = page.locator("#blindSchedules .action-row")
+    expect(row).to_have_count(1)
+
+    def box(selector: str) -> Dict[str, float]:
+        return page.locator(selector).first.bounding_box()
+
+    edge = box("#blindScheduleAdd")  # full width, so its box is the content box
+    title = box("#blindSchedules .action-row-title")
+    switch = box("#blindSchedules .toggle")
+    follow = box("#blindSchedulesSheet .row > span")
+    assert abs(title["x"] - edge["x"]) <= 1, (title["x"], edge["x"])
+    assert abs(follow["x"] - edge["x"]) <= 1, (follow["x"], edge["x"])
+    assert abs((switch["x"] + switch["width"]) - (edge["x"] + edge["width"])) <= 1, (switch, edge)
