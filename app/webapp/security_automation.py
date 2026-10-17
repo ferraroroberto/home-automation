@@ -7,7 +7,6 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, Optional
 
 from dotenv import load_dotenv
@@ -24,6 +23,8 @@ from app.webapp.alarm_notify import (
     confirm_alarm_action,
     record_alarm_action,
 )
+from src._atomic_json import write_json_atomic
+from src.activity_log import LOGS_DIR
 from src.presence_engine import note_manual_alarm_action
 from src.risco_client import RiscoCommandError, RiscoConfigError, fetch_security_state
 from src.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
@@ -55,7 +56,7 @@ class _EngineState:
 # Per-schedule once-per-day fire gate: schedule id -> "YYYY-MM-DD". Persisted
 # to disk so a tray/webapp restart after a schedule's fire time does not
 # refire it later the same day (#540) — mirrors alarm_notify.py's dedupe cache.
-_LAST_FIRE_PATH = Path(__file__).resolve().parent.parent.parent / "logs" / "security_schedule_last_fire.json"
+_LAST_FIRE_PATH = LOGS_DIR / "security_schedule_last_fire.json"
 
 
 def _load_last_fire_day() -> Dict[str, str]:
@@ -68,10 +69,7 @@ def _load_last_fire_day() -> Dict[str, str]:
 
 def _save_last_fire_day(state: Dict[str, str]) -> None:
     try:
-        _LAST_FIRE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _LAST_FIRE_PATH.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(_LAST_FIRE_PATH)
+        write_json_atomic(_LAST_FIRE_PATH, state, indent=None)
     except OSError as exc:
         logger.warning("⚠️ Could not persist alarm schedule fire state: %s", exc)
 
