@@ -24,6 +24,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { chipEl } from './chip.js';
 import { createViewState, markTabFailure } from './view-state.js';
 import { closeDialog, openDialog } from './dialog.js';
+import { detailModal } from './detail-modal.js';
 import { rowEl } from './row.js';
 
 let snapshotUrl = null;   // objectURL for the detail-modal snapshot (revoked on replace)
@@ -269,47 +270,57 @@ async function loadSnapshotInto(imgEl, cameraId) {
   }
 }
 
-let cameraDetailOpener = null;
-
-function openCameraDetail(cameraId, trigger) {
-  const cam = cameraById(cameraId);
-  if (!cam) return;
-  cameraDetailOpener = trigger || null;
-  state.selectedCameraId = cameraId;
-  els.cameraDetailName.textContent = cameraLabel(cam);
-  els.cameraDetailStatus.textContent = cameraStatus(cam);
-  els.cameraDisplayName.value = cam.display_name || '';
-  els.cameraDisplayName.placeholder = cam.id;
-  els.cameraLiveBtn.hidden = !cam.reachable;
-  if (els.cameraSave) els.cameraSave.disabled = true;
-  loadSnapshotInto(els.cameraSnapshot, cameraId);
-  openDialog(els.cameraDialog);
-}
-
-function closeCameraDetail() {
-  closeDialog(els.cameraDialog);
-}
-
-async function saveCameraName() {
-  const id = state.selectedCameraId;
-  if (!id) return;
-  const newName = els.cameraDisplayName.value.trim();
-  try {
-    await jsonApi('/api/cameras/' + encodeURIComponent(id) + '/display_name', {
+// The staged name edit rides the shared detailModal() shell (#912). Closing
+// does not clear state.selectedCameraId: the Live button closes this sheet and
+// the live view's PTZ and record controls keep acting on that camera.
+const cameraModal = detailModal({
+  dialog: els.cameraDialog,
+  closeButton: els.cameraDetailClose,
+  // 'close' fires for the button, backdrop, AND the Esc key — revoke the
+  // snapshot blob here so no path leaks it.
+  onClose: function () {
+    if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); snapshotUrl = null; }
+  },
+  saveButton: els.cameraSave,
+  // A save re-renders the list, so the opener may be gone: find its replacement.
+  fallbackFocus: function () {
+    const id = state.selectedCameraId;
+    return id && els.camerasList
+      ? els.camerasList.querySelector('.camera-row[data-camera-id="' + CSS.escape(id) + '"] .action-row-main')
+      : null;
+  },
+  getEntity: cameraById,
+  populate: function (staged, cam) {
+    els.cameraDetailName.textContent = cameraLabel(cam);
+    els.cameraDetailStatus.textContent = cameraStatus(cam);
+    els.cameraDisplayName.value = cam.display_name || '';
+    els.cameraDisplayName.placeholder = cam.id;
+    els.cameraLiveBtn.hidden = !cam.reachable;
+    loadSnapshotInto(els.cameraSnapshot, cam.id);
+  },
+  buildOps: function (id) {
+    const newName = els.cameraDisplayName.value.trim();
+    return [jsonApi('/api/cameras/' + encodeURIComponent(id) + '/display_name', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ display_name: newName }),
-    });
-    state.cameras = (state.cameras || []).map(function (c) {
-      return c.id === id ? Object.assign({}, c, { display_name: newName || null }) : c;
-    });
+    }).then(function () {
+      state.cameras = (state.cameras || []).map(function (c) {
+        return c.id === id ? Object.assign({}, c, { display_name: newName || null }) : c;
+      });
+    })];
+  },
+  afterSave: function (id) {
     els.cameraDetailName.textContent = cameraLabel(cameraById(id) || { id: id });
-    renderCameras();
-    if (els.cameraSave) els.cameraSave.disabled = true;
-    toast('Saved', 'success');
-  } catch (exc) {
-    reportActionFailure(exc, 'Rename failed');
-  }
+  },
+  failedToast: 'Rename failed',
+  render: renderCameras,
+});
+
+function openCameraDetail(cameraId, trigger) {
+  if (!cameraById(cameraId)) return;
+  state.selectedCameraId = cameraId;
+  cameraModal.open(cameraId, trigger);
 }
 
 // --- full-screen live view ---------------------------------------------------
@@ -647,33 +658,13 @@ async function toggleRecord() {
 
 export function wireCameras() {
   if (!els.cameraDialog) return;
-  els.cameraDetailClose.addEventListener('click', closeCameraDetail);
-  els.cameraDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.cameraDialog) closeCameraDetail();
-  });
-  // 'close' fires for the button, backdrop, AND the Esc key — revoke the
-  // snapshot blob here so no path leaks it.
-  els.cameraDialog.addEventListener('close', function () {
-    if (snapshotUrl) { URL.revokeObjectURL(snapshotUrl); snapshotUrl = null; }
-    // Focus back to the row that opened it (or its re-rendered replacement),
-    // unless the sheet handed over to the live view.
-    let target = cameraDetailOpener;
-    cameraDetailOpener = null;
-    if (els.cameraLiveDialog && els.cameraLiveDialog.open) return;
-    if ((!target || !target.isConnected) && state.selectedCameraId && els.camerasList) {
-      target = els.camerasList.querySelector('.camera-row[data-camera-id="' + CSS.escape(state.selectedCameraId) + '"] .action-row-main');
-    }
-    if (target && target.isConnected) target.focus();
-  });
-  els.cameraDisplayName.addEventListener('input', function () {
-    if (els.cameraSave) els.cameraSave.disabled = false;
-  });
-  if (els.cameraSave) els.cameraSave.addEventListener('click', saveCameraName);
+  els.cameraDisplayName.addEventListener('input', cameraModal.markDirty);
+  if (els.cameraSave) els.cameraSave.addEventListener('click', cameraModal.save);
   els.cameraDisplayName.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); saveCameraName(); }
+    if (ev.key === 'Enter') { ev.preventDefault(); cameraModal.save(); }
   });
   els.cameraLiveBtn.addEventListener('click', function () {
-    closeCameraDetail();
+    cameraModal.close();
     if (state.selectedCameraId) openLiveView(state.selectedCameraId);
   });
 

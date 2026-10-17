@@ -10,12 +10,10 @@
  * keeps its own field population (`populate`) and diff-and-request logic
  * (`buildOps`), since those genuinely differ per module's field set.
  *
- * network-wifi.js, cameras.js, presence.js, and units.js were checked
- * against this same audit finding but don't share this shape: they save
- * each field immediately on blur/toggle (no staged-dirty-Save flow) or
- * track dirty per-section rather than as one flag. Forcing them onto this
- * helper would be a UX behavior change, not a mechanical dedup, so they are
- * deliberately left as-is.
+ * cameras.js, presence.js and lights.js use it too (#912): each has a staged
+ * display-name Save. network-wifi.js and units.js don't share this shape —
+ * they save each field immediately on blur/toggle, or track dirty per-section
+ * rather than as one flag — so they are deliberately left as-is.
  *
  * Config — elements: `dialog`, `saveButton`, `closeButton`, `focusEl` (optional); behavior:
  * `getEntity(id)` (returns the live entity, or a falsy value for an unknown
@@ -30,7 +28,8 @@
  * × `closeButton`, the backdrop, Esc, focus back to the opener) is the
  * shared staged sheet (sheet.js, #880): every way of closing discards the
  * staged copy and runs the caller's optional `onClose()` (where it clears
- * its own `state.selectedXId`).
+ * its own `state.selectedXId`). An optional `fallbackFocus()` names the
+ * element to focus when the opener was re-rendered away by a save.
  *
  * Returns `{open, close, save, markDirty, clearDirty}` plus live `id` and
  * `staged` getters so a module's own field listeners (e.g. a toggle click)
@@ -58,6 +57,7 @@ export function detailModal(config) {
   const shell = sheet(config.dialog, {
     model: 'staged',
     closeButton: config.closeButton,
+    fallbackFocus: config.fallbackFocus,
     onClose: function () {
       entityId = null;
       staged = null;
