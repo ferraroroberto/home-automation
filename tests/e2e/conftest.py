@@ -59,6 +59,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import signal
 import socket
 import ssl
@@ -85,6 +86,7 @@ from tests.e2e._browser_sweep import (
     enumerate_browser_helpers,
     sweep_browser_helpers,
 )
+from src.runtime_data import app_dir_env_var
 from tests.e2e._e2e_live_guard import require_disposable_instance
 
 logger = logging.getLogger(__name__)
@@ -141,6 +143,15 @@ _TEARDOWN_TIMEOUT_S = float(os.environ.get("E2E_TEARDOWN_TIMEOUT_S", "15"))
 # e2e flow can't mirror events into the real webapp/telemetry.sqlite3 (#296).
 _E2E_TELEMETRY_DB = Path(tempfile.gettempdir()) / "ha_e2e_telemetry.sqlite3"
 _E2E_USAGE_DB = Path(tempfile.gettempdir()) / "ha_e2e_usage.sqlite3"
+
+# Per-file database overrides the app honours (the ``env_var=`` of each
+# ``runtime_db_path`` call). Each outranks the data-directory variable, so an
+# inherited one would send a test boot's writes to whatever it names (#975).
+_PER_FILE_DB_ENV_VARS = frozenset({
+    "ENERGY_HISTORY_DB_PATH",
+    "NETWORK_HISTORY_DB_PATH",
+    "NETWORK_SURVEY_DB_PATH",
+})
 
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
@@ -468,6 +479,60 @@ def _newly_wedged_line(at_start: Optional[frozenset], result: SweepResult) -> st
     return f"{NEWLY_WEDGED_PREFIX} {len(new)}{pids}"
 
 
+def _autoboot_env(data_dir: Path) -> Dict[str, str]:
+    """The environment for the autobooted webapp.
+
+    ``HOME_AUTOMATION_DATA_DIR`` points every database resolved through
+    ``runtime_db_path`` at a per-run temp folder (#975): per-file overrides
+    cover only the files they name, so a database added later would silently
+    land on the owner's real runtime folder. The per-file ``*_DB_PATH``
+    variables in ``_PER_FILE_DB_ENV_VARS`` are dropped from the inherited
+    environment because each one outranks the directory variable.
+    """
+    inherited = {
+        k: v for k, v in os.environ.items() if k not in _PER_FILE_DB_ENV_VARS
+    }
+    return {
+        **inherited,
+        app_dir_env_var("home-automation"): str(data_dir),
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        # Never let the autobooted webapp hammer the real FusionSolar cloud — the
+        # frontend is driven against stubbed energy fixtures, not the cloud.
+        "ENERGY_SAMPLER_ENABLED": "0",
+        # Likewise the telemetry reading sampler — it would otherwise fetch
+        # real HVAC (cloud) / plugs / UPS / lights every few minutes from a
+        # test boot. The activity UI is driven against the API directly.
+        "TELEMETRY_SAMPLER_ENABLED": "0",
+        # And redirect the telemetry DB to a throwaway file so control
+        # actions in the e2e flow (arm/disarm/plug toggles) can't mirror
+        # events into the real webapp/telemetry.sqlite3 (#296).
+        "TELEMETRY_DB_PATH": str(_E2E_TELEMETRY_DB),
+        # The browser posts views and taps to /api/usage/events (#906);
+        # keep a test boot's clicks out of the real usage log.
+        "USAGE_LOG_DB_PATH": str(_E2E_USAGE_DB),
+        # Same for the HVAC automation engine: never drive real units from a
+        # test boot (the dormant-tick short-circuit makes it harmless with no
+        # config, but keep it explicitly off like the sampler).
+        "HVAC_AUTOMATION_ENABLED": "0",
+        "SECURITY_SCHEDULES_ENABLED": "0",
+        # Never move real blinds from a test boot (#871).
+        "BLIND_SCHEDULES_ENABLED": "0",
+        "PRESENCE_ICLOUD_REFRESH_ENABLED": "0",
+        "PRESENCE_AUTOMATION_ENGINE_ENABLED": "0",
+        # Assist trace ingestion is a production background read. Browser
+        # tests stub /api/ha and must never inspect the live HA instance.
+        "HA_TRACE_ENABLED": "0",
+        # The nightly speed-test loop spends real bandwidth; a test boot
+        # must never start it, whatever a copied config says (#840).
+        "SPEEDTEST_SCHEDULE_ENABLED": "0",
+        # The master switch (#876): only the tray / webapp.bat opt in, so
+        # a test boot runs no engine even when the shell running pytest
+        # inherited the opt-in. The per-engine flags above stay as depth.
+        "HOME_AUTOMATION_ENGINES": "0",
+    }
+
+
 @pytest.fixture(scope="session")
 def base_url() -> Iterator[str]:
     # Vendored guard (issue #538): refuses via pytest.exit if :8447 is
@@ -507,46 +572,11 @@ def base_url() -> Iterator[str]:
     log_handle: IO[str] = (logs_dir / "e2e-autoboot.log").open(
         "w", encoding="utf-8", errors="replace"
     )
+    # Per-run runtime-data folder (#975); removed in the teardown below.
+    data_dir = Path(tempfile.mkdtemp(prefix="ha_e2e_data_"))
     kwargs: dict = dict(
         cwd=str(_REPO_ROOT), stdout=log_handle, stderr=subprocess.STDOUT,
-        env={
-            **os.environ,
-            "PYTHONIOENCODING": "utf-8",
-            "PYTHONUTF8": "1",
-            # Never let the autobooted webapp hammer the real FusionSolar cloud — the
-            # frontend is driven against stubbed energy fixtures, not the cloud.
-            "ENERGY_SAMPLER_ENABLED": "0",
-            # Likewise the telemetry reading sampler — it would otherwise fetch
-            # real HVAC (cloud) / plugs / UPS / lights every few minutes from a
-            # test boot. The activity UI is driven against the API directly.
-            "TELEMETRY_SAMPLER_ENABLED": "0",
-            # And redirect the telemetry DB to a throwaway file so control
-            # actions in the e2e flow (arm/disarm/plug toggles) can't mirror
-            # events into the real webapp/telemetry.sqlite3 (#296).
-            "TELEMETRY_DB_PATH": str(_E2E_TELEMETRY_DB),
-            # The browser posts views and taps to /api/usage/events (#906);
-            # keep a test boot's clicks out of the real usage log.
-            "USAGE_LOG_DB_PATH": str(_E2E_USAGE_DB),
-            # Same for the HVAC automation engine: never drive real units from a
-            # test boot (the dormant-tick short-circuit makes it harmless with no
-            # config, but keep it explicitly off like the sampler).
-            "HVAC_AUTOMATION_ENABLED": "0",
-            "SECURITY_SCHEDULES_ENABLED": "0",
-            # Never move real blinds from a test boot (#871).
-            "BLIND_SCHEDULES_ENABLED": "0",
-            "PRESENCE_ICLOUD_REFRESH_ENABLED": "0",
-            "PRESENCE_AUTOMATION_ENGINE_ENABLED": "0",
-            # Assist trace ingestion is a production background read. Browser
-            # tests stub /api/ha and must never inspect the live HA instance.
-            "HA_TRACE_ENABLED": "0",
-            # The nightly speed-test loop spends real bandwidth; a test boot
-            # must never start it, whatever a copied config says (#840).
-            "SPEEDTEST_SCHEDULE_ENABLED": "0",
-            # The master switch (#876): only the tray / webapp.bat opt in, so
-            # a test boot runs no engine even when the shell running pytest
-            # inherited the opt-in. The per-engine flags above stay as depth.
-            "HOME_AUTOMATION_ENGINES": "0",
-        },
+        env=_autoboot_env(data_dir),
     )
     if sys.platform == "win32":
         kwargs["creationflags"] = (
@@ -576,6 +606,7 @@ def base_url() -> Iterator[str]:
             log_handle.close()
         except Exception:
             pass
+        shutil.rmtree(data_dir, ignore_errors=True)
 
 
 # --------------------------------------------------------------- browser
