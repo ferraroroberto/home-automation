@@ -9,6 +9,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._surface import surface
 
 
 _HA_BODY = {
@@ -168,6 +169,7 @@ def test_group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
     ).to_be_disabled()
     with page.expect_request(lambda r: r.method == "GET" and r.url.endswith("/api/ha")):
         page.clock.run_for(15_000)
+    surface(page, "iot.ha-satellites-sheet")
     page.locator("#haSatellitesSheetDone").click()
     expect(page.locator("#haSatellitesSheet")).to_be_hidden()
 
@@ -175,6 +177,7 @@ def test_group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
     page.locator("#haInteractionsOpen").click()
     expect(page.locator("#haInteractionsSheet")).to_be_visible()
     expect(page.locator(".ha-interaction-row")).to_contain_text("Where is mom?")
+    surface(page, "iot.ha-interactions-sheet")
     page.locator("#haInteractionsSheetDone").click()
     expect(page.locator("#haInteractionsSheet")).to_be_hidden()
 

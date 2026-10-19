@@ -17,6 +17,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
 from tests.e2e._geometry import assert_no_overlap
+from tests.e2e._surface import surface
 
 
 def test_vm_tile_distinguishes_loading_from_not_found(
@@ -39,10 +40,12 @@ def test_vm_tile_distinguishes_loading_from_not_found(
     expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "loading")
     expect(page.locator("#homeAssistantSummaryState")).to_have_text("Reading status…")
     expect(page.locator("#homeVmToggle")).to_be_disabled()
+    surface(page, "iot.vm-loading")
     release()
     expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "empty")
     expect(page.locator("#homeAssistantSummaryState")).to_have_text("VM not found")
     expect(page.locator("#homeVmToggle")).to_be_disabled()
+    surface(page, "iot.vm-empty")
 
 
 def test_vm_tile_shows_contextual_unavailable_state(
@@ -66,6 +69,7 @@ def test_vm_tile_shows_contextual_unavailable_state(
     expect(page.locator("#homeAssistantSummaryState")).to_have_text("Status unavailable")
     expect(page.locator("#haVmAvatar")).to_have_attribute("data-badge", "down")
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.80")
+    surface(page, "iot.vm-unavailable")
 
 
 def test_vm_status_error_keeps_start_action_when_vm_is_identified(
@@ -215,6 +219,7 @@ def test_vm_poll_failure_preserves_status_and_disables_power(
         "title", re.compile("Last updated .+ · live data unavailable")
     )
     expect(page.locator("#homeAssistantSummaryState")).not_to_contain_text("192.0.2.80")
+    surface(page, "iot.vm-stale")
 
 
 def test_vm_switch_tap_zone_stays_inside_its_row(

@@ -21,6 +21,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._geometry import assert_min_target, assert_unpainted
+from tests.e2e._surface import surface
 
 
 def _sample_machines() -> List[Dict]:
@@ -153,6 +154,7 @@ def test_pc_fleet_renders_machine_list_with_state_chips(
     expect(page.locator('[data-machine-id="hub-host"] .pc-fleet-host-note')).to_be_visible()
     # A non-host peer carries an include toggle.
     expect(page.locator('[data-machine-id="workstation"] .toggle')).to_have_count(1)
+    surface(page, "iot.pc-fleet-machines")
 
 
 def test_include_toggle_flip_puts_excluded(
@@ -252,6 +254,7 @@ def test_hub_unreachable_shows_note_and_keeps_prefs_editable(
     expect(page.locator("#pcFleetNote")).to_be_visible()
     expect(page.locator("#pcFleetNote")).to_contain_text("not reachable")
     expect(page.locator(".pc-fleet-machine")).to_have_count(0)
+    surface(page, "iot.pc-fleet-unreachable")
 
     # Prefs stay editable, and a save preserves the previously-known `excluded`
     # (it is not wiped just because the roster is unavailable).

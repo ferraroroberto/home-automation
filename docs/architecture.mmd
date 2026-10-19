@@ -98,6 +98,7 @@ flowchart TB
   subgraph ops["scripts/ — ops"]
     CERTGEN["gen_tailscale_cert.py"]
     HASYNC["ha_config_sync.py"]
+    DRSYN["design_review_synthetic.py"]
     UNPIN["unpin_directory.py"]
   end
   CERTGEN -->|provisions HTTPS cert for| RUNTIME

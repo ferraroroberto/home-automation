@@ -21,6 +21,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._surface import surface
 
 
 def _boot_pv_system(
@@ -58,6 +59,7 @@ def test_card_renders_a_summary_row_per_panel_row(
     expect(rows.nth(1)).to_contain_text("0.9 kWp · 15° · N")
     # The header carries the system total so the card reads without expanding.
     expect(page.locator("#pvSystemTotal")).to_have_text("8.8 kWp")
+    surface(page, "energy.pv-system-sheet")
 
 
 def test_empty_config_shows_the_empty_state_not_a_blank_list(
@@ -69,6 +71,7 @@ def test_empty_config_shows_the_empty_state_not_a_blank_list(
     expect(page.locator("#pvArrayList .empty-state")).to_be_visible()
     expect(page.locator("#pvArrayList")).to_contain_text("No panel rows yet")
     expect(page.locator("#pvArrayAdd")).to_be_visible()
+    surface(page, "energy.pv-system-empty")
 
 
 def test_adding_a_row_validates_then_updates_the_forecast_and_its_toast(
@@ -99,6 +102,7 @@ def test_adding_a_row_validates_then_updates_the_forecast_and_its_toast(
     expect(error).to_be_visible()
     expect(error).to_contain_text("between 0 and 90")
     expect(page.locator("#pvArrayTilt")).to_have_attribute("aria-invalid", "true")
+    surface(page, "energy.pv-array-dialog")
     # Still open, still one row — nothing was persisted.
     expect(dialog).to_be_visible()
     expect(rows).to_have_count(1)
@@ -137,3 +141,17 @@ def test_adding_a_row_validates_then_updates_the_forecast_and_its_toast(
 
     expect(dialog).to_be_hidden()
     expect(toast).to_have_text("PV system saved")
+
+
+def test_horizon_point_editor_opens_from_the_sheet(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    _boot_pv_system(
+        page, base_url, sample_units, mock_api, mock_energy,
+        pv_arrays=[{"kwp": 7.9, "tilt_deg": 15.0, "azimuth_deg": 0.0}],
+    )
+    page.locator("#pvHorizonAdd").click()
+    expect(page.locator("#pvHorizonDialog")).to_be_visible()
+    expect(page.locator("#pvHorizonEditorTitle")).to_have_text("Add horizon point")
+    surface(page, "energy.pv-horizon-dialog")

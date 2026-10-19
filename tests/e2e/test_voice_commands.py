@@ -14,6 +14,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._surface import surface
 
 _HA_BODY = {"satellites": [], "interactions": [], "voice_transcriber": False}
 
@@ -75,6 +76,7 @@ def test_language_toggle_filters_by_pipeline(
     page.locator('[data-testid="voice-lang-en"]').click()
     expect(lst).to_contain_text("Okay Nabu,")
     expect(lst).not_to_contain_text("Hey Mycroft,")
+    surface(page, "settings.voice-sheet")
 
 
 def test_alarm_group_is_bilingual_in_the_card(

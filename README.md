@@ -1695,6 +1695,20 @@ and tab switching, with the tab content it used to carry now in
 new case to the module named after what it exercises; `tests/e2e/_app.py` holds
 the shared `boot_home()` opener the feature modules use.
 
+**Design inventory (fleet-config#1383, #977).** `tests/e2e/_surface.py` is the
+vendored `surface(page, "<tab>.<surface>")` call: inert in a normal run, but when
+`/design-review home-automation --e2e` (or `measure --e2e`) sets
+`DESIGN_SURFACE_CAPTURE` it screenshots and inventories the open surface in both
+themes. Call it directly in the test body, after the assertions and any `shot()`,
+in the first test that opens each dialog, sheet or state; the name is unique per
+app. In capture mode the vendored hook deselects every test without a `surface(`
+call. The walk runs on `scripts/design_review_synthetic.py`, a disposable webapp
+with the engines off and no credential or LAN access, never the tray; run it from
+a checkout whose `config/` holds only the `*.sample.json` twins (the app has no
+config-dir override). `pytest tests/e2e --e2e-autoboot` boots that disposable
+instance even while the tray owns this checkout's port, which the live-instance
+guard would otherwise refuse.
+
 As of 2026-10-02 (#798), a full run executes 220 nodes in ~3.1 min (3m06s, run-to-run spread 2m55s–3m20s):
 282 are collected and 62 WebKit nodes are deselected (#778 had trimmed 304
 executions in 4m46s to 270 in 3m30s; the same-state run just before #798 was

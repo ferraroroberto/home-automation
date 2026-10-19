@@ -13,6 +13,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, open_settings_sheet
+from tests.e2e._surface import surface
 
 _LAZY_LIBRARIES = ("chart.umd.min.js", "leaflet.js", "leaflet.css")
 
@@ -46,7 +47,10 @@ def test_place_map_picker_loads_leaflet_on_first_open(
     boot_home(page, base_url)
 
     open_settings_sheet(page, "presencePlacesSheet")  # Settings since #779
+    surface(page, "settings.presence-places-sheet")
     page.locator("#presencePlaceAdd").click()
+    expect(page.locator("#presencePlaceDialog")).to_be_visible()
+    surface(page, "settings.presence-place-dialog")
     page.locator("#presencePlacePickMap").click()
 
     expect(page.locator("#presenceMapPickerDialog")).to_be_visible()
@@ -54,3 +58,4 @@ def test_place_map_picker_loads_leaflet_on_first_open(
     assert page.evaluate("typeof window.L") == "object"
     # The stylesheet came with the script: Leaflet's CSS makes the container positioned.
     assert page.locator("#presenceMapPicker").evaluate("el => getComputedStyle(el).position") == "relative"
+    surface(page, "settings.presence-map-picker-dialog")

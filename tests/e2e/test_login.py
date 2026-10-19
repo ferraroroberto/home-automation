@@ -13,6 +13,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._surface import surface
+
 
 def test_401_shows_login_overlay(page: Page, base_url: str) -> None:
     page.route(
@@ -25,6 +27,7 @@ def test_401_shows_login_overlay(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     expect(page.locator("#loginOverlay")).to_be_visible()
     expect(page.locator("#loginPassword")).to_be_editable()
+    surface(page, "shared.login")
 
 
 def test_password_login_loads_dashboard(
@@ -82,3 +85,4 @@ def test_bad_password_keeps_overlay(page: Page, base_url: str) -> None:
     expect(page.locator("#loginError")).to_be_visible()
     expect(page.locator("#loginError")).to_contain_text("bad password")
     expect(page.locator("#loginOverlay")).to_be_visible()
+    surface(page, "shared.login-error")

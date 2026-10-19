@@ -11,6 +11,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._geometry import effective_rect
+from tests.e2e._surface import surface
 
 
 def _open_detail(page: Page, base_url: str, unit_id: str) -> None:
@@ -36,10 +37,12 @@ def test_sheet_shows_mode_as_the_selected_segment_and_both_vanes(
     expect(page.locator('#detailMode [aria-pressed="true"]')).to_have_attribute("data-value", "Cool")
     expect(page.locator("#detailRoomLine")).to_have_text("Room 22.5° · cooling")
     expect(page.locator("#detailVanesValue")).to_have_text("Auto · Swing")
+    surface(page, "ac.unit-sheet")
     _open_page(page, "vanes")
     expect(page.locator("#detailName")).to_have_text("Vanes")
     expect(page.locator("#detailVaneVerticalRow")).to_be_visible()
     expect(page.locator("#detailVaneHorizontalRow")).to_be_visible()
+    surface(page, "ac.unit-sheet-vanes")
     # Back returns to the main page under the unit's name.
     page.locator("#detailBack").click()
     expect(page.locator('#detailDialog .unit-sheet-page[data-page="main"]')).to_be_visible()
@@ -100,6 +103,7 @@ def test_offline_unit_disables_unit_commands_only(
     expect(page.locator("#detailTempUp")).to_be_disabled()
     expect(page.locator("#detailMode .segmented-item:enabled")).to_have_count(0)
     expect(page.locator("#detailFanSpeed .segmented-item:enabled")).to_have_count(0)
+    surface(page, "ac.unit-sheet-offline")
     _open_page(page, "vanes")
     expect(page.locator("#detailVaneVertical")).to_be_disabled()
     expect(page.locator("#detailVaneHorizontal")).to_be_disabled()
@@ -177,6 +181,7 @@ def test_rule_switch_saves_at_once(
     _open_detail(page, base_url, "unit-1")
     expect(page.locator("#detailRuleValue")).to_have_text("Off")
     _open_page(page, "rule")
+    surface(page, "ac.unit-sheet-rule")
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1/rule") and r.method == "PUT"
     ) as info:
@@ -199,6 +204,7 @@ def test_name_saves_on_enter(
     mock_api(sample_units)
     _open_detail(page, base_url, "unit-1")
     _open_page(page, "name")
+    surface(page, "ac.unit-sheet-name")
     page.locator("#detailDisplayName").fill("Fixture den")
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1/display_name") and r.method == "PUT"
@@ -216,12 +222,14 @@ def test_schedules_add_through_the_staged_editor(
     expect(page.locator("#detailSchedValue")).to_have_text("None")
     _open_page(page, "schedules")
     expect(page.locator("#schedNote")).to_be_visible()
+    surface(page, "ac.unit-sheet-schedules")
 
     # First entry: an On profile, saved through the staged editor.
     page.locator("#schedAdd").click()
     editor = page.locator("#acScheduleDialog")
     expect(editor).to_be_visible()
     expect(editor).to_have_attribute("data-save-model", "staged")
+    surface(page, "ac.ac-schedule-dialog")
     page.locator("#acScheduleTime").fill("07:30")
     with page.expect_request(
         lambda r: r.url.endswith("/api/units/unit-1/schedule") and r.method == "PUT"

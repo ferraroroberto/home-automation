@@ -6,6 +6,7 @@ test runs on both engines, since the iPhone is WebKit (#859).
 
 from __future__ import annotations
 
+import base64
 import json
 from typing import Callable, Dict, List
 
@@ -14,6 +15,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
 from tests.e2e._geometry import assert_min_target, assert_no_overlap, assert_unpainted
+from tests.e2e._surface import surface
 
 _CAMERA = {
     "id": "front-door",
@@ -24,6 +26,11 @@ _CAMERA = {
     "ptz_presets": False,
     "ptz_absolute": False,
 }
+
+# A 1x1 PNG, so the snapshot zoom has a frame to show.
+_PIXEL_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
 
 
 def _open_live_view(page: Page, base_url: str, camera: Dict, presets: List[Dict]) -> None:
@@ -121,6 +128,7 @@ def test_cameras_distinguish_loading_from_true_empty(
     expect(page.locator("#camerasList .empty-state-message")).to_have_text(
         "No cameras configured"
     )
+    surface(page, "security.cameras-empty")
 
 
 @pytest.mark.chromium_only
@@ -149,6 +157,7 @@ def test_cameras_show_contextual_unavailable_state(
         "Cameras unavailable"
     )
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.50")
+    surface(page, "security.cameras-unavailable")
 
 
 @pytest.mark.chromium_only
@@ -191,6 +200,7 @@ def test_camera_refresh_failure_preserves_last_good_rows(
     expect(page.locator("#camerasNote")).to_contain_text("Last updated")
     expect(page.locator("#camerasNote")).to_contain_text("live data unavailable")
     expect(page.locator("#camerasNote")).not_to_contain_text("192.0.2.50")
+    surface(page, "security.cameras-stale")
 
 
 @pytest.mark.chromium_only
@@ -208,6 +218,64 @@ def test_camera_buttons_carry_a_visible_label(
 
     actions = page.locator("#cameraLiveDialog .camera-live-controls button:not(.camera-ptz-btn)")
     expect(actions).to_have_text(_LIVE_LABELS)
+    surface(page, "security.camera-live-dialog")
+
+
+@pytest.mark.chromium_only
+def test_camera_thumbnail_opens_the_snapshot_zoom(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """The row's thumbnail opens the persisted last frame full size (a stubbed one)."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    page.route("**/api/cameras/*/**", lambda route: route.fulfill(status=204))
+    page.route(
+        "**/api/cameras/*/last_snapshot**",
+        lambda route: route.fulfill(status=200, content_type="image/png", body=_PIXEL_PNG),
+    )
+    page.route(
+        "**/api/cameras",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"cameras": [_CAMERA]}),
+        ),
+    )
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+    page.locator("#camerasList .camera-thumb").click()
+
+    expect(page.locator("#cameraZoomDialog")).to_be_visible()
+    expect(page.locator("#cameraZoomName")).to_have_text("Front door")
+    surface(page, "security.camera-zoom-dialog")
+
+
+@pytest.mark.chromium_only
+def test_saving_a_ptz_preset_prompts_for_its_name(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """"+ Save" in the live view asks for a name first; Close aborts without saving."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    _open_live_view(page, base_url, dict(_CAMERA, ptz_presets=True), [])
+    page.locator("#cameraPresetSave").click()
+
+    prompt = page.locator("#cameraPresetNameDialog")
+    expect(prompt).to_be_visible()
+    expect(page.locator("#cameraPresetNameTitle")).to_have_text("Name this preset")
+    expect(page.locator("#cameraPresetNameInput")).to_have_value("Position 1")
+    surface(page, "security.camera-preset-name-dialog")
+
+    page.locator("#cameraPresetNameClose").click()
+    expect(prompt).to_be_hidden()
 
 
 @pytest.mark.parametrize("width", [320, 390])

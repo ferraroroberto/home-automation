@@ -9,6 +9,7 @@ description = "Home automation: AC, solar, per-circuit energy, alarm, network he
 chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "Tuya", "HA", "Telegram"]
 
 [vendored]
+surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
 e2e_live_guard = { src = "tests/e2e/_e2e_live_guard.py", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "tests/e2e/_e2e_live_guard.py" }
 browser_sweep = { src = "tests/e2e/_browser_sweep.py", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "tests/e2e/_browser_sweep.py" }
 classify_e2e = { src = "scripts/classify_e2e.py", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "scripts/classify_e2e.py" }
@@ -31,6 +32,26 @@ modal = { src = "app/webapp/static/_vendored/modal", sha = "4c699636afecd5cae5e9
 # show on Home: the AC unit cards sit on another tab, so it never would there.
 [perf.review]
 ready_selector = "#homeEnergyFlow"
+
+# /design-review (fleet-config skills/design-review). The app stamps html[data-theme]
+# at load from home-automation.theme (else the OS scheme), so the e2e capture hook
+# (tests/e2e/_surface.py) has to set that key too or its dark shots stay light (#977).
+[design.review]
+theme_storage_key = "home-automation.theme"
+
+# The throwaway instance `measure --e2e` walks: the e2e autoboot's engines-off
+# environment with credentials and the LAN sweep disabled, never the live tray on
+# :8447 (scripts/design_review_synthetic.py).
+[design.review.synthetic]
+command = ["scripts/design_review_synthetic.py"]
+startup_timeout_s = 60
+
+# `measure --e2e` runs the suite with the surface() hook armed. --e2e-autoboot boots
+# the suite's own disposable webapp even while the tray holds :8447, where a bare
+# run would stop at the live-instance guard.
+[design.review.e2e]
+command = ["-m", "pytest", "tests/e2e", "--e2e-autoboot", "-q"]
+timeout_s = 900
 
 # Diff-proportionate e2e routing (ferraroroberto/home-automation#603,
 # project-scaffolding#180, schema: project-scaffolding/docs/e2e-routing.md).

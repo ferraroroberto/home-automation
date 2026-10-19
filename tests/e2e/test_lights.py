@@ -11,6 +11,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import hold_reads
+from tests.e2e._surface import surface
 
 
 @pytest.fixture(autouse=True)
@@ -105,6 +106,7 @@ def test_lights_tab_distinguishes_loading_from_true_empty(
     expect(page.locator("#lightsList .empty-state-message")).to_have_text(
         "No lights configured or discovered"
     )
+    surface(page, "iot.lights-empty")
 
 
 def test_lights_tab_shows_contextual_unavailable_state(
@@ -136,6 +138,7 @@ def test_lights_tab_shows_contextual_unavailable_state(
         "Live light data is unavailable. Check the light connection, then retry."
     )
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.10")
+    surface(page, "iot.lights-unavailable")
 
 
 def test_lights_controls_round_trip(
@@ -178,6 +181,7 @@ def test_lights_controls_round_trip(
     warmth.dispatch_event("change")
     expect(warmth).to_have_value("4000")
     expect(row.locator(".action-row-meta-text")).to_have_text("55% · 4000 K")
+    surface(page, "iot.light-sheet")
     page.locator("#lightSheetDone").click()
     expect(sheet).to_be_hidden()
 
@@ -281,6 +285,7 @@ def test_lights_bulk_controls_and_detail_rename(
     expect(page.locator("#lightDetailName")).to_have_text("Desk left")
     expect(row.locator(".action-row-title")).to_have_text("Desk left")
     expect(page.locator("#lightSheetName")).to_have_text("Desk left")
+    surface(page, "iot.light-dialog")
 
 
 def test_lights_refresh_failure_keeps_partial_data_note(
@@ -310,3 +315,4 @@ def test_lights_refresh_failure_keeps_partial_data_note(
     expect(page.locator("#lightsNote")).to_contain_text("Last updated")
     expect(page.locator("#lightsNote")).to_contain_text("live data unavailable")
     expect(page.locator("#lightsNote")).not_to_contain_text("ELGATO_LIGHT_HOSTS")
+    surface(page, "iot.lights-stale")

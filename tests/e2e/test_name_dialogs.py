@@ -19,6 +19,7 @@ import pytest
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home
+from tests.e2e._surface import surface
 
 _CAMERA = {
     "id": "front-door",
@@ -128,6 +129,8 @@ def test_camera_name_dialog_stages_the_edit(
         opener.click()
 
     reopen()
+    expect(page.locator("#cameraDialog")).to_be_visible()
+    surface(page, "security.camera-dialog")
     _assert_staged_name_flow(
         page,
         reopen=reopen,

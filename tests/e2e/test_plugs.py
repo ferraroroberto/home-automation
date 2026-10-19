@@ -22,6 +22,7 @@ from tests.e2e._geometry import (
     assert_unpainted,
     effective_rects,
 )
+from tests.e2e._surface import surface
 
 
 def _boot_plugs(
@@ -55,6 +56,7 @@ def test_plugs_tab_renders_all_devices(
     expect(page.locator("#plugsList")).to_contain_text("Test Heater")
     expect(page.locator("#blindsList")).to_contain_text("Test Blind")
     expect(page.locator("#plugsList .plugs-offline-row")).to_contain_text("One plug not reachable")
+    surface(page, "iot.devices")
 
 
 class _FeedbackPanel(NamedTuple):
@@ -119,6 +121,7 @@ def test_panel_distinguishes_loading_from_true_empty(
     release()
     expect(feedback).to_have_attribute("data-state", "empty")
     expect(message).to_have_text(panel.empty_message)
+    surface(page, "iot.plugs-empty" if panel.endpoint == "/api/tuya" else "iot.ups-empty")
 
 
 @pytest.mark.parametrize("panel", _FEEDBACK_PANELS)
@@ -142,6 +145,7 @@ def test_panel_shows_contextual_unavailable_state(
     expect(page.locator(panel.feedback)).to_have_attribute("data-state", "error")
     expect(page.locator(f"{panel.feedback} {panel.message}")).to_have_text(panel.error_message)
     expect(page.locator("#toast")).not_to_contain_text(panel.leaked_host)
+    surface(page, "iot.plugs-unavailable" if panel.endpoint == "/api/tuya" else "iot.ups-unavailable")
 
 
 def test_plug_refresh_failure_preserves_last_good_rows(
@@ -170,6 +174,7 @@ def test_plug_refresh_failure_preserves_last_good_rows(
     expect(page.locator("#plugsFeedback")).to_contain_text("Last updated")
     expect(page.locator("#plugsFeedback")).to_contain_text("live data unavailable")
     expect(page.locator("#plugsFeedback")).not_to_contain_text("192.0.2.60")
+    surface(page, "iot.plugs-stale")
 
 
 def test_ups_poll_failure_preserves_last_good_status(
@@ -224,6 +229,7 @@ def test_ups_poll_failure_preserves_last_good_status(
     expect(status).to_contain_text("Last updated")
     expect(status).to_contain_text("live data unavailable")
     expect(page.locator("#upsSheet")).not_to_contain_text("192.0.2.70")
+    surface(page, "iot.ups-sheet")
 
 
 def test_ups_snapshot_paints_before_live_refresh(
@@ -321,6 +327,7 @@ def test_plug_rename_round_trips(
     # Tap the row → rename dialog opens; saving relabels the row from the override.
     page.locator('[data-device-id="plug-1"] .action-row-main').click()
     expect(page.locator("#plugDialog")).to_be_visible()
+    surface(page, "iot.plug-dialog")
     field = page.locator("#plugDisplayName")
     field.fill("Garage Heater")
     field.press("Enter")  # Enter saves → PUT /api/tuya/{id}/display_name
