@@ -16,6 +16,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._surface import surface
 
 
 def _boot_boost_card(
@@ -49,6 +50,7 @@ def test_stored_values_read_in_the_summary_and_populate_the_fields(
     expect(page.locator("#boostHardDeficit")).to_have_value("1500")
     # The floor is served, not hand-copied into the frontend.
     expect(page.locator("#boostSettleMin")).to_have_attribute("min", "5")
+    surface(page, "energy.boost-coord-sheet")
 
 
 def test_editing_the_settle_interval_and_margin_persists_and_updates_the_summary(

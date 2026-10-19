@@ -14,6 +14,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._surface import surface
 
 
 def test_ac_tab_distinguishes_loading_from_true_empty(
@@ -34,11 +35,13 @@ def test_ac_tab_distinguishes_loading_from_true_empty(
     expect(page.locator("#acFeedback .empty-state-message")).to_have_text(
         "Reading AC units…"
     )
+    surface(page, "ac.loading")
     release()
     expect(page.locator("#paneAc")).to_have_attribute("data-state", "empty")
     expect(page.locator("#acFeedback .empty-state-message")).to_have_text(
         "No AC units configured"
     )
+    surface(page, "ac.empty")
 
 
 def test_ac_tab_shows_contextual_unavailable_state(
@@ -61,6 +64,7 @@ def test_ac_tab_shows_contextual_unavailable_state(
         "AC units unavailable"
     )
     expect(page.locator("#toast")).not_to_contain_text("melcloud.example.internal")
+    surface(page, "ac.unavailable")
 
 
 def test_ac_poll_failure_preserves_units_and_disables_actions(
@@ -72,6 +76,7 @@ def test_ac_poll_failure_preserves_units_and_disables_actions(
     boot_home(page, base_url)
     page.locator("#tabAc").click()
     expect(page.locator("#acUnits .ac-row")).to_have_count(len(sample_units))
+    surface(page, "ac.units")
 
     page.unroute("**/api/units")
     page.route(
@@ -92,6 +97,7 @@ def test_ac_poll_failure_preserves_units_and_disables_actions(
     expect(page.locator("#acUnits .ac-line-toggle:enabled")).to_have_count(0)
     expect(page.locator("#acSummary .ac-line-toggle:enabled")).to_have_count(0)
     expect(page.locator("#acFeedback")).not_to_contain_text("melcloud.example.internal")
+    surface(page, "ac.stale")
 
 
 def test_units_snapshot_paints_before_live_refresh(

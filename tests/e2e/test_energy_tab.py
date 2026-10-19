@@ -13,6 +13,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings, open_settings_sheet
 from tests.e2e._geometry import chart_dataset_cues, chart_tick_budget
+from tests.e2e._surface import surface
 
 
 # A 503's raw backend detail. The UI shows its own copy ("live data
@@ -72,6 +73,7 @@ def test_energy_tab_renders_flow_and_charts(
     assert page.locator("#exportCreditChart").evaluate(
         "canvas => Chart.getChart(canvas).data.datasets.map(dataset => dataset.label)"
     ) == ["Grid cost", "Avoided cost", "Export income"]
+    surface(page, "energy.overview")
 
     # Money: the same period, the tariff estimate, a row per tariff period.
     page.locator('#historyView [data-view="money"]').click()
@@ -91,6 +93,7 @@ def test_energy_tab_renders_flow_and_charts(
     expect(sheet).to_contain_text("Total solar benefit")
     expect(sheet.locator(".energy-figures-head")).to_have_count(4)
     expect(sheet.locator(".energy-figures-head").last).to_have_text("Total")
+    surface(page, "energy.energy-figures-sheet")
     page.locator("#energyFiguresSheetDone").click()
     expect(sheet).to_be_hidden()
 
@@ -110,6 +113,7 @@ def test_energy_tab_renders_flow_and_charts(
     expect(page.locator("#paneSettings")).to_be_visible()
     expect(page.locator("#exportRateSheet")).to_be_visible()
     expect(page.locator("#exportRateCurrent")).to_have_text("€0.05000 / kWh")
+    surface(page, "energy.export-rate-sheet")
     page.locator("#exportRateDate").fill("2026-09-05")
     page.locator("#exportRateAdd").click()
     expect(page.locator("#exportRateError")).to_have_text("Enter an export rate.")
@@ -166,6 +170,7 @@ def test_energy_tab_shows_contextual_unavailable_state(
     expect(page.locator("#toast")).to_contain_text("Couldn't load live energy")
     expect(page.locator("#toast")).not_to_contain_text(_RAW_503_DETAIL)
     expect(page.locator("#energyFeedback")).not_to_contain_text(_RAW_503_DETAIL)
+    surface(page, "energy.unavailable")
 
 
 def test_energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure(
@@ -182,6 +187,7 @@ def test_energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure(
     expect(page.locator("#energyFeedback .empty-state-message")).to_have_text(
         "Reading live energy…"
     )
+    surface(page, "energy.loading")
     release()
     expect(page.locator("#paneEnergy")).to_have_attribute("data-state", "ready")
     expect(page.locator("#energyFeedback")).to_be_hidden()
@@ -205,6 +211,7 @@ def test_energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure(
     expect(page.locator("#energyFeedback")).not_to_contain_text(_RAW_503_DETAIL)
     expect(page.locator("#toast")).to_contain_text("Couldn't load live energy")
     expect(page.locator("#toast")).not_to_contain_text(_RAW_503_DETAIL)
+    surface(page, "energy.stale")
 
 
 def test_energy_chart_tick_budget_updates_with_viewport(
@@ -405,6 +412,7 @@ def test_sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
     expect(note).to_contain_text("2 hours excluded — feed coverage too short")
     expect(note).to_contain_text("1 daylight hour never measured")
     expect(page.locator("#sunOverlayEmpty")).to_be_hidden()
+    surface(page, "energy.sun-overlay-sheet")
 
 
 def test_sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
@@ -421,3 +429,4 @@ def test_sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
     expect(empty).to_be_visible()
     expect(empty).to_contain_text("No measured hours")
     expect(page.locator("#sunOverlayNote")).to_contain_text("0 hours plotted")
+    surface(page, "energy.sun-overlay-empty")

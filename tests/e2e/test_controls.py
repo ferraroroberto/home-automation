@@ -14,6 +14,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rect
+from tests.e2e._surface import surface
 
 
 def _boot(page: Page, base_url: str) -> None:
@@ -152,6 +153,7 @@ def test_offline_unit_row_is_marked_and_inert(
     online = _row(page, "unit-1")
     expect(online.locator(".ac-line-offline")).to_have_count(0)
     expect(online.locator(".ac-line-toggle")).to_be_enabled()
+    surface(page, "ac.offline")
 
 
 def test_offline_unit_row_marked_on_home_summary(

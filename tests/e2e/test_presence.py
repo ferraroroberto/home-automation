@@ -16,6 +16,7 @@ from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings_sheet
 from tests.e2e._geometry import apply_matrix_leg
+from tests.e2e._surface import surface
 
 
 @pytest.mark.chromium_only
@@ -57,6 +58,7 @@ def test_presence_distinguishes_loading_from_true_empty(
     expect(page.locator("#presenceList .empty-state-message")).to_have_text(
         "No presence entities configured"
     )
+    surface(page, "security.presence-empty")
 
 
 @pytest.mark.chromium_only
@@ -85,6 +87,7 @@ def test_presence_shows_contextual_unavailable_state(
         "Presence unavailable"
     )
     expect(page.locator("#toast")).not_to_contain_text("icloud.example.internal")
+    surface(page, "security.presence-unavailable")
 
 
 @pytest.mark.chromium_only
@@ -121,6 +124,7 @@ def test_presence_refresh_failure_preserves_last_good_rows(
     expect(page.locator("#presenceNote")).not_to_contain_text(
         "icloud.example.internal"
     )
+    surface(page, "security.presence-stale")
 
 
 def test_presence_settings_use_compact_right_aligned_controls(
@@ -165,6 +169,11 @@ def test_presence_settings_use_compact_right_aligned_controls(
             assert label_box is not None and control_box is not None
             assert label_box["x"] + label_box["width"] <= control_box["x"] - 8
         boxes.update(sheet_boxes)
+        surface(
+            page,
+            "settings.home-location-sheet" if sheet_id == "homeLocationSheet"
+            else "settings.presence-automation-sheet",
+        )
         page.locator(f"#{sheet_id} [data-sheet-done]").click()
         expect(page.locator(f"#{sheet_id}")).to_be_hidden()
 
@@ -326,11 +335,13 @@ def test_presence_icloud_account_rows_offer_trust_renewal(
     expect(rows.nth(1)).to_have_class(re.compile(r"\bis-untrusted\b"))
     renew = rows.nth(1).get_by_test_id("presence-account-renew")
     expect(renew).to_have_text("Renew trust")
+    surface(page, "security.presence-accounts-sheet")
 
     # Confirm-gated: cancel sends nothing; confirm hits begin, code dialog opens.
     renew.click()
     expect(page.locator("#confirmDialog")).to_be_visible()
     expect(page.locator("#confirmMessage")).to_contain_text("two@example.com")
+    surface(page, "shared.confirm-dialog")
     page.locator("#confirmCancel").click()
     expect(page.locator("#confirmDialog")).to_be_hidden()
     assert begins == []
@@ -342,6 +353,7 @@ def test_presence_icloud_account_rows_offer_trust_renewal(
     expect(page.get_by_test_id("presence-trust-code")).to_be_focused()
     expect(page.get_by_test_id("presence-trust-verify")).to_be_enabled()
     assert len(begins) == 1
+    surface(page, "security.presence-trust-dialog")
 
 
 @pytest.mark.chromium_only
@@ -396,6 +408,7 @@ def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
     expect(rows.nth(0)).not_to_contain_text("broken:")
     expect(rows.nth(0).get_by_test_id("presence-account-renew")).to_have_count(0)
     expect(rows.nth(1).get_by_test_id("presence-account-renew")).to_have_text("Renew trust")
+    surface(page, "security.presence-accounts-broken")
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
@@ -442,3 +455,4 @@ def test_presence_open_map_pill_has_chip_horizontal_padding(
     # The 1px border sits inside the box edge, so the label inset is at least
     # the padding, never less.
     assert sides["insetLeft"] >= 8 and sides["insetRight"] >= 8, sides
+    surface(page, "security.presence-dialog")

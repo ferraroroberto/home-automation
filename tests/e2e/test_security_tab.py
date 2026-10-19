@@ -23,6 +23,7 @@ from tests.e2e._geometry import (
     assert_no_overlap,
     effective_rects,
 )
+from tests.e2e._surface import surface
 
 
 def _stable_effective_rects(locator: Locator) -> List[EffectiveRect]:
@@ -63,6 +64,7 @@ def test_security_tab_shows_contextual_unavailable_state(
     )
     expect(page.locator("#securityState")).to_be_hidden()
     expect(page.locator("#toast")).not_to_contain_text("risco.example.internal")
+    surface(page, "security.unavailable")
 
 
 def test_security_tab_loads_then_keeps_state_and_disables_actions_on_poll_failure(
@@ -108,6 +110,7 @@ def test_security_tab_loads_then_keeps_state_and_disables_actions_on_poll_failur
     expect(page.locator("#securityFeedback")).not_to_contain_text(
         "risco.example.internal"
     )
+    surface(page, "security.stale")
 
 
 def test_security_schedule_editor_cancels_then_adds(
@@ -154,11 +157,13 @@ def test_security_schedule_editor_cancels_then_adds(
     expect(rows).to_contain_text("Perimeter · Every day")
     expect(page.locator("#securitySchedulesCount")).to_contain_text("1 active")
     expect(page.locator("#securityScheduleAdd")).to_be_focused()
+    surface(page, "security.schedules-sheet")
 
     rows.locator(".action-row-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#securityScheduleTime")).to_have_value("22:30")
     expect(page.locator("#securityScheduleAction")).to_have_value("perimeter")
+    surface(page, "security.schedule-dialog")
 
 
 def test_scene_pairing_editor_cancels_then_adds(
@@ -227,12 +232,14 @@ def test_scene_pairing_editor_cancels_then_adds(
     expect(rows).to_contain_text("Front camera · Garden")
     expect(page.locator("#scenePairingsCount")).to_contain_text("1 active")
     expect(page.locator("#scenePairingAdd")).to_be_focused()
+    surface(page, "security.scene-pairings-sheet")
 
     rows.locator(".action-row-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#scenePairingZone")).to_have_value("1")
     expect(page.locator("#scenePairingCamera")).to_have_value("front-camera")
     expect(page.locator("#scenePairingPreset")).to_have_value("garden")
+    surface(page, "security.scene-pairing-dialog")
 
 
 def test_security_override_editor_cancels_then_adds(
@@ -284,11 +291,13 @@ def test_security_override_editor_cancels_then_adds(
     expect(rows).to_contain_text("Bypass after 2 triggers")
     expect(page.locator("#securityOverridesCount")).to_contain_text("1 active")
     expect(page.locator("#securityOverrideAdd")).to_be_focused()
+    surface(page, "security.overrides-sheet")
 
     rows.locator(".action-row-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#securityOverrideZone")).to_have_value("1")
     expect(page.locator("#securityOverrideRetries")).to_have_value("2")
+    surface(page, "security.override-dialog")
 
 
 def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
@@ -378,6 +387,7 @@ def test_recent_events_show_three_and_all_events_opens_the_alarm_log(
     expect(page.locator("#activityDomain")).to_have_value("security")
     expect(page.locator("#activityNote")).to_be_visible()
     assert any("domain=security" in url for url in activity_urls), activity_urls
+    surface(page, "shared.activity-dialog")
     page.keyboard.press("Escape")
     expect(page.locator("#activityDialog")).to_be_hidden()
     expect(page.locator("#securityEventsAll")).to_be_focused()
@@ -436,6 +446,7 @@ def test_glance_card_shows_next_schedule_and_trouble_opens_the_detector(
     chip.click()
     expect(page.locator("#zoneDialog")).to_be_visible()
     expect(page.locator("#zoneDetailName")).to_have_text("Garage")
+    surface(page, "security.zone-dialog")
 
 
 @pytest.mark.chromium_only
@@ -483,6 +494,7 @@ def test_detectors_fold_behind_show_all_and_filter_when_long(
     expect(rows).to_have_count(0)
     expect(page.locator("#securityZonesNote")).to_have_text("No detector matches.")
     assert_no_horizontal_overflow(page)
+    surface(page, "security.zones-no-match")
 
 
 @pytest.mark.chromium_only
@@ -549,6 +561,7 @@ def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
     expect(rows.nth(0).locator(".chip")).to_have_text(["Bypassed", "Trouble"])
     expect(rows.nth(0).locator('.chip[data-tone="attention"]')).to_have_text("Trouble")
     expect(rows.nth(1).locator(".chip")).to_have_count(0)
+    surface(page, "security.pane")
 
 
 def test_security_glance_card_keeps_its_height_when_the_schedule_lands(

@@ -14,8 +14,17 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, open_settings
+from tests.e2e._surface import surface
 
 GROUPS = ["Display", "Notifications", "Home & people", "Energy", "Voice", "Diagnostics"]
+
+# The sheets this test is the first (or only) to open; the rest are captured by
+# the tests that exercise them.
+_SHEET_SURFACES = {
+    "notifyAlarmSheet": "settings.notify-alarm-sheet",
+    "notifyUpsSheet": "settings.notify-ups-sheet",
+    "searxngSheet": "settings.searxng-sheet",
+}
 
 
 def _route_notify_prefs(page: Page) -> None:
@@ -56,6 +65,7 @@ def test_settings_is_inset_groups_and_every_row_opens_its_sheet(
     # The two settings changed in place stay inline.
     expect(pane.locator("#textSizeControl")).to_be_visible()
     expect(pane.get_by_role("switch", name="Record navigation log")).to_be_visible()
+    surface(page, "settings.root")
 
     rows = pane.locator("[data-settings-sheet]")
     assert rows.count() == 11
@@ -68,6 +78,8 @@ def test_settings_is_inset_groups_and_every_row_opens_its_sheet(
         sheet = page.locator(f"#{sheet_id}")
         expect(sheet).to_be_visible()
         expect(sheet).to_have_attribute("data-save-model", "instant")
+        if sheet_id in _SHEET_SURFACES:
+            surface(page, _SHEET_SURFACES[sheet_id])
         sheet.locator("[data-sheet-done]").click()
         expect(sheet).to_be_hidden()
         # Focus goes back to the row that opened it.

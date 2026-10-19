@@ -8,6 +8,7 @@ from typing import Callable, Dict, List
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._geometry import assert_no_horizontal_overflow
+from tests.e2e._surface import surface
 
 _BLIND = {
     "has_switch": False, "has_cover": True, "metered": False, "category": "qt",
@@ -95,6 +96,7 @@ def test_blind_schedule_lists_and_adds_an_entry(
     expect(rows.first.locator(".action-row-title")).to_have_text("21:30")
     expect(rows.first.locator(".action-row-meta")).to_have_text("Down · Every day · All blinds")
     assert_no_horizontal_overflow(page)
+    surface(page, "iot.blind-schedules-sheet")
 
     # Add a weekend "up" for one blind, only when someone is home.
     page.locator("#blindScheduleAdd").click()
@@ -110,6 +112,7 @@ def test_blind_schedule_lists_and_adds_an_entry(
         "aria-pressed", "false"
     )
     assert_no_horizontal_overflow(page)
+    surface(page, "iot.blind-schedule-dialog")
     page.locator("#blindScheduleSave").click()
 
     expect(rows).to_have_count(2)

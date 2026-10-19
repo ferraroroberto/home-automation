@@ -24,6 +24,8 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._surface import surface
+
 METER_ID = "AA:BB:CC:DD:EE:01"
 
 
@@ -150,6 +152,7 @@ def test_an_offline_meter_keeps_its_channel_rows(
     expect(
         page.locator("#circuitsList .circuit-row .circuit-watts").first
     ).to_have_text("—")
+    surface(page, "iot.circuits-offline")
 
 
 def test_rename_dialog_shows_the_clamp_flip_only_for_a_channel(
@@ -169,6 +172,7 @@ def test_rename_dialog_shows_the_clamp_flip_only_for_a_channel(
     expect(page.locator("#circuitInvertSection")).to_be_visible()
     expect(page.locator("#circuitInvertToggle")).to_have_attribute("aria-checked", "true")
     expect(page.locator("#circuitHiddenSection")).to_be_visible()
+    surface(page, "iot.circuit-dialog")
     page.locator("#circuitDetailClose").click()
 
     page.locator("#circuitsList .circuit-meter .action-row-main").first.click()
@@ -202,6 +206,7 @@ def test_the_meter_row_carries_the_name_alone(
     expect(page.locator("#circuitMeterTotal")).to_have_text("292 W")
     expect(page.locator("#circuitMeterSignal")).to_have_text("-68 dBm")
     expect(page.locator("#circuitMeterMac")).to_have_text(METER_ID)
+    surface(page, "iot.circuit-meter-dialog")
 
 
 def test_a_channels_reference_figures_live_in_the_dialog(

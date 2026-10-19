@@ -12,6 +12,7 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
 from tests.e2e._geometry import apply_matrix_leg, assert_no_horizontal_overflow
+from tests.e2e._surface import surface
 
 
 def open_network_sheet(page: Page, trigger: str = "#networkInternetOpen") -> None:
@@ -169,6 +170,7 @@ def test_network_tab_groups_devices_and_switches_sort(
     expect(names.nth(0)).to_have_text("Zebra Phone")
     expect(page.locator("#netSortSignal")).to_have_class("net-sort-btn active")
     expect(page.locator("#netSortAlpha")).to_have_class("net-sort-btn")
+    surface(page, "iot.network-sheet")
 
     page.locator("details.net-devices-card > summary").click()
     expect(page.locator("#netDevices")).to_be_hidden()
@@ -201,6 +203,7 @@ def test_network_tab_shows_contextual_unavailable_state(
     )
     expect(page.locator("#netInternetStatus")).to_be_hidden()
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.1")
+    surface(page, "iot.network-unavailable")
     # The Devices tab's own row says so too, in words.
     page.locator("#networkSheetDone").click()
     expect(page.locator("#networkInternetMeta")).to_have_text("Unavailable")
@@ -252,6 +255,7 @@ def test_network_tab_loads_then_keeps_and_labels_last_good_data_on_poll_failure(
     expect(page.locator("#netApReboot")).to_be_disabled()
     expect(page.locator("#netRouterReboot")).to_be_disabled()
     expect(page.locator("#netFeedback")).not_to_contain_text("192.0.2.1")
+    surface(page, "iot.network-stale")
 
 
 def test_network_header_uses_equal_chips_and_compact_offline_toggle(
@@ -411,6 +415,7 @@ def test_network_offline_toggle_hides_devices_with_no_live_link(
     expect(page.locator("#netDeviceDialog")).to_be_visible()
     expect(page.locator("#netDeviceStatus")).to_contain_text("No live link")
     expect(page.locator("#netDeviceSignal")).to_have_text("No link")
+    surface(page, "iot.net-device-dialog-no-link")
     page.locator("#netDeviceDetailClose").click()
 
     # Same rule in the band view: hidden by default, then its own "No link"
@@ -449,6 +454,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     wifi_row.locator(".net-wifi-row-name").click()
     expect(page.locator("#netWifiDialog")).to_be_visible()
     expect(page.locator("#netWifiOriginalName")).to_contain_text("Original network name: TestNet-IoT")
+    surface(page, "iot.net-wifi-dialog")
     page.locator("#netWifiDisplayName").fill("Neighbour AP")
     page.locator("#netWifiDisplayName").press("Enter")
     expect(page.locator("#netWifiList .net-wifi-row").filter(has_text="Neighbour AP")).to_have_count(1)
@@ -475,6 +481,7 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     assert "Hardware address" in page.locator("#netDeviceMac").inner_text()
     for jargon in ("SSID", "MAC", "IP address"):
         assert jargon not in dialog_text, jargon
+    surface(page, "iot.net-device-dialog")
     page.locator("#netDeviceDisplayName").fill("Office Laptop")
     page.locator("#netDeviceDisplayName").press("Enter")
     expect(page.locator("#netDevices .net-device-name-text").filter(has_text="Office Laptop")).to_have_count(1)
@@ -586,6 +593,7 @@ def test_network_device_groups_create_move_rename_and_delete(
     group_head.locator(".net-group-edit").click()
     expect(page.locator("#netGroupDialog")).to_be_visible()
     expect(page.locator("#netGroupMembers")).to_have_text("2 devices")
+    surface(page, "iot.net-group-dialog")
     page.locator("#netGroupName").fill("Luces")
     page.locator("#netGroupName").press("Enter")
     renamed = page.locator("#netDevices .net-group-head").filter(has_text="Luces")
@@ -666,6 +674,7 @@ def test_network_wifi_header_stays_quiet_when_scan_unavailable(
     expect(page.locator("#netWifiNote")).to_contain_text(
         "Wi-Fi diagnostics are unavailable in this fixture."
     )
+    surface(page, "iot.network-wifi-unavailable")
 
 
 @pytest.mark.chromium_only
@@ -731,6 +740,7 @@ def test_network_walk_test_picks_a_device_and_records_a_room(
     page.get_by_test_id("net-survey-pick").click()
     picker = page.locator("#netSurveyDialogList .net-survey-picker-row")
     expect(picker.first).to_be_visible()
+    surface(page, "iot.net-survey-dialog")
     picker.filter(has_text="Zebra Phone").click()
     expect(page.locator("#netSurveyDeviceName")).to_have_text("Zebra Phone")
     expect(record).to_be_enabled()

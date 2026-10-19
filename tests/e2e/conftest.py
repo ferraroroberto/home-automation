@@ -88,6 +88,7 @@ from tests.e2e._browser_sweep import (
 )
 from src.runtime_data import app_dir_env_var
 from tests.e2e._e2e_live_guard import require_disposable_instance
+from tests.e2e._surface import pytest_collection_modifyitems as _deselect_non_capturing
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +373,17 @@ CHROMIUM_ONLY_MODULES = frozenset({
 })
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--e2e-autoboot",
+        action="store_true",
+        default=False,
+        help="always boot a disposable webapp, even when this checkout's own port is "
+        "occupied (the tray): skips the live-instance guard and never adopts. "
+        "`/design-review measure --e2e` passes it (.fleet.toml [design.review.e2e]).",
+    )
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "desktop_only: skip on the WebKit/iPhone projection")
     config.addinivalue_line(
@@ -393,6 +405,11 @@ def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item
 
     Deselected rather than skipped: a skip still builds the WebKit context and
     page fixtures first, which is most of what these tests cost.
+
+    Also runs the vendored design-capture deselection (``_surface.py``): with
+    ``DESIGN_SURFACE_CAPTURE`` set, only tests that call ``surface(`` stay. It is
+    called here, not imported under its own name, because a second
+    ``pytest_collection_modifyitems`` in this module would replace this one.
     """
     kept: List[pytest.Item] = []
     dropped: List[pytest.Item] = []
@@ -410,6 +427,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item
     if dropped:
         config.hook.pytest_deselected(items=dropped)
         items[:] = kept
+    _deselect_non_capturing(config, items)
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -534,12 +552,16 @@ def _autoboot_env(data_dir: Path) -> Dict[str, str]:
 
 
 @pytest.fixture(scope="session")
-def base_url() -> Iterator[str]:
+def base_url(request: pytest.FixtureRequest) -> Iterator[str]:
     # Vendored guard (issue #538): refuses via pytest.exit if :8447 is
     # occupied and E2E_LIVE isn't set. This repo's caller-side choice on an
     # opt-in hit is read-only adoption of the live tray, never a restart or
-    # kill — see the module docstring above for why.
-    live_opt_in = require_disposable_instance(_ADOPT_PORT, _LIVE_ENV)
+    # kill — see the module docstring above for why. `--e2e-autoboot` is the
+    # explicit "boot my own, leave the tray alone" form: no guard, no adoption.
+    if request.config.getoption("--e2e-autoboot"):
+        live_opt_in = False
+    else:
+        live_opt_in = require_disposable_instance(_ADOPT_PORT, _LIVE_ENV)
     if live_opt_in:
         adopt = f"https://127.0.0.1:{_ADOPT_PORT}"
         if _healthz_ok(adopt):

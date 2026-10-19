@@ -30,6 +30,7 @@ from tests.e2e._geometry import (
     assert_no_overlap,
     effective_rects,
 )
+from tests.e2e._surface import surface
 
 _WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"]
 
@@ -191,6 +192,7 @@ def test_home_is_a_dashboard_of_house_climate_and_next_up(
         "Nothing coming up. Add an alarm, a timer or a reminder."
     )
     assert_no_horizontal_overflow(page)
+    surface(page, "home.cards")
 
     # Who is home opens Security › People, where each person's sheet is.
     people.locator(".action-row-main").click()
@@ -307,6 +309,7 @@ def test_wake_alarm_editor_is_staged(
     row.locator(".action-row-main").click()
     expect(dialog).to_be_visible()
     expect(page.locator("#wakeAlarmEditorTitle")).to_have_text("Edit wake alarm")
+    surface(page, "home.wake-alarm-dialog")
     page.locator("#wakeAlarmTime").fill("06:30")
     page.locator("#wakeAlarmEditorClose").click()
     expect(dialog).to_be_hidden()
@@ -357,6 +360,7 @@ def test_timers_and_reminders_are_next_up_rows(
 
     page.locator("#wakeTimerOpen").click()
     expect(page.locator("#wakeTimerSheet")).to_be_visible()
+    surface(page, "home.wake-timer-sheet")
     with page.expect_response(lambda r: "/api/wake-timers" in r.url and r.request.method == "POST"):
         page.locator('.wake-timer-presets [data-seconds="300"]').click()
     expect(page.locator("#wakeTimerSheet")).to_be_hidden()
@@ -373,6 +377,7 @@ def test_timers_and_reminders_are_next_up_rows(
     reminder.locator(".action-row-main").click()
     expect(page.locator("#reminderDialog")).to_be_visible()
     expect(page.locator("#reminderText")).to_have_value("Take the bins out")
+    surface(page, "home.reminder-dialog")
 
 
 def test_perf_review_ready_selector_is_visible_on_home(
