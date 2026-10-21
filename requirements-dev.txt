@@ -3,6 +3,10 @@
 
 pytest>=8.0
 
+# Pin: the static ratchet's baseline keys come from this ruff's F401/F841 output
+# (scripts/static_ratchet.py selects the rules itself), so a bump re-baselines.
+ruff==0.17.1
+
 # Backend smoke layer (tests/api): FastAPI TestClient drives the real app
 # in-process. Starlette's TestClient is built on httpx.
 httpx>=0.27

@@ -1616,7 +1616,8 @@ command runs both and routes the browser suite proportionately to the diff:
 & .\scripts\verify-before-ship.ps1
 ```
 
-Byte-compiles the repo and runs the backend suite unconditionally, then
+Byte-compiles the repo, runs the static ratchet and the backend suite
+unconditionally, then
 classifies the branch's changed files against `.fleet.toml`'s `[e2e]` table
 (`scripts/classify_e2e.py`, vendored byte-identical from `project-scaffolding`)
 and runs a browser slice proportionate to the diff: a backend/docs/meta-only
@@ -1625,6 +1626,17 @@ Chromium-only smoke check, and any real UI/behaviour change (including a
 change to the e2e harness itself) gets the full Chromium + WebKit run. Any
 mixed, unmatched, or ambiguous diff fails safe to the full suite — routing
 never narrows coverage on uncertainty. On CI the full suite always runs.
+
+The static ratchet (`scripts/static_ratchet.py`, vendored byte-identical from
+`project-scaffolding`; `.fleet.toml` `[static_ratchet]`) compares the tree with
+the committed `.static-ratchet-baseline.json` and fails on any duplicate block
+(jscpd through `npx`, so Node must be installed) or unused import/variable
+(ruff `F401,F841`) that is not already in it. Existing debt is baselined, so the
+count can only go down; shrink the baseline in the PR that removes debt with
+`python scripts/static_ratchet.py --update-baseline`. A detector that cannot run
+(no `npx`, no network on the first `npx`, ruff missing) exits 3, which the gate
+reports as NOT CONFIRMED and fails, never as a pass. The gate calls it through
+`python -m scripts.static_ratchet_gate`.
 
 CI (`.github/workflows/ci.yml`) runs this same gate on a clean Windows runner
 for every PR and every push to `main`: a fresh `.venv` from the requirements
