@@ -6,8 +6,13 @@
 .DESCRIPTION
     Runs, fail-fast:
       1. byte-compile     — every .py under app/ src/ tests/ scripts/ custom_components/ parses
-      2. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
-      3. pytest (e2e)     — diff-proportionate: the browser slice is routed by
+      2. static ratchet   — no new duplicate block (jscpd via npx) or unused
+                            import/variable (ruff F401,F841) beyond
+                            .static-ratchet-baseline.json. Whole tree, never
+                            routed; exit 3 (a detector could not run) is
+                            NOT CONFIRMED and fails, never a pass or a skip.
+      3. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
+      4. pytest (e2e)     — diff-proportionate: the browser slice is routed by
                             scripts/classify_e2e.py against the .fleet.toml [e2e]
                             rules (skip / static / full), fail-safe to full
                             (ferraroroberto/home-automation#603, project-scaffolding#180).
@@ -111,6 +116,9 @@ function Invoke-Stage {
 $gateResult = "FAIL"
 try {
     Invoke-Stage "byte-compile" { & $py -m compileall -q app src tests scripts custom_components }
+    # The wrapper maps the script's exit 3 to NOT CONFIRMED (tests/test_static_ratchet_gate.py
+    # pins it); call it, never scripts/static_ratchet.py directly.
+    Invoke-Stage "static ratchet" { & $py -m scripts.static_ratchet_gate }
     Invoke-Stage "pytest (unit, non-e2e)" { & $py -m pytest tests -p no:cacheprovider --ignore=tests/e2e }
 
     # ---------------------------------------------------------------- e2e routing
