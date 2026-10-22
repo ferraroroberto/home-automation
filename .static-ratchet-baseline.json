@@ -4,6 +4,7 @@
   "entries": [
     {"key": "dup:29effb78d784:tests/test_security_schedules.py|tests/test_security_schedules.py", "files": ["tests/test_security_schedules.py", "tests/test_security_schedules.py"]},
     {"key": "dup:407e4869f2f2:tests/test_security_schedules.py|tests/test_security_schedules.py", "files": ["tests/test_security_schedules.py", "tests/test_security_schedules.py"]},
+    {"key": "dup:4306bb086600:scripts/docs_ratchet.py|scripts/static_ratchet.py", "files": ["scripts/docs_ratchet.py", "scripts/static_ratchet.py"]},
     {"key": "dup:43f3e6d3758e:tests/test_security_schedules.py|tests/test_security_schedules.py", "files": ["tests/test_security_schedules.py", "tests/test_security_schedules.py"]},
     {"key": "dup:517146b7028b:tests/test_alarm_scene_automation.py|tests/test_presence_automation.py", "files": ["tests/test_alarm_scene_automation.py", "tests/test_presence_automation.py"]},
     {"key": "dup:579325b9272d:tests/test_energy_forecast_curve.py|tests/test_energy_sun_overlay.py", "files": ["tests/test_energy_forecast_curve.py", "tests/test_energy_sun_overlay.py"]},
