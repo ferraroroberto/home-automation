@@ -26,7 +26,7 @@ button = { src = "app/webapp/static/_vendored/button", sha = "4c699636afecd5cae5
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/segmented" }
 modal = { src = "app/webapp/static/_vendored/modal", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/modal" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "0d41425ff2797c98d1d3eb7ecb7de0cdb7133456", dest = "scripts/static_ratchet.py" }
-docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "fdb750461997c4a13eacea8091f115ff12bba564", dest = "scripts/docs_ratchet.py" }
+docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "0d41425ff2797c98d1d3eb7ecb7de0cdb7133456", dest = "scripts/docs_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
