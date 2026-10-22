@@ -9,14 +9,18 @@ throwaway git repos: no network, no device or cloud API.
 
 from __future__ import annotations
 
-import subprocess
-import sys
 import tomllib
 from pathlib import Path
 
 import pytest
 
 from scripts import docs_ratchet_gate as gate
+from tests._ratchet_gate_helpers import (
+    assert_run_maps_every_script_exit,
+    make_git_repo,
+    real_exit,
+    real_run,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REAL_SCRIPT = REPO_ROOT / "scripts" / "docs_ratchet.py"
@@ -26,28 +30,11 @@ _FLEET = '[docs_ratchet]\nenabled = true\nbaseline = ".docs-ratchet-baseline.jso
 
 def _git_repo(tmp_path: Path, readme: str) -> Path:
     """A throwaway repo that opts in to the docs ratchet, with `readme` committed."""
-    (tmp_path / ".fleet.toml").write_text(_FLEET, encoding="utf-8")
-    (tmp_path / "README.md").write_text(readme, encoding="utf-8")
-    # An empty hooks dir keeps the machine's global commit hooks out of the throwaway repo.
-    no_hooks = tmp_path.parent / f"{tmp_path.name}-no-hooks"
-    no_hooks.mkdir()
-    for argv in (
-        ["init", "-q"],
-        ["add", "."],
-        [
-            "-c", f"core.hooksPath={no_hooks}", "-c", "user.name=t",
-            "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "x",
-        ],
-    ):
-        subprocess.run(["git", *argv], cwd=tmp_path, check=True, stdin=subprocess.DEVNULL)
-    return tmp_path
+    return make_git_repo(tmp_path, _FLEET, {"README.md": readme})
 
 
 def _real_exit(repo: Path, *flags: str) -> int:
-    return subprocess.run(
-        [sys.executable, str(REAL_SCRIPT), "--root", str(repo), *flags],
-        cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False,
-    ).returncode
+    return real_exit(REAL_SCRIPT, repo, *flags)
 
 
 def test_only_exit_zero_passes() -> None:
@@ -77,10 +64,7 @@ def test_a_new_issue_reference_turns_the_gate_red_by_name(tmp_path: Path) -> Non
     assert _real_exit(repo, "--init") == 0
     assert _real_exit(repo) == 0
     (repo / "README.md").write_text("# Title\n\nAdded in #123.\n", encoding="utf-8")
-    proc = subprocess.run(
-        [sys.executable, str(REAL_SCRIPT), "--root", str(repo)],
-        cwd=repo, capture_output=True, text=True, stdin=subprocess.DEVNULL, check=False,
-    )
+    proc = real_run(REAL_SCRIPT, repo)
     assert proc.returncode == 1
     assert "README.md" in proc.stdout and "#123" in proc.stdout
     assert gate.classify_exit(proc.returncode)[0] is False
@@ -89,15 +73,7 @@ def test_a_new_issue_reference_turns_the_gate_red_by_name(tmp_path: Path) -> Non
 def test_run_exits_nonzero_for_every_script_failure(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    for code in (0, 1, 2, 3):
-        fake = tmp_path / "fake.py"
-        fake.write_text(f"import sys\nprint('from the script')\nsys.exit({code})\n", encoding="utf-8")
-        assert gate.run(fake) == (0 if code == 0 else 1), code
-        out = capsys.readouterr().out
-        assert "from the script" in out
-        assert out.rstrip().splitlines()[-1].startswith(
-            "OK: docs ratchet" if code == 0 else "FAIL: docs ratchet"
-        )
+    assert_run_maps_every_script_exit(gate, "docs ratchet", tmp_path, capsys)
 
 
 def test_the_pre_ship_gate_calls_the_wrapper_not_the_script() -> None:
