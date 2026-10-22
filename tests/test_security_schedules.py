@@ -91,6 +91,28 @@ class _FakeState:
         self.mode = mode
 
 
+def _wire_engine(monkeypatch, entries, fake_confirm, panel_mode: str):
+    """Point the schedule engine at ``entries``, a panel reading ``panel_mode``
+    and ``fake_confirm``; returns the engine config and the list that collects
+    what it records. Nothing reaches RISCO, Telegram or the real action log."""
+
+    import app.webapp.security_automation as engine
+
+    recorded: list[dict] = []
+
+    async def fake_fetch() -> object:
+        return _FakeState(panel_mode)
+
+    async def fake_record_alarm_action(**kw) -> None:
+        recorded.append(kw)
+
+    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
+    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
+    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
+    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
+    return engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60), recorded
+
+
 def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> None:
     """The retry/backoff mechanics of confirming an action now live in
     ``confirm_alarm_action`` (shared with presence) and are covered in
@@ -100,7 +122,6 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
     import app.webapp.security_automation as engine
 
     calls: list[str] = []
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="ok", time="21:00", days=["mon"], action="arm"),
         SecurityScheduleEntry(id="bad", time="21:00", days=["mon"], action="disarm"),
@@ -112,21 +133,9 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
             raise engine.RiscoCommandError("panel down")
         return _FakeState("armed")
 
-    async def fake_fetch() -> object:
-        # Neither "arm" nor "disarm" is already satisfied by this mode, so
-        # both entries fall through to confirm_alarm_action as before (#676).
-        return _FakeState("perimeter")
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    # Prevent real Telegram sends and real log writes during this unit test.
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    # Neither "arm" nor "disarm" is already satisfied by this mode, so both
+    # entries fall through to confirm_alarm_action (#676).
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "perimeter")
     state = engine._EngineState(last_fire_day={})
     now = datetime(2026, 6, 22, 21, 0, 10)
 
@@ -148,7 +157,6 @@ def test_security_schedule_tick_alerts_after_confirm_exhausts_retries(monkeypatc
 
     import app.webapp.security_automation as engine
 
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="arm-fails", time="21:00", days=["mon"], action="arm"),
     ]
@@ -156,18 +164,8 @@ def test_security_schedule_tick_alerts_after_confirm_exhausts_retries(monkeypatc
     async def fake_confirm(action: str) -> object:
         raise engine.RiscoCommandError(f"panel read back 'disarmed' after {action}, not the expected state")
 
-    async def fake_fetch() -> object:
-        return _FakeState("disarmed")  # not "armed" - the arm request is not yet satisfied
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    # not "armed" - the arm request is not yet satisfied
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "disarmed")
     state = engine._EngineState(last_fire_day={})
     now = datetime(2026, 6, 22, 21, 0, 10)
 
@@ -186,7 +184,6 @@ def test_security_schedule_tick_alerts_on_missing_credentials(monkeypatch) -> No
 
     import app.webapp.security_automation as engine
 
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="no-creds", time="05:00", days=["mon"], action="disarm"),
     ]
@@ -198,18 +195,8 @@ def test_security_schedule_tick_alerts_on_missing_credentials(monkeypatch) -> No
             "(your RISCO Cloud login and panel PIN)."
         )
 
-    async def fake_fetch() -> object:
-        return _FakeState("armed")  # not "disarmed" - the disarm request is not yet satisfied
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    # not "disarmed" - the disarm request is not yet satisfied
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
     state = engine._EngineState(last_fire_day={})
     now = datetime(2026, 6, 22, 5, 0, 10)
 
@@ -229,7 +216,6 @@ def test_security_schedule_tick_retries_failed_entry_hours_later_same_day(monkey
 
     import app.webapp.security_automation as engine
 
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="flaky", time="05:00", days=["mon"], action="disarm"),
     ]
@@ -240,18 +226,8 @@ def test_security_schedule_tick_retries_failed_entry_hours_later_same_day(monkey
             raise engine.RiscoCommandError("panel read back 'perimeter' after disarm, not the expected state")
         return _FakeState("disarmed")
 
-    async def fake_fetch() -> object:
-        return _FakeState("armed")  # not "disarmed" - the disarm request is not yet satisfied
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    # not "disarmed" - the disarm request is not yet satisfied
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
     state = engine._EngineState(last_fire_day={})
 
     # First attempt, right at the fire time, fails.
@@ -283,7 +259,6 @@ def test_security_schedule_last_fire_day_survives_restart(monkeypatch) -> None:
 
     import app.webapp.security_automation as engine
 
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="perimeter-21", time="21:00", days=["mon"], action="perimeter"),
     ]
@@ -291,18 +266,8 @@ def test_security_schedule_last_fire_day_survives_restart(monkeypatch) -> None:
     async def fake_confirm(action: str) -> object:
         return _FakeState("perimeter")
 
-    async def fake_fetch() -> object:
-        return _FakeState("disarmed")  # not armed-enough yet - the perimeter request is not satisfied
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    # not armed-enough yet - the perimeter request is not satisfied
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "disarmed")
     now = datetime(2026, 6, 22, 21, 0, 10)
 
     # First process: the schedule fires and its fire state is persisted.
@@ -326,7 +291,6 @@ def test_security_schedule_last_fire_day_survives_restart(monkeypatch) -> None:
 def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
     import app.webapp.security_automation as engine
 
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="disarm-ok", time="21:00", days=["mon"], action="disarm"),
     ]
@@ -334,18 +298,8 @@ def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
     async def fake_confirm(action: str) -> object:
         return _FakeState("disarmed")
 
-    async def fake_fetch() -> object:
-        return _FakeState("armed")  # not "disarmed" - the disarm request is not yet satisfied
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    # not "disarmed" - the disarm request is not yet satisfied
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
     state = engine._EngineState(last_fire_day={})
     now = datetime(2026, 6, 22, 21, 0, 10)
 
@@ -362,7 +316,6 @@ def test_security_schedule_tick_skips_already_satisfied_arm(monkeypatch) -> None
 
     import app.webapp.security_automation as engine
 
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="night", time="23:00", days=["mon"], action="perimeter"),
     ]
@@ -370,18 +323,7 @@ def test_security_schedule_tick_skips_already_satisfied_arm(monkeypatch) -> None
     async def fake_confirm(action: str) -> object:
         raise AssertionError("confirm_alarm_action must not be called when already satisfied")
 
-    async def fake_fetch() -> object:
-        return _FakeState("armed")
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
     state = engine._EngineState(last_fire_day={})
     now = datetime(2026, 6, 22, 23, 0, 10)
 
@@ -398,7 +340,6 @@ def test_security_schedule_tick_skips_already_satisfied_disarm(monkeypatch) -> N
 
     import app.webapp.security_automation as engine
 
-    recorded: list[dict] = []
     entries = [
         SecurityScheduleEntry(id="morning", time="05:00", days=["mon"], action="disarm"),
     ]
@@ -406,18 +347,7 @@ def test_security_schedule_tick_skips_already_satisfied_disarm(monkeypatch) -> N
     async def fake_confirm(action: str) -> object:
         raise AssertionError("confirm_alarm_action must not be called when already satisfied")
 
-    async def fake_fetch() -> object:
-        return _FakeState("disarmed")
-
-    async def fake_record_alarm_action(**kw) -> None:
-        recorded.append(kw)
-
-    monkeypatch.setattr(engine, "load_security_schedules", lambda: entries)
-    monkeypatch.setattr(engine, "fetch_security_state", fake_fetch)
-    monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
-    monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
-
-    config = engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60)
+    config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "disarmed")
     state = engine._EngineState(last_fire_day={})
     now = datetime(2026, 6, 22, 5, 0, 10)
 

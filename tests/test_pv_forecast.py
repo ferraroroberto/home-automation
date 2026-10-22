@@ -124,6 +124,18 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, session) -> None:
     monkeypatch.setattr(pf.aiohttp, "ClientSession", lambda **_kw: session)
 
 
+def _fetch_with_a_failing_sub_array(monkeypatch: pytest.MonkeyPatch) -> pf.PvForecast:
+    """Fetch a south + north forecast where the north array's request raises."""
+    south = PvArray(kwp=8.0, tilt_deg=15, azimuth_deg=0)
+    north = PvArray(kwp=2.0, tilt_deg=15, azimuth_deg=180)
+    system = PvSystemConfig(arrays=[south, north], performance_ratio=1.0)
+    payloads = {(15, 0): _hourly_payload({s: 1000.0 for s in _stamps(_TODAY, [12])})}
+    _patch_session(monkeypatch, _FailingSession(payloads))
+    return asyncio.run(
+        pf.fetch_pv_forecast("today", system=system, location=_LOCATION, today=_TODAY)
+    )
+
+
 def test_two_sub_arrays_are_summed_per_hour(monkeypatch: pytest.MonkeyPatch) -> None:
     south = PvArray(kwp=8.0, tilt_deg=15, azimuth_deg=0)
     north = PvArray(kwp=2.0, tilt_deg=15, azimuth_deg=180)
@@ -167,17 +179,7 @@ def test_single_legacy_array_matches_pre_multi_array_behaviour(
 
 
 def test_one_sub_array_failing_sinks_the_whole_forecast(monkeypatch: pytest.MonkeyPatch) -> None:
-    south = PvArray(kwp=8.0, tilt_deg=15, azimuth_deg=0)
-    north = PvArray(kwp=2.0, tilt_deg=15, azimuth_deg=180)
-    system = PvSystemConfig(arrays=[south, north], performance_ratio=1.0)
-
-    payloads = {(15, 0): _hourly_payload({s: 1000.0 for s in _stamps(_TODAY, [12])})}
-    session = _FailingSession(payloads)
-    _patch_session(monkeypatch, session)
-
-    result = asyncio.run(
-        pf.fetch_pv_forecast("today", system=system, location=_LOCATION, today=_TODAY)
-    )
+    result = _fetch_with_a_failing_sub_array(monkeypatch)
 
     assert result.available is False
     assert result.reason == "unreachable"
@@ -667,7 +669,7 @@ def test_while_an_existing_backoff_is_active_the_last_good_curve_is_served(
 def test_a_429_on_a_live_refetch_still_serves_the_stale_cached_curve(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    good = _recording(monkeypatch, _TODAY)
+    _recording(monkeypatch, _TODAY)
     result = asyncio.run(
         pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
     )
@@ -716,16 +718,7 @@ def test_a_non_429_failure_does_not_open_the_backoff(
     """A generic network failure stays ``unreachable`` and must not be
     conflated with the rate-limit backoff — a real outage would then be
     invisible behind a 429's stale-cache fallback."""
-    south = PvArray(kwp=8.0, tilt_deg=15, azimuth_deg=0)
-    north = PvArray(kwp=2.0, tilt_deg=15, azimuth_deg=180)
-    system = PvSystemConfig(arrays=[south, north], performance_ratio=1.0)
-    payloads = {(15, 0): _hourly_payload({s: 1000.0 for s in _stamps(_TODAY, [12])})}
-    session = _FailingSession(payloads)
-    _patch_session(monkeypatch, session)
-
-    result = asyncio.run(
-        pf.fetch_pv_forecast("today", system=system, location=_LOCATION, today=_TODAY)
-    )
+    result = _fetch_with_a_failing_sub_array(monkeypatch)
 
     assert result.available is False
     assert result.reason == "unreachable"
@@ -765,7 +758,7 @@ def test_a_successful_fetch_prunes_cache_entries_past_the_stale_serve_horizon(
 ) -> None:
     """Without this, the cache would grow by one entry per calendar day for as
     long as the tray stays up (``target_day`` rolls forward daily)."""
-    session = _recording(monkeypatch, _TODAY)
+    _recording(monkeypatch, _TODAY)
     asyncio.run(
         pf.fetch_pv_forecast("today", system=_ONE_ARRAY, location=_LOCATION, today=_TODAY)
     )

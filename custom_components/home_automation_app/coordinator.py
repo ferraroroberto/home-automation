@@ -8,7 +8,7 @@ from typing import Any, Callable
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from . import get_api, get_scan_interval
+from . import get_scan_interval
 from .api import HomeAutomationApiError
 from .const import DOMAIN
 

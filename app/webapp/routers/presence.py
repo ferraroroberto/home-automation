@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict
 from dataclasses import asdict, replace
-from datetime import datetime, timezone
+from datetime import datetime
 import os
 from typing import Any, Dict
 

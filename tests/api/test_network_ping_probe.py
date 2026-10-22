@@ -10,25 +10,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.network_client import (
-    AccessPointHealth,
-    InternetHealth,
-    NetDevice,
-    NetworkState,
-    RouterHealth,
-    WifiDiagnostics,
-)
-
-
-def _state(*devices: NetDevice) -> NetworkState:
-    return NetworkState(
-        internet=InternetHealth(online=True),
-        access_point=AccessPointHealth(reachable=True, device_count=len(devices)),
-        router=RouterHealth(reachable=True, authenticated=True),
-        devices=devices,
-        wifi=WifiDiagnostics(available=False),
-        alerts=(),
-    )
+from src.network_client import NetDevice, NetworkState
+from tests.api.test_network_groups import _state
 
 
 def _devices_by_mac(client: TestClient):

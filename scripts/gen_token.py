@@ -37,18 +37,9 @@ from __future__ import annotations
 import argparse
 import secrets
 import sys
-from pathlib import Path
 
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from src.webapp_config import (  # noqa: E402  — sys.path tweak above
+import _cli_boot  # noqa: F401  — UTF-8 stdout + repo root on sys.path, before src imports
+from src.webapp_config import (
     DEFAULT_CONFIG_PATH,
     load_webapp_config,
     save_webapp_config,

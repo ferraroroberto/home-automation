@@ -17,6 +17,38 @@ from app.webapp.presence_refresher import PresenceDiagnosticsCache
 from src.presence_client import PresenceEntity
 
 
+def _isolate_locate_stores(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Point the display-name, role and place stores at ``tmp_path``."""
+    import src.presence_display_names as pdn
+    import src.presence_places as pp
+    import src.presence_roles as pr
+
+    monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
+    monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
+    monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
+
+
+def _locate_sees_ana_home(monkeypatch: pytest.MonkeyPatch, tmp_path, now: datetime) -> None:
+    """Ana (role ``mom``) is home as of 10:00 and the locator's clock reads ``now``."""
+    import src.presence_roles as pr
+    from src.presence_engine import PersonPresence
+
+    _isolate_locate_stores(monkeypatch, tmp_path)
+    pr.set_presence_role("ana", "mom")
+
+    monkeypatch.setattr(
+        "app.webapp.routers.presence_locate.load_people",
+        lambda: {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))},
+    )
+    monkeypatch.setattr(
+        "app.webapp.routers.presence_locate.get_cache",
+        lambda: PresenceDiagnosticsCache(
+            entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
+        ),
+    )
+    monkeypatch.setattr("app.webapp.routers.presence_locate.now_utc", lambda: now)
+
+
 def test_presence_places_endpoint_persists_normalized_entries(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
@@ -155,30 +187,7 @@ def test_presence_locate_resolves_role_to_named_place(
 def test_presence_locate_reports_home_and_unknown_person(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
-    from src.presence_engine import PersonPresence
-
-    monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
-    monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
-    monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
-    pr.set_presence_role("ana", "mom")
-
-    monkeypatch.setattr(
-        "app.webapp.routers.presence_locate.load_people",
-        lambda: {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))},
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.presence_locate.get_cache",
-        lambda: PresenceDiagnosticsCache(
-            entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
-        ),
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.presence_locate.now_utc",
-        lambda: datetime(2026, 6, 22, 10, 1, tzinfo=timezone.utc),
-    )
+    _locate_sees_ana_home(monkeypatch, tmp_path, now=datetime(2026, 6, 22, 10, 1, tzinfo=timezone.utc))
 
     resp = client.get("/api/presence/locate", params={"who": "mom"})
     assert resp.json() == {
@@ -201,30 +210,7 @@ def test_presence_locate_accepts_variants_and_speaks_spanish(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """Kinship variants resolve, and ``lang=es`` answers in Spanish (#446)."""
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
-    from src.presence_engine import PersonPresence
-
-    monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
-    monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
-    monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
-    pr.set_presence_role("ana", "mom")
-
-    monkeypatch.setattr(
-        "app.webapp.routers.presence_locate.load_people",
-        lambda: {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))},
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.presence_locate.get_cache",
-        lambda: PresenceDiagnosticsCache(
-            entities=[], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
-        ),
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.presence_locate.now_utc",
-        lambda: datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc),
-    )
+    _locate_sees_ana_home(monkeypatch, tmp_path, now=datetime(2026, 6, 22, 12, 0, tzinfo=timezone.utc))
 
     # Whisper-heard variants of the configured role resolve on the default (en) path.
     for spoken in ("mum", "mummy", "mama"):
@@ -384,18 +370,11 @@ def _icloud_entity(entity_id: str, *, lat: float, lon: float) -> PresenceEntity:
     )
 
 
-def test_presence_locate_reverse_geocodes_unmatched_away_location(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
-    """A located entity that doesn't match any configured place gets a real
-    place name via reverse geocoding instead of a bare "Away" (#442)."""
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
+def _locate_sees_away_entity(monkeypatch: pytest.MonkeyPatch, tmp_path) -> PresenceEntity:
+    """Ana's phone (role ``mom``) is the only located entity, away from every place."""
     import src.presence_roles as pr
 
-    monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
-    monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
-    monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
+    _isolate_locate_stores(monkeypatch, tmp_path)
     pr.set_presence_role("ana-phone", "mom")
 
     entity = _icloud_entity("ana-phone", lat=41.48, lon=2.06)
@@ -406,6 +385,15 @@ def test_presence_locate_reverse_geocodes_unmatched_away_location(
             entities=[entity], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
         ),
     )
+    return entity
+
+
+def test_presence_locate_reverse_geocodes_unmatched_away_location(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A located entity that doesn't match any configured place gets a real
+    place name via reverse geocoding instead of a bare "Away" (#442)."""
+    entity = _locate_sees_away_entity(monkeypatch, tmp_path)
 
     calls = []
 
@@ -434,23 +422,7 @@ def test_presence_locate_falls_back_to_generic_away_when_geocode_unavailable(
 ) -> None:
     """A failed/unavailable reverse geocode degrades to the existing generic
     "away" speech rather than erroring (#442)."""
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
-
-    monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
-    monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
-    monkeypatch.setattr(pp, "PLACES_PATH", tmp_path / "presence_places.json")
-    pr.set_presence_role("ana-phone", "mom")
-
-    entity = _icloud_entity("ana-phone", lat=41.48, lon=2.06)
-    monkeypatch.setattr("app.webapp.routers.presence_locate.load_people", lambda: {})
-    monkeypatch.setattr(
-        "app.webapp.routers.presence_locate.get_cache",
-        lambda: PresenceDiagnosticsCache(
-            entities=[entity], refreshed_at=datetime.now(timezone.utc), available=True, reason="ok"
-        ),
-    )
+    _locate_sees_away_entity(monkeypatch, tmp_path)
 
     async def failing_reverse_geocode(lat: float, lon: float):
         return {"available": False, "label": "", "detail": "Nominatim HTTP 503"}

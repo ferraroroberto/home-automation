@@ -7,6 +7,7 @@ import app.webapp.alarm_scene_automation as auto
 from src.alarm_scene import SceneCapture, SceneVerdict
 from src.alarm_scene_config import ScenePairing
 from src.risco_client import SecurityEvent, SecurityState, SecurityZone
+from tests._loop_probe import BLOCK_S, run_watching_the_loop
 
 
 def _security(*, ongoing=False, memory=False, zones=()) -> SecurityState:
@@ -19,6 +20,30 @@ def _security(*, ongoing=False, memory=False, zones=()) -> SecurityState:
 
 def _alarm_event(time: str, zone_id: int) -> SecurityEvent:
     return SecurityEvent(time=time, type="triggered", zone_id=zone_id)
+
+
+def _scan_events(monkeypatch, events, load_cursor) -> tuple[list, list[str]]:
+    """Run one event scan over ``events`` against the cursor ``load_cursor()``
+    returns; yields (zones each fired onset received, cursor values saved)."""
+
+    async def fake_fetch_events(*a, **k):
+        return events
+
+    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
+    monkeypatch.setattr(auto, "load_last_alarm_event_time", load_cursor)
+    saved: list[str] = []
+    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
+
+    fired: list = []
+
+    async def fake_run_onset(zones, config):
+        fired.append(zones)
+
+    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
+
+    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
+    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+    return fired, saved
 
 
 def test_zone_name_for_looks_up_by_id() -> None:
@@ -191,13 +216,6 @@ def test_run_event_scan_skips_event_already_claimed_by_concurrent_scan(monkeypat
     before firing must see the concurrent scan's already-saved claim and skip.
     """
 
-    events = [_alarm_event("2026-07-03T14:16:00Z", 12)]
-
-    async def fake_fetch_events(*a, **k):
-        return events
-
-    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
-
     calls = {"n": 0}
 
     def fake_load():
@@ -207,19 +225,7 @@ def test_run_event_scan_skips_event_already_claimed_by_concurrent_scan(monkeypat
         # already-saved claim for this exact event.
         return "2026-07-03T14:15:00Z" if calls["n"] == 1 else "2026-07-03T14:16:00Z"
 
-    monkeypatch.setattr(auto, "load_last_alarm_event_time", fake_load)
-    saved: list[str] = []
-    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
-
-    fired: list = []
-
-    async def fake_run_onset(zones, config):
-        fired.append(zones)
-
-    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
-
-    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
-    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+    fired, saved = _scan_events(monkeypatch, [_alarm_event("2026-07-03T14:16:00Z", 12)], fake_load)
 
     assert fired == []
     assert saved == []
@@ -310,23 +316,7 @@ def test_run_event_scan_first_run_sets_baseline_without_firing(monkeypatch) -> N
 
     events = [_alarm_event("2026-06-28T12:52:01Z", 12), _alarm_event("2026-07-02T09:40:00Z", 12)]
 
-    async def fake_fetch_events(*a, **k):
-        return events
-
-    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
-    monkeypatch.setattr(auto, "load_last_alarm_event_time", lambda: None)
-    saved: list[str] = []
-    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
-
-    fired: list = []
-
-    async def fake_run_onset(zones, config):
-        fired.append(zones)
-
-    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
-
-    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
-    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+    fired, saved = _scan_events(monkeypatch, events, lambda: None)
 
     assert fired == []
     assert saved == ["2026-07-02T09:40:00Z"]
@@ -342,24 +332,8 @@ def test_run_event_scan_survives_restart_by_resuming_from_persisted_cursor(monke
 
     events = [_alarm_event("2026-07-02T09:40:00Z", 12)]
 
-    async def fake_fetch_events(*a, **k):
-        return events
-
-    monkeypatch.setattr(auto, "fetch_events", fake_fetch_events)
     # Cursor from before the restart, persisted to disk, still older than the alarm.
-    monkeypatch.setattr(auto, "load_last_alarm_event_time", lambda: "2026-07-02T03:01:01Z")
-    saved: list[str] = []
-    monkeypatch.setattr(auto, "save_last_alarm_event_time", lambda ts: saved.append(ts))
-
-    fired: list = []
-
-    async def fake_run_onset(zones, config):
-        fired.append(zones)
-
-    monkeypatch.setattr(auto, "_run_onset", fake_run_onset)
-
-    security = _security(ongoing=True, zones=[(12, "PUERTA JARDIN")])
-    asyncio.run(auto._run_event_scan(security, auto.AlarmSceneConfig()))
+    fired, saved = _scan_events(monkeypatch, events, lambda: "2026-07-02T03:01:01Z")
 
     assert fired == [[(12, "PUERTA JARDIN")]]
     assert saved == ["2026-07-02T09:40:00Z"]
@@ -502,41 +476,6 @@ def test_deliver_photo_failure_falls_back_to_text(monkeypatch) -> None:
     assert "someone" in notifier.text  # photo upload failed -> text fallback fired
 
 
-_BLOCK_S = 0.4
-
-
-async def _run_watching_the_loop(coro) -> tuple[float, float]:
-    """Await ``coro`` while heart-beating; return (worst wakeup gap, elapsed).
-
-    A coroutine that does its blocking I/O inline pins the loop for the whole
-    duration, so the heartbeat's worst gap ≈ the block; one that threads the
-    call off keeps waking on schedule.
-    """
-
-    gaps: list[float] = []
-
-    async def heartbeat() -> None:
-        last = time.monotonic()
-        while True:
-            await asyncio.sleep(0.005)
-            now = time.monotonic()
-            gaps.append(now - last)
-            last = now
-
-    beat = asyncio.create_task(heartbeat())
-    started = time.monotonic()
-    try:
-        await coro
-    finally:
-        elapsed = time.monotonic() - started
-        beat.cancel()
-        try:
-            await beat
-        except asyncio.CancelledError:
-            pass
-    return max(gaps, default=elapsed), elapsed
-
-
 def test_deliver_never_blocks_the_event_loop(monkeypatch) -> None:
     """Regression for #635: ``_deliver`` runs as a detached task on uvicorn's
     single event loop, and every send in it is blocking network I/O (a
@@ -544,16 +483,16 @@ def test_deliver_never_blocks_the_event_loop(monkeypatch) -> None:
     send). Run inline, a genuine alarm froze HVAC control, camera streaming and
     every concurrent API request for as long as the sends took."""
 
-    monkeypatch.setattr(auto, "send_push", lambda *a, **k: time.sleep(_BLOCK_S))
+    monkeypatch.setattr(auto, "send_push", lambda *a, **k: time.sleep(BLOCK_S))
     monkeypatch.setattr(auto, "build_alarm_notifier", lambda: None)
 
-    stall, elapsed = asyncio.run(_run_watching_the_loop(
+    stall, elapsed = asyncio.run(run_watching_the_loop(
         auto._deliver([(3, "Garden")], SceneVerdict(verdict="real", summary="someone"),
                       _deliver_caps(ok=True, frame=b"IMG"))
     ))
 
-    assert elapsed >= _BLOCK_S, "the blocking send did not actually run"
-    assert stall < _BLOCK_S / 2, f"event loop stalled {stall:.3f}s inside _deliver"
+    assert elapsed >= BLOCK_S, "the blocking send did not actually run"
+    assert stall < BLOCK_S / 2, f"event loop stalled {stall:.3f}s inside _deliver"
 
 
 def test_multipart_photo_encodes_fields_and_image() -> None:

@@ -17,7 +17,6 @@ switch and its PUT is stubbed).
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Callable, Dict, List
 

@@ -6,7 +6,7 @@ import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
