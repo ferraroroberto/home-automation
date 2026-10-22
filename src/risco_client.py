@@ -52,7 +52,7 @@ from pyrisco.common import (
 
 from src.risco_webui import (
     RiscoCommandError,
-    RiscoConfigError,
+    RiscoConfigError,  # noqa: F401  re-exported: routers, automation and tests import it from here
     _load_credentials,
     _webui_arm_disarm,
     _webui_state_flags,

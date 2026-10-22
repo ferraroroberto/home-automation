@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional
 from src._schedule_store import (
     clean_date,
     clean_days,
-    clean_entry_list,
     clean_time,
     load_entry_list,
     safe_id,

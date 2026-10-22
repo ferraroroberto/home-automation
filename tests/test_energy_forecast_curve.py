@@ -26,7 +26,7 @@ _DAY_START = 1_699_920_000  # a whole hour, standing in for local midnight
 _HOUR = 3600
 
 
-def _day(overrides: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _day(overrides: Dict[int, Dict[str, Any]], day_start: int = _DAY_START) -> List[Dict[str, Any]]:
     """A 24-slot day frame of empty settled hours, with per-hour overrides.
 
     Mirrors what :func:`src.energy_history.hourly_day` returns, coverage fields
@@ -36,7 +36,7 @@ def _day(overrides: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
     out = []
     for i in range(24):
         slot = {
-            "key": str(_DAY_START + i * _HOUR),
+            "key": str(day_start + i * _HOUR),
             "pv_wh": 0.0,
             "pv_missing": True,
             "partial": False,

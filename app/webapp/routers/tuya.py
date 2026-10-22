@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from app.webapp.blind_schedules import settle_manual_move
 from app.webapp.read_snapshot import ReadSnapshot
-from app.webapp.routers._helpers import _bool_field, _json_body, _str_field, make_display_name_endpoint
+from app.webapp.routers._helpers import _bool_field, _str_field, make_display_name_endpoint
 from src.blind_automation import BlindOutcome, move_blinds
 from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name

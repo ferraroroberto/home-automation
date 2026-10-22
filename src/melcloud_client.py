@@ -344,12 +344,10 @@ async def set_device_state(
         # Pre-read: locate the unit and derive per-mode temp bounds for clamping.
         pre_context, _ = await _fetch_context(client)
         target_unit: Optional[ATAUnit] = None
-        target_building: str = ""
         for building in pre_context.buildings:
             for unit in building.air_to_air_units:
                 if unit.id == unit_id:
                     target_unit = unit
-                    target_building = building.name
                     break
             if target_unit is not None:
                 break

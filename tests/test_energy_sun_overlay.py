@@ -19,6 +19,8 @@ import pytest
 
 from app.webapp.routers import energy as E
 from src.energy_history import MIN_TRUSTED_COVERAGE
+from tests.test_energy_forecast_curve import _covered
+from tests.test_energy_forecast_curve import _day as _forecast_day
 
 # 2026-07-30 00:00 UTC — the day #578's diagnosis table was derived from.
 _DAY_START = 1_785_369_600
@@ -32,34 +34,8 @@ _PR = 0.80
 
 
 def _day(overrides: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """A 24-slot day frame of settled, empty hours with per-hour overrides.
-
-    Mirrors :func:`src.energy_history.hourly_day`, coverage fields included.
-    """
-    out = []
-    for i in range(24):
-        slot = {
-            "key": str(_DAY_START + i * _HOUR),
-            "pv_wh": 0.0,
-            "pv_missing": True,
-            "partial": False,
-            "pv_seconds": 0.0,
-            "pv_coverage": 0.0,
-            "pv_gap": False,
-        }
-        slot.update(overrides.get(i, {}))
-        out.append(slot)
-    return out
-
-
-def _covered(wh: float, **extra: Any) -> Dict[str, Any]:
-    """A fully-covered hour that measured ``wh`` — the normal path."""
-    slot = {
-        "pv_wh": wh, "pv_missing": False,
-        "pv_seconds": float(_HOUR), "pv_coverage": 1.0, "pv_gap": False,
-    }
-    slot.update(extra)
-    return slot
+    """A 24-slot day frame of settled, empty hours anchored at this file's day."""
+    return _forecast_day(overrides, day_start=_DAY_START)
 
 
 def _expected(**by_hour: float) -> List[Dict[str, Any]]:

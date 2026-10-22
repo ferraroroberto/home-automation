@@ -137,7 +137,7 @@ def test_schedule_row_tap_opens_editor_and_switch_does_not(
     """The shared row's contract on a migrated schedule list (#912): the text
     column opens the staged editor, the enable switch saves at once and never
     opens it."""
-    puts = _boot(page, base_url, sample_units, mock_api, mock_energy, mock_tuya, [
+    _boot(page, base_url, sample_units, mock_api, mock_energy, mock_tuya, [
         {"id": "down", "enabled": True, "time": "21:30", "action": "close",
          "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "targets": [],
          "presence": "any"},

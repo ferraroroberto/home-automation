@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
-from playwright.sync_api import Page, Route, expect
+from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
 from tests.e2e._surface import surface

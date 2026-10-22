@@ -9,7 +9,7 @@ submit → /api/login → writeToken → reload)."""
 from __future__ import annotations
 
 import json
-from typing import Callable, Dict, List
+from typing import Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
