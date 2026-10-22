@@ -68,7 +68,7 @@ A **separate** feature from Reminders above — every phrase says "calendar" so 
 
 The sentence list is in `custom_sentences/en/calendar.yaml`. Reuses the existing `!secret app_api_authorization` — **no new HA secret** (this hits the app's own API, never Google directly from HA). **English only for now**.
 
-**One-time setup (outside `ha_config_sync.py` — this isn't HA config):** run `& .\.venv\Scripts\python.exe -m scripts.auth_calendar_write` once after setting `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` (see `.env.example`) — opens a browser for a one-time Google consent, then persists the refresh token to `config/calendar_write_token.json` (gitignored). See the top-level README's "Calendar" section for the full Google Cloud Console setup.
+**One-time setup (outside `ha_config_sync.py` — this isn't HA config):** run `& .\.venv\Scripts\python.exe -m scripts.auth_calendar_write` once after setting `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` (see `.env.example`) — opens a browser for a one-time Google consent, then persists the refresh token to `config/calendar_write_token.json` (gitignored). See [timers-reminders-calendar.md](../timers-reminders-calendar.md) for the full Google Cloud Console setup.
 
 ### Family locator (issue #438) — "where's mom/dad" + same-turn ETA (#470, #485)
 
@@ -88,7 +88,7 @@ Unlike the rest of this managed block, the locator is **not** an `intent_script`
 
 Named places and household-role aliases are configured in the webapp (named places under Settings › Home & people › Places, and each person's "Role" field in the Security › People person sheet) — nothing in `custom_sentences/` needs editing to add a new person or place. The HA side reuses the existing `!secret app_api_authorization` — **no new HA secret**; the ETA needs a **`GOOGLE_MAPS_API_KEY`** in the *app's* own `.env` (repo is public — env-only, never committed). Without it the locate answer still works and the ETA speaks "Travel-time lookup isn't set up."
 
-**Whisper mishearing "dad" as "that" (#444):** this is a transcription problem, not a sentence-matching one — `{who}` already correctly wildcards anything, but a wrong transcript never reaches it. The fix lives outside this repo entirely (STT vocabulary bias in `local-llm-hub`, a prerequisite port-sharing fix in `voice-transcriber`) — see [`../voice-control.md`](../voice-control.md#stt-vocabulary-bias--household-names-444) for the full account, including what's verified vs. still needs a physical voice check.
+**Whisper mishearing "dad" as "that" (#444):** this is a transcription problem, not a sentence-matching one — `{who}` already correctly wildcards anything, but a wrong transcript never reaches it. The fix lives outside this repo entirely (STT vocabulary bias in `local-llm-hub`, a prerequisite port-sharing fix in `voice-transcriber`) — see [`../voice-control.md`](../voice-control.md#stt-vocabulary-bias--household-names) for the full account, including what's verified vs. still needs a physical voice check.
 
 ### Grocery list (issue #315) — Spanish, on its own pipeline
 

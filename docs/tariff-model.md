@@ -83,5 +83,5 @@ Export credit is priced hour by hour: `hourly export kWh × the latest export_ra
 
 - Flat-average commodity price (see above) — replace per-invoice for accuracy.
 - Holidays must be listed manually in `config/tariff.json` (`holidays: ["YYYY-MM-DD", …]`); unlisted national/local holidays are billed as their weekday period instead of valle.
-- Long windows (Year, All) only fill as the local history DB accrues data — see the data-retention note in the README.
+- Long windows (Year, All) only fill as the local history DB accrues data — see the data-retention note in [energy-history.md](energy-history.md).
 - Export rates are user-entered rather than downloaded from PVPC/ESIOS; the real schemes' banking/expiry rules (monthly netting cap on PVPC, multi-year rollover on a monedero virtual) are not modelled, and no running monedero balance is persisted.
