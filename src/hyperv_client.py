@@ -117,11 +117,16 @@ def fetch_hyperv_state() -> HyperVState:
     """Read the configured VM's live status. Raises only :class:`HyperVConfigError`.
 
     Any other failure (VM not found, unprivileged read, Hyper-V module absent,
-    VM powered off) returns an ``available=False`` state carrying a distinct
-    ``error`` — never a raise — so the Home card can render a useful message.
+    VM powered off, a ``Get-VM`` that exceeds its timeout) returns an
+    ``available=False`` state carrying a distinct ``error`` — never a raise —
+    so the Home card can render a useful message.
     """
     name = vm_name()  # HyperVConfigError propagates → router maps to 503
-    result = _run(_STATUS_SCRIPT, name)
+    try:
+        result = _run(_STATUS_SCRIPT, name, timeout=15)
+    except HyperVCommandError as exc:
+        logger.warning("⚠️  Hyper-V status read failed: %s", exc)
+        return HyperVState(available=False, name=name, error=str(exc), updated_at=_now())
     if result.returncode == 0 and result.stdout.strip():
         try:
             return parse_vm_status(result.stdout.strip(), name=name)
@@ -300,16 +305,30 @@ def _powershell() -> str:
 
 
 def _run(script: str, name: str, timeout: int = 15) -> "subprocess.CompletedProcess[str]":
+    """Run one PowerShell script against the VM.
+
+    Raises :class:`HyperVCommandError` — distinct from a cmdlet-reported
+    failure (``returncode != 0``) — when the process itself never answered:
+    a timeout (the ``subprocess.TimeoutExpired`` that used to escape
+    unhandled, leaving a graceful ``Stop-VM`` past 120s as an unhandled 500
+    with ``HYPERV_SNAPSHOT`` never invalidated) or an ``OSError`` spawning
+    PowerShell at all.
+    """
     env = os.environ.copy()
     env[_VM_NAME_ENV] = name  # explicit so the child never depends on inherited env
-    return subprocess.run(
-        [_powershell(), "-NoProfile", "-NonInteractive", "-Command", script],
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding=console_encoding(),
-        errors="replace",
-        timeout=timeout,
-        creationflags=NO_WINDOW,
-        env=env,
-    )
+    try:
+        return subprocess.run(
+            [_powershell(), "-NoProfile", "-NonInteractive", "-Command", script],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding=console_encoding(),
+            errors="replace",
+            timeout=timeout,
+            creationflags=NO_WINDOW,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HyperVCommandError(f"Hyper-V command timed out after {timeout}s") from exc
+    except OSError as exc:
+        raise HyperVCommandError(f"Could not run Hyper-V command: {exc}") from exc

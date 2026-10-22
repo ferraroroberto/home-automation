@@ -9,6 +9,7 @@ scan itself is faked — these tests never touch the network.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -684,3 +685,73 @@ def test_a_bad_cover_type_store_falls_back_to_detection(
     T.set_cover("blind-x", "close")
     assert (tinytuya.CONTROL, {"1": "2"}) in frames
     assert tinytuya.DP_QUERY in [cmd for cmd, _ in frames]
+
+
+def test_concurrent_blinds_learning_type_do_not_drop_each_others_entry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regression for #990: two blinds learning their cover type in the same
+    poll run on separate OS threads (``GET /api/tuya`` reads every device
+    via ``asyncio.gather`` over ``asyncio.to_thread``). An unserialised
+    load-modify-save lets the second write silently drop the first blind's
+    entry. Fails on pre-fix code: only one of the two entries survives.
+    """
+    store = tmp_path / "tuya_cover_types.json"
+    monkeypatch.setattr(T, "_COVER_TYPES_FILE", store)
+
+    real_write = T.write_json_atomic
+    a_ready_to_write = threading.Event()
+    b_done = threading.Event()
+
+    def hooked_write(path, data):
+        if threading.current_thread().name == "blind-a":
+            a_ready_to_write.set()
+            # Give blind-b's thread the full load-modify-save window before
+            # blind-a resumes and (pre-fix) writes its stale snapshot back.
+            b_done.wait(timeout=2)
+        real_write(path, data)
+
+    monkeypatch.setattr(T, "write_json_atomic", hooked_write)
+
+    def run_b() -> None:
+        assert a_ready_to_write.wait(timeout=2)
+        T._remember_cover_type("blind-b", 1, "1")
+        b_done.set()
+
+    thread_a = threading.Thread(
+        target=lambda: T._remember_cover_type("blind-a", 1, "1"), name="blind-a"
+    )
+    thread_b = threading.Thread(target=run_b, name="blind-b")
+    thread_a.start()
+    thread_b.start()
+    thread_a.join(timeout=3)
+    thread_b.join(timeout=3)
+
+    on_disk = json.loads(store.read_text(encoding="utf-8"))
+    assert on_disk == {"blind-a": 1, "blind-b": 1}
+
+
+def test_remember_cover_type_skips_persist_when_store_unreadable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Regression for #990: an unreadable (not merely absent) store must not
+    be folded into "empty" and written back over every other blind's type —
+    that contradicts ``_load_cover_types``'s own "never overwritten" promise.
+    """
+    store = tmp_path / "tuya_cover_types.json"
+    store.write_text('{"other-blind": 1}', encoding="utf-8")
+    monkeypatch.setattr(T, "_COVER_TYPES_FILE", store)
+
+    def boom(path, default):
+        raise T.StoreUnreadableError("simulated transient read failure")
+
+    monkeypatch.setattr(T, "_read_store_json", boom)
+    T._cover_types.clear()
+
+    with caplog.at_level("WARNING", logger=T.logger.name):
+        T._remember_cover_type("blind-x", 1, "1")
+
+    assert T._cover_types["blind-x"] == 1  # kept in memory regardless
+    on_disk = json.loads(store.read_text(encoding="utf-8"))
+    assert on_disk == {"other-blind": 1}  # untouched on disk — nothing overwritten
+    assert "unreadable" in caplog.text

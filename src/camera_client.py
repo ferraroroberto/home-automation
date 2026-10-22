@@ -488,7 +488,11 @@ async def ptz_start(
 async def ptz_stop(camera_id: str, path: Optional[Path] = None) -> None:
     """Stop any in-flight PTZ move."""
     watchdog = _ptz_watchdogs.pop(camera_id, None)
-    if watchdog is not None:
+    # The safety watchdog calls this function itself when it fires; cancelling
+    # the task we are currently running would deliver CancelledError at the
+    # next await below (the ONVIF Stop round-trip) and abort the Stop before
+    # it reaches the camera. Only cancel a *different* in-flight watchdog.
+    if watchdog is not None and watchdog is not asyncio.current_task():
         watchdog.cancel()
     cfg = get_camera_config(camera_id, path)
     conn = await _get_conn(cfg)
