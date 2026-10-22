@@ -26,6 +26,7 @@ button = { src = "app/webapp/static/_vendored/button", sha = "4c699636afecd5cae5
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/segmented" }
 modal = { src = "app/webapp/static/_vendored/modal", sha = "4c699636afecd5cae5e966bc2bcb17fa49744390", dest = "app/webapp/static/_vendored/modal" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "2f1e2f7c81b9a91a062271881fc87830104808ae", dest = "scripts/static_ratchet.py" }
+docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "fdb750461997c4a13eacea8091f115ff12bba564", dest = "scripts/docs_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
@@ -38,6 +39,18 @@ static_ratchet = { src = "scripts/static_ratchet.py", sha = "2f1e2f7c81b9a91a062
 enabled  = true
 baseline = ".static-ratchet-baseline.json"
 exclude  = ["**/_vendored/**"]
+
+# [docs_ratchet] -- the scaffold's baseline-and-ratchet docs stage. The gate
+# (scripts/verify-before-ship.ps1) runs scripts/docs_ratchet.py through
+# scripts/docs_ratchet_gate.py, which fails when README.md passes its byte budget
+# or README.md / docs/**/*.md gains a history marker (issue reference, dated or
+# changelog heading) beyond .docs-ratchet-baseline.json. Whole tree, never
+# path-routed; exit 3 (git or a doc unreadable) is NOT CONFIRMED and fails.
+# Nothing is excluded: no docs/ folder holds generated or dated reports.
+# Procedure + limits: project-scaffolding docs/docs-ratchet.md.
+[docs_ratchet]
+enabled  = true
+baseline = ".docs-ratchet-baseline.json"
 
 # /perf-review (fleet-config skills/perf-review): "ready" is the energy-flow tile
 # visible (the first Home card that needs live data), not first contentful paint,
@@ -180,6 +193,9 @@ path = ".gitignore"
 [[e2e.rule]]
 tier = "none"
 path = ".static-ratchet-baseline.json"
+[[e2e.rule]]
+tier = "none"
+path = ".docs-ratchet-baseline.json"
 # The .env template: documentation of the keys, never read at runtime (the
 # app reads .env itself) -- unclassified, it failed safe to full (#778).
 [[e2e.rule]]

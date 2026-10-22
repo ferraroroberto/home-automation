@@ -9,7 +9,7 @@ command runs both and routes the browser suite proportionately to the diff:
 & .\scripts\verify-before-ship.ps1
 ```
 
-Byte-compiles the repo, runs the static ratchet and the backend suite
+Byte-compiles the repo, runs the static and docs ratchets and the backend suite
 unconditionally, then
 classifies the branch's changed files against `.fleet.toml`'s `[e2e]` table
 (`scripts/classify_e2e.py`, vendored byte-identical from `project-scaffolding`)
@@ -30,6 +30,21 @@ count can only go down; shrink the baseline in the PR that removes debt with
 (no `npx`, no network on the first `npx`, ruff missing) exits 3, which the gate
 reports as NOT CONFIRMED and fails, never as a pass. The gate calls it through
 `python -m scripts.static_ratchet_gate`.
+
+The docs ratchet (`scripts/docs_ratchet.py`, vendored byte-identical from
+`project-scaffolding`; `.fleet.toml` `[docs_ratchet]`) enforces the README and
+docs convention: docs state what is true now and why. It fails when the root
+`README.md` passes 40 KiB or its baselined size, and when `README.md` or any
+`docs/**/*.md` file holds more history markers than
+`.docs-ratchet-baseline.json` records for it: an issue reference, a dated
+heading or a changelog heading (fenced code, URLs and link targets do not
+count). Existing markers are baselined, so each file's count can only go down;
+lower the baseline in the PR that rewords a doc with
+`python scripts/docs_ratchet.py --update-baseline`, and prefer a present-tense
+sentence to `--allow-additions`. It reads the whole tree and is never
+path-routed. Exit 3 (git or a doc unreadable, a fence that never closes) is
+NOT CONFIRMED and fails, never a pass; the gate calls it through
+`python -m scripts.docs_ratchet_gate`.
 
 CI (`.github/workflows/ci.yml`) runs this same gate on a clean Windows runner
 for every PR and every push to `main`: a fresh `.venv` from the requirements
