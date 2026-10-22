@@ -16,8 +16,12 @@
                             in README.md / docs/**/*.md beyond
                             .docs-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
-      4. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
-      5. pytest (e2e)    — diff-proportionate: the browser slice is routed by
+      4. comment ratchet  — no product-code file's count of #NNN issue-reference
+                            comments rises beyond .comment-ratchet-baseline.json.
+                            Whole tree, never routed; exit 3 is NOT CONFIRMED
+                            and fails.
+      5. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
+      6. pytest (e2e)    — diff-proportionate: the browser slice is routed by
                             scripts/classify_e2e.py against the .fleet.toml [e2e]
                             rules (skip / static / full), fail-safe to full
                             (ferraroroberto/home-automation#603, project-scaffolding#180).
@@ -126,6 +130,8 @@ try {
     Invoke-Stage "static ratchet" { & $py -m scripts.static_ratchet_gate }
     # Same exit-3 mapping for the docs ratchet (tests/test_docs_ratchet_gate.py).
     Invoke-Stage "docs ratchet" { & $py -m scripts.docs_ratchet_gate }
+    # Same exit-3 mapping for the comment ratchet (tests/test_comment_ratchet_gate.py).
+    Invoke-Stage "comment ratchet" { & $py -m scripts.comment_ratchet_gate }
     Invoke-Stage "pytest (unit, non-e2e)" { & $py -m pytest tests -p no:cacheprovider --ignore=tests/e2e }
 
     # ---------------------------------------------------------------- e2e routing

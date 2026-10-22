@@ -336,43 +336,43 @@ def _fetch_account(
     """Fetch one account's Find My devices, mapping failures to a per-account status.
 
     A failure here degrades only this account — the caller keeps every other
-    account's entities (issue #478), so one Apple ID needing 2FA never blanks the
-    whole snapshot.
+    account's entities, so one Apple ID needing 2FA never blanks the whole
+    snapshot.
 
-    Issue #655: when this account has been failing, a fresh sign-in handshake is
-    forced at most once per :func:`_retry_backoff_s` — self-healing a session
-    that is actually fine again (the trusted cookies were re-validated out of
-    band, or Apple's own hold lifted) without needing a manual tray restart,
-    while staying far short of #651's every-poll re-authentication that was
-    triggering repeated "someone is trying to access your account" prompts. A
-    healthy account is never touched by this — same caching/cadence as before.
+    A fresh sign-in handshake is forced at most once per
+    :func:`_retry_backoff_s`, once this account has accumulated enough
+    consecutive failures — self-healing a session that is actually fine again
+    (the trusted cookies were re-validated out of band, or Apple's own hold
+    lifted) without needing a manual tray restart. It never re-authenticates
+    on every poll, which would trigger repeated "someone is trying to access
+    your account" prompts. A healthy account is never touched by this.
 
-    Issue #656: the backoff timestamp is deliberately *not* cleared once the
-    account recovers (see the bottom of this function) — the backoff clock
-    runs from the last forced handshake, so an account that keeps failing
-    and recovering is still throttled to one handshake per window.
+    The backoff timestamp is deliberately *not* cleared once the account
+    recovers (see the bottom of this function) — the backoff clock runs from
+    the last forced handshake, so an account that keeps failing and
+    recovering is still throttled to one handshake per window.
 
-    Issue #658: "broken" means the Find My fetch itself failed. pyicloud's
-    FindMy sub-service re-authenticates internally when Apple answers 450 and,
-    when the browser trust has expired, leaves the cached session's in-memory
+    "Broken" means the Find My fetch itself failed. pyicloud's FindMy
+    sub-service re-authenticates internally when Apple answers 450 and, when
+    the browser trust has expired, leaves the cached session's in-memory
     ``requires_2fa`` true while still serving every device;
-    :func:`fetch_presence` no longer treats that flag as a failure, so a
+    :func:`fetch_presence` does not treat that flag as a failure, so a
     working session is never reported ``2fa_required`` here and this
     self-heal fires only for real breakage. The fetch runs with
     ``request_2fa_push=False``: this process can never enter a 2FA code, so
     pyicloud must not ask Apple to push one to the household's phones on every
     fresh sign-in.
 
-    Issue #678: one failed poll is not breakage. Apple answers the Find My
-    fetch with a transient 409 ("Authentication required for Account.") often
-    enough that reacting to a single one threw away a working, *trusted*
-    session and woke the household with a Telegram pair for something that
-    healed itself two polls later. Both reactions are now gated on a
-    consecutive-failure streak, and the handshake no longer announces itself:
-    the pre-emptive "approve the sign-in if prompted" heads-up existed to
-    explain an Apple push that, since #658's ``request_2fa_push=False``, this
-    process can no longer cause. What is left is one actionable message per
-    broken *episode*, sent only once an account is stuck well past the point
+    One failed poll is not breakage. Apple answers the Find My fetch with a
+    transient 409 ("Authentication required for Account.") often enough that
+    reacting to a single one would throw away a working, *trusted* session
+    and wake the household with a Telegram pair for something that heals
+    itself two polls later. Both reactions are gated on a consecutive-failure
+    streak, and the handshake does not announce itself: there is no
+    pre-emptive "approve the sign-in if prompted" heads-up, since
+    ``request_2fa_push=False`` means this process can never cause an Apple
+    push that would need approving. What is sent is one actionable message
+    per broken *episode*, only once an account is stuck well past the point
     self-healing could still have worked — and its paired recovery message,
     which fires only if that alert actually went out.
     """

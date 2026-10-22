@@ -190,6 +190,7 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier(".fleet.toml") == "skip"
     assert tier(".docs-ratchet-baseline.json") == "skip"
     assert tier(".static-ratchet-baseline.json") == "skip"
+    assert tier(".comment-ratchet-baseline.json") == "skip"
     assert tier("tray.bat") == "skip"
 
     # Mixed real diff (backend-only) -> skip; add a router/webapp file -> full.
