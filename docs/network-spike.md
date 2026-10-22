@@ -10,9 +10,9 @@ into the vendor web UIs by hand.
 `network-dhcp.js` in `app/webapp/static/`, backed by `GET /api/network`
 (`app/webapp/routers/network.py`); the prototype `src/network_client.py` is
 now the orchestrator over the split `src/network_ap.py` /
-`src/network_router.py` / `src/network_host.py` (#197). See the README's
-"Home-network / Network (in Settings)" section for the current product
-surface — this doc stays as the decision record for *why* each piece works
+`src/network_router.py` / `src/network_host.py` (#197). See [network.md](network.md) for the current product
+surface;
+this doc stays as the decision record for *why* each piece works
 the way it does. The two "(follow-up)" headings below are historical: both
 items shipped (#129 Phases 1–4, #169).
 

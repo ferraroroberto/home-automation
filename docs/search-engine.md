@@ -1,0 +1,13 @@
+# Search engine (SearXNG)
+
+## Search engine (SearXNG) — voice web-search backend
+
+[SearXNG](https://docs.searxng.org/) (self-hosted, no API key, no cloud) backs a `web_search` function on the English ("Okay Nabu") `extended_openai_conversation` agent, so the voice assistant's Tier-3 freeform brain (see `voice-control.md`) can answer questions needing current info. Full decision record, verified transcripts, and latency numbers: `voice-control.md` "Web search (Tier 3)".
+
+Runs as a Docker container on this same PC (the `local-llm-hub` repo's `docker/searxng/` stack, `start_searxng.bat`/`stop_searxng.bat`) — **Settings › Voice › Search engine** shows its live status (`GET /api/searxng`) and a Start button when it's down (`POST /api/searxng/start`). `SEARXNG_URL` / `SEARXNG_COMPOSE_PATH` in `.env` point the webapp at it (see `.env.example`).
+
+**Supervised.** The container is watched by the webapp (`app/webapp/searxng_watchdog.py`, a 120-second lifespan loop): a stopped stack is brought back automatically via the same code path as the Start button, and one that is running but not answering `/healthz` is restarted after a ~6-minute grace window — the failure shape no Docker `restart:` policy catches. Attempts back off exponentially (2-minute base, 30-minute cap) and log only on state changes. This exists because a stopped container leaves the puck answering current-affairs questions from the model's training cutoff, confidently and with no caveat — a wrong answer rather than a missing one. Details: `voice-control.md` "Backend supervision".
+
+**Spanish search endpoint.** `POST /api/voice/search` (`{query}` → `{ok, speech, source}`, always 200) is the app-owned search path for the deterministic Spanish pipeline: SearXNG queried with `language=es`, top 8 hits × 200-char snippets, one summarising pass through the local hub (`qwen3.5-4b-nothink`). It never answers from the model's training cutoff — SearXNG down, no results and a failing hub each return their own fixed Spanish sentence and `source` (`searxng_down` / `no_results` / `hub_error`), and every query leaves one info log line (length, result count, latency; never the query text). Core in `src/web_search.py`. Home Assistant calls it from the Spanish `WebSearch` intent (`voice-pe-config/`); try it on loopback with `curl -k -X POST https://127.0.0.1:8447/api/voice/search -H "Content-Type: application/json" -d '{"query":"quién ganó el último mundial"}'`.
+
+**Spanish goes through the app endpoint.** A Spanish search-shaped question routes to `POST /api/voice/search` via the `WebSearch` intent (`voice-pe-config/custom_sentences/es/websearch.yaml`), not the English agent's LLM path.
