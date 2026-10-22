@@ -26,6 +26,8 @@ from tinytuya import scanner as tuya_scanner
 
 from src._atomic_json import write_json_atomic
 from src._backoff import BackoffTracker
+from src._schedule_store import StoreUnreadableError
+from src._schedule_store import read_json as _read_store_json
 
 logger = logging.getLogger("tuya")
 
@@ -98,6 +100,11 @@ _COVER_TYPES: dict[int, dict[str, Any]] = tinytuya.CoverDevice.COVER_TYPES
 _COVER_TYPE_PRIORITY = (1, 8, 3, 4, 5, 7, 2, 6)
 _cover_types: dict[str, int] = {}
 _COVER_TYPES_FILE = Path(__file__).resolve().parent.parent / "config" / "tuya_cover_types.json"
+# Guards the cover-type store's load-modify-save in _remember_cover_type: the
+# webapp polls every blind concurrently via asyncio.to_thread, so two blinds
+# learning their type in the same poll can each load the same old contents
+# and the second write drops the first blind's entry (#990).
+_cover_types_file_lock = threading.Lock()
 _BRIGHTNESS_CODES = ("bright_value", "bright_value_v2", "bright_value_1")
 # Tuya's documented raw brightness range per code, used only when a device's
 # mapping does not state its own min/max (issue #870).
@@ -722,19 +729,8 @@ def _detect_cover_type(current: Any) -> Optional[int]:
     return None
 
 
-def _load_cover_types() -> dict[str, int]:
-    """The persisted ``{device_id: cover type}`` store; empty when absent or unusable.
-
-    Unreadable or malformed content is ignored (logged), never overwritten
-    blind: the blind is simply detected live as before.
-    """
-    try:
-        raw = json.loads(_COVER_TYPES_FILE.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}
-    except (OSError, ValueError) as exc:
-        logger.warning("⚠️ Tuya cover-type store %s unreadable: %s", _COVER_TYPES_FILE, exc)
-        return {}
+def _parse_cover_types(raw: Any) -> dict[str, int]:
+    """Validate a parsed cover-type store body into ``{device_id: type_id}``."""
     if not isinstance(raw, dict):
         logger.warning("⚠️ Tuya cover-type store %s is not an object — ignored", _COVER_TYPES_FILE)
         return {}
@@ -745,6 +741,22 @@ def _load_cover_types() -> dict[str, int]:
     }
 
 
+def _load_cover_types() -> dict[str, int]:
+    """The persisted ``{device_id: cover type}`` store; empty when absent or unusable.
+
+    Unreadable or malformed content is ignored (logged), never overwritten
+    blind: the blind is simply detected live as before. Only safe for the
+    *read* path — :func:`_remember_cover_type`'s read-modify-write must tell
+    "unreadable" apart from "genuinely empty" instead (see there).
+    """
+    try:
+        raw = _read_store_json(_COVER_TYPES_FILE, {})
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ Tuya cover-type store %s unreadable: %s", _COVER_TYPES_FILE, exc)
+        return {}
+    return _parse_cover_types(raw)
+
+
 def _remember_cover_type(device_id: str, type_id: int, reading: Any) -> None:
     """Cache this blind's cover type and persist it so a restart keeps it (#965).
 
@@ -752,19 +764,35 @@ def _remember_cover_type(device_id: str, type_id: int, reading: Any) -> None:
     looks at it, leaving a detection read nothing to match (#965). The type is a
     fixed property of the hardware: learn it from any status that does show a
     known value (the passive poll reads one anyway), and keep it across restarts.
+
+    The whole load-modify-save is serialised by ``_cover_types_file_lock``
+    (concurrent blinds learning their type in the same poll must not clobber
+    each other) and skips the persist entirely — keeping only the in-memory
+    cache — when the store exists but can't be read, rather than folding that
+    failure into "empty" and writing it back over every other blind's type.
     """
     if _cover_types.get(device_id) == type_id:
         return
     _cover_types[device_id] = type_id
     logger.info("ℹ️ Tuya cover %s is cover type %d (DPS reads %r)", device_id, type_id, reading)
-    stored = _load_cover_types()
-    if stored.get(device_id) == type_id:
-        return
-    stored[device_id] = type_id
-    try:
-        write_json_atomic(_COVER_TYPES_FILE, stored)
-    except OSError as exc:
-        logger.warning("⚠️ Could not persist Tuya cover type for %s: %s", device_id, exc)
+    with _cover_types_file_lock:
+        try:
+            raw = _read_store_json(_COVER_TYPES_FILE, {})
+        except StoreUnreadableError as exc:
+            logger.warning(
+                "⚠️ Tuya cover-type store %s unreadable — skipping persist for %s "
+                "(kept in memory only): %s",
+                _COVER_TYPES_FILE, device_id, exc,
+            )
+            return
+        stored = _parse_cover_types(raw)
+        if stored.get(device_id) == type_id:
+            return
+        stored[device_id] = type_id
+        try:
+            write_json_atomic(_COVER_TYPES_FILE, stored)
+        except OSError as exc:
+            logger.warning("⚠️ Could not persist Tuya cover type for %s: %s", device_id, exc)
 
 
 def _cover_type(device_id: str, device: tinytuya.Device, dps: str) -> int:

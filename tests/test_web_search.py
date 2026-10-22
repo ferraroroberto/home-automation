@@ -59,6 +59,41 @@ def test_user_message_carries_question_and_numbered_hits() -> None:
     assert "1. T — S" in msg
 
 
+def test_summarise_disables_sdk_retries_so_timeout_is_a_total_budget(monkeypatch) -> None:
+    """Regression for #990: the SDK's default max_retries=2 would make
+    HUB_TIMEOUT_S a per-attempt budget, so a stalled hub holds the request
+    for ~3x the timeout plus backoff — blowing past HA's rest_command
+    deadline before the fixed error sentence can come back."""
+
+    import anthropic
+
+    captured: dict = {}
+
+    class _FakeMessages:
+        async def create(self, **kw):
+            class _Block:
+                type = "text"
+                text = "ok"
+
+            class _Msg:
+                content = [_Block()]
+
+            return _Msg()
+
+    class _FakeClient:
+        def __init__(self, **kw):
+            captured.update(kw)
+            self.messages = _FakeMessages()
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(anthropic, "AsyncAnthropic", _FakeClient)
+    asyncio.run(ws._summarise("q", [{"title": "t", "snippet": "s"}]))
+    assert captured.get("max_retries") == 0
+    assert captured.get("timeout") == ws.HUB_TIMEOUT_S
+
+
 def test_success_returns_model_speech(monkeypatch, caplog) -> None:
     calls = _patch(monkeypatch, fetch=[_hit(1), _hit(2)], summarise="Ganó España.")
     with caplog.at_level(logging.INFO, logger="web_search"):

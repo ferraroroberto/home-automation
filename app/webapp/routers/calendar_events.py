@@ -10,6 +10,7 @@ to say back.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict
@@ -48,7 +49,10 @@ async def voice_add_calendar_event(payload: VoicePhrasePayload) -> Dict[str, Any
 
     body = to_google_event_body(parsed, timezone_name())
     try:
-        created = insert_event(body)
+        # insert_event is a blocking googleapiclient call (plus any OAuth
+        # token refresh); off the event loop so it can't stall every other
+        # request, camera stream and automation engine on this process.
+        created = await asyncio.to_thread(insert_event, body)
     except CalendarWriteError as exc:
         logger.warning("⚠️ Failed to create calendar event: %s", exc)
         return {"ok": False, "speech": "Sorry, I couldn't reach your calendar."}

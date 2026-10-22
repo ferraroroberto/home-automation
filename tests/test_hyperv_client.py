@@ -1,11 +1,15 @@
 """Unit tests for the pure logic in :mod:`src.hyperv_client` (issue #240).
 
-No Hyper-V, no subprocess: only the JSON status parsing, the error
-classification, the state/MAC normalisation, and the config-name guard — the
-parts that must be correct before a real VM is ever touched.
+No real Hyper-V, no real subprocess spawn: the JSON status parsing, the
+error classification, the state/MAC normalisation, the config-name guard,
+and (``subprocess.run`` monkeypatched) the ``_run`` timeout/OSError
+translation at the process boundary (#990) — the parts that must be correct
+before a real VM is ever touched.
 """
 
 from __future__ import annotations
+
+import subprocess
 
 import pytest
 
@@ -100,3 +104,40 @@ def test_powershell_commands_target_localhost_explicitly() -> None:
     assert "Get-VMNetworkAdapter -VM $vm" in H._STATUS_SCRIPT
     assert "Start-VM -ComputerName localhost" in H._START_SCRIPT
     assert "Stop-VM -ComputerName localhost" in H._STOP_SCRIPT
+
+
+# ------------------------------------------------- _run timeout/OSError (#990)
+def test_run_raises_command_error_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A ``Get-VM``/``Stop-VM`` that exceeds its timeout must not escape as a
+    bare ``subprocess.TimeoutExpired`` — callers only catch the domain errors."""
+
+    def boom(*_a, **_kw):
+        raise subprocess.TimeoutExpired(cmd="powershell", timeout=15)
+
+    monkeypatch.setattr(H.subprocess, "run", boom)
+    with pytest.raises(H.HyperVCommandError, match="timed out"):
+        H._run("Get-VM", "Home Assistant", timeout=15)
+
+
+def test_run_raises_command_error_on_os_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*_a, **_kw):
+        raise OSError("powershell.exe not found")
+
+    monkeypatch.setattr(H.subprocess, "run", boom)
+    with pytest.raises(H.HyperVCommandError):
+        H._run("Get-VM", "Home Assistant", timeout=15)
+
+
+def test_fetch_state_degrades_to_unavailable_on_read_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression for #990: ``fetch_hyperv_state``'s own contract ("Raises only
+    HyperVConfigError") broke when a slow ``Get-VM`` raised instead of
+    returning ``available=False`` — this must degrade, not raise."""
+    monkeypatch.setenv("HA_VM_NAME", "Home Assistant")
+
+    def boom(*_a, **_kw):
+        raise subprocess.TimeoutExpired(cmd="powershell", timeout=15)
+
+    monkeypatch.setattr(H.subprocess, "run", boom)
+    state = H.fetch_hyperv_state()
+    assert state.available is False
+    assert "timed out" in (state.error or "")

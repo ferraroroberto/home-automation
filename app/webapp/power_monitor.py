@@ -114,8 +114,20 @@ async def tick(
         and ups.runtime_seconds is not None
         and ups.runtime_seconds <= _threshold_seconds(prefs_loader)
     ):
-        state.low_battery_shutdown_triggered = True
-        await record_low_battery_shutdown(detail=_runtime_detail(ups))
+        # Set the once-per-outage flag only after the call actually completes.
+        # An unreadable pc-fleet prefs store (StoreUnreadableError from
+        # load_pc_fleet_prefs) raises out of record_low_battery_shutdown; if
+        # the flag were set first, that failure would silently disable the
+        # safety shutdown for the rest of the outage. Leaving it unset lets
+        # the next tick retry.
+        try:
+            await record_low_battery_shutdown(detail=_runtime_detail(ups))
+        except Exception as exc:  # noqa: BLE001 — retry next tick, never crash the monitor
+            logger.warning(
+                "⚠️ Low-battery shutdown call failed (%s); will retry next tick", exc
+            )
+        else:
+            state.low_battery_shutdown_triggered = True
 
 
 async def _run(interval_s: int) -> None:

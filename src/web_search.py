@@ -131,8 +131,12 @@ async def _summarise(query: str, results: List[Dict[str, str]]) -> str:
     """
     from anthropic import AsyncAnthropic
 
+    # max_retries=0: the SDK default of 2 retries makes HUB_TIMEOUT_S a
+    # per-attempt budget, not a total one — a stalled hub holds the request
+    # for ~3x the timeout plus backoff, blowing past the HA rest_command's
+    # 30 s deadline before SPEECH_HUB_ERROR can come back.
     client = AsyncAnthropic(
-        api_key="local-dummy", base_url=HUB_BASE_URL, timeout=HUB_TIMEOUT_S
+        api_key="local-dummy", base_url=HUB_BASE_URL, timeout=HUB_TIMEOUT_S, max_retries=0
     )
     try:
         message = await client.messages.create(

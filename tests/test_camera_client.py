@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from src import camera_client as C
 from src import network_client
@@ -73,3 +74,40 @@ def test_recover_host_noop_without_mac_or_when_unchanged(monkeypatch) -> None:
                           mac="b0:6b:11:f8:37:7f")
     assert asyncio.run(C._recover_host(no_mac)) is None     # no MAC → no recovery
     assert asyncio.run(C._recover_host(same)) is None       # unchanged IP → no-op
+
+
+def test_ptz_safety_stop_actually_stops_the_camera(monkeypatch) -> None:
+    """Regression for #990: the watchdog must not cancel its own Stop call.
+
+    ``_ptz_safety_stop`` is the task stored in ``_ptz_watchdogs``; it calls
+    ``ptz_stop``, whose first act used to pop that same task and cancel it,
+    delivering ``CancelledError`` before the ONVIF ``Stop`` round-trip could
+    complete. Fails on pre-fix code: ``stop_calls`` stays empty.
+    """
+    cfg = C.CameraConfig(id="cam1", host="192.168.0.1", username="a", password="b")
+    monkeypatch.setattr(C, "get_camera_config", lambda camera_id, path=None: cfg)
+
+    stop_calls = []
+
+    class _FakePTZ:
+        def create_type(self, name: str) -> SimpleNamespace:
+            return SimpleNamespace()
+
+        async def Stop(self, req) -> None:
+            stop_calls.append(req)
+
+    fake_conn = SimpleNamespace(ptz=_FakePTZ(), profile_token="t")
+
+    async def fake_get_conn(cfg):
+        return fake_conn
+
+    monkeypatch.setattr(C, "_get_conn", fake_get_conn)
+    monkeypatch.setattr(C, "_PTZ_SAFETY_STOP_S", 0.01)
+
+    async def run() -> None:
+        task = asyncio.create_task(C._ptz_safety_stop("cam1"))
+        C._ptz_watchdogs["cam1"] = task
+        await task
+
+    asyncio.run(run())
+    assert stop_calls, "safety auto-stop never reached the camera's ONVIF Stop call"

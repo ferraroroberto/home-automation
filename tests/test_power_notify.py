@@ -492,6 +492,49 @@ def test_monitor_threshold_falls_back_when_prefs_raise(monkeypatch) -> None:
     assert shutdown_calls == ["13min runtime"]
 
 
+def test_monitor_retries_after_shutdown_call_raises(monkeypatch) -> None:
+    """Regression for #990: an unreadable pc-fleet store must not permanently
+    disable the safety shutdown for the rest of the outage.
+
+    ``record_low_battery_shutdown`` loads pc-fleet prefs itself and can raise
+    (``StoreUnreadableError``) independently of the threshold fallback tested
+    above. The once-per-outage flag used to be set *before* that call, so a
+    raise left it ``True`` forever with no shutdown ever having happened.
+    Fails on pre-fix code: the second tick's call never fires.
+    """
+
+    async def fake_record_power_event(**kw) -> None:
+        pass
+
+    monkeypatch.setattr(PM, "record_power_event", fake_record_power_event)
+    shutdown_calls: List[Optional[str]] = []
+    should_raise = {"value": True}
+
+    async def fake_record_low_battery_shutdown(**kw) -> None:
+        if should_raise["value"]:
+            raise RuntimeError("pc_fleet.json unreadable")
+        shutdown_calls.append(kw.get("detail"))
+
+    monkeypatch.setattr(PM, "record_low_battery_shutdown", fake_record_low_battery_shutdown)
+
+    holder = {"ups": _ups(True)}
+    monkeypatch.setattr(PM, "fetch_ups_state", lambda: holder["ups"])
+    loader = lambda: PcFleetPrefs(threshold_minutes=15)  # noqa: E731
+    state = PM._MonitorState()
+    asyncio.run(PM.tick(state, prefs_loader=loader))  # baseline, online
+
+    holder["ups"] = _ups(False, runtime_seconds=900)  # crosses threshold, call raises
+    asyncio.run(PM.tick(state, prefs_loader=loader))
+    assert shutdown_calls == []
+    assert state.low_battery_shutdown_triggered is False  # must retry, not stick True
+
+    should_raise["value"] = False
+    holder["ups"] = _ups(False, runtime_seconds=600)  # still on battery, retried tick
+    asyncio.run(PM.tick(state, prefs_loader=loader))
+    assert shutdown_calls == ["10min runtime"]
+    assert state.low_battery_shutdown_triggered is True
+
+
 def test_monitor_triggers_shutdown_on_first_observation_when_already_critical(monkeypatch) -> None:
     """A safety measure, unlike the mains-transition alert, fires even at startup."""
 

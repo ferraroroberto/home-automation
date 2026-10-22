@@ -161,7 +161,11 @@ function renderSatellites(rows) {
 
 function renderHa() {
   const data = state.ha || { satellites: [], interactions: [] };
-  renderSatellites(data.satellites || []);
+  // A live dictation owns detached references to one row's button/transcript
+  // (toggleDictation); rebuilding the list out from under it orphans those
+  // references — the row looks reset to "Talk" but nothing is actually
+  // listening. Skip the rebuild until teardownDictation clears the flag.
+  if (!activeDictation) renderSatellites(data.satellites || []);
   renderInteractions(data.interactions || []);
 }
 
