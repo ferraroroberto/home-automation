@@ -326,28 +326,6 @@ async def apply_dhcp_changes(
     )
 
 
-def _delete_dhcp_binding_sync(inst_id: str) -> bool:
-    host, user, pwd = _router_creds()
-    client = RouterClient(host, user, pwd)
-    if not client.login():
-        raise NetworkCommandError("router login failed; cannot delete DHCP binding")
-    ok = client._delete_dhcp_binding(inst_id)
-    logger.info("ℹ️ DHCP binding deleted: %s", inst_id)
-    return ok
-
-
-async def delete_dhcp_binding(inst_id: str) -> bool:
-    """Async: delete one static reservation by its firmware ``_InstID`` path.
-
-    Frees a slot in the fixed-size binding table so a new reservation can be
-    written — the user-facing answer to the 10-entry cap (delete a row held by an
-    offline/retired device, then add a new one). **Only ever called from an
-    explicit, confirm-gated user action** — never on a poll. Raises
-    :class:`NetworkCommandError` on a login/reject.
-    """
-    return await asyncio.to_thread(_delete_dhcp_binding_sync, inst_id)
-
-
 # --------------------------------------------------------------------------- #
 # No-link device ping probe (issue #552)                                      #
 # --------------------------------------------------------------------------- #

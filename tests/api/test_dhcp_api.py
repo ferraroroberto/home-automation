@@ -1,7 +1,8 @@
-"""API smoke for the DHCP planning + reservation endpoints (issue #176).
+"""API smoke for the DHCP planning + reservation endpoints.
 
-``GET/POST /api/network/dhcp-plan[...]`` and the reservation-batch routes
-classify devices, compute planned IPs, and write only the pending rows.
+``GET /api/network/dhcp-plan`` classifies devices and computes planned IPs;
+``PUT /api/network/dhcp-overrides/{mac}`` persists a group choice; and
+``POST /api/network/dhcp-reservations/apply`` is the single router write path.
 Core fetch + router I/O are monkeypatched throughout — never a real LAN
 scan or router login.
 """
@@ -110,83 +111,6 @@ def test_dhcp_plan_route_classifies_and_assigns(
     assert body["category_labels"] == ["Infra", "Cameras"]
 
 
-def test_dhcp_apply_route_writes_only_pending_rows(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``POST /api/network/dhcp-plan/apply`` writes create/change rows, not reserved.
-
-    Recomputes the plan server-side and pushes only the rows that need it, one at a
-    time, returning a per-row result. Router I/O is monkeypatched — nothing touches
-    a real gateway (issue #176).
-    """
-    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
-
-    state = NetworkState(
-        internet=InternetHealth(online=True),
-        access_point=AccessPointHealth(reachable=True, device_count=2),
-        router=RouterHealth(reachable=True, authenticated=True),
-        wifi=WifiDiagnostics(available=False, error="no scan"),
-        devices=(
-            NetDevice(
-                mac="B8:27:EB:11:22:33", ip="192.168.0.2", name="nas",
-                conn_type="wired", signal=None, link_rate=1000, ssid=None, source="ap",
-            ),
-            NetDevice(
-                mac="5C:CF:7F:AA:BB:CC", ip=None, name="front-camera",
-                conn_type="5GHz", signal=60, link_rate=300, ssid="Home", source="ap",
-            ),
-        ),
-        alerts=(),
-    )
-    config = DhcpPlanConfig(
-        subnet_prefix="192.168.0",
-        ranges=(CategoryRange("Infra", 2, 10), CategoryRange("Cameras", 21, 30)),
-        rules=(("Infra", ("router", "nas")), ("Cameras", ("camera",))),
-        overrides={},
-    )
-
-    async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
-        return state
-
-    async def fake_fetch_bindings() -> list:
-        # NAS already reserved at its planned .2 → reserved (skip); camera → create.
-        return [{"name": "nas", "mac": "B8:27:EB:11:22:33", "ip": "192.168.0.2", "inst_id": "X1"}]
-
-    written: list = []
-
-    async def fake_apply(rows: list) -> list:
-        written.extend(rows)
-        return [{"mac": r["mac"], "ip": r["ip"], "ok": True, "error": None} for r in rows]
-
-    monkeypatch.setattr(
-        "app.webapp.routers.dhcp_plan.fetch_network_state", fake_fetch_network_state
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.dhcp_plan.load_network_display_names", lambda: {}
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_fetch_bindings
-    )
-    monkeypatch.setattr(
-        "app.webapp.routers.dhcp_plan.apply_dhcp_bindings", fake_apply
-    )
-
-    resp = client.post("/api/network/dhcp-plan/apply")
-    assert resp.status_code == 200
-    body = resp.json()
-
-    # Only the camera (create) is written — the reserved NAS is left untouched.
-    assert [r["mac"] for r in written] == ["5C:CF:7F:AA:BB:CC"]
-    assert written[0]["ip"] == "192.168.0.21"
-    assert written[0]["name"]  # a non-empty, router-safe binding name
-    assert body["applied"] == 1
-    assert body["failed"] == 0
-    assert body["results"][0]["ok"] is True
-
-
 def _two_camera_state() -> "NetworkState":
     """Two unreserved cameras → two ``create`` rows (issue #176 step 2 fixture)."""
     return NetworkState(
@@ -206,75 +130,6 @@ def _two_camera_state() -> "NetworkState":
         ),
         alerts=(),
     )
-
-
-def test_dhcp_apply_route_selective_writes_only_listed_macs(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``POST .../apply`` with a ``{"macs": [...]}`` body writes only those rows.
-
-    Selective apply (issue #176 step 2): the user ticks which create/change rows to
-    push when the 10-slot table can't hold them all. The plan is recomputed
-    server-side; only the listed MAC is written. Router I/O is monkeypatched.
-    """
-    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
-
-    config = DhcpPlanConfig(
-        subnet_prefix="192.168.0",
-        ranges=(CategoryRange("Cameras", 21, 30),),
-        rules=(("Cameras", ("camera",)),),
-        overrides={},
-    )
-
-    async def fake_state(include_speedtest: bool = False) -> NetworkState:
-        return _two_camera_state()
-
-    async def fake_bindings() -> list:
-        return []
-
-    written: list = []
-
-    async def fake_apply(rows: list) -> list:
-        written.extend(rows)
-        return [{"mac": r["mac"], "ip": r["ip"], "ok": True, "error": None} for r in rows]
-
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_network_state", fake_state)
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_network_display_names", lambda: {})
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config)
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_bindings)
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.apply_dhcp_bindings", fake_apply)
-
-    # Lower-case input proves the MAC allow-list is normalised before matching.
-    resp = client.post(
-        "/api/network/dhcp-plan/apply", json={"macs": ["5c:cf:7f:aa:bb:01"]}
-    )
-    assert resp.status_code == 200
-    assert [r["mac"] for r in written] == ["5C:CF:7F:AA:BB:01"]
-    assert resp.json()["applied"] == 1
-
-
-def test_dhcp_delete_route_validates_and_calls_client(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``POST .../dhcp-bindings/delete`` frees a slot by ``inst_id`` (issue #176 step 1)."""
-    captured: dict = {}
-
-    async def fake_delete(inst_id: str) -> bool:
-        captured["inst_id"] = inst_id
-        return True
-
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.delete_dhcp_binding", fake_delete)
-
-    resp = client.post(
-        "/api/network/dhcp-bindings/delete", json={"inst_id": "DEV.V4DP.Sr.Pl1.Bd3"}
-    )
-    assert resp.status_code == 200
-    assert captured["inst_id"] == "DEV.V4DP.Sr.Pl1.Bd3"
-    # A malformed id is rejected (400) before any router call.
-    resp_bad = client.post(
-        "/api/network/dhcp-bindings/delete", json={"inst_id": "bad id; rm -rf"}
-    )
-    assert resp_bad.status_code == 400
 
 
 def test_dhcp_override_route_persists_and_validates(
@@ -307,52 +162,6 @@ def test_dhcp_override_route_persists_and_validates(
         "/api/network/dhcp-overrides/5C:CF:7F:AA:BB:01", json={"category": "Nope"}
     )
     assert resp_bad.status_code == 400
-
-
-def test_dhcp_manual_add_validates_and_writes(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``POST .../dhcp-bindings`` adds one validated reservation (issue #176 step 3)."""
-    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
-
-    config = DhcpPlanConfig(
-        subnet_prefix="192.168.0",
-        ranges=(CategoryRange("Cameras", 21, 30),),
-        rules=(),
-        overrides={},
-    )
-
-    async def fake_bindings() -> list:
-        return [{"name": "x", "mac": "00:00:00:00:00:09", "ip": "192.168.0.9", "inst_id": "B1"}]
-
-    written: list = []
-
-    async def fake_apply(rows: list) -> list:
-        written.extend(rows)
-        return [{"mac": r["mac"], "ip": r["ip"], "ok": True, "error": None} for r in rows]
-
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config)
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_bindings)
-    monkeypatch.setattr("app.webapp.routers.dhcp_plan.apply_dhcp_bindings", fake_apply)
-
-    # A wrong-subnet IP is rejected (400) before any router call.
-    bad = client.post(
-        "/api/network/dhcp-bindings", json={"mac": "AA:BB:CC:DD:EE:01", "ip": "10.0.0.5"}
-    )
-    assert bad.status_code == 400
-    # An IP already held by a *different* MAC is a conflict (409).
-    dup = client.post(
-        "/api/network/dhcp-bindings", json={"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.0.9"}
-    )
-    assert dup.status_code == 409
-    # A valid add writes exactly one binding row.
-    good = client.post(
-        "/api/network/dhcp-bindings",
-        json={"mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.0.25", "name": "Cam"},
-    )
-    assert good.status_code == 200
-    assert [r["mac"] for r in written] == ["AA:BB:CC:DD:EE:01"]
-    assert written[0]["ip"] == "192.168.0.25"
 
 
 def test_dhcp_reservations_apply_removes_then_adds(
@@ -418,3 +227,45 @@ def test_dhcp_reservations_apply_removes_then_adds(
         json={"add_manual": [{"mac": "AA:BB:CC:DD:EE:02", "ip": "10.0.0.1"}]},
     )
     assert bad.status_code == 400
+
+
+def test_dhcp_reservations_apply_rejects_malformed_input_before_any_router_call(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bad ``inst_id``, MAC or off-subnet IP is a 400 and never reaches the router."""
+    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
+
+    config = DhcpPlanConfig(
+        subnet_prefix="192.168.0",
+        ranges=(CategoryRange("Cameras", 21, 30),),
+        rules=(),
+        overrides={},
+    )
+
+    async def fake_state(include_speedtest: bool = False) -> NetworkState:
+        return _two_camera_state()
+
+    async def fake_bindings() -> list:
+        return []
+
+    calls: list = []
+
+    async def fake_changes(removes: list, adds: list) -> list:
+        calls.append((removes, adds))
+        return []
+
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_network_state", fake_state)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_network_display_names", lambda: {})
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.load_dhcp_plan_config", lambda: config)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.fetch_dhcp_bindings", fake_bindings)
+    monkeypatch.setattr("app.webapp.routers.dhcp_plan.apply_dhcp_changes", fake_changes)
+
+    url = "/api/network/dhcp-reservations/apply"
+    bad_id = client.post(url, json={"remove": ["bad id; rm -rf"]})
+    bad_mac = client.post(url, json={"add_manual": [{"mac": "nope", "ip": "192.168.0.40"}]})
+    bad_ip = client.post(
+        url, json={"add_manual": [{"mac": "AA:BB:CC:DD:EE:01", "ip": "10.0.0.5"}]}
+    )
+
+    assert [r.status_code for r in (bad_id, bad_mac, bad_ip)] == [400, 400, 400]
+    assert calls == []

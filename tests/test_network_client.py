@@ -872,28 +872,6 @@ def test_apply_bindings_records_reservation_lost_row(monkeypatch) -> None:
     assert "lost its DHCP reservation" in row["error"]
 
 
-def test_delete_dhcp_binding_sync_logs_in_and_deletes(monkeypatch) -> None:
-    """``delete_dhcp_binding`` logs in once and removes the row by its inst_id (#176)."""
-    captured: dict = {}
-
-    class _Fake:
-        def __init__(self, *_a: Any, **_k: Any) -> None:
-            pass
-
-        def login(self) -> bool:
-            return True
-
-        def _delete_dhcp_binding(self, inst_id: str, timeout: int = 10) -> bool:
-            captured["inst_id"] = inst_id
-            return True
-
-    monkeypatch.setattr(network_client, "_router_creds", lambda: ("h", "u", "p"))
-    monkeypatch.setattr(network_client, "RouterClient", _Fake)
-
-    assert network_client._delete_dhcp_binding_sync("DEV.V4DP.Sr.Pl1.Bd2") is True
-    assert captured["inst_id"] == "DEV.V4DP.Sr.Pl1.Bd2"
-
-
 def test_apply_changes_deletes_then_adds_on_one_session(monkeypatch) -> None:
     """The staged batch deletes first, then adds — on one login (issue #176 redesign).
 
