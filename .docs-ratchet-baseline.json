@@ -1,7 +1,6 @@
 {
   "version": 1,
   "entries": [
-    {"key": "docs/architecture.md", "markers": 252},
     {"key": "docs/camera-spike.md", "markers": 10},
     {"key": "docs/home-assistant-integration/README.md", "markers": 1},
     {"key": "docs/network-spike.md", "markers": 17},
