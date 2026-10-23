@@ -24,7 +24,7 @@ with the router set the way the old exhaustive table did (#453).
     security_override  → /api/security/overrides
     security_notify    → /api/security/notify-prefs
     network            → /api/network*                    (LAN health, AP/router reboot, device/wifi hide, wifi rename)
-    dhcp_plan          → /api/network/dhcp-plan*, /dhcp-bindings*, /dhcp-overrides*, /dhcp-reservations*
+    dhcp_plan          → /api/network/dhcp-plan, /dhcp-overrides*, /dhcp-reservations/apply
     presence           → /api/presence*, /api/location*                (webhook/CRUD state + iCloud diagnostics)
     presence_locate    → /api/presence/locate, /api/presence/eta        (locate/ETA voice bridge)
     presence_trust     → /api/presence/icloud/{account}/trust/*         (iCloud browser-trust renewal)

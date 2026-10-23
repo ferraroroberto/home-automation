@@ -10,20 +10,15 @@ longer shares any state with the main ``/api/network`` snapshot endpoint.
 The F6600P router caps its static DHCP binding table at 10 reservations
 (``DHCP_BIND_MAX``), so this module is built around that constraint: the plan
 (``GET /api/network/dhcp-plan``) classifies every device into a category range
-and marks it ``reserved`` / ``create`` / ``change``, then three write paths push
-changes to the router — always opt-in, confirm-gated in the UI, never on a poll:
+and marks it ``reserved`` / ``create`` / ``change``. The single write path to the
+router is opt-in, confirm-gated in the UI, and never runs on a poll:
 
-- ``POST /api/network/dhcp-plan/apply`` — apply all (or a selected subset of)
-  pending create/change rows from the plan.
-- ``POST /api/network/dhcp-bindings/delete`` — free a slot by removing one
-  existing reservation (by its firmware ``inst_id``).
-- ``POST /api/network/dhcp-bindings`` — manually add one reservation for a
-  device the rules can't place, or one not in the live inventory at all.
-- ``PUT /api/network/dhcp-overrides/{mac}`` — persist a per-MAC category
-  override that the planner folds over ``config/dhcp_plan.json``.
 - ``POST /api/network/dhcp-reservations/apply`` — the staged reservation
-  manager's single combined batch: removals first (freeing slots), then adds
-  (cap-aware).
+  manager's single combined batch: removals first (freeing slots), then plan
+  adds and manual adds (cap-aware).
+- ``PUT /api/network/dhcp-overrides/{mac}`` — persist a per-MAC category
+  override that the planner folds over ``config/dhcp_plan.json`` (no router
+  write).
 
 See README "DHCP reservation plan" (#170) and "Managing the ten slots from the
 app" (#176) for the full user-facing behavior and the slot-budget rationale.
@@ -54,9 +49,7 @@ from src.network_client import (
     DHCP_BIND_MAX,
     NetworkCommandError,
     NetworkConfigError,
-    apply_dhcp_bindings,
     apply_dhcp_changes,
-    delete_dhcp_binding,
     fetch_dhcp_bindings,
     fetch_network_state,
 )
@@ -242,7 +235,7 @@ async def get_dhcp_plan() -> Dict[str, Any]:
     ``config/dhcp_plan.json``, folds in the router's existing static bindings, and
     returns the per-category MAC→IP assignment with each row's apply status. No
     router writes happen here — applying is the separate, confirm-gated
-    ``POST …/dhcp-plan/apply`` (issue #176). Mirrors ``get_network``'s error
+    ``POST …/dhcp-reservations/apply``. Mirrors ``get_network``'s error
     handling: 503 on missing ``NETWORK_*``, 502 on an unexpected read failure.
     """
     try:
@@ -252,103 +245,10 @@ async def get_dhcp_plan() -> Dict[str, Any]:
     return _dhcp_plan_dict(plan, existing_rows, online_macs)
 
 
-class DhcpApplyPayload(BaseModel):
-    # Optional MAC allow-list for a *selective* apply (issue #176 step 2). When
-    # given, only the create/change rows whose MAC is in this list are written;
-    # absent/None keeps the original "all pending" behaviour (CLI/back-compat).
-    macs: Optional[List[str]] = None
-
-
-@router.post("/api/network/dhcp-plan/apply")
-async def apply_dhcp_plan(payload: Optional[DhcpApplyPayload] = None) -> Dict[str, Any]:
-    """Push the planned reservations to the router (issue #176) — **opt-in write**.
-
-    Recomputes the plan server-side (never trusts client-supplied IPs), then writes
-    only the rows that actually need it — ``create`` (no binding yet) and ``change``
-    (bound to a different IP) — one at a time, leaving already-reserved rows
-    untouched. An optional ``{"macs": [...]}`` body narrows the write to just those
-    devices (selective apply, step 2); absent applies every pending row. Returns a
-    per-row ``results`` list; a mid-batch failure is recorded, not raised, so one
-    rejected row never silently drops the rest. This is a deliberate, confirm-gated
-    user action — the UI gates it behind a styled confirm and nothing here ever
-    runs on a poll.
-    """
-    try:
-        plan, _existing_rows, _online_macs = await _compute_dhcp_plan()
-    except Exception as exc:  # noqa: BLE001
-        raise _http_error(exc)
-
-    # A None allow-list = apply everything pending; an explicit list filters to it
-    # (normalised so the client's casing/separators don't matter). An empty list is
-    # treated as "no selection" → nothing to write.
-    allow: Optional[Set[str]] = None
-    if payload is not None and payload.macs is not None:
-        allow = {normalize_mac(m) for m in payload.macs}
-
-    rows = [
-        {"name": binding_name(a.label, a.mac), "mac": a.mac, "ip": a.planned_ip}
-        for c in plan.categories
-        for a in c.assignments
-        if a.status in ("create", "change") and a.planned_ip
-        and (allow is None or normalize_mac(a.mac) in allow)
-    ]
-    if not rows:
-        return {"results": [], "applied": 0, "failed": 0, "pending_count": 0}
-
-    try:
-        results = await apply_dhcp_bindings(rows)
-    except Exception as exc:  # noqa: BLE001
-        raise _http_error(exc)
-
-    applied = sum(1 for r in results if r.get("ok"))
-    skipped = sum(1 for r in results if r.get("skipped"))
-    # "failed" stays the simple not-applied count the client already relies on;
-    # "errored" splits out genuine rejects from rows skipped because the router's
-    # table is full, and "table_full" lets the UI explain the real reason.
-    errored = sum(1 for r in results if not r.get("ok") and not r.get("skipped"))
-    table_full = any(
-        r.get("skipped") or "table is full" in (r.get("error") or "")
-        for r in results
-    )
-    return {
-        "results": results,
-        "applied": applied,
-        "failed": len(results) - applied,
-        "skipped": skipped,
-        "errored": errored,
-        "table_full": table_full,
-        "capacity": DHCP_BIND_MAX,
-        "pending_count": len(rows),
-    }
-
-
 # A firmware instance path like ``DEV.V4DP.Sr.Pl1.Bd1`` — letters, digits, dots.
 _INST_ID_RE = re.compile(r"^[A-Za-z0-9._]{1,64}$")
 # A MAC as six colon/hyphen-separated hex pairs (validated before any write).
 _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){5}$")
-
-
-class DhcpDeletePayload(BaseModel):
-    inst_id: str
-
-
-@router.post("/api/network/dhcp-bindings/delete")
-async def delete_dhcp_reservation(payload: DhcpDeletePayload) -> Dict[str, Any]:
-    """Delete one static DHCP reservation by its firmware ``inst_id`` (issue #176).
-
-    Frees a slot in the fixed-size binding table so a new reservation can be added
-    — the user's lever against the 10-entry cap (delete a row held by an
-    offline/retired device, then apply a new one). Confirm-gated in the UI; never
-    runs on a poll. 503 on missing ``NETWORK_*``, 502 on a login/reject.
-    """
-    inst_id = (payload.inst_id or "").strip()
-    if not _INST_ID_RE.match(inst_id):
-        raise HTTPException(status_code=400, detail="invalid reservation id")
-    try:
-        await delete_dhcp_binding(inst_id)
-    except Exception as exc:  # noqa: BLE001
-        raise _http_error(exc)
-    return {"ok": True, "inst_id": inst_id}
 
 
 class DhcpOverridePayload(BaseModel):
@@ -386,57 +286,6 @@ class DhcpManualBindingPayload(BaseModel):
     name: Optional[str] = None
 
 
-@router.post("/api/network/dhcp-bindings")
-async def add_dhcp_reservation(payload: DhcpManualBindingPayload) -> Dict[str, Any]:
-    """Manually add one static reservation ``{mac, ip, name?}`` (issue #176 step 3).
-
-    For a device the rules can't place, or one not in the live inventory at all. The
-    IP is validated server-side (well-formed MAC, in the configured subnet, a host
-    octet, and not already held by a *different* MAC) before the write, which goes
-    through the same confirm-gated, cap-aware path as the plan apply — so a full
-    table returns a clear "delete some first" rather than a silent failure.
-    """
-    mac = (payload.mac or "").strip()
-    ip = (payload.ip or "").strip()
-    if not _MAC_RE.match(mac):
-        raise HTTPException(status_code=400, detail="invalid MAC address")
-    config = load_dhcp_plan_config()
-    prefix = config.subnet_prefix.rstrip(".")
-    octet = _ip_last_octet(ip)
-    if not ip.startswith(prefix + ".") or not (2 <= octet <= 254):
-        raise HTTPException(
-            status_code=400,
-            detail=f"IP must be on {prefix}.0/24 with a host octet (2–254)",
-        )
-    # Reject an IP already held by a different MAC (a duplicate would collide); a
-    # re-add for the same MAC is an idempotent replace, which the writer handles.
-    try:
-        existing = await fetch_dhcp_bindings()
-        for row in existing:
-            if row.get("ip") == ip and normalize_mac(row.get("mac") or "") != normalize_mac(mac):
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"{ip} is already reserved for another device",
-                )
-    except HTTPException:
-        raise
-    except NetworkConfigError as exc:
-        raise _http_error(exc)
-    except Exception as exc:  # noqa: BLE001 — pre-check is best-effort
-        logger.warning("⚠️  Could not pre-check existing bindings: %s", exc)
-
-    name = binding_name((payload.name or "").strip() or mac, mac)
-    try:
-        results = await apply_dhcp_bindings([{"name": name, "mac": mac, "ip": ip}])
-    except Exception as exc:  # noqa: BLE001
-        raise _http_error(exc)
-    row = results[0] if results else {"ok": False, "error": "no result"}
-    if not row.get("ok"):
-        # Surface the real reason (e.g. the full-table cap) with a 409, not a 200.
-        raise HTTPException(status_code=409, detail=row.get("error") or "router rejected the reservation")
-    return {"ok": True, "mac": normalize_mac(mac), "ip": ip, "name": name}
-
-
 class DhcpReservationsApplyPayload(BaseModel):
     # A staged batch from the reservation manager (#176 redesign): rows to delete
     # by inst_id, plan rows to add by MAC (IPs recomputed server-side), and manual
@@ -470,7 +319,7 @@ async def apply_dhcp_reservations(payload: DhcpReservationsApplyPayload) -> Dict
         if a.status in ("create", "change") and a.planned_ip and normalize_mac(a.mac) in want
     ]
 
-    # Validate + append the manual rows (same rules as the manual-add endpoint).
+    # Validate + append the manual rows: well-formed MAC, IP in the configured subnet.
     config = load_dhcp_plan_config()
     prefix = config.subnet_prefix.rstrip(".")
     for m in payload.add_manual:
