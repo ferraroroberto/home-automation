@@ -12,14 +12,12 @@
 'use strict';
 
 import {
-  state, els, toast, reportFetchOk, persistedFlag,
+  state, els, toast, persistedFlag,
   PLUGS_SHOW_OFFLINE_KEY, PLUGS_SHOW_HIDDEN_KEY,
 } from './state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { fmtW, friendlyError } from './format.js';
-import { restoreSnapshot, saveSnapshot } from './snapshots.js';
-import { createPoller } from './poll.js';
-import { createViewState, markTabFailure, renderFeedback } from './view-state.js';
+import { createTabLoader, createTabPollGate, createViewState, markTabFailure, renderFeedback } from './view-state.js';
 import { toggleMarkup, setToggleState } from './toggle.js';
 import { confirmAction } from './confirm.js';
 import { detailModal } from './detail-modal.js';
@@ -552,17 +550,12 @@ export function wirePlugsToggle() {
   }
 }
 
-// Shared by the poll/load path and the Add action: take a /api/tuya-shaped
-// body, snapshot it, and re-render from it.
+// Take a /api/tuya-shaped body and assign it into state — the shared
+// `apply` for `plugsLoader`'s poll/load path and, via
+// `plugsLoader.applySuccess`, the Add action below.
 function applyPlugsBody(body) {
-  reportFetchOk('plugs');
-  saveSnapshot('plugs', body);
   state.plugs = (body && body.devices) || [];
-  plugsView.set(state.plugs.length ? 'ready' : 'empty', {
-    updatedAt: new Date(),
-    liveUnavailable: false,
-  });
-  renderPlugs();
+  return state.plugs.length > 0;
 }
 
 // #612: the in-app replacement for a `tinytuya wizard` terminal run, and since
@@ -588,7 +581,7 @@ export function wirePlugsPair() {
     btn.textContent = 'Syncing…';
     try {
       const body = await jsonApi('/api/tuya/pair', { method: 'POST' });
-      applyPlugsBody(body);
+      plugsLoader.applySuccess(body);
       const info = (body && body.pair) || {};
       const changed = (info.added && info.added.length) || (info.recovered && info.recovered.length);
       toast(friendlyError(info.detail, 'Tuya sync finished'), changed ? 'success' : '');
@@ -614,40 +607,20 @@ export function wirePlugDetail() {
   if (els.plugSave) els.plugSave.addEventListener('click', plugModal.save);
 }
 
-export async function loadPlugs() {
-  if (!state.plugs.length) {
-    plugsView.set('loading', { liveUnavailable: false });
-    renderPlugs();
-  }
-  try {
-    applyPlugsBody(await jsonApi('/api/tuya'));
-  } catch (exc) {
-    if (isAuthRequired(exc)) return;
-    markPlugsFailure();
-  }
-}
+const plugsLoader = createTabLoader({
+  url: '/api/tuya',
+  scope: 'plugs',
+  label: 'plugs',
+  view: plugsView,
+  hasData: function () { return state.plugs.length > 0; },
+  apply: applyPlugsBody,
+  render: renderPlugs,
+});
 
-export function restorePlugsSnapshot() {
-  const body = restoreSnapshot('plugs');
-  if (!body) return;
-  state.plugs = (body && body.devices) || [];
-  plugsView.set(state.plugs.length ? 'stale' : 'empty', {
-    updatedAt: state.snapshotUpdatedAt.plugs,
-    liveUnavailable: false,
-  });
-  renderPlugs();
-}
+export const loadPlugs = plugsLoader.load;
+export const restorePlugsSnapshot = plugsLoader.restore;
 
 // --------------------------------------------------------- cadence + tabs
-const schedule = createPoller(loadPlugs);
-
 // Called by the tab switcher whenever the active tab changes. LAN reads are
 // expensive, so only poll while the IoT tab is open; stop when it isn't.
-export function onPlugsTab(tab) {
-  if (tab === 'iot') {
-    loadPlugs();            // immediate refresh on entry (also the first load)
-    schedule(POLL_MS);
-  } else {
-    schedule(0);
-  }
-}
+export const onPlugsTab = createTabPollGate(loadPlugs, 'iot', POLL_MS);

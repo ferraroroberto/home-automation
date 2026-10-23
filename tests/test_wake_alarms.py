@@ -93,12 +93,13 @@ def test_wake_alarm_tick_fires_once_and_disables_one_shot(monkeypatch) -> None:
     saved: list = []
     notified: list = []
 
-    async def fake_notify(message: str) -> None:
-        notified.append(message)
+    class _FakeNotifier:
+        def send_text(self, message: str) -> None:
+            notified.append(message)
 
     monkeypatch.setattr(engine, "load_wake_alarms", lambda: [recurring, one_shot])
     monkeypatch.setattr(engine, "save_wake_alarms", lambda entries: saved.append(entries))
-    monkeypatch.setattr(engine, "_notify", fake_notify)
+    monkeypatch.setattr(engine, "build_alarm_notifier", lambda: _FakeNotifier())
 
     config = engine.WakeAlarmConfig(enabled=True, poll_interval_s=15)
     state = engine._EngineState(last_fire_day={})

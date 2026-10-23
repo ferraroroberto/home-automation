@@ -13,9 +13,11 @@
 
 'use strict';
 
-import { reportFetchFailure, state } from './state.js';
+import { reportFetchFailure, reportFetchOk, state } from './state.js';
 import { emptyStateEl } from './empty-state.js';
-import { snapshotLabel } from './snapshots.js';
+import { saveSnapshot, restoreSnapshot, snapshotLabel } from './snapshots.js';
+import { isAuthRequired, jsonApi } from './api.js';
+import { createPoller } from './poll.js';
 
 export function createViewState(snapshotKey) {
   let current = 'idle';
@@ -125,4 +127,90 @@ export function markTabFailure(view, opts) {
   view.set(opts.hasData ? 'stale' : 'error', { liveUnavailable: true });
   reportFetchFailure(opts.scope, { message: 'live data unavailable' }, opts.label);
   if (opts.render) opts.render();
+}
+
+/* The per-tab fetch workflow: `load()` sets 'loading' when there
+ * is nothing on screen yet, GETs `url`, then runs the shared success path
+ * (`applySuccess`, also exported standalone for a sibling action — e.g. the
+ * plugs pair button — that lands a body from a different endpoint): reports
+ * success, saves the snapshot, hands the body to `apply` (assign `state.*`,
+ * return whether anything came back), flips the view to 'ready'/'empty' and
+ * repaints. On failure, `load()` returns quietly on an auth redirect, else
+ * degrades via `markTabFailure`. `restore()` repeats the same apply →
+ * view('stale'/'empty') → render from the saved snapshot. Used to be
+ * hand-rolled, with the copies already drifting, in `loadLights`/
+ * `loadPlugs`+`applyPlugsBody`/`loadUnits`/`loadUps`/`loadCameras` and their
+ * matching `restore*Snapshot`s.
+ *
+ * `beforeFetch` (optional) runs before the GET (cameras' token fetch).
+ * `afterLoad` (optional) runs once `load()` settles — on success and on a
+ * real failure, but never after a quiet auth-redirect return (units' open-
+ * sheet refresh, which must not act on stale/absent data). `persistSnapshot:
+ * false` (cameras — live-only, nothing to cache) skips save/restore
+ * entirely; `restore()` is then a no-op. `hasAnyData` (optional, defaults to
+ * `hasData`) gates only the loading-spinner check — UPS tells "nothing
+ * fetched yet" from "fetched but unavailable" apart (the loading gate is the
+ * former, `markTabFailure`'s stale/error fallback is the latter), the one
+ * module here where those two aren't the same question.
+ */
+export function createTabLoader(opts) {
+  const { url, scope, label, view, hasData, apply, render, beforeFetch, afterLoad } = opts;
+  const hasAnyData = opts.hasAnyData || hasData;
+  const persistSnapshot = opts.persistSnapshot !== false;
+
+  function applySuccess(body) {
+    reportFetchOk(scope);
+    if (persistSnapshot) saveSnapshot(scope, body);
+    const ready = apply(body);
+    view.set(ready ? 'ready' : 'empty', { updatedAt: new Date(), liveUnavailable: false });
+    render();
+  }
+
+  async function load() {
+    if (!hasAnyData()) {
+      view.set('loading', { liveUnavailable: false });
+      render();
+    }
+    try {
+      if (beforeFetch) await beforeFetch();
+      applySuccess(await jsonApi(url));
+    } catch (exc) {
+      if (isAuthRequired(exc)) return;
+      markTabFailure(view, { hasData: hasData(), scope, label, render });
+      if (afterLoad) afterLoad();
+      return;
+    }
+    if (afterLoad) afterLoad();
+  }
+
+  function restore() {
+    if (!persistSnapshot) return;
+    const body = restoreSnapshot(scope);
+    if (!body) return;
+    const ready = apply(body);
+    view.set(ready ? 'stale' : 'empty', {
+      updatedAt: state.snapshotUpdatedAt[scope],
+      liveUnavailable: false,
+    });
+    render();
+  }
+
+  return { load, restore, applySuccess };
+}
+
+/* The matching "load now, poll while one of `activeTabs` is open, else stop"
+ * gate the lights/plugs `on*Tab` handlers hand-rolled identically.
+ * `units`/`ups` keep their own — each varies the poll interval or does
+ * extra per-tab work the plain gate doesn't model. */
+export function createTabPollGate(load, activeTabs, pollMs) {
+  const schedule = createPoller(load);
+  const active = Array.isArray(activeTabs) ? activeTabs : [activeTabs];
+  return function (tab) {
+    if (active.indexOf(tab) !== -1) {
+      load();
+      schedule(pollMs);
+    } else {
+      schedule(0);
+    }
+  };
 }

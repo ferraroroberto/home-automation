@@ -31,7 +31,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
-from app.webapp.routers._helpers import make_display_name_endpoint
+from app.webapp.routers._helpers import make_display_name_endpoint, make_hidden_endpoint
 from src.athom_client import (
     CircuitReading,
     CircuitsState,
@@ -227,22 +227,11 @@ async def update_invert(key: str, payload: InvertPayload) -> Dict[str, Any]:
     return {"key": key, "invert": payload.invert}
 
 
-class HiddenPayload(BaseModel):
-    hidden: bool
-
-
-@router.put("/api/circuits/{key}/hidden")
-async def update_hidden(key: str, payload: HiddenPayload) -> Dict[str, Any]:
-    """Put one channel away in the card, or bring it back (issue #619).
-
-    A 6-channel meter on a 4-breaker board reports two channels that will never
-    read anything, and they are noise on a card scanned at a glance. Unlike the
-    invert flip this changes nothing about the *reading*, so neither cache is
-    dropped — the next poll re-renders with the flag already on the wire.
-    """
-    try:
-        set_circuit_hidden(key, payload.hidden)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save hidden flag for %s: %s", key, exc)
-        raise HTTPException(status_code=500, detail=f"failed to save hidden flag: {exc}")
-    return {"key": key, "hidden": payload.hidden}
+# Put one channel away in the card, or bring it back. A 6-channel meter on a
+# 4-breaker board reports two channels that will never read anything, and
+# they are noise on a card scanned at a glance. Unlike the invert flip this
+# changes nothing about the *reading*, so neither cache is dropped — the
+# next poll re-renders with the flag already on the wire.
+make_hidden_endpoint(
+    router, "/api/circuits/{item_id}/hidden", "key", set_circuit_hidden,
+)

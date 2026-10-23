@@ -29,23 +29,17 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
-from app.webapp.alarm_notify import (
-    OUTCOME_ERROR,
-    OUTCOME_OK,
-    SOURCE_MANUAL,
-    record_alarm_action,
-)
+from app.webapp.alarm_notify import perform_manual_alarm_action
 from app.webapp.routers._helpers import (
     DisplayNamePayload,
     _bool_field,
+    make_hidden_endpoint,
     make_http_error_mapper,
 )
-from src.presence_engine import note_manual_alarm_action
 from src.risco_client import (
     ACTIONS,
     RiscoCommandError,
     RiscoConfigError,
-    control_system,
     fetch_events,
     fetch_security_state,
     set_zone_bypass,
@@ -195,29 +189,13 @@ async def post_security_action(action: str, request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"unknown action '{action}'")
     actor = _actor_from_request(request)
     try:
-        try:
-            state = await control_system(action)
-        except Exception:
-            # The panel may have taken the command before the error: refetch.
-            SECURITY_SNAPSHOT.invalidate()
-            raise
-        SECURITY_SNAPSHOT.update(lambda _old: state)
-        note_manual_alarm_action(action)
-        # Manual actions are logged for the local activity record but never push
-        # a notification — the user is already at the app.
-        await record_alarm_action(
-            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK, actor=actor
-        )
-        return _state_payload(state)
+        state = await perform_manual_alarm_action(action, actor)
     except Exception as exc:  # noqa: BLE001
-        await record_alarm_action(
-            source=SOURCE_MANUAL,
-            action=action,
-            outcome=OUTCOME_ERROR,
-            error=str(exc),
-            actor=actor,
-        )
+        # The panel may have taken the command before the error: refetch.
+        SECURITY_SNAPSHOT.invalidate()
         raise _http_error(exc)
+    SECURITY_SNAPSHOT.update(lambda _old: state)
+    return _state_payload(state)
 
 
 @router.post("/api/security/zones/{zone_id}/bypass")
@@ -248,20 +226,16 @@ async def update_zone_display_name(
     return {"zone_id": zone_id, "display_name": name or None}
 
 
-class HiddenPayload(BaseModel):
-    hidden: bool
-
-
-@router.put("/api/security/zones/{zone_id}/hidden")
-async def update_zone_hidden(
-    zone_id: int, payload: HiddenPayload
-) -> Dict[str, Any]:
-    try:
-        set_zone_hidden(str(zone_id), payload.hidden)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save detector hidden flag for %s: %s", zone_id, exc)
-        raise HTTPException(status_code=500, detail=f"failed to save hidden flag: {exc}")
-    return {"zone_id": zone_id, "hidden": payload.hidden}
+# Zone id is an int on the path (unlike the str ids the sibling device/plug
+# hide endpoints use) — ``response_id=int`` restores it in the response body.
+make_hidden_endpoint(
+    router,
+    "/api/security/zones/{item_id}/hidden",
+    "zone_id",
+    set_zone_hidden,
+    log_noun="detector hidden flag",
+    response_id=int,
+)
 
 
 class TroubleIgnoredPayload(BaseModel):

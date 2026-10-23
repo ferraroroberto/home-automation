@@ -42,9 +42,10 @@ def test_alarm_action_wraps_control_system_with_same_side_effects(
 ) -> None:
     """``alarm_arm`` has the same effect as ``POST /api/security/arm``: the panel
     state changes, the presence engine sees a manual action, and the alarm
-    activity log gets an entry tagged with the calling actor.
+    activity log gets an entry tagged with the calling actor. Both routes go
+    through the shared ``perform_manual_alarm_action`` in ``alarm_notify``.
     """
-    import app.webapp.actions_registry as registry
+    import app.webapp.alarm_notify as alarm_notify
 
     state = SecurityState(reachable=True, label="Armed", mode="armed")
 
@@ -58,9 +59,9 @@ def test_alarm_action_wraps_control_system_with_same_side_effects(
     async def fake_record_alarm_action(*, actor=None, outcome=None, **kwargs) -> None:
         recorded.append({"actor": actor, "outcome": outcome})
 
-    monkeypatch.setattr(registry, "control_system", fake_control_system)
-    monkeypatch.setattr(registry, "note_manual_alarm_action", manual_calls.append)
-    monkeypatch.setattr(registry, "record_alarm_action", fake_record_alarm_action)
+    monkeypatch.setattr(alarm_notify, "control_system", fake_control_system)
+    monkeypatch.setattr(alarm_notify, "note_manual_alarm_action", manual_calls.append)
+    monkeypatch.setattr(alarm_notify, "record_alarm_action", fake_record_alarm_action)
 
     resp = client.post(
         "/api/actions/alarm_arm", headers={"X-Automation-Source": "streamdeck"}
@@ -76,7 +77,7 @@ def test_alarm_action_wraps_control_system_with_same_side_effects(
 def test_alarm_action_error_maps_to_502_and_records_error_outcome(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import app.webapp.actions_registry as registry
+    import app.webapp.alarm_notify as alarm_notify
 
     async def fake_control_system(action: str) -> SecurityState:
         raise RiscoCommandError("panel rejected the command")
@@ -86,8 +87,8 @@ def test_alarm_action_error_maps_to_502_and_records_error_outcome(
     async def fake_record_alarm_action(*, actor=None, outcome=None, **kwargs) -> None:
         recorded.append({"actor": actor, "outcome": outcome})
 
-    monkeypatch.setattr(registry, "control_system", fake_control_system)
-    monkeypatch.setattr(registry, "record_alarm_action", fake_record_alarm_action)
+    monkeypatch.setattr(alarm_notify, "control_system", fake_control_system)
+    monkeypatch.setattr(alarm_notify, "record_alarm_action", fake_record_alarm_action)
 
     resp = client.post("/api/actions/alarm_disarm")
 

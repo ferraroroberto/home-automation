@@ -1,8 +1,10 @@
 """Record + (conditionally) notify on every alarm command the app issues.
 
-A single entry point — :func:`record_alarm_action` — used by all three places
-that change the RISCO alarm: the weekly schedule engine, the presence engine,
-and the manual button route. It does two things:
+Two entry points — :func:`record_alarm_action`, used by all three places that
+change the RISCO alarm (the weekly schedule engine, the presence engine, and
+manual actions), and :func:`perform_manual_alarm_action`, the one place the
+two manual callers (the security route and the quick-action registry) issue
+the command itself. :func:`record_alarm_action` does two things:
 
 1. **Always** appends the command + its result to the local activity log
    (``logs/alarm.jsonl`` via :mod:`src.activity_log`) — the local alternative to
@@ -38,6 +40,7 @@ from src.activity_log import LOGS_DIR, append_activity
 from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
+from src.presence_engine import note_manual_alarm_action
 from src.risco_client import (
     RiscoCommandError,
     RiscoConfigError,
@@ -266,6 +269,36 @@ def _should_notify(prefs: AlarmNotifyPrefs, source: str, action: str, outcome: s
             return prefs.error  # reuse the existing "worth knowing" toggle
         return False  # goal already met — nothing to report, ever
     return bool(getattr(prefs, f"{source}_{_verb(action)}", False))
+
+
+async def perform_manual_alarm_action(action: str, actor: Optional[str] = None) -> SecurityState:
+    """Issue one manual arm/disarm/bypass-family command and record it uniformly.
+
+    Shared by ``POST /api/security/{action}`` and the quick-action registry's
+    alarm handlers — before this, the registry re-implemented the route's
+    command step (``control_system``, ``note_manual_alarm_action``,
+    :func:`record_alarm_action` on both outcomes) and the two copies had
+    already diverged on it. Re-raises on failure after logging the error
+    outcome, so the caller still maps the exception to its own HTTP response.
+    Refreshing the security snapshot/cache is the caller's own concern (the
+    route patches it with the read-back state here, the registry only
+    invalidates it) and deliberately stays outside this helper.
+    """
+    try:
+        state = await control_system(action)
+    except Exception as exc:  # noqa: BLE001 — re-raised after logging, caller maps it
+        await record_alarm_action(
+            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR,
+            error=str(exc), actor=actor,
+        )
+        raise
+    note_manual_alarm_action(action)
+    # Manual actions are logged for the local activity record but never push a
+    # notification — the user is already at the app.
+    await record_alarm_action(
+        source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK, actor=actor
+    )
+    return state
 
 
 async def record_alarm_action(
