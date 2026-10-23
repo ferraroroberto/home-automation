@@ -77,10 +77,10 @@ def test_security_action_tags_actor_from_automation_source_header(
     async def fake_record_alarm_action(*, actor=None, **kwargs) -> None:
         recorded.append(actor)
 
-    monkeypatch.setattr("app.webapp.routers.security.control_system", fake_control_system)
-    monkeypatch.setattr("app.webapp.routers.security.note_manual_alarm_action", lambda action: None)
+    monkeypatch.setattr("app.webapp.alarm_notify.control_system", fake_control_system)
+    monkeypatch.setattr("app.webapp.alarm_notify.note_manual_alarm_action", lambda action: None)
     monkeypatch.setattr(
-        "app.webapp.routers.security.record_alarm_action", fake_record_alarm_action
+        "app.webapp.alarm_notify.record_alarm_action", fake_record_alarm_action
     )
 
     assert client.post("/api/security/arm").status_code == 200

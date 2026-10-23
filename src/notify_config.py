@@ -15,16 +15,17 @@ committed template.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from dotenv import load_dotenv
 
-from src.notify import Notifier, TelegramConfig, build_notifier
+from src.notify import Notifier, NotifierError, TelegramConfig, build_notifier
 
 logger = logging.getLogger("notify_config")
 
@@ -87,3 +88,35 @@ def build_alarm_notifier(path: Optional[Path] = None) -> Optional[Notifier]:
     cfg = load_notify_config(path)
     name = "telegram" if (cfg.bot_token and cfg.chat_id) else "none"
     return build_notifier(name, cfg)
+
+
+async def notify_best_effort(
+    text: str,
+    *,
+    label: str,
+    notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
+) -> None:
+    """Best-effort Telegram send, next to the factory it calls.
+
+    Collapses the identical "build the notifier, no-op if unconfigured,
+    thread the blocking send off the event loop, swallow ``NotifierError``
+    with a warning" shape that used to be a private ``_notify`` helper
+    duplicated in the wake-alarm, blind-schedule and presence-automation
+    engines. ``label`` names the caller in the log lines (e.g.
+    ``"Wake-alarm"``, ``"Blind failure"``) — never raises, so a delivery
+    failure can never break the automation loop that called it.
+
+    ``presence_refresher._notify`` stays its own function: it runs inside a
+    worker thread already handed off by its caller's own ``asyncio.to_thread``
+    (not the event loop), so it sends directly rather than hopping threads
+    again, which this async helper cannot do from there.
+    """
+    notifier = notifier_factory()
+    if notifier is None:
+        logger.info("ℹ️ %s not sent to Telegram: notifier not configured", label)
+        return
+    try:
+        # notifier.send_text is blocking network I/O; keep it off the event loop.
+        await asyncio.to_thread(notifier.send_text, text)
+    except NotifierError as exc:  # delivery must never break the caller's loop
+        logger.warning("⚠️ %s Telegram notify failed: %s", label, exc)

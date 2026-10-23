@@ -27,7 +27,12 @@ from pydantic import BaseModel
 
 from app.webapp.blind_schedules import settle_manual_move
 from app.webapp.read_snapshot import ReadSnapshot
-from app.webapp.routers._helpers import _bool_field, _str_field, make_display_name_endpoint
+from app.webapp.routers._helpers import (
+    _bool_field,
+    _str_field,
+    make_display_name_endpoint,
+    make_hidden_endpoint,
+)
 from src.blind_automation import BlindOutcome, move_blinds
 from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
 from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
@@ -421,17 +426,7 @@ make_display_name_endpoint(
     router, "/api/tuya/{item_id}/display_name", "device_id", set_tuya_display_name
 )
 
-
-class HiddenPayload(BaseModel):
-    hidden: bool
-
-
-@router.put("/api/tuya/{device_id}/hidden")
-async def update_hidden(device_id: str, payload: HiddenPayload) -> Dict[str, Any]:
-    """Mark or unmark a Tuya device as hidden (local override, gitignored)."""
-    try:
-        set_tuya_hidden(device_id, payload.hidden)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to save hidden state for %s: %s", device_id, exc)
-        raise HTTPException(status_code=500, detail=f"failed to save hidden state: {exc}")
-    return {"device_id": device_id, "hidden": payload.hidden}
+make_hidden_endpoint(
+    router, "/api/tuya/{item_id}/hidden", "device_id", set_tuya_hidden,
+    log_noun="hidden state",
+)

@@ -57,8 +57,7 @@ from src.blind_automation import (
     retry_failed_blinds,
 )
 from src.location_config import load_location_config
-from src.notify import NotifierError
-from src.notify_config import build_alarm_notifier
+from src.notify_config import build_alarm_notifier, notify_best_effort
 from src.presence_engine import load_people
 from src.sun_position import sun_position
 from src.tuya_client import list_devices
@@ -160,18 +159,6 @@ def _blind_names(device_ids: Iterable[str]) -> List[str]:
     return [overrides.get(d) or names.get(d) or d for d in device_ids]
 
 
-async def _notify(text: str) -> None:
-    notifier = build_alarm_notifier()
-    if notifier is None:
-        logger.info("ℹ️ Blind failure not sent to Telegram: notifier not configured")
-        return
-    try:
-        # send_text is blocking network I/O; keep it off the event loop.
-        await asyncio.to_thread(notifier.send_text, text)
-    except NotifierError as exc:  # delivery must never break the engine
-        logger.warning("⚠️ Blind failure Telegram notify failed: %s", exc)
-
-
 def _retried_for(action: str) -> str:
     """How long ``action``'s retries ran, in words: "~15 s", "~7.5 min"."""
     total = sum(retry_delays(action))
@@ -204,9 +191,13 @@ async def _finish_move(
             "⚠️ Blinds %s (%s): %s still failing after %d attempt(s)",
             action, what, ", ".join(report.failed), report.max_attempts,
         )
-        await _notify(
+        # notifier_factory threaded explicitly (not notify_best_effort's own
+        # default) so a test can still fake it via this module's own
+        # build_alarm_notifier name, same seam every engine here used to own.
+        await notify_best_effort(
             f"🪟 Blinds could not {action}: {', '.join(_blind_names(report.failed))} "
-            f"({what}). Retried for {_retried_for(action)}."
+            f"({what}). Retried for {_retried_for(action)}.",
+            label="Blind failure", notifier_factory=build_alarm_notifier,
         )
     except Exception as exc:  # noqa: BLE001 — a background retry must never die unseen
         logger.warning("⚠️ Blind %s retry (%s) failed: %s", action, what, exc)

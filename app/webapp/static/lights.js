@@ -17,11 +17,10 @@
 'use strict';
 
 import { state, els, toast, reportFetchOk } from './state.js';
-import { createViewState, markTabFailure } from './view-state.js';
+import { createTabLoader, createTabPollGate, createViewState, markTabFailure } from './view-state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { isSnapshotRestored, restoreSnapshot, saveSnapshot, snapshotLabel } from './snapshots.js';
+import { isSnapshotRestored, saveSnapshot, snapshotLabel } from './snapshots.js';
 import { emptyStateEl } from './empty-state.js';
-import { createPoller } from './poll.js';
 import { toggleMarkup, setToggleState } from './toggle.js';
 import { detailModal } from './detail-modal.js';
 import { openPlugDetail, setTuyaBrightness, toggleSwitch, tuyaSwitch } from './plugs.js';
@@ -535,49 +534,24 @@ export function renderLights() {
   renderLightSheet(false);
 }
 
-export async function loadLights() {
-  if (!state.lights.length) {
-    lightsView.set('loading', { liveUnavailable: false });
-    renderLights();
-  }
-  try {
-    const body = await jsonApi('/api/lights');
-    reportFetchOk('lights');
-    saveSnapshot('lights', body);
+const lightsLoader = createTabLoader({
+  url: '/api/lights',
+  scope: 'lights',
+  label: 'lights',
+  view: lightsView,
+  hasData: function () { return state.lights.length > 0; },
+  apply: function (body) {
     state.lights = (body && body.lights) || [];
     state.lightsStaleNote = staleReadingNote(body && body.snapshot);
-    lightsView.set(state.lights.length ? 'ready' : 'empty', {
-      updatedAt: new Date(),
-      liveUnavailable: false,
-    });
-    renderLights();
-  } catch (exc) {
-    if (isAuthRequired(exc)) return;
-    markLightsFailure();
-  }
-}
+    return state.lights.length > 0;
+  },
+  render: renderLights,
+});
 
-export function restoreLightsSnapshot() {
-  const body = restoreSnapshot('lights');
-  if (!body) return;
-  state.lights = (body && body.lights) || [];
-  lightsView.set(state.lights.length ? 'stale' : 'empty', {
-    updatedAt: state.snapshotUpdatedAt.lights,
-    liveUnavailable: false,
-  });
-  renderLights();
-}
+export const loadLights = lightsLoader.load;
+export const restoreLightsSnapshot = lightsLoader.restore;
 
-const schedule = createPoller(loadLights);
-
-export function onLightsTab(tab) {
-  if (tab === 'iot') {
-    loadLights();
-    schedule(POLL_MS);
-  } else {
-    schedule(0);
-  }
-}
+export const onLightsTab = createTabPollGate(loadLights, 'iot', POLL_MS);
 
 export function wireLightControls() {
   document.addEventListener('plugs:rendered', renderLights);

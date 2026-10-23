@@ -16,13 +16,13 @@
 
 'use strict';
 
-import { els, state, toast, readToken, reportFetchOk } from './state.js';
+import { els, state, toast, readToken } from './state.js';
 import { api, jsonApi, isAuthRequired, reportActionFailure } from './api.js';
 import { confirmAction } from './confirm.js';
 import { emptyStateEl } from './empty-state.js';
 import { icon } from './_vendored/icons/icons.js';
 import { chipEl } from './chip.js';
-import { createViewState, markTabFailure } from './view-state.js';
+import { createTabLoader, createViewState } from './view-state.js';
 import { closeDialog, openDialog } from './dialog.js';
 import { detailModal } from './detail-modal.js';
 import { rowEl } from './row.js';
@@ -89,15 +89,6 @@ function showCamerasState(message, retry) {
     onAction: function () { loadCameras(); },
   } : null;
   els.camerasList.appendChild(emptyStateEl('camera', message, options));
-}
-
-function markCamerasFailure() {
-  markTabFailure(camerasView, {
-    hasData: (state.cameras || []).length > 0,
-    scope: 'cameras',
-    label: 'cameras',
-    render: renderCameras,
-  });
 }
 
 function thumbUrl(cameraId) {
@@ -206,25 +197,25 @@ function cameraRow(cam) {
   return row;
 }
 
-export async function loadCameras() {
-  if (!(state.cameras || []).length) {
-    camerasView.set('loading');
-    renderCameras();
-  }
-  await _ensureCameraToken();
-  try {
-    const body = await jsonApi('/api/cameras');
+// Live-only, unlike the other polled tabs: cameras never saves or restores
+// a snapshot (`persistSnapshot: false`) — a stale camera list has nothing
+// useful to show offline.
+const camerasLoader = createTabLoader({
+  url: '/api/cameras',
+  scope: 'cameras',
+  label: 'cameras',
+  view: camerasView,
+  hasData: function () { return (state.cameras || []).length > 0; },
+  apply: function (body) {
     state.cameras = (body && body.cameras) || [];
-    reportFetchOk('cameras');
-    camerasView.set(state.cameras.length ? 'ready' : 'empty', {
-      updatedAt: new Date(),
-    });
-    renderCameras();
-  } catch (exc) {
-    if (isAuthRequired(exc)) return;
-    markCamerasFailure();
-  }
-}
+    return state.cameras.length > 0;
+  },
+  render: renderCameras,
+  beforeFetch: _ensureCameraToken,
+  persistSnapshot: false,
+});
+
+export const loadCameras = camerasLoader.load;
 
 // --- snapshot zoom (the persisted last frame, full size) --------------------
 async function openZoom(cameraId) {

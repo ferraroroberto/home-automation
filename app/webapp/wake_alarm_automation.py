@@ -26,8 +26,7 @@ from dotenv import load_dotenv
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src.activity_log import append_activity
-from src.notify import NotifierError
-from src.notify_config import build_alarm_notifier
+from src.notify_config import build_alarm_notifier, notify_best_effort
 from src.wake_alarms import (
     WakeAlarmEntry,
     load_wake_alarms,
@@ -83,29 +82,25 @@ def dismiss_alarm(alarm_id: str) -> bool:
     return False
 
 
-async def _notify(message: str) -> None:
-    notifier = build_alarm_notifier()
-    if notifier is None:
-        return
-    try:
-        # notifier.send_text is blocking network I/O called from an async tick
-        # sharing uvicorn's single event loop — thread it off so a slow/failing
-        # send can't stall the webapp.
-        await asyncio.to_thread(notifier.send_text, message)
-    except NotifierError as exc:  # delivery must never break the loop
-        logger.warning("⚠️ Wake-alarm notify failed: %s", exc)
-
-
 async def _fire_alarm(entry: WakeAlarmEntry) -> None:
     logger.info("⏰ Wake alarm ringing: %s (%s)", entry.label or entry.id, entry.time)
     _ringing_alarm_ids.add(entry.id)
-    await _notify(f"⏰ Wake alarm ringing — {entry.label or entry.time}")
+    # notifier_factory threaded explicitly (not notify_best_effort's own
+    # default) so a test can still fake it via this module's own
+    # build_alarm_notifier name, same seam every engine here used to own.
+    await notify_best_effort(
+        f"⏰ Wake alarm ringing — {entry.label or entry.time}",
+        label="Wake-alarm", notifier_factory=build_alarm_notifier,
+    )
     append_activity("wake_alarms", {"kind": "alarm", "id": entry.id, "label": entry.label, "time": entry.time})
 
 
 async def _fire_timer(entry: WakeTimerEntry) -> None:
     logger.info("⏱️ Timer ringing: %s (%ss)", entry.label or entry.id, entry.seconds)
-    await _notify(f"⏱️ Timer ringing — {entry.label or (str(entry.seconds) + 's')}")
+    await notify_best_effort(
+        f"⏱️ Timer ringing — {entry.label or (str(entry.seconds) + 's')}",
+        label="Wake-timer", notifier_factory=build_alarm_notifier,
+    )
     append_activity("wake_alarms", {"kind": "timer", "id": entry.id, "label": entry.label, "seconds": entry.seconds})
 
 

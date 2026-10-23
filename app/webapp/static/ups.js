@@ -10,16 +10,15 @@
 
 'use strict';
 
-import { state, els, toast, reportFetchOk } from './state.js';
-import { jsonApi, isAuthRequired } from './api.js';
+import { state, els, toast } from './state.js';
 import { emptyStateEl } from './empty-state.js';
 import { fmtPct } from './format.js';
 import { chipEl } from './chip.js';
 import { setHeadPart } from './head-status.js';
-import { isSnapshotRestored, restoreSnapshot, saveSnapshot } from './snapshots.js';
+import { isSnapshotRestored } from './snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from './poll.js';
-import { createViewState, markTabFailure, staleNoteEl, staleText } from './view-state.js';
+import { createTabLoader, createViewState, staleNoteEl, staleText } from './view-state.js';
 import { rowEl } from './row.js';
 import { sheet } from './sheet.js';
 import { setHousePart } from './home.js';
@@ -185,43 +184,28 @@ function handleTransition(next) {
   lastMainsOnline = next.mains_online;
 }
 
-export async function loadUps() {
-  if (!state.ups) {
-    upsView.set('loading', { liveUnavailable: false });
-    renderUps();
-  }
-  try {
-    const body = await jsonApi('/api/ups');
-    reportFetchOk('ups');
-    saveSnapshot('ups', body);
+// UPS tells "nothing fetched yet" (hasAnyData, gates the loading spinner)
+// apart from "fetched but unavailable" (hasData, gates the stale/error
+// fallback and the ready/empty view) — the one tab where those two differ:
+// a disconnected UPS still returns a real {available: false} object, and
+// re-flashing 'loading' on every poll while it stays absent would be wrong.
+const upsLoader = createTabLoader({
+  url: '/api/ups',
+  scope: 'ups',
+  label: 'UPS',
+  view: upsView,
+  hasAnyData: function () { return !!state.ups; },
+  hasData: function () { return !!(state.ups && state.ups.available === true); },
+  apply: function (body) {
     state.ups = (body && body.ups) || null;
-    upsView.set(state.ups && state.ups.available === true ? 'ready' : 'empty', {
-      updatedAt: new Date(),
-      liveUnavailable: false,
-    });
-    handleTransition(state.ups);
-    renderUps();
-  } catch (exc) {
-    if (isAuthRequired(exc)) return;
-    markTabFailure(upsView, {
-      hasData: !!(state.ups && state.ups.available === true),
-      scope: 'ups',
-      label: 'UPS',
-      render: renderUps,
-    });
-  }
-}
+    return !!(state.ups && state.ups.available === true);
+  },
+  render: renderUps,
+  afterLoad: function () { handleTransition(state.ups); },
+});
 
-export function restoreUpsSnapshot() {
-  const body = restoreSnapshot('ups');
-  if (!body) return;
-  state.ups = (body && body.ups) || null;
-  upsView.set(state.ups && state.ups.available === true ? 'stale' : 'empty', {
-    updatedAt: state.snapshotUpdatedAt.ups,
-    liveUnavailable: false,
-  });
-  renderUps();
-}
+export const loadUps = upsLoader.load;
+export const restoreUpsSnapshot = upsLoader.restore;
 
 const schedule = createPoller(loadUps);
 

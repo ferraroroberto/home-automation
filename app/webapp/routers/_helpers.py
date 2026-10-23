@@ -69,6 +69,49 @@ def make_display_name_endpoint(
     return endpoint
 
 
+class HiddenPayload(BaseModel):
+    """Body of every ``PUT {path}/hidden`` request keyed by a single path id."""
+
+    hidden: bool
+
+
+def make_hidden_endpoint(
+    router: APIRouter,
+    path: str,
+    id_field: str,
+    setter: Callable[[str, bool], Any],
+    *,
+    log_noun: str = "hidden flag",
+    response_id: Optional[Callable[[str], Any]] = None,
+) -> Callable[..., Any]:
+    """Register a ``PUT {path}`` hide-flag handler on ``router`` (sibling of
+    :func:`make_display_name_endpoint`).
+
+    Collapses the identical "setter → on-error warn + 500 → echo the flag"
+    shape shared by the security / tuya / circuits / network-device hide
+    endpoints. ``path`` carries a single ``{item_id}`` placeholder;
+    ``response_id`` optionally transforms the id in the response (e.g. ``int``
+    for the security zone id, ``normalize_mac`` for the MAC-keyed endpoint).
+
+    The Wi-Fi and presence hide endpoints take their id from the request body
+    rather than the path and are intentionally left inline — same reasoning
+    as the Wi-Fi display-name endpoint above.
+    """
+    transform = response_id if response_id is not None else (lambda value: value)
+
+    async def endpoint(item_id: str, payload: HiddenPayload) -> Dict[str, Any]:
+        try:
+            setter(item_id, payload.hidden)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("⚠️  Failed to save %s for %s: %s", log_noun, item_id, exc)
+            raise HTTPException(status_code=500, detail=f"failed to save {log_noun}: {exc}")
+        return {id_field: transform(item_id), "hidden": payload.hidden}
+
+    endpoint.__name__ = f"set_{id_field}_hidden"
+    router.put(path)(endpoint)
+    return endpoint
+
+
 def _enabled_list_payload(entries: List[Any]) -> Dict[str, Any]:
     """The ``{enabled, count, entries}`` body every self-contained list store returns."""
     active = [entry for entry in entries if getattr(entry, "enabled", False)]

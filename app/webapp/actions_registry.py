@@ -4,15 +4,14 @@ Issue #641: a single stable ``POST /api/actions/{action_id}`` surface so an
 external trigger (a Stream Deck button today, anything else later) doesn't
 need to know each device family's own path/id shape. Deliberately thin —
 every handler here is one call into an already-existing function
-(``set_switch``, ``control_system``, ``HomeAssistantClient.call_service``),
+(``set_switch``, ``perform_manual_alarm_action``, ``HomeAssistantClient.call_service``),
 never new device logic. Adding a new action is "add one registry entry", not
 "write a new endpoint".
 
-The alarm handlers replicate ``post_security_action``'s manual-action side
-effects (``note_manual_alarm_action`` + ``record_alarm_action``) rather than
-just calling ``control_system`` bare, so a Stream Deck arm/disarm has the same
-effect on presence automation and the activity log as tapping the Security
-tab — not just the same panel state.
+The alarm handlers go through ``perform_manual_alarm_action`` (shared with
+``post_security_action``) rather than calling ``control_system`` bare, so a
+Stream Deck arm/disarm has the same effect on presence automation and the
+activity log as tapping the Security tab — not just the same panel state.
 """
 
 from __future__ import annotations
@@ -24,14 +23,8 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 import aiohttp
 
 from app.webapp import read_snapshot
-from app.webapp.alarm_notify import (
-    OUTCOME_ERROR,
-    OUTCOME_OK,
-    SOURCE_MANUAL,
-    record_alarm_action,
-)
+from app.webapp.alarm_notify import perform_manual_alarm_action
 from src.ha_client import HomeAssistantClient
-from src.presence_engine import note_manual_alarm_action
 from src.quick_action_config import (
     QuickActionsConfig,
     load_quick_actions_config,
@@ -40,7 +33,6 @@ from src.quick_action_config import (
     warn_missing_quick_action_keys,
 )
 from src.risco_client import ACTIONS as _ALARM_ACTIONS
-from src.risco_client import control_system
 from src.tuya_client import set_switch
 
 logger = logging.getLogger(__name__)
@@ -84,19 +76,11 @@ def _make_plug_handler(on: bool) -> Handler:
 def _make_alarm_handler(action: str) -> Handler:
     async def _handler(actor: str, _session: Optional[aiohttp.ClientSession]) -> Dict[str, Any]:
         try:
-            state = await control_system(action)
-        except Exception as exc:  # noqa: BLE001 — re-raised after logging, router maps it
-            read_snapshot.invalidate("security")  # the panel may have taken it anyway
-            await record_alarm_action(
-                source=SOURCE_MANUAL, action=action, outcome=OUTCOME_ERROR,
-                error=str(exc), actor=actor,
-            )
-            raise
-        read_snapshot.invalidate("security")  # /api/security refetches on its next read (#759)
-        note_manual_alarm_action(action)
-        await record_alarm_action(
-            source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK, actor=actor
-        )
+            state = await perform_manual_alarm_action(action, actor)
+        finally:
+            # /api/security refetches on its next read either way (#759) — the
+            # panel may have taken the command even on a failed confirmation.
+            read_snapshot.invalidate("security")
         return {"action": action, "mode": state.mode, "label": state.label}
 
     return _handler

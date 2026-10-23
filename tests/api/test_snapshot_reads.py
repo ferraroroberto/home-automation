@@ -60,9 +60,9 @@ def test_security_action_is_visible_on_the_next_read(
     async def no_record(**_kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr("app.webapp.routers.security.control_system", fake_control)
-    monkeypatch.setattr("app.webapp.routers.security.note_manual_alarm_action", lambda _a: None)
-    monkeypatch.setattr("app.webapp.routers.security.record_alarm_action", no_record)
+    monkeypatch.setattr("app.webapp.alarm_notify.control_system", fake_control)
+    monkeypatch.setattr("app.webapp.alarm_notify.note_manual_alarm_action", lambda _a: None)
+    monkeypatch.setattr("app.webapp.alarm_notify.record_alarm_action", no_record)
     assert client.post("/api/security/arm").status_code == 200
 
     assert client.get("/api/security").json()["mode"] == "armed"

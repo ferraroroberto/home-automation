@@ -29,8 +29,7 @@ from app.webapp.security_override_automation import (
     consider_security_read as consider_security_override,
 )
 from src._schedule_store import StoreUnreadableError
-from src.notify import NotifierError
-from src.notify_config import build_alarm_notifier
+from src.notify_config import notify_best_effort
 from src.presence_display_names import load_presence_display_names
 from src.presence_engine import (
     PresenceCorroboration,
@@ -375,20 +374,14 @@ async def _notify_guardian_hold(guardian_name: str) -> None:
     ``OUTCOME_BLOCKED`` it must always reach Telegram — the stuck-presence
     block's "never notify, it's frequent noise" rule (#626) doesn't apply
     here, this is a one-off-per-departure explanation the household asked
-    for. Same direct-send pattern as ``presence_refresher._notify``.
+    for.
     """
 
-    notifier = build_alarm_notifier()
-    if notifier is None:
-        return
     text = (
         f"🏠 Mom and dad are away, {guardian_name} is home — not arming, "
         "since someone is home."
     )
-    try:
-        await asyncio.to_thread(notifier.send_text, text)
-    except NotifierError as exc:
-        logger.warning("⚠️ Guardian-hold Telegram notification failed: %s", exc)
+    await notify_best_effort(text, label="Guardian-hold")
 
 
 async def tick() -> None:

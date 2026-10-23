@@ -66,7 +66,11 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
-from app.webapp.routers._helpers import make_bool_prefs_router, make_display_name_endpoint
+from app.webapp.routers._helpers import (
+    make_bool_prefs_router,
+    make_display_name_endpoint,
+    make_hidden_endpoint,
+)
 from src.network_client import (
     InternetHealth,
     NetDevice,
@@ -540,10 +544,6 @@ class ImportantPayload(BaseModel):
     important: bool
 
 
-class HiddenPayload(BaseModel):
-    hidden: bool
-
-
 class GroupPayload(BaseModel):
     group: str
 
@@ -579,16 +579,14 @@ make_display_name_endpoint(
     response_id=normalize_mac,
 )
 
-
-@router.put("/api/network/devices/{mac}/hidden")
-async def update_device_hidden(mac: str, payload: HiddenPayload) -> Dict[str, Any]:
-    """Persist whether an attached device is hidden from the default list."""
-    try:
-        set_device_hidden(mac, payload.hidden)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("⚠️  Failed to set hidden for %s: %s", mac, exc)
-        raise HTTPException(status_code=500, detail=f"failed to set hidden: {exc}")
-    return {"mac": normalize_mac(mac), "hidden": payload.hidden}
+make_hidden_endpoint(
+    router,
+    "/api/network/devices/{item_id}/hidden",
+    "mac",
+    set_device_hidden,
+    log_noun="hidden",
+    response_id=normalize_mac,
+)
 
 
 @router.post("/api/network/devices/{mac}/important")

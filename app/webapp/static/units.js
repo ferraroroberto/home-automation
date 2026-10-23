@@ -24,15 +24,13 @@ import {
   state,
   els,
   toast,
-  reportFetchOk,
   modeIcon,
 } from './state.js';
 import { icon } from './_vendored/icons/icons.js';
 import { chipEl } from './chip.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from './api.js';
-import { restoreSnapshot, saveSnapshot } from './snapshots.js';
 import { buildToggle, toggleMarkup, setToggleState, isToggleOn, wireToggle } from './toggle.js';
-import { createViewState, markTabFailure, renderFeedback, staleText } from './view-state.js';
+import { createTabLoader, createViewState, renderFeedback, staleText } from './view-state.js';
 import { createPoller } from './poll.js';
 import { rowEl } from './row.js';
 import { sheet } from './sheet.js';
@@ -75,18 +73,6 @@ function renderAcFeedback() {
     errorLabel: 'AC units unavailable',
     snapshotKey: 'units',
     onRetry: function () { loadUnits(); },
-  });
-}
-
-function markAcFailure() {
-  markTabFailure(acView, {
-    hasData: state.units.length > 0,
-    scope: 'units',
-    label: 'AC units',
-    render: function () {
-      renderAll();
-      renderAcSummary();
-    },
   });
 }
 
@@ -849,56 +835,43 @@ const scheduleEditor = denseListEditor({
 });
 
 // --------------------------------------------------------------- boot
-export async function loadUnits() {
-  if (!state.units.length) {
-    acView.set('loading', { liveUnavailable: false });
-    renderAll();
-    renderAcSummary();
-  }
-  try {
-    const body = await jsonApi('/api/units');
-    reportFetchOk('units');
-    saveSnapshot('units', body);
-    state.units = (body && body.units) || [];
-    acView.set(state.units.length ? 'ready' : 'empty', {
-      updatedAt: new Date(),
-      liveUnavailable: false,
-    });
-    renderAll();
-    renderAcSummary();
-    refreshOpenSheet();
-  } catch (exc) {
-    // A 401 already surfaced the login overlay (api.js → showLogin); stay quiet.
-    if (isAuthRequired(exc)) return;
-    markAcFailure();
-    refreshOpenSheet();
-  }
+function renderUnits() {
+  renderAll();
+  renderAcSummary();
 }
 
-// An open sheet is not part of renderAll(): refresh it from the new read, so
-// a unit that drops offline (or a poll that fails) inerts its controls rather
-// than leaving them live (#520).
+const unitsLoader = createTabLoader({
+  url: '/api/units',
+  scope: 'units',
+  label: 'AC units',
+  view: acView,
+  hasData: function () { return state.units.length > 0; },
+  apply: function (body) {
+    state.units = (body && body.units) || [];
+    return state.units.length > 0;
+  },
+  render: renderUnits,
+  // An open sheet is not part of renderUnits(): refresh it from the new
+  // read, so a unit that drops offline (or a poll that fails) inerts its
+  // controls rather than leaving them live (#520). Not run after a quiet
+  // 401 return — the login overlay is already up (api.js → showLogin).
+  afterLoad: refreshOpenSheet,
+});
+
+export const loadUnits = unitsLoader.load;
+export const restoreUnitsSnapshot = unitsLoader.restore;
+
 function refreshOpenSheet() {
   if (!state.selectedId) return;
   const selected = unitById(state.selectedId);
   if (selected) renderSheet(selected);
 }
 
-export function restoreUnitsSnapshot() {
-  const body = restoreSnapshot('units');
-  if (!body) return;
-  state.units = (body && body.units) || [];
-  acView.set(state.units.length ? 'stale' : 'empty', {
-    updatedAt: state.snapshotUpdatedAt.units,
-    liveUnavailable: false,
-  });
-  renderAll();
-  renderAcSummary();
-}
-
 // AC units only matter on Home (rows) and AC (rows), so poll them only while
 // one of those tabs is active rather than every 30s everywhere (#209). The
-// initial boot fetch is the caller's `loadUnits()` call.
+// initial boot fetch is the caller's `loadUnits()` call. Kept as its own
+// gate rather than the shared `createTabPollGate`: it always resets the
+// poll to 0 first, then re-arms it only for the two active tabs.
 const scheduleUnits = createPoller(loadUnits);
 export function onUnitsTab(tab) {
   scheduleUnits(0);
