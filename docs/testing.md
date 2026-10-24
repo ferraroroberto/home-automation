@@ -23,8 +23,9 @@ never narrows coverage on uncertainty. On CI the full suite always runs.
 The static ratchet (`scripts/static_ratchet.py`, vendored byte-identical from
 `project-scaffolding`; `.fleet.toml` `[static_ratchet]`) compares the tree with
 the committed `.static-ratchet-baseline.json` and fails on any duplicate block
-(jscpd through `npx`, so Node must be installed) or unused import/variable
-(ruff `F401,F841`) that is not already in it. Existing debt is baselined, so the
+(jscpd through `npx`, so Node must be installed), unused import/variable
+(ruff `F401,F841`) or ruff bug (`B`) / security (`S`) finding (`S113` strict) that
+is not already in it. Existing debt is baselined, so the
 count can only go down; shrink the baseline in the PR that removes debt with
 `python scripts/static_ratchet.py --update-baseline`. A detector that cannot run
 (no `npx`, no network on the first `npx`, ruff missing) exits 3, which the gate

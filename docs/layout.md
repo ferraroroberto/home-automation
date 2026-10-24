@@ -21,7 +21,7 @@ home-automation/
 │   └── notify/                # vendored notification package (byte-for-byte from project-scaffolding)
 ├── tests/                     # backend suite (flat) and the browser suite
 │   ├── api/                   # API smoke tests through FastAPI's TestClient
-│   ├── ratchets/              # tests of the structure-, instruction-, doc-refs- and dead-code-ratchet gate wrappers
+│   ├── ratchets/              # tests of the structure-, instruction-, doc-refs-, dead-code- and conventions-ratchet gate wrappers
 │   └── e2e/                   # Playwright suite and its fixtures
 ├── docs/                      # durable reference, one topic per file
 ├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools

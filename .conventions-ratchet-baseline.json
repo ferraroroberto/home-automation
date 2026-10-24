@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "scripts/gen_icons.py", "counts": {"no-drive-path": 1}},
+    {"key": "tests/_ratchet_gate_helpers.py", "counts": {"no-window": 2}},
+    {"key": "tests/e2e/conftest.py", "counts": {"no-window": 3}},
+    {"key": "tests/ratchets/test_structure_ratchet_gate.py", "counts": {"no-window": 1}},
+    {"key": "tests/test_camera_ffmpeg_proactor.py", "counts": {"no-window": 1}},
+    {"key": "tests/test_e2e_autoboot_env.py", "counts": {"no-window": 1}}
+  ]
+}

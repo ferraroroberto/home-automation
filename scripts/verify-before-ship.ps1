@@ -6,8 +6,9 @@
 .DESCRIPTION
     Runs, fail-fast:
       1. byte-compile     — every .py under app/ src/ tests/ scripts/ custom_components/ parses
-      2. static ratchet   — no new duplicate block (jscpd via npx) or unused
-                            import/variable (ruff F401,F841) beyond
+      2. static ratchet   — no new duplicate block (jscpd via npx), unused
+                            import/variable (ruff F401,F841) or ruff bug (B) /
+                            security (S) finding (S113 strict) beyond
                             .static-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 (a detector could not run) is
                             NOT CONFIRMED and fails, never a pass or a skip.
@@ -39,13 +40,17 @@
                             tree references, beyond .dead-code-ratchet-baseline.json.
                             Whole tree, never routed; exit 3 is NOT CONFIRMED and
                             fails.
-      9. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
-     10. pytest (e2e)    — diff-proportionate: the browser slice is routed by
+      9. conventions ratchet — no file's count of a no-window, logging-not-print,
+                            no-drive-path or secret-compare hit rises beyond
+                            .conventions-ratchet-baseline.json. Whole tree, never
+                            routed; exit 3 is NOT CONFIRMED and fails.
+     10. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
+     11. pytest (e2e)    — diff-proportionate: the browser slice is routed by
                             scripts/classify_e2e.py against the .fleet.toml [e2e]
                             rules (skip / static / full), fail-safe to full
                             (ferraroroberto/home-automation#603, project-scaffolding#180).
                             Boots its own disposable instance per tests/e2e/conftest.py.
-     11. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
+     12. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
                             slice recaptured (tests/e2e/test_shot_baseline.py: phone +
                             desktop, light + dark) with the committed PNGs under
                             tests/e2e/shots, fails on a visible change, restores the
@@ -166,6 +171,8 @@ try {
     Invoke-Stage "doc refs ratchet" { & $py -m scripts.doc_refs_ratchet_gate }
     # Same exit-3 mapping for the dead-code ratchet (tests/ratchets/test_dead_code_ratchet_gate.py).
     Invoke-Stage "dead code ratchet" { & $py -m scripts.dead_code_ratchet_gate }
+    # Same exit-3 mapping for the conventions ratchet (tests/ratchets/test_conventions_ratchet_gate.py).
+    Invoke-Stage "conventions ratchet" { & $py -m scripts.conventions_ratchet_gate }
     Invoke-Stage "pytest (unit, non-e2e)" { & $py -m pytest tests -p no:cacheprovider --ignore=tests/e2e }
 
     # ---------------------------------------------------------------- e2e routing
