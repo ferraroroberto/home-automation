@@ -44,16 +44,24 @@ def _modelled_wh(gti_w: float) -> float:
 
 
 def _day(offset_days: int, overrides: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
-    midnight = _local_midnight(offset_days)
+    """The day frame ``hourly_day`` returns: one slot per real hour of the local day.
+
+    ``overrides`` is keyed by the slot's local wall-clock hour, not its position,
+    so a 23- or 25-hour DST-change day still puts hour 10 at 10:00.
+    """
+    start = _local_midnight(offset_days)
+    day = datetime.fromtimestamp(start).date()
     out = []
-    for i in range(24):
+    key = start
+    while datetime.fromtimestamp(key).date() == day:
         slot = {
-            "key": str(midnight + i * _HOUR),
+            "key": str(key),
             "pv_wh": 0.0, "pv_missing": True, "partial": False,
             "pv_seconds": 0.0, "pv_coverage": 0.0, "pv_gap": False,
         }
-        slot.update(overrides.get(i, {}))
+        slot.update(overrides.get(datetime.fromtimestamp(key).hour, {}))
         out.append(slot)
+        key += _HOUR
     return out
 
 
