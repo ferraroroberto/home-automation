@@ -34,6 +34,8 @@ static_ratchet = { src = "scripts/static_ratchet.py", sha = "0d41425ff2797c98d1d
 docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "0d41425ff2797c98d1d3eb7ecb7de0cdb7133456", dest = "scripts/docs_ratchet.py" }
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "5ef3e399db253019e7a0272e922c657bbba42520", dest = "scripts/comment_ratchet.py" }
 structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab416551762e4a615e4a706df91cea69f", dest = "scripts/structure_ratchet.py" }
+shot_capture = { src = "tests/e2e/_shot.py", sha = "6b1af3b71f6db16bdfcf32c9abddbe881c72c7b0", dest = "tests/e2e/_shot.py" }
+shot_baseline = { src = "scripts/shot_baseline.py", sha = "6b1af3b71f6db16bdfcf32c9abddbe881c72c7b0", dest = "scripts/shot_baseline.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
@@ -82,6 +84,18 @@ baseline = ".comment-ratchet-baseline.json"
 [structure_ratchet]
 enabled  = true
 baseline = ".structure-ratchet-baseline.json"
+
+# [shot_baseline] -- the scaffold's screenshot baseline. tests/e2e/test_shot_baseline.py
+# captures the home, AC, energy and security tabs (phone and desktop, light and dark,
+# stubbed fixture data only) into tests/e2e/shots; the gate (scripts/verify-before-ship.ps1)
+# then runs scripts/shot_baseline.py, which fails on a visible change against the committed
+# PNGs and restores the tree. The baseline is this machine's rasteriser, so the gate skips
+# the comparison on CI. Contract + re-baseline steps: project-scaffolding
+# docs/playwright-ui-testing.md ("Screenshot baseline").
+[shot_baseline]
+enabled   = true
+shots_dir = "tests/e2e/shots"
+capture   = ["-m", "pytest", "tests/e2e/test_shot_baseline.py", "--browser", "chromium", "-q", "-p", "no:cacheprovider"]
 
 # /perf-review (fleet-config skills/perf-review): "ready" is the energy-flow tile
 # visible (the first Home card that needs live data), not first contentful paint,

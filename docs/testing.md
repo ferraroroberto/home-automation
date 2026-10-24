@@ -129,6 +129,29 @@ config-dir override). `pytest tests/e2e --e2e-autoboot` boots that disposable
 instance even while the tray owns this checkout's port, which the live-instance
 guard would otherwise refuse.
 
+**Screenshot baseline.** A move-only change (a stylesheet split, a markup move) must
+not change a pixel, and the gate proves it instead of asking for a look on a phone.
+`tests/e2e/test_shot_baseline.py` captures the home, AC, energy and security tabs at
+phone (390x844 at scale 3) and desktop (1280x900), light and dark, through the
+vendored `tests/e2e/_shot.py` (pinned clock, time zone and locale; Chromium only) into
+the committed `tests/e2e/shots/`. The last gate stage, `scripts/shot_baseline.py`
+(config: `.fleet.toml` `[shot_baseline]`), compares what the run recaptured with the
+committed PNGs, fails on a visible change naming the shots, and restores the tree, so a
+verification run leaves no rewritten PNG behind. Exit 3 is NOT CONFIRMED and fails.
+
+- The shots hold fixture data only. The booted app answers some reads from this
+  machine's gitignored `config/` or from the internet, so the test stubs those
+  (`_MACHINE_STATE`: build version, weather, cameras, reminders, wake alarms, UPS, presence
+  automation); a screen that adds such a read adds its stub, or its shot would carry
+  personal data into the public repo.
+- The baseline is this machine's rasteriser, so the gate skips the comparison on CI.
+- A drift is either an intended UI change (re-baseline) or something unpinned on screen
+  (fix the capture). Never widen a band or allowlist a shot to get green.
+- Re-baseline a deliberate UI change in the same PR: run
+  `& .\.venv\Scripts\python.exe -m pytest tests/e2e/test_shot_baseline.py --browser chromium`,
+  review `git diff --stat -- tests/e2e/shots` and the moved images, then
+  `git add tests/e2e/shots` and commit them with the change.
+
 A full run executes 220 nodes in ~3.1 min (3m06s, run-to-run spread 2m55s–3m20s):
 282 are collected and 62 WebKit nodes are deselected. `test_design_matrix.py` additionally fans one function across
 the viewport × theme matrix below. CLAUDE.md tracks this as a runtime budget,

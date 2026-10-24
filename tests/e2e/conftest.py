@@ -86,6 +86,7 @@ from tests.e2e._browser_sweep import (
 )
 from src.runtime_data import app_dir_env_var
 from tests.e2e._e2e_live_guard import require_disposable_instance
+from tests.e2e._shot import CHROMIUM_CAPTURE_ARGS
 from tests.e2e._surface import pytest_collection_modifyitems as _deselect_non_capturing
 
 # Imported so pytest registers each API-stub fixture for every test in the suite.
@@ -766,6 +767,17 @@ def browser(
     _bounded_teardown(
         browser_instance.close, f"browser.close() [{browser_name}]", _driver_pid(playwright)
     )
+
+
+@pytest.fixture(scope="session")
+def browser_type_launch_args(browser_type_launch_args: dict, browser_name: str) -> dict:
+    # Partial raster off so one DOM paints one set of pixels (the screenshot
+    # baseline). The shot contexts come from `variant_page`, which cannot take
+    # `ignore_https_errors`, so Chromium ignores the self-signed autoboot cert here.
+    if browser_name != "chromium":
+        return browser_type_launch_args
+    args = [*browser_type_launch_args.get("args", []), *CHROMIUM_CAPTURE_ARGS, "--ignore-certificate-errors"]
+    return {**browser_type_launch_args, "args": args}
 
 
 @pytest.fixture(scope="session")
