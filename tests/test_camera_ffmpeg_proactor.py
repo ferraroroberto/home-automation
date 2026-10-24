@@ -21,6 +21,7 @@ import sys
 import pytest
 
 from src import camera_ffmpeg as F
+from src._no_window import NO_WINDOW
 
 _SELECTOR_LOOP_FACTORY = asyncio.SelectorEventLoop if sys.platform == "win32" else asyncio.new_event_loop
 
@@ -28,7 +29,7 @@ _SELECTOR_LOOP_FACTORY = asyncio.SelectorEventLoop if sys.platform == "win32" el
 async def _echo() -> tuple[int, bytes]:
     proc = await asyncio.create_subprocess_exec(
         sys.executable, "-c", "print('hi', end='')",
-        stdout=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE, creationflags=NO_WINDOW,
     )
     out, _ = await proc.communicate()
     return proc.returncode, out

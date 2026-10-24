@@ -10,13 +10,15 @@ network, no device or cloud API.
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 
 import pytest
 
 from scripts import comment_ratchet_gate as gate
 from tests._ratchet_gate_helpers import (
+    assert_gate_stage_calls_the_wrapper,
+    assert_only_exit_zero_passes_and_three_is_not_confirmed,
+    assert_ratchet_declared_and_vendored,
     assert_run_maps_every_script_exit,
     make_git_repo,
     real_exit,
@@ -38,17 +40,8 @@ def _real_exit(repo: Path, *flags: str) -> int:
     return real_exit(REAL_SCRIPT, repo, *flags)
 
 
-def test_only_exit_zero_passes() -> None:
-    assert gate.classify_exit(0)[0] is True
-    for code in (1, 2, 3, 4, -1):
-        assert gate.classify_exit(code)[0] is False, code
-
-
-def test_exit_three_is_not_confirmed_and_never_a_skip() -> None:
-    ok, label = gate.classify_exit(3)
-    assert not ok
-    assert "NOT CONFIRMED" in label
-    assert "skip" not in label.lower()
+def test_only_exit_zero_passes_and_exit_three_is_not_confirmed() -> None:
+    assert_only_exit_zero_passes_and_three_is_not_confirmed(gate)
 
 
 def test_the_real_scripts_exit_three_fails_the_gate(tmp_path: Path) -> None:
@@ -78,22 +71,8 @@ def test_run_exits_nonzero_for_every_script_failure(
 
 
 def test_the_pre_ship_gate_calls_the_wrapper_not_the_script() -> None:
-    gate_ps1 = (REPO_ROOT / "scripts" / "verify-before-ship.ps1").read_text(encoding="utf-8")
-    stage_lines = [
-        line for line in gate_ps1.splitlines() if line.lstrip().startswith("Invoke-Stage")
-    ]
-    comment = [line for line in stage_lines if "comment_ratchet" in line]
-    assert len(comment) == 1
-    assert "-m scripts.comment_ratchet_gate" in comment[0]
-    assert "comment_ratchet.py" not in comment[0]
-    names = [line.split('"')[1] for line in stage_lines]
-    assert names.index("comment ratchet") == names.index("docs ratchet") + 1
+    assert_gate_stage_calls_the_wrapper("comment_ratchet", "comment ratchet", "docs ratchet")
 
 
 def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
-    fleet = tomllib.loads((REPO_ROOT / ".fleet.toml").read_text(encoding="utf-8"))
-    assert fleet["comment_ratchet"]["enabled"] is True
-    assert (REPO_ROOT / fleet["comment_ratchet"]["baseline"]).is_file()
-    entry = fleet["vendored"]["comment_ratchet"]
-    assert entry["dest"] == "scripts/comment_ratchet.py"
-    assert (REPO_ROOT / entry["dest"]).is_file()
+    assert_ratchet_declared_and_vendored("comment_ratchet")

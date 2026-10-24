@@ -3,7 +3,7 @@
 The quick-reference playbook for adding hands-free voice commands that actuate this
 app **deterministically** (Tier 1: Home Assistant's local sentence matcher → the app's
 HTTP API), with **no LLM on the command path**. This is the operating recipe distilled
-from building the alarm bridge (#88 Phase 4); the architecture and the alarm specifics
+from building the alarm bridge; the architecture and the alarm specifics
 live in [`voice-control.md`](voice-control.md), the secret-free installed config in
 [`voice-pe-config/`](voice-pe-config/).
 
@@ -103,7 +103,7 @@ HAOS host SSH on `:22222` (that's a break-glass developer channel, not used here
    by text before you speak — `ha_config_sync.py probe`, or see
    [Testing](#testing-without-talking).
 
-6. **Add it to the in-app cheat sheet** (issue #437) — a command nobody can find is a
+6. **Add it to the in-app cheat sheet** — a command nobody can find is a
    command nobody uses. Append it to the right group in
    [`src/voice_commands.py`](../src/voice_commands.py); the Home tab's "What can I say?"
    card and `GET /api/voice-commands` pick it up with no other change. A whole new
@@ -207,7 +207,7 @@ panel PIN the app already holds server-side; the real PIN is never spoken.
 
 ## Multi-turn commands (`assist_satellite.ask_question`)
 
-An `intent_script` is one-shot by construction — it cannot hold a follow-up question open. When a command genuinely needs a second turn (the grocery add flow, #315: the trigger names the *operation*, the reply carries the *payload*), use a **conversation-triggered automation** with `assist_satellite.ask_question` (HA 2025.7+):
+An `intent_script` is one-shot by construction — it cannot hold a follow-up question open. When a command genuinely needs a second turn (the grocery add flow: the trigger names the *operation*, the reply carries the *payload*), use a **conversation-triggered automation** with `assist_satellite.ask_question` (HA 2025.7+):
 
 ```yaml
 automation my_feature:

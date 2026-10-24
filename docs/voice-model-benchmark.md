@@ -1,4 +1,4 @@
-# Voice Tier-2 model benchmark (#234)
+# Voice Tier-2 model benchmark
 
 Which local model should turn a spoken command into a structured intent, and how
 should it be decoded? This is the empirical answer for the **Tier-2 classifier**
@@ -125,9 +125,9 @@ The chosen config (`enable_thinking: false`) must reach the backend, but the HA
 `extended_openai_conversation` integration (v2.0.2) can't send `chat_template_kwargs`,
 and the hub used to drop it anyway. Both gaps were closed and the brain is now wired:
 
-1. **`local-llm-hub#159`** (PR #160) — the hub now forwards `response_format` +
+1. **Hub forwarding** — the hub now forwards `response_format` +
    `chat_template_kwargs` into the upstream payload on `/v1/chat/completions`.
-2. **`local-llm-hub#161`** (PR #162) — a dedicated **`qwen3.5-4b-nothink`** model id:
+2. **A dedicated `qwen3.5-4b-nothink` model id** in the hub:
    a virtual alias of the running qwen backend (`:8088`, no extra process/VRAM) that
    injects `enable_thinking: false`. Plain `agentic_light` stays thinking-capable for
    OpenClaw.

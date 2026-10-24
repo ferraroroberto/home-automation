@@ -1,4 +1,4 @@
-# Voice PE config — deterministic alarm action bridge (#88 Phase 4)
+# Voice PE config — deterministic alarm action bridge
 
 Sanitized Home Assistant config that turns spoken phrases into **deterministic** RISCO alarm commands against this app's webapp (`/api/security/*`). No LLM is on the command path: Home Assistant's local sentence engine matches these phrases directly (Tier 1 of the routing in [`../voice-control.md`](../voice-control.md)), so a hallucinated model reply can never arm or disarm the alarm. These files are the durable, secret-free record of what is installed on the HA VM — the live copies live under the VM's `/config`.
 
@@ -17,13 +17,13 @@ Sanitized Home Assistant config that turns spoken phrases into **deterministic**
 
 The full phrase lists are in `custom_sentences/en/alarm.yaml` — widen them freely; an unlisted phrasing falls through to the LLM instead of matching locally.
 
-**Also in Spanish on the "Hey Mycroft" pipeline (#466):** the same six intents answer in Spanish — "arma la alarma" · "activa el perímetro" · "alarma parcial" · "¿cómo está la alarma?" · "desarma la alarma \<código\>". The Spanish phrases live in `custom_sentences/es/alarm.yaml` and reuse the **same intent names**, so the shared `intent_script` fires for either language and speaks Spanish back (a `lang: es` slot flips a Jinja label map — "La alarma está desarmada"). The disarm code gate is identical (language-agnostic word match); the panel PIN is still never spoken.
+**Also in Spanish on the "Hey Mycroft" pipeline:** the same six intents answer in Spanish — "arma la alarma" · "activa el perímetro" · "alarma parcial" · "¿cómo está la alarma?" · "desarma la alarma \<código\>". The Spanish phrases live in `custom_sentences/es/alarm.yaml` and reuse the **same intent names**, so the shared `intent_script` fires for either language and speaks Spanish back (a `lang: es` slot flips a Jinja label map — "La alarma está desarmada"). The disarm code gate is identical (language-agnostic word match); the panel PIN is still never spoken.
 
 Arming, perimeter, partial and status are one-shot. **Disarm requires a spoken code** (`voice_disarm_pin`) in the same utterance — a wrong or missing code never calls disarm. That voice code is a gate layered on top of the RISCO panel PIN the app already holds server-side, so the real panel PIN is never spoken aloud.
 
-Each alarm `rest_command` (`alarm_arm` / `alarm_partial` / `alarm_perimeter` / `alarm_disarm`) sends an `x-automation-source: voice-pe` header alongside its bearer token, so `logs/alarm.jsonl`'s `manual` entries tag voice-triggered commands with `actor: "voice-pe"` — distinct from the webapp PWA (`actor: "webapp"`) and the HA integration (`actor: "ha"`, issue #405). Useful for ruling voice in or out when an arm/disarm wasn't expected.
+Each alarm `rest_command` (`alarm_arm` / `alarm_partial` / `alarm_perimeter` / `alarm_disarm`) sends an `x-automation-source: voice-pe` header alongside its bearer token, so `logs/alarm.jsonl`'s `manual` entries tag voice-triggered commands with `actor: "voice-pe"` — distinct from the webapp PWA (`actor: "webapp"`) and the HA integration (`actor: "ha"`). Useful for ruling voice in or out when an arm/disarm wasn't expected.
 
-### Wake alarms (issue #306)
+### Wake alarms
 
 A **separate** feature from the RISCO alarm above — every phrase says "wake alarm" / "wake-up alarm" so the two grammars never collide. These drive the app's persisted wake-alarm list (Step 1, `/api/wake-alarms`); a fired alarm rings on the Home-tab card.
 
@@ -40,9 +40,9 @@ A **separate** feature from the RISCO alarm above — every phrase says "wake al
 
 The sentence lists are in `custom_sentences/en/wake_alarm.yaml`. Both the set and cancel intents reuse the existing `!secret app_api_authorization` — **no new secret**.
 
-**Also in Spanish on the "Hey Mycroft" pipeline (#466):** "pon una alarma para las siete y media entre semana" · "despiértame a mediodía mañana" · "¿qué alarmas tengo?" · "cancela mi alarma". The Spanish phrases live in `custom_sentences/es/wake_alarm.yaml`; the intent passes `lang=es` to the app, which parses the Spanish spoken time (`src/wake_alarms.py`, `parse_spoken_alarm(..., lang="es")`) and speaks a Spanish confirmation ("Alarma configurada para las 7 y media de la mañana entre semana"). Supported Spanish time/schedule words: `las siete` · `y media` · `y cuarto` · `menos cuarto` · `mediodía` · `medianoche` · `de la mañana/tarde/noche` · `entre semana` · `(los) fines de semana` · `todos los días` · a weekday name (`los lunes`) · `mañana`/`hoy` (one-shot).
+**Also in Spanish on the "Hey Mycroft" pipeline:** "pon una alarma para las siete y media entre semana" · "despiértame a mediodía mañana" · "¿qué alarmas tengo?" · "cancela mi alarma". The Spanish phrases live in `custom_sentences/es/wake_alarm.yaml`; the intent passes `lang=es` to the app, which parses the Spanish spoken time (`src/wake_alarms.py`, `parse_spoken_alarm(..., lang="es")`) and speaks a Spanish confirmation ("Alarma configurada para las 7 y media de la mañana entre semana"). Supported Spanish time/schedule words: `las siete` · `y media` · `y cuarto` · `menos cuarto` · `mediodía` · `medianoche` · `de la mañana/tarde/noche` · `entre semana` · `(los) fines de semana` · `todos los días` · a weekday name (`los lunes`) · `mañana`/`hoy` (one-shot).
 
-### Reminders (issue #314)
+### Reminders
 
 A **separate** feature from both alarms above — every phrase says "reminder"/"remind" so it never collides with `alarm.yaml` or `wake_alarm.yaml`. Bidirectional: a reminder created here shows up on the Home-tab card, and one created in the app is speakable/listable/completable here. Unlike a wake alarm, most of the phrase *is* the reminder's content, not a time.
 
@@ -56,7 +56,7 @@ A **separate** feature from both alarms above — every phrase says "reminder"/"
 
 The sentence lists are in `custom_sentences/en/reminder.yaml`. All three intents reuse the existing `!secret app_api_authorization` — **no new secret**. **English only for now** — no Spanish sentences ship for reminders (unlike wake alarms), so this is the one bridge without a `custom_sentences/es/` twin.
 
-### Calendar (issue #313) — create-only
+### Calendar — create-only
 
 A **separate** feature from Reminders above — every phrase says "calendar" so it never collides with `reminder.yaml`/`wake_alarm.yaml`/`alarm.yaml`. Writes a **real Google Calendar event** via this app's own Google OAuth token (`src/calendar_write.py`) — not Home Assistant's calendar integration, not a local JSON store. Google Calendar itself is the only source of truth: there's no `/api/calendar` list/edit surface, so there's nothing here to list, edit, or cancel yet (a natural follow-up, not built now).
 
@@ -70,7 +70,7 @@ The sentence list is in `custom_sentences/en/calendar.yaml`. Reuses the existing
 
 **One-time setup (outside `ha_config_sync.py` — this isn't HA config):** run `& .\.venv\Scripts\python.exe -m scripts.auth_calendar_write` once after setting `GOOGLE_CALENDAR_CREDENTIALS_PATH` in `.env` (see `.env.example`) — opens a browser for a one-time Google consent, then persists the refresh token to `config/calendar_write_token.json` (gitignored). See [timers-reminders-calendar.md](../timers-reminders-calendar.md) for the full Google Cloud Console setup.
 
-### Family locator (issue #438) — "where's mom/dad" + same-turn ETA (#470, #485)
+### Family locator — "where's mom/dad" + same-turn ETA
 
 Read-only query — no actuation, so no code-gating needed. `{who}` is a free-text wildcard capturing the spoken name or household role; the app resolves it via role aliases (set in a person's sheet, Security › People › Role), display-name overrides, or raw names, then answers with the resolved place — a configured named place (e.g. "the gym"), "home", or "away" (cached Find My data only; no new iCloud locate cost). Whenever they're **away** (not home, not unknown), the same answer also speaks a traffic-aware ETA home — one turn, no follow-up question.
 
@@ -78,27 +78,27 @@ Read-only query — no actuation, so no code-gating needed. `{who}` is a free-te
 |---|---|---|
 | "where's dad" · "where is mom" · "where's Roberto" · "locate Ana" · "find dad" | locate + ETA (read) | `GET /api/presence/locate?who=<text>&lang=en` for the place, then (only if away) `GET /api/presence/eta?who=<text>&lang=en` for a traffic-aware drive time home — both spoken together in one announce |
 
-Also on the Spanish pipeline (after "Hey Mycroft, …", #446): "¿dónde está papá?" · "donde esta mamá" · "localiza a Roberto" · "encuentra a Ana" → spoken Spanish ("Roberto está en casa. Está a unos 30 minutos de casa con el tráfico actual."). Resolution is language-agnostic and variant-tolerant server-side (`src.presence_roles`): accents, doubled letters ("Anna" ↔ "Ana"), and kinship synonyms ("mum"/"mamá" → mom, "daddy"/"papá" → dad) all fold to the configured role/name.
+Also on the Spanish pipeline (after "Hey Mycroft, …"): "¿dónde está papá?" · "donde esta mamá" · "localiza a Roberto" · "encuentra a Ana" → spoken Spanish ("Roberto está en casa. Está a unos 30 minutos de casa con el tráfico actual."). Resolution is language-agnostic and variant-tolerant server-side (`src.presence_roles`): accents, doubled letters ("Anna" ↔ "Ana"), and kinship synonyms ("mum"/"mamá" → mom, "daddy"/"papá" → dad) all fold to the configured role/name.
 
-**How the ETA works (#470, #485).** Whenever the person is found and **not already home**, the puck's single reply is the location sentence followed by a traffic-aware ETA (Google **Routes API**, `routingPreference: TRAFFIC_AWARE`) from their live coordinates to the home in `config/location.json`. Already home (or not found) → it just speaks the location, nothing more. Every failure mode (no location, home not set, no API key, no route) degrades to a spoken fallback, never an error — the same graceful contract as locate. This used to be a second turn (a "do you want the ETA?" `assist_satellite.ask_question` you had to answer "yes" to) — #485 collapsed it to one turn because the follow-up didn't reliably get answered on the Voice PE hardware.
+**How the ETA works.** Whenever the person is found and **not already home**, the puck's single reply is the location sentence followed by a traffic-aware ETA (Google **Routes API**, `routingPreference: TRAFFIC_AWARE`) from their live coordinates to the home in `config/location.json`. Already home (or not found) → it just speaks the location, nothing more. Every failure mode (no location, home not set, no API key, no route) degrades to a spoken fallback, never an error — the same graceful contract as locate. It is deliberately one turn, not a "do you want the ETA?" `assist_satellite.ask_question` you would have to answer "yes" to: the follow-up didn't reliably get answered on the Voice PE hardware.
 
 Unlike the rest of this managed block, the locator is **not** an `intent_script` relay: it is the `presence_locator` conversation-trigger automation (one automation, two triggers keyed `en`/`es`). An `intent_script` has no handle on the satellite that asked, so it can't target `assist_satellite.announce` at the right puck; a conversation trigger has `trigger.device_id`. Because that automation now owns the "where's X" match, `custom_sentences/{en,es}/locate.yaml` are intentionally emptied (`intents: {}`) — kept, not deleted, because `ha_config_sync.py` deploys by overwrite and does not prune. Both pipelines reach it via "Prefer handling commands locally" (built-in sentence matching runs before any LLM agent), the same path the old custom-sentence intent used.
 
-**Spanish announces were speaking in the English voice (#487).** `assist_satellite.announce`'s plain `message:` field lets HA pick the TTS engine automatically, and that pick doesn't follow the wake-word-triggered pipeline — announce is a standalone action, not scoped to the in-flight conversation. The automation now pre-renders the announcement via a `media-source://tts/<engine>?message=...` URI naming the exact TTS entity for `lang` (`tts.piper` for `es`, `tts.openai_tts_orpheus` for `en` — see [`../voice-control.md`](../voice-control.md#pipelines) "Pipelines") and passes that as `media_id` instead of `message`, so the engine is explicit rather than inferred.
+**Spanish announces must name their TTS engine.** `assist_satellite.announce`'s plain `message:` field lets HA pick the TTS engine automatically, and that pick doesn't follow the wake-word-triggered pipeline — announce is a standalone action, not scoped to the in-flight conversation, so a Spanish announce would speak in the English voice. The automation pre-renders the announcement via a `media-source://tts/<engine>?message=...` URI naming the exact TTS entity for `lang` (`tts.piper` for `es`, `tts.openai_tts_orpheus` for `en` — see [`../voice-control.md`](../voice-control.md#pipelines) "Pipelines") and passes that as `media_id` instead of `message`, so the engine is explicit rather than inferred.
 
 Named places and household-role aliases are configured in the webapp (named places under Settings › Home & people › Places, and each person's "Role" field in the Security › People person sheet) — nothing in `custom_sentences/` needs editing to add a new person or place. The HA side reuses the existing `!secret app_api_authorization` — **no new HA secret**; the ETA needs a **`GOOGLE_MAPS_API_KEY`** in the *app's* own `.env` (repo is public — env-only, never committed). Without it the locate answer still works and the ETA speaks "Travel-time lookup isn't set up."
 
-**Whisper mishearing "dad" as "that" (#444):** this is a transcription problem, not a sentence-matching one — `{who}` already correctly wildcards anything, but a wrong transcript never reaches it. The fix lives outside this repo entirely (STT vocabulary bias in `local-llm-hub`, a prerequisite port-sharing fix in `voice-transcriber`) — see [`../voice-control.md`](../voice-control.md#stt-vocabulary-bias--household-names) for the full account, including what's verified vs. still needs a physical voice check.
+**Whisper mishearing "dad" as "that":** this is a transcription problem, not a sentence-matching one — `{who}` already correctly wildcards anything, but a wrong transcript never reaches it. The fix lives outside this repo entirely (STT vocabulary bias in `local-llm-hub`, a prerequisite port-sharing fix in `voice-transcriber`) — see [`../voice-control.md`](../voice-control.md#stt-vocabulary-bias--household-names) for the full account, including what's verified vs. still needs a physical voice check.
 
-### Grocery list (issue #315) — Spanish, on its own pipeline
+### Grocery list — Spanish, on its own pipeline
 
-Voice control of the **grocery-shopping-automation** sibling app on `:8502` (its #86 built the endpoint, its #89 made the replies Spanish). The app's Excel-backed inventory is the store — the shopping list is derived (`comprar = cantidad − tenemos`). All intelligence is server-side: HA relays the free Spanish fragment to `POST /api/voice/command` with a deterministic intent, the app's hub-LLM parse matches items/quantities against the inventory, Python applies, and HA speaks back the returned Spanish `speech` string. Same doctrine as everything above: the LLM does language understanding only — it can never pick the operation or redirect a mutation (an invented row index is demoted to a new-item server-side).
+Voice control of the **grocery-shopping-automation** sibling app on `:8502` (it owns the endpoint and speaks the replies in Spanish). The app's Excel-backed inventory is the store — the shopping list is derived (`comprar = cantidad − tenemos`). All intelligence is server-side: HA relays the free Spanish fragment to `POST /api/voice/command` with a deterministic intent, the app's hub-LLM parse matches items/quantities against the inventory, Python applies, and HA speaks back the returned Spanish `speech` string. Same doctrine as everything above: the LLM does language understanding only — it can never pick the operation or redirect a mutation (an invented row index is demoted to a new-item server-side).
 
-**The whole feature lives on the dedicated Spanish pipeline** ("Asistente (es)", wake word **"Hey Mycroft"**): Spanish-hinted Whisper STT, Spanish Piper voice, and the built-in deterministic agent — unmatched speech gets "no entiendo", never an LLM improvisation. The first iteration bolted Spanish turns onto the English pipeline and failed the family test (en-hinted STT mangled the Spanish; the English voice mangled the replies) — full post-mortem in #315's decision log.
+**The whole feature lives on the dedicated Spanish pipeline** ("Asistente (es)", wake word **"Hey Mycroft"**): Spanish-hinted Whisper STT, Spanish Piper voice, and the built-in deterministic agent — unmatched speech gets "no entiendo", never an LLM improvisation. Spanish turns on the English pipeline fail the family test: en-hinted STT mangles the Spanish and the English voice mangles the replies.
 
-Slot 2 was originally "Hey Jarvis"; swapped to "Hey Mycroft" in #468 — "Hey Jarvis" is the
+Slot 2 is "Hey Mycroft", not "Hey Jarvis" — "Hey Jarvis" is the
 only firmware wake word with no [microWakeWord v2 model](https://github.com/OHF-Voice/micro-wake-word/releases),
-so it was stuck on the older, less accurate v1 detector (worse on background noise and
+so it would be stuck on the older, less accurate v1 detector (worse on background noise and
 non-native accents) with no sensitivity headroom left to compensate.
 
 **Commands** (`custom_sentences/es/grocery.yaml`), all after **"Hey Mycroft, …"**:
@@ -110,9 +110,9 @@ non-native accents) with no sensitivity headroom left to compensate.
 | "anota que tenemos dos aceites" · "tenemos {…}" | `GroceryStock` | sets the item's have-count (`tenemos`) |
 | "no quedan huevos" · "se acabó el pan" | `GroceryOut` | stock to **0** (the intent re-prefixes the zero cue the sentence consumed) |
 | "qué hay que comprar" · "lee la lista [de la compra]" | `GroceryQuery` | reads the to-buy summary (no LLM call) |
-| "¿qué puedo hacer?" · "opciones" · "ayuda" | `GroceryHelp` | speaks the command menu — the voice twin of #437's in-app cheat sheet |
+| "¿qué puedo hacer?" · "opciones" · "ayuda" | `GroceryHelp` | speaks the command menu — the voice twin of the in-app cheat sheet |
 
-**Multi-turn add** is the conversation-triggered automation `automation grocery_voice:` in the managed block, using `assist_satellite.ask_question` (HA 2025.7+): "Hey Mycroft, **quiero añadir cosas a la lista**" → the same puck asks *"¿Qué quieres añadir?"* → your free Spanish answer is captured whole by a wildcard → the app applies and the puck announces the confirmation. The one-shot `GroceryAdd` is the robust primary path; the multi-turn flow is the convenience layer on top. An item that matches nothing is **created** with empty super/buscador — grocery#87 (product search) will fill those; until then the grocery app's Items tab is the manual path.
+**Multi-turn add** is the conversation-triggered automation `automation grocery_voice:` in the managed block, using `assist_satellite.ask_question` (HA 2025.7+): "Hey Mycroft, **quiero añadir cosas a la lista**" → the same puck asks *"¿Qué quieres añadir?"* → your free Spanish answer is captured whole by a wildcard → the app applies and the puck announces the confirmation. The one-shot `GroceryAdd` is the robust primary path; the multi-turn flow is the convenience layer on top. An item that matches nothing is **created** with empty super/buscador — the grocery app's product search fills those; until it does, the grocery app's Items tab is the manual path.
 
 Secret: `grocery_api_authorization` (the `Bearer` header for `:8502`). The grocery app currently ships with bearer auth **disabled**, so the live value is a placeholder (`Bearer grocery-auth-disabled`) that its middleware ignores — if that app's auth is ever enabled (`scripts/gen_token.py` there), update this secret to the real token and nothing else changes.
 
@@ -129,15 +129,15 @@ These are ephemeral, scoped per satellite, announced by TTS on completion — **
 ## Files
 
 - `custom_sentences/en/alarm.yaml` → `/config/custom_sentences/en/alarm.yaml` (RISCO security alarm)
-- `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms, #306)
-- `custom_sentences/en/reminder.yaml` → `/config/custom_sentences/en/reminder.yaml` (reminders, #314 — English only, no Spanish twin)
-- `custom_sentences/en/calendar.yaml` → `/config/custom_sentences/en/calendar.yaml` (calendar create-only, #313 — English only, no Spanish twin)
-- `custom_sentences/en/locate.yaml` → `/config/custom_sentences/en/locate.yaml` (family locator — now empty `intents: {}`, the match moved to the `presence_locator` automation, #470)
-- `custom_sentences/es/alarm.yaml` → `/config/custom_sentences/es/alarm.yaml` (RISCO security alarm in Spanish, #466)
-- `custom_sentences/es/wake_alarm.yaml` → `/config/custom_sentences/es/wake_alarm.yaml` (wake alarms in Spanish, #466)
-- `custom_sentences/es/grocery.yaml` → `/config/custom_sentences/es/grocery.yaml` (grocery list in Spanish, #315)
-- `custom_sentences/es/locate.yaml` → `/config/custom_sentences/es/locate.yaml` (family locator in Spanish — now empty `intents: {}`, see en/locate.yaml above, #470)
-- `custom_sentences/es/websearch.yaml` → `/config/custom_sentences/es/websearch.yaml` (Spanish web search, #321/#866 — the `WebSearch` intent calls the app's `POST /api/voice/search`; the Spanish pipeline has no LLM fallback)
+- `custom_sentences/en/wake_alarm.yaml` → `/config/custom_sentences/en/wake_alarm.yaml` (wake alarms)
+- `custom_sentences/en/reminder.yaml` → `/config/custom_sentences/en/reminder.yaml` (reminders — English only, no Spanish twin)
+- `custom_sentences/en/calendar.yaml` → `/config/custom_sentences/en/calendar.yaml` (calendar create-only — English only, no Spanish twin)
+- `custom_sentences/en/locate.yaml` → `/config/custom_sentences/en/locate.yaml` (family locator — now empty `intents: {}`, the match lives in the `presence_locator` automation)
+- `custom_sentences/es/alarm.yaml` → `/config/custom_sentences/es/alarm.yaml` (RISCO security alarm in Spanish)
+- `custom_sentences/es/wake_alarm.yaml` → `/config/custom_sentences/es/wake_alarm.yaml` (wake alarms in Spanish)
+- `custom_sentences/es/grocery.yaml` → `/config/custom_sentences/es/grocery.yaml` (grocery list in Spanish)
+- `custom_sentences/es/locate.yaml` → `/config/custom_sentences/es/locate.yaml` (family locator in Spanish — now empty `intents: {}`, see en/locate.yaml above)
+- `custom_sentences/es/websearch.yaml` → `/config/custom_sentences/es/websearch.yaml` (Spanish web search — the `WebSearch` intent calls the app's `POST /api/voice/search`; the Spanish pipeline has no LLM fallback)
 - `configuration.snippet.yaml` → replace the marker section in `/config/configuration.yaml` (one managed block covers **every** feature's `rest_command` / `intent_script` / `automation` entries)
 - `secrets.snippet.yaml` → add all keys to `/config/secrets.yaml` **with real values** (never committed)
 
@@ -186,7 +186,7 @@ The deploy path needs the Home Assistant **Terminal & SSH add-on** reachable ove
 
 Leave HAOS host SSH on `:22222` disabled unless you have a specific host-debug need; routine config deploys never require it.
 
-> **HA VM IP is static-MAC + DHCP-reservation pinned to `192.168.0.4`** (issue #240 — set a static MAC on the VM's Hyper-V adapter, then reserve `.4` to it on the router). The host/url in `.env` are the only place the IP is wired for deploys, so a future move to a different reserved IP is a one-line `.env` change plus a re-`preflight`. See the repo `README.md` "Home Assistant Hyper-V VM" section for the full reservation runbook.
+> **HA VM IP is static-MAC + DHCP-reservation pinned to `192.168.0.4`** (set a static MAC on the VM's Hyper-V adapter, then reserve `.4` to it on the router). The host/url in `.env` are the only place the IP is wired for deploys, so a future move to a different reserved IP is a one-line `.env` change plus a re-`preflight`. See the repo `README.md` "Home Assistant Hyper-V VM" section for the full reservation runbook.
 
 ## Install via the File editor add-on (fallback)
 
@@ -201,11 +201,11 @@ Use this only when SSH/script deploy is unavailable (add-on down, key not yet pr
 
 - Read-only first: "Okay Nabu, what's the alarm status?" → it speaks the current state.
 - Then a full cycle: "perimeter on" → check the app's Security tab → "disarm \<code\>".
-- **Spanish (#466):** "Hey Mycroft, ¿cómo está la alarma?" → "La alarma está desarmada"; "pon una alarma para las siete y media entre semana" → it speaks the Spanish confirmation. Text-probe without a voice: `… -m scripts.ha_config_sync probe --text "cómo está la alarma" --language es --actuate` (a read; `action_done` = matched), and `--text "pon una alarma para las siete y media entre semana" --language es --actuate` then `--text "cancela mi alarma" --language es --actuate` to clean up.
+- **Spanish:** "Hey Mycroft, ¿cómo está la alarma?" → "La alarma está desarmada"; "pon una alarma para las siete y media entre semana" → it speaks the Spanish confirmation. Text-probe without a voice: `… -m scripts.ha_config_sync probe --text "cómo está la alarma" --language es --actuate` (a read; `action_done` = matched), and `--text "pon una alarma para las siete y media entre semana" --language es --actuate` then `--text "cancela mi alarma" --language es --actuate` to clean up.
 - **Wake alarms:** "set a wake alarm for 7 am on weekdays" → it speaks it back → confirm it appears on the Home-tab card (or `GET /api/wake-alarms`) → "cancel my wake alarm". Text-probe without speaking: `… -m scripts.ha_config_sync probe --text "set a wake alarm for 7 am" --actuate` (a reply of type `action_done` = matched locally).
 - **Calendar:** requires the one-time `scripts/auth_calendar_write.py` bootstrap first (see above). "add dentist appointment to my calendar tomorrow at 3pm" → it speaks a confirmation → check the event actually appears in the real Google Calendar app/web UI (external verification — there's no local list to check instead). Text-probe: `… -m scripts.ha_config_sync probe --text "add dentist appointment to my calendar tomorrow at 3pm" --actuate` — note this **really creates a Google Calendar event** (create-only, no dry-run), unlike the read-only alarm-status probe.
-- **Family locator:** set a role (Security tab → Presence → a person's detail modal → "Role") and at least one named place (Presence → "Places"), then "Okay Nabu, where's \<role\>" → it speaks the resolved place. Text-probe: `… -m scripts.ha_config_sync probe --text "where's dad"`. Spanish (#446): "Hey Mycroft, ¿dónde está papá?" → "Roberto está en casa"; text-probe with `--text "donde esta papa" --language es --actuate`. Whisper mishearing "dad" as "that" (#444) is a transcription-layer issue a text-probe cannot exercise — after the STT vocabulary bias above binds, verify by voice: say "Okay Nabu, where's dad" a few times and confirm `logs/presence_locate.jsonl` shows `who: dad` resolving correctly each time.
-- **ETA home (#470, #485):** with `GOOGLE_MAPS_API_KEY` set in the app's `.env` and a home in `config/location.json`, ask "where's \<role\>" while that person is **away** → the puck's *single* reply is the resolved place followed immediately by a traffic-aware drive time home, with no follow-up question to answer (`logs/presence_eta.jsonl` records the resolve). Already home, or not found → it speaks the location only and no ETA is resolved. #485 collapsed the original two-turn `assist_satellite.ask_question` flow ("…how long to get home?" → "yes") into this one turn because the follow-up didn't reliably get answered on the Voice PE hardware — see "How the ETA works" above; there is no second turn left to exercise. Endpoint alone: `GET /api/presence/eta?who=dad` (loopback, no auth) returns the `speech`. Missing key/home/route each speak a distinct fallback rather than erroring.
+- **Family locator:** set a role (Security tab → Presence → a person's detail modal → "Role") and at least one named place (Presence → "Places"), then "Okay Nabu, where's \<role\>" → it speaks the resolved place. Text-probe: `… -m scripts.ha_config_sync probe --text "where's dad"`. Spanish: "Hey Mycroft, ¿dónde está papá?" → "Roberto está en casa"; text-probe with `--text "donde esta papa" --language es --actuate`. Whisper mishearing "dad" as "that" is a transcription-layer issue a text-probe cannot exercise — after the STT vocabulary bias above binds, verify by voice: say "Okay Nabu, where's dad" a few times and confirm `logs/presence_locate.jsonl` shows `who: dad` resolving correctly each time.
+- **ETA home:** with `GOOGLE_MAPS_API_KEY` set in the app's `.env` and a home in `config/location.json`, ask "where's \<role\>" while that person is **away** → the puck's *single* reply is the resolved place followed immediately by a traffic-aware drive time home, with no follow-up question to answer (`logs/presence_eta.jsonl` records the resolve). Already home, or not found → it speaks the location only and no ETA is resolved. The ETA is one turn, not a two-turn `assist_satellite.ask_question` flow ("…how long to get home?" → "yes"), because the follow-up didn't reliably get answered on the Voice PE hardware — see "How the ETA works" above; there is no second turn left to exercise. Endpoint alone: `GET /api/presence/eta?who=dad` (loopback, no auth) returns the `speech`. Missing key/home/route each speak a distinct fallback rather than erroring.
 - **Timers (native, no deploy):** "set a timer for 2 minutes" → wait for the TTS chime; "cancel the timer".
 
 ## Requirements

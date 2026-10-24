@@ -132,7 +132,9 @@ allow_refs = [":8000", ":8088", ":8090", ":8443", ":8502", ":22222", "src/server
 enabled  = true
 baseline = ".dead-code-ratchet-baseline.json"
 # Home Assistant calls the integration's setup hooks by name, from outside this tree.
-allow    = ["custom_components/**/*.py:async_setup*"]
+# tests/e2e/_geometry.py is a verbatim copy of the fleet helper, so its unused chart-tick
+# assertion stays in the file rather than forking it.
+allow    = ["custom_components/**/*.py:async_setup*", "tests/e2e/_geometry.py:assert_chart_ticks"]
 
 # [conventions_ratchet] -- the scaffold's baseline-and-ratchet stage over fleet
 # conventions held as stdlib ast rules. The gate (scripts/verify-before-ship.ps1) runs

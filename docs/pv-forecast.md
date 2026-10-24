@@ -1,12 +1,12 @@
 # Solar generation forecast — the model
 
-The Energy tab's **Solar forecast** card (issue #39) overlays an *expected generation* curve on the day's measured generation, for yesterday, today, or tomorrow, with a headline "Expected generation +X kWh". This note documents the rough physical model behind that curve and the config it reads. It is the read/visualisation half of the eventual solar load-balancing goal — a forecast to compare against reality, never a control input.
+The Energy tab's **Solar forecast** card overlays an *expected generation* curve on the day's measured generation, for yesterday, today, or tomorrow, with a headline "Expected generation +X kWh". This note documents the rough physical model behind that curve and the config it reads. It is the read/visualisation half of the eventual solar load-balancing goal — a forecast to compare against reality, never a control input.
 
 ## Source
 
 A keyless [Open-Meteo](https://open-meteo.com/) request — the same host the weather tile already uses — for the hourly **global tilted irradiance** (GTI) variable, at a sub-array's tilt and azimuth, across `past_days=1` … `forecast_days=2` so all three selectable days come back in one call. GTI is returned in **W/m²** as a *preceding-hour mean*, so one hour of it integrates straight to Wh with no sub-hour modelling.
 
-**One request per sub-array (issue #555).** A real roof is rarely one uniform orientation — this home's is ~90% south-facing and ~10% mounted the opposite way. Open-Meteo's `tilt`/`azimuth` params don't support batching multiple orientations into one call (unlike `latitude`/`longitude`, which do), so a multi-orientation array fires one GTI request per sub-array, concurrently over a shared session, and sums the weighted result per hour.
+**One request per sub-array.** A real roof is rarely one uniform orientation — this home's is ~90% south-facing and ~10% mounted the opposite way. Open-Meteo's `tilt`/`azimuth` params don't support batching multiple orientations into one call (unlike `latitude`/`longitude`, which do), so a multi-orientation array fires one GTI request per sub-array, concurrently over a shared session, and sums the weighted result per hour.
 
 No API key, no account, no cross-repo dependency. See "PVGIS as a source" below for why the dedicated `pvgis` sister repo isn't used as a live source here.
 
@@ -56,9 +56,9 @@ A malformed individual sub-array entry is skipped (logged), not a hard failure; 
 
 Coordinates are **reused from `config/location.json`** (the same file the weather tile reads) — there is no separate lat/lon here. If either `pv_system.json` or `location.json` is absent the forecast simply reports "not configured"; the card shows a one-line note pointing at the editor below and nothing else breaks.
 
-## Editing from the app (issue #561)
+## Editing from the app
 
-The **PV system** card in Settings (on the Energy tab until #779) edits the same file — one summary row per panel row (`kwp` · tilt · compass direction), opened into a staged dialog for peak power / tilt / azimuth, plus the shared performance ratio and the home coordinates inline. Saving is live on the next forecast read: `src/pv_forecast.py` loads the config per request, so there is no cache to clear and no restart.
+The **PV system** card in Settings edits the same file — one summary row per panel row (`kwp` · tilt · compass direction), opened into a staged dialog for peak power / tilt / azimuth, plus the shared performance ratio and the home coordinates inline. Saving is live on the next forecast read: `src/pv_forecast.py` loads the config per request, so there is no cache to clear and no restart.
 
 `config/pv_system.json` remains the source of truth, not a cache of the UI:
 
@@ -68,11 +68,11 @@ The **PV system** card in Settings (on the Energy tab until #779) edits the same
 
 Read and write are deliberately **different contracts**. `GET /api/energy/pv-system` inherits the loader's leniency (absent or malformed → "not configured", HTTP 200). `PUT` is strict and returns **400** naming the offending field — `kwp` ≤ 0, tilt outside 0–90, azimuth outside ±180, performance ratio outside 0–1. Silently clamping or dropping a row the user just typed would be a bug, not resilience, so the write path validates on its own rather than reusing the reader's skip-and-clamp parsing.
 
-### PVGIS as a source (evaluated, deferred — issue #555)
+### PVGIS as a source (evaluated, deferred)
 
-Issue #555 asked whether pulling live from [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_en) (the EU JRC's solar radiation/PV performance API) would make this card's estimate more realistic than Open-Meteo. Checked against PVGIS's own API docs: **`seriescalc`/`PVcalc` return historical or typical-meteorological-year irradiance, not a live day-ahead forecast for a specific real date.** They're built for long-term yield assessment, not "what will tomorrow look like" — the exact use case this card needs for its `tomorrow` selector.
+Pulling live from [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_en) (the EU JRC's solar radiation/PV performance API) was evaluated as a way to make this card's estimate more realistic than Open-Meteo. Checked against PVGIS's own API docs: **`seriescalc`/`PVcalc` return historical or typical-meteorological-year irradiance, not a live day-ahead forecast for a specific real date.** They're built for long-term yield assessment, not "what will tomorrow look like" — the exact use case this card needs for its `tomorrow` selector.
 
-**Decision: defer.** Open-Meteo stays the live source for this card. PVGIS remains what it already was before #555 — a one-time calibration input for hand-tuning `performance_ratio` (see below) — not a live dependency, and not built out further as a calibration *feature* in this issue. Revisit only if a concrete need for a periodic "does our tuning still match PVGIS's typical-year model" cross-check shows up.
+**Decision: defer.** Open-Meteo stays the live source for this card. PVGIS stays a one-time calibration input for hand-tuning `performance_ratio` (see below) — not a live dependency, and not built out further as a calibration *feature*. Revisit only if a concrete need for a periodic "does our tuning still match PVGIS's typical-year model" cross-check shows up.
 
 ### Choosing `performance_ratio` (and reading it off a PVGIS system)
 
@@ -94,7 +94,7 @@ So translating a PVGIS setup with the thermal term off, don't copy `1 − loss/1
 
 Empirically this matters: 0.86 (the raw `1 − loss`) forecast ≈ 51 kWh for a clear June day, while PVGIS's own annual model lands ~45–48 kWh — 0.80 brings the estimate back in line. If you have measured generation, tune `performance_ratio` so the dashed forecast sits over the filled actual curve on clear days.
 
-### Panel temperature (issue #591) — optional, off by default
+### Panel temperature — optional, off by default
 
 The constant thermal allowance folded into `performance_ratio` above is the weakest part of that translation: the real loss ranges from ~0% at a 25 °C cell to ~13% at 62 °C, and one number cannot track it. `thermal_model_enabled` replaces the constant with a physical term.
 
@@ -106,7 +106,7 @@ factor = 1 + γ · (T_cell − 25)                     # γ = −0.0035 / °C, f
 expected_Wh = kwp · (GTI / 1000) · performance_ratio · factor
 ```
 
-γ and NOCT are constants in `src/pv_forecast.py`, not config fields: issue #578 fitted them against this array's own measured output and they land within ±5% for every morning and midday hour, and there is no UI through which a user could recalibrate them meaningfully. **Wind speed is deliberately not modelled** — the still-air NOCT form already fits within measurement noise here, and the residual gap it does *not* close is the afternoon one, which is geometric (horizon shading, #578 part b), not thermal. A wind term would only appear to absorb it.
+γ and NOCT are constants in `src/pv_forecast.py`, not config fields: they were fitted against this array's own measured output and land within ±5% for every morning and midday hour, and there is no UI through which a user could recalibrate them meaningfully. **Wind speed is deliberately not modelled** — the still-air NOCT form already fits within measurement noise here, and the residual gap it does *not* close is the afternoon one, which is geometric (horizon shading, below), not thermal. A wind term would only appear to absorb it.
 
 **Turning it on is a migration, not a toggle.** The two settings are read together:
 
@@ -119,13 +119,13 @@ Flipping the switch while leaving `performance_ratio` at 0.80 would subtract the
 
 **With the switch off nothing changes at all** — not the numbers, not the payload's keys, not even the upstream request (`temperature_2m` is only asked for when the term is armed). That is the deliberate default: the committed config leaves it off, and only a literal JSON `true` arms it, so a stray `"yes"` in a hand-edited file cannot change what the card predicts by truthiness.
 
-### Horizon / shading profile (issue #578 part b) — optional, off by default
+### Horizon / shading profile — optional, off by default
 
 The residual gap the thermal term above does *not* close is the afternoon one — a knee that repeats to the minute across clear days, the signature of a fixed obstruction (a ridge, a neighbouring roof, a tree line), not weather or panel temperature. `horizon_profile_enabled` arms a hand-entered obstruction-elevation-by-azimuth profile that attenuates the direct-beam share of an hour once the sun drops behind it. **Currently off pending an installer conversation about the real geometry** — the profile is buildable now (editable from the PV system card in the panel-row's staged-dialog style), but nothing it contains is applied until the switch is flipped by hand.
 
 **The profile.** A list of `{azimuth_deg, elevation_deg}` points — the same shape PVGIS/PVsyst use for a horizon line. `azimuth_deg` is **compass, clockwise from true north** (0=N, 90=E, 180=S, 270=W) — `src/sun_position.py`'s convention, deliberately *not* `arrays[].azimuth_deg`'s Open-Meteo south-relative one, because a horizon point is compared against a *computed sun position*, never a panel orientation. `elevation_deg` (0–90) is how high the obstruction stands above the horizontal at that azimuth. Two or more points interpolate linearly between their azimuth-sorted neighbours, wrapping at the 360°/0° boundary; a single point applies to every azimuth; an empty list is a no-op (see below).
 
-**The model.** For each hour, per sub-array, the sun's azimuth/elevation is computed from `src/sun_position.py` (reused from the #590 diagnostic — no second solar-position implementation) at the hour's Open-Meteo timestamp. If the sun's elevation is at or below the profile's interpolated obstruction elevation for that azimuth, the hour's GTI is scaled down to its **diffuse-only share**:
+**The model.** For each hour, per sub-array, the sun's azimuth/elevation is computed from `src/sun_position.py` (shared with the sun-position diagnostic — no second solar-position implementation) at the hour's Open-Meteo timestamp. If the sun's elevation is at or below the profile's interpolated obstruction elevation for that azimuth, the hour's GTI is scaled down to its **diffuse-only share**:
 
 ```
 if sun_elevation_deg <= horizon_elevation_deg(profile, sun_azimuth_deg):
@@ -138,9 +138,9 @@ Open-Meteo does not publish a direct/diffuse split of the *tilted* GTI figure it
 
 **With the switch off nothing changes at all** — same contract as the thermal term: no `direct_radiation`/`diffuse_radiation` in the request, no change to the numbers. The committed config leaves it off, and only a literal JSON `true` arms it.
 
-## Caching, rate limits and backoff (issue #597)
+## Caching, rate limits and backoff
 
-The card is polled by an always-on dashboard, and Open-Meteo's hourly irradiance only changes on an hourly grid, so `src/pv_forecast.py` caches the response per `(location, array-set, day)` for 15 minutes and reuses one `aiohttp.ClientSession` across calls — the same pattern `src/huawei_client.py` uses for FusionSolar. A render inside the cache window costs no upstream request at all; the sun-position diagnostic (#590) shares the same cache entry for a date it also fetches.
+The card is polled by an always-on dashboard, and Open-Meteo's hourly irradiance only changes on an hourly grid, so `src/pv_forecast.py` caches the response per `(location, array-set, day)` for 15 minutes and reuses one `aiohttp.ClientSession` across calls — the same pattern `src/huawei_client.py` uses for FusionSolar. A render inside the cache window costs no upstream request at all; the sun-position diagnostic shares the same cache entry for a date it also fetches.
 
 A `429` from Open-Meteo gets its own reason, `rate_limited`, distinct from `unreachable` — the server answered, it just refused this request rate. It also opens a backoff window (60 s, doubling to a 900 s ceiling per consecutive 429) during which no further upstream call is attempted at all, and — as long as one is still less than 6 hours old — the last successfully-fetched curve is served instead of a blank card, whether the 429 opened the backoff just now or an earlier one is still active.
 
@@ -168,11 +168,11 @@ A `429` from Open-Meteo gets its own reason, `rate_limited`, distinct from `unre
 
 `actual` is the measured generation for that day from the local energy-history DB (`hourly_day`), 24 hourly points where a `null` hour is an asleep inverter or an hour with no sample (drawn as a gap, never a 0) — the same "asleep is not zero" rule the live chart uses. `tomorrow` has no actuals, so `actual` is `null`.
 
-`system` echoes back the sub-array params the curve was computed from, so the card can show them in a caption (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast. It carries an extra `thermal_model: { gamma_per_c, noct_c }` block **only** when the panel-temperature term is armed — with the term off the payload's keys are exactly what they were before #591.
+`system` echoes back the sub-array params the curve was computed from, so the card can show them in a caption (e.g. `7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80`) and you can sanity-check the inputs at a glance. Present only on an available forecast. It carries an extra `thermal_model: { gamma_per_c, noct_c }` block **only** when the panel-temperature term is armed — with the term off the payload's keys are exactly the base keys.
 
 Always HTTP 200: when the array/location is unconfigured or Open-Meteo is unreachable it returns `{ "available": false, "reason": … }` and the card keeps its note — the forecast is decorative, never a 500. The reasons are `not_configured`, `no_location`, `too_old`, `unreachable`, `rate_limited` (Open-Meteo answered with a 429 — see "Caching, rate limits and backoff" above), `no_data`, and `thermal_ratio_unmigrated` (the panel-temperature term armed on top of an un-migrated `performance_ratio` — see "Panel temperature" above).
 
-## Reading the model back: the sun-position diagnostic (issue #590)
+## Reading the model back: the sun-position diagnostic
 
 The model above is a *forecast*. The Energy tab's folded-away **Sun-position
 diagnostic** is its mirror: it takes what was already measured and what this

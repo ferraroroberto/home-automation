@@ -1,4 +1,4 @@
-# Network view — spike findings (issue #125)
+# Network view — spike findings
 
 Proof-of-concept results for the **network view**: internet/WiFi/LAN health,
 the attached-device inventory named by MAC, network-quality alerts, and
@@ -10,11 +10,11 @@ into the vendor web UIs by hand.
 `network-dhcp.js` in `app/webapp/static/`, backed by `GET /api/network`
 (`app/webapp/routers/network.py`); the prototype `src/network_client.py` is
 now the orchestrator over the split `src/network_ap.py` /
-`src/network_router.py` / `src/network_host.py` (#197). See [network.md](network.md) for the current product
+`src/network_router.py` / `src/network_host.py`. See [network.md](network.md) for the current product
 surface;
 this doc stays as the decision record for *why* each piece works
 the way it does. The two "(follow-up)" headings below are historical: both
-items shipped (#129 Phases 1–4, #169).
+items have shipped.
 
 This documents what the spike **proved against the live hardware** and what
 it recommended adopting. The prototype core lived in `src/network_client.py`
@@ -33,8 +33,8 @@ has the hard part (headless login) proven, with one well-understood detail left.
 | Internet health (up/down, latency, packet loss) | host-side ping | ✅ working |
 | WAN speed test (down/up Mbps) | host-side `speedtest-cli` | ✅ working (~13 s) |
 | Router headless login | ZTE web (SHA256) | ✅ working (`RouterClient.login`) |
-| Router WAN-status data read | ZTE web | ✅ working (`RouterClient.read_wan`, issue #129 Phase 3) |
-| Router reboot | ZTE web | ✅ working (`RouterClient.reboot`, issue #129 Phase 3) |
+| Router WAN-status data read | ZTE web | ✅ working (`RouterClient.read_wan`) |
+| Router reboot | ZTE web | ✅ working (`RouterClient.reboot`) |
 
 ## Devices
 
@@ -83,7 +83,7 @@ in the live page's JS (`g_loginToken`):
 
 This is implemented and **verified working** in `RouterClient.login()`.
 
-**The data-read + reboot scheme (solved in issue #129 Phase 3).** Reverse-engineered
+**The data-read + reboot scheme (solved).** Reverse-engineered
 off the live page JS and verified against the hardware:
 
 - **Page-gated feeds.** Each `menuData` feed is gated on the *current* menu page,
@@ -146,7 +146,7 @@ only worth merging later for **better hostnames** (many AP `name`s are `n/a`);
 that is an enhancement, not a blocker, and depends on the router data-read work
 above. The merge key is the MAC.
 
-**Done (#169, feed repointed in #507).** `RouterClient.read_dhcp_leases()` reads
+**Done.** `RouterClient.read_dhcp_leases()` reads
 the router's full DHCP lease table — `menuData` feed
 `Localnet_LanMgrIpv4_DHCPHostInfo_lua.lua`, page-gated behind the `lanMgrIpv4`
 `menuView` (the original `accessdev_landevs_lua.lua` feed missed wireless
@@ -161,7 +161,7 @@ never the lease table. The read is best-effort, so a router failure leaves the
 AP inventory intact. The `source` attribution surfaces in the device detail
 modal (`Seen by`), not the list.
 
-## Naming devices by MAC (shipped, #129 Phase 2)
+## Naming devices by MAC (shipped)
 
 The user wants devices recognizable by MAC. Reused the existing display-name
 module verbatim, as `tuya_display_names.py` / `security_display_names.py` do:
@@ -169,7 +169,7 @@ module verbatim, as `tuya_display_names.py` / `security_display_names.py` do:
 (gitignored, with a committed sample), keyed by **MAC**. Deferred out of the
 spike to keep it to the three proofs, then built as planned.
 
-## The tab itself (shipped, #129 Phase 1)
+## The tab itself (shipped)
 
 Planned as a `GET /api/network` router under `app/webapp/routers/` returning
 `NetworkState`, and a Network card view: an internet-health tile (up/down,
@@ -179,14 +179,14 @@ surfaced. Reboot is a deliberate user action with a confirm — never automatic.
 Built as planned, then reshaped by real usage — see the "Later correction"
 note below.
 
-> **Later correction (#632).** The alert strip did ship, then was removed again
+> **Later correction.** The alert strip did ship, then was removed again
 > in `cce000a` to tighten the tab's mobile layout, and `GET /api/network` no
 > longer returns an `alerts` key. Every fact it carried is surfaced on the
 > device's own row instead — the weak-signal count in the stat chips, the 24 h
 > `is_new` badge, and the dimmed `online=false` row with its `important` flag.
 > `NetworkState.alerts` itself stays: `src/list_network.py` still prints it.
 
-## Why a lease-sourced row is "no link", not offline (#550, #552)
+## Why a lease-sourced row is "no link", not offline
 
 A DHCP lease outlives the client that held it, so some router-sourced rows are
 phones that left hours ago — they come back in the read with no band, no SSID
@@ -206,7 +206,7 @@ they are gone, and the backend `online` flag — plus everything built on it: th
 history registry, the synthesised offline row an *important* device produces —
 keeps meaning "returned by this read".
 
-**Ping-probe promotion (#552)** acts on the "some lease-only rows still answer a
+**Ping-probe promotion** acts on the "some lease-only rows still answer a
 ping" observation. Every read's no-link subset (signal-less, non-wired, has an
 IP) gets a bounded, concurrent host-side ping probe, cached briefly per device
 so a flapping result does not flicker between polls. A device that answers is
@@ -217,7 +217,7 @@ dimmed under **No link**. The probe never touches devices that already have
 AP/router evidence, and a synthesised offline row (genuinely absent from the
 read) is never probed.
 
-## Display groups are not `dhcp_plan.json` categories (#513, #519)
+## Display groups are not `dhcp_plan.json` categories
 
 ~55 leases is too long a list to answer *"are all four Elgato lights up?"*, hence
 the **My groups** mode. Those groups are display-only and deliberately
