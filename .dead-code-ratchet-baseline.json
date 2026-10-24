@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "tests/e2e/_geometry.py", "names": ["assert_chart_ticks"]}
+  ]
+}
