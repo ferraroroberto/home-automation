@@ -184,7 +184,7 @@ def describe_alarm(entry: WakeAlarmEntry, lang: str = "en") -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Spanish descriptions ("las 7 de la mañana entre semana") — #466
+# Spanish descriptions ("las 7 de la mañana entre semana")
 # --------------------------------------------------------------------------- #
 _DAY_FULL_ES = {
     "mon": "lunes", "tue": "martes", "wed": "miércoles", "thu": "jueves",
@@ -331,7 +331,7 @@ def _parse_time(text: str) -> Optional[str]:
 
 
 # --------------------------------------------------------------------------- #
-# Spanish spoken-phrase parsing ("las siete de la mañana entre semana") — #466
+# Spanish spoken-phrase parsing ("las siete de la mañana entre semana")
 # --------------------------------------------------------------------------- #
 _WORD_HOURS_ES = {
     "una": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5,

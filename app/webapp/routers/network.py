@@ -159,7 +159,7 @@ async def _read_network(include_speedtest: bool = False) -> NetworkState:
         await asyncio.to_thread(record_and_snapshot, seen, now)
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️  network history update failed: %s", exc)
-    # Feed the tile's latency/throughput sparklines (#840).
+    # Feed the tile's latency/throughput sparklines.
     try:
         await asyncio.to_thread(record_internet_sample, _internet_dict(state.internet), now)
     except Exception as exc:  # noqa: BLE001
@@ -167,7 +167,7 @@ async def _read_network(include_speedtest: bool = False) -> NetworkState:
     return state
 
 
-# The LAN snapshot, answered from memory (#926): the AP's SOAP read takes ~8 s,
+# The LAN snapshot, answered from memory: the AP's SOAP read takes ~8 s,
 # which every Devices-tab load used to wait out. Serve-stale, so once a value
 # exists a read answers at once and one shared refresh runs behind it —
 # concurrent readers share that one AP read. No tick (demand_window_s=0): a
@@ -228,7 +228,7 @@ def _device_dict(
         "last_conn_type": None,
         "last_ssid": None,
         "online": True,
-        # Host-side ping-probe result for a no-link device (issue #552): True
+        # Host-side ping-probe result for a no-link device: True
         # promotes it into the live view with a distinct marker, False/None
         # leaves it exactly as before (unprobed, or probed and unreachable).
         "ping_reachable": d.ping_reachable,
@@ -280,7 +280,7 @@ def _offline_device_dict(
         "last_conn_type": rec.get("last_conn_type"),
         "last_ssid": rec.get("last_ssid"),
         "online": False,
-        # Genuinely absent devices are never probed (issue #552 only targets
+        # Genuinely absent devices are never probed (the probe only targets
         # the current-read "no link" subset), so this is always null here.
         "ping_reachable": None,
         "first_seen": rec.get("first_seen"),
@@ -493,7 +493,7 @@ async def get_internet_history() -> Dict[str, Any]:
 
 
 # The opt-in nightly speed test is a single bool pref — the shared GET/PUT
-# factory (#664), off until the user turns it on (#840).
+# factory, off until the user turns it on.
 router.include_router(
     make_bool_prefs_router(
         load_speedtest_prefs,
@@ -569,7 +569,7 @@ class WifiHiddenPayload(BaseModel):
 
 # Set or clear a custom label for one attached device, keyed by MAC. Most clients
 # report an ``n/a`` hostname, so this is the only way to tell them apart in the
-# list (issue #129 Phase 2). The response MAC is normalised to its canonical form.
+# list. The response MAC is normalised to its canonical form.
 make_display_name_endpoint(
     router,
     "/api/network/devices/{item_id}/display_name",
@@ -683,7 +683,7 @@ async def update_wifi_hidden(payload: WifiHiddenPayload) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Wi-Fi walk test / site survey (issue #547)                                   #
+# Wi-Fi walk test / site survey                                               #
 # --------------------------------------------------------------------------- #
 # No browser exposes Wi-Fi telemetry (there is no ``navigator.wifi``, and
 # ``navigator.connection`` is unimplemented in WebKit), so a phone cannot scan

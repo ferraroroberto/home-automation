@@ -59,7 +59,7 @@ _VALID_VERDICTS = frozenset({VERDICT_REAL, VERDICT_FALSE, VERDICT_UNCERTAIN})
 # Seconds to let a PTZ camera settle on its preset before grabbing the frame. A
 # full preset traverse plus autofocus takes a few seconds on the Reolink E1; a
 # too-short wait snapshots mid-pan and the model rightly rejects a blurred frame
-# (observed at 2 s during the #162 movement test), so default generously.
+# (observed at 2 s during the movement test), so default generously.
 DEFAULT_PRESET_SETTLE_S = 4.0
 # Cap how long the whole vision call may take so a wedged hub can't hang the
 # fire-and-forget task forever.

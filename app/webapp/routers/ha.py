@@ -51,9 +51,9 @@ def _interaction_rows(events: list[Dict[str, Any]], satellites: list[Dict[str, A
     return result
 
 
-# The satellite read, answered from memory (#928): a cold Home Assistant
+# The satellite read, answered from memory: a cold Home Assistant
 # websocket round trip took ~8 s and every Devices-tab load sat in it. Serve-
-# stale like the LAN snapshot (#926): once a value exists a read answers at once
+# stale like the LAN snapshot: once a value exists a read answers at once
 # and one shared refresh runs behind it. No tick (demand_window_s=0), so a
 # refresh only ever follows a read and Home Assistant sees no more reads than
 # the 15 s sheet poll made before. Past stale_after_s the answer says ``stale``.

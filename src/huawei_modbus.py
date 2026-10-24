@@ -151,7 +151,7 @@ _METER_STATUS_NORMAL = 1
 
 # ``as_of`` is stamped to the second, unlike the cloud's 5-minute bucket. The
 # boost coordinator compares it for equality to refuse acting twice on one
-# reading (issue #562); at this resolution every read is genuinely new data, so
+# reading; at this resolution every read is genuinely new data, so
 # the guard stops firing — correctly, because a 1-second-old local reading
 # *does* already contain the load change the cloud bucket could not.
 _AS_OF_FORMAT = "%Y-%m-%d %H:%M:%S"

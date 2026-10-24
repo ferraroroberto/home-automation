@@ -101,10 +101,10 @@ class PvSystemConfig:
 
     arrays: List[PvArray] = field(default_factory=list)
     performance_ratio: float = 0.8
-    # Issue #591 — off by default so the live forecast is unchanged. See the
+    # Off by default so the live forecast is unchanged. See the
     # module docstring for what turning it on also requires.
     thermal_model_enabled: bool = False
-    # Issue #578 part (b) — off by default; see the module docstring. The
+    # Off by default; see the module docstring. The
     # points themselves are editable independently of the switch.
     horizon_profile_enabled: bool = False
     horizon_profile: List[PvHorizonPoint] = field(default_factory=list)
@@ -116,7 +116,7 @@ class PvSystemConfig:
 
 # With the thermal term ON, ``performance_ratio`` is a system-loss-only factor
 # (~0.88 measured for this array: PVGIS-style 14% system loss, nothing thermal).
-# The pre-#591 combined ratios sit around 0.80 because they also absorb a
+# The older combined ratios sit around 0.80 because they also absorb a
 # constant ~6% thermal allowance. Anything below this floor is therefore still
 # an un-migrated combined ratio, and running the temperature term on top of it
 # would subtract the thermal loss twice.
@@ -259,7 +259,7 @@ def _clamp_float(value: object, default: float, lo: float, hi: float) -> float:
 # instead of keeping a stale, contradictory ``kwp`` beside the new list.
 #
 # ``thermal_model_enabled`` and ``horizon_profile_enabled`` are deliberately
-# NOT owned (issues #591, #578 part b): the editor has no control for either
+# NOT owned: the editor has no control for either
 # switch, so a save must leave a hand-set switch exactly as it found it rather
 # than silently writing the default back over it. ``horizon_profile`` itself
 # *is* owned — the editor does have a control for the points.

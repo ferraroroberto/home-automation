@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Any external caller identifies itself via this header (issue #405 precedent
+# Any external caller identifies itself via this header (same convention
 # on the security router); unlike that router's fixed ha/voice-pe allowlist,
 # this endpoint is meant for arbitrary future external triggers, so any
 # short token is accepted verbatim rather than collapsed to a known set.

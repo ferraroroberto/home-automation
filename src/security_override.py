@@ -34,7 +34,7 @@ OVERRIDES_PATH = _CONFIG_DIR / "security_override.json"
 
 # 1-3 is the only sane range the user asked for — a single retry disables a
 # detector on its very first (possibly genuine) alarm, and beyond 3 defeats
-# the point of getting ahead of the panel's own ~5-alarm auto-omit (#325).
+# the point of getting ahead of the panel's own ~5-alarm auto-omit.
 MIN_MAX_RETRIES = 1
 MAX_MAX_RETRIES = 3
 

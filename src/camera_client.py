@@ -37,7 +37,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 from src._atomic_json import write_json_atomic
 
-# The RTSP-over-ffmpeg capture subsystem lives in its own module (issue #197);
+# The RTSP-over-ffmpeg capture subsystem lives in its own module;
 # re-exported here so callers keep importing snapshot/stream/record from
 # ``src.camera_client``. ``camera_ffmpeg`` imports back from this module lazily,
 # so this top-level import forms no cycle.
@@ -62,7 +62,7 @@ _CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "cameras.json
 _PTZ_SAFETY_STOP_S = 4.0
 # A fixed-step nudge is a short continuous move that self-stops after this long —
 # one click moves exactly one increment, instead of the press-and-hold that
-# overshoots (issue #190). The velocity magnitude is chosen by the caller.
+# overshoots. The velocity magnitude is chosen by the caller.
 _PTZ_STEP_DURATION_S = 0.25
 
 
@@ -86,7 +86,7 @@ class CameraConfig:
     rtsp_port: int = 554
     # Optional stable MAC. When set, a camera unreachable at its configured host
     # is rediscovered by MAC from the network table and the recovered IP is
-    # persisted back to cameras.json — the same self-heal the plugs/AP use (#190).
+    # persisted back to cameras.json — the same self-heal the plugs/AP use.
     mac: Optional[str] = None
 
 
@@ -102,7 +102,7 @@ class CameraInfo:
     model: Optional[str] = None
     firmware: Optional[str] = None
     ptz_capable: bool = False
-    # Which precise-PTZ paths this camera actually supports (issue #190). The UI
+    # Which precise-PTZ paths this camera actually supports. The UI
     # renders only the controls a camera can honour, so hardware that lacks
     # absolute-move / native presets degrades cleanly instead of faulting.
     ptz_presets: bool = False  # native ONVIF GetPresets / SetPreset / GotoPreset
@@ -219,7 +219,7 @@ class _CameraConn:
     ptz_absolute: bool = False
     ptz_relative: bool = False
     # Absolute-move coordinate bounds (min, max) per axis, read from the PTZ
-    # node's supported spaces — drives input validation + UI hints (issue #190).
+    # node's supported spaces — drives input validation + UI hints.
     pan_range: Optional[Tuple[float, float]] = None
     tilt_range: Optional[Tuple[float, float]] = None
     zoom_range: Optional[Tuple[float, float]] = None

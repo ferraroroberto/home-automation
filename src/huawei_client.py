@@ -79,7 +79,7 @@ _DEFAULT_SUBDOMAIN = "uni005eu5"
 
 # How old the newest usable point may be before the read is reported
 # unavailable. Same guard, and the same reasoning, as the integration this
-# replaced (issue #94) — but a good deal more generous, because this source
+# replaced — but a good deal more generous, because this source
 # behaves differently. Measured over one evening: the series runs ~7 minutes
 # behind wall clock, and it emits *permanent* holes of 2–3 consecutive buckets
 # (18:25-18:30 and 19:15-19:25 were still unusable an hour later). The newest
@@ -151,7 +151,7 @@ class EnergyState:
     #: naive-local ``"YYYY-MM-DD HH:MM"`` stamp — ``None`` when nothing usable
     #: was read. Not part of the ``/api/energy`` response; it exists so the HVAC
     #: boost coordinator can tell a *fresh* reading from the same bucket it
-    #: already acted on (issue #562). Wall-clock cannot: this source runs several
+    #: already acted on. Wall-clock cannot: this source runs several
     #: minutes behind and emits permanent multi-bucket holes, so "300 s have
     #: passed" is not "the meter has published again".
     as_of: Optional[str] = None
@@ -543,7 +543,7 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
         # reuses it as long as its own is_session_active() check keeps saying
         # yes, even after the portal has poisoned it. Drop it so the next
         # attempt after backoff builds a genuinely fresh client, not a repeat
-        # of the same broken one (#556).
+        # of the same broken one.
         _client = None
         _plant_dn = None
         _note_failure()
@@ -555,7 +555,7 @@ async def _fetch_stats(config: EnergyConfig) -> Optional[Dict[str, Any]]:
         logger.warning("⚠️ FusionSolar read failed: %s", exc)
         # Same reasoning as above: a read failure this deep (past the client's
         # own is_session_active() check) means the cached client is bad, not
-        # just the request. Force a fresh client/session on the next try (#556).
+        # just the request. Force a fresh client/session on the next try.
         _client = None
         _plant_dn = None
         _note_failure()

@@ -151,7 +151,7 @@ class CachingStaticFiles(StaticFiles):
         return response
 
 
-# Persistent log sink for the webapp process (issue #506). The tray launches
+# Persistent log sink for the webapp process. The tray launches
 # uvicorn with stdout/stderr → DEVNULL, so without a file handler every INFO/
 # WARNING breadcrumb the app emits is discarded — exactly the lines needed to
 # diagnose e.g. a MAC→IP resolve failing only in the tray-launched process.
@@ -193,8 +193,8 @@ def ensure_webapp_log_handler() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Own background tasks for the process life."""
     # Initialize the unified telemetry store first, so producers (alarm/power/
-    # presence/plug/RISCO) mirror their events into it from the first request
-    # (#289). Done in lifespan (not create_app) so importing the app for tests
+    # presence/plug/RISCO) mirror their events into it from the first request.
+    # Done in lifespan (not create_app) so importing the app for tests
     # never touches the real DB; the API test layer points it at a temp DB.
     try:
         telemetry.init_db()
@@ -202,7 +202,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.warning("⚠️  Telemetry store init failed (events disabled): %s", exc)
 
     # Validate the VAPID private key once at boot rather than discovering it's
-    # unreadable on the first presence/power/alarm push (#284) — logs its own
+    # unreadable on the first presence/power/alarm push — logs its own
     # clear warning and is non-critical to serving either way.
     try:
         validate_push_config()
@@ -210,7 +210,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.warning("⚠️  Web Push config validation failed: %s", exc)
 
     # Surface unbound Stream Deck plug/AC actions at boot instead of on the
-    # first button press (#857) — logs its own warning, non-critical to serving.
+    # first button press — logs its own warning, non-critical to serving.
     try:
         warn_unconfigured_quick_actions()
     except Exception as exc:  # noqa: BLE001 — a config check must never block boot
@@ -223,8 +223,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # The write-side automation loops act on the real alarm, AC units, blinds
     # and household notifications, so they run only where the launcher opted
-    # in (#876: a throwaway worktree instance re-fired the alarm schedule) and,
-    # there, only in the one process holding the ownership lock (#690). Every
+    # in (a throwaway worktree instance would re-fire the alarm schedule) and,
+    # there, only in the one process holding the ownership lock. Every
     # other instance still serves the API/PWA, with none of these loops.
     engines_on, engines_why = automation_engines_opt_in()
     ownership = AutomationOwnership(port=app.state.webapp_config.port) if engines_on else None
@@ -263,14 +263,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             ownership.owner_info or "info unavailable",
         )
         tasks = []
-    # Read-side, so every instance runs them; each fetches only while read (#758).
+    # Read-side, so every instance runs them; each fetches only while read.
     tasks.extend(asyncio.create_task(s.tick_forever()) for s in read_snapshot.registered())
     # The owner only: it holds the single-client Modbus session, so a read-only
-    # second instance must not open one at boot (#769).
+    # second instance must not open one at boot.
     if app.state.automation_owned:
         tasks.append(asyncio.create_task(energy.ENERGY_SNAPSHOT.warm()))
     # Any instance: a plain HTTPS read, so the first tile load after a restart
-    # doesn't pay for a cold TLS handshake inside the request (#772).
+    # doesn't pay for a cold TLS handshake inside the request.
     tasks.append(asyncio.create_task(weather.WEATHER_SNAPSHOT.warm()))
     try:
         yield
@@ -305,7 +305,7 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(StreamSafeGZipMiddleware, minimum_size=1000)
-    # Added last, so outermost: it times the whole request, gzip and auth included (#761).
+    # Added last, so outermost: it times the whole request, gzip and auth included.
     app.add_middleware(SlowRequestLogMiddleware)
 
     app.state.webapp_config = webapp_cfg
@@ -352,7 +352,7 @@ def create_app() -> FastAPI:
     app.include_router(pc_fleet.router)
     app.include_router(actions.router)
     # Which views and controls get used, and on which device class, so a design
-    # review reads frequencies instead of asking (#906, project-scaffolding#349).
+    # review reads frequencies instead of asking.
     # Local SQLite only, behind BearerTokenMiddleware like every /api route.
     # USAGE_LOG_DB_PATH keeps test and e2e boots off the real file.
     app.include_router(usage_router(

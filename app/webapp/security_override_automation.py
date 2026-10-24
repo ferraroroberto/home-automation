@@ -44,7 +44,7 @@ from src.security_override_session import load_override_session, save_override_s
 logger = logging.getLogger(__name__)
 
 # RISCO event-log ``name`` prefixes for an arming action — confirmed live
-# against production events (see issue #341): "Full Set - 'USER 1 MASTER',
+# against production events: "Full Set - 'USER 1 MASTER',
 # WEB" / "Perimeter Set - 'USER 1 MASTER', WEB". A fresh armed session starts
 # here, so any zone this automation bypassed gets restored on the next one.
 _ARM_EVENT_NAME_PREFIXES = ("Full Set", "Perimeter Set")
@@ -76,7 +76,7 @@ def load_override_automation_config() -> OverrideAutomationConfig:
 # Process-lifetime cadence/overlap guard only — the actual scan progress (the
 # cursor + per-zone counts + which zones are auto-bypassed) is persisted to
 # disk via ``src.security_override_session``, precisely so a restart doesn't
-# lose track mid-session (same reasoning as issue #325's cursor). Claims after
+# lose track mid-session (same reasoning as the cursor). Claims after
 # handling: the handler rewrites the same session file the cursor lives in.
 _scanner = EventLogScanner(
     logger=logger,
@@ -218,7 +218,7 @@ async def _scan_once() -> None:
     except Exception as exc:  # noqa: BLE001 — the docstring's "never raises" contract
         # This coroutine is dispatched detached (`asyncio.create_task`) with no
         # handler, so anything escaping here would surface only at GC time, if at
-        # all. Keeping the contract explicit matters more since issue #689 made
+        # all. Keeping the contract explicit matters more because
         # `load_overrides()` / `load_override_session()` raise on an unreadable
         # store rather than degrade to empty. The next scan simply retries.
         logger.warning("⚠️ Security override event scan failed: %s", exc)

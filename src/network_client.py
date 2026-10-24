@@ -104,7 +104,7 @@ _ACCESS_POINT_REDISCOVER_TIMEOUT_S = 5.0
 _ROUTER_TIMEOUT_S = 18.0
 _WIFI_TIMEOUT_S = 6.0
 
-# Host-side ping probe for no-link devices (issue #552) — bounded so a batch of
+# Host-side ping probe for no-link devices — bounded so a batch of
 # unresponsive IPs can't stall GET /api/network, and cached briefly so a
 # flapping device doesn't visibly flicker between polls.
 _PING_PROBE_TIMEOUT_S = 3.0
@@ -144,7 +144,7 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
         logger.info("ℹ️ MAC→IP resolve via router failed: %s", exc)
         return None
     # The lease rows are the IP source: the wlan-client rows carry no IP at all
-    # (the ZTE feed has none — issue #507), and the DHCPHostInfo lease table
+    # (the ZTE feed has none), and the DHCPHostInfo lease table
     # covers wired *and* wireless clients. A lease row can outlive the device,
     # but that is fine here — this resolves an address, not presence.
     for row in leases:
@@ -231,7 +231,7 @@ async def resolve_wireless_client_by_mac(mac: str) -> tuple[Optional[NetDevice],
 
 
 # --------------------------------------------------------------------------- #
-# DHCP reservation control (issue #176) — confirm-gated, never on a poll       #
+# DHCP reservation control — confirm-gated, never on a poll                    #
 # --------------------------------------------------------------------------- #
 def _fetch_dhcp_bindings_sync() -> list[dict]:
     host, user, pwd = _router_creds()
@@ -327,7 +327,7 @@ async def apply_dhcp_changes(
 
 
 # --------------------------------------------------------------------------- #
-# No-link device ping probe (issue #552)                                      #
+# No-link device ping probe                                                   #
 # --------------------------------------------------------------------------- #
 # (mac, ip) -> (checked_at monotonic, reachable). Keyed by the pair rather than
 # just the IP so a DHCP reshuffle that hands a probed device's old IP to a
@@ -489,13 +489,13 @@ async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
                 except (asyncio.TimeoutError, Exception) as exc:
                     logger.warning("⚠️ AP rediscovery probe at %s failed: %s", candidate, exc)
 
-    # Fold the router's own wireless clients in first (issue #502) — they are
+    # Fold the router's own wireless clients in first — they are
     # invisible to the AP, so this is the only source for them; then the router
-    # hostnames (issue #169). A failed or empty router read leaves both lists
+    # hostnames. A failed or empty router read leaves both lists
     # empty, so the AP list passes through unchanged.
     devices = _merge_router_wlan_clients(devices, wlan_clients)
     devices = _merge_router_leases(devices, leases)
-    # Positively confirm no-link devices host-side where possible (issue #552) —
+    # Positively confirm no-link devices host-side where possible —
     # bounded to that subset, cached briefly, never blocks alert derivation.
     devices = await _probe_nolink_devices(devices)
     alerts = _derive_alerts(internet, ap, router, devices)

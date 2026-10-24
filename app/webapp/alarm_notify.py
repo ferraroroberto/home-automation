@@ -57,15 +57,15 @@ SOURCE_PRESENCE = "presence"
 
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
-# A condition that stopped an automatic action from being *attempted* at all
-# (issue #599). Distinct from OUTCOME_ERROR, which means a command was sent
+# A condition that stopped an automatic action from being *attempted* at all.
+# Distinct from OUTCOME_ERROR, which means a command was sent
 # and the panel rejected it - reporting a block as "FAILED" told the user a
 # command had failed when none was ever issued. Never notifies over Telegram
-# (issue #626 - a stuck-presence block is expected, frequent noise); still
+# (a stuck-presence block is expected, frequent noise); still
 # always logged via append_activity(), same as every other outcome.
 OUTCOME_BLOCKED = "blocked"
 # The panel already reported the desired end state, so no command was ever
-# issued (issue #676) - e.g. a nightly arm schedule firing while the panel is
+# issued - e.g. a nightly arm schedule firing while the panel is
 # already armed, or a morning disarm schedule firing while it's already
 # disarmed. Distinct from OUTCOME_OK (a command was sent and confirmed) and
 # from OUTCOME_ERROR (a command was sent and the panel never confirmed it).
@@ -73,7 +73,7 @@ OUTCOME_ALREADY = "already"
 
 # Backoff before giving up on confirming an arm/disarm action took effect - a
 # rejected command or a mismatched read-back is often a transient RISCO
-# cloud/panel lag, not a real failure (issue #388, #390). Retries are
+# cloud/panel lag, not a real failure. Retries are
 # read-only: once the command is issued, a retry only re-reads the panel via
 # ``fetch_security_state()`` - it never resends the command, since resending
 # to a panel that may already be mid-transition risks compounding the failure
@@ -258,7 +258,7 @@ def _compose_message(
 
 def _should_notify(prefs: AlarmNotifyPrefs, source: str, action: str, outcome: str) -> bool:
     if outcome == OUTCOME_BLOCKED:
-        # Never pushes to Telegram (#626) - a stuck-presence block is expected,
+        # Never pushes to Telegram - a stuck-presence block is expected,
         # frequent noise, unlike a genuine command failure. Still always
         # logged, since append_activity() runs before this gate.
         return False
@@ -398,7 +398,7 @@ async def record_alarm_action(
     # Only mark the day as "already notified" once a send actually went
     # through - marking it beforehand (the old behaviour) meant an
     # unconfigured/failing notifier silently burned the day's one alert for
-    # good, with no retry (#527).
+    # good, with no retry.
     if outcome == OUTCOME_ERROR and dedupe_key is not None:
         _last_error_notify[dedupe_key] = today
         _save_dedupe(_last_error_notify)
@@ -413,7 +413,7 @@ async def record_alarm_action(
 # Last-seen panel flags: intrusion / ac_lost -> True/False, or absent/None
 # before ever observed. Persisted to disk (like the dedupe state above) so a
 # tray restart doesn't re-hit the "first observation" no-alert branch below
-# and silently forget an already-active condition (#527) — before this, the
+# and silently forget an already-active condition — without persistence the
 # tracker was in-memory only and reset to blank on every restart.
 _SECURITY_STATE_PATH = LOGS_DIR / "alarm_security_state.json"
 
@@ -533,7 +533,7 @@ async def check_security_transitions(
             # against, so this only records the baseline (see the module
             # comment above _last_security). Logged at INFO so a real
             # already-active-at-first-sight condition is at least visible in
-            # webapp.log even though it doesn't alert (#527).
+            # webapp.log even though it doesn't alert.
             logger.info("ℹ️ Security tracker baseline set: %s=%s", kind, value)
             continue
         if kind == "intrusion" and value is False:

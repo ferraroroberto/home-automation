@@ -29,7 +29,7 @@ from pathlib import Path
 
 # Overridable so this script (and its master art) work outside this single
 # developer's machine layout — falls back to the historical absolute path when
-# the env var isn't set (issue #633). Same `PROJECT_SCAFFOLDING_ROOT` spelling
+# the env var isn't set. Same `PROJECT_SCAFFOLDING_ROOT` spelling
 # as the sister repos' own `gen_icons.py`, so one export covers the fleet.
 SCAFFOLDING_ROOT = Path(
     # no-drive-path-exempt: dev-only fallback to the local scaffold checkout; the env var overrides it

@@ -50,7 +50,7 @@ logger = logging.getLogger("network_history")
 
 # Default DB location: the fleet runtime-data root (``C:\sqlite\home-automation\``
 # on Windows), next to the energy-history / telemetry stores — see
-# :mod:`src.runtime_data` and project-scaffolding#243.
+# :mod:`src.runtime_data`.
 # ``NETWORK_HISTORY_DB_PATH`` (env) overrides it.
 DEFAULT_DB_PATH = runtime_db_path(
     "home-automation", "network_history.sqlite3", env_var="NETWORK_HISTORY_DB_PATH"
@@ -65,7 +65,7 @@ _NEW_DEVICE_WINDOW_S = 24 * 3600
 # are never pruned — losing a user-set flag to a long absence would be wrong.
 _PRUNE_AFTER_S = 180 * 24 * 3600
 
-# Internet-sample series (#840): at most one ping-only sample per this many
+# Internet-sample series: at most one ping-only sample per this many
 # seconds (the tab polls every ~15 s), kept this long, and bucketed to at most
 # _LATENCY_POINTS means when read so the payload stays small.
 _SAMPLE_MIN_GAP_S = 60
@@ -84,7 +84,7 @@ def _connect(path: Optional[Path] = None) -> ContextManager[sqlite3.Connection]:
 # tops them up rather than relying on CREATE TABLE (which is a no-op once the
 # table exists). Each is nullable with no default, so the ALTER is safe.
 _ADDED_COLUMNS = {
-    # Last observed band and SSID (issue #513): an offline row otherwise has no
+    # Last observed band and SSID: an offline row otherwise has no
     # connection detail at all, and "known but offline, on 2.4 GHz / TestNet-IoT"
     # is exactly what the grouped device view needs to stay legible.
     "last_conn_type": "TEXT",
@@ -253,7 +253,7 @@ def is_new(record: Dict[str, Any], now: Optional[int] = None) -> bool:
     return when - int(record.get("first_seen", 0)) <= _NEW_DEVICE_WINDOW_S
 
 
-# --------------------------------------------------- internet samples (#840)
+# --------------------------------------------------- internet samples
 def init_internet_samples(path: Optional[Path] = None) -> None:
     """Create the ``internet_samples`` table if it does not exist (idempotent)."""
     with _connect(path) as conn:

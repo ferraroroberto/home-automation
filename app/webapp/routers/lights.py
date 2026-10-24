@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# The lights, answered from memory (#928): every read re-ran a 3 s mDNS sweep,
-# which each Devices-tab load waited out. Serve-stale like the LAN snapshot
-# (#926): once a value exists a read answers at once and one shared refresh runs
+# The lights, answered from memory: every read re-ran a 3 s mDNS sweep,
+# which each Devices-tab load waited out. Serve-stale like the LAN snapshot:
+# once a value exists a read answers at once and one shared refresh runs
 # behind it. No tick (demand_window_s=0), so a refresh only ever follows a read
 # and the lights see no more sweeps than the 15 s card poll made before. Past
 # stale_after_s the answer says ``stale``. Display names are read per request,

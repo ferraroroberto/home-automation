@@ -44,13 +44,13 @@ class PresenceAccountStatus:
     reason: str
     detail: str = ""
     entity_count: int = 0
-    # Issue #659: who this account is (friendly name or Apple ID email) and
+    # Who this account is (friendly name or Apple ID email) and
     # whether its cached session still holds Apple's ~30-day browser trust —
     # ``None`` until a session has been built. Untrusted is *not* unavailable:
-    # Find My keeps serving, only fresh sign-ins get expensive (#658).
+    # Find My keeps serving, only fresh sign-ins get expensive.
     display_name: str = ""
     trusted: Optional[bool] = None
-    # Issue #678: how many consecutive refreshes have failed for this account,
+    # How many consecutive refreshes have failed for this account,
     # carried across polls via ``_CACHE.accounts``. 0 whenever the last fetch
     # succeeded. Both the self-heal handshake and the Telegram alert are gated
     # on this streak, so a transient Apple hiccup costs neither.
@@ -123,7 +123,7 @@ def get_cache() -> PresenceDiagnosticsCache:
 _RETRY_BACKOFF_S_DEFAULT = 4 * 60 * 60  # 4 hours
 _REFRESH_INTERVAL_S_DEFAULT = 15 * 60  # 15 minutes
 
-# Issue #678: how many consecutive failed refreshes an account must rack up
+# How many consecutive failed refreshes an account must rack up
 # before it is treated as genuinely broken rather than as an Apple hiccup.
 #
 # ``_SELF_HEAL`` gates the forced sign-in handshake: Apple answers the Find My
@@ -167,7 +167,7 @@ def _alert_after_failures() -> int:
 
 
 # Per-account (keyed by ``PresenceConfig.label``) timestamp of the last forced
-# session rebuild attempted while that account was broken (issue #655). A
+# session rebuild attempted while that account was broken. A
 # healthy account never touches this — only the backoff-gated self-heal retry
 # below does. In-memory only: a tray restart already forces a fresh attempt via
 # ``presence_client._connect()``'s normal cache-miss path, so there is nothing
@@ -181,7 +181,7 @@ def _retry_due(label: str, *, now: datetime) -> bool:
 
 
 # Per-account (keyed by ``PresenceConfig.label``) latch for the "this account is
-# stuck" Telegram alert (issue #678). One message per broken episode, not one
+# stuck" Telegram alert. One message per broken episode, not one
 # per poll; cleared the moment the account fetches successfully again, which is
 # also the only thing that unlocks the paired recovery message. In-memory only,
 # same rationale as ``_LAST_RETRY_ATTEMPT``.
@@ -465,12 +465,12 @@ def _fetch_account(
         status = _account_status(config, True, "ok", "", entity_count=len(entities))
 
     if status.available:
-        # Deliberately not popped from _LAST_RETRY_ATTEMPT (issue #656) — see
+        # Deliberately not popped from _LAST_RETRY_ATTEMPT — see
         # this function's docstring. The backoff clock keeps running from the
         # last forced handshake regardless of a recovery in between, so a
         # flapping account still gets throttled to one handshake per window.
         if config.label in _ALERTED:
-            # Symmetry (#678): the household only hears "restored" for a break
+            # Symmetry: the household only hears "restored" for a break
             # it was actually told about. A streak that healed under the alert
             # threshold never surfaced, so its recovery has nothing to close.
             _ALERTED.discard(config.label)

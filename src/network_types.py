@@ -76,7 +76,7 @@ class NetDevice:
     link_rate: Optional[int]  # Mbps as the device reports it
     ssid: Optional[str]
     source: str  # which device(s) reported it: "ap" | "router" | "both"
-    # Host-side ping-probe result (issue #552) — set only for devices with no
+    # Host-side ping-probe result — set only for devices with no
     # signal/wired evidence (the UI's "no link" classification); None means
     # "not probed" (either it already has live evidence, or it has no IP to
     # target). True/False is a positive/negative probe result.

@@ -55,7 +55,7 @@ class _EngineState:
 
 # Per-schedule once-per-day fire gate: schedule id -> "YYYY-MM-DD". Persisted
 # to disk so a tray/webapp restart after a schedule's fire time does not
-# refire it later the same day (#540) — mirrors alarm_notify.py's dedupe cache.
+# refire it later the same day — mirrors alarm_notify.py's dedupe cache.
 _LAST_FIRE_PATH = LOGS_DIR / "security_schedule_last_fire.json"
 
 
@@ -91,7 +91,7 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
         async with automatic_alarm_action_lock():
             state = await fetch_security_state()
             if alarm_action_already_satisfied(entry.action, state):
-                # The panel already reports the desired end state (#676) - e.g.
+                # The panel already reports the desired end state - e.g.
                 # arming when already armed, or disarming when already
                 # disarmed. Skip the command entirely rather than reissuing it
                 # and having the read-back confirmation misread "already

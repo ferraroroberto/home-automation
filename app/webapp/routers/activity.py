@@ -39,7 +39,7 @@ _LABEL_LOADERS = {
     "security": load_security_display_names,
     "light": load_elgato_display_names,
     "presence": load_presence_display_names,
-    # Circuit rows are keyed "<meter_id>:<channel>" (#740) — without this
+    # Circuit rows are keyed "<meter_id>:<channel>" — without this
     # the readings view renders a bare MAC-and-index for the one domain
     # whose entity id is least readable.
     "circuit": load_circuit_display_names,

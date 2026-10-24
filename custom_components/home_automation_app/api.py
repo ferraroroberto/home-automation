@@ -88,8 +88,8 @@ class HomeAutomationApi:
         return await self.request("GET", "/api/security")
 
     async def control_security(self, action: str) -> dict[str, Any]:
-        # Tags this alarm command as HA-originated in logs/alarm.jsonl (issue
-        # #405) so it's distinguishable from the webapp PWA and voice-PE.
+        # Tags this alarm command as HA-originated in logs/alarm.jsonl
+        # so it's distinguishable from the webapp PWA and voice-PE.
         return await self.request(
             "POST", f"/api/security/{action}", extra_headers={"X-Automation-Source": "ha"}
         )

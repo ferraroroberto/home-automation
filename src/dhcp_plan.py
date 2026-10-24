@@ -83,8 +83,8 @@ class Assignment:
     current_ip: Optional[str]
     planned_ip: Optional[str]
     randomized: bool
-    # Action this row implies against the router's static-binding table (phase 2,
-    # issue #176): "reserved" already bound to planned_ip (no-op), "create" not yet
+    # Action this row implies against the router's static-binding table (phase 2):
+    # "reserved" already bound to planned_ip (no-op), "create" not yet
     # bound, "change" bound to a different IP, "none" nothing to write (unplaced /
     # randomised / unassigned). "none" whenever the real bindings aren't known.
     status: str = "none"
@@ -349,7 +349,7 @@ def _assign_category(
     # An octet already reserved on the router for a device that ISN'T being placed
     # here (typically an offline device absent from the live inventory) is occupied
     # — never plan a new device onto it, or applying that row collides with the
-    # existing reservation (issue #176: an offline iPad's .11 was being re-suggested
+    # existing reservation (e.g. an offline iPad's .11 would be re-suggested
     # for a different device). Pass 1 below still anchors a placed device on its own
     # reservation; this only removes IPs owned by *others*.
     placed = {normalize_mac(d.mac) for d in devices}

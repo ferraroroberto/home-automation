@@ -19,7 +19,7 @@ from src._no_window import NO_WINDOW
 
 logger = logging.getLogger("ups")
 
-# Backoff for a persistently-failing local NUT source (issue #537): a NUT
+# Backoff for a persistently-failing local NUT source: a NUT
 # server that isn't running gets its upsc.exe/usbhid-ups.exe subprocess
 # re-spawned (and timed out after 5-8s) on every ~15s poll tick otherwise.
 # Not per-device — there's exactly one local UPS — just one tracker per NUT

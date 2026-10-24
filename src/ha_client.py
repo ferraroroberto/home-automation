@@ -30,7 +30,7 @@ class HaConfig:
 
     base_url: str
     token: str
-    # Optional MAC to pin the HA host by (issue #504). A MAC cannot live in
+    # Optional MAC to pin the HA host by. A MAC cannot live in
     # ``base_url`` itself — its colons are indistinguishable from the port
     # separator — so it comes from its own setting and replaces the URL's host.
     host_mac: str = ""
@@ -178,7 +178,7 @@ class HomeAssistantClient:
     async def _open_ws(self) -> aiohttp.ClientWebSocketResponse:
         # Derive the WS URL from the *resolved* base URL, not the raw config —
         # the WebSocket leg going to the stale ``HA_URL`` host while the REST
-        # leg used the MAC-resolved address was exactly issue #506.
+        # leg used the MAC-resolved address is the failure this avoids.
         ws_url = _websocket_url(await self._base_url())
         try:
             ws = await self.session.ws_connect(

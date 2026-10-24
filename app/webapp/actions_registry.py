@@ -38,7 +38,7 @@ from src.tuya_client import set_switch
 logger = logging.getLogger(__name__)
 
 # The bound plug device id + climate entity are household-identifying and
-# live in gitignored config/quick_actions.json instead (issue #831) — there
+# live in gitignored config/quick_actions.json instead — there
 # is still no UI for re-pointing an action, so edit that file directly if the
 # bound device/entity changes. Read fresh in each handler (not captured at
 # creation) so tests can monkeypatch this module attribute per-case.
@@ -47,7 +47,7 @@ _quick_actions_config: QuickActionsConfig = load_quick_actions_config()
 # HA's own MELCloud integration exposes one climate.* entity per room
 # (independent of this repo's src/melcloud_client.py, which is a separate
 # integration against the same units). Confirmed reachable + controllable
-# during the #641 investigation — but only via ``climate.set_hvac_mode``:
+# when first wired up — but only via ``climate.set_hvac_mode``:
 # ``climate.turn_on``/``turn_off`` 500 on this integration (live-tested
 # against the real device), so on/off is modelled as a fixed hvac_mode
 # target rather than the generic turn_on/turn_off service.
@@ -61,7 +61,7 @@ async def _plug_action(device_id: str, on: bool) -> Dict[str, Any]:
     try:
         await asyncio.to_thread(set_switch, device_id, on)
     finally:
-        read_snapshot.invalidate("tuya")  # /api/tuya refetches on its next read (#759)
+        read_snapshot.invalidate("tuya")  # /api/tuya refetches on its next read
     return {"device_id": device_id, "switch_on": on}
 
 
@@ -78,7 +78,7 @@ def _make_alarm_handler(action: str) -> Handler:
         try:
             state = await perform_manual_alarm_action(action, actor)
         finally:
-            # /api/security refetches on its next read either way (#759) — the
+            # /api/security refetches on its next read either way — the
             # panel may have taken the command even on a failed confirmation.
             read_snapshot.invalidate("security")
         return {"action": action, "mode": state.mode, "label": state.label}

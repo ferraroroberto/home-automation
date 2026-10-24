@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # A ``Get-VM`` PowerShell spawn per read (~0.7 s) runs off the request path
-# instead (#759). The PWA polls every 30 s, the issue's staleness bound.
+# instead. The PWA polls every 30 s, the staleness bound.
 HYPERV_SNAPSHOT: ReadSnapshot[HyperVState] = ReadSnapshot(
     "hyperv",
     lambda: asyncio.to_thread(fetch_hyperv_state),  # looked up per call, so tests can patch it

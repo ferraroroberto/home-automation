@@ -28,13 +28,13 @@ from src.searxng_client import searxng_url
 
 logger = logging.getLogger("web_search")
 
-# Hub endpoint + the same local model the English agent uses (decision log, #842).
+# Hub endpoint + the same local model the English agent uses.
 HUB_BASE_URL = "http://127.0.0.1:8000"
 MODEL = "qwen3.5-4b-nothink"
 TEMPERATURE = 0.2
 MAX_TOKENS = 200
 
-# Same trim as the English ``web_search`` function (docs/voice-control.md, #648):
+# Same trim as the English ``web_search`` function (docs/voice-control.md):
 # top 8 hits, 200-char snippet each.
 MAX_RESULTS = 8
 SNIPPET_CHARS = 200

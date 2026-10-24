@@ -83,7 +83,7 @@ class AutomationConfig:
     poll_interval_s: int = 60
     adjust_interval_s: int = 900  # 15 min between setpoint nudges per unit
     buffer_c: float = 0.5
-    # Solar-surplus boost (#554) — hysteresis band + debounce, see
+    # Solar-surplus boost — hysteresis band + debounce, see
     # src.hvac_automation.next_boost_state.
     boost_surplus_on_w: float = 1500.0
     boost_surplus_off_w: float = 500.0
@@ -325,7 +325,7 @@ async def _coordinate_boost(
         return
 
     coord = load_boost_config()
-    # Logged from here rather than from the loop's start message (issue #689) —
+    # Logged from here rather than from the loop's start message —
     # this is the first place the file is actually read, and a read here is
     # retried by the tick loop instead of killing the task on the way in.
     if state.boost_settle_logged != coord.settle_interval_s:
@@ -388,7 +388,7 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     monotonic = time.monotonic()
 
     # One shared FusionSolar read per tick (already 60s-cached upstream), only
-    # when at least one unit has opted in — #554.
+    # when at least one unit has opted in.
     energy = None
     if any(rule.boost_enabled for rule in rules.values()):
         energy = await fetch_energy_state()
@@ -439,12 +439,12 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
             )
         steerable.append(_Steerable(unit=unit, rule=rule, target=target))
 
-    # --- Pass 2: one fleet-wide boost decision (#562). Evaluated every tick,
+    # --- Pass 2: one fleet-wide boost decision. Evaluated every tick,
     # deliberately not gated by the adjust throttle below, so hysteresis,
     # min-duration and settle timing all track real elapsed time. ---
     await _coordinate_boost(config, state, steerable, surplus, as_of, monotonic)
 
-    # --- Pass 3: the steady-state steering nudge, unchanged (#114). An
+    # --- Pass 3: the steady-state steering nudge, unchanged. An
     # already-boosted unit is back on the gradual one-step-per-interval law here;
     # only the admission/shed transition itself jumps (see _coordinate_boost). ---
     for item in steerable:
@@ -495,20 +495,20 @@ class _EngineState:
 
     last_adjust: Dict[str, float]  # monotonic ts of last setpoint write
     last_fire_day: Dict[str, str]  # local date a schedule entry last fired
-    boost_active: Dict[str, bool]  # #554 — is this unit currently solar-boosted
+    boost_active: Dict[str, bool]  # is this unit currently solar-boosted
     boost_since: Dict[str, float]  # monotonic ts the current boost started
-    # #562 coordinator state. boost_order is the *admission order* — an explicit
+    # Coordinator state. boost_order is the *admission order* — an explicit
     # ordered record, because boost_since is a dict of transition stamps and is
     # the wrong shape to reason about LIFO shedding with.
     boost_order: List[str] = field(default_factory=list)
     last_boost_change: Optional[float] = None  # monotonic ts of the last admit/shed
     last_boost_as_of: Optional[str] = None  # solar bucket that change was made against
     boost_hold_logged: Optional[str] = None  # unit whose hold episode is already logged
-    boost_settle_logged: Optional[int] = None  # settle interval already announced (#689)
+    boost_settle_logged: Optional[int] = None  # settle interval already announced
 
 
 # The running engine's state, for the API layer to read live "is this unit
-# currently boosted" without a second event loop/store (#554). None when the
+# currently boosted" without a second event loop/store. None when the
 # engine is disabled or hasn't started yet — read via get_boost_active().
 _ENGINE_STATE: Optional[_EngineState] = None
 
@@ -528,7 +528,7 @@ async def _run(config: AutomationConfig) -> None:
         config.poll_interval_s,
         logger=logger,
         name="HVAC automation",
-        # Deliberately no `load_boost_config()` here (issue #689): this argument is
+        # Deliberately no `load_boost_config()` here: this argument is
         # evaluated *before* `run_loop` is entered, so the `tick_fail_msg` below
         # cannot protect it — an unreadable `config/hvac_boost.json` at boot would
         # kill the whole task permanently, with no retry and no restart. The settle

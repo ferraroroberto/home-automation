@@ -134,7 +134,7 @@ def _read_one(
     try:
         state = read_device_state(info.device_id)
     except TuyaBackoffActive as exc:
-        # Distinct from a genuine live failure (issue #537): this device is
+        # Distinct from a genuine live failure: this device is
         # being deliberately skipped this tick, not reconnected and refused —
         # DEBUG only, the escalation itself already logged at INFO once.
         card["error"] = "Offline — backing off after repeated failures (retrying automatically)."
@@ -168,7 +168,7 @@ async def _read_all() -> List[Dict[str, Any]]:
     return list(await asyncio.gather(*(_bounded(info) for info in infos)))
 
 
-# The LAN reads, refreshed off the request path (#759): an offline plug's read
+# The LAN reads, refreshed off the request path: an offline plug's read
 # timeout used to land inside the request. The PWA polls every 15 s.
 TUYA_SNAPSHOT: ReadSnapshot[List[Dict[str, Any]]] = ReadSnapshot(
     "tuya", _read_all, max_age_s=20.0, tick_s=10.0
@@ -334,7 +334,7 @@ async def control_switch(device_id: str, request: Request) -> Dict[str, Any]:
         TUYA_SNAPSHOT.invalidate()  # the plug may have switched before the error
         raise HTTPException(status_code=502, detail=str(exc))
 
-    # Record the toggle into the unified telemetry event log (#289). Best-effort:
+    # Record the toggle into the unified telemetry event log. Best-effort:
     # a telemetry failure must never break the control action.
     try:
         from src import telemetry
