@@ -1,9 +1,9 @@
-/* Home Automation — canonical empty-state block (issue #362).
+/* Home Automation — canonical empty-state block.
  *
  * The `icon()` helper this composes lives in the vendored fleet component at
- * _vendored/icons/icons.js (adopted verbatim in issue #407); this file keeps
+ * _vendored/icons/icons.js (adopted verbatim); this file keeps
  * only the app-specific empty-state builder, whose action button is the
- * vendored `button-surface` tier (#906) rather than the fleet empty-state
+ * vendored `button-surface` tier rather than the fleet empty-state
  * component's CSS.
  */
 

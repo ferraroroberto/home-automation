@@ -1,4 +1,4 @@
-/* Load a classic (UMD) script, or its stylesheet, on first use (#760, #777).
+/* Load a classic (UMD) script, or its stylesheet, on first use.
  *
  * Chart.js and Leaflet used to load as classic <script> tags ahead of the boot
  * module, so every cold launch downloaded and ran ~350 KB for two tabs. Each

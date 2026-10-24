@@ -1,18 +1,18 @@
 /* Cameras group (Security tab) + detail, live-view, and zoom modals.
  *
- * Reads GET /api/cameras; each row (the shared row, #882) leads with a
+ * Reads GET /api/cameras; each row (the shared row) leads with a
  * persisted last-snapshot thumbnail (or a camera glyph when there's none yet)
  * — tapping it zooms the last frame, tapping the row opens the detail sheet
  * which grabs a FRESH snapshot (that becomes the new persisted last frame).
  * Live opens the full-screen view. The full-screen view
  * streams MJPEG via <img src=…/stream?camera_token=…>; thumbnails/zoom use the
- * same short-lived scoped token (issue #261) since an <img> can't carry a header.
+ * same short-lived scoped token since an <img> can't carry a header.
  *
- * PTZ has two modes (issue #190): 'step' (one click = one fixed nudge, precise)
+ * PTZ has two modes: 'step' (one click = one fixed nudge, precise)
  * and 'hold' (press-and-hold continuous move). Cameras that support it also get
  * saved position presets and manual pan/tilt/zoom coordinate entry — both
  * capability-gated, so hardware without them simply doesn't show the controls.
- * Issues #161, #190. */
+ */
 
 'use strict';
 
@@ -36,7 +36,7 @@ const camerasView = createViewState();
 const snapVersions = {};
 const pageNonce = Date.now();
 
-// Short-lived scoped camera token (issue #261): replaces the long-lived bearer
+// Short-lived scoped camera token: replaces the long-lived bearer
 // in <img src> URLs so the bearer never lands in browser history or server logs.
 let _camToken = null;
 let _camTokenExpiry = 0;
@@ -75,7 +75,7 @@ function cameraStatus(cam) {
   return parts.join(' · ');
 }
 
-// The row's exception chip (#879): a reachable camera is normal and its model
+// The row's exception chip: a reachable camera is normal and its model
 // is detail-sheet information, so the row shows only offline or recording.
 function cameraChip(cam) {
   if (!cam.reachable) return chipEl('Offline', 'attention');
@@ -165,7 +165,7 @@ function renderCameras() {
   els.camerasList.appendChild(list);
 }
 
-// One camera on the shared row (row.js, #882): the last-frame thumbnail leads
+// One camera on the shared row (row.js): the last-frame thumbnail leads
 // and zooms on its own; the row opens the camera sheet (a fresh frame, name,
 // live view); Live is the row's one verb.
 function cameraRow(cam) {
@@ -253,7 +253,7 @@ async function loadSnapshotInto(imgEl, cameraId) {
     bumpSnapshot(cameraId);
   } catch (exc) {
     reportActionFailure(exc, 'Snapshot failed');
-    // Styled placeholder instead of a raw broken-image box (issue #362).
+    // Styled placeholder instead of a raw broken-image box.
     imgEl.hidden = true;
     if (els.cameraSnapshotEmpty) els.cameraSnapshotEmpty.hidden = false;
   } finally {
@@ -261,7 +261,7 @@ async function loadSnapshotInto(imgEl, cameraId) {
   }
 }
 
-// The staged name edit rides the shared detailModal() shell (#912). Closing
+// The staged name edit rides the shared detailModal() shell. Closing
 // does not clear state.selectedCameraId: the Live button closes this sheet and
 // the live view's PTZ and record controls keep acting on that camera.
 const cameraModal = detailModal({
@@ -443,7 +443,7 @@ function renderPresets() {
   });
 }
 
-// Preset-name prompt (issue #722): a small styled <dialog>, same pattern as
+// Preset-name prompt: a small styled <dialog>, same pattern as
 // confirm.js's Promise<boolean>, replacing the one native window.prompt()
 // this app otherwise had. Resolves the trimmed name, or null on cancel.
 let presetNameResolver = null;
@@ -488,7 +488,7 @@ async function savePreset() {
   const id = state.selectedCameraId;
   if (!id) return;
   // Let the user name the preset so the chip is recognisable instead of an
-  // anonymous "Position N" (#212). Cancel aborts; blank falls back to Position N.
+  // anonymous "Position N". Cancel aborts; blank falls back to Position N.
   const fallback = 'Position ' + ((state.cameraPresets || []).length + 1);
   const entered = await promptPresetName('Name this preset', fallback);
   if (entered === null) return;

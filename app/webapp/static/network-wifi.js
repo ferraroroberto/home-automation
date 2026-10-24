@@ -1,6 +1,6 @@
 /* Network (Settings) — Wi-Fi diagnostics + the channel charts + the Wi-Fi rename modal.
  *
- * Split out of network.js (issue #197): the visible-radio list (grouped by band,
+ * Split out of network.js: the visible-radio list (grouped by band,
  * strongest first), the 2.4/5 GHz channel-occupancy charts, the recommendations
  * strip, the show-hidden toggle with its localStorage pref, and the per-radio
  * rename / hide detail modal. The boot module (network.js) owns renderNetwork and
@@ -61,7 +61,7 @@ function wifiSummary(wifi) {
 
 async function ensureWifiCharts() {
   if (!els.netWifiChart24 || !els.netWifiChart5) return;
-  await loadChartJs();  // first use loads Chart.js (#760)
+  await loadChartJs();  // first use loads Chart.js
   if (!state.wifiChart24) state.wifiChart24 = createWifiChannelChart(els.netWifiChart24, '2.4GHz');
   if (!state.wifiChart5) state.wifiChart5 = createWifiChannelChart(els.netWifiChart5, '5GHz');
 }
@@ -230,7 +230,7 @@ function renderNetWifiHiddenToggle(b) {
   setToggleState(btn, on);
 }
 
-// An instant sheet (sheet.js, #880): the name saves on blur and Hidden on
+// An instant sheet (sheet.js): the name saves on blur and Hidden on
 // tap, each with its toast, so Done, ×, Esc and the backdrop only close.
 const wifiSheet = sheet(els.netWifiDialog, {
   model: 'instant',

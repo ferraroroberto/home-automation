@@ -1,4 +1,4 @@
-/* Shared tab-poll timer helper (issue #369).
+/* Shared tab-poll timer helper.
  *
  * Every tab-aware controller module (network/lights/energy/plugs/security/ups/vm)
  * used to duplicate its own `<name>Timer` module variable plus a verbatim

@@ -1,6 +1,6 @@
 /* Settings › Notifications › Alarm — automatic-alarm Telegram toggles.
  *
- * A Settings sheet since #886. Seven switches map 1:1 to the backend
+ * A Settings sheet. Seven switches map 1:1 to the backend
  * AlarmNotifyPrefs; each persists on click via PUT /api/security/notify-prefs.
  * Manual arm/disarm is never notified, so it has no toggle — the sheet's note
  * says so. A hint shows when Telegram isn't set up. The load/save/render flow

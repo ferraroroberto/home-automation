@@ -1,11 +1,11 @@
-/* PC-fleet UPS-triggered shutdown (issue #498), in the Devices tab's UPS
- * sheet since #884 (it was its own folded card).
+/* PC-fleet UPS-triggered shutdown, in the Devices tab's UPS
+ * sheet.
  *
  * Owns the fleet's desired-state shutdown prefs (GET/PUT /api/pc-fleet/prefs)
  * plus a live machine roster read from the hub (GET /api/pc-fleet/machines,
  * polled every ~15s while the Devices tab is open). Each backend PUT sends the whole prefs
  * object — master enable, the runtime-remaining threshold, the tower's
- * `tower_action` (shut down | hibernate, #962), and the `excluded`
+ * `tower_action` (shut down | hibernate), and the `excluded`
  * id list (a machine's include-toggle OFF = its id in `excluded`). The hub
  * host row always participates (shut down last over its local path) and has no
  * include toggle. A per-machine Wake button appears only for a down/dormant
@@ -33,7 +33,7 @@ let prefs = { enabled: false, threshold_minutes: 15, excluded: [], tower_action:
 let machines = [];
 let hubUnreachable = false;
 
-// Status chip per state, exceptions only (#879): an up machine is the normal
+// Status chip per state, exceptions only: an up machine is the normal
 // state and gets no chip. "This host" and an unknown state are neutral facts.
 const STATE_LABELS = {
   self: 'This host',

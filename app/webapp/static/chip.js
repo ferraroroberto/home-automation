@@ -1,4 +1,4 @@
-/* Home Automation — the one status chip (issue #879, design.md "status chip").
+/* Home Automation — the one status chip (design.md "status chip").
  *
  * A chip marks an exception only; a normal state gets none. Tones are the one
  * map in styles/base.css (.chip[data-tone]): neutral (omit the tone) for a plain

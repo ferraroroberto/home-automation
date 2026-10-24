@@ -1,4 +1,4 @@
-/* Shared dense-collection staged-dialog editor (issue #452).
+/* Shared dense-collection staged-dialog editor.
  *
  * security-schedules.js / security-scene.js / security-override.js /
  * presence-places.js each hand-rolled the same editor shell: the
@@ -15,7 +15,7 @@
  * `toasts {saved, failed}` (`saved` is a string, or a function
  * `(afterSaveResult) => string | Promise<string>` resolved after `afterSave`
  * — for a confirmation that needs a value only known post-persist, e.g. a
- * recomputed derived total, issue #564); behavior: `rowIdAttr` (the
+ * recomputed derived total); behavior: `rowIdAttr` (the
  * summary-row data attribute carrying the entry id), `defaults()`,
  * `getEntries()`, `setEntries(list)`, `normalize(entries)`, `render()`,
  * `populate(staged)`, `collect(staged)` (return `false` to abort the save,
@@ -44,7 +44,7 @@ export function denseListEditor(config) {
   let editorEntryId = null;
   let staged = null;
 
-  // The staged sheet shell (sheet.js, #880): ×, Esc and the backdrop discard,
+  // The staged sheet shell (sheet.js): ×, Esc and the backdrop discard,
   // and focus goes back to the opener, else the edited row, else Add.
   const shell = sheet(config.dialog, {
     model: 'staged',

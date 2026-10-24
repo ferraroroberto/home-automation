@@ -1,5 +1,4 @@
-/* Presence — alarm-automation knobs (split out of ./presence.js, issue #454
- * maintainability split).
+/* Presence — alarm-automation knobs (split out of ./presence.js).
  *
  * Owns GET/PUT /api/presence/automation (arm-away delay, stale threshold,
  * disarm-on-arrival) and the "kids home" override (PUT
@@ -15,8 +14,8 @@ import { jsonApi, reportActionFailure } from './api.js';
 import { setToggleState, isToggleOn, wireToggle } from './toggle.js';
 import { loadPresence, presenceById, presenceEntityLabel } from './presence.js';
 
-// Kids home is a switch on the Security glance card (#882; a pressed pill
-// inside the People card before), live only once presence has been read.
+// Kids home is a switch on the Security glance card,
+// live only once presence has been read.
 export function renderKidsHomeToggle(viewReady) {
   if (!els.presenceKidsHome) return;
   setToggleState(els.presenceKidsHome, !!(state.presence && state.presence.kids_home_override));
@@ -36,7 +35,7 @@ export function renderPresenceAutomationNote() {
     els.presenceAutomationNote.textContent = 'Configure iOS Shortcut arrive/leave webhooks before enabling alarm automation. Browser GPS and Find My diagnostics do not drive arm/disarm.';
     els.presenceAutomationNote.hidden = false;
   } else if (auto.arm_blocked && blockedIds.length) {
-    // #531: someone else left, but auto-arm is waiting on these people's
+    // Someone else left, but auto-arm is waiting on these people's
     // presence to flip to "away" - surfaces the block instead of it looking
     // like the feature silently isn't working.
     const names = blockedIds.map(function (id) {
@@ -68,7 +67,7 @@ async function toggleKidsHome() {
   }
 }
 
-// The Settings row's value (#886): which of the two automations are on.
+// The Settings row's value: which of the two automations are on.
 function renderPresenceAutomationValue() {
   if (!els.presenceAutomationValue) return;
   const cfg = state.presenceAutomation || {};

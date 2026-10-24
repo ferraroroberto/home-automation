@@ -1,4 +1,4 @@
-/* Shared <dialog> open/close with the non-supporting-browser fallback (#571).
+/* Shared <dialog> open/close with the non-supporting-browser fallback.
  *
  * Every modal in this app — the AC detail, the plug/light/camera/detector/
  * device/Wi-Fi/presence detail modals, the camera live + zoom views, the

@@ -14,12 +14,12 @@
  * the status tokens so it matches the flow + cards:
  *   Generation = --on (success/green), Grid-supplied = --deficit (danger/red),
  *   Consumption = --muted (grey line).
- * Series colours are resolved gamut-safely via alphaFill() (issue #65), so the
+ * Series colours are resolved gamut-safely via alphaFill(), so the
  * P3 oklch layer in styles/base.css feeds --on/--deficit straight through — any CSS
  * color syntax (hex, oklch, rgb, named) works.
  *
  * Chart.js is a vendored UMD global (window.Chart), loaded on first use: call
- * loadChartJs() before any create*() (#760). */
+ * loadChartJs() before any create*(). */
 
 'use strict';
 
@@ -192,8 +192,8 @@ function timeLabel(tsSeconds) {
 
 // ------------------------------------------------------------ history
 // The same filled Generation / Grid-supplied areas + a Consumption envelope as
-// the live chart, but per calendar slot in kWh (#74 — reverted from the #72 bar
-// experiment, which read as cluttered hourly bars on the Day view). A single-
+// the live chart, but per calendar slot in kWh (areas, not bars, which
+// read as cluttered hourly bars on the Day view). A single-
 // bucket range (the Σ Total, or Year with <1y of history) would draw an
 // invisible 1-point line, so setAggData() turns the point markers on in that
 // one case — see there.
@@ -225,7 +225,7 @@ function kwh(wh) { return (Number(wh) || 0) / 1000; }
 
 // The slot containing *now* is still filling, so it is drawn as an explicit
 // in-progress marker instead of a settled value: a hollow point, with the
-// segment leading into it dashed (#557). Without this the half-finished slot
+// segment leading into it dashed. Without this the half-finished slot
 // reads as a collapse — the array is still producing, the hour just isn't over.
 // pointBorderColor is scriptable so it tracks the dataset's colour through a
 // light/dark theme switch, which restyle() applies to borderColor only.
@@ -240,8 +240,7 @@ function clearInProgress(ds) {
 
 // Takes a *list* of indices: the history chart marks at most one slot (the one
 // containing now), but the forecast overlay can have several — every hour the
-// feed only partly covered is an inference too, not just the in-progress one
-// (#579).
+// feed only partly covered is an inference too, not just the in-progress one.
 function markInProgress(ds, indices) {
   clearInProgress(ds);
   const marked = {};
@@ -360,7 +359,7 @@ function hourLabel(h) { return h < 10 ? '0' + h : '' + h; }
 // actual align by hour. A day that repeats a clock hour (the autumn change: 25
 // slots, "02" twice) cannot be keyed by hour — the second reading would
 // overwrite the first — so that day is plotted slot by slot, in the order the
-// server sent them (#956). Spring-forward keeps the 24-slot axis with its
+// server sent them. Spring-forward keeps the 24-slot axis with its
 // missing hour left as a gap.
 function repeatsAnHour(actual) {
   const seen = {};
@@ -401,8 +400,8 @@ export function setForecastData(chart, expected, actual) {
       })
     : [];
   // Two kinds of hour arrive projected to a full-hour rate so they stay
-  // comparable to the expected curve: the one still in progress (#557), and any
-  // the feed only partly covered (#579). Both are `estimated`, and both are
+  // comparable to the expected curve: the one still in progress, and any
+  // the feed only partly covered. Both are `estimated`, and both are
   // drawn hollow + dashed so they read as the inference they are, never as a
   // measurement — which is the whole point: an under-measured hour plotted
   // solid is indistinguishable from a real production collapse. The series is
@@ -421,7 +420,7 @@ export function setForecastData(chart, expected, actual) {
 // ------------------------------------------------- sun-position diagnostic
 // Effective performance ratio (what the array actually delivered per unit of
 // plane-of-array irradiance) plotted against where the sun *was*, not against
-// the clock — issue #590. Read on this axis, a drop that repeats at the same
+// the clock. Read on this axis, a drop that repeats at the same
 // azimuth day after day is fixed obstruction geometry; one that wanders with
 // the time of day is weather.
 //

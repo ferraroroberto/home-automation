@@ -1,7 +1,7 @@
-/* Daily blind up/down schedule editor (issue #871) and the alarm-pairing
- * switch (issue #875).
+/* Daily blind up/down schedule editor and the alarm-pairing
+ * switch.
  *
- * Lives in the Blind schedule sheet (#884), opened from the Schedule row of
+ * Lives in the Blind schedule sheet, opened from the Schedule row of
  * the Devices tab's Blinds group, whose meta line says how many entries are on
  * and whether the blinds follow the alarm. The same shape as the
  * alarm-schedule editor (security-schedules.js):
@@ -223,7 +223,7 @@ export function renderBlindSchedules() {
   });
 }
 
-// The "Follow the automatic alarm" switch (#875): read on entry, written on
+// The "Follow the automatic alarm" switch: read on entry, written on
 // tap, rolled back when the save fails so the switch never shows a state the
 // server does not hold.
 async function loadAlarmPairing() {

@@ -1,7 +1,7 @@
-/* Weekly alarm-schedule editor (split out of security.js, issue #197).
+/* Weekly alarm-schedule editor (split out of security.js).
  *
  * Owns the DAYS-based schedule CRUD: load/normalise/render the schedule rows
- * (in the Automations › Schedules sheet since #882, plus the glance card's
+ * (in the Automations › Schedules sheet, plus the glance card's
  * "Next:" line) and persist edits through GET/PUT /api/security/schedules. The action set
  * (ACTIONS / ACTION_LABELS) is owned by the alarm module and imported here so
  * the schedule's action dropdown stays in lockstep with the alarm pills.
@@ -43,7 +43,7 @@ function normalizedSchedules(entries) {
   });
 }
 
-// The Automations row's value (#882): how many are on, else "None".
+// The Automations row's value: how many are on, else "None".
 function renderScheduleCount() {
   if (!els.securitySchedulesCount) return;
   const enabled = (state.securitySchedules || []).filter(function (entry) { return entry.enabled !== false; }).length;
@@ -83,10 +83,10 @@ const NEXT_VERBS = {
   arm: 'Arm full',
 };
 
-// The glance card's one schedule line (#882): what the alarm does next on its
+// The glance card's one schedule line: what the alarm does next on its
 // own, so "will it arm tonight?" needs no tap. Hidden with no schedule on.
 // index.html draws it as "Next: —"; until the schedules have been read it stays
-// that way, so the glance card does not grow when they land (LAYOUT-10, #924).
+// that way, so the glance card does not grow when they land (LAYOUT-10).
 let schedulesRead = false;
 
 function renderNextSchedule() {

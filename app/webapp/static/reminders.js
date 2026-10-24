@@ -1,10 +1,10 @@
-/* Reminders — bidirectional voice/app free-text checklist (issue #314).
+/* Reminders — bidirectional voice/app free-text checklist.
  *
  * Distinct from wake-alarms.js: a wake alarm rings at a set time; a reminder
  * is a checklist item, optionally due on a date/time, completed by toggling
  * it done rather than dismissing an alert. A dense collection (staged edit
- * dialog, home-automation#409) using the shared denseListEditor shell — see
- * security-schedules.js for the sibling impl. Since #885 its rows are Next up
+ * dialog) using the shared denseListEditor shell — see
+ * security-schedules.js for the sibling impl. Its rows are Next up
  * rows on Home, on the shared row (row.js): the due time leads when there is
  * one, the done switch trails, and the row opens the editor.
  */

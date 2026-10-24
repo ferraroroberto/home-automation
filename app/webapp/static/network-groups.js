@@ -1,6 +1,6 @@
 /* Network (Settings) — device-group rename/delete dialog.
  *
- * Split out of network-devices.js (issue #702): the "My groups" view's rename
+ * Split out of network-devices.js: the "My groups" view's rename
  * and delete dialog for a real (persisted) group, opened from the pencil icon
  * on a group header network-devices.js renders. The dialog only ever edits a
  * real group; the synthetic "Unclassified" catch-all has no pencil, so there

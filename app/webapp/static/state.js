@@ -22,43 +22,43 @@ export const state = {
   // Local Tuya / Smart Life device cards from GET /api/tuya.
   plugs: [],
   // The Tuya lights among them that pass the Plugs visibility filters —
-  // plugs.js derives it, lights.js renders it in the Lights card (#181).
+  // plugs.js derives it, lights.js renders it in the Lights card.
   tuyaLights: [],
   // The blinds the Blinds card currently lists — the group buttons' targets.
   blindsShown: [],
-  // Daily blind up/down schedule entries from GET /api/blinds/schedules (#871).
+  // Daily blind up/down schedule entries from GET /api/blinds/schedules.
   blindSchedules: [],
   // Athom CT-clamp meters (one entry per meter, each with all its channels)
-  // from GET /api/circuits (issue #25).
+  // from GET /api/circuits.
   circuits: [],
   // Discovery/read problem text for the Circuits card, kept separate from an
-  // empty meter list: "mDNS could not run" and "no meters here" differ (#25).
+  // empty meter list: "mDNS could not run" and "no meters here" differ.
   circuitsError: '',
   // "Last reading HH:MM; refreshing..." when the server's answer is past its
-  // staleness bound (#926), else ''. An error note wins over it.
+  // staleness bound, else ''. An error note wins over it.
   circuitsStaleNote: '',
   // Channel key ("<meter_id>:<channel>") whose rename modal is open, or null.
   selectedCircuitKey: null,
-  // Reveal user-hidden circuit channels (issue #619), and how many there are.
+  // Reveal user-hidden circuit channels, and how many there are.
   circuitsShowHidden: false,
   circuitsHiddenCount: 0,
   // Local USB UPS state from GET /api/ups.
   ups: null,
-  // Home Assistant Hyper-V VM state from GET /api/hyperv (issue #240).
+  // Home Assistant Hyper-V VM state from GET /api/hyperv.
   vm: null,
-  // HA-owned Voice PE rooms + recent interactions from GET /api/ha (#239).
+  // HA-owned Voice PE rooms + recent interactions from GET /api/ha.
   ha: null,
-  // SearXNG container status from GET /api/searxng (issue #321).
+  // SearXNG container status from GET /api/searxng.
   searxng: null,
   // Elgato light cards from GET /api/lights.
   lights: [],
   // "Last reading HH:MM; refreshing..." when the server's answer is past its
-  // staleness bound (#928), else ''. Same for the Home Assistant satellites.
+  // staleness bound, else ''. Same for the Home Assistant satellites.
   lightsStaleNote: '',
   haStaleNote: '',
   // device_id whose rename modal is open (or null).
   selectedPlugId: null,
-  // Unreachable plugs fold into one Offline row (#884); true lists them
+  // Unreachable plugs fold into one Offline row; true lists them
   // under it.
   plugsShowOffline: false,
   // When false (default), user-hidden plugs/blinds are filtered out; the
@@ -68,21 +68,21 @@ export const state = {
   security: null,
   securityEvents: [],
   securitySchedules: [],
-  // Detector→camera+preset alarm-scene capture pairings (issue #162). The
+  // Detector→camera+preset alarm-scene capture pairings. The
   // camera list for the pairing editor's dropdowns reuses the existing
   // `cameras` state above (managed by cameras.js).
   scenePairings: [],
   // Per-detector "auto-bypass after N repeats this armed session" rules
-  // (issue #341) from GET /api/security/overrides.
+  // from GET /api/security/overrides.
   securityOverrides: [],
   // When false (default), detectors marked hidden are filtered out of the list.
-  // When true, they render (dimmed) so they can be un-hidden (issue #104).
+  // When true, they render (dimmed) so they can be un-hidden.
   securityShowHidden: false,
   // iCloud Find My presence spike from GET /api/presence.
   presence: null,
   thisDevicePresence: null,
   presencePlaces: {},
-  // Configured named places for the voice locator (issue #438), from
+  // Configured named places for the voice locator, from
   // GET/PUT /api/presence/places. Distinct from presencePlaces above (that's
   // the reverse-geocode cache keyed by coordinates).
   presencePlacesList: [],
@@ -94,18 +94,18 @@ export const state = {
   selectedLightId: null,
   // zone id whose detector detail/rename modal is open (or null).
   selectedZoneId: null,
-  // Camera cards from GET /api/cameras (issue #161).
+  // Camera cards from GET /api/cameras.
   cameras: [],
   // camera id whose detail/live modal is open (or null).
   selectedCameraId: null,
-  // PTZ d-pad mode (issue #190): 'step' = one click → one fixed nudge (precise),
+  // PTZ d-pad mode: 'step' = one click → one fixed nudge (precise),
   // 'hold' = press-and-hold continuous move.
   cameraPtzMode: 'step',
   // Saved presets for the camera in the open live modal.
   cameraPresets: [],
-  // Home-network (LAN) snapshot from GET /api/network (issue #129).
+  // Home-network (LAN) snapshot from GET /api/network.
   network: null,
-  // Browser-restored API snapshots keyed by allowlisted scope (issue #148).
+  // Browser-restored API snapshots keyed by allowlisted scope.
   snapshotRestored: {},
   snapshotUpdatedAt: {},
   // MAC of the device whose detail/rename modal is open (or null).
@@ -116,24 +116,24 @@ export const state = {
   networkShowHiddenDevices: false,
   networkShowHiddenWifi: false,
   // When false (default), offline (known-but-absent) devices are hidden; when
-  // true they render dimmed in a trailing "Offline" group (issue #129 Phase 4).
+  // true they render dimmed in a trailing "Offline" group.
   networkShowOffline: false,
-  // Wi-Fi walk test (issue #547): GET /api/network/survey payload, and the MAC
+  // Wi-Fi walk test: GET /api/network/survey payload, and the MAC
   // of the device being surveyed (the phone you are walking around with).
   networkSurvey: null,
   networkSurveyMac: null,
   // Device row sort inside each Network group: A-Z by default, or weakest signal.
   networkDeviceSort: 'az',
   // How the Network device list is grouped: by radio band (the original view)
-  // or by the user's own device groups (issue #513).
+  // or by the user's own device groups.
   networkDeviceGrouping: 'band',
   // Wi-Fi diagnostics channel charts on the Network tab.
   wifiChart24: null,
   wifiChart5: null,
   // Active top-level tab: 'home' | 'ac' | 'energy' | 'iot' | 'security', or
-  // 'settings' while the header gear's Settings pane is open (#779).
+  // 'settings' while the header gear's Settings pane is open.
   tab: 'home',
-  // The Energy tab's History card (#883): one period for both views —
+  // The Energy tab's History card: one period for both views —
   // 'live'|'day'|'week'|'month'|'year'|'total' — and what it shows,
   // 'energy'|'money'. Live is energy only.
   range: 'day',
@@ -147,35 +147,35 @@ export const state = {
   exportCreditChart: null,
   exportRates: [],
   forecastChart: null,
-  // Sun-position diagnostic (#590): the day on screen (ISO, local) and its
+  // Sun-position diagnostic: the day on screen (ISO, local) and its
   // chart. The card is folded away by default and loads on first open, so both
   // stay null/empty until someone actually asks the question.
   sunOverlayDate: '',
   sunOverlayChart: null,
-  // PV array the forecast is computed from, from GET/PUT /api/energy/pv-system
-  // (issue #561). Rows carry a positional client-side id for the dense-editor;
+  // PV array the forecast is computed from, from GET/PUT /api/energy/pv-system.
+  // Rows carry a positional client-side id for the dense-editor;
   // the file itself stores a plain list.
   pvArrays: [],
   pvPerformanceRatio: 0.8,
-  // Horizon/shading profile points (issue #578 part b) — same GET/PUT
+  // Horizon/shading profile points — same GET/PUT
   // endpoint, own dense-editor bodyKey. Not yet applied to the forecast; the
   // switch that arms it has no editor control.
   pvHorizonProfile: [],
   // Fleet solar-boost sequencing knobs, from GET/PUT
-  // /api/hvac/boost-coordinator (issue #562). Seconds/watts on the wire exactly
+  // /api/hvac/boost-coordinator. Seconds/watts on the wire exactly
   // as stored; only the settle interval is *rendered* in minutes.
   boostCoord: null,
   // Wake alarms (recurring/one-shot) from GET /api/wake-alarms, and app-native
-  // countdown timers from GET /api/wake-timers (issue #304). Distinct from the
+  // countdown timers from GET /api/wake-timers. Distinct from the
   // RISCO `security` alarm above — these ring/notify, they don't arm/disarm.
   wakeAlarms: [],
   wakeTimers: [],
-  // Free-text reminders from GET /api/reminders (issue #314) — bidirectional
+  // Free-text reminders from GET /api/reminders — bidirectional
   // voice/app sync, distinct from wakeAlarms above (these are a checklist,
   // not a fire-at-a-time alert).
   reminders: [],
   voiceCommands: [],
-  // Cheat-sheet language filter (#466): 'all' | 'en' | 'es'.
+  // Cheat-sheet language filter: 'all' | 'en' | 'es'.
   voiceLang: 'all',
 };
 
@@ -192,7 +192,7 @@ export const NETWORK_DEVICE_SORT_KEY = 'home-automation.networkDeviceSort';
 export const NETWORK_DEVICE_GROUPING_KEY = 'home-automation.networkDeviceGrouping';
 export const NETWORK_SHOW_HIDDEN_DEVICES_KEY = 'home-automation.networkShowHiddenDevices';
 export const NETWORK_SHOW_HIDDEN_WIFI_KEY = 'home-automation.networkShowHiddenWifi';
-// Which attached device the walk test profiles (issue #547). Per-browser rather
+// Which attached device the walk test profiles. Per-browser rather
 // than server-side on purpose: over Tailscale every client arrives from a 100.x
 // address, so the server cannot map a browser to a LAN MAC — each device that
 // runs a walk test picks itself once, and that pick belongs to that device.
@@ -274,7 +274,7 @@ export const els = {
   notifyIntrusion: document.getElementById('notifyIntrusion'),
   notifyAcLost: document.getElementById('notifyAcLost'),
   notifyConfiguredNote: document.getElementById('notifyConfiguredNote'),
-  // Settings › Notifications rows: how many switches are on (#886).
+  // Settings › Notifications rows: how many switches are on.
   notifyAlarmValue: document.getElementById('notifyAlarmValue'),
   notifyUpsValue: document.getElementById('notifyUpsValue'),
   presenceSummary: document.getElementById('presenceSummary'),
@@ -283,7 +283,7 @@ export const els = {
   presenceNote: document.getElementById('presenceNote'),
   presenceKidsHome: document.getElementById('presenceKidsHome'),
   presenceRefreshNote: document.getElementById('presenceRefreshNote'),
-  // Per-account iCloud rows + browser-trust renewal dialog (issue #659).
+  // Per-account iCloud rows + browser-trust renewal dialog.
   presenceAccounts: document.getElementById('presenceAccounts'),
   presenceAccountsList: document.getElementById('presenceAccountsList'),
   presenceTrustDialog: document.getElementById('presenceTrustDialog'),
@@ -293,7 +293,7 @@ export const els = {
   presenceTrustNote: document.getElementById('presenceTrustNote'),
   presenceTrustVerify: document.getElementById('presenceTrustVerify'),
   presenceTrustClose: document.getElementById('presenceTrustClose'),
-  // Settings › Home & people row values (#886).
+  // Settings › Home & people row values.
   locationValue: document.getElementById('locationValue'),
   presenceAutomationValue: document.getElementById('presenceAutomationValue'),
   locationLabel: document.getElementById('locationLabel'),
@@ -320,7 +320,7 @@ export const els = {
   presenceOriginalName: document.getElementById('presenceOriginalName'),
   presenceRole: document.getElementById('presenceRole'),
   presenceHiddenDetailToggle: document.getElementById('presenceHiddenDetailToggle'),
-  // Named-places dense collection (issue #438), a Settings sheet since #886.
+  // Named-places dense collection, a Settings sheet.
   presencePlacesCount: document.getElementById('presencePlacesCount'),
   presencePlacesList: document.getElementById('presencePlacesList'),
   presencePlacesNote: document.getElementById('presencePlacesNote'),
@@ -336,13 +336,13 @@ export const els = {
   presencePlacePickMap: document.getElementById('presencePlacePickMap'),
   presencePlaceDelete: document.getElementById('presencePlaceDelete'),
   presencePlaceSave: document.getElementById('presencePlaceSave'),
-  // Map-pin picker dialog (issue #438).
+  // Map-pin picker dialog.
   presenceMapPickerDialog: document.getElementById('presenceMapPickerDialog'),
   presenceMapPickerClose: document.getElementById('presenceMapPickerClose'),
   presenceMapPicker: document.getElementById('presenceMapPicker'),
   presenceMapPickerCoords: document.getElementById('presenceMapPickerCoords'),
   presenceMapPickerConfirm: document.getElementById('presenceMapPickerConfirm'),
-  // The People group, which Home's who-is-home row opens (#885).
+  // The People group, which Home's who-is-home row opens.
   presenceCard: document.getElementById('presenceCard'),
   presenceDetailSave: document.getElementById('presenceDetailSave'),
   // Detector (zone) detail + rename modal
@@ -357,7 +357,7 @@ export const els = {
   zoneHiddenToggle: document.getElementById('zoneHiddenToggle'),
   zoneTroubleIgnoreToggle: document.getElementById('zoneTroubleIgnoreToggle'),
   zoneSave: document.getElementById('zoneSave'),
-  // Cameras tile (Security tab) + detail / live-view modals (issue #161)
+  // Cameras tile (Security tab) + detail / live-view modals
   camerasList: document.getElementById('camerasList'),
   camerasNote: document.getElementById('camerasNote'),
   cameraDialog: document.getElementById('cameraDialog'),
@@ -381,7 +381,7 @@ export const els = {
   cameraPtzRight: document.getElementById('cameraPtzRight'),
   cameraZoomIn: document.getElementById('cameraZoomIn'),
   cameraZoomOut: document.getElementById('cameraZoomOut'),
-  // Precise-PTZ + presets + snapshot zoom (issue #190)
+  // Precise-PTZ + presets + snapshot zoom
   cameraPtzMode: document.getElementById('cameraPtzMode'),
   cameraPresetsRow: document.getElementById('cameraPresetsRow'),
   cameraPresetsList: document.getElementById('cameraPresetsList'),
@@ -396,13 +396,13 @@ export const els = {
   cameraZoomName: document.getElementById('cameraZoomName'),
   cameraZoomClose: document.getElementById('cameraZoomClose'),
   cameraZoomImg: document.getElementById('cameraZoomImg'),
-  // PTZ preset name prompt (issue #722) — shared by savePreset/renamePreset.
+  // PTZ preset name prompt — shared by savePreset/renamePreset.
   cameraPresetNameDialog: document.getElementById('cameraPresetNameDialog'),
   cameraPresetNameTitle: document.getElementById('cameraPresetNameTitle'),
   cameraPresetNameClose: document.getElementById('cameraPresetNameClose'),
   cameraPresetNameInput: document.getElementById('cameraPresetNameInput'),
   cameraPresetNameSave: document.getElementById('cameraPresetNameSave'),
-  // IoT tab — Plugs / Lights / Blinds, each a collapsible row-list card (#136).
+  // IoT tab — Plugs / Lights / Blinds, each a collapsible row-list card.
   plugsFeedback: document.getElementById('plugsFeedback'),
   plugsCard: document.getElementById('plugsCard'),
   plugsList: document.getElementById('plugsList'),
@@ -413,7 +413,7 @@ export const els = {
   blindsAllUp: document.getElementById('blindsAllUp'),
   blindsAllStop: document.getElementById('blindsAllStop'),
   blindsAllDown: document.getElementById('blindsAllDown'),
-  // Blind schedule list + its denseListEditor dialog (#871).
+  // Blind schedule list + its denseListEditor dialog.
   blindSchedules: document.getElementById('blindSchedules'),
   blindSchedulesNote: document.getElementById('blindSchedulesNote'),
   blindScheduleAdd: document.getElementById('blindScheduleAdd'),
@@ -429,7 +429,7 @@ export const els = {
   blindScheduleDelete: document.getElementById('blindScheduleDelete'),
   blindScheduleSave: document.getElementById('blindScheduleSave'),
   blindsFollowAlarm: document.getElementById('blindsFollowAlarm'),
-  // Circuits — per-breaker CT-clamp meters, the IoT card after Plugs (#25).
+  // Circuits — per-breaker CT-clamp meters, the IoT card after Plugs.
   circuitsList: document.getElementById('circuitsList'),
   circuitsCount: document.getElementById('circuitsCount'),
   circuitsHiddenToggle: document.getElementById('circuitsHiddenToggle'),
@@ -437,7 +437,7 @@ export const els = {
   plugsNote: document.getElementById('plugsNote'),
   plugsPair: document.getElementById('plugsPair'),
   plugsHiddenToggle: document.getElementById('plugsHiddenToggle'),
-  // The Devices tab's Power glance card (#884): live watts, the biggest
+  // The Devices tab's Power glance card: live watts, the biggest
   // draws, and the UPS row (its sheet holds the PC fleet).
   powerOnCount: document.getElementById('powerOnCount'),
   powerNow: document.getElementById('powerNow'),
@@ -457,16 +457,16 @@ export const els = {
   notifyPowerLost: document.getElementById('notifyPowerLost'),
   notifyPowerRestored: document.getElementById('notifyPowerRestored'),
   powerNotifyConfiguredNote: document.getElementById('powerNotifyConfiguredNote'),
-  // PC fleet — UPS-triggered graceful fleet shutdown (issue #498), in the
-  // UPS sheet since #884.
+  // PC fleet — UPS-triggered graceful fleet shutdown, in the
+  // UPS sheet.
   pcFleetEnabled: document.getElementById('pcFleetEnabled'),
   pcFleetThreshold: document.getElementById('pcFleetThreshold'),
   pcFleetCaption: document.getElementById('pcFleetCaption'),
   pcFleetTowerActionBtns: Array.from(document.querySelectorAll('#pcFleetTowerAction .segmented-item')),
   pcFleetMachines: document.getElementById('pcFleetMachines'),
   pcFleetNote: document.getElementById('pcFleetNote'),
-  // Home Assistant group (Devices tab since #884; the VM switch is #240,
-  // the voice satellites and interactions #239, each in its sheet).
+  // Home Assistant group (Devices tab; the VM switch, the voice
+  // satellites and interactions, each in its sheet).
   homeVmToggle: document.getElementById('homeVmToggle'),
   homeAssistantCard: document.getElementById('homeAssistantCard'),
   homeAssistantSummaryState: document.getElementById('homeAssistantSummaryState'),
@@ -485,7 +485,7 @@ export const els = {
   haInteractionsSheetDone: document.getElementById('haInteractionsSheetDone'),
   haInteractionsList: document.getElementById('haInteractionsList'),
   haInteractionsCard: document.getElementById('haInteractionsCard'),
-  // Search-engine (SearXNG) status sub-card (issue #321).
+  // Search-engine (SearXNG) status sub-card.
   searxngSummaryState: document.getElementById('searxngSummaryState'),
   searxngNote: document.getElementById('searxngNote'),
   searxngStartBtn: document.getElementById('searxngStartBtn'),
@@ -497,7 +497,7 @@ export const els = {
   plugHiddenToggle: document.getElementById('plugHiddenToggle'),
   plugDetailClose: document.getElementById('plugDetailClose'),
   plugSave: document.getElementById('plugSave'),
-  // Circuit channel rename + sign-flip modal (#25)
+  // Circuit channel rename + sign-flip modal
   circuitDialog: document.getElementById('circuitDialog'),
   circuitDetailName: document.getElementById('circuitDetailName'),
   circuitDisplayName: document.getElementById('circuitDisplayName'),
@@ -517,7 +517,7 @@ export const els = {
   circuitHiddenToggle: document.getElementById('circuitHiddenToggle'),
   circuitDetailClose: document.getElementById('circuitDetailClose'),
   circuitSave: document.getElementById('circuitSave'),
-  // Lights group (#136) and the light sheet (#884): power, brightness and
+  // Lights group and the light sheet: power, brightness and
   // warmth as they change; the name and details stay in lightDialog.
   lightSheet: document.getElementById('lightSheet'),
   lightSheetName: document.getElementById('lightSheetName'),
@@ -547,8 +547,8 @@ export const els = {
   lightFirmware: document.getElementById('lightFirmware'),
   lightTemperatureMeta: document.getElementById('lightTemperatureMeta'),
   lightIdentifier: document.getElementById('lightIdentifier'),
-  // Network: the Devices group's rows and the Network sheet (#884; Settings
-  // from #779) — #networkBody is its own data-state host.
+  // Network: the Devices group's rows and the Network sheet —
+  // #networkBody is its own data-state host.
   networkInternetOpen: document.getElementById('networkInternetOpen'),
   networkInternetAvatar: document.getElementById('networkInternetAvatar'),
   networkInternetMeta: document.getElementById('networkInternetMeta'),
@@ -581,7 +581,7 @@ export const els = {
   netWifiNote: document.getElementById('netWifiNote'),
   netWifiHiddenCount: document.getElementById('netWifiHiddenCount'),
   netWifiHiddenToggle: document.getElementById('netWifiHiddenToggle'),
-  // Wi-Fi walk test (issue #547) — per-room coverage survey card + device picker.
+  // Wi-Fi walk test — per-room coverage survey card + device picker.
   netSurveyCard: document.getElementById('netSurveyCard'),
   netSurveyStatus: document.getElementById('netSurveyStatus'),
   netSurveyDeviceName: document.getElementById('netSurveyDeviceName'),
@@ -605,14 +605,14 @@ export const els = {
   netHiddenToggle: document.getElementById('netHiddenToggle'),
   netDevices: document.getElementById('netDevices'),
   netDevicesNote: document.getElementById('netDevicesNote'),
-  // DHCP reservation plan (issue #170 + #176) — lazy-loaded; "Apply" writes
+  // DHCP reservation plan — lazy-loaded; "Apply" writes
   netDhcpCard: document.getElementById('netDhcpCard'),
   netDhcpRefresh: document.getElementById('netDhcpRefresh'),
   netDhcpApply: document.getElementById('netDhcpApply'),
   netDhcpWarnings: document.getElementById('netDhcpWarnings'),
   netDhcpPlan: document.getElementById('netDhcpPlan'),
   netDhcpNote: document.getElementById('netDhcpNote'),
-  // Staged reservation manager (#176): existing rows, manual staging, apply bar.
+  // Staged reservation manager: existing rows, manual staging, apply bar.
   netDhcpExistingWrap: document.getElementById('netDhcpExistingWrap'),
   netDhcpExistingHead: document.getElementById('netDhcpExistingHead'),
   netDhcpExisting: document.getElementById('netDhcpExisting'),
@@ -647,7 +647,7 @@ export const els = {
   netDeviceGroup: document.getElementById('netDeviceGroup'),
   netDeviceGroupNew: document.getElementById('netDeviceGroupNew'),
   netDeviceGroupNewRow: document.getElementById('netDeviceGroupNewRow'),
-  // Rename/delete dialog for one device group (issue #513).
+  // Rename/delete dialog for one device group.
   netGroupDialog: document.getElementById('netGroupDialog'),
   netGroupDialogTitle: document.getElementById('netGroupDialogTitle'),
   netGroupDialogClose: document.getElementById('netGroupDialogClose'),
@@ -675,16 +675,16 @@ export const els = {
   confirmClose: document.getElementById('confirmClose'),
   confirmCancel: document.getElementById('confirmCancel'),
   confirmOk: document.getElementById('confirmOk'),
-  // Home tab (#885): the Climate group's AC rows
+  // Home tab: the Climate group's AC rows
   acSummary: document.getElementById('acSummary'),
   acSummaryList: document.getElementById('acSummaryList'),
   climateMeta: document.getElementById('climateMeta'),
-  // Voice cheat sheet (Settings, issue #437)
+  // Voice cheat sheet (Settings)
   voiceLangToggle: document.getElementById('voiceLangToggle'),
   voiceCommandsList: document.getElementById('voiceCommandsList'),
   voiceCommandsNote: document.getElementById('voiceCommandsNote'),
-  // Home tab's Next up (#885): wake alarms + timers (issue #304) and
-  // reminders (issue #314)
+  // Home tab's Next up: wake alarms + timers and
+  // reminders
   nextUpNote: document.getElementById('nextUpNote'),
   wakeRingingBanner: document.getElementById('wakeRingingBanner'),
   wakeAlarmsList: document.getElementById('wakeAlarmsList'),
@@ -720,7 +720,7 @@ export const els = {
   reminderTime: document.getElementById('reminderTime'),
   reminderDelete: document.getElementById('reminderDelete'),
   reminderSave: document.getElementById('reminderSave'),
-  // Home tab's House card (#885): its exception chips, who is home, and the
+  // Home tab's House card: its exception chips, who is home, and the
   // compact energy flow (GET /api/energy) — the Energy tab's view.
   houseChips: document.getElementById('houseChips'),
   housePeople: document.getElementById('housePeople'),
@@ -732,7 +732,7 @@ export const els = {
   homeWirePv: document.getElementById('homeWirePv'),
   homeWireGrid: document.getElementById('homeWireGrid'),
   homeFlowGridName: document.getElementById('homeFlowGridName'),
-  // Every page header's theme toggle (#779), and the Settings nav-debug switch
+  // Every page header's theme toggle, and the Settings nav-debug switch
   themeToggleBtns: Array.from(document.querySelectorAll('.theme-toggle-btn')),
   navDebugBtn: document.getElementById('navDebugBtn'),
   // Energy tab: the glance card's flow diagram (live)
@@ -766,7 +766,7 @@ export const els = {
   savCo2: document.getElementById('savCo2'),
   savTrees: document.getElementById('savTrees'),
   savExport: document.getElementById('savExport'),
-  // Energy tab: the History card (#883) — one period picker (Live / Day … All,
+  // Energy tab: the History card — one period picker (Live / Day … All,
   // driven by data-range) and the Energy / Money switch (data-view).
   rangeBtns: Array.from(document.querySelectorAll('#historyRange .segmented-item')),
   historyViewBtns: Array.from(document.querySelectorAll('#historyView .segmented-item')),
@@ -790,10 +790,10 @@ export const els = {
   energyFiguresSheet: document.getElementById('energyFiguresSheet'),
   energyFiguresRange: document.getElementById('energyFiguresRange'),
   energyFiguresBody: document.getElementById('energyFiguresBody'),
-  // The Money view's Export rate row, opening the editor in Settings (#883)
+  // The Money view's Export rate row, opening the editor in Settings
   exportRateOpen: document.getElementById('exportRateOpen'),
   exportRateRowMeta: document.getElementById('exportRateRowMeta'),
-  // Settings: export compensation (moved off the Energy tab by #883)
+  // Settings: export compensation
   exportRateCurrent: document.getElementById('exportRateCurrent'),
   exportRateList: document.getElementById('exportRateList'),
   exportRateDate: document.getElementById('exportRateDate'),
@@ -810,14 +810,14 @@ export const els = {
   forecastChart: document.getElementById('forecastChart'),
   forecastEmpty: document.getElementById('forecastEmpty'),
   forecastDayBtns: Array.from(document.querySelectorAll('#forecastDay .segmented-item')),
-  // Settings: sun-position check sheet (issue #590)
+  // Settings: sun-position check sheet
   sunOverlaySheet: document.getElementById('sunOverlaySheet'),
   sunOverlayDate: document.getElementById('sunOverlayDate'),
   sunOverlayChart: document.getElementById('sunOverlayChart'),
   sunOverlayCount: document.getElementById('sunOverlayCount'),
   sunOverlayNote: document.getElementById('sunOverlayNote'),
   sunOverlayEmpty: document.getElementById('sunOverlayEmpty'),
-  // Energy tab: PV-system editor card + its row dialog (issue #561)
+  // Energy tab: PV-system editor card + its row dialog
   pvSystemTotal: document.getElementById('pvSystemTotal'),
   pvArrayList: document.getElementById('pvArrayList'),
   pvArrayAdd: document.getElementById('pvArrayAdd'),
@@ -836,7 +836,7 @@ export const els = {
   pvArrayAzimuthEcho: document.getElementById('pvArrayAzimuthEcho'),
   pvArrayDelete: document.getElementById('pvArrayDelete'),
   pvArraySave: document.getElementById('pvArraySave'),
-  // Energy tab: horizon/shading profile editor (issue #578 part b)
+  // Energy tab: horizon/shading profile editor
   pvHorizonList: document.getElementById('pvHorizonList'),
   pvHorizonAdd: document.getElementById('pvHorizonAdd'),
   pvHorizonDialog: document.getElementById('pvHorizonDialog'),
@@ -849,12 +849,12 @@ export const els = {
   pvHorizonElevationError: document.getElementById('pvHorizonElevationError'),
   pvHorizonDelete: document.getElementById('pvHorizonDelete'),
   pvHorizonSave: document.getElementById('pvHorizonSave'),
-  // Energy tab: fleet solar-boost sequencing knobs (issue #562)
+  // Energy tab: fleet solar-boost sequencing knobs
   boostCoordSummary: document.getElementById('boostCoordSummary'),
   boostSettleMin: document.getElementById('boostSettleMin'),
   boostAdmissionMargin: document.getElementById('boostAdmissionMargin'),
   boostHardDeficit: document.getElementById('boostHardDeficit'),
-  // Unit sheet (#881)
+  // Unit sheet
   detail: document.getElementById('detailDialog'),
   detailBack: document.getElementById('detailBack'),
   detailName: document.getElementById('detailName'),
@@ -919,7 +919,7 @@ export const els = {
 // wrapped in a try/catch (private mode throws, and the pref must then just stay
 // in memory for the session). That read-with-catch / write-with-catch pair used
 // to be hand-rolled six times across network-devices / network-wifi /
-// network-survey (issue #571). These own the storage concern only — value
+// network-survey. These own the storage concern only — value
 // semantics (what an absent or unrecognised string means) stay at the call site.
 
 /** `{read, write}` over one localStorage key. `read()` yields the raw stored
@@ -948,7 +948,7 @@ export function persistedPref(key, fallback) {
 /** `persistedPref` for an on/off flag stored as `'1'`/`'0'`. `read()` is a
  *  boolean (absent or unreadable → `fallback`, default `false`).
  *
- *  `read()` also accepts the legacy `'true'`/`'false'` spelling (issue #664):
+ *  `read()` also accepts the legacy `'true'`/`'false'` spelling:
  *  the circuits / plugs / presence / security "show hidden" flags hand-rolled
  *  their own `localStorage` try/catch pair writing `String(bool)` before they
  *  moved onto this helper, and a browser that already has one of those values
@@ -998,7 +998,7 @@ export function reportFetchFailure(scope, exc, label) {
   // The one place the sentinel is still compared by hand rather than through
   // api.js's `isAuthRequired()`: state.js is the leaf every module imports and
   // api.js imports *it*, so reaching back would make the first import cycle in
-  // this app for a single line. Keep the two spellings in step (issue #631).
+  // this app for a single line. Keep the two spellings in step.
   if (exc && String(exc.message) === 'auth required') return;
   if (fetchFailing[scope]) return;  // already toasted for this outage
   fetchFailing[scope] = true;
@@ -1015,12 +1015,12 @@ export function toast(msg, kind) {
   els.toast.className = 'toast ' + (kind || '');
   // Errors interrupt (aria-live="assertive"); everything else stays polite so
   // routine save/toggle confirmations don't cut off other screen-reader
-  // speech (issue #370).
+  // speech.
   els.toast.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
   els.toast.hidden = false;
   if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
   // 'pending' (e.g. "Sending…") stays up until a follow-up toast replaces it
-  // with the result — it has no fixed lifetime (#204).
+  // with the result — it has no fixed lifetime.
   if (kind === 'pending') return;
   toastTimer = setTimeout(function () {
     els.toast.hidden = true;

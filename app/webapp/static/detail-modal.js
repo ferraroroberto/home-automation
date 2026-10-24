@@ -1,4 +1,4 @@
-/* Shared fixed-DOM single-entity detail-modal save shell (issue #699).
+/* Shared fixed-DOM single-entity detail-modal save shell.
  *
  * plugs.js / circuits.js / security-alarm.js / network-devices.js each
  * hand-roll the same staged-edit shell around a fixed-DOM detail dialog: a
@@ -10,7 +10,7 @@
  * keeps its own field population (`populate`) and diff-and-request logic
  * (`buildOps`), since those genuinely differ per module's field set.
  *
- * cameras.js, presence.js and lights.js use it too (#912): each has a staged
+ * cameras.js, presence.js and lights.js use it too: each has a staged
  * display-name Save. network-wifi.js and units.js don't share this shape —
  * they save each field immediately on blur/toggle, or track dirty per-section
  * rather than as one flag — so they are deliberately left as-is.
@@ -26,7 +26,7 @@
  * or updating the dialog's own title text), `savedToast` (default `'Saved'`),
  * `failedToast` (default `'Failed to save'`). The dialog shell itself (the
  * × `closeButton`, the backdrop, Esc, focus back to the opener) is the
- * shared staged sheet (sheet.js, #880): every way of closing discards the
+ * shared staged sheet (sheet.js): every way of closing discards the
  * staged copy and runs the caller's optional `onClose()` (where it clears
  * its own `state.selectedXId`). An optional `fallbackFocus()` names the
  * element to focus when the opener was re-rendered away by a save.

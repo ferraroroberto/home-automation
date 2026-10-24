@@ -1,4 +1,4 @@
-/* ----------------------------------------------------------- Activity log (#289) */
+/* ----------------------------------------------------------- Activity log */
 /* The overlay reuses .detail-dialog / .detail-card. Its title matches the Home
    card identity scale (not the big modal heading) so the app has one font size. */
 .activity-dialog .detail-header h2 { font-size: var(--font-body); }
@@ -8,7 +8,7 @@
 
 /* Legend: stacked term-over-description at the shared caption text size.
    The disclosure itself reuses the shared .collapse-summary/.collapse-chevron
-   pattern (chevron-only, no native triangle marker — issue #363) — just a
+   pattern (chevron-only, no native triangle marker) — just a
    compact, unpadded variant since this sits inside a dialog, not a card. */
 .activity-legend { margin-bottom: var(--space-sm); }
 .activity-legend > .collapse-summary { padding: var(--space-xs) 0; min-height: var(--row-sm); }

@@ -1,6 +1,6 @@
 /* Settings › Notifications › UPS power — power-event Telegram toggles.
  *
- * A Settings sheet since #886, mirroring the alarm one. Switches map 1:1 to
+ * A Settings sheet, mirroring the alarm one. Switches map 1:1 to
  * the backend PowerNotifyPrefs; each persists on click via
  * PUT /api/ups/notify-prefs. A hint shows when Telegram isn't configured.
  * The load/save/render flow is shared with the alarm sheet via toggle-prefs.js.

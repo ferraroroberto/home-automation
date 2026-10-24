@@ -1,12 +1,12 @@
 /* Presence — home-location editor + "this device" browser-GPS tracking
- * (split out of ./presence.js, issue #454 maintainability split).
+ * (split out of ./presence.js).
  *
  * Owns GET/PUT /api/location, the browser geolocation capture that builds the
  * synthetic "__this_device__" presence entity, and its localStorage persistence
  * (so the browser tab keeps reporting after a reload without asking again).
  * Calls back into ./presence.js's renderPresence()/loadPresence() after a write
  * so the card reflects the new state — a two-way import already established by
- * the network.js ↔ network-devices.js precedent (#197).
+ * the network.js ↔ network-devices.js precedent.
  */
 
 'use strict';
@@ -138,7 +138,7 @@ async function refreshPresenceDiagnostics() {
   }
 }
 
-// The Settings row's value (#886): the home label, or whether a location
+// The Settings row's value: the home label, or whether a location
 // is set at all.
 function renderLocationValue() {
   if (!els.locationValue) return;
@@ -172,7 +172,7 @@ function locationPayload() {
 
 /* PUT the home location and refresh `state.location` from the response.
  *
- * Exported because the Energy tab's PV-system card (issue #561) edits the same
+ * Exported because the Energy tab's PV-system card edits the same
  * coordinates — one house, one config/location.json — and must not re-inline a
  * second writer for this endpoint. Callers own their own feedback: this raises
  * on failure rather than toasting, since each surface words it differently. */

@@ -1,15 +1,14 @@
 /* AC / units — the AC tab's rows, Home's AC rows and the unit sheet.
  *
- * Split out of main.js (issue #346 maintainability split) — the one domain
- * module that had never followed the pattern every sibling domain already
- * uses (#197: security.js → security-alarm/schedules/scene/override/notify.js,
+ * Split out of main.js — the one domain
+ * module following the pattern every sibling domain uses (security.js → security-alarm/schedules/scene/override/notify.js,
  * network.js → network-devices/wifi/dhcp.js). main.js keeps boot wiring,
  * theme toggle, nav-debug init, and login; everything unit/AC-specific lives
  * here.
  *
- * Step 3/8 of #872 (#881) moved the AC tab onto the shared parts. Both tabs
+ * The AC tab uses the shared parts. Both tabs
  * draw a unit with one row renderer (row.js): power is the row's switch, and
- * tapping the row opens the unit sheet. Decision 4 of #872: the setpoint lives
+ * tapping the row opens the unit sheet. The setpoint lives
  * in the sheet, and the sheet is an instant one (sheet.js), so each change is
  * sent as it is made, like the switch on the row; Done only closes. The sheet's
  * main page holds the daily controls (setpoint, power, mode, fan); the rarer
@@ -101,7 +100,7 @@ function fmtTempShort(v) {
   return (Number.isInteger(n) ? String(n) : n.toFixed(1)) + '°';
 }
 
-// Signed boost offset for the chip (#575) — e.g. "-2" while cooling, "+1.5"
+// Signed boost offset for the chip — e.g. "-2" while cooling, "+1.5"
 // while heating. Trims a whole-number offset to "-2" rather than "-2.0" to
 // stay compact; the sign itself always comes from the server's boost_delta_c,
 // never re-derived from operation_mode here.
@@ -144,7 +143,7 @@ function scheduleCount(unit) {
 }
 
 // A unit whose WiFi adapter has lost its cloud connection (`reachable: false`
-// from /api/units, issue #520). Commands sent to it are silently swallowed by
+// from /api/units). Commands sent to it are silently swallowed by
 // the cloud, so its controls are inerted rather than left looking live. Only an
 // explicit `false` counts — an absent field (older payload, restored snapshot)
 // means "unknown", and unknown must never lock a working unit out.
@@ -190,7 +189,7 @@ async function applyControl(unitId, patch) {
 }
 
 // ------------------------------------------------------------- the row
-// The shared row (row.js, #880): the mode glyph in the avatar, badged while
+// The shared row (row.js): the mode glyph in the avatar, badged while
 // the unit runs and when it is offline; the name; one meta line with the room
 // and set temperatures (and the rule's room target while it steers); the power
 // switch as the one trailing item. An exception closes the meta line as a
@@ -224,8 +223,8 @@ function acRow(u) {
     meta = document.createElement('span');
     meta.innerHTML = 'Room ' + room + icon('arrow-right', 'row-meta-arrow') +
       '<span class="visually-hidden"> to </span>' + fmtTemp(u.set_temperature);
-    // Live "currently boosted" state (#554): automation, not a user action,
-    // so it is a chip on the row; the signed delta (#575) makes the rule →
+    // Live "currently boosted" state: automation, not a user action,
+    // so it is a chip on the row; the signed delta makes the rule →
     // set-to maths legible. While it runs, the chip carries the rule's story.
     const ruleTarget = activeRuleTarget(u);
     if (rule.boost_active) {
@@ -267,7 +266,7 @@ function renderAll() {
   if (state.units.length) els.acUnits.appendChild(unitList());
 }
 
-// ------------------------------------- Home's Climate group (#885)
+// ------------------------------------- Home's Climate group
 // The AC tab's rows, under a group head whose meta is the AC header's plain
 // fact ("2 running").
 function renderAcSummary() {
@@ -292,7 +291,7 @@ function renderAcSummary() {
   }
 }
 
-// The AC header's live line (head-status.js, #880): units offline in
+// The AC header's live line (head-status.js): units offline in
 // attention, else how many are running. Only from a live read: a restored
 // snapshot or a failed poll says nothing rather than an old count.
 function renderAcHead() {
@@ -471,7 +470,7 @@ function renderLinkValues(unit) {
 
 // Everything the sheet shows that comes from the unit itself. Called on open,
 // after each command's read-back and on every poll while the sheet is open, so
-// a unit dropping offline inerts its controls (#520). It never touches the
+// a unit dropping offline inerts its controls. It never touches the
 // name and rule fields, which the user may be typing into.
 function renderSheet(unit) {
   const live = canCommand(unit);
@@ -853,7 +852,7 @@ const unitsLoader = createTabLoader({
   render: renderUnits,
   // An open sheet is not part of renderUnits(): refresh it from the new
   // read, so a unit that drops offline (or a poll that fails) inerts its
-  // controls rather than leaving them live (#520). Not run after a quiet
+  // controls rather than leaving them live. Not run after a quiet
   // 401 return — the login overlay is already up (api.js → showLogin).
   afterLoad: refreshOpenSheet,
 });
@@ -868,7 +867,7 @@ function refreshOpenSheet() {
 }
 
 // AC units only matter on Home (rows) and AC (rows), so poll them only while
-// one of those tabs is active rather than every 30s everywhere (#209). The
+// one of those tabs is active rather than every 30s everywhere. The
 // initial boot fetch is the caller's `loadUnits()` call. Kept as its own
 // gate rather than the shared `createTabPollGate`: it always resets the
 // poll to 0 first, then re-arms it only for the two active tabs.

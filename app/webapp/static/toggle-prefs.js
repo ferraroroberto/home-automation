@@ -1,4 +1,4 @@
-/* Shared Telegram-notification toggle-prefs card (issue #746).
+/* Shared Telegram-notification toggle-prefs card.
  *
  * The alarm Notifications card (security-notify.js) and the UPS power-event
  * card (ups-notify.js) are the same control flow over different field lists,
@@ -22,7 +22,7 @@ const NOT_CONFIGURED_NOTE =
  * @param {Array<[string, string]>} cfg.fields  [els key, pref key] pairs.
  * @param {string} cfg.url                      GET/PUT prefs endpoint.
  * @param {string} cfg.noteEl                   els key of the "not configured" note.
- * @param {string} cfg.valueEl                  els key of the Settings row value (#886).
+ * @param {string} cfg.valueEl                  els key of the Settings row value.
  * @param {{loadFailed: string, saveFailed: string, saved: string}} cfg.labels
  * @returns {{load: function(): Promise<void>, wire: function(): void}}
  */

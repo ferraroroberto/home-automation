@@ -1,5 +1,5 @@
 /**
- * The opt-in nightly speed test switch on the internet tile (#840).
+ * The opt-in nightly speed test switch on the internet tile.
  *
  * One boolean, off by default, persisted server-side
  * (`/api/network/speedtest-prefs`); the schedule itself runs in the webapp

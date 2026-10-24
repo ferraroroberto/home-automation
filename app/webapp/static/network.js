@@ -1,17 +1,17 @@
 /* Network (LAN) controller — boot/core.
  *
  * Owns the home-network view's top-level shell: the Devices tab's Network
- * group rows (#884, decision 7 of #872; Settings from #779), the Network sheet
+ * group rows, the Network sheet
  * they open, internet health (+ opt-in speed test), AP/router health with the
  * confirm-gated reboots, the poll lifecycle, and the renderNetwork
  * orchestrator. The confirm dialog itself is
- * the neutral `./confirm.js` primitive (issue #574) — it used to live here,
+ * the neutral `./confirm.js` primitive — it used to live here,
  * which made unrelated modules import this feature tab to get it. The
- * feature panels live in sibling modules and are wired in here (issue #197):
+ * feature panels live in sibling modules and are wired in here:
  *   ./network-devices.js — attached-device inventory + detail/rename modal
- *   ./network-groups.js  — device-group rename/delete dialog (#702)
+ *   ./network-groups.js  — device-group rename/delete dialog
  *   ./network-wifi.js    — Wi-Fi diagnostics + channel charts + Wi-Fi modal
- *   ./network-survey.js  — Wi-Fi walk test: per-room coverage samples (#547)
+ *   ./network-survey.js  — Wi-Fi walk test: per-room coverage samples
  *   ./network-dhcp.js    — DHCP reservation planner + apply flow
  * Read-mostly — it reads GET /api/network and writes only the AP/router reboots.
  *
@@ -151,7 +151,7 @@ function renderInternet(net) {
     };
   }
   if (lastSpeed) {
-    // Lucide arrows for down/up (#779), each with a hidden word for readers.
+    // Lucide arrows for down/up, each with a hidden word for readers.
     const seg = [
       icon('arrow-down') + '<span class="visually-hidden">Download </span>' + esc(fmtMbps(lastSpeed.down)),
       icon('arrow-up') + '<span class="visually-hidden">Upload </span>' + esc(fmtMbps(lastSpeed.up)),
@@ -225,7 +225,7 @@ function renderHealth(ap, router) {
   }
 }
 
-// The Devices tab's Network group (#884): the internet in one line with the
+// The Devices tab's Network group: the internet in one line with the
 // connected badge, and the attached devices as a count with the weak ones.
 function renderGroupRows(net) {
   if (!els.networkInternetMeta) return;
@@ -269,7 +269,7 @@ function renderNetwork() {
   renderGroupRows(net);
   renderInternet(net ? net.internet : null);
   renderHealth(net ? net.access_point : null, net ? net.router : null);
-  // The Wi-Fi charts load Chart.js on first use (#760): only once the sheet
+  // The Wi-Fi charts load Chart.js on first use: only once the sheet
   // that shows them is open, never for the group rows alone.
   if (networkSheet.isOpen()) renderWifi(net ? net.wifi : null);
   renderSurvey();
@@ -325,7 +325,7 @@ async function loadNetwork(opts) {
     state.network = await jsonApi(url);
     reportFetchOk('network');
     if (!speedtest) saveSnapshot('network', state.network);
-    // The server answers from memory (#926) and says when that reading is
+    // The server answers from memory and says when that reading is
     // old: show it as last-saved data with its real time, and come back once
     // for the read it started behind this answer (one catch-up, no loop).
     const snap = state.network.snapshot;

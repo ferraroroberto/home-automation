@@ -1,4 +1,4 @@
-/* Wake alarms + app-native timers (issue #304) — Home's Next up card.
+/* Wake alarms + app-native timers — Home's Next up card.
  *
  * Distinct from the RISCO alarm (security.js / security-alarm.js): this
  * feature rings/notifies at a time you set, it never arms/disarms the
@@ -6,7 +6,7 @@
  * date); timers are ephemeral countdowns, not persisted (mirrors how Home
  * Assistant's own voice-set timers work).
  *
- * Since #885 (Step 7/8 of #872) both are rows of Next up on the shared row
+ * Both are rows of Next up on the shared row
  * (row.js), led by their time:
  * - a wake alarm row shows its time, label and days, with its switch; the
  *   row opens the staged wake alarm editor (denseListEditor, the dense

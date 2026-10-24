@@ -1,8 +1,8 @@
 /* ----------------------------------------------------------- detail modal
-   The shell is the vendored modal (_vendored/modal/modal.css, #906): the
+   The shell is the vendored modal (_vendored/modal/modal.css): the
    dialog, its iOS anchoring and scroll lock, the header and its icon-button
    close, the rows and the sticky footer. Only this app's additions follow. */
-/* Banner explaining why the unit's mode/fan/vane selects are disabled (#520).
+/* Banner explaining why the unit's mode/fan/vane selects are disabled.
    Attention-toned like the card's Offline chip (same 16% tint), tinted rather
    than solid so it reads the same in light and dark. */
 .detail-offline {
@@ -21,7 +21,7 @@
   font-family: inherit;
 }
 
-/* ------------------------------------------------ the unit sheet (#881)
+/* ------------------------------------------------ the unit sheet
    An instant sheet with pages (units.js): the main page's daily controls,
    then settings rows (design.md `settings group`: a lead glyph, the label,
    the value muted, a chevron) that open a page of the same sheet. On a page
@@ -70,7 +70,7 @@
 .unit-sheet-links { border-top: 1px solid var(--line); }
 .unit-sheet-links .action-row,
 .unit-sheet-links .settings-link { padding: 0; }
-/* A summary list inside a sheet (#954). The shared rows pad themselves (4px on
+/* A summary list inside a sheet. The shared rows pad themselves (4px on
    the <li>, 10px on the main button and the trailing slot) because they are
    built to sit full-bleed in a padding-less card; the sheet already pads its
    content, so the two stacked 14px in. Cancel the row's side padding here (the
@@ -95,18 +95,18 @@
   cursor: pointer;
 }
 /* Full width already clears 44px horizontally; only the 36px height (#wakeAlarmAdd
-   among others, issue #361 review) needs the vertical extension (#367). */
+   among others) needs the vertical extension. */
 .schedule-add-btn::before { content: ""; position: absolute; inset: -4px 0; }
 .schedule-add-btn:disabled { color: var(--muted); cursor: default; }
 
-/* Detail-modal Save footer (#202): settings stage locally and commit only in
+/* Detail-modal Save footer: settings stage locally and commit only in
    the vendored modal's sticky .detail-actions, whose one full-width
    .button-primary is disabled until something changes (button.css owns the
    48px height and the disabled recipe). */
 /* No danger/split variant of the footer: the design.md modal contract wants
    exactly one full-width solid-accent primary, so a destructive action goes in
-   the dialog body as .schedule-editor-delete (#570 moved the device-group
-   delete there; every other editor modal here was already that shape). */
+   the dialog body as .schedule-editor-delete (the device-group
+   delete included; every other editor modal here has that shape). */
 
 /* ----------------------------------------------------------- toast */
 /* Neutral frosted toast — the same glass treatment as the floating bottom nav

@@ -1,12 +1,11 @@
-/* Persistent on-device diagnostic for the iOS modal/nav-pin bugs (#300).
+/* Persistent on-device diagnostic for the iOS modal/nav-pin bugs.
  *
  * Superseded two earlier attempts: a throwaway `?navdebug=1` query-param
  * overlay lost its flag the moment the page was "Added to Home Screen", and
  * the first on-screen panel that replaced it grew tall enough during a real
  * test session to cover the whole viewport and block interaction. This
  * version instead:
- *   - toggles via a switch in Settings (#779; was a gauge icon in the Home
- *     header) and
+ *   - toggles via a switch in Settings and
  *     persists the on/off state to localStorage, exactly like the theme and
  *     tab selection, so it survives a PWA relaunch from the home screen.
  *   - posts each event straight to the server (POST /api/nav-debug, which
@@ -39,9 +38,9 @@ function snapshot(nav) {
   const app = document.querySelector('.app');
   const s = {
     scrollY: window.scrollY,
-    appScrollTop: app ? fmt(app.scrollTop) : null,  // the scroller in the standalone shell (#303)
+    appScrollTop: app ? fmt(app.scrollTop) : null,  // the scroller in the standalone shell
     innerHeight: window.innerHeight,
-    // Viewport forensics (#303 round 2): round 1's dead band came from the
+    // Viewport forensics: a dead band can come from the
     // fixed-positioning viewport itself shrinking, which no single number
     // above could prove. Comparing these pins down WHICH viewport moved:
     // clientHeight = the ICB, screenHeight = the physical screen,
@@ -113,12 +112,12 @@ export function installNavDebug() {
 
   // Zero-size fixed probe whose `top` is env(safe-area-inset-bottom): reading
   // it back from getComputedStyle is the only way to observe the value the
-  // engine actually resolved for env() (#303 round-2 viewport forensics).
+  // engine actually resolved for env() (viewport forensics).
   sabProbe = document.createElement('div');
   sabProbe.style.cssText = 'position:fixed;top:env(safe-area-inset-bottom,0px);left:-9999px;width:0;height:0;pointer-events:none;visibility:hidden;';
   document.body.appendChild(sabProbe);
 
-  // 0-width probes sized in each viewport unit (#303 round 3): their measured
+  // 0-width probes sized in each viewport unit: their measured
   // heights expose lvh/svh/dvh, which no JS API reports directly.
   function mkVhProbe(unit) {
     const d = document.createElement('div');
@@ -133,7 +132,7 @@ export function installNavDebug() {
   document.addEventListener('scroll-lock:engaged', function () { record('scroll-lock:engaged'); });
   document.addEventListener('scroll-lock:released', function () { record('scroll-lock:released'); });
 
-  // Keyboard show/hide is the user's own lead suspect (#300) — an editable
+  // Keyboard show/hide is the user's own lead suspect — an editable
   // field grabbing focus inside a dialog is exactly what brings the iOS
   // keyboard up and shrinks the visual viewport far more than a toolbar ever
   // does.
@@ -154,7 +153,7 @@ export function installNavDebug() {
     window.visualViewport.addEventListener('resize', function () { record('vv:resize'); });
   }
 
-  // Plain document scroll (#300 round 2): every earlier event showed
+  // Plain document scroll: every other event showed
   // `navPosition: fixed` and a correct `navRect` at every sampled moment,
   // even right through a keyboard show/hide — yet the bar was seen visibly
   // tracking scroll, and none of the events above fire during a plain scroll.
@@ -169,10 +168,10 @@ export function installNavDebug() {
     requestAnimationFrame(function () { scrollScheduled = false; record('window:scroll'); });
   }, { passive: true });
 
-  // Standalone shell (#303): scrolling moved from the document to the `.app`
+  // Standalone shell: scrolling moved from the document to the `.app`
   // element scroller, and element scroll events don't bubble to window —
   // without this listener a standalone repro session would log no scroll
-  // samples at all, which is exactly the moment the #300 drift showed up.
+  // samples at all, which is exactly the moment the nav drift showed up.
   const appScroller = document.querySelector('.app');
   if (appScroller) {
     let appScrollScheduled = false;

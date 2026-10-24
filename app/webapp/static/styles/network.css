@@ -38,12 +38,12 @@
 }
 .net-speed-btn .icon { width: 1.15em; height: 1.15em; }
 .net-speed-btn.is-busy { opacity: 0.7; cursor: progress; }
-/* Nightly speed-test switch (#840): the notify-toggle row, inset by the tile's
+/* Nightly speed-test switch: the notify-toggle row, inset by the tile's
    own padding rather than the notification cards'. */
 .net-nightly { padding: 0; margin-top: 8px; }
 .net-nightly-hint { margin: 0; }
 
-/* Latency + speed sparklines (#840). One compact row each — a fixed text column
+/* Latency + speed sparklines. One compact row each — a fixed text column
    beside the chart — so the tile grows by ~90px, not a stacked chart per metric,
    and 320px still leaves ~160px of line. Strokes are tokens, so a theme flip
    needs no redraw; upload is dashed so the two speed lines differ without colour. */
@@ -79,7 +79,7 @@
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
   margin-bottom: var(--gap);
 }
-/* One column at phone width (#779, J-04): a phone reads top to bottom, so
+/* One column at phone width: a phone reads top to bottom, so
    peer cards stack rather than sit side by side. */
 @media (max-width: 520px) {
   .metric-tiles,
@@ -182,7 +182,7 @@
   grid-template-areas: "main signal" "mac mac";
   align-items: center;
   column-gap: 10px;
-  /* 10px holds the name's 44px tap zone (24 + 2x10) inside the row (#779). */
+  /* 10px holds the name's 44px tap zone (24 + 2x10) inside the row. */
   padding: 10px 0;
   border-top: 1px solid var(--line);
 }
@@ -229,7 +229,7 @@
   .net-wifi-chart-wrap { height: 185px; }
 }
 
-/* Wi-Fi walk test (issue #547) — per-room coverage survey. Reuses the Wi-Fi
+/* Wi-Fi walk test — per-room coverage survey. Reuses the Wi-Fi
    list's signal bar / is-weak / is-strong vocabulary so the two cards read as
    one system; only the row layout and the picker are new here. */
 .net-survey-card { margin-bottom: var(--gap); }
@@ -339,7 +339,7 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-/* Documented exception to the design.md 44/52/60 row scale (#570): this is a
+/* Documented exception to the design.md 44/52/60 row scale: this is a
    compact action-rail *button* inside .net-survey-row, not a row — a 44px box
    here would out-weigh the room name it sits beside and inflate every survey
    row. The vendored icon-button keeps the 34px box and its ::before supplies
@@ -415,19 +415,19 @@
 /* Attached-device inventory, grouped by band. */
 .net-devices { display: flex; flex-direction: column; }
 .net-group-head {
-  /* First-group top spacing matches between-group spacing (#519) — no
+  /* First-group top spacing matches between-group spacing — no
      first-child override. */
   margin: 14px 0 4px; font-size: var(--font-caption); font-weight: 700;
   color: var(--muted); text-transform: none;
 }
-/* "My groups" view (#513): the header carries an online/total count and — for a
+/* "My groups" view: the header carries an online/total count and — for a
    real (non-Unclassified) group — a pencil that opens the rename/delete dialog. */
 .net-group-head.net-group-head--custom {
   display: flex; align-items: center; gap: 6px;
 }
 .net-group-head-count { font-weight: 600; }
 /* A 16px box: the vendored icon-button ::before grows it to the 44px target
-   without growing the visible pencil (#570). */
+   without growing the visible pencil. */
 .net-group-edit { --icon-btn-box: 16px; }
 .net-device {
   display: grid;
@@ -477,7 +477,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-devices-note { margin: 12px 4px; }
 
 /* Device-list tools row — small sort control plus optional Show offline toggle.
-   Bottom margin matches the 10px .net-stats uses above the Order row (#519). */
+   Bottom margin matches the 10px .net-stats uses above the Order row. */
 .net-devices-head {
   display: flex;
   align-items: center;
@@ -491,7 +491,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   font-size: var(--font-caption);
   white-space: nowrap;
 }
-/* Second control row: the band/my-groups switch (#513). Its own class rather
+/* Second control row: the band/my-groups switch. Its own class rather
    than a second .net-devices-head so the head's right-edge alignment contract
    (and the e2e assertion on it) keeps matching exactly one element. */
 .net-devices-groupby {
@@ -510,7 +510,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   color: var(--muted);
 }
 .net-sort-label { font-weight: 600; margin-right: 2px; }
-/* Sort chip, snapped to the 36px control height (issue #361; was 26px). The
+/* Sort chip, snapped to the 36px control height. The
    ::before extends the tap target to the 44px floor on both axes — a short
    label like "A-Z" renders only ~43px wide, so the pseudo nudges width too
    (measured live: -4px 0 left "A-Z" at 43px, one short). */
@@ -521,7 +521,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
   align-items: center;
   justify-content: center;
   height: var(--control-h);
-  /* Shared min-width (#519) so the Order row's A-Z/Signal pills line up with
+  /* Shared min-width so the Order row's A-Z/Signal pills line up with
      the Group row's My groups/Band pills instead of sizing to their own text
      — sized to fit "My groups", the longest label, so all four render equal. */
   min-width: 96px;
@@ -543,7 +543,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 }
 
 /* Offline (known-but-absent) devices render dimmed; the signal slot carries the
-   "last seen Xh ago" text instead of a live bar. A no-link device (#550) — in
+   "last seen Xh ago" text instead of a live bar. A no-link device — in
    the read, but with no signal and no wired link to show for it — dims the same
    way, since the Offline toggle governs both and neither is a live client. */
 .net-device.is-offline,
@@ -551,7 +551,7 @@ button.net-device-name:hover .net-device-name-text { text-decoration: underline;
 .net-device.is-hidden { opacity: 0.55; }
 .net-device-signal.net-device-lastseen,
 .net-device-signal.net-device-nolink { font-style: italic; }
-/* A ping-confirmed no-link device (#552) is live, not dimmed — its own
+/* A ping-confirmed no-link device is live, not dimmed — its own
    success-colored treatment distinguishes it from both a dimmed no-link row
    and an ordinary AP/router-confirmed signal reading. */
 .net-device-signal.net-device-pingreachable { color: var(--on); font-weight: 600; }
@@ -563,7 +563,7 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Offline status line in the detail modal. */
 #netDeviceStatus.is-offline { color: var(--muted); }
 
-/* Reusable confirm modal (issue #129) — same shell as the detail dialogs, with
+/* Reusable confirm modal — same shell as the detail dialogs, with
    a side-by-side Cancel / confirm action row. A destructive confirm is the
    vendored outlined .button-tint.danger (confirm.js sets `danger`). */
 .confirm-message { margin: var(--space-xs) 0 var(--space-md); }

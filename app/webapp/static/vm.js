@@ -1,5 +1,5 @@
-/* Home Assistant Hyper-V VM control (issue #240; on the Devices tab's Home
- * Assistant group since #884, decision 1 of #872).
+/* Home Assistant Hyper-V VM control (on the Devices tab's Home
+ * Assistant group).
  *
  * Reads GET /api/hyperv and controls the VM via POST /api/hyperv/{start|stop}.
  * The backend shells out to Hyper-V on the host PC and addresses the VM by
@@ -37,7 +37,7 @@ function viewStateFor(vm) {
 }
 
 // The meta line in words, and the avatar badge (design.md avatar: alive and
-// nothing else). The modifier is a state hook, never a colour (#872 tone map).
+// nothing else). The modifier is a state hook, never a colour.
 const BADGES = { running: 'up', unavailable: 'down' };
 
 function renderSummaryState(text, modifier, title) {

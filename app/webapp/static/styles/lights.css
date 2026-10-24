@@ -1,6 +1,6 @@
 /* ----------------------------------------------------- lights (Elgato) */
-/* A light is the shared row (#884); its brightness and warmth sliders live in
-   the light sheet (decision 5 of #872). */
+/* A light is the shared row; its brightness and warmth sliders live in
+   the light sheet. */
 
 .light-unavailable {
   color: var(--muted);
@@ -26,7 +26,7 @@
   appearance: none;
   width: 100%;
   min-width: 0;
-  /* The 44px floor (#779): the visible 5px track and the thumb are centred
+  /* The 44px floor: the visible 5px track and the thumb are centred
      in the box, so only the tappable band grows. */
   height: var(--hit-min);
   accent-color: var(--accent);
@@ -63,8 +63,8 @@
 .light-value-edit .light-number {
   width: 100%;
   /* The wrapper draws the 36px field; the input itself overhangs it by
-     --control-inset above and below so its tap box is the 44px floor
-     (#779). Transparent, with no boundary of its own — the native-control
+     --control-inset above and below so its tap box is the 44px floor.
+     Transparent, with no boundary of its own — the native-control
      recipe's inset shadow would draw a second box inside the wrapper. */
   height: var(--hit-min);
   margin-block: calc(-1 * var(--control-inset));

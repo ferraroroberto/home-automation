@@ -1,6 +1,6 @@
-/* Network (Settings) — DHCP reservation planner + apply flow (#170/#176).
+/* Network (Settings) — DHCP reservation planner + apply flow.
  *
- * Split out of network.js (issue #197). Lazy-loads GET /api/network/dhcp-plan on
+ * Split out of network.js. Lazy-loads GET /api/network/dhcp-plan on
  * first open, then on demand via Refresh. The F6600P caps the static-binding table
  * at 10 rows, so this is a small *staged* reservation manager, not a one-shot
  * apply: mark router rows to remove, tick suggested/manual rows to add, then one
@@ -117,7 +117,7 @@ function renderDhcpExisting(plan) {
 
 // ---- Suggested adds + unassigned (assignable) + randomised (un-reservable) ----
 // All three rows are the same four cells — lead control, name, MAC, trailing
-// status — and used to be built out longhand three times (issue #571). Only the
+// status — and used to be built out longhand three times. Only the
 // lead cell and the trailing cell genuinely differ, so they are the parameters.
 function dhcpRowBase(a, opts) {
   const row = document.createElement('div');
@@ -142,7 +142,7 @@ function dhcpRowBase(a, opts) {
   return row;
 }
 
-// "from → to" as a Lucide arrow between the two addresses (#779 — no arrow
+// "from → to" as a Lucide arrow between the two addresses (no arrow
 // characters standing in for icons), with a hidden word for screen readers.
 function moveHtml(from, to) {
   return esc(from) + icon('arrow-right', 'net-dhcp-arrow') +
@@ -403,7 +403,7 @@ async function loadDhcpPlan() {
   }
 }
 
-// Persist a device's category override (#176), then recompute so it becomes a
+// Persist a device's category override, then recompute so it becomes a
 // suggested add — and auto-stage it, so "pick a group" → staged add is one step.
 async function setDhcpOverride(mac, category) {
   try {

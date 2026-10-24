@@ -1,5 +1,5 @@
 /* Search-engine (SearXNG) status, Settings › Voice › Search engine
- * (issue #321; a Settings sheet since #886). Reads GET /api/searxng and
+ * (a Settings sheet). Reads GET /api/searxng and
  * brings the container up via POST /api/searxng/start. Lighter than vm.js:
  * starting a search engine
  * isn't destructive, so there is no confirm gate and no stop control, and
@@ -119,7 +119,7 @@ export async function loadSearxng() {
 
 const schedule = createPoller(loadSearxng);
 
-// The Search engine row lives in Settings since #779 (was a Home HA subsection).
+// The Search engine row lives in Settings.
 export function onSearxngTab(tab) {
   if (tab === 'settings') {
     loadSearxng();

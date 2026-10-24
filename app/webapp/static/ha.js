@@ -1,5 +1,4 @@
-/* Home Assistant voice: the Devices tab's Home Assistant group (#239; moved
- * from Home in #884, decision 1 of #872).
+/* Home Assistant voice: the Devices tab's Home Assistant group.
  *
  * Beside the VM row (vm.js), two rows open sheets: Voice satellites (HA-owned
  * room names, satellite state/volume and per-room push-to-talk) and Recent
@@ -82,7 +81,7 @@ function renderInteractions(rows) {
   }
 }
 
-// The button's face: icon plus a visible word (#805 — push-to-talk is the
+// The button's face: icon plus a visible word (push-to-talk is the
 // row's main action, so it is never icon-only).
 function micFace(iconName, word) {
   return icon(iconName) + '<span class="ha-mic-label">' + word + '</span>';
@@ -104,7 +103,7 @@ function micButtonHtml(satellite) {
     '" title="' + esc(label) + '">' + micFace('mic', 'Talk') + '</button>';
 }
 
-// A satellite's status chip, exceptions only (#879): idle is the normal
+// A satellite's status chip, exceptions only: idle is the normal
 // state and shows none; listening, processing or responding is work in
 // progress (accent); offline needs you (attention).
 function satelliteChipHtml(satellite) {
@@ -180,7 +179,7 @@ async function loadHa() {
   try {
     state.ha = await jsonApi('/api/ha');
     haViewState = 'ready';
-    // The server answers from memory (#928) and says when that reading is old;
+    // The server answers from memory and says when that reading is old;
     // come back once for the read it started behind this answer (no loop).
     state.haStaleNote = staleReadingNote(state.ha.snapshot);
     if (state.haStaleNote) scheduleHaCatchUp();

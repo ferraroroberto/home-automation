@@ -1,8 +1,8 @@
 /* RISCO Security tab — boot/core controller.
  *
- * Thin orchestrator (issue #197 maintainability split). Owns the tab poll
+ * Thin orchestrator. Owns the tab poll
  * lifecycle, the top-level renderSecurity() that redraws every group, the
- * group link rows' sheets (#882), and the initial loads; the feature logic
+ * group link rows' sheets, and the initial loads; the feature logic
  * lives in three sibling modules:
  *   - ./security-alarm.js     alarm state, action pills, detectors + zone modals
  *   - ./security-schedules.js weekly alarm-schedule CRUD
@@ -41,7 +41,7 @@ export { wireSecurityNotify } from './security-notify.js';
 
 const POLL_MS = 10_000;
 
-// The Security tab's link rows that open a sheet (#882): Automations'
+// The Security tab's link rows that open a sheet: Automations'
 // Schedules / Scene capture / Override (dense collections whose switches save
 // as they change, so instant, with Done) and People's Accounts. The sheets'
 // lists keep their own renderers and ids; only where they sit moved.
@@ -136,8 +136,8 @@ async function loadSecurityState() {
     reportFetchOk('security');
     securityView.set('ready', { updatedAt: new Date() });
     renderSecurity();
-    // Presence also polls on Home (the House card's who-is-home row, #885) —
-    // same precedent as the arm control being actionable on Home too (#72).
+    // Presence also polls on Home (the House card's who-is-home row) —
+    // same precedent as the arm control being actionable on Home too.
     if (state.tab === 'security' || state.tab === 'home') loadPresence();
   } catch (exc) {
     if (isAuthRequired(exc)) return;
@@ -171,8 +171,8 @@ export async function loadSecurity() {
 const schedule = createPoller(loadSecurityState);
 
 export function onSecurityTab(tab) {
-  // The arm control is actionable on Home too (its House card, #885), so keep
-  // it loaded + polling there as well as on the Security tab (issue #72).
+  // The arm control is actionable on Home too (its House card), so keep
+  // it loaded + polling there as well as on the Security tab.
   if (tab === 'security' || tab === 'home') {
     loadSecurity();
     loadPresence();
@@ -188,7 +188,7 @@ export function onSecurityTab(tab) {
     schedule(0);
   }
   // Presence settings, Places and the alarm notification toggles live in
-  // Settings since #779 — one read on entry, no polling.
+  // Settings — one read on entry, no polling.
   if (tab === 'settings') {
     loadLocation();
     loadPresenceAutomation();

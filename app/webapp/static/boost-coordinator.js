@@ -1,8 +1,7 @@
-/* Fleet solar-boost sequencing card for the Energy tab (issue #562).
+/* Fleet solar-boost sequencing card for the Energy tab.
  *
- * #554 shipped the per-unit solar boost; every eligible unit then reacted to the
- * same fleet-wide surplus reading in the same tick, which oscillates rather than
- * controls. The engine now admits and sheds one unit per settle interval — this
+ * Letting every eligible unit react to the same fleet-wide surplus reading in
+ * the same tick oscillates rather than controls. The engine admits and sheds one unit per settle interval — this
  * card is where those fleet-level knobs are tuned, without the tray restart the
  * `.env` boost thresholds still need.
  *

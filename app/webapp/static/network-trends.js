@@ -1,5 +1,5 @@
 /**
- * Internet-health tile trends (#840): a latency sparkline (last 24 h) and a
+ * Internet-health tile trends: a latency sparkline (last 24 h) and a
  * speed-test sparkline (download solid, upload dashed, last 30 days), read from
  * `GET /api/network/internet-history`.
  *
