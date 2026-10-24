@@ -1,7 +1,7 @@
 /* Smart Life (Tuya) data + the Devices tab's Plugs and Blinds groups.
  *
  * Owns the local Tuya devices: on/off switches, live wattage on metered
- * plugs, and Up / Stop / Down on covers, all on the shared row (#884), plus
+ * plugs, and Up / Stop / Down on covers, all on the shared row, plus
  * the Power glance card's live total. All cloud-free — it reads GET /api/tuya
  * (which does per-device LAN reads) and writes the switch/cover endpoints,
  * re-rendering from the read-back.
@@ -66,11 +66,11 @@ function plugLabel(device) {
 }
 
 // ----------------------------------------------------------------- write
-// Per-device in-flight guard (issue #368): toggling plug A must not block
+// Per-device in-flight guard: toggling plug A must not block
 // plug B, but a double-tap on the same toggle must not double-POST.
 const switchBusy = new Set();
 
-// Exported for the Lights card, which renders the Tuya lights (#181).
+// Exported for the Lights card, which renders the Tuya lights.
 export async function toggleSwitch(device, btn) {
   if (switchBusy.has(device.device_id)) return;
   switchBusy.add(device.device_id);
@@ -101,7 +101,7 @@ export async function toggleSwitch(device, btn) {
   }
 }
 
-// Dim a Tuya light (#870). Exported for the Lights card's slider; like the
+// Dim a Tuya light. Exported for the Lights card's slider; like the
 // Elgato slider it does not toast on success (it fires on every release), and
 // re-renders from the read-back card.
 export async function setTuyaBrightness(device, pct) {
@@ -138,11 +138,11 @@ async function coverAction(device, action) {
   }
 }
 
-// House-wide group move (#181): every blind the Blinds card currently lists
+// House-wide group move: every blind the Blinds card currently lists
 // (so a user-hidden blind stays out of it), offline-looking ones included — a
 // user command bypasses the poll backoff, and the blind may well answer. The
 // server sends the commands in parallel and reports each blind's outcome.
-// No tap ever waits for an earlier one (#899): a Stop must go out while an
+// No tap ever waits for an earlier one: a Stop must go out while an
 // All up / All down is still in flight (an unresponsive blind holds that
 // request open), and the server keeps each blind's commands in tap order.
 // Only the latest tap's answer is toasted, so a slow earlier one can't
@@ -195,13 +195,12 @@ export function wireBlindsGroup() {
 }
 
 // ------------------------------------------------------------- the rows
-// Every Tuya device is the shared row (row.js, #880) since #884 (Step 6/8 of
-// #872): the kind glyph, the name, one muted meta line, and one trailing item
+// Every Tuya device is the shared row (row.js): the kind glyph, the name, one muted meta line, and one trailing item
 // (a plug's switch, a blind's icon-button group). Tapping the row opens the
 // device's rename / hide dialog. An unreachable device says so in words; its
-// connection error and address stay out of the copy (#879).
+// connection error and address stay out of the copy.
 
-// The power switch, also used by the Lights group for a Tuya light (#181).
+// The power switch, also used by the Lights group for a Tuya light.
 export function tuyaSwitch(device, label) {
   const on = device.switch_on === true;
   const toggle = document.createElement('button');
@@ -247,7 +246,7 @@ function plugRow(device) {
   return row;
 }
 
-// The unreachable plugs fold into this one row (#872 shared system: an
+// The unreachable plugs fold into this one row (an
 // unplugged plug is not an exception per row). Tapping it lists them under
 // it, or folds them away again; the choice persists.
 function offlineRow(count) {
@@ -271,9 +270,9 @@ function offlineRow(count) {
   return row;
 }
 
-// Up · Stop · Down as one track-less icon-button group (fleet-config#1420): the row's one
+// Up · Stop · Down as one track-less icon-button group: the row's one
 // trailing item, each verb a real 44px target. Glyphs on the row, the
-// household's own word for each (roller blinds go up and down, #181) as the
+// household's own word for each (roller blinds go up and down) as the
 // accessible name and title; the API keeps Tuya's open / stop / close.
 const BLIND_VERBS = [
   ['open', 'Up', 'chevron-up'],
@@ -329,9 +328,9 @@ function setListCard(card, countEl, n, present) {
 }
 
 // --------------------------------------------------------- rename modal
-// Detail-modal staging (#203 pattern): the display name and Hidden edits are
+// Detail-modal staging: the display name and Hidden edits are
 // held locally and written only on Save, via the shared detailModal() shell
-// (issue #699) — plugModal.staged holds the working toggle state captured
+// — plugModal.staged holds the working toggle state captured
 // when the modal opens; closing discards it.
 function renderPlugHiddenToggle(hidden) {
   const btn = els.plugHiddenToggle;
@@ -383,7 +382,7 @@ const plugModal = detailModal({
 });
 
 // Exported for the light sheet: a Tuya light's name and Hidden switch are
-// this dialog's (#181).
+// this dialog's.
 export function openPlugDetail(deviceId, trigger) {
   if (!deviceById(deviceId)) return;
   state.selectedPlugId = deviceId;
@@ -405,15 +404,15 @@ function patchPlug(id, patch) {
 
 // ----------------------------------------------------------- summary stats
 // Totals over every known plug (state.plugs, Tuya lights excluded — the
-// Lights group counts those, #181), independent of the list filters: switches
+// Lights group counts those), independent of the list filters: switches
 // on and live watts on reachable metered plugs. They feed the
-// Devices tab's Power glance card (#884), their one home since #885 retired
-// Home's plug line.
+// Devices tab's Power glance card, their one home: Home carries
+// no plug line.
 function renderStats() {
   const devices = state.plugs.filter(function (d) { return !d.is_light; });
   if (!devices.length) {
     // Still reading: keep the dashes index.html draws, so the card does not
-    // grow when the plugs land (LAYOUT-10, #924). Only a settled "none" hides it.
+    // grow when the plugs land (LAYOUT-10). Only a settled "none" hides it.
     const reading = plugsView.state === 'idle' || plugsView.state === 'loading';
     if (!reading && els.powerNow) els.powerNow.hidden = true;
     if (els.powerOnCount) els.powerOnCount.textContent = '';
@@ -443,7 +442,7 @@ function renderStats() {
   }).join(' · ') || 'Nothing drawing power');
   if (els.powerNow) els.powerNow.hidden = false;
 
-  // The Devices header's plain fact (head-status.js, #880): what is on and
+  // The Devices header's plain fact (head-status.js): what is on and
   // drawing power, from a live read only.
   setHeadPart('iot', 'plugs', plugsView.state === 'ready'
     ? { fact: on + ' on · ' + wattStr }
@@ -451,7 +450,7 @@ function renderStats() {
 }
 
 // Show hidden carries the count and only appears when at least one device is
-// user-hidden — the same group-foot verb as Security's detectors (#882).
+// user-hidden — the same group-foot verb as Security's detectors.
 function renderHiddenToggle() {
   const btn = els.plugsHiddenToggle;
   if (!btn) return;
@@ -497,7 +496,7 @@ export function renderPlugs() {
     : sorted.filter(function (d) { return !d.hidden; });
   renderHiddenToggle();
 
-  // Split: covers → Blinds, lights → Lights (#181), everything else → Plugs.
+  // Split: covers → Blinds, lights → Lights, everything else → Plugs.
   const isPlug = function (d) { return d.has_cover !== true && !d.is_light; };
   const plugs = shown.filter(isPlug);
   const blinds = shown.filter(function (d) { return d.has_cover === true; });
@@ -558,8 +557,8 @@ function applyPlugsBody(body) {
   return state.plugs.length > 0;
 }
 
-// #612: the in-app replacement for a `tinytuya wizard` terminal run, and since
-// the Refresh button was retired it is also the LAN-rediscovery path — the
+// The in-app replacement for a `tinytuya wizard` terminal run, and, with no
+// Refresh button, also the LAN-rediscovery path — the
 // server pairs *and* rescans in one action. Confirmed because it leaves the LAN
 // and talks to the Tuya cloud; it is slow (a cloud round trip plus an ~8s
 // broadcast scan), so the button goes disabled with a busy label to signal that
@@ -598,7 +597,7 @@ export function wirePlugsPair() {
 
 // Wire the rename modal once at boot (mirrors the AC detail-modal wiring).
 export function wirePlugDetail() {
-  // #203: the name + Hidden edits commit on Save, not on blur/toggle.
+  // The name + Hidden edits commit on Save, not on blur/toggle.
   els.plugDisplayName.addEventListener('input', plugModal.markDirty);
   els.plugDisplayName.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); plugModal.save(); }

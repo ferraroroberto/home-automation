@@ -1,4 +1,4 @@
-/* Settings pane rows and their sheets (#886, Step 8/8 of #872).
+/* Settings pane rows and their sheets.
  *
  * Settings is inset groups (design.md `settings group`): every row names a
  * sheet in `data-settings-sheet`, and that sheet holds the controls its card

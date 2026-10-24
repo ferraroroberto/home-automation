@@ -26,7 +26,7 @@
   cursor: pointer;
   transition: background 0.15s ease;
 }
-/* Track stays the shadcn-spec 26px visually (issue #361 keeps switch tracks
+/* Track stays the shadcn-spec 26px visually (switch tracks stay
    as-is); the ::before extends the tap target to the 44px floor vertically
    (26 + 2x9 = 44) — width is already 44px. */
 .toggle::before { content: ""; position: absolute; inset: -9px 0; }
@@ -40,7 +40,7 @@
 /* Label is removed from the visual switch; role="switch" + aria-checked carry
    the state for assistive tech. */
 .toggle-label { display: none; }
-/* On = the app's accent, never green (fleet-config#1200, home-automation#818).
+/* On = the app's accent, never green.
    --on stays the success green for status uses (flow arrows, online dots), so
    the track reads --accent-fill directly, which already has a P3 twin. */
 .toggle.on { background: var(--accent-fill); }
@@ -50,9 +50,9 @@
   opacity: 0.55;
 }
 
-/* Used when a field can't write now (an unreachable unit, #520; a setting not
-   read yet, #881). The one disabled recipe from design.md — flat
-   --card-off/--line/--muted, never opacity on a solid fill (issue #362) — so
+/* Used when a field can't write now (an unreachable unit; a setting not
+   read yet). The one disabled recipe from design.md — flat
+   --card-off/--line/--muted, never opacity on a solid fill — so
    every field greys out identically in both themes. */
 .select-native:disabled,
 .input-native:disabled {

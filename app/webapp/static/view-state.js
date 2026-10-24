@@ -1,4 +1,4 @@
-/* Shared tab view-state machine (issue #452).
+/* Shared tab view-state machine.
  *
  * Every tab-controller module (units/energy/plugs/lights/network/security/
  * cameras/presence/ups/vm) used to hand-roll the same trio: a
@@ -45,8 +45,8 @@ export function createViewState(snapshotKey) {
   };
 }
 
-// The thin "showing older data" line every tab paints while stale (issue #571
-// — hand-rolled in six modules, each with its own near-identical CSS class).
+// The thin "showing older data" line every tab paints while stale (one
+// helper rather than per-module copies, each with its own near-identical CSS class).
 // The shared look is `.stale-note`; `extraClass` carries only the per-tab
 // margin modifiers that genuinely differ (security, ups).
 export function staleNoteEl(text, extraClass) {
@@ -65,7 +65,7 @@ export function staleText(view, snapshotKey) {
 }
 
 /* Render one tab's loading / empty / error / stale feedback into its dedicated
- * feedback host (issue #571). Every tab with such a host — AC, energy, plugs,
+ * feedback host. Every tab with such a host — AC, energy, plugs,
  * network, security — used to hand-roll the identical branch ladder: stamp
  * `data-state`, clear the host, unhide it, then append either an `emptyStateEl`
  * (loading/empty/error) or the stale note, falling through to `hidden = true`
@@ -116,7 +116,7 @@ export function renderFeedback(view, hostEl, opts) {
   hostEl.hidden = true;
 }
 
-/* Move one tab's view into its post-failure state (issue #571): degrade to
+/* Move one tab's view into its post-failure state: degrade to
  * 'stale' when last-good data is still on screen and 'error' when there is
  * nothing to fall back to, toast the failure transition once, then repaint.
  * `hasData` is the tab's own "is there anything left to show" test; `scope` and

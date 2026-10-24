@@ -1,11 +1,11 @@
-/* The page header's live line (#880, Step 2/8 of #872).
+/* The page header's live line.
  *
  * design.md `page-header`: the context line beside each tab's title is live
  * and names only the exceptions, each in its tone's *-text, at most two parts
  * (about 22 characters at 390px), and falls back to a plain fact in muted text
  * when nothing is wrong. Never a fixed slogan, never a count another tab owns.
- * One line is drawn by the vendored home-head's renderHeadStatus
- * (project-scaffolding#343); this module only aggregates the parts.
+ * One line is drawn by the vendored home-head's renderHeadStatus;
+ * this module only aggregates the parts.
  *
  * A tab's line can be fed by more than one module (Devices: the plugs poll
  * and the UPS poll), so each module reports its own part with setHeadPart and

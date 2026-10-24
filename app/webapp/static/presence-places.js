@@ -1,8 +1,8 @@
-/* Named-places dense-collection editor for the "where's mom/dad" voice locator
- * (issue #438). Same summary-row + staged-dialog contract as
+/* Named-places dense-collection editor for the "where's mom/dad" voice locator.
+ * Same summary-row + staged-dialog contract as
  * ./security-schedules.js (list-row summary → Edit opens a staged <dialog>;
  * Save is the only persistence boundary; the whole list is PUT back), and
- * since #912 the same shared `rowEl` too — a place has nothing to enable, so
+ * the same shared `rowEl` too — a place has nothing to enable, so
  * its row closes on a chevron instead of a switch.
  *
  * The "Pick on map" flow adds a second, stacked <dialog> with a vendored
@@ -55,7 +55,7 @@ export function renderPresencePlaces() {
   if (!els.presencePlacesList || !els.presencePlacesNote) return;
   els.presencePlacesList.innerHTML = '';
   state.presencePlacesList = normalizedPlaces();
-  // The Settings row's value (#886): how many places, read without opening.
+  // The Settings row's value: how many places, read without opening.
   if (els.presencePlacesCount) {
     els.presencePlacesCount.textContent = state.presencePlacesList.length
       ? String(state.presencePlacesList.length)
@@ -202,7 +202,7 @@ function ensureMapPicker() {
 }
 
 async function openMapPicker() {
-  // Leaflet's script and stylesheet load on the first open (#760, #777); a
+  // Leaflet's script and stylesheet load on the first open; a
   // failed load of either reports the map unavailable below.
   let loaded = true;
   try {

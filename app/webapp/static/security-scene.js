@@ -1,4 +1,4 @@
-/* Alarm-scene capture pairings editor (issue #162).
+/* Alarm-scene capture pairings editor.
  *
  * Maps each RISCO detector to the camera(s) + PTZ preset that should be
  * snapshotted and AI-analysed when that detector trips the alarm. Mirrors the

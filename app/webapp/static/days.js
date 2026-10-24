@@ -1,4 +1,4 @@
-/* Weekdays for the schedule editors (#885).
+/* Weekdays for the schedule editors.
  *
  * The alarm schedules, the blind schedules and the wake alarms each pick the
  * days an entry runs on and summarise them on its row. Their stored shape is

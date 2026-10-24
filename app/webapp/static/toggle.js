@@ -1,4 +1,4 @@
-/* Shared switch-button helpers (issue #360).
+/* Shared switch-button helpers.
  *
  * The app's one canonical boolean control is the `.toggle` button — a
  * shadcn-style track + knob, `role="switch"`, accent when on (see

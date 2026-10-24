@@ -1,8 +1,8 @@
-/* Home Automation — Activity log overlay (#289).
+/* Home Automation — Activity log overlay.
  *
  * A read-only admin/telemetry panel (a <dialog>, not a tab) opened from the
  * Settings "Activity log" button, and from the Security tab's All events
- * already filtered to the alarm (decision 8 of #872, #882). Lists recent
+ * already filtered to the alarm. Lists recent
  * events from GET /api/activity, with a domain dropdown + a free-text type
  * filter — both applied server-side, so the browser never holds or filters
  * the whole store.
@@ -47,7 +47,7 @@ function fmtTime(ts) {
   return sameDay ? time : d.toLocaleDateString([], { month: 'short', day: '2-digit' }) + ' ' + time;
 }
 
-// Humanize a raw snake_case enum for display (issue #367) — event types like
+// Humanize a raw snake_case enum for display — event types like
 // "auto_unbypass" / "trigger_no_pairing" and reading metrics were rendered
 // verbatim; this turns them into "Auto unbypass" / "Trigger no pairing".
 function humanizeEnum(s) {
@@ -65,7 +65,7 @@ function detailText(ev) {
   else if (p.text) bits.push(String(p.text));
   else if (p.reason) bits.push(String(p.reason));
   if (ev.source && bits.length === 0) bits.push(ev.source);
-  // 'blocked' (#599) carries its reason in the same field as 'error'.
+  // 'blocked' carries its reason in the same field as 'error'.
   if ((ev.outcome === 'error' || ev.outcome === 'blocked') && p.error) bits.push(String(p.error));
   return bits.join(' · ');
 }

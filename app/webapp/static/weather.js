@@ -1,13 +1,13 @@
 /* Home Automation — the Home header's weather line.
  *
- * Polls GET /api/weather at a slow cadence. Since #885 (decision 2 of #872)
- * the weather is no card: it is the Home page header's live line, the one
+ * Polls GET /api/weather at a slow cadence.
+ * The weather is no card: it is the Home page header's live line, the one
  * header where the quiet line may be a plain fact rather than a count. The
  * line is the sky now and today's range ("Clear 21° · 9° / 21°"); the
  * accessible name adds today's forecast sky and the place it is for (the
  * home location, set in Settings). Fails quietly and keeps the last value:
  * weather is decorative, never load-bearing. The clock was dropped long ago:
- * it just duplicated the phone's status-bar clock (issue #72). */
+ * it just duplicated the phone's status-bar clock. */
 
 'use strict';
 

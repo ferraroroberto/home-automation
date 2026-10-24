@@ -1,6 +1,6 @@
-/* Voice-command cheat sheet (issue #437) — Settings › Voice › What can I
- * say?, the one voice help since #886 (its "In this app" part, static markup
- * in index.html, was the separate "What can I do?" card).
+/* Voice-command cheat sheet — Settings › Voice › What can I
+ * say?, the one voice help (its "In this app" part, static markup
+ * in index.html, is the "What can I do?" guide).
  *
  * What you can *say* to the pucks. Content is the curated catalogue in
  * src/voice_commands.py, served by GET /api/voice-commands.
@@ -20,7 +20,7 @@ import { onSettingsSheetOpen } from './settings.js';
 
 const LANG_LABELS = { en: 'EN', es: 'ES' };
 
-// The cheat-sheet language filter (#466). 'all' shows every phrasing with its
+// The cheat-sheet language filter. 'all' shows every phrasing with its
 // EN/ES chip; a specific language narrows to commands that answer in it.
 const LANG_FILTERS = [
   { id: 'all', label: 'All' },
@@ -47,8 +47,8 @@ function filterGroupsByLang(groups, lang) {
 }
 
 // Rendered as a segmented control at the top of the "What can I say?" sheet
-// body (els.voiceLangToggle, a fixed host in index.html). It sat in the card's
-// <summary> until #779: a control inside a summary is an ambiguous tap (a
+// body (els.voiceLangToggle, a fixed host in index.html). It stays out of the card's
+// <summary>: a control inside a summary is an ambiguous tap (a
 // near-miss folds the card), and its 18px pills were under the 44px floor.
 function renderLangToggle() {
   const toggle = els.voiceLangToggle;

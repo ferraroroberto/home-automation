@@ -1,4 +1,4 @@
-/* Network (Settings) — Wi-Fi walk test (site survey), issue #547.
+/* Network (Settings) — Wi-Fi walk test (site survey).
  *
  * The Wi-Fi diagnostics card next door scans from the *server PC*, so it only
  * ever describes coverage where that PC sits. This card answers the question the
@@ -17,7 +17,7 @@
  * The device pick lives in localStorage rather than on the server because over
  * Tailscale every client arrives from a 100.x address — there is nothing for the
  * server to map back to a LAN MAC. Sibling of network-devices/-wifi/-dhcp under
- * the issue-#197 split; the boot module (network.js) calls renderSurvey here.
+ * the network.js boot module, which calls renderSurvey here.
  */
 
 'use strict';
@@ -87,7 +87,7 @@ function signalClass(signal) {
 
 // --------------------------------------------------------------- device pick
 // Private mode throws on localStorage — the pick then stays in memory for this
-// session. That read/write-with-catch pair lives in state.js (issue #571).
+// session. That read/write-with-catch pair lives in state.js.
 const surveyMacPref = persistedPref(NETWORK_SURVEY_MAC_KEY);
 
 function writeSurveyMac(mac) {

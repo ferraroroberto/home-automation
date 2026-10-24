@@ -1,5 +1,4 @@
-/* Presence — Web Push enrolment (split out of ./presence.js, issue #454
- * maintainability split).
+/* Presence — Web Push enrolment (split out of ./presence.js).
  *
  * Owns the browser-side VAPID subscribe flow: GET /api/push/config for the
  * public key, service-worker registration, PushManager subscribe, and POSTing

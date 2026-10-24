@@ -1,4 +1,4 @@
-/* Sun-position diagnostic, hosted in Settings (#590).
+/* Sun-position diagnostic, hosted in Settings.
  *
  * Read-only companion to the forecast card: the day's measured performance
  * ratio against where the sun actually was. Split out of ./energy.js, which

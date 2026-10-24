@@ -1,9 +1,9 @@
-/* PV-system editor for the Energy tab (issue #561).
+/* PV-system editor for the Energy tab.
  *
  * The write side of the solar forecast's inputs: the panel rows (kWp + tilt +
  * azimuth each), the shared performance ratio, and the home coordinates the
- * forecast is computed at. #555 built the multi-sub-array engine but left the
- * config file-only — this card makes it editable without an SSH session.
+ * forecast is computed at. The multi-sub-array engine reads a config
+ * file; this card makes it editable without an SSH session.
  *
  * Same summary-row + staged-dialog contract as ./presence-places.js: the row
  * list is a dense collection driven by ./dense-editor.js (Save is the only
@@ -45,7 +45,7 @@ export function setPvSystemSavedHook(fn) {
 
 // A save must always end in a toast — if the forecast refetch hangs or
 // rejects, race it against a timeout so the confirmation still fires with the
-// plain fallback text (issue #564) rather than never appearing.
+// plain fallback text rather than never appearing.
 const SAVED_ESTIMATE_TIMEOUT_MS = 4000;
 
 function safeOnSaved() {

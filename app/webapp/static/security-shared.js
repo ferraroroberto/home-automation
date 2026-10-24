@@ -1,7 +1,7 @@
 /* Shared helpers for the RISCO detector-scoped editors (security-scene.js,
  * security-override.js): both build detector options from the same
  * already-loaded security state, resolve a zone id to its label the same way,
- * and repopulate a <select> the same way (issue #571 — these last two used to
+ * and repopulate a <select> the same way (these last two would otherwise
  * be byte-identical copies in both editors).
  */
 

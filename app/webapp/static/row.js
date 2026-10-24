@@ -1,4 +1,4 @@
-/* One row renderer (#880, Step 2/8 of #872).
+/* One row renderer.
  *
  * design.md `action-row` + `avatar`: a flat row whose tap opens the item's
  * sheet, with exactly one leading slot, a 600-weight title on one line, at
@@ -10,7 +10,7 @@
  * The anatomy is the vendored action-row (_vendored/action-row/, verbatim):
  * `.action-row-main` is the stretched tap target and the trailing item is its
  * sibling, so a tap on the switch never also opens the sheet. Two parts are
- * this app's until project-scaffolding#341 takes them upstream: the leading
+ * this app's until the vendored action-row takes them upstream: the leading
  * avatar inside the tap target, and a trailing item that is not a kebab.
  *
  * Avatar badge = connected (design.md: "alive and nothing else"): 'up' while
@@ -22,7 +22,7 @@
  *   glyph, badge     the avatar's icon name and 'up' | 'down' | null
  *   time             optional tabular time leading the row in place of the
  *                    avatar (design.md: a leading slot may be a time value),
- *                    inside the tap target: Recent events, Next up (#885)
+ *                    inside the tap target: Recent events, Next up
  *   title            the row's name
  *   meta             optional muted line: text, or a node when it carries a
  *                    glyph (an arrow is a Lucide icon, never a character)
@@ -34,7 +34,7 @@
  *                    that only opens its sheet (no trailing item)
  *   lead             optional leading element *outside* the tap target, in
  *                    place of the avatar, for a lead with its own action (a
- *                    camera's last-frame thumbnail zooms, #882)
+ *                    camera's last-frame thumbnail zooms)
  *   trail            optional trailing element (a switch, a value)
  *   className        extra class on the row
  *   track            optional usage-log control id (`data-track`) on the

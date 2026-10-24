@@ -1,4 +1,4 @@
-/* One sheet shell, two save models (#880, Step 2/8 of #872).
+/* One sheet shell, two save models.
  *
  * Every detail sheet in this app is a native <dialog> (design.md `modal`: the
  * editor modal is also the detail sheet). Before this, each module wired the

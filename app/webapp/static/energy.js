@@ -1,12 +1,12 @@
 /* Energy data + Energy-tab controller.
  *
  * Owns everything energy: the compact Home flow card and the Energy tab, which
- * since #883 (Step 5/8 of #872) is the glance card (the live flow and one line
+ * is the glance card (the live flow and one line
  * of self-sufficiency), the Today card (two meters and the day's savings), one
  * History card (one period picker, an Energy / Money switch, the live flowing
  * chart behind Live), and the solar forecast. The Settings editors that used to
- * live here are their own modules: ./export-rates.js (export compensation,
- * #883) and ./sun-overlay.js (sun-position diagnostic, #590). This module wires
+ * live here are their own modules: ./export-rates.js (export compensation)
+ * and ./sun-overlay.js (sun-position diagnostic). This module wires
  * them and keeps the Money view's Export rate row that opens the former.
  *
  * Cadence is tab-aware: the live snapshot polls fast (LIVE_MS) only while the
@@ -91,7 +91,7 @@ function markEnergyFailure() {
 }
 
 // --------------------------------------------------------------- formatting
-// group / fmtW / fmtPct / esc live in the shared format.js (issue #383).
+// group / fmtW / fmtPct / esc live in the shared format.js.
 
 function fmtKwh(wh) {
   return wh == null ? '—' : (Number(wh) / 1000).toFixed(2) + ' kWh';
@@ -110,7 +110,7 @@ function fmtFracPct(frac) {
 
 // A feed-outage duration: "1.3 h" / "45 min", empty when there was none. Sub-
 // hour outages are the common case and "0.8 h" reads worse than "45 min" at
-// this size. Shared by the generation card and the forecast card (#579).
+// this size. Shared by the generation card and the forecast card.
 function fmtGap(hours) {
   const h = Number(hours) || 0;
   if (h <= 0) return '';
@@ -144,8 +144,8 @@ function selfConsumptionFrac(solar, house) {
 
 // ----------------------------------------------------- render a live snapshot
 // Element groupings for the two *identical* Solar → Home ← Grid flows: the
-// Energy tab's glance card and the Home tab's House card (#885). Same view,
-// rendered once (issue #57).
+// Energy tab's glance card and the Home tab's House card. Same view,
+// rendered once.
 const energyFlowRefs = {
   pv: els.flowPv, grid: els.flowGrid, house: els.flowHouse,
   nodePv: els.flowNodePv, wirePv: els.wirePv, wireGrid: els.wireGrid,
@@ -165,8 +165,8 @@ function renderFlowCard(r, e, solar) {
   r.nodePv.classList.toggle('is-idle', !e.inverter_reachable);
 
   // Solar → Home wire: a Lucide arrow while producing, a dim dot when
-  // asleep/zero (Lucide glyphs since #779 — no ▶ ◀ · characters as icons).
-  // Direction is not a status, so the arrows carry no colour (#883).
+  // asleep/zero (Lucide glyphs — no ▶ ◀ · characters as icons).
+  // Direction is not a status, so the arrows carry no colour.
   const producing = solar != null && solar > 0;
   r.wirePv.classList.toggle('is-active', producing);
   r.wirePv.innerHTML = icon(producing ? 'arrow-right' : 'dot');
@@ -191,7 +191,7 @@ function renderFlowCard(r, e, solar) {
   }
 }
 
-// The Energy header's live line (head-status.js, #880): what the house does
+// The Energy header's live line (head-status.js): what the house does
 // with the grid right now, or why that isn't known. A restored snapshot says
 // nothing: it is not live.
 function renderEnergyHead(e) {
@@ -241,7 +241,7 @@ export function renderEnergy(e) {
   // Two distinct causes, worth telling apart: solar still reading means the
   // inverter is fine and only the power sensor is bad, which is a hardware
   // fault to chase; nothing reading at all is just no data from the source.
-  // A third, distinct state (#771): the server is answering with its last good
+  // A third, distinct state: the server is answering with its last good
   // reading because the source stopped refreshing, so it isn't live and isn't
   // plotted as if it were.
   const stale = !!(e.snapshot && e.snapshot.stale);
@@ -305,7 +305,7 @@ export async function loadEnergy() {
 
 // ------------------------------------------------------- today's split cards
 // The totals above stay exactly as measured; this line says why they may read
-// low without blaming the array (#579).
+// low without blaming the array.
 function renderFeedGap(el, hours) {
   const text = fmtGap(hours);
   el.textContent = text ? 'Solar feed offline for ' + text + ' — measured total is short' : '';
@@ -393,7 +393,7 @@ export function restoreEnergySnapshots() {
   if (today) renderToday(today && today.bucket, today && today.gap_hours);
 }
 
-// ---------------------------------------------------- History › Money (#883)
+// ---------------------------------------------------- History › Money
 function currencySymbol(cur) {
   return cur === 'EUR' ? '€' : (cur ? cur + ' ' : '€');
 }
@@ -535,7 +535,7 @@ async function loadSavingsEur() {
   }
 }
 
-// The selected segment is the state (#879): aria-pressed drives both the
+// The selected segment is the state: aria-pressed drives both the
 // styling and what assistive tech announces.
 function markSegments(btns, key, value) {
   btns.forEach(function (btn) {
@@ -543,7 +543,7 @@ function markSegments(btns, key, value) {
   });
 }
 
-// ------------------------------------------------- History card (#883)
+// ------------------------------------------------- History card
 // One period for both views. Live is the last hour of the flow and has no
 // money view, so while it is selected Money is unavailable, and while Money is
 // shown Live is; the other segment always says why in its title.
@@ -598,19 +598,19 @@ function setHistoryView(view) {
 
 // --------------------------------------------------- solar forecast card
 // A clearer note per reason; the default HTML note covers the common case.
-// Both now point at the PV-system card (in Settings since #779) rather than at a file on disk —
-// the config is editable in the app since issue #561.
+// Both point at the PV-system card (in Settings) rather than at a file on disk —
+// the config is editable in the app.
 const FORECAST_NOTES = {
   not_configured: 'Add your panel rows in the PV system card in Settings to enable the forecast.',
   no_location: 'Set the home coordinates in the PV system card in Settings to enable the forecast.',
-  // Distinct from the generic fallback below (#597): Open-Meteo is answering,
+  // Distinct from the generic fallback below: Open-Meteo is answering,
   // just refusing this request rate — not the same as a network failure. Only
   // reached when there's no cached curve recent enough to show instead.
   rate_limited: 'Weather provider is rate-limiting us right now — retrying shortly.',
 };
 
 // "1.5 kWp · 35° · S · PR 0.80" (single array) or
-// "7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80" (multi-orientation, issue #555)
+// "7.9 kWp · 15° · S  +  0.9 kWp · 15° · N · PR 0.80" (multi-orientation)
 // from the array params the curve used.
 function forecastParamsLine(sys) {
   if (!sys || !sys.arrays || !sys.arrays.length) return '';
@@ -637,7 +637,7 @@ function renderForecast(body) {
   els.forecastHeadline.textContent = 'Expected generation +' + (total != null ? total : '—') + ' kWh';
   // The actual overlay draws under-covered hours as projections, so say when
   // any of it is inferred rather than measured — otherwise the two curves
-  // agreeing looks like a measurement it isn't (#579).
+  // agreeing looks like a measurement it isn't.
   const gap = fmtGap(body.actual_gap_hours);
   els.forecastMeta.textContent = body.actual
     ? 'estimate vs actual' + (gap ? ' · feed offline ' + gap : '')
@@ -716,7 +716,7 @@ export function wireEnergyControls() {
   });
   syncHistory();
   // History › Money: All figures is read-only (Done only); Export rate opens
-  // its editor where it lives now, Settings › Energy (#883, a sheet since #886).
+  // its editor where it lives now, Settings › Energy (a sheet).
   const figures = sheet(els.energyFiguresSheet, {
     model: 'instant',
     closeButton: document.getElementById('energyFiguresSheetClose'),
@@ -733,7 +733,7 @@ export function wireEnergyControls() {
   wireExportRates(reloadMoney);
   // Editing the array/coordinates changes what the forecast is computed from,
   // so every successful save re-reads the curve for the day on screen — and
-  // the resolved estimate feeds the save toast (issue #564).
+  // the resolved estimate feeds the save toast.
   setPvSystemSavedHook(function () { return loadForecast(state.forecastDay); });
   wirePvSystem();
   wireSunOverlay();
@@ -751,7 +751,7 @@ function scheduleToday(on) {
 // Called by the tab switcher whenever the active tab changes.
 export function onEnergyTab(tab) {
   if (tab === 'energy') {
-    // The chart-fed loaders wait for Chart.js, loaded on the first visit (#760).
+    // The chart-fed loaders wait for Chart.js, loaded on the first visit.
     ensureCharts().then(function () {
       syncHistory();   // size the chart that is showing
       loadHistory();   // whatever the History card shows: live, energy or money
@@ -767,13 +767,13 @@ export function onEnergyTab(tab) {
     schedule(SLOW_MS);
     scheduleToday(false);
   }
-  // The PV system, Solar boost and sun-position sheets live in Settings since
-  // #779, export compensation since #883. The sun-position check reads only
-  // while its sheet is open (#590): closed, it costs nothing.
+  // The PV system, Solar boost and sun-position sheets live in Settings,
+  // as does export compensation. The sun-position check reads only
+  // while its sheet is open: closed, it costs nothing.
   if (tab === 'settings') {
     loadPvSystem();
-    loadExportRates();       // export compensation, moved here from Energy (#883)
-    loadBoostCoordinator();  // fleet solar-boost sequencing knobs (#562)
+    loadExportRates();       // export compensation, moved here from Energy
+    loadBoostCoordinator();  // fleet solar-boost sequencing knobs
     if (els.sunOverlaySheet && els.sunOverlaySheet.open) ensureSunOverlay();
   }
 }

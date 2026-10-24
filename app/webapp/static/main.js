@@ -1,8 +1,7 @@
 /* Home Automation — entry module: boots the dashboard and wires events.
  *
- * Loaded by index.html as <script type="module">. Thin orchestrator (issue
- * #346 maintainability split, mirroring #197's security.js/network.js
- * pattern): owns boot wiring, the theme toggle, nav-debug init, and login.
+ * Loaded by index.html as <script type="module">. Thin orchestrator
+ * (the same pattern as security.js/network.js): owns boot wiring, the theme toggle, nav-debug init, and login.
  * The AC rows (Home and the AC tab, one shared row) and the unit sheet
  * (setpoint, power, mode, fan, vanes, temperature rule, schedules, name)
  * live in ./units.js — each command there hits POST /api/units/{id} and
@@ -108,7 +107,7 @@ function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   // Show the glyph for the action: sun to switch to light, moon to switch to dark.
   const mark = icon(dark ? 'sun' : 'moon');
-  // One toggle per page header (#779), so the glyph is the same on every tab.
+  // One toggle per page header, so the glyph is the same on every tab.
   els.themeToggleBtns.forEach(function (btn) { btn.innerHTML = mark; });
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   restyleEnergyCharts();
@@ -127,17 +126,16 @@ function toggleTheme() {
 
 els.themeToggleBtns.forEach(function (btn) { btn.addEventListener('click', toggleTheme); });
 
-// ------------------------------------------------------- text size (#820)
+// ------------------------------------------------------- text size
 // The pre-paint stamp is the inline boot script in index.html; this wires the
 // Settings control (vendored, prefix = the same one the theme key uses).
 bindTextSize(document.getElementById('textSizeControl'), 'home-automation');
 
-// ----------------------------------------------------------- nav debug (#300)
+// ----------------------------------------------------------- nav debug
 (function initNavDebug() {
   installNavDebug();
   if (!els.navDebugBtn) return;
-  // A Settings switch since #779 (was an icon button in the Home header),
-  // Diagnostics › Record navigation log since #886.
+  // A Settings switch: Diagnostics › Record navigation log.
   setToggleState(els.navDebugBtn, isNavDebugEnabled());
   wireToggle(els.navDebugBtn, setNavDebugEnabled);
 })();
@@ -171,7 +169,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   const fromUrl = tokenFromUrl();
   if (fromUrl) writeToken(fromUrl);
 
-  // Local-only usage log (#906, project-scaffolding#349): which tabs and
+  // Local-only usage log: which tabs and
   // [data-track] controls get used, posted to this app's own /api/usage. The
   // token is read per send, like api(), since a phone off loopback needs it.
   const usage = initUsageLog({
@@ -182,13 +180,13 @@ els.loginForm.addEventListener('submit', async function (ev) {
   });
 
   // Lock background scroll whenever a modal opens — iOS Safari scrolls the page
-  // behind a <dialog> despite the CSS overflow lock (#214). Patch before any
+  // behind a <dialog> despite the CSS overflow lock. Patch before any
   // dialog can open.
   installDialogScrollLock();
 
   // The shared confirm dialog is used from every tab and from dense-editor.js,
   // so it is wired at boot rather than by whichever feature tab happens to own
-  // it — the layering the #574 move to confirm.js was about.
+  // it — the layering confirm.js exists for.
   wireConfirmDialog();
   wireSettings();
   wireUnitsControls();
@@ -228,7 +226,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   restoreVmSnapshot();
   restoreLightsSnapshot();
   restoreNetworkSnapshot();
-  // Tabs: wireTabs (nav-tabs.js, issue #184) restores the remembered tab and
+  // Tabs: wireTabs (nav-tabs.js) restores the remembered tab and
   // fires this fan-out callback immediately for it, so it must run last —
   // after every wireXControls()/restoreXSnapshot() call above — replacing
   // the old three-step wireTabs() + onTabChange() + setTab(initialTab()).
@@ -240,8 +238,8 @@ els.loginForm.addEventListener('submit', async function (ev) {
   });
 
   // AC units only matter on Home and AC (their rows), so poll them
-  // only while one of those tabs is active rather than every 30s everywhere
-  // (#209). wireTabs() above fires the fan-out callback for the default
+  // only while one of those tabs is active rather than every 30s everywhere.
+  // wireTabs() above fires the fan-out callback for the default
   // 'home'/'ac' tab immediately, which calls units.js's onUnitsTab ->
   // loadUnits() — so there is no separate boot fetch for units here (unlike
   // loadEnergy() / startWeatherPolling() below, whose tabs' onChange hooks

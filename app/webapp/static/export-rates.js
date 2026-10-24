@@ -1,4 +1,4 @@
-/* Export-compensation editor, hosted in Settings (#883, a sheet since #886).
+/* Export-compensation editor, hosted in Settings (a sheet).
  *
  * The dated surplus-compensation rates the Money view prices exported energy
  * with: the list of rates, the add / edit / delete form, and the GET / PUT /

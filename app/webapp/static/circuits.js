@@ -8,11 +8,11 @@
  * Two deliberate behaviours, both because clamps get added over time:
  *  - a channel is never dropped for reading 0 W, so a clamp fitted next week
  *    starts showing a live figure with nothing to reconfigure. Hiding one is a
- *    *user* decision (issue #619), never inferred from a reading;
+ *    *user* decision, never inferred from a reading;
  *  - meters are discovered server-side over mDNS, so a new meter simply
  *    appears here on its own — which is why this card has no Refresh button.
  *
- * One number per row (issue #619): watts. Amps, cumulative kWh, mains voltage,
+ * One number per row: watts. Amps, cumulative kWh, mains voltage,
  * Wi-Fi signal and the meter's MAC are reference figures, so they live in the
  * detail dialog where you go looking for them deliberately.
  *
@@ -84,8 +84,8 @@ function visibleChannels(meter) {
 }
 
 // ------------------------------------------------------------- the rows
-// The shared row (row.js, #884, Step 6/8 of #872): one row per clamp, its
-// watts the one trailing value (issue #619: amps, kWh, voltage and signal are
+// The shared row (row.js): one row per clamp, its
+// watts the one trailing value (amps, kWh, voltage and signal are
 // in the dialog). The meta names the meter and terminal, so an unlabelled
 // clamp can still be traced. A meter's avatar badge means connected (up) or
 // should be and is not (down), on each of its clamps and its own row.
@@ -152,10 +152,10 @@ function buildMeterRow(meter) {
 }
 
 // --------------------------------------------------------- rename modal
-// Staged like the plug modal (#203 pattern): the label and the sign flip are
+// Staged like the plug modal: the label and the sign flip are
 // held locally and written only on Save.
 // One dialog key resolves to either a channel entry ({meter, channel}) or a
-// whole meter — the shared detailModal() shell (issue #699) treats both as
+// whole meter — the shared detailModal() shell treats both as
 // "the entity", tagged by kind so populate/buildOps below can branch.
 function circuitEntity(key) {
   const entry = channelByKey(key);
@@ -396,7 +396,7 @@ export async function loadCircuits() {
   }
 }
 
-// There is no Refresh button (issue #619): the card re-polls on its own while
+// There is no Refresh button: the card re-polls on its own while
 // the IoT tab is open, and a meter that joins the Wi-Fi appears by itself once
 // the server's mDNS discovery TTL lapses. POST /api/circuits/refresh still
 // exists for a forced sweep from the command line.

@@ -1,6 +1,6 @@
-/* ------------------------------------------- Energy tab (#883, Step 5/8)
+/* ------------------------------------------- Energy tab
    The glance card's one line under the flow, then the Today, History and
-   forecast cards: open groups on the shared head (.group-head, #882) with
+   forecast cards: open groups on the shared head (.group-head) with
    their bodies padded like the card. */
 .energy-glance-line {
   margin: var(--gap) 0 0;
@@ -20,7 +20,7 @@
 .energy-history-body,
 .forecast-body { padding: var(--gap) 14px; }
 .group-note:empty { display: none; }
-/* A Settings card a tab links to (showSettings, #883) lands below the
+/* A Settings card a tab links to (showSettings) lands below the
    floating nav, never under it. */
 #paneSettings > .card { scroll-margin-top: 80px; }
 
@@ -47,7 +47,7 @@
    control's track). Its fill is coloured by pace; a Today meter is a share
    of the day, not usage against a budget, so it has no pace and no tick and
    stays accent — never green (success is never a bar). transform, not width,
-   so a change animates on the compositor (#367). */
+   so a change animates on the compositor. */
 .meter {
   display: block;
   height: 6px;
@@ -111,7 +111,7 @@
   border-top: 1px solid var(--line-muted);
 }
 
-/* --------------------------------------------------- PV-system editor (#561)
+/* --------------------------------------------------- PV-system editor
    The card body and its row/dialog internals reuse the existing disclosure,
    settings-row and dense-collection recipes (see .pv-system-body,
    .presence-settings > .row, .schedule-editor-delete) — only the hairline
@@ -161,7 +161,7 @@
 .chart-empty { margin: var(--space-sm) 0 0; text-align: center; }
 
 /* Labelled utility buttons (Refresh, Show hidden, Zoom in, Wake, ...) are the
-   vendored .button-surface tier (_vendored/button/, #906): it owns the fill,
+   vendored .button-surface tier (_vendored/button/): it owns the fill,
    hairline, --control-h height, label colour and the flat disabled recipe.
    This class carries only the layout the retired pill row gave them, so
    no row shifts: it grows in a flex row, centres an inline glyph beside its

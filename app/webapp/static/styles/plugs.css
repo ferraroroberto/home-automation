@@ -4,7 +4,7 @@
 
 .vm-toggle { flex: none; }
 .ha-note { margin: 9px 0 0; }
-/* Search-engine sub-card Start button (issue #321): .button-tint already
+/* Search-engine sub-card Start button: .button-tint already
    supplies the base look. */
 .searxng-start-btn {
   margin-top: 10px;
@@ -70,8 +70,7 @@
 .ha-interaction-response,
 .ha-interaction-meta { margin: 3px 0 0; overflow-wrap: anywhere; }
 
-/* Voice reference sections (#437, shared with the "What can I do?" guide in
-   #461). The spoken example is the one thing the eye should land on, so it
+/* Voice reference sections (shared with the "What can I do?" guide). The spoken example is the one thing the eye should land on, so it
    gets the only filled surface. Each group is its own <details> so
    alarm/wake-alarms/locator/etc. fold independently — reuses the shared
    .collapse-summary/.collapse-chevron disclosure, just with a lighter title
@@ -82,8 +81,8 @@
 .voice-group:first-child > .collapse-summary { padding-top: var(--space-xs); }
 .voice-group .collapse-title { font-size: var(--font-label); }
 .voice-group .collapse-icon { color: var(--accent); }
-/* The voice sheet's "In this app" guide (the "What can I do?" card until
-   #886) reuses .voice-group-* naming but is hand-authored markup, not the
+/* The voice sheet's "In this app" guide (the "What can I do?" card)
+   reuses .voice-group-* naming but is hand-authored markup, not the
    JS-rendered .collapse-summary structure above — so its <h4> icon + text
    need their own gap, and each group its own breathing room around the
    border-top divider. Scoped to .voice-app-help's direct children: the
@@ -122,8 +121,8 @@
 .voice-reply .icon { width: 16px; height: 16px; vertical-align: -3px; }
 .voice-group-notes { margin: var(--space-sm) 0 0 26px; padding-left: 18px; line-height: 1.45; }
 .voice-group-notes li + li { margin-top: var(--space-xs); }
-/* Voice-command language filter (#466): the vendored segmented control at
-   the top of the "What can I say?" body — out of the summary since #779. */
+/* Voice-command language filter: the vendored segmented control at
+   the top of the "What can I say?" body — out of the summary. */
 .voice-lang-toggle { margin-bottom: var(--space-sm); }
 
 

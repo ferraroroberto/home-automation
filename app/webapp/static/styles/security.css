@@ -8,7 +8,7 @@
   padding: 12px;
   margin-bottom: var(--gap);
 }
-/* The state line (#882): a shield glyph, the mode word and the exception
+/* The state line: a shield glyph, the mode word and the exception
    chips, left-aligned like a card header; the segmented control below shows
    the same mode as its selected segment. */
 .security-state {
@@ -16,7 +16,7 @@
   display: flex;
   align-items: center;
   /* Chips wrap onto a new line instead of overflowing the card on narrow
-     mobile widths (issue #223). */
+     mobile widths. */
   flex-wrap: wrap;
   gap: 2px var(--space-sm);
   min-height: var(--row-sm);
@@ -27,14 +27,14 @@
 }
 .security-state-icon { width: var(--icon-title); height: var(--icon-title); flex: none; }
 .security-state-word { font-weight: 700; }
-/* The state word is plain text (#879, decision 3 of #872): an armed mode is
-   normal, and the selected segment below already shows it (raised, #888).
+/* The state word is plain text: an armed mode is
+   normal, and the selected segment below already shows it (raised).
    Red is kept for a triggered alarm; arming is work in progress (accent). */
 .security-state.is-alert .security-state-word { color: var(--danger-text); }
 .security-state.is-arming .security-state-word { color: var(--accent-text); }
 /* The alarm actions are the segmented control (.segmented--verbs). */
 .security-action:active:not(:disabled) { transform: scale(0.97); }
-/* The glance card's schedule line and its Kids home row (#882). The row is
+/* The glance card's schedule line and its Kids home row. The row is
    the shared action-row, full-bleed inside the card's own padding. */
 .security-next {
   margin: var(--space-sm) 0 0;
@@ -48,7 +48,7 @@
 .security-kids-row .action-row-main { cursor: default; }
 .security-kids-row .action-row-main:active { background: transparent; }
 
-/* A chip that opens something (the glance card's trouble chip, #882): the
+/* A chip that opens something (the glance card's trouble chip): the
    chip's shape and tone, a real button, its target grown to 44px. */
 .chip-button {
   position: relative;
@@ -59,7 +59,7 @@
 }
 .chip-button::before { content: ""; position: absolute; inset: -12px -4px; }
 
-/* -------------------------------------------- open groups (#882)
+/* -------------------------------------------- open groups
    A tab's lists are open cards on the shared row (design.md card header +
    action-row), never closed disclosures: a header row (glyph, bold title,
    muted meta pinned right), the rows full-bleed, and an optional footer for

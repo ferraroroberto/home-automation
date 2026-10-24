@@ -7,7 +7,7 @@
  * already handled — so no call site may surface it as a failure.
  * `isAuthRequired()` is that test (never hand-roll the string compare) and
  * `reportActionFailure()` is the whole mutation-path idiom in one line: silent
- * on auth, otherwise one "<label>: <reason>" error toast (issue #631).
+ * on auth, otherwise one "<label>: <reason>" error toast.
  */
 
 'use strict';
@@ -35,7 +35,7 @@ export function isAuthRequired(exc) {
 
 // The mutation-path failure idiom: quiet on auth, one error toast otherwise.
 // `label` names the action that failed ('Rename failed', 'Failed to save', …);
-// the sanitized reason is appended (#879: no hosts, addresses or exception
+// the sanitized reason is appended (no hosts, addresses or exception
 // text in the UI). A call site that also has cleanup to skip on auth keeps its
 // own `if (!isAuthRequired(exc)) { … }` block instead.
 export function reportActionFailure(exc, label) {

@@ -3,14 +3,14 @@
  * Reads GET /api/lights and writes POST /api/lights/{id}. Polling is tab-aware
  * like Plugs: the LAN read runs only while the Devices tab is open.
  *
- * The group also lists the Tuya lights (#181). Those are read by plugs.js as
+ * The group also lists the Tuya lights. Those are read by plugs.js as
  * part of GET /api/tuya and handed over as state.tuyaLights on every Plugs
  * render (the 'plugs:rendered' event); their on/off and dimming reuse the
  * Tuya write path, so there is one Tuya read and one Tuya write path.
  *
- * Every light is the shared row (row.js, #884): the bulb, the name, one meta
+ * Every light is the shared row (row.js): the bulb, the name, one meta
  * line (brightness and warmth while on), the power switch. Tapping the row
- * opens the light sheet (decision 5 of #872): power, brightness and warmth,
+ * opens the light sheet: power, brightness and warmth,
  * each applied as it changes, and a link to the staged name / details dialog
  * (lightDialog for an Elgato light, the plug dialog for a Tuya one). */
 
@@ -110,7 +110,7 @@ function wait(ms) {
 
 async function applyLight(light, patch) {
   // Toast only the on/off command — brightness/temperature sliders call this
-  // rapidly and would otherwise spam the toast (#204).
+  // rapidly and would otherwise spam the toast.
   const isToggle = Object.prototype.hasOwnProperty.call(patch, 'on');
   try {
     if (isToggle) toast('Sending…', 'pending');
@@ -174,7 +174,7 @@ async function applyAllLights(on) {
 
 // One labelled slider + exact-number field. ``name`` labels it for assistive
 // tech; ``apply(next)`` is called once per committed value (release / Enter),
-// never per pixel — shared by the Elgato and Tuya lights (#870).
+// never per pixel — shared by the Elgato and Tuya lights.
 function buildSlider(name, key, min, max, value, suffix, apply) {
   const row = document.createElement('div');
   row.className = 'light-control-row';
@@ -267,7 +267,7 @@ function tuyaMeta(device) {
 }
 
 // An unreachable light should be there and is not: the down badge and an
-// attention chip, never its connection error (it carries the address, #879).
+// attention chip, never its connection error (it carries the address).
 function lightRow(opts) {
   const row = rowEl({
     className: 'light-row',
@@ -409,7 +409,7 @@ function onSheetEdit() {
 }
 
 // ------------------------------------------- Elgato name + details dialog
-// The staged name edit rides the shared detailModal() shell (#912).
+// The staged name edit rides the shared detailModal() shell.
 const lightModal = detailModal({
   dialog: els.lightDialog,
   closeButton: els.lightDetailClose,
@@ -510,7 +510,7 @@ export function renderLights() {
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = lightsView.lastUpdatedLabel() + ' · live data unavailable';
   } else if (state.lightsStaleNote) {
-    // Answered from the server's memory past its staleness bound (#928); the
+    // Answered from the server's memory past its staleness bound; the
     // card's own 15 s poll picks up the refresh that answer started.
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = state.lightsStaleNote;

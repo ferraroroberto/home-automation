@@ -1,10 +1,8 @@
-/* People card controller — boot/core (split out of security.js, issue #197;
- * further split, issue #454).
+/* People card controller — boot/core (split out of security.js).
  *
  * Owns the people list (render, hide, rename), the detail modal, and the
- * House card's who-is-home row on Home (#885) — this is a leaf-ish module: it depends only
- * on ./state.js and ./api.js plus its three feature sibling modules (issue
- * #454 maintainability split, mirroring the network.js → network-devices/
+ * House card's who-is-home row on Home — this is a leaf-ish module: it depends only
+ * on ./state.js and ./api.js plus its three feature sibling modules (mirroring the network.js → network-devices/
  * wifi/dhcp.js boot + feature-module pattern):
  *   ./presence-location.js    home-location editor + "this device" browser GPS
  *   ./presence-automation.js  alarm-automation knobs (arm delay, kids-home)
@@ -160,7 +158,7 @@ function markPresenceFailure() {
   renderPresence();
 }
 
-// Fail loud when the Find My diagnostics source itself is broken (#442) —
+// Fail loud when the Find My diagnostics source itself is broken —
 // distinct from a person simply being "away, unknown exact location".
 const BROKEN_SOURCE_REASONS = ['error', '2fa_required', 'terms_required', 'not_configured'];
 function brokenSourceText(reason) {
@@ -169,8 +167,8 @@ function brokenSourceText(reason) {
   return 'Find My location tracking is down';
 }
 
-// Who is home, as one row of Home's House card (#885; it replaces the Home
-// locator card of #438): "2 home · 1 away" and who is out, counted over the
+// Who is home, as one row of Home's House card (it replaces the Home
+// locator card): "2 home · 1 away" and who is out, counted over the
 // people the People group lists (not hidden, not this device). The row opens
 // Security › People, where each person's sheet holds their place, last seen
 // and the role the voice locator answers to ("where's dad?"). It derives from
@@ -180,7 +178,7 @@ function renderHousePeople() {
   if (!list) return;
   const presence = state.presence;
   // Nothing read yet: leave the dashed row index.html draws at first paint, so
-  // the card keeps its height until the real row replaces it (LAYOUT-10, #924).
+  // the card keeps its height until the real row replaces it (LAYOUT-10).
   if (!presence) return;
   list.innerHTML = '';
   const diag = presence.diagnostics || {};
@@ -212,7 +210,7 @@ function renderHousePeople() {
     } else {
       meta = home.length ? 'Everyone home' : '';
     }
-    // A broken Find My source leaves the counts frozen: say so (#442).
+    // A broken Find My source leaves the counts frozen: say so.
     if (diag.available === false && BROKEN_SOURCE_REASONS.indexOf(diag.reason) !== -1) {
       chip = chipEl(diag.reason === '2fa_required' ? 'Sign in' : 'Find My down', 'attention', 'house-people-chip');
       chip.title = brokenSourceText(diag.reason);
@@ -244,7 +242,7 @@ export function renderPresence() {
     presenceView.state === 'loading' ? 'true' : 'false'
   );
   const presence = state.presence;
-  // The per-account iCloud rows (#659) live on the diagnostics, which survive
+  // The per-account iCloud rows live on the diagnostics, which survive
   // a stale poll — render them from whatever snapshot is held.
   renderPresenceAccounts(presence);
   if (presenceView.state === 'loading') {
@@ -334,7 +332,7 @@ export function renderPresence() {
   renderPresenceAutomationNote();
 }
 
-// Where a person is, in one muted line (#882; four lines before, J-10):
+// Where a person is, in one muted line:
 // home, or away with the distance and the place; who, how and when sit in the
 // person sheet. This device's line says what it is instead: browser GPS that
 // never drives the alarm.
@@ -379,14 +377,14 @@ function renderPresenceRefreshNote() {
 }
 
 // ------------------------------------------- iCloud accounts + trust renewal
-// (issue #659) One row per configured Apple ID from diagnostics.accounts[]:
+// One row per configured Apple ID from diagnostics.accounts[]:
 // who it is, whether its cached session still holds Apple's ~30-day browser
 // trust, and a Renew trust action. Renewal is two POSTs on the SAME live
 // pyicloud session server-side: begin (Apple pushes a 6-digit code) → the code
 // dialog → complete. Untrusted is not broken — Find My keeps serving; only
 // fresh sign-ins get expensive — so the row states it plainly rather than as
 // an error, and the button is merely emphasised. An account Apple holds until
-// updated terms are accepted (#736) gets no button at all: renewal re-signs in
+// updated terms are accepted gets no button at all: renewal re-signs in
 // and hits the same refusal, and accepting is the account holder's own step.
 const accountNotes = {};   // label → inline result line, survives the 10 s re-render
 const accountBusy = {};    // label → true while begin is in flight
@@ -410,7 +408,7 @@ function accountTrustState(acct) {
   return { cls: 'is-unknown', text: 'trust unknown — no session yet' };
 }
 
-// The People group's Accounts row value (#882): how many Apple IDs, and a
+// The People group's Accounts row value: how many Apple IDs, and a
 // chip when one needs you: a broken sign-in in danger, a lapsed trust or
 // Apple's terms in attention.
 function renderAccountsMeta(accounts) {
@@ -636,7 +634,7 @@ export async function loadPresence() {
 }
 
 // --------------------------------------------------- presence detail + config
-// The staged name + role edit rides the shared detailModal() shell (#912).
+// The staged name + role edit rides the shared detailModal() shell.
 const presenceModal = detailModal({
   dialog: els.presenceDialog,
   closeButton: els.presenceDetailClose,

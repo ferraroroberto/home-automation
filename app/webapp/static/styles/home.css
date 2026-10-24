@@ -1,4 +1,4 @@
-/* ------------------------------------------- Home tab (#885, Step 7/8)
+/* ------------------------------------------- Home tab
    A pure dashboard: the House glance card (is the house OK?), the Climate
    group and Next up, each an open group on the shared head. */
 .house-glance,
@@ -35,7 +35,7 @@
 /* ------------------------------------------------- energy flow diagram */
 .energy-feedback { margin: 0 0 var(--gap); }
 /* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
-   self-evident, and the time duplicated the phone clock — #74). */
+   self-evident, and the time duplicated the phone clock). */
 .flow-card { padding: 12px; margin-bottom: var(--gap); }
 
 /* One compact row: Solar · Home · Grid, each a small stacked node, joined by
@@ -60,8 +60,8 @@
 .flow-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 .flow-name { font-size: var(--font-body-sm); font-weight: 600; color: var(--muted); }
 
-/* Wires carry a Lucide arrow/dot (#779), set in JS. Direction is not a
-   status (#883, tone map of #872): a flowing wire is ink, an idle one muted,
+/* Wires carry a Lucide arrow/dot, set in JS. Direction is not a
+   status: a flowing wire is ink, an idle one muted,
    never green — the Grid node's name says Exporting / Importing in words. */
 .flow-arrow {
   flex: none;

@@ -1,29 +1,29 @@
 /* Network (Settings) — attached-device inventory + the per-device detail/rename modal.
  *
- * Split out of network.js (issue #197): the device list grouped by band (weakest
+ * Split out of network.js: the device list grouped by band (weakest
  * signal first), the sort and show-offline/show-hidden toggles with their
  * localStorage-backed prefs, and the rename / mark-important / hide detail modal.
  * The boot module (network.js) owns renderNetwork and calls into renderStats /
  * renderDevices here; this module calls back into renderNetwork after a mutation.
  *
- * Issue #513 adds a second way to group the same list: the user's own device
+ * A second way to group the same list: the user's own device
  * groups instead of the radio band, with a trailing synthetic "Unclassified"
- * bucket and a rename/delete dialog on each real group header. Issue #519
- * makes "My groups" the default view and extends the offline show/hide toggle
- * to it too — a group's online/total count still reflects every member, but
+ * bucket and a rename/delete dialog on each real group header.
+ * "My groups" is the default view and the offline show/hide toggle
+ * applies to it too — a group's online/total count still reflects every member, but
  * the offline rows themselves are only rendered (shaded, in place) when the
  * toggle is on, same as the band view. A group left with nothing visible after
  * that filter (all members offline, toggle off) is simply skipped rather than
  * rendering an empty header.
  *
- * Issue #550 splits "in this read" from "demonstrably on the network". The
+ * "In this read" is distinct from "demonstrably on the network". The
  * router's DHCP lease table outlives the client that held the lease, so a row
  * can come back with online:true yet no band, no SSID and no signal — a phone
  * that left hours ago still holds its lease. Visibility and the group counts
  * therefore key off hasLiveLink() below, not the raw online flag, and those
  * no-link rows ride the same Offline toggle as the genuinely absent ones.
  *
- * Issue #702 splits the group rename/delete dialog itself into a
+ * The group rename/delete dialog itself lives in a
  * ./network-groups.js sibling — this module keeps the group *list* (groupsOf /
  * membersOf, the latter exported for network-groups.js) and the edit-pencil
  * that opens it, following the boot-orchestrator-plus-feature-modules split
@@ -78,7 +78,7 @@ const CONN_LABELS = { '5GHz': '5 GHz', '2.4GHz': '2.4 GHz', wired: 'Wired' };
 // renamable or deletable, and always rendered last — it is simply whatever has
 // no explicit assignment.
 const UNCLASSIFIED = 'Unclassified';
-// Which source reported a device (issue #169) — shown only in the detail modal.
+// Which source reported a device — shown only in the detail modal.
 const SOURCE_LABELS = {
   ap: 'Access point',
   router: 'Router (DHCP)',
@@ -145,8 +145,8 @@ export function renderStats(devices) {
   els.netStats.hidden = false;
 }
 
-// Identity precedence: custom label → OUI vendor → reported hostname → MAC
-// (issue #129 Phase 2). Most clients report an 'n/a' hostname, so the vendor
+// Identity precedence: custom label → OUI vendor → reported hostname → MAC.
+// Most clients report an 'n/a' hostname, so the vendor
 // and the rename are what make the list legible.
 export function deviceLabel(d) {
   return d.display_name || d.vendor || d.name || d.mac || '(unknown)';
@@ -191,12 +191,12 @@ function bandLabel(d) {
   return band ? (CONN_LABELS[band] || band) : '—';
 }
 
-// Is this device demonstrably on the network right now (issue #550)?
+// Is this device demonstrably on the network right now?
 //
 // Being in the current read is not enough: a device known only from the
 // router's DHCP lease table comes back with online:true but conn_type, ssid and
 // signal all null, and that lease survives the client leaving (the caveat
-// src.network_router.read_dhcp_leases documents for issue #507). Nor can the
+// src.network_router.read_dhcp_leases documents). Nor can the
 // backend classify those rows away — the lease's PhyPortName reads LAN4 for
 // every client behind the access point, wired or not, and some lease-only rows
 // do answer a ping, so they are neither reliably wired nor reliably gone.
@@ -206,7 +206,7 @@ function bandLabel(d) {
 // shown while the Offline toggle is hiding what can't be vouched for.
 //
 // A no-link device can still be positively confirmed host-side: the backend
-// pings it (issue #552, bounded to this subset, cached briefly) and reports
+// pings it (bounded to this subset, cached briefly) and reports
 // `ping_reachable`. A confirmed device promotes into the live view too, with
 // its own marker (buildDeviceRow below) so it reads as probe-confirmed rather
 // than AP/router-confirmed.
@@ -228,9 +228,9 @@ function renderGroupingControls() {
 
 function buildDeviceRow(d, grouped) {
   const offline = d.online === false;
-  // In the read, but with nothing to show for it (#550) — dimmed like an
+  // In the read, but with nothing to show for it — dimmed like an
   // offline row, since the toggle groups the two together. A ping-confirmed
-  // device (#552) has live evidence of its own now, so it is never no-link.
+  // device has live evidence of its own now, so it is never no-link.
   const noLink = !offline && !hasLiveLink(d);
   const row = document.createElement('div');
   row.className = 'net-device' + (grouped ? ' is-grouped' : '');
@@ -260,8 +260,8 @@ function buildDeviceRow(d, grouped) {
   text.textContent = label;
   name.appendChild(text);
   // A "New" chip for a device first seen in the last 24 h (Phase 4). A row
-  // promoted by the ping probe (#552) gets no chip: its signal cell already
-  // says "reachable via ping" (#879).
+  // promoted by the ping probe gets no chip: its signal cell already
+  // says "reachable via ping".
   if (d.is_new) name.appendChild(chipEl('New', 'accent', 'net-device-new'));
   name.addEventListener('click', function () { openNetDeviceDetail(d.mac); });
   row.appendChild(name);
@@ -271,7 +271,7 @@ function buildDeviceRow(d, grouped) {
   if (grouped) {
     // The grouped view answers "which of these is up, and on what?" — so band
     // and SSID are explicit (the band header no longer says it). The MAC is
-    // dropped (#519) for consistency with the band view; it's still reachable
+    // dropped for consistency with the band view; it's still reachable
     // from the detail modal.
     const bits = [d.ip || '—', bandLabel(d)];
     const ssid = ssidOf(d);
@@ -298,13 +298,13 @@ function buildDeviceRow(d, grouped) {
   } else if (d.conn_type === 'wired') {
     signal.textContent = 'wired';
   } else if (d.ping_reachable === true) {
-    // Promoted by the host-side probe (#552), not AP/router evidence — its own
+    // Promoted by the host-side probe, not AP/router evidence — its own
     // distinct, non-dimmed treatment so it doesn't read as an ordinary signal.
     signal.classList.add('net-device-pingreachable');
     signal.textContent = 'reachable via ping';
   } else {
     // Says why the row is behind the Offline toggle, where a bare "—" read as
-    // a missing measurement on an otherwise-live device (#550).
+    // a missing measurement on an otherwise-live device.
     signal.classList.add('net-device-nolink');
     signal.textContent = 'no link';
   }
@@ -318,9 +318,9 @@ function byLastSeenDesc(a, b) {
 }
 
 // The offline toggle is shown only when it has something to reveal — the
-// known-but-absent devices plus the no-link ones (#550) — and mirrors the
-// security/plugs toggle styling. The label always reflects current visibility
-// (#519), never the pending action — "Offline shown" while those rows are
+// known-but-absent devices plus the no-link ones — and mirrors the
+// security/plugs toggle styling. The label always reflects current visibility,
+// never the pending action — "Offline shown" while those rows are
 // visible, "Offline hidden" while they're filtered out.
 function renderOfflineToggle(dormantCount) {
   const btn = els.netOfflineToggle;
@@ -372,10 +372,10 @@ export function renderDevices(devices) {
   renderGroupingControls();
   const byGroup = state.networkDeviceGrouping === 'group';
   // Live = evidence of a link right now; dormant = everything the Offline
-  // toggle governs, i.e. the absent rows *and* the no-link ones (#550).
+  // toggle governs, i.e. the absent rows *and* the no-link ones.
   const live = list.filter(hasLiveLink);
   const dormant = list.filter(function (d) { return !hasLiveLink(d); });
-  // The offline toggle behaves identically in both grouping modes (#519).
+  // The offline toggle behaves identically in both grouping modes.
   renderOfflineToggle(dormant.length);
   renderDeviceHiddenToggle(hiddenCount);
 
@@ -454,7 +454,7 @@ function byOnlineThenSort(a, b) {
 }
 
 function renderCustomGroups(list, hiddenCount) {
-  // The offline toggle now governs visibility here too (#519): a group's
+  // The offline toggle now governs visibility here too: a group's
   // online/total count still counts every member, but an offline or no-link
   // row only renders (shaded, in place) when the toggle is on.
   const showOffline = state.networkShowOffline;
@@ -474,8 +474,8 @@ function appendCustomGroup(name, members, editable, showOffline) {
   // The count reflects every member regardless of the offline toggle; only
   // the rendered rows are filtered by it. A group left with nothing visible
   // (no member has a live link, toggle off) is skipped rather than rendering
-  // an empty header (#519). "Online" counts a live link, not merely presence
-  // in the read — four phones holding stale leases read 0/4, not 4/4 (#550).
+  // an empty header. "Online" counts a live link, not merely presence
+  // in the read — four phones holding stale leases read 0/4, not 4/4.
   const onlineCount = members.filter(hasLiveLink).length;
   const visible = showOffline ? members : members.filter(hasLiveLink);
   if (!visible.length) return;
@@ -587,7 +587,7 @@ function renderNetDeviceHiddenToggle(d) {
   setToggleState(btn, on);
 }
 
-// Detail-modal staging (#203, shared shell #699): the display name, Important
+// Detail-modal staging (shared shell): the display name, Important
 // and Hidden edits are held locally and written only on Save. netDeviceModal
 // .staged holds the working toggle state captured when the modal opens;
 // closing discards it. Important/Hidden go through PUT ops keyed off the
@@ -615,7 +615,7 @@ const netDeviceModal = detailModal({
     els.netDeviceDetailName.textContent = deviceLabel(d);
     // Status: online, offline with how long since it was last on the network,
     // or "no live link" for a row the router still leases but nothing can
-    // vouch for (#550) — deliberately not called Offline, which would claim a
+    // vouch for — deliberately not called Offline, which would claim a
     // fact the read never established.
     const live = hasLiveLink(d);
     if (d.online === false) {
@@ -737,13 +737,13 @@ export function wireNetDeviceDetail() {
   }
 }
 
-// Group rename/delete dialog: ./network-groups.js (issue #702). openGroupDialog
+// Group rename/delete dialog: ./network-groups.js. openGroupDialog
 // is imported above for the edit-pencil click handler in appendCustomGroup;
 // wireNetGroupDialog is wired directly from network.js.
 
 // ------------------------------------------------- prefs + toggles
 // Persisted list preferences (localStorage), like plugs/security toggles. The
-// storage/try-catch concern lives once in state.js (issue #571); what an absent
+// storage/try-catch concern lives once in state.js; what an absent
 // or unrecognised stored value means stays here.
 const showOfflinePref = persistedFlag(NETWORK_SHOW_OFFLINE_KEY);
 const showHiddenDevicesPref = persistedFlag(NETWORK_SHOW_HIDDEN_DEVICES_KEY);
@@ -780,7 +780,7 @@ export function setDeviceGrouping(grouping) {
   renderNetwork();
 }
 
-// "My groups" is the default for anyone with nothing persisted yet (#519); a
+// "My groups" is the default for anyone with nothing persisted yet; a
 // prior explicit 'band' choice is preserved.
 export function initDeviceGroupingPref() {
   state.networkDeviceGrouping = deviceGroupingPref.read() === 'band' ? 'band' : 'group';

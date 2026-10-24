@@ -2,9 +2,9 @@
  *
  * Reads GET /api/ups. The backend prefers NUT when available and otherwise uses
  * Windows USB-HID battery telemetry, so the connected PC UPS works without
- * vendor cloud software. On Devices (#884) the UPS is a row of the Power glance
- * card, and its sheet holds the reading and the PC-fleet shutdown (#498). On
- * Home (#885) the UPS is no tile: an exception (on battery, low, critical) is
+ * vendor cloud software. On Devices the UPS is a row of the Power glance
+ * card, and its sheet holds the reading and the PC-fleet shutdown. On
+ * Home the UPS is no tile: an exception (on battery, low, critical) is
  * a chip on the House card that opens this sheet, and a healthy UPS says
  * nothing there. */
 
@@ -39,7 +39,7 @@ function fmtRuntime(seconds) {
   return h + ' h ' + String(m).padStart(2, '0') + ' min';
 }
 
-// The UPS status chip, for exceptions only (#879): online, charging and full
+// The UPS status chip, for exceptions only: online, charging and full
 // are the normal state and show none. The most urgent condition wins.
 function statusChip(ups) {
   const status = (ups && ups.status) || '';
@@ -49,7 +49,7 @@ function statusChip(ups) {
   return null;
 }
 
-// The Power card's UPS row (#884): connected badge, the reading in one line,
+// The Power card's UPS row: connected badge, the reading in one line,
 // an exception chip, and the sheet one tap away. The row is there in every
 // state, so the PC-fleet shutdown in its sheet is always reachable.
 function upsRowMeta() {
@@ -146,8 +146,8 @@ export function renderUps() {
   renderUpsHead();
 }
 
-// The UPS's part of the Devices header line (head-status.js, #880) and of
-// Home's House card (#885): only its exceptions, the same ones the row chips;
+// The UPS's part of the Devices header line (head-status.js) and of
+// Home's House card: only its exceptions, the same ones the row chips;
 // a healthy UPS adds nothing. On Home the chip opens the UPS sheet on Devices.
 function renderUpsHead() {
   const ups = state.ups;
@@ -216,6 +216,6 @@ export function onUpsTab(tab) {
   } else {
     schedule(0);
   }
-  // The UPS notification toggles live in Settings' Notifications card (#779).
+  // The UPS notification toggles live in Settings' Notifications card.
   if (tab === 'settings') loadPowerNotifyPrefs();
 }

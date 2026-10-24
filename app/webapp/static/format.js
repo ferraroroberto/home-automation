@@ -1,8 +1,7 @@
-/* Home Automation — shared value-formatting helpers (issue #383).
+/* Home Automation — shared value-formatting helpers.
  *
  * One implementation for the formatting helpers that used to be duplicated
- * per tab module (the /design-sync sibling-consistency findings,
- * fleet-config#277). The copies had drifted: energy's esc() didn't null-guard
+ * per tab module (the /design-sync sibling-consistency findings). The copies had drifted: energy's esc() didn't null-guard
  * (rendered the string "null") and skipped the quote entity, while plugs/ups
  * showed ungrouped watts ("1234 W") where energy grouped ("1,234 W") — the
  * same physical quantity formatted differently per tab. Same quantity, same
@@ -58,8 +57,8 @@ export function localIsoDate(d) {
   ].join('-');
 }
 
-/** The bar + fill + "NN%" trio every Wi-Fi signal cell renders (issue #571 —
- *  built verbatim in network-devices.js, network-wifi.js and
+/** The bar + fill + "NN%" trio every Wi-Fi signal cell renders (shared by
+ *  network-devices.js, network-wifi.js and
  *  network-survey.js). Returns a DocumentFragment for the caller to append
  *  into its own cell span, whose class differs per list. */
 export function renderSignalBar(signal) {
@@ -78,7 +77,7 @@ export function renderSignalBar(signal) {
   return frag;
 }
 
-/* Failure copy people read (design.md "Async data & feedback", #879). A server
+/* Failure copy people read (design.md "Async data & feedback"). A server
  * `detail` or an Error message passes through only when it reads as a sentence
  * written for people ("Time must be HH:MM"). Anything carrying infrastructure
  * detail gives the plain fallback instead: a URL, a network or hardware
@@ -115,7 +114,7 @@ export function friendlyError(exc, fallback) {
 }
 
 /** The line a card shows under an answer the server served from memory past its
- *  staleness bound (#926, #928): when that reading was taken, and that a fresh
+ *  staleness bound: when that reading was taken, and that a fresh
  *  one is on its way. '' while the answer is fresh. */
 export function staleReadingNote(snapshot) {
   if (!snapshot || !snapshot.stale) return '';

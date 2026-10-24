@@ -1,4 +1,4 @@
-/* iOS-proof background scroll lock for open <dialog>s (#214).
+/* iOS-proof background scroll lock for open <dialog>s.
  *
  * Two independent problems this solves:
  *   1. iOS Safari ignores `overflow:hidden` on the body for *touch* scrolling,
@@ -20,7 +20,7 @@
 let locked = false;
 let savedScrollY = 0;
 
-/* #303 standalone shell: `.app` is a fixed element scroller and the DOCUMENT
+/* Standalone shell: `.app` is a fixed element scroller and the DOCUMENT
  * must stay scrollable (the shell's 1px spacer) even while a modal is open —
  * pinning the body would pull the spacer out of the document flow, iOS would
  * contract the standalone layout viewport (932 → 873 measured on-device), and
@@ -48,7 +48,7 @@ function engage() {
     savedScrollY = 0;                       // .app keeps its own scrollTop; nothing to restore
   }
   locked = true;
-  // Deterministic signal for tabs.js (#300): reset any stale VisualViewport
+  // Deterministic signal for tabs.js: reset any stale VisualViewport
   // transform on the floating nav *before* it goes hidden, so the transform
   // that reappears with it on close is never a leftover from before the
   // dialog opened.
@@ -65,7 +65,7 @@ function release() {
   b.style.width = '';
   locked = false;
   window.scrollTo(0, savedScrollY);         // restore the offset the negative top stood in for
-  // Fired *after* the scroll restore completes, so tabs.js's re-pin (#300)
+  // Fired *after* the scroll restore completes, so tabs.js's re-pin
   // always measures a settled layout instead of racing its own independent
   // MutationObserver against this one over the same `open` attribute change.
   document.dispatchEvent(new CustomEvent('scroll-lock:released'));

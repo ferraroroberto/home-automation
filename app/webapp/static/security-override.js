@@ -1,8 +1,8 @@
-/* Alarm-override editor (issue #341).
+/* Alarm-override editor.
  *
  * Per-detector "bypass this zone after N repeated alarms this armed session"
- * rules. RISCO's panel already does an uncontrolled version of this (issue
- * #325); this lets the user set a tighter, per-zone retry count (1-3) so a
+ * rules. RISCO's panel already does an uncontrolled version of this;
+ * this lets the user set a tighter, per-zone retry count (1-3) so a
  * windy garden or a roaming animal stops spamming the scene-capture pipeline
  * well before the panel's own limit. Mirrors the pairings editor's
  * load/normalise/render/save shape (security-scene.js), persisting through

@@ -1,8 +1,8 @@
-/* Alarm state + detectors controller (split out of security.js, issue #197).
+/* Alarm state + detectors controller (split out of security.js).
  *
  * Owns the glance card's state line and arm control (segmented), the Recent
  * events group, and the Detectors group with the per-zone detail/rename sheet
- * (#882 put both groups on the shared row). State writes are one-tap POST/PUT
+ * (both groups are on the shared row). State writes are one-tap POST/PUT
  * calls that re-render from the returned live state; the top-level redraw is
  * delegated back to the boot module's renderSecurity().
  *
@@ -38,7 +38,7 @@ export const ACTION_LABELS = {
   perimeter: 'Perimeter',
 };
 // Optimistic ("pending") toast shown the instant an action is tapped, before the
-// refresh — mirrors the plugs/lights "Sending…" convention (issue #218).
+// refresh — mirrors the plugs/lights "Sending…" convention.
 const ACTION_TOASTS = {
   disarm: 'Disarming…',
   partial: 'Arming partial…',
@@ -46,7 +46,7 @@ const ACTION_TOASTS = {
   arm: 'Arming full…',
 };
 // Result ("success") toast shown once the action completes — so it's clear what
-// happened (command sent → done), matching the rest of the app (issue #218).
+// happened (command sent → done), matching the rest of the app.
 const ACTION_DONE = {
   disarm: 'Disarmed',
   partial: 'Partial armed',
@@ -72,7 +72,7 @@ function currentMode() {
   const security = state.security || {};
   // The backend mode is authoritative. We deliberately do NOT infer "triggered"
   // from memory_alarm/alarm_pending — those flags are sticky (they don't clear
-  // on disarm), which left a badge stuck on forever (issue #223). A tamper while
+  // on disarm), which left a badge stuck on forever. A tamper while
   // disarmed instead relies on Disarm being always tappable to clear it.
   return security.mode || 'unknown';
 }
@@ -95,7 +95,7 @@ function statusClass(mode) {
 
 function actionAvailable(action) {
   if (!supported(action)) return false;
-  // Disarm is ALWAYS tappable (issue #223): a tamper/triggered alarm while the
+  // Disarm is ALWAYS tappable: a tamper/triggered alarm while the
   // panel still reports "disarmed" must be clearable from the app, and the cloud
   // exposes no reliable "needs clearing" signal to gate on. Less intuitive (live
   // even when quiet) but robust. Arm options stay disarmed-only.
@@ -103,7 +103,7 @@ function actionAvailable(action) {
   return currentMode() === 'disarmed';
 }
 
-// One panel → one in-flight action at a time (issue #368): a busy flag checked
+// One panel → one in-flight action at a time: a busy flag checked
 // at entry and reflected as disabled pills, mirroring vm.js's onToggle guard.
 // Double-tapping Arm/Disarm must not send a second POST to the physical alarm.
 let actionBusy = false;
@@ -128,7 +128,7 @@ async function postAction(action) {
   }
 }
 
-// Per-zone in-flight guard (issue #368): bypassing zone A must not block zone B,
+// Per-zone in-flight guard: bypassing zone A must not block zone B,
 // but a double-tap on the same zone's toggle must not double-POST.
 const bypassBusy = new Set();
 
@@ -159,7 +159,7 @@ async function setBypass(zone, bypass, btn) {
   }
 }
 
-// The segment each panel mode selects (#879). Arming and triggered select
+// The segment each panel mode selects. Arming and triggered select
 // none: the state line names them.
 const MODE_SEGMENTS = {
   disarmed: 'disarm',
@@ -177,11 +177,11 @@ const SEGMENT_LABELS = {
 };
 
 // Alarm controls render into every registered container — the Security tab and
-// the Home tab both show the same control (issue #72). It is one segmented
-// control (#879, #888, decision 3 of #872): the selected segment is the
+// the Home tab both show the same control. It is one segmented
+// control: the selected segment is the
 // current mode, raised on the card like any selected segment and never red,
 // because an armed alarm is normal, not an emergency. Red is kept for a triggered alarm (the state line)
-// and amber for trouble. Off is always tappable (#223); the arm modes only
+// and amber for trouble. Off is always tappable; the arm modes only
 // from disarmed, and the rest read as unavailable.
 function renderActionsInto(el) {
   if (!el) return;
@@ -213,7 +213,7 @@ export function renderActions() {
   renderActionsInto(els.homeSecurityActions);
 }
 
-// The Security glance card's state line (#882): a shield glyph and the mode
+// The Security glance card's state line: a shield glyph and the mode
 // word, with the system exceptions as chips after it. "Alarm state:" stays
 // for assistive tech only; on the card the word and the selected segment
 // already say it. The trouble chip opens the detector.
@@ -233,15 +233,15 @@ function renderSecurityState() {
   word.className = 'security-state-word';
   word.textContent = label;
   el.appendChild(word);
-  // System-wide AC-power-lost alert (issue #99): an aggregate cloud flag,
+  // System-wide AC-power-lost alert: an aggregate cloud flag,
   // clearing when false. Attention, not danger: the panel is on its backup
-  // battery and still protecting (#879).
+  // battery and still protecting.
   if (security && security.ac_lost) {
     const badge = chipEl('AC power lost', 'attention', 'security-aclost-badge');
     badge.title = 'The alarm panel lost mains power and is running on backup battery';
     el.appendChild(badge);
   }
-  // Detector-trouble roll-up (issue #225): count detectors reporting trouble that
+  // Detector-trouble roll-up: count detectors reporting trouble that
   // the user hasn't ignored, so an un-ignored trouble is visible on the main card.
   // Ignored ones (a known/accepted trouble) don't contribute, keeping it quiet.
   const troubled = troubledZones();
@@ -269,8 +269,7 @@ function troubleLabel(troubled) {
 // The alarm's exceptions, most urgent first: a triggered alarm (danger),
 // detector trouble the user hasn't ignored and AC power lost (attention).
 // The Security header, the Security tab badge and Home's House card all say
-// these and nothing else; an armed mode is normal and adds nothing
-// (decision 3 of #872).
+// these and nothing else; an armed mode is normal and adds nothing.
 function alarmExceptions(security) {
   const exceptions = [];
   if (currentMode() === 'triggered') exceptions.push({ text: 'Triggered', tone: 'danger' });
@@ -282,7 +281,7 @@ function alarmExceptions(security) {
   return exceptions;
 }
 
-// Detectors reporting trouble that the user hasn't ignored (issue #225).
+// Detectors reporting trouble that the user hasn't ignored.
 function troubledZones() {
   const zones = (state.security && state.security.zones) || [];
   return zones.filter(function (z) { return z.trouble && !z.trouble_ignored; });
@@ -309,7 +308,7 @@ export function renderState() {
 }
 
 // The Security header's live line and the Security tab's count badge
-// (head-status.js, #880; decision 10 of #872): the alarm's exceptions, else
+// (head-status.js): the alarm's exceptions, else
 // the plain detector count. The badge carries the most urgent of a triggered
 // alarm or detector trouble, so it is seen from every other tab.
 function renderSecurityHead() {
@@ -337,7 +336,7 @@ function renderSecurityHead() {
   else setTabBadge('security', troubled, 'trouble', 'attention');
 }
 
-// Home's House card (#885): the arm control (renderActions) shows the mode,
+// Home's House card: the arm control (renderActions) shows the mode,
 // so the card's head carries only the alarm's exceptions, plus an arming
 // panel (accent, in progress), each a chip opening the Security tab; detector
 // trouble opens the detectors there. The mode in words stays for assistive
@@ -370,7 +369,7 @@ function renderHouseAlarm() {
   }));
 }
 
-// The Recent events group (decision 8 of #872, #882): the last three on the
+// The Recent events group: the last three on the
 // shared row, time-led (design.md action-row: a tabular time is a leading
 // slot), what happened as the title and who as the one meta line. The whole
 // history is the activity log, opened filtered to the alarm.
@@ -405,7 +404,7 @@ function eventWhen(value) {
 
 function eventRow(event) {
   const when = eventWhen(event.time);
-  // Who acted, as words (#362: no actor means no badge, never a bare "-").
+  // Who acted, as words (no actor means no badge, never a bare "-").
   const actor = event.user_id ? 'User ' + event.user_id : '';
   const meta = [when.day, actor].filter(Boolean).join(' · ');
   return rowEl({
@@ -431,10 +430,10 @@ export function renderEvents() {
   els.securityEvents.appendChild(list);
 }
 
-// A detector's exception chips (#879): an active detector is the normal state
+// A detector's exception chips: an active detector is the normal state
 // and shows none (its switch already says it). Triggered is danger, an
-// un-ignored trouble attention (#104), and bypassed or an ignored trouble a
-// neutral fact kept off the main-card count (#225).
+// un-ignored trouble attention, and bypassed or an ignored trouble a
+// neutral fact kept off the main-card count.
 function renderZoneFlags(zone) {
   const flags = document.createElement('span');
   flags.className = 'security-zone-flags';
@@ -448,7 +447,7 @@ function renderZoneFlags(zone) {
   return flags.childNodes.length ? flags : null;
 }
 
-// The Detectors group (#882): the shared row, a filter once the list is long
+// The Detectors group: the shared row, a filter once the list is long
 // (design.md action-row: a list that can exceed ~12 rows), and only the first
 // few until "Show all", so the groups below stay within reach. A detector that
 // needs you (triggered, or trouble not ignored) sorts first so it is never
@@ -526,7 +525,7 @@ export function renderZones() {
     return alert || zoneLabel(a).localeCompare(zoneLabel(b), undefined, { sensitivity: 'base' });
   });
   // Hidden detectors drop out unless "show hidden" is on, where they render
-  // dimmed so they can be un-hidden from the sheet (issue #104).
+  // dimmed so they can be un-hidden from the sheet.
   const listed = state.securityShowHidden
     ? sorted
     : sorted.filter(function (z) { return !z.hidden; });
@@ -599,7 +598,7 @@ function renderZoneTroubleIgnoreToggle(zone) {
   setToggleState(btn, ignored);
 }
 
-// Detail-modal staging (#203, shared shell #699): name + Hidden commit on
+// Detail-modal staging (shared shell): name + Hidden commit on
 // Save. zoneModal.staged holds the working Hidden/Ignore-trouble state
 // captured when the modal opens; closing discards it.
 function patchZone(id, patch) {
@@ -662,7 +661,7 @@ const zoneModal = detailModal({
   afterSave: function (id) {
     const z = zoneById(id);
     if (z) els.zoneDetailName.textContent = zoneLabel(z);
-    renderState();  // refresh the main-card trouble count after an ignore change (#225)
+    renderState();  // refresh the main-card trouble count after an ignore change
   },
   render: renderZones,
 });
@@ -675,7 +674,7 @@ function toggleZoneHidden() {
   zoneModal.markDirty();
 }
 
-// Stage the Ignore-trouble toggle visually only — the PUT happens on Save (#225).
+// Stage the Ignore-trouble toggle visually only — the PUT happens on Save.
 function toggleZoneTroubleIgnored() {
   if (!zoneModal.staged) return;
   zoneModal.staged.trouble_ignored = !zoneModal.staged.trouble_ignored;
@@ -704,9 +703,9 @@ export function wireZoneDetail() {
   if (els.zoneSave) els.zoneSave.addEventListener('click', zoneModal.save);
 }
 
-// Wire the Detectors group's controls: the "show hidden" toggle (issue #104),
-// the filter and Show all (#882), and Recent events' All events, which opens
-// the activity log filtered to the alarm (decision 8 of #872).
+// Wire the Detectors group's controls: the "show hidden" toggle,
+// the filter and Show all, and Recent events' All events, which opens
+// the activity log filtered to the alarm.
 export function wireSecurityHiddenToggle() {
   state.securityShowHidden = showHiddenPref.read();
 

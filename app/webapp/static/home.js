@@ -1,4 +1,4 @@
-/* The Home tab's dashboard parts (#885, Step 7/8 of #872).
+/* The Home tab's dashboard parts.
  *
  * Home is a pure dashboard: the House glance card, the Climate group and
  * Next up. Each card's rows belong to the module that owns the fact (the arm

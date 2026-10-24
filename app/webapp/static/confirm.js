@@ -1,10 +1,10 @@
-/* Shared confirm dialog — a styled <dialog> returning a Promise<boolean> (#129).
+/* Shared confirm dialog — a styled <dialog> returning a Promise<boolean>.
  *
- * Nothing here is network-specific, but it lived in and was exported from
- * `network.js` (a feature tab) until issue #574, so five unrelated modules —
- * including the *shared* `dense-editor.js` primitive — had to import a feature
- * tab just to ask a yes/no question. That dependency direction was inverted;
- * this module is the neutral home every caller can point at.
+ * Nothing here is network-specific, so it lives outside any feature tab:
+ * otherwise unrelated modules — including the *shared* `dense-editor.js`
+ * primitive — would have to import a feature tab just to ask a yes/no
+ * question, inverting the dependency direction. This module is the neutral
+ * home every caller can point at.
  *
  * Callers use it instead of a native `confirm()`, which is the one
  * design-system-breaking element this app would otherwise have.
