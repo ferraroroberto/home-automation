@@ -82,8 +82,8 @@ logger = logging.getLogger("telemetry")
 
 # Default DB location: the fleet runtime-data root (``C:\sqlite\home-automation\``
 # on Windows), not this repo's ``webapp/`` — this store's 20s-interval writes were
-# a confirmed contributor to the constant clicking on tower's spinning E: drive
-# (project-scaffolding#243). ``TELEMETRY_DB_PATH`` (env) still overrides it, and
+# a confirmed contributor to the constant clicking on tower's spinning E: drive.
+# ``TELEMETRY_DB_PATH`` (env) still overrides it, and
 # still outranks everything — the e2e subprocess sets it to keep a test boot off
 # the real DB.
 DEFAULT_DB_PATH = runtime_db_path(

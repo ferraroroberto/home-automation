@@ -67,7 +67,7 @@ class TempRule:
     enabled: bool = False
     cool_target: Optional[float] = None
     heat_target: Optional[float] = None
-    # Solar-surplus boost (#554) — opt-in modifier on top of an active rule.
+    # Solar-surplus boost — opt-in modifier on top of an active rule.
     # Inert unless `enabled` is also true: boost shifts the rule's own target,
     # so there must be a target to shift.
     boost_enabled: bool = False
@@ -86,7 +86,7 @@ class ScheduleEntry:
     # set_temperature is the setpoint applied to the unit at the scheduled time
     # (the "base" the unit runs at now); target_temperature is the goal the
     # eventual solar load-balancing automation steers toward, which may differ
-    # from the applied base (e.g. apply 27 now, target 28) — see #206.
+    # from the applied base (e.g. apply 27 now, target 28).
     set_temperature: Optional[float] = None
     target_temperature: Optional[float] = None
     fan_speed: Optional[str] = None
@@ -296,7 +296,7 @@ def boosted_target(
 #: reconstructs the very herd this coordinator exists to prevent. The interval
 #: must also cover the inverter compressor's own ramp-up, not just the meter's
 #: publish cadence — so the floor **stands unchanged now that local Modbus
-#: serves the flow about a second old** (issue #618). The publish cadence stopped
+#: serves the flow about a second old**. The publish cadence stopped
 #: being the binding reason; the compressor ramp never was cloud-specific, and
 #: the cloud is still the fallback. Not configurable below this; the loader
 #: clamps up and the writer refuses.

@@ -79,7 +79,7 @@ BACKUP_DIR = "/config/backups/home-automation"
 
 # Every repo-owned custom-sentence file → its live destination. Globbed across
 # every language dir, not hardcoded: a new *.yaml under custom_sentences/<lang>/
-# deploys with no script change (issue #315's grocery.yaml was silently skipped
+# deploys with no script change (grocery.yaml was silently skipped
 # by a hardcoded list; the es/ dir arrived with the Spanish-pipeline redesign).
 # Each is pushed whole; a sentences-only change applies with conversation.reload.
 SENTENCE_FILES = tuple(
@@ -96,7 +96,7 @@ BLOCK_BEGIN = (
 )
 BLOCK_END = "# <<< home-automation:voice-pe-alarm <<<"
 
-# The pre-markers header the #88 install pasted into live configuration.yaml.
+# The pre-markers header the original install pasted into live configuration.yaml.
 # The first marker-aware deploy migrates from it (start-of-header → EOF) so the
 # managed block doesn't get appended as a duplicate of rest_command/intent_script.
 LEGACY_BLOCK_HEADER = "# --- Voice PE deterministic alarm action bridge"
@@ -134,7 +134,7 @@ class HaConfig:
 
 def load_config() -> HaConfig:
     load_dotenv(PROJECT_ROOT / ".env")
-    # HA_SSH_HOST may be a MAC rather than an IP (issue #504); a literal
+    # HA_SSH_HOST may be a MAC rather than an IP; a literal
     # IP/hostname passes through untouched. Resolving here means the whole
     # script — preflight, deploy, probe — sees one already-resolved address.
     ssh_host = os.getenv("HA_SSH_HOST", "").strip()

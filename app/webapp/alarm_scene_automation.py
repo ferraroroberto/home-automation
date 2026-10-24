@@ -158,7 +158,7 @@ _state: Dict[str, object] = {"last_baseline": None}
 # reads, which is what makes the claim actually protective. Confirmed live:
 # two deliveries of the same frame/event a few hundred ms to ~5s apart in
 # `logs/alarm_scene.jsonl`, consistent with the old save-after-delivery
-# ordering leaving the whole pipeline as an open race window (issue #339).
+# ordering leaving the whole pipeline as an open race window.
 _scanner = EventLogScanner(
     logger=logger,
     read_fail_msg="⚠️ Alarm scene event-log read failed: %s",
@@ -398,7 +398,7 @@ def consider_security_read(security: object) -> None:
     ongoing = getattr(security, "ongoing_alarm", None)
     memory = getattr(security, "memory_alarm", None)
     if ongoing is None and memory is None:
-        # WebUI scrape came back unreadable this poll (issue #307) - treating
+        # WebUI scrape came back unreadable this poll - treating
         # that as "no alarm" would manufacture a false→true edge the moment the
         # next successful poll re-observes a still-latched, days-old
         # memory_alarm. Skip entirely rather than guess.

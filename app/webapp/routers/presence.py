@@ -60,7 +60,7 @@ router = APIRouter()
 # Nominatim answers are best-effort and the keyspace is open-ended (one entry
 # per lat/lon rounded to ~11 m, so a phone in motion mints a new one every few
 # seconds), while the webapp runs for weeks between tray restarts. Bounded
-# LRU for the same reason `ha_trace_collector._SeenRuns` is bounded (#667);
+# LRU for the same reason `ha_trace_collector._SeenRuns` is bounded;
 # least-recently-used eviction keeps the household's usual places resident.
 REVERSE_CACHE_LIMIT = 256
 _REVERSE_CACHE: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
@@ -313,8 +313,8 @@ async def update_presence_places(request: Request) -> Dict[str, Any]:
     return _places_payload(set_presence_places(entries))
 
 
-# The locate/ETA voice bridge (issue #438, #470) lives in ./presence_locate.py
-# (issue #702) — it shares its own resolution/staleness machinery and touches
+# The locate/ETA voice bridge lives in ./presence_locate.py
+# because it shares its own resolution/staleness machinery and touches
 # none of the webhook/CRUD state below.
 
 
@@ -339,7 +339,7 @@ class PresenceAutomationPayload(BaseModel):
 async def update_presence_automation(payload: PresenceAutomationPayload) -> Dict[str, Any]:
     # Rebuild from the persisted config rather than from bare defaults, so the
     # fields the PWA form does not carry (`arm_action`, `disarm_action`, and the
-    # #598 `disarm_max_age_s` safety bound) survive a save instead of being
+    # `disarm_max_age_s` safety bound) survive a save instead of being
     # silently reset every time a toggle is flipped.
     config = replace(
         load_automation_config(),
@@ -379,8 +379,8 @@ async def post_presence_refresh() -> Dict[str, Any]:
     }
 
 
-# The iCloud browser-trust renewal flow (issue #659) lives in
-# ./presence_trust.py (issue #702) — fully self-contained, shares no state
+# The iCloud browser-trust renewal flow lives in
+# ./presence_trust.py — fully self-contained, shares no state
 # with the rest of this router beyond triggering a diagnostics refresh.
 
 

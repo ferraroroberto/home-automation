@@ -78,7 +78,7 @@ _TIMEOUT_S = 8.0
 
 # How long one upstream response is reused, keyed by (location, array-set, day)
 # — see :func:`_cache_key`. Open-Meteo's hourly irradiance only changes on an
-# hourly grid, so a request per card render (issue #597) is pure waste; every
+# hourly grid, so a request per card render is pure waste; every
 # render inside this window is served from the cache instead.
 _CACHE_TTL_S = 900
 
@@ -95,14 +95,14 @@ _STALE_SERVE_MAX_S = 6 * 3600
 _FAILURE_BACKOFF_BASE_S = 60
 _FAILURE_BACKOFF_MAX_S = 900
 
-# ------------------------------------------- panel temperature (issue #591)
-# A PVWatts-style NOCT cell-temperature model. #578's diagnosis fitted these two
+# ------------------------------------------- panel temperature
+# A PVWatts-style NOCT cell-temperature model. An earlier diagnosis fitted these two
 # numbers against this array's measured output and landed within ±5% for every
 # morning and midday hour, so they start as constants rather than as config the
 # user has no way to calibrate. Wind speed is deliberately NOT modelled: the
 # still-air NOCT form already fits to within the measurement noise here, and the
-# residual afternoon gap it does not close is geometric (horizon shading, #578
-# part b), not thermal — a wind term would only appear to absorb it.
+# residual afternoon gap it does not close is geometric (horizon shading, modelled
+# below), not thermal — a wind term would only appear to absorb it.
 
 # Power temperature coefficient, per °C away from the 25 °C STC cell reference.
 THERMAL_GAMMA_PER_C = -0.0035
@@ -113,7 +113,7 @@ _NOCT_IRRADIANCE_W = 800.0
 _NOCT_AMBIENT_C = 20.0
 _STC_CELL_C = 25.0
 
-# ---------------------------------------- horizon / shading (issue #578 part b)
+# ---------------------------------------- horizon / shading
 # Open-Meteo's ``global_tilted_irradiance`` is a single combined figure — it
 # does not hand back how much of it is direct beam vs. sky-diffuse. This model
 # does not attempt its own beam/diffuse transposition either (that would be a
@@ -131,7 +131,7 @@ _DAY_OFFSETS = {"yesterday": -1, "today": 0, "tomorrow": 1}
 # here rather than turned into a network error the caller has to interpret.
 MAX_PAST_DAYS = 92
 
-# One aiohttp session reused across calls (issue #597) — opening a fresh one
+# One aiohttp session reused across calls — opening a fresh one
 # per render, per sub-array, was the other half of the request storm. The lock
 # only guards creation; the session itself is safe for concurrent requests.
 _session: Optional[aiohttp.ClientSession] = None
@@ -429,7 +429,7 @@ async def fetch_pv_forecast_for_date(
         return _unavailable(day, "not_configured")
 
     # Refuse the half-migrated combination rather than quietly subtracting the
-    # thermal loss twice (issue #591) — a wrong curve is worse than no curve.
+    # thermal loss twice — a wrong curve is worse than no curve.
     mismatch = thermal_migration_error(system)
     if mismatch is not None:
         logger.warning("⚠️ PV forecast refused: %s", mismatch)
@@ -538,12 +538,12 @@ async def fetch_pv_forecast_for_date(
             watts = float(irradiance) if irradiance is not None else 0.0
             wh = max(0.0, scale * watts)
             # A null ambient for one hour (an upstream gap) falls back to no
-            # derate — the pre-#591 value — rather than dropping the hour from
+            # derate — the no-thermal-model value — rather than dropping the hour from
             # a curve whose irradiance is perfectly good.
             if system.thermal_model_enabled and air_c is not None:
                 wh *= thermal_derate(float(air_c), watts)
-            # Same fallback shape for a null direct/diffuse pair (issue #578
-            # part b): skip the shading term for that hour rather than the
+            # Same fallback shape for a null direct/diffuse pair:
+            # skip the shading term for that hour rather than the
             # whole curve.
             if (
                 system.horizon_profile_enabled
@@ -579,7 +579,7 @@ async def fetch_pv_forecast_for_date(
         "performance_ratio": system.performance_ratio,
     }
     # Only present when the term is armed: with it off the payload — keys
-    # included, not just values — is exactly what it was before #591.
+    # included, not just values — is exactly what it was before the term existed.
     if system.thermal_model_enabled:
         described["thermal_model"] = {
             "gamma_per_c": THERMAL_GAMMA_PER_C,

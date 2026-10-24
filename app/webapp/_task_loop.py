@@ -25,7 +25,7 @@ TickFn = Callable[[], Awaitable[None]]
 # Strong references to detached tasks. asyncio keeps only a weak reference to
 # a task whose `create_task()` return value is discarded, so it can be GC'd
 # mid-flight, before its `finally` runs: that wedged the alarm-scene scan's
-# overlap guard closed forever (issue #703). Tests drain it to await the work.
+# overlap guard closed forever. Tests drain it to await the work.
 BACKGROUND_TASKS: Set[asyncio.Task] = set()
 
 

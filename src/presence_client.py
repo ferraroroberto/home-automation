@@ -115,9 +115,9 @@ class PresenceConfig:
     home_radius_m: float = DEFAULT_HOME_RADIUS_M
     with_family: bool = True
     label: str = "1"  # 1-based account index, for per-account diagnostics/CLI
-    friendly_name: str = ""  # e.g. "Roberto"/"Ana" (issue #655); "" -> caller falls back to "account {label}"
+    friendly_name: str = ""  # e.g. "Roberto"/"Ana"; "" -> caller falls back to "account {label}"
     # Whether pyicloud may ask Apple to push a 2FA code to the trusted devices
-    # when a fresh sign-in ends up needing one (issue #658). True for the
+    # when a fresh sign-in ends up needing one. True for the
     # attended CLI (someone is there to read the code); the unattended tray
     # refresher sets False — nobody in that process will ever type the code,
     # so the push is pure noise on every phone in the household.
@@ -277,7 +277,7 @@ def fetch_presence(
         _raise_if_terms_failure(exc)
         raise
 
-    # Issue #658: the fetch itself is the health check. ``requires_2fa`` is
+    # The fetch itself is the health check. ``requires_2fa`` is
     # consulted only to *apply* an explicitly supplied code (the CLI's
     # ``--2fa-code``), never to refuse a fetch — pyicloud's Find My
     # sub-service flips that flag on its own internal re-auth while still
@@ -285,7 +285,7 @@ def fetch_presence(
     # ``2fa_required`` on the very next poll. Auth failures raised *by* the
     # fetch are what mean "really broken" (mapped to PresenceAuthError below).
     #
-    # Neither failure path evicts the cached session (issue #656): eviction is
+    # Neither failure path evicts the cached session: eviction is
     # a full Apple sign-in handshake, and only the presence refresher's
     # backoff-gated self-heal (``invalidate_session``) may decide to pay it.
     if verification_code:
@@ -400,7 +400,7 @@ def _raise_if_terms_failure(exc: BaseException) -> None:
 
 
 # Authenticated pyicloud sessions, keyed by session dir (one per account).
-# Reused across polls (issue #651): rebuilding a ``PyiCloudService`` from
+# Reused across polls: rebuilding a ``PyiCloudService`` from
 # scratch performs a full Apple sign-in handshake, and doing that every
 # ``PRESENCE_ICLOUD_REFRESH_INTERVAL_S`` poll (every ~15 min, forever) reads
 # to Apple as a fresh sign-in, which was triggering repeated "someone is
@@ -514,7 +514,7 @@ def session_trust_state(config: PresenceConfig) -> Optional[bool]:
 
 
 # ------------------------------------------------------- browser-trust renewal
-# (issue #659) One challenged-but-not-yet-verified PyiCloudService per session
+# One challenged-but-not-yet-verified PyiCloudService per session
 # dir, parked between begin_trust_renewal() and complete_trust_renewal(). The
 # 2FA code Apple pushes is only valid for the auth session (scnt /
 # X-Apple-ID-Session-Id) that requested it, which lives on this exact object.
@@ -674,7 +674,7 @@ def complete_trust_renewal(config: PresenceConfig, code: str) -> TrustRenewalSta
         return TrustRenewalState("failed", detail=_apple_detail(exc), trusted=False)
 
     if not accepted and _apple_granted_trust_anyway(api):
-        # Issue #662: pyicloud's trusted-device *bridge* verification can
+        # pyicloud's trusted-device *bridge* verification can
         # report failure client-side after Apple has already accepted the
         # approval (seen live 2026-08-19: three "rejected" codes, then the
         # next begin found the session already trusted). trust_session() is

@@ -220,7 +220,7 @@ def main() -> None:
                 trust_session=not args.no_trust,
             )
         except (PresenceAuthError, PresenceTermsError) as exc:
-            # Degrade this account only, so a healthy account still prints (#478).
+            # Degrade this account only, so a healthy account still prints.
             print(f"⚠️ {exc}")
             continue
         _print_entities(entities)

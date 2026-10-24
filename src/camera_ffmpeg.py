@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 CAPTURE_DIR = Path(__file__).resolve().parent.parent / "webapp" / "camera_captures"
 # The most recent snapshot per camera, persisted so the list can show a
-# last-known frame without re-hitting the camera (issue #190). Lives under the
+# last-known frame without re-hitting the camera. Lives under the
 # already-gitignored captures dir.
 LAST_SNAPSHOT_DIR = CAPTURE_DIR / "last"
 
@@ -43,9 +43,9 @@ _JPEG_SOI = b"\xff\xd8"
 
 
 # --------------------------------------------------------------------------- #
-# Proactor bridge (issue #399)                                                #
+# Proactor bridge                                                             #
 # --------------------------------------------------------------------------- #
-# The webapp's own uvicorn loop is the *selector* loop (issue #397 — Windows'
+# The webapp's own uvicorn loop is the *selector* loop (Windows'
 # proactor loop kills its listening socket on any aborted client connection).
 # But every ffmpeg call below is ``asyncio.create_subprocess_exec``, and
 # Windows only implements asyncio subprocess transports on the *proactor*
@@ -56,7 +56,7 @@ _JPEG_SOI = b"\xff\xd8"
 _proactor_loop: Optional[asyncio.AbstractEventLoop] = None
 _proactor_lock = threading.Lock()
 
-# Every ffmpeg spawn below also passes ``creationflags=NO_WINDOW`` (issue #633).
+# Every ffmpeg spawn below also passes ``creationflags=NO_WINDOW``.
 # The proactor bridge is about *which loop* runs the spawn; it says nothing about
 # the console window, and these are the repo's most frequent short-lived children
 # (one per snapshot, per live-view pump, per recording) under the windowless
@@ -216,7 +216,7 @@ async def mjpeg_frames(
     cfg = get_camera_config(camera_id, path)
     url = await _stream_url_for(cfg, main=False)
 
-    # ffmpeg + the read loop both run on the proactor thread (issue #399); a
+    # ffmpeg + the read loop both run on the proactor thread; a
     # bounded, drop-oldest queue bridges frames back to this (selector-loop)
     # generator without blocking the proactor thread on a full queue.
     frame_queue: queue.Queue[object] = queue.Queue(maxsize=4)
@@ -314,8 +314,8 @@ async def start_record(camera_id: str, path: Optional[Path] = None) -> str:
             creationflags=NO_WINDOW,
         )
 
-    # The Process object below is bound to the proactor loop that created it
-    # (issue #399); every later operation on it (stop_record) must keep
+    # The Process object below is bound to the proactor loop that created it;
+    # every later operation on it (stop_record) must keep
     # running on that same loop via _run_on_proactor, never awaited directly.
     proc = await _run_on_proactor(_start)
     _recordings[camera_id] = proc

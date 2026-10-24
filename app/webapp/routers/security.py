@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # The raw panel state, refreshed off the request path at the PWA's 10 s poll
-# (#759) instead of a RISCO Cloud round trip (~1 s) per read. Names, hidden
+# instead of a RISCO Cloud round trip (~1 s) per read. Names, hidden
 # and trouble-ignore flags are still layered on per request.
 SECURITY_SNAPSHOT: ReadSnapshot[Any] = ReadSnapshot(
     "security",
@@ -133,10 +133,10 @@ def _state_payload(state: object) -> Dict[str, Any]:
         zone_id = str(zone.get("id"))
         zone["display_name"] = overrides.get(zone_id) or None
         # Whether the user has parked this detector out of the default list
-        # (issue #104). The UI still renders it when "show hidden" is on.
+        # The UI still renders it when "show hidden" is on.
         zone["hidden"] = zone_id in hidden
         # Whether the user has chosen to ignore this detector's trouble flag
-        # (issue #225) — ignored troubles render muted and don't bubble to the
+        # — ignored troubles render muted and don't bubble to the
         # main card.
         zone["trouble_ignored"] = zone_id in trouble_ignored
     return payload
@@ -169,8 +169,8 @@ async def get_security_events(count: int = 50) -> Dict[str, Any]:
         raise _http_error(exc)
 
 
-# Callers that identify themselves via the X-Automation-Source header (issue
-# #405): the HA custom integration and the ESPHome voice-PE rest_commands. Any
+# Callers that identify themselves via the X-Automation-Source header:
+# the HA custom integration and the ESPHome voice-PE rest_commands. Any
 # other value (including the header being absent, e.g. the webapp PWA's own
 # fetch calls) falls back to "webapp" — the one caller that needs no header
 # since it's the default.

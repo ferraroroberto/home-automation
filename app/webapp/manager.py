@@ -215,7 +215,7 @@ class WebappManager:
         )
 
     def start(self, wait: bool = True) -> WebappStatus:
-        # Race-safe adopt-or-spawn (project-scaffolding#39): serialize the
+        # Race-safe adopt-or-spawn: serialize the
         # status()-then-Popen critical section across processes so two trays
         # starting at once cannot both spawn uvicorn. The loser blocks, then
         # re-checks below and adopts the now-listening webapp. The lock is held
@@ -239,7 +239,7 @@ class WebappManager:
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUTF8"] = "1"
             # The tray serves the live instance: opt it into the automation
-            # engines. No other boot sets this, so none runs them (#876).
+            # engines. No other boot sets this, so none runs them.
             env["HOME_AUTOMATION_ENGINES"] = "1"
 
             try:

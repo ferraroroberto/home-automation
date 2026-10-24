@@ -181,7 +181,7 @@ def _dhcp_plan_dict(
         "slots_free": free if bindings_known else None,
         "bindings_known": bindings_known,
         # The router's current reservations — listed (and deletable) even for
-        # offline devices, so a slot held by a retired device is reclaimable (#176).
+        # offline devices, so a slot held by a retired device is reclaimable.
         "existing": existing,
         # Category labels for the "assign to a group" dropdown on unassigned rows.
         "category_labels": [c.label for c in plan.categories],
@@ -287,7 +287,7 @@ class DhcpManualBindingPayload(BaseModel):
 
 
 class DhcpReservationsApplyPayload(BaseModel):
-    # A staged batch from the reservation manager (#176 redesign): rows to delete
+    # A staged batch from the reservation manager: rows to delete
     # by inst_id, plan rows to add by MAC (IPs recomputed server-side), and manual
     # rows to add. All applied in one router session — deletes first, then adds.
     remove: List[str] = []

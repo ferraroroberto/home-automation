@@ -39,7 +39,7 @@ load_dotenv()
 _CONTAINER_NAME = "searxng"
 _COMPOSE_PATH_ENV = "SEARXNG_COMPOSE_PATH"
 _URL_ENV = "SEARXNG_URL"
-# Loopback, not a real machine's LAN address (issue #831) — an unset
+# Loopback, not a real machine's LAN address — an unset
 # SEARXNG_URL now probes nothing reachable instead of a specific household
 # host; set the env var (see .env.example) to point at the real container.
 _DEFAULT_URL = "http://127.0.0.1:8085"

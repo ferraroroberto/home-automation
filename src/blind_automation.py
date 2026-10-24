@@ -78,10 +78,10 @@ class BlindOutcome:
     superseded: bool = False
 
 
-# Delays before each retry of an up/down move's failed blinds (#897, #899):
+# Delays before each retry of an up/down move's failed blinds:
 # four retries, about 7.5 minutes in all.
 RETRY_DELAYS_S: tuple[float, ...] = (30.0, 60.0, 120.0, 240.0)
-# A Stop retries within the blind's travel time instead (#899): about 15 s.
+# A Stop retries within the blind's travel time instead: about 15 s.
 STOP_RETRY_DELAYS_S: tuple[float, ...] = (2.0, 4.0, 8.0)
 
 
@@ -114,7 +114,7 @@ def is_newest_command(device_id: str, command: int) -> bool:
     return _latest_command.get(device_id) == command
 
 
-# One lock per blind: a blind takes one command at a time (#899). Threading
+# One lock per blind: a blind takes one command at a time. Threading
 # locks, since the sends run in worker threads.
 _send_locks: Dict[str, threading.Lock] = {}
 _send_locks_guard = threading.Lock()

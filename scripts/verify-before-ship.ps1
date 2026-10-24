@@ -48,7 +48,7 @@
      11. pytest (e2e)    — diff-proportionate: the browser slice is routed by
                             scripts/classify_e2e.py against the .fleet.toml [e2e]
                             rules (skip / static / full), fail-safe to full
-                            (ferraroroberto/home-automation#603, project-scaffolding#180).
+                            (the [e2e] table in .fleet.toml owns the rules)
                             Boots its own disposable instance per tests/e2e/conftest.py.
      12. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
                             slice recaptured (tests/e2e/test_shot_baseline.py: phone +
@@ -74,7 +74,7 @@ if (-not (Test-Path $py)) {
 }
 
 # ---------------------------------------------------------- progress log
-# Per-test timings on disk (home-automation#778): phase markers from this
+# Per-test timings on disk: phase markers from this
 # script, START/DONE/FAILED lines from the pytest plugin tests/_progress_log.py
 # (loaded with -p on the e2e run, enabled by HA_VERIFY_PROGRESS_LOG).
 #
@@ -176,8 +176,8 @@ try {
     Invoke-Stage "pytest (unit, non-e2e)" { & $py -m pytest tests -p no:cacheprovider --ignore=tests/e2e }
 
     # ---------------------------------------------------------------- e2e routing
-    # Diff-proportionate e2e routing (ferraroroberto/home-automation#603,
-    # project-scaffolding#180). Instead of always running the whole tests/e2e
+    # Diff-proportionate e2e routing.
+    # Instead of always running the whole tests/e2e
     # dual-projection suite, classify the branch's changed files vs main and run
     # a browser slice proportionate to the diff: backend/docs-only -> skip the
     # browser suite, inert static assets -> the narrow smoke target, real
@@ -216,7 +216,7 @@ try {
         Write-Host ">> e2e routing: $tier" -ForegroundColor Cyan
         Write-Host "   reason: $routeReason" -ForegroundColor DarkGray
         # A surface slice over several modules arrives space-joined; pytest
-        # needs each as its own argument (#784).
+        # needs each as its own argument.
         $e2eArgs = @($e2eTarget -split '\s+' | Where-Object { $_ }) + @("-p", "tests._progress_log")
         foreach ($b in ($e2eBrowsers -split ',' | Where-Object { $_ })) {
             $e2eArgs += @("--browser", $b)
@@ -227,7 +227,7 @@ try {
         $shotSince = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0
         Invoke-Stage "pytest e2e (${tier}: $e2eTarget, $label)" { & $py -m pytest @e2eArgs }
 
-        # Browser helpers this run left wedged mid-exit (#971): its own state,
+        # Browser helpers this run left wedged mid-exit: its own state,
         # advisory, never folded into the PASS above — a wedge is unkillable
         # residue, not a test failure. Written by tests/e2e/conftest.py.
         $wedgedLine = Select-String -Path $progressLog -SimpleMatch "browser helpers newly wedged during this run:" |

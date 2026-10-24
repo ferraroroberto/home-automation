@@ -54,8 +54,8 @@ from src.huawei_client import EnergyState
 logger = logging.getLogger("energy_history")
 
 # Default DB location: the fleet runtime-data root (``C:\sqlite\home-automation\``
-# on Windows), not this repo's ``webapp/`` — see :mod:`src.runtime_data` and
-# project-scaffolding#243. ``ENERGY_HISTORY_DB_PATH`` (env) overrides it, matching
+# on Windows), not this repo's ``webapp/`` — see :mod:`src.runtime_data`.
+# ``ENERGY_HISTORY_DB_PATH`` (env) overrides it, matching
 # the shape :mod:`src.telemetry` has always had; the three sibling stores here
 # lacked an override entirely until then.
 DEFAULT_DB_PATH = runtime_db_path(
@@ -70,7 +70,7 @@ _MAX_GAP_SECONDS = 300
 _HOUR = 3600
 
 # Fraction of an hour that must actually carry PV data before the hour's
-# integral counts as a measurement rather than an under-measurement (#579).
+# integral counts as a measurement rather than an under-measurement.
 #
 # Not 1.0, because a fully-healthy hour never reaches it: the rectangular rule
 # accrues time on the interval *after* each sample, so the hour's last sample
@@ -79,7 +79,7 @@ _HOUR = 3600
 # 0.75 clears both with room for a couple of dropped cloud buckets, while still
 # catching the reported outage hours (0.25 and 0.50 coverage).
 #
-# Public, because the sun-position diagnostic (#590) has to draw the same line
+# Public, because the sun-position diagnostic has to draw the same line
 # between a measurement and an under-measurement — an under-covered hour there
 # reads as *shading*, which is exactly the conclusion it exists to support. One
 # threshold, one home; never re-derived at a call site.
@@ -161,7 +161,7 @@ def init_db(path: Optional[Path] = None) -> None:
             );
             """
         )
-        # Added by #579 to an already-deployed table, so it arrives as a
+        # Added to an already-deployed table, so it arrives as a
         # migration rather than in the CREATE above. Rows written before it
         # stay NULL and fall back to the coarser sample-count ratio — see
         # :func:`_pv_seconds`.
@@ -429,13 +429,13 @@ def _pv_seconds(hour: Dict[str, Any]) -> float:
 
 # The bucket containing *now* has only partly happened, so its totals are still
 # climbing towards whatever the slot will finally hold. Left unflagged it reads
-# on a chart as a settled value that collapsed — see issue #557. Flagging it
+# on a chart as a settled value that collapsed. Flagging it
 # lets the UI draw it as in-progress, and lets the forecast view project it to a
 # full-slot rate.
 #
 # Deliberately *only* the current slot. This once carried a second claim — that
 # a past bucket short because the cloud feed was down "is genuinely that low" —
-# which #579 disproved: such a bucket is under-measured, and its shortfall is a
+# which is false: such a bucket is under-measured, and its shortfall is a
 # property of its *coverage*, not of when it happened. That case is now
 # `_mark_hourly_coverage`'s, and the two must not be conflated: `partial` means
 # "not finished yet", `pv_gap` means "not fully measured".
@@ -525,7 +525,7 @@ def _accumulate(bucket: Dict[str, Any], hour: Dict[str, Any]) -> None:
     bucket["n"] += int(hour.get("n") or 0)
     bucket["pv_n"] += int(hour.get("pv_n") or 0)
     bucket["pv_seconds"] += _pv_seconds(hour)
-    # Unchanged meaning (#579): *no* PV data at all. Partial coverage is a
+    # Unchanged meaning: *no* PV data at all. Partial coverage is a
     # separate, weaker signal — see :func:`_mark_hourly_coverage` — because
     # `pv_missing` is what `src.tariff` uses to drop a bucket's generation
     # entirely, and an hour that produced 3 measured kWh out of 4 must still

@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # The breadcrumb file is the ONLY durable record of tray-boot events under
-# pythonw (issue #745 / photo-ocr#110): `logging.basicConfig()`'s default
+# pythonw: `logging.basicConfig()`'s default
 # stream handler writes into `sys.stderr`, which is `None` under `pythonw`, so
 # every start/retry/failure line was previously discarded. Gitignored (*.log).
 WATCHDOG_LOG = PROJECT_ROOT / "webapp" / "watchdog.log"
@@ -228,7 +228,7 @@ def run_tray() -> int:
         )
         return 1
 
-    # In-process single-instance guard (project-scaffolding#39): the tray.bat CIM
+    # In-process single-instance guard guard: the tray.bat CIM
     # pre-check can let two near-simultaneous launches through, so the guarantee
     # must live in the process. Held for the tray's lifetime; the OS frees the
     # named mutex on exit. `instance` is intentionally kept referenced (quit).
@@ -329,7 +329,7 @@ def run_tray() -> int:
     starter_error: dict = {"exc": None}
 
     # `WebappStartupPending` is not a failure — it means the process came up
-    # but is still slow to answer (#687) — so it must never be treated as a
+    # but is still slow to answer — so it must never be treated as a
     # `retry_with_backoff` attempt failure (which would spawn a second
     # process on top of the still-booting one). `_attempt_start` swallows it
     # into `pending_exc` and returns normally, which reads as success to
@@ -367,7 +367,7 @@ def run_tray() -> int:
         if exc is not None:
             # Process is still alive, just slow (a boot-storm cold start has
             # been observed taking ~20 minutes) — keep watching in the
-            # background instead of reporting a permanent failure (#687).
+            # background instead of reporting a permanent failure.
             wd_log(f"webapp startup pending: {exc}")
             logger.warning(f"⚠️  {exc} — still watching")
             _notify(

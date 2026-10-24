@@ -114,7 +114,7 @@ def validate_push_config(cfg: Optional[Dict[str, str]] = None) -> bool:
 def send_push(title: str, body: str, *, url: str = "/") -> int:
     """Send a Web Push notification to all subscriptions; never raises."""
 
-    # "Never raises" is load-bearing (issue #689): the alarm consumer calls this
+    # "Never raises" is load-bearing: the alarm consumer calls this
     # *after* a successful arm/disarm and before it records the success, so a
     # throw here would lose the record of a security action that really happened.
     # A notification is never worth that, so an unreadable store just means no

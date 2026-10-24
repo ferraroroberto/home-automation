@@ -32,7 +32,7 @@ from typing import Any, Awaitable, Callable, Iterable, Optional
 
 # pyrisco's event-log ``type`` for a genuine "system has gone off" alarm entry
 # (as opposed to e.g. "zone bypassed" / "zone omitted"). Confirmed live against
-# production RISCO events (issue #325).
+# production RISCO events.
 ALARM_EVENT_TYPE = "triggered"
 
 
@@ -104,7 +104,7 @@ class EventLogScanner:
         for event in [e for e in relevant if e.time > cursor]:
             # Re-check the persisted cursor right before claiming: a concurrent
             # scan may have read the same stale cursor and already claimed
-            # this event. Confirmed live before #339: two deliveries of one
+            # this event. Confirmed live: two deliveries of one
             # alarm a few hundred ms to ~5 s apart.
             latest = load_cursor()
             if latest is not None and latest >= event.time:

@@ -89,7 +89,7 @@ async def _fetch_weather() -> Dict[str, Any]:
 
 
 # Every request used to open a fresh TLS session to Open-Meteo, which put the
-# upstream's latency (and its p95 tail) inside the request (#772). Open-Meteo
+# upstream's latency (and its p95 tail) inside the request. Open-Meteo
 # publishes ``current`` on a 15-minute grid, so the read runs off the request
 # path every 5 min while the tile is open and is answered from memory; if the
 # upstream stops answering, the last reading is kept and marked ``stale`` after

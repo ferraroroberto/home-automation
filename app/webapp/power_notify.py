@@ -63,7 +63,7 @@ _ALIVE_STATE = "up"
 # edge-triggered and fired exactly once per transition (see power_monitor.py)
 # — with no retry, a single transient failure (e.g. the router itself
 # rebooting for a moment right as mains power returns) permanently loses that
-# one alert (issue #394). Kept short since the send is synchronous/blocking.
+# one alert. Kept short since the send is synchronous/blocking.
 # Read fresh on every call (not a default-arg binding) so tests can
 # monkeypatch it directly.
 _SEND_RETRY_DELAYS_S: Tuple[float, ...] = (3.0,)

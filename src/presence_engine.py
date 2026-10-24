@@ -62,17 +62,17 @@ class PresenceAutomationConfig:
     auto_disarm_enabled: bool = False
     arm_action: str = "arm"
     disarm_action: str = "disarm"
-    # Oldest arrival an auto-disarm may still act on (issue #598). ``<= 0``
+    # Oldest arrival an auto-disarm may still act on. ``<= 0``
     # disables the bound. See `evaluate_alarm_decision` for why this is a
     # disarm-only knob.
     disarm_max_age_s: int = 900
     # How long an auto-arm block must persist before it is worth telling anyone
-    # about (issue #599). "One person home, another away" is the *normal* state
+    # about. "One person home, another away" is the *normal* state
     # of a partly-occupied house; it is only diagnostic once it sticks. ``0``
-    # notifies immediately (the pre-#599 behaviour).
+    # notifies immediately (the previous behaviour).
     arm_block_notify_after_s: int = 900
     # How old a corroborating iCloud/Find My fix may be and still vouch for a
-    # stale webhook person (issue #653). The webhook write path is edge-
+    # stale webhook person. The webhook write path is edge-
     # triggered only (Arrive/Leave geofence crossings, no heartbeat), so a
     # person who simply stays put past ``stale_after_s`` isn't broken - this
     # lets a fresher, agreeing iCloud read stand in for the missing heartbeat
@@ -239,7 +239,7 @@ def set_person_state(
     raw["people"] = people
     _save_state(raw, path)
     # The roster is what lets the engine notice this person going *missing*
-    # later (issue #689), so it has to learn them at the same moment their
+    # later, so it has to learn them at the same moment their
     # state does — beside whichever state file this call actually wrote.
     #
     # Guarded because the state write above has already landed: raising here
@@ -288,7 +288,7 @@ def load_automation_config(path: Optional[Path] = None) -> PresenceAutomationCon
         arm_action=str(raw.get("arm_action") or "arm"),
         disarm_action=str(raw.get("disarm_action") or "disarm"),
         # An absent *or malformed* key must fall back to the bounded default,
-        # never to "unbounded" — a config written before #598, or one with a
+        # never to "unbounded" — a config written before the bound existed, or one with a
         # null/garbage value, is exactly the case the bound exists to protect.
         # (The neighbouring `int(... or 0)` idiom would turn a null into 0,
         # which here means *disabled* — the wrong direction for a safety bound.)
@@ -550,7 +550,7 @@ def evaluate_alarm_decision(
     current = list(people)
     if not current:
         return None
-    # A shrunken roster is not a smaller household (issue #689). Refuse both
+    # A shrunken roster is not a smaller household. Refuse both
     # directions, not just arm: refusing a disarm leaves the house armed, which
     # is the safe way to be wrong about who is in it.
     if missing_people(current, known_person_ids):
@@ -571,7 +571,7 @@ def evaluate_alarm_decision(
         key = f"disarm:{transition_at.isoformat()}"
         if key == _last_key("disarm") or _manual_after(transition_at):
             return None
-        # Freshness bound (#598). An arrival the engine never got to act on -
+        # Freshness bound. An arrival the engine never got to act on -
         # because the panel was already disarmed when it landed - stays pending
         # indefinitely and fires the moment the panel is next armed. That is how
         # a 22:43 keypad arm was undone by a 19:51 arrival: nearly three hours
@@ -828,8 +828,8 @@ def evaluate_staleness_block(
     )
 
 
-# Floor between retried block-notification attempts once one is due (issue
-# #601) — independent of ``dwell_s``, which only gates the *first* attempt.
+# Floor between retried block-notification attempts once one is due,
+# independent of ``dwell_s``, which only gates the *first* attempt.
 # Without this, a send that keeps declining or failing (Telegram down, no
 # notifier configured, the ``error`` toggle off) would be re-attempted on
 # every ~10s presence poll tick instead of backing off. Shared by both block
@@ -926,7 +926,7 @@ class _BlockNamespace:
         stamp = at or now_utc()
         raw = _load_state()
         meta = _automation_meta(raw)
-        # Both diagnostics run every ~10s tick and, before issue #689, saved
+        # Both diagnostics run every ~10s tick and, previously, saved
         # unconditionally — rewriting the whole presence state four times a tick
         # to persist bytes identical to the ones just read. That churn is what
         # kept `presence_state.json` permanently mid-`os.replace` and made a

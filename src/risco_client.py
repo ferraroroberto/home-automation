@@ -80,8 +80,8 @@ class SecurityZone:
     bypassed: bool = False
     # Generic per-zone trouble flag from the cloud payload. The RISCO cloud API
     # does not label *why* a detector is troubled (battery, tamper, comm-fault),
-    # so this is surfaced as a single "Trouble" indicator (issue #84). Per-zone
-    # battery state is not exposed by the cloud (issue #220).
+    # so this is surfaced as a single "Trouble" indicator. Per-zone
+    # battery state is not exposed by the cloud.
     trouble: bool = False
 
 
@@ -130,9 +130,9 @@ class SecurityState:
     system_status: Optional[int] = None
     system_ready: Optional[bool] = None
     trouble: Optional[bool] = None
-    # System-wide AC-power health from the cloud status payload (issue #99) — set
+    # System-wide AC-power health from the cloud status payload — set
     # when the panel lost mains and is running on backup. (The cloud's aggregate
-    # ``batteryLow`` flag was dropped in #227 as an unreliable proxy.)
+    # ``batteryLow`` flag is not used: it is an unreliable proxy.)
     ac_lost: Optional[bool] = None
     alarm_pending: Optional[bool] = None
     ongoing_alarm: Optional[bool] = None

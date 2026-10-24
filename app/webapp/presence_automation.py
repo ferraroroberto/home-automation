@@ -58,7 +58,7 @@ from src.risco_client import fetch_security_state
 
 logger = logging.getLogger(__name__)
 
-# Default staleness bound for the guardian-home read (issue #693): the same
+# Default staleness bound for the guardian-home read: the same
 # 24h reasoning as the "don't trust a stale sighting" rule the webhook side
 # already applies via ``stale_after_s``, just as its own knob since a guardian
 # read comes from iCloud, not a webhook heartbeat.
@@ -191,7 +191,7 @@ def _evaluate_current_decision(
         return None
     # Deliberately NOT filtered by src.presence_hidden: that flag is a UI-only
     # "declutter the Presence list" toggle (mirrors security_hidden) and must
-    # never narrow who the arm/disarm decision considers (issue #490) - hiding
+    # never narrow who the arm/disarm decision considers - hiding
     # one tracked person previously made the automation blind to them while
     # still acting on the rest (e.g. arming while they're genuinely still in).
     people = list(load_people().values())
@@ -250,16 +250,16 @@ async def _sync_arm_block_diagnostic(
             block.since.isoformat(),
         )
     # Held back until the block has persisted for `arm_block_notify_after_s`
-    # (#599): two people walking in 32 s apart briefly look exactly like a
+    # because two people walking in 32 s apart briefly look exactly like a
     # stuck presence, and used to page for it. `record_alarm_action` never
-    # pushes a `blocked` outcome to Telegram (#626 - expected, frequent noise)
+    # pushes a `blocked` outcome to Telegram (expected, frequent noise)
     # but always logs it, so this still records the episode every
     # `_ARM_BLOCK_RETRY_COOLDOWN_S` for as long as it persists.
     if not observed.notify:
         return
     # Stamp the attempt before sending, regardless of outcome, so a declined
     # or failed send backs off for `_ARM_BLOCK_RETRY_COOLDOWN_S` instead of
-    # retrying on every ~10s poll tick (#601).
+    # retrying on every ~10s poll tick.
     mark_arm_block_attempted(block.key)
     sent = await record_alarm_action(
         source=SOURCE_PRESENCE,
@@ -391,7 +391,7 @@ async def tick() -> None:
     # one security read and fire regardless of the presence auto-arm toggle —
     # those alerts must not depend on auto-arm being enabled. This is the only
     # *unconditional* interval reader of RISCO state: the ``/api/security``
-    # snapshot (#759) also refetches every 10 s, but only while that endpoint is
+    # snapshot also refetches every 10 s, but only while that endpoint is
     # being watched, so an unwatched app still polls RISCO from here alone.
     # Adding a further poller would risk the cloud's third-party rate limit;
     # intrusion/AC alerts therefore require this task to be running
@@ -399,7 +399,7 @@ async def tick() -> None:
     security = await fetch_security_state()
     ongoing, memory = security.ongoing_alarm, security.memory_alarm
     # None,None means the RISCO WebUI scrape that backs these two flags came
-    # back unreadable this poll — not "no alarm" (issue #307: a transient
+    # back unreadable this poll — not "no alarm" (a transient
     # scrape hiccup was mistaken for the alarm clearing, so the *next*
     # successful poll re-observing a still-latched, days-old memory_alarm
     # manufactured a false→true "new" intrusion and paged for nothing).
@@ -410,20 +410,20 @@ async def tick() -> None:
         intrusion_detail=f"ongoing_alarm={ongoing} memory_alarm={memory}",
     )
     # Same single read drives the alarm-triggered camera scene capture + AI
-    # verdict (issue #162): cheap edge detection here, heavy capture/vision work
+    # verdict: cheap edge detection here, heavy capture/vision work
     # dispatched as a detached task so it never blocks this poll.
     consider_security_read(security)
     # ...and the configurable per-detector auto-bypass-after-N-repeats override
-    # (issue #341): runs every tick (not just while an alarm is active) so it
+    # — runs every tick (not just while an alarm is active) so it
     # also catches the arm event that restores a previously bypassed zone.
     consider_security_override(security)
 
-    # Built once per tick from the live iCloud diagnostics cache (issue #653)
+    # Built once per tick from the live iCloud diagnostics cache
     # so a stale webhook person's last known state can be corroborated by a
     # fresher, agreeing Find My read instead of silently blocking every
     # decision below.
     corroboration = _build_icloud_corroboration(get_cache())
-    # Issue #693: an untracked household member (e.g. "Nonna") who has no
+    # An untracked household member (e.g. "Nonna") who has no
     # webhook Shortcut but is resolvable via the same iCloud diagnostics cache
     # — computed once per tick like ``corroboration`` above, snapshot reused
     # (not re-fetched) for the coordinated re-check inside the lock below.
@@ -431,7 +431,7 @@ async def tick() -> None:
         get_cache(), _load_guardian_home_config(), at=datetime.now(timezone.utc)
     )
 
-    # The roster is a union of everyone ever seen (issue #689) — refreshed here
+    # The roster is a union of everyone ever seen — refreshed here
     # so a person who reports in for the first time is known from that tick on,
     # and written only when it actually grows. It can never shrink, which is
     # the whole point: a state file that loses a record now shrinks *against*
@@ -491,8 +491,8 @@ async def tick() -> None:
             outcome = f"error: {exc}"
             failure = exc
         else:
-            # Bookkeeping only — deliberately outside the block above (issue
-            # #689). Both calls read `presence_state.json`, and a store that is
+            # Bookkeeping only — deliberately outside the block above.
+            # Both calls read `presence_state.json`, and a store that is
             # momentarily unreadable must not turn a command the panel actually
             # accepted into a Telegram alert claiming it failed. The un-recorded
             # key means the next tick re-issues the same action, which is the
@@ -527,7 +527,7 @@ async def tick() -> None:
                 outcome=OUTCOME_OK,
                 detail=decision.reason,
             )
-            # Issue #875: the blinds follow a *confirmed* arm/disarm when the
+            # The blinds follow a *confirmed* arm/disarm when the
             # Blinds card's switch is on. Never raises, and runs after the
             # alarm is recorded so it cannot change that outcome.
             await follow_alarm(decision.kind, decision.action)

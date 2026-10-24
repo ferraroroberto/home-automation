@@ -39,7 +39,7 @@ _LOCAL_RETRY_LIMIT = 1
 # button press; gated to the explicit Refresh action (never a page-load read).
 _SCAN_TIME_SECONDS = 8.0
 
-# Per-device backoff for *passive* polling reads only (issue #537) — a device
+# Per-device backoff for *passive* polling reads only — a device
 # stuck in a failed state was being reconnected on every poll tick (up to
 # several times/second across callers), each closed socket burning an
 # ephemeral port for ~120s in TIME_WAIT. Base matches the PWA's own poll
@@ -89,13 +89,13 @@ def _record_backoff_success(device_id: str) -> None:
 _SWITCH_CODES = ("switch_1", "switch", "switch_led")
 _COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
 # The value set a blind takes on its control DPS is local, not the cloud
-# schema's (#901): a ``control`` DPS listed as the open / stop / close enum
+# schema's: a ``control`` DPS listed as the open / stop / close enum
 # can answer ``'1'`` over the LAN and silently ignore a written ``'close'``.
 # So each device's set is detected from its own ``status()`` exactly as
 # TinyTuya's ``CoverDevice`` does — its ``COVER_TYPES`` value sets, matched
 # in its priority order (overlapping values resolve to the commoner type) —
 # and cached per device id, persisted to ``_COVER_TYPES_FILE`` (gitignored) so
-# a restart keeps it (#965).
+# a restart keeps it.
 _COVER_TYPES: dict[int, dict[str, Any]] = tinytuya.CoverDevice.COVER_TYPES
 _COVER_TYPE_PRIORITY = (1, 8, 3, 4, 5, 7, 2, 6)
 _cover_types: dict[str, int] = {}
@@ -103,11 +103,11 @@ _COVER_TYPES_FILE = Path(__file__).resolve().parent.parent / "config" / "tuya_co
 # Guards the cover-type store's load-modify-save in _remember_cover_type: the
 # webapp polls every blind concurrently via asyncio.to_thread, so two blinds
 # learning their type in the same poll can each load the same old contents
-# and the second write drops the first blind's entry (#990).
+# and the second write drops the first blind's entry.
 _cover_types_file_lock = threading.Lock()
 _BRIGHTNESS_CODES = ("bright_value", "bright_value_v2", "bright_value_1")
 # Tuya's documented raw brightness range per code, used only when a device's
-# mapping does not state its own min/max (issue #870).
+# mapping does not state its own min/max.
 _BRIGHTNESS_DEFAULT_RANGE = {"bright_value_v2": (10, 1000)}
 _BRIGHTNESS_FALLBACK_RANGE = (25, 255)
 _CURRENT_CODES = ("cur_current", "cur_current_1", "current")
@@ -117,7 +117,7 @@ _ENERGY_CODES = ("add_ele", "add_ele_1", "electricity", "energy", "total_energy"
 # Tuya's standard light categories (bulbs, strips, ceiling lights, dimmer
 # switches). A device in one of these — or one whose switch is the lighting
 # ``switch_led`` code — is a light, so the PWA lists it under Lights rather
-# than Plugs (issue #181). A smart plug feeding a lamp stays a plug.
+# than Plugs. A smart plug feeding a lamp stays a plug.
 _LIGHT_CATEGORIES = frozenset({"dj", "dd", "dc", "xdd", "fwd", "tgq", "tgkg"})
 
 
@@ -434,7 +434,7 @@ def _local_metadata(device_id: str) -> _LocalDevice:
 def _connect(device_id: str, cls: type[tinytuya.Device] = tinytuya.Device) -> tinytuya.Device:
     """Create a short-timeout TinyTuya local device connection."""
     metadata = _local_metadata(device_id)
-    # DEBUG, not INFO (issue #537): this fires on every poll tick for every
+    # DEBUG, not INFO: this fires on every poll tick for every
     # device — at a 15s cadence across ~10 devices that's pure noise that
     # buried the real warnings. A failure/recovery still logs at INFO via
     # _record_backoff_failure/_record_backoff_success below.
@@ -650,7 +650,7 @@ def read_device_state(device_id: str) -> dict[str, Any]:
         result["brightness_pct"] = raw_to_brightness(dps.get(brightness.dps), brightness)
     for name, mapping in energy.items():
         result[name] = _scaled(dps.get(mapping.dps), mapping)
-    logger.debug("Read Tuya state from %s", device_id)  # per-tick noise (issue #537); see _record_backoff_* for signal
+    logger.debug("Read Tuya state from %s", device_id)  # per-tick noise; see _record_backoff_* for signal
     return result
 
 

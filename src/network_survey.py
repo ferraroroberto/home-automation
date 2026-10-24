@@ -46,7 +46,7 @@ logger = logging.getLogger("network_survey")
 
 # Default DB location: the fleet runtime-data root (``C:\sqlite\home-automation\``
 # on Windows), next to the energy / network history DBs — see
-# :mod:`src.runtime_data` and project-scaffolding#243.
+# :mod:`src.runtime_data`.
 # ``NETWORK_SURVEY_DB_PATH`` (env) overrides it.
 DEFAULT_DB_PATH = runtime_db_path(
     "home-automation", "network_survey.sqlite3", env_var="NETWORK_SURVEY_DB_PATH"

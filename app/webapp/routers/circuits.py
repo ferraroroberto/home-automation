@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# The meters, answered from memory (#926) with the same shape as the LAN
+# The meters, answered from memory with the same shape as the LAN
 # snapshot: serve-stale, so a read past max_age_s answers at once and one shared
 # refresh runs behind it; no tick (demand_window_s=0), so a refresh only ever
 # follows a read and the meters see no more reads than the 15 s card poll made

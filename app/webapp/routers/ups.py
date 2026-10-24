@@ -19,7 +19,7 @@ from src.ups_client import UpsState, fetch_ups_state
 router = APIRouter()
 
 # ``upsc`` shells out with a 5 s timeout and hit it about once a minute, which
-# landed inside a request (#769). It runs off the request path instead, at the
+# landed inside a request. It runs off the request path instead, at the
 # PWA's 15 s poll; a slow or failed read shows as the snapshot's age or the
 # state's own ``error``, never as request latency. ``max_age_s`` clears one
 # tick plus one full 5 s timeout, so a slow tick never makes a reader fetch.
@@ -39,7 +39,7 @@ async def get_ups() -> Dict[str, Any]:
 
 
 # The power-event toggles are the same GET/PUT bool-prefs shape as
-# ``security_notify.py``'s alarm toggles — one shared factory (issue #664).
+# ``security_notify.py``'s alarm toggles — one shared factory.
 router.include_router(
     make_bool_prefs_router(
         load_power_notify_prefs,

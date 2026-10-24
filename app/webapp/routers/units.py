@@ -54,7 +54,7 @@ router = APIRouter()
 
 # Ticked while read within its demand window: the PWA polls every 30 s and
 # Home Assistant every 30 s, so a tick per 30 s is no more MELCloud traffic
-# than those polls each logging in, as they did before (#758).
+# than those polls each logging in, as they did before.
 UNITS_SNAPSHOT: ReadSnapshot[List[DeviceInfo]] = ReadSnapshot(
     "units",
     lambda: fetch_devices(),  # looked up per call, so tests can patch it
@@ -113,7 +113,7 @@ def _unit_dict(
     schedule_entries = (schedules or {}).get(d.unit_id, [])
     rule_target = target_for_mode(rule, d.operation_mode) if rule is not None else None
     boost_active = automation.get_boost_active(d.unit_id)
-    # Signed delta the running engine is actually applying (#575) — reuses
+    # Signed delta the running engine is actually applying — reuses
     # boosted_target() so the UI never re-derives the cool/heat sign itself.
     boost_delta_c: Optional[float] = None
     if boost_active and rule is not None and rule_target is not None:
@@ -136,7 +136,7 @@ def _unit_dict(
         "set_temperature": d.set_temperature,
         "fan_speed": d.fan_speed,
         # False when the unit's WiFi adapter has lost its cloud connection —
-        # the PWA dims the card and inerts its controls (issue #520).
+        # the PWA dims the card and inerts its controls.
         "reachable": d.reachable,
         "operation_modes": d.operation_modes,
         "fan_speeds": d.fan_speeds,
@@ -155,9 +155,9 @@ def _unit_dict(
             "boost_enabled": bool(rule and rule.boost_enabled),
             "boost_offset_c": rule.boost_offset_c if rule else None,
             # Live — whether the running automation engine currently has this
-            # unit solar-boosted (#554), not a persisted field.
+            # unit solar-boosted, not a persisted field.
             "boost_active": boost_active,
-            # Signed delta actually applied while boosting (#575) — negative
+            # Signed delta actually applied while boosting — negative
             # when cooling, positive when heating; None when not boosting.
             "boost_delta_c": boost_delta_c,
         },
@@ -397,11 +397,11 @@ async def update_rule(unit_id: str, payload: RulePayload) -> Dict[str, Any]:
 
 
 # ------------------------------------------------- solar-boost coordinator
-# The fleet-level knobs sequencing solar boost across units (issue #562). Fleet
+# The fleet-level knobs sequencing solar boost across units. Fleet
 # -wide rather than per-unit, so the path is ``/api/hvac/...`` and not under
 # ``/api/units/{id}`` — but it stays in this router because this is where HVAC
 # rule/schedule config already lives. Its editor is a card on the **Energy tab**
-# (next to the PV-system card from #561): boost is a solar-load-balancing
+# (next to the PV-system card): boost is a solar-load-balancing
 # concern, and that is the tab a user tunes solar behaviour on.
 #
 # Deliberately a JSON store re-read per tick, not `.env`: the `HVAC_BOOST_*`

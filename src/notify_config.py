@@ -79,8 +79,8 @@ def build_alarm_notifier(path: Optional[Path] = None) -> Optional[Notifier]:
     # this function, and a default argument binds the function object at def time,
     # so monkeypatching the module attribute can't neutralise the default path. A
     # test that forgets to inject a fake notifier would otherwise fire a real
-    # Telegram alert to the family chat — this has bitten us twice (#273, and a
-    # re-run right after). Guarding the single choke point makes every present and
+    # Telegram alert to the family chat — this has bitten us twice already.
+    # Guarding the single choke point makes every present and
     # future test send-proof, regardless of which seam it does or doesn't mock.
     if "pytest" in sys.modules:
         return None

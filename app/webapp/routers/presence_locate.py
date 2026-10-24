@@ -247,7 +247,7 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
     else:
         # Known via a role/display-name alias but absent from both live sources
         # right now — the Find My cache is empty because the diagnostics
-        # refresher is down, not because this person is simply "away" (#442).
+        # refresher is down, not because this person is simply "away".
         place = UNKNOWN_PLACE
         speech = _broken_source_speech(display_name, cache, lang=lang)
 

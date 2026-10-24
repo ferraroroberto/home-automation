@@ -44,7 +44,7 @@ DEFAULT_LOCK_PATH = (
     Path(__file__).resolve().parent.parent / "config" / ".automation-owner.lock"
 )
 
-# The launcher-set switch (#876). Only the tray's WebappManager and webapp.bat
+# The launcher-set switch. Only the tray's WebappManager and webapp.bat
 # — the two launchers of the live :8447 instance — set it on their child.
 ENGINES_ENV = "HOME_AUTOMATION_ENGINES"
 DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"

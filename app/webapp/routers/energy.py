@@ -55,9 +55,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # The live flow, refreshed off the request path at the PWA's 5 s cadence
-# (#759): its slow tail was the Modbus/cloud refresh landing inside a request.
+# because its slow tail was the Modbus/cloud refresh landing inside a request.
 # Same fetch_energy_state, same lock and 5 s/60 s caches, so it adds no second
-# reader of the single-client Modbus dongle. Serve-stale (#771): a read past the
+# reader of the single-client Modbus dongle. Serve-stale: a read past the
 # 10 s bound used to answer inline (a Modbus rediscovery or the cloud fallback,
 # ~1 s+), so it now answers from memory and refreshes behind it; past 120 s the
 # snapshot block says ``stale`` instead of passing old data off as live.
@@ -278,7 +278,7 @@ _HOUR_S = 3600
 # minutes behind wall clock, so the first samples of an hour may not have landed
 # at all. Draw a gap for that stretch instead of a wild number.
 #
-# Applies to both projection bases (#579): the elapsed part of the in-progress
+# Applies to both projection bases: the elapsed part of the in-progress
 # hour, and the covered part of an hour the feed only partly reached. The
 # arithmetic is the same and so is the failure — 5 minutes of data times 12 is
 # a guess either way.
@@ -431,7 +431,7 @@ async def get_energy_forecast(
     }
 
 
-# ------------------------------------------- sun-position diagnostic (#590)
+# ------------------------------------------- sun-position diagnostic
 # Read-only. Nothing here feeds the forecast: it re-reads what was already
 # measured and what the *current* model already predicts, and re-plots the pair
 # against where the sun actually was. The point is to tell a fixed obstruction
@@ -503,7 +503,7 @@ def _sun_overlay_points(
 
     for bucket in buckets:
         # The slot's local clock hour, not its index: the frame has 23 or 25
-        # slots on a DST-change day (#934).
+        # slots on a DST-change day.
         hour = _slot_hour(bucket, tz)
         expected_wh = expected_by_hour.get(hour, 0.0)
         gti = expected_wh / reference if reference > 0 else 0.0
@@ -630,7 +630,7 @@ async def get_sun_overlay(date_: Optional[str] = Query(None, alias="date")) -> D
 
 
 # --------------------------------------------------------- PV system config
-# The write side of the forecast's inputs (issue #561): the Energy tab's "PV
+# The write side of the forecast's inputs: the Energy tab's "PV
 # system" card edits the same gitignored ``config/pv_system.json`` a user may
 # still hand-edit. ``src.pv_forecast`` re-reads the file per request, so a save
 # is live on the next forecast call — no cache to invalidate, no restart.

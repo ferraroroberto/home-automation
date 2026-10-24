@@ -124,13 +124,13 @@ class RouterClient:
             s.get(base + "/", timeout=timeout)  # land the authenticated session
         return ok
 
-    # ---- authenticated data read + reboot (issue #129 Phase 3) ------------- #
+    # ---- authenticated data read + reboot ---------------------------------- #
     _WAN_FEED = (
         "/?_type=menuData&_tag=wan_internetstatus_lua.lua&TypeUplink=2&pageType=1"
     )
     _REBOOT_FEED = "/?_type=menuData&_tag=devmgr_restartmgr_lua.lua"
     # The DHCP lease table — the full one. The earlier accessdev_landevs_lua.lua
-    # feed missed VAP-attached (wireless) clients entirely (issue #507); this one
+    # feed missed VAP-attached (wireless) clients entirely; this one
     # returns wired *and* wireless rows, tagged with PhyPortName (LAN4/SSID1/...).
     # Same page-gated menuData pattern as the WAN feed, but gated behind the
     # "lanMgrIpv4" LAN page (the DHCP-binding page), and its key names differ from
@@ -139,7 +139,7 @@ class RouterClient:
     _DHCP_HOSTS_FEED = (
         "/?_type=menuData&_tag=Localnet_LanMgrIpv4_DHCPHostInfo_lua.lua"
     )
-    # Clients associated to the ROUTER's own radios (issue #502). The AP read
+    # Clients associated to the ROUTER's own radios. The AP read
     # cannot see these — they are not on the AP — and only this feed knows their
     # band/signal/link-rate, so without it they'd reach the inventory as bare
     # lease rows at best. Page-gated behind the "localNetStatus" menu page.
@@ -295,7 +295,7 @@ class RouterClient:
             })
         return rows
 
-    # ---- DHCP binding write-back — phase 2 (issue #176) -------------------- #
+    # ---- DHCP binding write-back — phase 2 --------------------------------- #
     # The reservation *planner* (src.dhcp_plan) computes a MAC→IP assignment; this
     # is the opt-in write-back that pushes it to the router's static "DHCP Binding"
     # table. The table lives on the lanMgrIpv4 LAN page, feed
@@ -474,7 +474,7 @@ class RouterClient:
 
 
 # --------------------------------------------------------------------------- #
-# Router parsing + integrity helpers (issue #129 Phase 3)                     #
+# Router parsing + integrity helpers                                          #
 # --------------------------------------------------------------------------- #
 def _parse_instances(xml: str) -> list[dict]:
     """Parse ``<Instance>`` blocks into ParaName→ParaValue dicts (XML-unescaped)."""
@@ -572,7 +572,7 @@ def _merge_router_wlan_clients(
             by_mac[key] = len(merged)
             merged.append(NetDevice(
                 mac=client.get("mac"),
-                # The wlan feed carries no usable IP (issue #507) — the lease
+                # The wlan feed carries no usable IP — the lease
                 # merge that runs after this one fills it from the DHCP table.
                 ip=client.get("ip"),
                 name=client.get("hostname"),
@@ -699,7 +699,7 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
         return RouterHealth(reachable=True, authenticated=False), [], []
     # The homepage access-device table must be read FIRST — it is only available
     # while the session is still on its post-login home frame, and any menuView
-    # below would lock it out for the rest of the session (issue #502 follow-up).
+    # below would lock it out for the rest of the session.
     try:
         accessdev = client.read_accessdev_table()
     except Exception as exc:  # noqa: BLE001
@@ -726,14 +726,14 @@ def _fetch_router_sync() -> tuple[RouterHealth, list[dict], list[dict]]:
     # DHCP lease table (wired + wireless) for IP/hostname enrichment (best-effort,
     # same authenticated session: a read failure leaves the inventory AP-only,
     # never drops it). A lease row can outlive the device — presence still comes
-    # from the association/accessdev reads, never from here (issue #507).
+    # from the association/accessdev reads, never from here.
     try:
         leases = client.read_dhcp_leases()
     except Exception as exc:  # noqa: BLE001
         logger.warning("⚠️ router DHCP-lease read failed: %s", exc)
         leases = []
     # Fold in the association-derived rows read up front: a second lease source
-    # that still lists hosts whose DHCP lease a reboot wiped (issue #502).
+    # that still lists hosts whose DHCP lease a reboot wiped.
     leases = leases + accessdev
     # Clients on the router's own radios — invisible to the AP read, and the only
     # source of their band/signal/link-rate (the lease table has their IP but says
@@ -813,7 +813,7 @@ def _add_bindings_on_client(
                 table_full = table_full or free <= 0
             logger.info("ℹ️ DHCP binding written: %s → %s", mac, ip)
         except DhcpReservationLost as exc:
-            # Worse than an ordinary failed write (issue #347): the prior binding
+            # Worse than an ordinary failed write: the prior binding
             # was already deleted before the replacement create failed, so the
             # device now has *no* static reservation for this MAC at all — flag it
             # distinctly so the UI/caller knows to re-apply this row, not just retry.
