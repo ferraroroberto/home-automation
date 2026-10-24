@@ -32,6 +32,13 @@
                             rules (skip / static / full), fail-safe to full
                             (ferraroroberto/home-automation#603, project-scaffolding#180).
                             Boots its own disposable instance per tests/e2e/conftest.py.
+      8. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
+                            slice recaptured (tests/e2e/test_shot_baseline.py: phone +
+                            desktop, light + dark) with the committed PNGs under
+                            tests/e2e/shots, fails on a visible change, restores the
+                            tree; runs the capture itself when the slice did not;
+                            skipped with the browser suite and on CI; exit 3 is
+                            NOT CONFIRMED and fails, never a pass.
 
     Anchors to the repo root, so run it from anywhere:  & .\scripts\verify-before-ship.ps1
 #>
@@ -177,6 +184,7 @@ try {
         Write-Host ">> e2e routing: SKIP browser suite (no e2e surface touched)" -ForegroundColor Cyan
         Write-Host "   reason: $routeReason" -ForegroundColor DarkGray
         Write-Host "[PASS] pytest (e2e) - skipped, diff touches no e2e surface" -ForegroundColor Green
+        Write-Host "[SKIP] shot baseline - no e2e surface touched, so no screen was recaptured or compared" -ForegroundColor DarkGray
     } else {
         Write-Host ""
         Write-Host ">> e2e routing: $tier" -ForegroundColor Cyan
@@ -189,6 +197,8 @@ try {
         }
         $label = if ($e2eBrowsers) { $e2eBrowsers } else { "suite-default" }
         $e2eRan = $true
+        # Taken before the run: a shot written after it was recaptured by it.
+        $shotSince = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0
         Invoke-Stage "pytest e2e (${tier}: $e2eTarget, $label)" { & $py -m pytest @e2eArgs }
 
         # Browser helpers this run left wedged mid-exit (#971): its own state,
@@ -203,6 +213,22 @@ try {
         } else {
             $count = ($wedgedLine.Line -split "during this run: ", 2)[1]
             Write-Host "[WARN] browser helpers newly wedged during this run: $count - advisory, see home-automation#971" -ForegroundColor Yellow
+        }
+
+        # Screenshot baseline, last: compare what the slice just captured, or run
+        # the capture itself when the slice did not reach it. Either way the
+        # tree is restored. The baseline is this machine's rasteriser, so a
+        # CI runner (different fonts) does not compare.
+        if ($env:CI -eq "true") {
+            Write-Host "[SKIP] shot baseline - the baseline is this machine's pixels, not a CI runner's" -ForegroundColor DarkGray
+        } else {
+            $sliceCaptured = ($e2eArgs -contains "tests/e2e") -or ($e2eArgs -contains "tests/e2e/test_shot_baseline.py")
+            if ($sliceCaptured) {
+                $since = $shotSince.ToString([Globalization.CultureInfo]::InvariantCulture)
+                Invoke-Stage "shot baseline (compare)" { & $py "scripts/shot_baseline.py" --check-tree --since $since }
+            } else {
+                Invoke-Stage "shot baseline (capture + compare)" { & $py "scripts/shot_baseline.py" --baseline }
+            }
         }
     }
 
