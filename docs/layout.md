@@ -43,7 +43,7 @@ home-automation/
 
 - API tests go in `tests/api/`: they drive a route through `TestClient` with the cloud fetchers monkeypatched.
 - Unit tests over `src/` domain logic go flat in `tests/`, which is past the directory limit and takes no new module. A new test that fits no existing file goes in a domain subpackage (`tests/ratchets/` holds the structure-ratchet gate test).
-- Browser tests go in `tests/e2e/`, with shared fixtures in its `conftest.py`.
+- Browser tests go in `tests/e2e/`. Its `conftest.py` holds the harness (server boot, browser lifecycle, collection hooks); a new API-stub fixture goes in `tests/e2e/fixtures/<area>.py` and is imported in `conftest.py`.
 
 ## Declared exceptions
 
