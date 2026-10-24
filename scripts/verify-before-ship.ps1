@@ -30,13 +30,18 @@
                             a prompt-audit lint hit or passes its size cap beyond
                             .instruction-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
-      7. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
-      8. pytest (e2e)    — diff-proportionate: the browser slice is routed by
+      7. doc refs ratchet — no README.md / CLAUDE.md / docs/**/*.md reference to a
+                            repo path, python -m module, relative link or loopback
+                            port that does not exist, beyond
+                            .doc-refs-ratchet-baseline.json. Whole tree, never
+                            routed; exit 3 is NOT CONFIRMED and fails.
+      8. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
+      9. pytest (e2e)    — diff-proportionate: the browser slice is routed by
                             scripts/classify_e2e.py against the .fleet.toml [e2e]
                             rules (skip / static / full), fail-safe to full
                             (ferraroroberto/home-automation#603, project-scaffolding#180).
                             Boots its own disposable instance per tests/e2e/conftest.py.
-      9. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
+     10. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
                             slice recaptured (tests/e2e/test_shot_baseline.py: phone +
                             desktop, light + dark) with the committed PNGs under
                             tests/e2e/shots, fails on a visible change, restores the
@@ -153,6 +158,8 @@ try {
     Invoke-Stage "structure ratchet" { & $py -m scripts.structure_ratchet_gate }
     # Same exit-3 mapping for the instruction ratchet (tests/ratchets/test_instruction_ratchet_gate.py).
     Invoke-Stage "instruction ratchet" { & $py -m scripts.instruction_ratchet_gate }
+    # Same exit-3 mapping for the doc-refs ratchet (tests/ratchets/test_doc_refs_ratchet_gate.py).
+    Invoke-Stage "doc refs ratchet" { & $py -m scripts.doc_refs_ratchet_gate }
     Invoke-Stage "pytest (unit, non-e2e)" { & $py -m pytest tests -p no:cacheprovider --ignore=tests/e2e }
 
     # ---------------------------------------------------------------- e2e routing

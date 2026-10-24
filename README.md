@@ -124,7 +124,7 @@ The signal that new code is live is the `GET /api/version` `git_sha` matching `g
 
 ## Verification gate
 
-One command runs byte-compile, the static, docs, comment, structure and instruction ratchets and the backend suite, then routes the browser (e2e) phase to the size of the diff (docs-only skips it; a real UI change runs Chromium + WebKit):
+One command runs byte-compile, the static, docs, comment, structure, instruction and doc-refs ratchets and the backend suite, then routes the browser (e2e) phase to the size of the diff (docs-only skips it; a real UI change runs Chromium + WebKit):
 
 ```powershell
 & .\scripts\verify-before-ship.ps1
