@@ -99,7 +99,7 @@ webapp — always its **own disposable instance**, with the energy sampler off;
 if the configured port is already taken it *refuses* rather than
 adopting whatever is there, unless `E2E_LIVE=1` explicitly opts in (see
 `tests/e2e/_e2e_live_guard.py` and CLAUDE.md) — and drives the PWA, **stubbing
-`/api/units`, the `/api/energy*` endpoints, and `/api/tuya*` with fixtures** so
+`/api/units`, the `/api/energy*` endpoints, and `/api/tuya*` with fixtures** (one module per area under `tests/e2e/fixtures/`) so
 it never touches the live cloud, the LAN, or actuates real HVAC. Coverage
 includes the Home/AC/Energy/Devices tab navigation, the Home AC summary, an
 Energy-tab render (hero numbers + charts), and the Devices tab (metered-plug
