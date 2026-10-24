@@ -21,7 +21,7 @@ home-automation/
 │   └── notify/                # vendored notification package (byte-for-byte from project-scaffolding)
 ├── tests/                     # backend suite (flat) and the browser suite
 │   ├── api/                   # API smoke tests through FastAPI's TestClient
-│   ├── ratchets/              # tests of the structure-ratchet gate wrapper
+│   ├── ratchets/              # tests of the structure- and instruction-ratchet gate wrappers
 │   └── e2e/                   # Playwright suite and its fixtures
 ├── docs/                      # durable reference, one topic per file
 ├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools
@@ -43,7 +43,7 @@ home-automation/
 ## Tests
 
 - API tests go in `tests/api/`: they drive a route through `TestClient` with the cloud fetchers monkeypatched.
-- Unit tests over `src/` domain logic go flat in `tests/`, which is past the directory limit and takes no new module. A new test that fits no existing file goes in a domain subpackage (`tests/ratchets/` holds the structure-ratchet gate test).
+- Unit tests over `src/` domain logic go flat in `tests/`, which is past the directory limit and takes no new module. A new test that fits no existing file goes in a domain subpackage (`tests/ratchets/` holds the structure- and instruction-ratchet gate tests).
 - Browser tests go in `tests/e2e/`. Its `conftest.py` holds the harness (server boot, browser lifecycle, collection hooks); a new API-stub fixture goes in `tests/e2e/fixtures/<area>.py` and is imported in `conftest.py`.
 
 ## Declared exceptions
