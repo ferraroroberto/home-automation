@@ -194,7 +194,7 @@ def test_app_padding_owned_by_vendored_nav_on_mobile(
 ) -> None:
     """#420: on the mobile-pill breakpoint the vendored nav-tabs.css owns
     .app's padding (safe-area top + nav-pill bottom clearance). It loads
-    BEFORE styles.css, so an unconditioned ``padding`` shorthand on the base
+    BEFORE styles/base.css, so an unconditioned ``padding`` shorthand on the base
     .app rule silently wins the cascade and flattens both — the PWA then
     renders under the iOS status bar and behind the floating pill. Chromium
     pins the viewport below the wide-layout rail's 1100px breakpoint
@@ -219,7 +219,7 @@ def test_app_padding_owned_by_vendored_nav_on_mobile(
         assert metrics["top"] == 0, metrics
         assert metrics["bottom"] >= 100, metrics
     else:
-        # Desktop (below the 1100px rail breakpoint) keeps the styles.css
+        # Desktop (below the 1100px rail breakpoint) keeps the styles/base.css
         # padding: 0 var(--gap) 24px.
         assert metrics["top"] == 0, metrics
         assert metrics["bottom"] == 24, metrics

@@ -1,0 +1,145 @@
+/* ------------------------------------------------ DHCP reservation plan (#170)
+   Read-only section: a category-grouped MAC→IP list, copy-ready for the router's
+   DHCP Binding form. Reuses .net-group-head for the category headers. */
+.net-dhcp-head {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px;
+}
+.net-dhcp-intro { flex: 1 1 auto; margin: 0; }
+.net-dhcp-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+.net-dhcp-head .utility-btn { flex: 0 0 auto; }
+/* The opt-in write action stands out from the neutral Refresh button (#176);
+   doubled with the tier class to outrank button.css's dark label rule. */
+.button-surface.net-dhcp-apply:not(:disabled) {
+  border-color: var(--accent-border-strong);
+  background: var(--accent-soft);
+  color: var(--accent-text); font-weight: 700;
+}
+.net-dhcp-plan { display: flex; flex-direction: column; }
+.net-dhcp-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "check name move" "check mac pill";
+  align-items: center; column-gap: 12px; row-gap: 2px;
+  padding: var(--space-sm) 0; border-top: 1px solid var(--line);
+}
+/* Leading per-row switch for the selective apply (#176 step 2, switch-ified
+   #360); the spacer keeps non-pending rows' columns aligned with the ticked
+   ones — same footprint as the .toggle button it stands in for. */
+.net-dhcp-check { grid-area: check; align-self: center; }
+.net-dhcp-check-spacer { width: 44px; height: 26px; display: inline-block; cursor: default; }
+/* The "assign a group" picker on an unassigned row (#176 step 3) sits where a pill
+   would be. */
+.net-dhcp-group {
+  grid-area: pill; justify-self: end; align-self: center;
+  font-size: var(--font-caption); padding: 2px 6px; border-radius: var(--radius-md);
+  border: 1px solid var(--control-border); background: var(--input-bg); color: var(--ink);
+  max-width: 140px;
+}
+.net-dhcp-name {
+  grid-area: name; font-weight: 600; color: var(--ink);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.net-dhcp-mac {
+  grid-area: mac; font-size: var(--font-caption); color: var(--muted);
+}
+.net-dhcp-mac.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.net-dhcp-move {
+  grid-area: move; font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+}
+.net-dhcp-move.net-dhcp-stable { color: var(--muted); }
+.net-dhcp-arrow { margin: 0 0.25em; vertical-align: -0.15em; }
+.net-dhcp-move.net-dhcp-change { color: var(--accent); font-weight: 700; }
+.net-dhcp-move.net-dhcp-unplaced { color: var(--attention); font-weight: 700; }
+/* Per-row reservation status against the router (#176). */
+.net-dhcp-pill { grid-area: pill; justify-self: end; align-self: center; }
+.net-dhcp-row-warn .net-dhcp-name { color: var(--attention); }
+.net-dhcp-warnings { margin: var(--space-sm) 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+.net-dhcp-warning {
+  margin: 0; font-size: var(--font-caption); color: var(--attention);
+}
+.net-dhcp-note { margin: 12px 4px 2px; }
+
+/* On the router now — the live reservations, deletable to free a slot (#176 step 1). */
+.net-dhcp-existing-wrap { margin-bottom: var(--space-sm); }
+.net-dhcp-existing { display: flex; flex-direction: column; }
+.net-dhcp-existing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "name ip del" "mac ip del";
+  align-items: center; column-gap: 12px; row-gap: 2px;
+  padding: 7px 0; border-top: 1px solid var(--line);
+}
+.net-dhcp-existing-row.is-offline { opacity: 0.62; }
+.net-dhcp-ex-name {
+  grid-area: name; font-weight: 600; color: var(--ink);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.net-dhcp-ex-mac { grid-area: mac; font-size: var(--font-caption); color: var(--muted); }
+.net-dhcp-ex-ip {
+  grid-area: ip; font-size: var(--font-caption); color: var(--ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.net-dhcp-ex-del { grid-area: del; }
+
+/* Manual reservation form (#176 step 3). */
+.net-dhcp-manual { margin-top: 10px; }
+.net-dhcp-manual-summary {
+  font-size: var(--font-caption); color: var(--muted); cursor: pointer;
+  list-style: none; padding: var(--space-xs) 0;
+  display: flex; align-items: center; min-height: var(--row-sm);
+}
+.net-dhcp-manual-summary::-webkit-details-marker { display: none; }
+.net-dhcp-manual-form {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center;
+}
+.net-dhcp-input {
+  /* Box, border and fill come from the native-control hit recipe (#779). */
+  flex: 1 1 130px; min-width: 0;
+  font-size: var(--font-caption); padding: 0 8px; color: var(--ink);
+}
+.net-dhcp-manual-add { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
+.net-dhcp-manual-add .icon { width: 16px; height: 16px; }
+
+/* Staged-removal styling on an existing row + the remove/undo toggle (#176). */
+.net-dhcp-existing-row.is-removing .net-dhcp-ex-name,
+.net-dhcp-existing-row.is-removing .net-dhcp-ex-ip,
+.net-dhcp-existing-row.is-removing .net-dhcp-ex-mac {
+  text-decoration: line-through; opacity: 0.6;
+}
+/* A reservation staged for removal: the glyph takes the attention tone (colour only). */
+.net-dhcp-ex-del.is-active { color: var(--attention-text); }
+
+/* Suggested-section header with its all/none toggle. */
+.net-dhcp-suggest-head { display: flex; align-items: center; gap: var(--space-sm); }
+.net-dhcp-selectall {
+  font-size: var(--font-caption); font-weight: 700; color: var(--accent-text);
+  background: var(--accent-soft); border: 0; border-radius: var(--radius-pill);
+  padding: 2px 9px; cursor: pointer;
+}
+
+/* Randomised (un-reservable) rows: greyed, with an explanatory note. */
+.net-dhcp-row-random { opacity: 0.6; }
+.net-dhcp-random-note { color: var(--muted); font-style: italic; }
+
+/* Staged manual adds shown as removable chips. */
+.net-dhcp-manual-staged { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-sm) 0 0; }
+.net-dhcp-chip { padding-right: 6px; }
+/* No fixed box inside the pill: a 16px icon-button box leaves the chip's own
+   layout unchanged and its ::before reaches the 44px target. */
+.net-dhcp-chip-x { --icon-btn-box: 16px; }
+
+/* The single Apply-changes bar with a live slot budget (#176 redesign). */
+.net-dhcp-applybar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+}
+.net-dhcp-budget {
+  font-size: var(--font-caption); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.net-dhcp-budget.is-over { color: var(--attention); font-weight: 700; }
+.net-dhcp-applybar-actions { display: inline-flex; align-items: center; gap: 6px; }
+

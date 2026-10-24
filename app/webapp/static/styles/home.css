@@ -1,0 +1,75 @@
+/* ------------------------------------------- Home tab (#885, Step 7/8)
+   A pure dashboard: the House glance card (is the house OK?), the Climate
+   group and Next up, each an open group on the shared head. */
+.house-glance,
+.next-up { margin-bottom: var(--gap); }
+.house-body { padding: 0 12px 12px; }
+/* The compact flow under the arm control, the Energy tab's flow-row. */
+.house-flow {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-muted);
+}
+/* The head's exception chips: buttons whose 44px targets reach past the
+   chip, so the meta slot must not clip them; several wrap. */
+.house-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: 6px 0;
+  overflow: visible;
+}
+/* Next up's rows lead with a time; a reminder with no due time keeps its
+   bell avatar on the same column as the times. */
+.next-up .action-row-main.has-avatar .row-avatar {
+  margin-right: calc(3.2 * var(--font-body-sm) - 36px);
+}
+.wake-alarm-row.is-off .row-time { color: var(--muted); }
+.wake-timer-row .row-time { color: var(--accent-text); }
+.wake-alarm-row.is-ringing .row-time,
+.wake-timer-row.is-ringing .row-time { color: var(--attention-text); }
+.next-up .action-rows:empty { display: none; }
+.next-up .action-rows:not(:empty) ~ .action-rows:not(:empty) { border-top: 1px solid var(--line-muted); }
+
+/* ------------------------------------------------- energy flow diagram */
+.energy-feedback { margin: 0 0 var(--gap); }
+/* Title and last-updated timestamp both removed (the Solar→Home←Grid row is
+   self-evident, and the time duplicated the phone clock — #74). */
+.flow-card { padding: 12px; margin-bottom: var(--gap); }
+
+/* One compact row: Solar · Home · Grid, each a small stacked node, joined by
+   directional arrows. Far shorter than a stacked diagram. */
+.flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.flow-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  transition: opacity 0.2s ease;
+}
+.flow-node.is-idle { opacity: 0.4; }
+.flow-icon { width: 1.55rem; height: 1.55rem; color: var(--ink); }
+.flow-value { font-size: var(--font-body); font-weight: 700; font-variant-numeric: tabular-nums; }
+.flow-name { font-size: var(--font-body-sm); font-weight: 600; color: var(--muted); }
+
+/* Wires carry a Lucide arrow/dot (#779), set in JS. Direction is not a
+   status (#883, tone map of #872): a flowing wire is ink, an idle one muted,
+   never green — the Grid node's name says Exporting / Importing in words. */
+.flow-arrow {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+}
+.flow-arrow .icon { width: var(--icon-title); height: var(--icon-title); }
+.flow-arrow.is-active,
+.flow-arrow.is-import,
+.flow-arrow.is-export { color: var(--ink); }
+

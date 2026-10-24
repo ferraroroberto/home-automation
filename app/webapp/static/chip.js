@@ -1,7 +1,7 @@
 /* Home Automation — the one status chip (issue #879, design.md "status chip").
  *
  * A chip marks an exception only; a normal state gets none. Tones are the one
- * map in styles.css (.chip[data-tone]): neutral (omit the tone) for a plain
+ * map in styles/base.css (.chip[data-tone]): neutral (omit the tone) for a plain
  * fact, 'accent' for selected / in progress, 'attention' for needs-you-soon,
  * 'danger' for broken. `success` is never a chip. `cls` is an optional
  * component hook for layout or tests, never a colour.

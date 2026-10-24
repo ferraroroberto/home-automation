@@ -15,7 +15,7 @@
  *   Generation = --on (success/green), Grid-supplied = --deficit (danger/red),
  *   Consumption = --muted (grey line).
  * Series colours are resolved gamut-safely via alphaFill() (issue #65), so the
- * P3 oklch layer in styles.css feeds --on/--deficit straight through — any CSS
+ * P3 oklch layer in styles/base.css feeds --on/--deficit straight through — any CSS
  * color syntax (hex, oklch, rgb, named) works.
  *
  * Chart.js is a vendored UMD global (window.Chart), loaded on first use: call

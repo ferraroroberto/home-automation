@@ -1,0 +1,141 @@
+/* ----------------------------------------------------------- detail modal
+   The shell is the vendored modal (_vendored/modal/modal.css, #906): the
+   dialog, its iOS anchoring and scroll lock, the header and its icon-button
+   close, the rows and the sticky footer. Only this app's additions follow. */
+/* Banner explaining why the unit's mode/fan/vane selects are disabled (#520).
+   Attention-toned like the card's Offline chip (same 16% tint), tinted rather
+   than solid so it reads the same in light and dark. */
+.detail-offline {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--attention) 16%, transparent);
+  color: var(--attention-text);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+.input-native {
+  font-size: var(--font-label);
+  padding: 0 10px;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+/* ------------------------------------------------ the unit sheet (#881)
+   An instant sheet with pages (units.js): the main page's daily controls,
+   then settings rows (design.md `settings group`: a lead glyph, the label,
+   the value muted, a chevron) that open a page of the same sheet. On a page
+   the header carries Back, left of the page's title. */
+.unit-sheet .detail-header { gap: var(--space-xs); }
+.unit-sheet .detail-header h2 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unit-sheet-back { margin-left: -6px; }
+/* The setpoint: one large stepper, the room and what the unit is doing under
+   it. The ± are icon buttons at the real 44px. */
+.unit-setpoint {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 2px 0 14px;
+}
+.unit-setpoint-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  --icon-btn-box: var(--hit-min);
+}
+.unit-setpoint-step .icon { width: 20px; height: 20px; }
+.unit-setpoint-value {
+  min-width: 5ch;
+  text-align: center;
+  font-size: var(--font-heading-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.unit-setpoint-note { margin: 0; color: var(--muted); font-size: var(--font-body-sm); }
+.unit-sheet-field {
+  display: grid;
+  gap: var(--space-sm);
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.unit-sheet-label { font-weight: 600; }
+.unit-mode-segmented .segmented-item .icon { width: 18px; height: 18px; }
+.unit-sheet-links { border-top: 1px solid var(--line); }
+.unit-sheet-links .action-row,
+.unit-sheet-links .settings-link { padding: 0; }
+/* A summary list inside a sheet (#954). The shared rows pad themselves (4px on
+   the <li>, 10px on the main button and the trailing slot) because they are
+   built to sit full-bleed in a padding-less card; the sheet already pads its
+   content, so the two stacked 14px in. Cancel the row's side padding here (the
+   vendored action-row.css stays verbatim) and the text, switch and chevron
+   line up with the sheet's titles and controls. */
+.sheet-rows > .action-row { padding-inline: 0; }
+.sheet-rows .action-row-main { padding-inline: 0; }
+.sheet-rows .action-row-trail { margin-right: 0; }
+.detail-hint { margin: 8px 0 2px; }
+.schedule-empty { margin: var(--space-xs) 0 0; }
+.schedule-add-btn {
+  position: relative;
+  width: 100%;
+  margin-top: 10px;
+  min-height: var(--control-h);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+/* Full width already clears 44px horizontally; only the 36px height (#wakeAlarmAdd
+   among others, issue #361 review) needs the vertical extension (#367). */
+.schedule-add-btn::before { content: ""; position: absolute; inset: -4px 0; }
+.schedule-add-btn:disabled { color: var(--muted); cursor: default; }
+
+/* Detail-modal Save footer (#202): settings stage locally and commit only in
+   the vendored modal's sticky .detail-actions, whose one full-width
+   .button-primary is disabled until something changes (button.css owns the
+   48px height and the disabled recipe). */
+/* No danger/split variant of the footer: the design.md modal contract wants
+   exactly one full-width solid-accent primary, so a destructive action goes in
+   the dialog body as .schedule-editor-delete (#570 moved the device-group
+   delete there; every other editor modal here was already that shape). */
+
+/* ----------------------------------------------------------- toast */
+/* Neutral frosted toast — the same glass treatment as the floating bottom nav
+   (not a solid block). Sits above the nav so it's never hidden behind it. Only
+   real errors tint red. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(
+    var(--bottom-tabs-height) + var(--bottom-tabs-margin) * 2 +
+    env(safe-area-inset-bottom, 0px) + 8px
+  );
+  transform: translateX(-50%);
+  background: var(--tabbar-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid var(--tabbar-border);
+  color: var(--ink);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-label);
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  z-index: 130;
+  max-width: 90vw;
+}
+.toast.error {
+  background: color-mix(in srgb, var(--deficit) 75%, transparent);
+  border-color: var(--deficit);
+  color: var(--accent-fg);
+}
+

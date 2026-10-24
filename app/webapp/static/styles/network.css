@@ -1,0 +1,572 @@
+/* ----------------------------------------------------------- network (LAN) */
+/* Initial/unavailable feedback replaces the placeholder-filled Network shell;
+   stale feedback stays compact above the preserved last-good content. */
+.network-feedback { margin: 0 0 var(--gap); }
+#networkBody[data-state="loading"] > :not(.network-feedback),
+#networkBody[data-state="error"] > :not(.network-feedback) { display: none; }
+
+/* Internet-health tile — modelled on the energy flow-card: a big status word,
+   a quiet latency/loss caption, the sticky last speed-test result, and the
+   opt-in speed-test button. */
+.net-internet { padding: var(--space-md); margin-bottom: var(--gap); }
+.net-internet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+.net-internet-label {
+  display: inline-flex; align-items: center; gap: 0.4em;
+  font-weight: 700; color: var(--ink);
+}
+.net-internet-label .title-icon { width: 1.1em; height: 1.1em; }
+.net-internet-status {
+  flex: none;
+  font-size: var(--font-body);
+  font-weight: 700;
+  text-align: right;
+}
+.net-internet-status.is-online { color: var(--on); }
+.net-internet-status.is-offline { color: var(--deficit); }
+.net-internet-meta { margin: 6px 0 0; }
+.net-speed-result {
+  margin: 6px 0 0; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.net-speed-result .icon { margin-right: 0.2em; color: var(--muted); }
+.net-speed-btn {
+  margin-top: 12px; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45em;
+}
+.net-speed-btn .icon { width: 1.15em; height: 1.15em; }
+.net-speed-btn.is-busy { opacity: 0.7; cursor: progress; }
+/* Nightly speed-test switch (#840): the notify-toggle row, inset by the tile's
+   own padding rather than the notification cards'. */
+.net-nightly { padding: 0; margin-top: 8px; }
+.net-nightly-hint { margin: 0; }
+
+/* Latency + speed sparklines (#840). One compact row each — a fixed text column
+   beside the chart — so the tile grows by ~90px, not a stacked chart per metric,
+   and 320px still leaves ~160px of line. Strokes are tokens, so a theme flip
+   needs no redraw; upload is dashed so the two speed lines differ without colour. */
+.net-trends { margin-top: 10px; }
+.net-trend {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center; column-gap: var(--space-sm);
+  min-height: 44px; padding-block: 4px;
+}
+.net-trend + .net-trend { border-top: 1px solid var(--line-muted); }
+.net-trend-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.net-trend-name {
+  display: inline-flex; align-items: center; gap: 0.3em;
+  font-weight: 700; font-size: var(--font-label); color: var(--ink);
+}
+.net-trend-key { display: inline-flex; gap: 2px; color: var(--muted); }
+.net-trend-key .icon { width: 0.9em; height: 0.9em; }
+.net-trend-value { font-variant-numeric: tabular-nums; }
+.net-trend-chart { min-width: 0; display: flex; align-items: center; }
+.net-trend-empty { display: block; }
+.net-spark { display: block; width: 100%; height: 40px; overflow: visible; }
+.net-spark path {
+  fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.net-spark .net-spark-area { fill: var(--accent-soft); stroke: none; }
+.net-spark .is-latency,
+.net-spark .is-down { stroke: var(--accent); }
+.net-spark .is-up { stroke: var(--muted); stroke-dasharray: 5 4; }
+
+/* AP + router health row — two compact cards side by side. */
+.net-health-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+/* One column at phone width (#779, J-04): a phone reads top to bottom, so
+   peer cards stack rather than sit side by side. */
+@media (max-width: 520px) {
+  .metric-tiles,
+  .net-health-row { grid-template-columns: minmax(0, 1fr); }
+}
+.net-health-card { padding: var(--space-md); display: flex; flex-direction: column; gap: 7px; }
+.net-health-title {
+  display: inline-flex; align-items: center; gap: 0.4em;
+  margin: 0; font-size: var(--font-body); font-weight: 700;
+}
+.net-health-title .title-icon { width: 1.05em; height: 1.05em; flex: none; }
+.net-health-meta { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.net-health-meta-line {
+  display: block;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.net-health-meta.is-error { color: var(--deficit); }
+.net-reboot-btn {
+  margin-top: auto; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4em;
+}
+.net-reboot-btn .icon { width: 1.05em; height: 1.05em; }
+.net-reboot-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Host-side Wi-Fi diagnostics: compact signal summary in the disclosure header,
+   with channel charts and the visible BSSID list inside. */
+.net-wifi-card { margin-bottom: var(--gap); }
+.net-wifi-summary {
+  grid-column: 2;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.net-wifi-summary .utility-btn:not([hidden]) {
+  padding: 0 8px;
+  font-size: var(--font-caption);
+  white-space: nowrap;
+}
+.net-wifi-status {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.net-wifi-status.is-strong { color: var(--on); }
+.net-wifi-status.is-weak { color: var(--attention); }
+#netWifiSummary {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.net-wifi-body {
+  padding: 12px 14px 14px;
+}
+.net-wifi-meta {
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+.net-wifi-recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.net-wifi-tip {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 1.35;
+}
+.net-wifi-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  margin-bottom: 12px;
+}
+.net-wifi-chart-title {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+.net-wifi-chart-wrap {
+  height: 170px;
+  min-width: 0;
+}
+.net-wifi-list {
+  display: flex;
+  flex-direction: column;
+}
+.net-wifi-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main signal" "mac mac";
+  align-items: center;
+  column-gap: 10px;
+  /* 10px holds the name's 44px tap zone (24 + 2x10) inside the row (#779). */
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.net-wifi-row-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.net-wifi-row-meta,
+.net-wifi-row-mac {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+}
+.net-wifi-row-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.net-wifi-row-mac {
+  grid-area: mac;
+  overflow-wrap: anywhere;
+}
+.net-wifi-row-signal { grid-area: signal; }
+.net-wifi-row.is-current .net-wifi-row-name { color: var(--accent); }
+.net-wifi-row.is-weak .net-wifi-row-signal { color: var(--attention); }
+.net-wifi-row.is-weak .net-signal-fill { background: var(--attention); }
+.net-wifi-row.is-hidden { opacity: 0.55; }
+.net-wifi-current {
+  align-self: flex-start;
+  margin-top: 3px;
+}
+.net-wifi-note { margin: 10px 0 0; }
+@media (max-width: 560px) {
+  #netWifiSummary { display: none; }
+  .net-wifi-summary {
+    gap: 6px;
+  }
+  .net-wifi-summary .utility-btn:not([hidden]) {
+    padding-inline: 7px;
+  }
+  .net-wifi-charts { grid-template-columns: 1fr; }
+  .net-wifi-chart-wrap { height: 185px; }
+}
+
+/* Wi-Fi walk test (issue #547) — per-room coverage survey. Reuses the Wi-Fi
+   list's signal bar / is-weak / is-strong vocabulary so the two cards read as
+   one system; only the row layout and the picker are new here. */
+.net-survey-card { margin-bottom: var(--gap); }
+.net-survey-body { padding: 12px 14px 14px; }
+.net-survey-hint { margin: 0 0 10px; line-height: 1.35; }
+.net-survey-status.is-strong { color: var(--on); }
+.net-survey-status.is-weak { color: var(--attention); }
+
+.net-survey-device {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* No bottom padding: the gap down to the form row is owned entirely by that
+     row's margin, so it can equal the body's 14px side padding exactly. */
+  padding: 9px 0 0;
+  border-top: 1px solid var(--line);
+}
+.net-survey-device-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); }
+.net-survey-device-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.net-survey-device-name.is-unset { color: var(--muted); font-weight: 400; }
+
+.net-survey-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* Matches .net-survey-body's 14px side padding so the row gap and the card
+     margins read as one uniform spacing step. */
+  margin: 14px 0 0;
+}
+.net-survey-room { flex: 1 1 auto; min-width: 0; }
+/* The two trailing actions are the same component (button-surface at the shared
+   --control-h, so they line up with the room input) pinned to one width, so
+   Change and Record here read as a single right-hand column rather than two
+   differently-sized buttons. The width is set here rather than left to content
+   because the two labels differ in length. */
+.net-survey-action {
+  flex: 0 0 7.25rem;
+  width: 7.25rem;
+  white-space: nowrap;
+}
+/* Accent tint marks Record as the card's primary action — same geometry as the
+   Change button beside it, only the emphasis differs. Doubled with the tier
+   class so it outranks button.css's dark label rule; disabled falls through
+   to the tier's flat recipe, so the tint never washes out below AA. */
+.button-surface.net-survey-record:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent-border-soft);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.net-survey-progress { margin: 8px 0 0; }
+
+.net-survey-rooms {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+}
+.net-survey-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "main signal actions" "meta meta meta";
+  align-items: center;
+  column-gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.net-survey-row-main {
+  grid-area: main;
+  min-width: 0;
+}
+.net-survey-row-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.net-survey-row-signal { grid-area: signal; }
+.net-survey-row.is-weak .net-survey-row-signal { color: var(--attention); }
+.net-survey-row.is-weak .net-signal-fill { background: var(--attention); }
+/* "Not seen on either radio" is a recorded result, not a missing value — it
+   gets the danger colour because an unreachable spot is the strongest finding a
+   walk test can produce, never a blank that reads like a measurement. */
+.net-survey-row.is-missing .net-survey-row-signal {
+  color: var(--deficit);
+  font-weight: 700;
+}
+/* A sample the AP/router could not answer says nothing about coverage, so it
+   stays muted — colouring it like a dead zone would present an outage as a
+   finding. */
+.net-survey-row.is-unknown .net-survey-row-signal {
+  color: var(--muted);
+  font-style: italic;
+}
+.net-survey-row-meta {
+  grid-area: meta;
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* Documented exception to the design.md 44/52/60 row scale (#570): this is a
+   compact action-rail *button* inside .net-survey-row, not a row — a 44px box
+   here would out-weigh the room name it sits beside and inflate every survey
+   row. The vendored icon-button keeps the 34px box and its ::before supplies
+   the 44px effective target. Do not "fix" the 34px away. */
+.net-survey-row-delete { grid-area: actions; --icon-btn-box: 34px; }
+
+/* Device picker (inside the walk-test dialog) — one flat row per wireless
+   client, strongest first. */
+.net-survey-picker-hint { margin: 0 0 4px; line-height: 1.35; }
+.net-survey-picker {
+  display: flex;
+  flex-direction: column;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.net-survey-picker-row {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  width: 100%;
+  min-height: var(--row-sm, 44px);
+  padding: 9px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.net-survey-picker-row.is-current .net-survey-picker-name { color: var(--accent); }
+.net-survey-picker-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.net-survey-picker-meta {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Settings-style collapsible card for counts, ordering, offline toggle and list. */
+.net-devices-card { margin-bottom: var(--gap); }
+.net-devices-body { padding: 12px 14px 14px; }
+.net-dhcp-body { padding: 12px 14px 14px; }
+
+/* Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N. */
+.net-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: 10px;
+}
+.net-stat-chip {
+  background: var(--card-off);
+  border-radius: var(--radius-pill);
+  padding: 5px 6px;
+  min-width: 0;
+  text-align: center;
+  font-size: var(--font-caption); font-weight: 600; color: var(--muted);
+  white-space: nowrap;
+}
+.net-stat-chip .net-stat-num { color: var(--ink); font-weight: 700; }
+.net-stat-chip.is-weak { color: var(--attention); }
+.net-stat-chip.is-weak .net-stat-num { color: var(--attention); }
+
+/* Attached-device inventory, grouped by band. */
+.net-devices { display: flex; flex-direction: column; }
+.net-group-head {
+  /* First-group top spacing matches between-group spacing (#519) — no
+     first-child override. */
+  margin: 14px 0 4px; font-size: var(--font-caption); font-weight: 700;
+  color: var(--muted); text-transform: none;
+}
+/* "My groups" view (#513): the header carries an online/total count and — for a
+   real (non-Unclassified) group — a pencil that opens the rename/delete dialog. */
+.net-group-head.net-group-head--custom {
+  display: flex; align-items: center; gap: 6px;
+}
+.net-group-head-count { font-weight: 600; }
+/* A 16px box: the vendored icon-button ::before grows it to the 44px target
+   without growing the visible pencil (#570). */
+.net-group-edit { --icon-btn-box: 16px; }
+.net-device {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name signal" "meta signal";
+  align-items: center;
+  column-gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+/* The device name is a tappable button (opens the detail/rename modal), with a
+   leading category glyph and an ellipsising text span. Mirrors the detector /
+   presence name buttons. */
+button.net-device-name {
+  grid-area: name;
+  display: inline-flex; align-items: center; gap: 7px;
+  max-width: 100%;
+  color: var(--ink);
+}
+.net-device-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted); }
+.net-device-name-text {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.net-device-name:hover .net-device-name-text { text-decoration: underline; }
+.net-device.is-weak .net-device-icon { color: var(--attention); }
+.net-device-meta {
+  grid-area: meta; font-size: var(--font-caption); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.net-device-signal {
+  grid-area: signal; display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--font-caption); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.net-device.is-weak .net-device-signal { color: var(--attention); }
+.net-signal-bar {
+  display: inline-block; width: 44px; height: 6px;
+  background: var(--card-off); border-radius: var(--radius-pill); overflow: hidden;
+}
+.net-signal-fill {
+  display: block; height: 100%; background: var(--on);
+  border-radius: var(--radius-pill);
+}
+.net-device.is-weak .net-signal-fill { background: var(--attention); }
+.net-signal-pct { min-width: 2.6em; text-align: right; }
+.net-devices-note { margin: 12px 4px; }
+
+/* Device-list tools row — small sort control plus optional Show offline toggle.
+   Bottom margin matches the 10px .net-stats uses above the Order row (#519). */
+.net-devices-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--control-h);
+  margin-bottom: 10px;
+}
+.net-devices-head .utility-btn:not([hidden]) {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-size: var(--font-caption);
+  white-space: nowrap;
+}
+/* Second control row: the band/my-groups switch (#513). Its own class rather
+   than a second .net-devices-head so the head's right-edge alignment contract
+   (and the e2e assertion on it) keeps matching exactly one element. */
+.net-devices-groupby {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h);
+  margin-bottom: 10px;
+}
+.net-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-caption);
+  color: var(--muted);
+}
+.net-sort-label { font-weight: 600; margin-right: 2px; }
+/* Sort chip, snapped to the 36px control height (issue #361; was 26px). The
+   ::before extends the tap target to the 44px floor on both axes — a short
+   label like "A-Z" renders only ~43px wide, so the pseudo nudges width too
+   (measured live: -4px 0 left "A-Z" at 43px, one short). */
+.net-sort-btn {
+  position: relative;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-h);
+  /* Shared min-width (#519) so the Order row's A-Z/Signal pills line up with
+     the Group row's My groups/Band pills instead of sizing to their own text
+     — sized to fit "My groups", the longest label, so all four render equal. */
+  min-width: 96px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--card-off);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.net-sort-btn::before { content: ""; position: absolute; inset: -4px -2px; }
+.net-sort-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border-strong);
+  color: var(--accent-text);
+}
+
+/* Offline (known-but-absent) devices render dimmed; the signal slot carries the
+   "last seen Xh ago" text instead of a live bar. A no-link device (#550) — in
+   the read, but with no signal and no wired link to show for it — dims the same
+   way, since the Offline toggle governs both and neither is a live client. */
+.net-device.is-offline,
+.net-device.is-nolink,
+.net-device.is-hidden { opacity: 0.55; }
+.net-device-signal.net-device-lastseen,
+.net-device-signal.net-device-nolink { font-style: italic; }
+/* A ping-confirmed no-link device (#552) is live, not dimmed — its own
+   success-colored treatment distinguishes it from both a dimmed no-link row
+   and an ordinary AP/router-confirmed signal reading. */
+.net-device-signal.net-device-pingreachable { color: var(--on); font-weight: 600; }
+
+/* "Important" star marker + the "New" chip on a device row (Phase 4). */
+.net-device-star { width: 16px; height: 16px; flex: 0 0 auto; color: var(--accent); }
+.net-device-new { margin-left: 2px; }
+button.net-device-name:hover .net-device-new { text-decoration: none; }
+/* Offline status line in the detail modal. */
+#netDeviceStatus.is-offline { color: var(--muted); }
+
+/* Reusable confirm modal (issue #129) — same shell as the detail dialogs, with
+   a side-by-side Cancel / confirm action row. A destructive confirm is the
+   vendored outlined .button-tint.danger (confirm.js sets `danger`). */
+.confirm-message { margin: var(--space-xs) 0 var(--space-md); }
+.confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirm-cancel { background: var(--card-off); color: var(--ink); }
+
