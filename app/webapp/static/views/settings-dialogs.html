@@ -1,0 +1,176 @@
+  <!-- Settings sheets (#886, Step 8/8 of #872): one per Settings row, all
+       instant (settings.js wires them through sheet.js). Each holds the
+       controls its card held before, under the same element ids, so the
+       modules that load and save them are unchanged. Switches save as they
+       change, text and numbers on change or blur, each with a toast; a saved
+       item (a place, a panel row, a horizon point) keeps its staged editor on
+       top. Done only closes. -->
+  <dialog id="notifyAlarmSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Alarm notifications</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small settings-sheet-note">Telegram alerts for automatic arm and disarm. Arming from this app is never notified.</p>
+      <div class="notify-toggles">
+        <div class="notify-toggle">
+          <span>Automatic arm (schedule)</span>
+          <button id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Automatic disarm (schedule)</span>
+          <button id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Arm on everyone-away (presence)</span>
+          <button id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Disarm on arrival (presence)</span>
+          <button id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Error on any automatic arm/disarm</span>
+          <button id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Alarm triggered (intrusion)</span>
+          <button id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Panel mains power lost/restored</span>
+          <button id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+      </div>
+      <p id="notifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="notifyUpsSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>UPS notifications</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small settings-sheet-note">Telegram alerts when the PC and Wi-Fi UPS loses or regains mains power. The low-battery shutdown is in Devices › UPS.</p>
+      <div class="notify-toggles">
+        <div class="notify-toggle">
+          <span>Mains power lost (on UPS battery)</span>
+          <button id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <div class="notify-toggle">
+          <span>Power restored (back on mains)</span>
+          <button id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+      </div>
+      <p id="powerNotifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="homeLocationSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Home location</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="presence-settings">
+        <label class="row">
+          <span>Home label</span>
+          <input id="locationLabel" type="text" class="input-native" placeholder="Home">
+        </label>
+        <label class="row">
+          <span>Latitude</span>
+          <input id="locationLat" type="number" step="0.000001" class="input-native" placeholder="—">
+        </label>
+        <label class="row">
+          <span>Longitude</span>
+          <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
+        </label>
+        <button id="locationUseBrowser" type="button" class="button-tint">Use this device location</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Search engine for the voice assistant's web-search answers (issue
+       #321): SearXNG in a Docker container on the hub PC (GET /api/searxng),
+       with Start while it is down. Read on entering Settings, then slowly. -->
+  <dialog id="searxngSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Search engine</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="searxngNote" class="muted small settings-sheet-note">Answers "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
+      <button id="searxngStartBtn" type="button" class="button-tint searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- What can I say? (issue #437): one voice help (#886). The catalogue of
+       spoken commands comes from GET /api/voice-commands (curated in
+       src/voice_commands.py), fetched the first time the sheet opens and
+       never polled. "In this app" below it is what used to be the separate
+       "What can I do?" card (#239): what this app does with Home Assistant. -->
+  <dialog id="voiceSheet" class="detail-dialog settings-sheet voice-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>What can I say?</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="voiceLangToggle" class="segmented voice-lang-toggle" role="group" data-track="voice.lang" aria-label="Filter voice commands by language" hidden></div>
+      <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
+      <p id="voiceCommandsNote" class="muted small settings-sheet-note">Loading the voice commands…</p>
+      <section id="voiceAppHelp" class="voice-app-help" aria-labelledby="voiceAppHelpHead">
+        <h3 id="voiceAppHelpHead" class="net-group-head">In this app</h3>
+        <section class="voice-group">
+          <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>See the voice layer</h4>
+          <p class="voice-group-summary muted small">Devices › Home Assistant shows each room, whether its voice satellite is online, what it is doing and its speaker volume.</p>
+        </section>
+        <section class="voice-group">
+          <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg>Talk to a room</h4>
+          <p class="voice-group-summary muted small">Tap that room’s microphone, speak, then tap Stop. You see the transcript while you talk; the final text is announced through that room’s satellite.</p>
+        </section>
+        <section class="voice-group">
+          <h4 class="voice-group-head"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Review recent interactions</h4>
+          <p class="voice-group-summary muted small">See what Home Assistant heard, which intent handled it, what action ran and the spoken response.</p>
+          <ul class="voice-group-notes muted small">
+            <li>Room and satellite names are owned in Home Assistant; change them there.</li>
+            <li>Only one microphone records at a time. Push-to-talk announces the transcribed text, not the recording or an assistant command.</li>
+            <li>Recent interactions are collected only while this app is running.</li>
+          </ul>
+        </section>
+      </section>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>

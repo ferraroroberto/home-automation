@@ -154,6 +154,7 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("app/webapp/static/energy.js") == "full"
     assert tier("app/webapp/static/styles/base.css") == "full"
     assert tier("app/webapp/static/index.html") == "full"
+    assert tier("app/webapp/static/views/home.html") == "full"
     assert tier("app/webapp/static/_vendored/nav/nav-tabs.css") == "full"
     assert tier("app/webapp/static/_vendored/nav/nav-tabs.js") == "full"
     assert tier("app/webapp/routers/energy.py") == "full"  # PR#596 trap

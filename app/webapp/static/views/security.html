@@ -1,0 +1,159 @@
+    <!-- ============================= SECURITY ============================ -->
+    <section id="paneSecurity" class="pane" role="tabpanel" aria-labelledby="tabSecurity" aria-label="Security" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
+          Security
+        </h2>
+        <span class="status" data-head="security"></span>
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
+      <div id="securityFeedback" class="security-feedback" role="status" hidden></div>
+      <!-- The glance card (#882, Step 4/8 of #872): is the house protected?
+           The mode is the selected segment of the arm control (decision 3),
+           exceptions are chips on the state line, then the next schedule and
+           Kids home. Everything else is an open group below. -->
+      <section class="card security-card security-glance" aria-label="Alarm">
+        <h2 id="securityState" class="security-state">Alarm state: —</h2>
+        <div id="securityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode"></div>
+        <p id="securityNext" class="security-next">Next: —</p>
+        <ul class="action-rows security-glance-rows">
+          <li class="action-row security-kids-row">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg></span>
+              <span class="action-row-text">
+                <span id="presenceKidsHomeLabel" class="action-row-title">Kids home</span>
+                <span class="action-row-meta"><span class="action-row-meta-text">Perimeter only when all leave</span></span>
+              </span>
+            </div>
+            <span id="presenceKidsHomeHint" class="visually-hidden">Arm perimeter only, not full, when everyone leaves. Resets on the next disarm.</span>
+            <button id="presenceKidsHome" data-track="presence.kids-home" type="button" class="toggle action-row-trail" role="switch" aria-checked="false" aria-labelledby="presenceKidsHomeLabel" aria-describedby="presenceKidsHomeHint">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Detectors: the shared row (row.js) with exception chips only, a
+           filter once the list is long, and the rest one tap away. -->
+      <section id="securityZonesCard" class="card action-list security-group security-zones-card" aria-labelledby="securityZonesTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-satellite-dish"></use></svg>
+          <h3 id="securityZonesTitle" class="group-title">Detectors</h3>
+          <span id="securityZonesMeta" class="group-meta"></span>
+        </div>
+        <label id="securityZoneFilterField" class="action-row-filter" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <input id="securityZoneFilter" type="search" placeholder="Filter detectors" aria-label="Filter detectors" autocomplete="off" enterkeyhint="search">
+        </label>
+        <div id="securityZones" class="security-zones"></div>
+        <p id="securityZonesNote" class="muted small group-note" hidden></p>
+        <div class="group-foot">
+          <button id="securityZonesMore" data-track="security.zones-more" type="button" class="group-foot-btn" aria-controls="securityZones" hidden>Show all</button>
+          <button id="securityHiddenToggle" data-track="security.show-hidden" type="button" class="group-foot-btn" data-testid="detectors-show-hidden-toggle" aria-controls="securityZones" hidden>Show hidden</button>
+        </div>
+      </section>
+
+      <section class="card action-list security-group cameras-card" aria-labelledby="camerasTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-camera"></use></svg>
+          <h3 id="camerasTitle" class="group-title">Cameras</h3>
+        </div>
+        <div id="camerasList" class="cameras-list" aria-live="polite"></div>
+        <p id="camerasNote" class="muted small group-note" hidden></p>
+      </section>
+
+      <!-- People: one line each, the person sheet one tap away; the iCloud
+           accounts (trust renewal, #659) and the refresh note in a sheet. -->
+      <section id="presenceCard" class="card action-list security-group presence-card" aria-labelledby="presenceTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-users"></use></svg>
+          <h3 id="presenceTitle" class="group-title">People</h3>
+          <span id="presenceSummary" class="group-meta">—</span>
+        </div>
+        <div id="presenceList" class="presence-list" aria-live="polite"></div>
+        <p id="presenceNote" class="muted small group-note" role="status" hidden></p>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="presenceAccountsOpen" data-track="presence.accounts" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-smartphone"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Accounts</span>
+                <span class="action-row-meta"><span id="presenceAccountsMeta" class="action-row-meta-text">Find My</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+        <div class="group-foot">
+          <button id="presenceHiddenToggle" data-track="presence.show-hidden" type="button" class="group-foot-btn" data-testid="presence-show-hidden-toggle" aria-controls="presenceList" hidden>Show hidden</button>
+        </div>
+      </section>
+
+      <!-- Recent events (decision 8 of #872): the last three here; the whole
+           history is the activity log, opened filtered to the alarm. -->
+      <section class="card action-list security-group security-events-card" aria-labelledby="securityEventsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+          <h3 id="securityEventsTitle" class="group-title">Recent events</h3>
+        </div>
+        <div id="securityEvents" class="security-events"></div>
+        <p id="securityEventsNote" class="muted small group-note" hidden></p>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="securityEventsAll" data-track="security.events" type="button" class="action-row-main group-link" aria-haspopup="dialog">
+              <span class="action-row-text"><span class="action-row-title">All events</span></span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Automations: each a dense collection in its own sheet; the counts
+           are the row values. -->
+      <section class="card action-list security-group security-automations-card" aria-labelledby="securityAutomationsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+          <h3 id="securityAutomationsTitle" class="group-title">Automations</h3>
+        </div>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="securitySchedulesOpen" data-track="security.schedules" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Schedules</span>
+                <span class="action-row-meta"><span id="securitySchedulesCount" class="action-row-meta-text">None</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button id="scenePairingsOpen" data-track="security.scene-pairings" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Scene capture</span>
+                <span class="action-row-meta"><span id="scenePairingsCount" class="action-row-meta-text">None</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button id="securityOverridesOpen" data-track="security.overrides" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-shield-check"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Override</span>
+                <span class="action-row-meta"><span id="securityOverridesCount" class="action-row-meta-text">None</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </section>

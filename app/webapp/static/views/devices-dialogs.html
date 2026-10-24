@@ -1,0 +1,311 @@
+  <!-- The Devices tab's sheets (#884, Step 6/8 of #872). Each is the shared
+       sheet shell (sheet.js) in the instant model: a change applies as it is
+       made, with a toast, and Done only closes. Renames and other saved
+       edits still open their staged dialog on top. -->
+
+  <!-- UPS: the reading, then the PC-fleet shutdown it drives (#498, moved
+       here from its own Devices card). -->
+  <dialog id="upsSheet" class="detail-dialog ups-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>UPS</h2>
+        <button id="upsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="upsSheetStatus" class="ups-sheet-status"></div>
+      <h3 class="sheet-section-head"><svg class="icon" aria-hidden="true"><use href="#i-cpu"></use></svg>Fleet shutdown</h3>
+      <div class="row">
+        <span>Shut down PCs on low runtime</span>
+        <button id="pcFleetEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Shut down fleet on low UPS runtime">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <label class="row pc-fleet-threshold-row">
+        <span>Threshold (min)</span>
+        <input id="pcFleetThreshold" type="number" min="1" max="240" step="1" class="input-native" value="15" aria-label="Runtime-remaining threshold in minutes">
+      </label>
+      <p id="pcFleetCaption" class="muted small pc-fleet-caption">Trigger when UPS runtime-remaining ≤ 15 min.</p>
+      <div class="pc-fleet-action">
+        <span class="pc-fleet-action-label">This PC, last</span>
+        <div id="pcFleetTowerAction" class="segmented" role="group" aria-label="What this PC does on low runtime" data-track="ups.tower-action">
+          <button type="button" class="segmented-item" aria-pressed="true" data-action="shutdown">Shut down</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-action="hibernate">Hibernate</button>
+        </div>
+        <p class="muted small pc-fleet-action-hint">Hibernate keeps your open work and resumes when power returns. Other PCs always shut down.</p>
+      </div>
+      <div id="pcFleetMachines" class="pc-fleet-machines" aria-label="Fleet machines" aria-live="polite"></div>
+      <p id="pcFleetNote" class="muted small security-note" role="status" hidden></p>
+      <p class="muted small detail-hint">The hub host shuts down last. Mains-loss alerts are in Settings › Notifications.</p>
+      <div class="detail-actions">
+        <button id="upsSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- A light (decision 5 of #872): power, brightness and warmth as they
+       change; the name and the device details open the staged dialog. -->
+  <dialog id="lightSheet" class="detail-dialog light-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="lightSheetName">Light</h2>
+        <button id="lightSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="lightSheetOffline" class="muted small detail-hint" hidden>Not reachable right now.</p>
+      <div class="row">
+        <span>Power</span>
+        <button id="lightSheetPower" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <div id="lightSheetControls" class="light-controls"></div>
+      <ul class="action-rows unit-sheet-links">
+        <li class="action-row">
+          <button id="lightSheetEdit" type="button" class="action-row-main settings-link" aria-haspopup="dialog">
+            <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
+            <span class="action-row-title">Name and details</span>
+            <span id="lightSheetEditMeta" class="settings-link-value"></span>
+            <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </button>
+        </li>
+      </ul>
+      <div class="detail-actions">
+        <button id="lightSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Blinds › Schedule: the daily up/down entries (#871, dense rows + the
+       staged editor on top) and the alarm pairing switch (#875). -->
+  <dialog id="blindSchedulesSheet" class="detail-dialog security-automation-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Blind schedule</h2>
+        <button id="blindSchedulesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <ul id="blindSchedules" class="action-rows sheet-rows" aria-label="Blind schedules"></ul>
+      <p id="blindSchedulesNote" class="muted small schedule-empty" hidden></p>
+      <button id="blindScheduleAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+      <div class="row">
+        <span>Follow the automatic alarm</span>
+        <button id="blindsFollowAlarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Follow the automatic alarm">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+      <p class="muted small detail-hint blind-alarm-note">All down when everyone leaves and the alarm arms full; all up on the first arrival, in daytime only. Kids home leaves them up.</p>
+      <div class="detail-actions">
+        <button id="blindSchedulesSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Blind schedule add/edit dialog (issue #871) — the same denseListEditor
+       shell and fields as securityScheduleDialog, plus which blinds move and
+       the presence condition. -->
+  <dialog id="blindScheduleDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="blindScheduleEditorTitle">Schedule</h2>
+        <button id="blindScheduleEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row">
+        <span>Enabled</span>
+        <button id="blindScheduleEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable schedule">
+          <span class="knob"></span><span class="toggle-label">ON</span>
+        </button>
+      </div>
+      <label class="row">
+        <span>Time</span>
+        <input id="blindScheduleTime" type="time" class="input-native" value="08:00">
+      </label>
+      <label class="row">
+        <span>Action</span>
+        <select id="blindScheduleAction" class="select-native">
+          <option value="open">Up</option>
+          <option value="close">Down</option>
+        </select>
+      </label>
+      <label class="row">
+        <span>Only when</span>
+        <select id="blindSchedulePresence" class="select-native">
+          <option value="any">Always</option>
+          <option value="home">Someone is home</option>
+          <option value="away">Nobody is home</option>
+        </select>
+      </label>
+      <div class="schedule-editor-days-block">
+        <span class="schedule-editor-days-label">Days</span>
+        <div id="blindScheduleDays" class="alarm-schedule-days"></div>
+      </div>
+      <div class="schedule-editor-days-block">
+        <span class="schedule-editor-days-label">Blinds</span>
+        <div id="blindScheduleTargets" class="blind-schedule-targets"></div>
+      </div>
+
+      <button id="blindScheduleDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete schedule</button>
+
+      <div class="detail-actions">
+        <button id="blindScheduleSave" type="button" class="button-primary detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Home Assistant › Voice satellites: each room's satellite with its
+       push-to-talk (#239). Read from Home Assistant while it is open. -->
+  <dialog id="haSatellitesSheet" class="detail-dialog ha-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Voice satellites</h2>
+        <button id="haSatellitesSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="haSatellitesList" class="ha-satellite-list" aria-live="polite"></div>
+      <p id="haSatellitesNote" class="muted small ha-note">Reading Home Assistant rooms…</p>
+      <p class="muted small detail-hint">Tap Talk, speak, then Stop: the text is announced in that room. One microphone records at a time.</p>
+      <div class="detail-actions">
+        <button id="haSatellitesSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="haInteractionsSheet" class="detail-dialog ha-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Recent interactions</h2>
+        <button id="haInteractionsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="haInteractionsList" class="ha-interaction-list"></div>
+      <p class="muted small detail-hint">Collected only while this app is running.</p>
+      <div class="detail-actions">
+        <button id="haInteractionsSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Elgato light detail + rename modal. Mirrors the plug rename flow while
+       surfacing the read-only LAN identity needed to map physical lights. -->
+  <dialog id="lightDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="lightDetailName">Light</h2>
+        <button id="lightDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="lightDisplayName" type="text" class="input-native" placeholder="Custom label...">
+      </label>
+      <div class="row"><span>Original name</span><span id="lightOriginalName" class="muted">—</span></div>
+      <div class="row"><span>Product</span><span id="lightProduct" class="muted">—</span></div>
+      <div class="row"><span>Network address</span><span id="lightHost" class="muted">—</span></div>
+      <div class="row"><span>Port</span><span id="lightPort" class="muted">—</span></div>
+      <div class="row"><span>Hardware address</span><span id="lightMac" class="muted">—</span></div>
+      <div class="row"><span>Firmware</span><span id="lightFirmware" class="muted">—</span></div>
+      <div class="row"><span>Color temperature</span><span id="lightTemperatureMeta" class="muted">—</span></div>
+      <p id="lightIdentifier" class="muted small zone-original-name"></p>
+
+      <div class="detail-actions">
+        <button id="lightSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Plug rename modal — mirrors the AC detail modal, name-only. Opened by
+       tapping a plug card's name; saves via PUT /api/tuya/{id}/display_name. -->
+  <dialog id="plugDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="plugDetailName">Device</h2>
+        <button id="plugDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="plugDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <!-- Original Tuya / Smart Life name, so a custom label can be matched back
+           to the device as it appears in the Smart Life app. -->
+      <p id="plugOriginalName" class="muted small zone-original-name"></p>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="plugHiddenToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Hide device">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
+      <div class="detail-actions">
+        <button id="plugSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Circuit channel rename + sign-flip modal (issue #25). Mirrors the plug
+       rename dialog. The invert toggle exists because the BL0906 reports signed
+       power, so a CT clamp fitted with its arrow against the flow reads negative
+       on an ordinary load — correcting it here beats reopening a live consumer
+       unit to rotate the clamp.
+
+       This dialog is also where the *reference* figures live (issue #619): the
+       card itself shows one number per row (watts), because that is the one
+       worth reading at a glance — amps, cumulative kWh, mains voltage, signal
+       and the meter's MAC are all things you go looking for deliberately. -->
+  <dialog id="circuitDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="circuitDetailName">Circuit</h2>
+        <button id="circuitDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <!-- One channel's live readings. Hidden when the dialog is showing a
+           whole meter (which has the block below instead). -->
+      <div id="circuitReadings">
+        <div class="row"><span>Power</span><span id="circuitReadingPower" class="muted">—</span></div>
+        <div class="row"><span>Current</span><span id="circuitReadingCurrent" class="muted">—</span></div>
+        <div class="row"><span>Energy</span><span id="circuitReadingEnergy" class="muted">—</span></div>
+      </div>
+
+      <!-- The meter's own reference data, off the group header (issue #619) —
+           the header carries the name alone, because what this card is for is
+           the individual circuit, not the meter's aggregate. -->
+      <div id="circuitMeterInfo">
+        <div class="row"><span>Voltage</span><span id="circuitMeterVoltage" class="muted">—</span></div>
+        <div class="row"><span>Total power</span><span id="circuitMeterTotal" class="muted">—</span></div>
+        <div class="row"><span>Wi-Fi signal</span><span id="circuitMeterSignal" class="muted">—</span></div>
+        <div class="row"><span>Hardware address</span><span id="circuitMeterMac" class="muted">—</span></div>
+      </div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="circuitDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <!-- Which meter and channel this row is, so an unlabelled clamp can still
+           be traced back to the physical device it is fitted on. -->
+      <p id="circuitOriginalName" class="muted small zone-original-name"></p>
+
+      <!-- Both sections below are hidden when the dialog is renaming a whole
+           meter rather than one of its channels: a meter has no clamp direction
+           to correct, and hiding one would hide every circuit under it. -->
+      <div id="circuitInvertSection">
+        <div class="row">
+          <span>Clamp fitted backwards</span>
+          <button id="circuitInvertToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Invert this channel's reading">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <p class="muted small zone-original-name">Turn this on when an ordinary load reads as a negative number.</p>
+      </div>
+
+      <div id="circuitHiddenSection">
+        <div class="row">
+          <span>Hidden</span>
+          <button id="circuitHiddenToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Hide this channel">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <p class="muted small zone-original-name">Put a terminal with no clamp fitted away. It keeps being measured — fit a clamp later and unhide it.</p>
+      </div>
+
+      <div class="detail-actions">
+        <button id="circuitSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>

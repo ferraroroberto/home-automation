@@ -1,0 +1,189 @@
+    <!-- ============================= ENERGY ============================= -->
+    <section id="paneEnergy" class="pane" role="tabpanel" aria-labelledby="tabEnergy" aria-label="Energy monitoring" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+          Energy
+        </h2>
+        <span class="status" data-head="energy"></span>
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
+      <div id="energyFeedback" class="energy-feedback" role="status" hidden></div>
+      <!-- The glance card (#883, Step 5/8 of #872): am I running on the sun?
+           ☀️ Solar feeds 🏠 Home, the 🗼 Grid makes up the difference (or
+           absorbs the surplus), then one line: self-sufficiency and
+           self-consumption right now. Values + arrow directions come from
+           GET /api/energy; an asleep inverter dims the Solar node. -->
+      <section class="card flow-card energy-glance" aria-label="Energy now">
+        <!-- Compact inline flow: Solar → Home ← Grid, in one row. Home sits in
+             the middle (the consumer); the arrows and the Grid node's name say
+             which way power flows. Direction is not a status, so no colour. -->
+        <div class="flow-row">
+          <div class="flow-node" id="flowNodePv">
+            <svg class="icon flow-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+            <span class="flow-value" id="flowPv">—</span>
+            <span class="flow-name">Solar</span>
+          </div>
+          <span class="flow-arrow" id="wirePv" aria-hidden="true"></span>
+          <div class="flow-node" id="flowNodeHouse">
+            <svg class="icon flow-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+            <span class="flow-value" id="flowHouse">—</span>
+            <span class="flow-name">Home</span>
+          </div>
+          <span class="flow-arrow" id="wireGrid" aria-hidden="true"></span>
+          <div class="flow-node" id="flowNodeGrid">
+            <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
+            <span class="flow-value" id="flowGrid">—</span>
+            <span class="flow-name" id="flowGridName">Grid</span>
+          </div>
+        </div>
+        <p class="energy-glance-line">
+          <span id="liveSelfSuff">—</span> self-sufficient now<span id="liveSelfConsPart"> · <span id="liveSelfCons">—</span> of solar used here</span>
+        </p>
+      </section>
+
+      <!-- Today: what the array made and what the house used, each a meter
+           (design.md `meter`), then the day's savings. Fed by
+           /api/energy/today and the day's tariff estimate. -->
+      <section class="card action-list energy-today" aria-labelledby="energyTodayTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+          <h3 id="energyTodayTitle" class="group-title">Today</h3>
+          <span class="group-meta">estimated</span>
+        </div>
+        <div class="energy-today-body">
+          <!-- Made: the fill is the share of today's solar used in the house. -->
+          <div class="today-meter">
+            <span class="today-meter-label">Made</span>
+            <span class="meter" role="meter" aria-label="Share of today's solar used here" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="meter-fill" id="genBar"></span></span>
+            <span class="today-meter-value" id="genTotal">—</span>
+            <span class="today-meter-meta"><span id="genSelf">—</span> used here (<span id="genPct">—</span>) · <span id="genFeed">—</span> exported</span>
+          </div>
+          <!-- Used: the fill is the share of today's use covered by the sun. -->
+          <div class="today-meter">
+            <span class="today-meter-label">Used</span>
+            <span class="meter" role="meter" aria-label="Share of today's use covered by solar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="meter-fill" id="consBar"></span></span>
+            <span class="today-meter-value" id="consTotal">—</span>
+            <span class="today-meter-meta"><span id="consSelf">—</span> from the sun (<span id="consPct">—</span>) · <span id="consGrid">—</span> from the grid</span>
+          </div>
+          <div class="kpis">
+            <div class="kpi">
+              <span class="kpi-label">Saved</span>
+              <span class="kpi-value" id="savEur">—</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">CO₂ avoided</span>
+              <span class="kpi-value" id="savCo2">—</span>
+              <span class="kpi-sub"><span id="savTrees">—</span> tree-years</span>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Export</span>
+              <span class="kpi-value" id="savExport">—</span>
+            </div>
+          </div>
+        </div>
+        <!-- Only shown when today's feed dropped out mid-hour: the totals above
+             are exactly as measured, so a gap makes them read low for a reason
+             that has nothing to do with the array (#579). -->
+        <p class="muted small group-note" id="genGap" hidden></p>
+      </section>
+
+      <!-- History (decision 9 of #872): one period picker and an Energy /
+           Money switch over one chart, instead of three cards with two
+           pickers. Live is the last hour of the flow (energy only); Money is
+           the tariff estimate, its tariff periods as rows, and every figure
+           one tap away in the All figures sheet. -->
+      <section class="card action-list energy-history" aria-labelledby="energyHistoryTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>
+          <h3 id="energyHistoryTitle" class="group-title">History</h3>
+        </div>
+        <div class="energy-history-body">
+          <div class="segmented" id="historyRange" role="group" aria-label="History period" data-track="energy.history-range">
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="live">Live</button>
+            <button type="button" class="segmented-item" aria-pressed="true" data-range="day">Day</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="week">Week</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="month">Month</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="year">Year</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-range="total">All</button>
+          </div>
+          <div class="segmented" id="historyView" role="group" aria-label="History shows" data-track="energy.history-view">
+            <button type="button" class="segmented-item" aria-pressed="true" data-view="energy">Energy</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-view="money">Money</button>
+          </div>
+
+          <div id="historyLive" class="history-view" hidden>
+            <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
+            <p id="liveMeta" class="muted small history-note"></p>
+          </div>
+
+          <div id="historyEnergy" class="history-view">
+            <div class="chart-wrap chart-wrap-agg"><canvas id="aggChart"></canvas></div>
+            <div class="kpis" id="energySummary"></div>
+            <p id="aggEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
+          </div>
+
+          <div id="historyMoney" class="history-view" hidden>
+            <div class="chart-wrap chart-wrap-export"><canvas id="exportCreditChart"></canvas></div>
+            <div class="kpis" id="costSummary"></div>
+            <p id="costEmpty" class="muted small chart-empty" hidden>No history yet — samples accrue while the app runs.</p>
+          </div>
+        </div>
+        <div id="historyMoneyRows" hidden>
+          <ul id="costPeriods" class="action-rows cost-periods"></ul>
+          <ul class="action-rows group-links">
+            <li class="action-row">
+              <button id="energyFiguresOpen" data-track="energy.figures" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+                <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg></span>
+                <span class="action-row-text">
+                  <span class="action-row-title">All figures</span>
+                  <span class="action-row-meta"><span id="energyFiguresMeta" class="action-row-meta-text">Bill, savings and each tariff period</span></span>
+                </span>
+                <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              </button>
+            </li>
+            <li class="action-row">
+              <button id="exportRateOpen" data-track="energy.export-rate" type="button" class="action-row-main has-avatar group-link">
+                <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-euro"></use></svg></span>
+                <span class="action-row-text">
+                  <span class="action-row-title">Export rate</span>
+                  <span class="action-row-meta"><span id="exportRateRowMeta" class="action-row-meta-text">Edited in Settings</span></span>
+                </span>
+                <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+              </button>
+            </li>
+          </ul>
+          <p class="muted small group-note" id="costNote"></p>
+        </div>
+      </section>
+
+      <!-- Solar forecast — expected generation (Open-Meteo tilted irradiance,
+           scaled by the configured PV array) as a dashed curve, with the day's
+           measured generation overlaid. A rough, clearly-labelled estimate; the
+           card stays empty-noted until config/pv_system.json exists (issue #39). -->
+      <section class="card action-list forecast-card" aria-labelledby="forecastTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-cloud-sun"></use></svg>
+          <h3 id="forecastTitle" class="group-title">Solar forecast</h3>
+          <span id="forecastMeta" class="group-meta"></span>
+        </div>
+        <div class="forecast-body">
+          <div class="segmented" id="forecastDay" role="group" aria-label="Forecast day" data-track="energy.forecast-day">
+            <button type="button" class="segmented-item" aria-pressed="false" data-day="yesterday">Yesterday</button>
+            <button type="button" class="segmented-item" aria-pressed="true" data-day="today">Today</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-day="tomorrow">Tomorrow</button>
+          </div>
+          <p class="forecast-headline" id="forecastHeadline">—</p>
+          <div class="chart-wrap chart-wrap-forecast"><canvas id="forecastChart"></canvas></div>
+          <p id="forecastEmpty" class="muted small chart-empty" hidden>Add your panel rows in the PV system card in Settings to enable the forecast.</p>
+        </div>
+        <p class="muted small group-note forecast-params" id="forecastParams"></p>
+      </section>
+    </section>

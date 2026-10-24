@@ -1,0 +1,113 @@
+    <!-- ============================== HOME =============================== -->
+    <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
+      <!-- Page header (#779): every pane opens with the vendored home-head —
+           the tab's title, the theme toggle and the Settings gear. Home's live
+           line is the weather (#885, decision 2 of #872): a dashboard tab's
+           quiet line may be a plain fact, here the sky, now and today's range. -->
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg>
+          Home
+        </h2>
+        <span class="status" data-head="home"></span>
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
+
+      <!-- The glance card (#885, Step 7/8 of #872): is the house OK? The arm
+           control (the same component as Security's, #72), the compact energy
+           flow (the Energy tab's, #57) and who is home. Exceptions are chips
+           in the head, each opening the tab that owns it; a normal house shows
+           none. -->
+      <section id="houseCard" class="card action-list house-glance" aria-labelledby="houseTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+          <h3 id="houseTitle" class="group-title">House</h3>
+          <span id="houseChips" class="group-meta house-chips"></span>
+        </div>
+        <div class="house-body">
+          <p id="homeSecurityState" class="visually-hidden" role="status">Alarm state: —</p>
+          <!-- First paint (LAYOUT-10, #924): the four segments and the flow's dashes are
+               drawn at their final height and filled in place when the reads land. -->
+          <div id="homeSecurityActions" class="segmented segmented--verbs security-actions" role="group" aria-label="Alarm mode">
+            <button type="button" class="segmented-item security-action security-action-disarm" aria-pressed="false" disabled>Off</button>
+            <button type="button" class="segmented-item security-action security-action-partial" aria-pressed="false" disabled>Partial</button>
+            <button type="button" class="segmented-item security-action security-action-perimeter" aria-pressed="false" disabled>Perimeter</button>
+            <button type="button" class="segmented-item security-action security-action-arm" aria-pressed="false" disabled>Full</button>
+          </div>
+          <p id="homeSecurityFeedback" class="muted small security-live-feedback" role="status" hidden></p>
+          <div id="homeEnergyFlow" class="flow-row house-flow" aria-label="Energy flow">
+            <div class="flow-node" id="homeFlowNodePv">
+              <svg class="icon flow-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+              <span class="flow-value" id="homeFlowPv">—</span>
+              <span class="flow-name">Solar</span>
+            </div>
+            <span class="flow-arrow" id="homeWirePv" aria-hidden="true"></span>
+            <div class="flow-node">
+              <svg class="icon flow-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+              <span class="flow-value" id="homeFlowHouse">—</span>
+              <span class="flow-name">Home</span>
+            </div>
+            <span class="flow-arrow" id="homeWireGrid" aria-hidden="true"></span>
+            <div class="flow-node">
+              <svg class="icon flow-icon" aria-hidden="true"><use href="#i-utility-pole"></use></svg>
+              <span class="flow-value" id="homeFlowGrid">—</span>
+              <span class="flow-name" id="homeFlowGridName">Grid</span>
+            </div>
+          </div>
+        </div>
+        <!-- Who is home, in one row; the people themselves (and the roles the
+             voice locator answers to) are Security › People, one tap away. -->
+        <ul id="housePeople" class="action-rows group-links">
+          <li class="action-row house-people-row" aria-hidden="true">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">— home · — away</span>
+                <span class="action-row-meta"><span class="action-row-meta-text">—</span></span>
+              </span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Climate: the AC units on the shared row (row.js, #881), power on the
+           row and the unit sheet one tap away — the AC tab's rows. -->
+      <section id="acSummary" class="card action-list ac-summary" aria-labelledby="climateTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-snowflake"></use></svg>
+          <h3 id="climateTitle" class="group-title">Climate</h3>
+          <span id="climateMeta" class="group-meta"></span>
+        </div>
+        <div id="acSummaryList"></div>
+      </section>
+
+      <!-- Next up (#885): wake alarms (#304), running timers and reminders
+           (#314) as time-led rows. A wake alarm opens its staged editor, a
+           reminder the reminder editor; a timer is cancelled with its ×. A
+           ringing alarm or a finished timer sits first, in attention. Wake
+           alarms ring at a time; they never arm or disarm the security system. -->
+      <section id="nextUpCard" class="card action-list next-up" aria-labelledby="nextUpTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+          <h3 id="nextUpTitle" class="group-title">Next up</h3>
+        </div>
+        <div id="wakeRingingBanner" class="wake-ringing-banner" role="alert" hidden></div>
+        <ul id="wakeAlarmsList" class="action-rows" aria-label="Wake alarms"></ul>
+        <ul id="wakeTimersList" class="action-rows" aria-label="Timers"></ul>
+        <ul id="remindersList" class="action-rows" aria-label="Reminders"></ul>
+        <p id="nextUpNote" class="muted small group-note" role="status" hidden></p>
+        <div class="group-foot">
+          <button id="wakeAlarmAdd" data-track="alarms.add" type="button" class="group-foot-btn">Add alarm</button>
+          <button id="wakeTimerOpen" data-track="timers.open" type="button" class="group-foot-btn" aria-haspopup="dialog">Start timer</button>
+          <button id="reminderAdd" data-track="reminders.add" type="button" class="group-foot-btn">Add reminder</button>
+        </div>
+      </section>
+
+    </section>

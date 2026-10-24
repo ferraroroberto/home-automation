@@ -19,7 +19,6 @@
     {"key": "fn:tests/e2e/conftest.py:_reap_orphaned_webkit_zombies", "lines": 107},
     {"key": "fn:tests/e2e/test_energy_tab.py:test_energy_tab_renders_flow_and_charts", "lines": 117},
     {"key": "fn:tests/e2e/test_network.py:test_network_device_groups_create_move_rename_and_delete", "lines": 117},
-    {"key": "size:app/webapp/static/index.html", "lines": 3454},
     {"key": "size:app/webapp/static/state.js", "lines": 1043},
     {"key": "size:src/presence_engine.py", "lines": 1090},
     {"key": "size:tests/test_network_client.py", "lines": 1286},

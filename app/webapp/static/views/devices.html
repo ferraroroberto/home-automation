@@ -1,0 +1,213 @@
+    <!-- =============================== IOT =============================== -->
+    <!-- Devices (data-tab 'iot'): every local device on one surface (issue
+         #136), on the shared system since #884 (Step 6/8 of #872): the Power
+         glance card, then Lights, Blinds, Plugs and Circuits as open groups on
+         the shared row, then Home Assistant (from Home) and Network (from
+         Settings). Cloud-free: local devices.json and LAN reads only. -->
+    <section id="paneIot" class="pane" role="tabpanel" aria-labelledby="tabIot" aria-label="Devices" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
+          Devices
+        </h2>
+        <span class="status" data-head="iot"></span>
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
+      <!-- The glance card (#884, Step 6/8 of #872): what is on and drawing
+           power? The live plug total, the biggest draws, and the UPS as a row
+           whose sheet also holds the PC-fleet shutdown. -->
+      <section id="powerCard" class="card action-list devices-group power-glance" aria-labelledby="powerTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+          <h3 id="powerTitle" class="group-title">Power</h3>
+          <span id="powerOnCount" class="group-meta"></span>
+        </div>
+        <div id="powerNow" class="power-now">
+          <span id="powerWatts" class="power-watts">—</span>
+          <span id="powerTop" class="power-top">—</span>
+        </div>
+        <ul id="upsRows" class="action-rows group-links"></ul>
+      </section>
+      <div id="plugsFeedback" class="plugs-feedback" role="status" hidden></div>
+
+      <!-- Lights: the Elgato lights and the Tuya lights from GET /api/tuya
+           (#181) on the shared row; brightness and warmth live in the light
+           sheet (decision 5 of #872). The group verbs sit in the footer. -->
+      <section id="lightsCard" class="card action-list devices-group" aria-labelledby="lightsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-lightbulb"></use></svg>
+          <h3 id="lightsTitle" class="group-title">Lights</h3>
+          <span id="lightsCount" class="group-meta" hidden></span>
+        </div>
+        <div id="lightsList" class="device-rows" aria-label="Lights" aria-live="polite"></div>
+        <p id="lightsNote" class="muted small group-note" role="status" hidden></p>
+        <div class="group-foot">
+          <button id="lightsAllOn" data-track="lights.all-on" type="button" class="group-foot-btn" data-testid="lights-all-on">All on</button>
+          <button id="lightsAllOff" data-track="lights.all-off" type="button" class="group-foot-btn" data-testid="lights-all-off">All off</button>
+          <button id="lightsRefresh" data-track="lights.refresh" type="button" class="group-foot-btn" data-testid="lights-refresh">Refresh</button>
+        </div>
+      </section>
+
+      <!-- Blinds: one-tap Up · Stop · Down on every row as a segmented verb
+           (decision 6 of #872), the house-wide move as the first row, and the
+           daily schedule plus the alarm pairing (#871, #875) in a sheet. -->
+      <section id="blindsCard" class="card action-list devices-group" aria-labelledby="blindsTitle" hidden>
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-blinds"></use></svg>
+          <h3 id="blindsTitle" class="group-title">Blinds</h3>
+          <span id="blindsCount" class="group-meta" hidden></span>
+        </div>
+        <ul class="action-rows">
+          <li class="action-row blinds-all-row">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-blinds"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">All blinds</span>
+                <span class="action-row-meta"><span id="blindsAllMeta" class="action-row-meta-text"></span></span>
+              </span>
+            </div>
+            <div class="icon-button-group action-row-trail" role="group" aria-label="Move all blinds">
+              <button id="blindsAllUp" data-track="blinds.all-up" type="button" class="icon-button action-row-verb" data-testid="blinds-all-up" title="All up" aria-label="All up"><svg class="icon" aria-hidden="true"><use href="#i-chevron-up"></use></svg></button>
+              <button id="blindsAllStop" data-track="blinds.all-stop" type="button" class="icon-button action-row-verb" data-testid="blinds-all-stop" title="All stop" aria-label="All stop"><svg class="icon" aria-hidden="true"><use href="#i-square"></use></svg></button>
+              <button id="blindsAllDown" data-track="blinds.all-down" type="button" class="icon-button action-row-verb" data-testid="blinds-all-down" title="All down" aria-label="All down"><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg></button>
+            </div>
+          </li>
+        </ul>
+        <div id="blindsList" class="device-rows" aria-label="Blinds"></div>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="blindSchedulesOpen" data-track="blinds.schedules" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Schedule</span>
+                <span class="action-row-meta"><span id="blindSchedulesMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Plugs: one row each with the switch; the unreachable ones fold into
+           one Offline row, and hidden ones stay out until Show hidden. -->
+      <section id="plugsCard" class="card action-list devices-group" aria-labelledby="plugsTitle" hidden>
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>
+          <h3 id="plugsTitle" class="group-title">Plugs</h3>
+          <span id="plugsCount" class="group-meta" hidden></span>
+        </div>
+        <div id="plugsList" class="device-rows" aria-label="Plugs"></div>
+        <div class="group-foot">
+          <button id="plugsHiddenToggle" data-track="devices.show-hidden" type="button" class="group-foot-btn" data-testid="plugs-show-hidden-toggle" aria-controls="plugsList" hidden>Show hidden</button>
+          <button id="plugsPair" data-track="devices.pair" type="button" class="group-foot-btn" data-testid="plugs-pair">Add device</button>
+        </div>
+      </section>
+      <p id="plugsNote" class="muted small plugs-note" hidden></p>
+
+      <!-- Circuits (issue #25): per-breaker power from the Athom BL0906
+           CT-clamp meters, one row per clamp with its watts. Meters are found
+           over mDNS and EVERY channel is listed, clamp fitted or not, so a
+           clamp added later just starts reading. A clamp row opens its
+           rename / sign-flip / hide dialog; a meter row its reference data. -->
+      <section id="circuitsCard" class="card action-list devices-group" aria-labelledby="circuitsTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-gauge"></use></svg>
+          <h3 id="circuitsTitle" class="group-title">Circuits</h3>
+          <span id="circuitsCount" class="group-meta" hidden></span>
+        </div>
+        <div id="circuitsList" class="device-rows" aria-label="Circuits" aria-live="polite"></div>
+        <p id="circuitsNote" class="muted small group-note" role="status" hidden></p>
+        <div class="group-foot">
+          <button id="circuitsHiddenToggle" data-track="circuits.show-hidden" type="button" class="group-foot-btn" data-testid="circuits-show-hidden-toggle" aria-controls="circuitsList" hidden>Show hidden</button>
+        </div>
+      </section>
+
+      <!-- Home Assistant (decision 1 of #872, moved from Home): the VM's power
+           switch on its row (#240, Stop is confirm-gated), the voice
+           satellites with push-to-talk and the recent interactions (#239)
+           each one tap away in a sheet. -->
+      <section id="homeAssistantCard" class="card action-list devices-group ha-card" aria-labelledby="haTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-server"></use></svg>
+          <h3 id="haTitle" class="group-title">Home Assistant</h3>
+        </div>
+        <ul class="action-rows">
+          <li class="action-row ha-vm-row">
+            <div class="action-row-main has-avatar">
+              <span id="haVmAvatar" class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-server"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Virtual machine</span>
+                <span class="action-row-meta"><span id="homeAssistantSummaryState" class="action-row-meta-text">Reading status…</span></span>
+              </span>
+            </div>
+            <button id="homeVmToggle" data-track="vm.power" type="button" class="toggle vm-toggle action-row-trail" role="switch" aria-checked="false" aria-label="Home Assistant VM power" disabled>
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </li>
+        </ul>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="haSatellitesOpen" data-track="ha.satellites" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Voice satellites</span>
+                <span class="action-row-meta"><span id="haSatellitesMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <!-- Hidden until the first interaction arrives (#805): an always-empty
+               sheet offered nothing to do. -->
+          <li id="haInteractionsCard" class="action-row" hidden>
+            <button id="haInteractionsOpen" data-track="ha.interactions" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-activity"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Recent interactions</span>
+                <span class="action-row-meta"><span id="haInteractionsMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Network (decision 7 of #872, moved from Settings): the internet and
+           the attached devices as rows; every network tool (speed test, access
+           point and router, Wi-Fi, walk test, attached devices, address
+           reservations) is in the Network sheet. -->
+      <section id="networkCard" class="card action-list devices-group" aria-labelledby="networkTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+          <h3 id="networkTitle" class="group-title">Network</h3>
+        </div>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="networkInternetOpen" data-track="network.internet" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span id="networkInternetAvatar" class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-globe"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Internet</span>
+                <span class="action-row-meta"><span id="networkInternetMeta" class="action-row-meta-text">Reading…</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button id="networkDevicesOpen" data-track="network.devices" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Attached devices</span>
+                <span class="action-row-meta"><span id="networkDevicesMeta" class="action-row-meta-text"></span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </section>
