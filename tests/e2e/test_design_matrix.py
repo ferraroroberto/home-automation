@@ -25,7 +25,7 @@ from tests.e2e._geometry import (
 )
 
 # The app's own persistence key (state.js THEME_KEY, read by the index.html
-# boot script) and the authored --bg token per theme (styles.css :root /
+# boot script) and the authored --bg token per theme (styles/base.css :root /
 # [data-theme="dark"]) — the boot-check that a leg's theme actually applied.
 _THEME_KEY = "home-automation.theme"
 _EXPECTED_BG = {"light": "rgb(255, 255, 255)", "dark": "rgb(13, 17, 23)"}

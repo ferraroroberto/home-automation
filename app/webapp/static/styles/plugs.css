@@ -1,0 +1,129 @@
+/* ----------------------------------------------------- plugs (Smart Life) */
+.plugs-note { margin: 10px 4px; }
+.plugs-feedback { margin: 0 0 var(--gap); }
+
+.vm-toggle { flex: none; }
+.ha-note { margin: 9px 0 0; }
+/* Search-engine sub-card Start button (issue #321): .button-tint already
+   supplies the base look. */
+.searxng-start-btn {
+  margin-top: 10px;
+  width: auto;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+.ha-satellite-list,
+.ha-interaction-list { display: flex; flex-direction: column; }
+.ha-satellite-row,
+.ha-interaction-row {
+  min-height: 52px;
+  border-top: 1px solid var(--line-muted);
+  padding: 10px 0;
+}
+.ha-satellite-row:first-child,
+.ha-interaction-row:first-child { border-top: 0; }
+.ha-satellite-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ha-satellite-row.is-offline { opacity: 0.62; }
+.ha-satellite-copy { min-width: 0; flex: 1 1 auto; }
+.ha-satellite-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ha-live-transcript { margin: 4px 0 0; color: var(--accent); }
+.ha-live-transcript:empty { display: none; }
+.ha-mic-btn {
+  min-width: 44px;
+  height: 44px;
+  padding-inline: 12px;
+  gap: 6px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: var(--font-caption);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--accent);
+}
+.ha-mic-btn .icon { width: 20px; height: 20px; }
+.ha-mic-btn.recording {
+  color: var(--danger-text);
+  background: color-mix(in srgb, var(--deficit) 12%, var(--card));
+}
+.ha-mic-btn:disabled { opacity: 0.45; }
+.ha-interaction-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ha-interaction-room { font-weight: 700; }
+.ha-interaction-text,
+.ha-interaction-response,
+.ha-interaction-meta { margin: 3px 0 0; overflow-wrap: anywhere; }
+
+/* Voice reference sections (#437, shared with the "What can I do?" guide in
+   #461). The spoken example is the one thing the eye should land on, so it
+   gets the only filled surface. Each group is its own <details> so
+   alarm/wake-alarms/locator/etc. fold independently — reuses the shared
+   .collapse-summary/.collapse-chevron disclosure, just with a lighter title
+   size to read as a level below the "What can I say?" card it nests inside. */
+.voice-group { border-top: 1px solid var(--line); }
+.voice-group:first-child { border-top: 0; }
+.voice-group > .collapse-summary { padding: 12px 0; min-height: var(--row-sm); }
+.voice-group:first-child > .collapse-summary { padding-top: var(--space-xs); }
+.voice-group .collapse-title { font-size: var(--font-label); }
+.voice-group .collapse-icon { color: var(--accent); }
+/* The voice sheet's "In this app" guide (the "What can I do?" card until
+   #886) reuses .voice-group-* naming but is hand-authored markup, not the
+   JS-rendered .collapse-summary structure above — so its <h4> icon + text
+   need their own gap, and each group its own breathing room around the
+   border-top divider. Scoped to .voice-app-help's direct children: the
+   catalogue's own .voice-group elements render inside #voiceCommandsList,
+   so they are untouched by this rule. */
+.voice-group-head { display: flex; align-items: center; gap: var(--space-sm); }
+.voice-app-help > .voice-group { padding: 12px 0; }
+.voice-app-help > .net-group-head + .voice-group { border-top: 0; padding-top: var(--space-xs); }
+.voice-group-body { padding: 0 0 12px; }
+.voice-group-summary { margin: var(--space-xs) 0 0 26px; line-height: 1.45; }
+.voice-command { margin: var(--space-sm) 0 0 26px; }
+.voice-command-intent {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+.voice-phrasing + .voice-phrasing { margin-top: var(--space-xs); }
+.voice-example {
+  margin: var(--space-xs) 0 0;
+  padding: var(--space-sm);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  border: 1px solid var(--line-muted);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--ink);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+.voice-example-text { flex: 1; }
+.voice-lang-chip { letter-spacing: 0.04em; }
+.voice-phrases { margin: var(--space-xs) 0 0; line-height: 1.45; }
+.voice-reply { margin: var(--space-xs) 0 0; line-height: 1.45; }
+.voice-reply .icon { width: 16px; height: 16px; vertical-align: -3px; }
+.voice-group-notes { margin: var(--space-sm) 0 0 26px; padding-left: 18px; line-height: 1.45; }
+.voice-group-notes li + li { margin-top: var(--space-xs); }
+/* Voice-command language filter (#466): the vendored segmented control at
+   the top of the "What can I say?" body — out of the summary since #779. */
+.voice-lang-toggle { margin-bottom: var(--space-sm); }
+
+

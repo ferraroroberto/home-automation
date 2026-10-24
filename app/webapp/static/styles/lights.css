@@ -1,0 +1,123 @@
+/* ----------------------------------------------------- lights (Elgato) */
+/* A light is the shared row (#884); its brightness and warmth sliders live in
+   the light sheet (decision 5 of #872). */
+
+.light-unavailable {
+  color: var(--muted);
+  font-size: var(--font-caption);
+}
+.light-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.light-control-row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 9px;
+}
+.light-control-label {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  line-height: 1.15;
+}
+.light-slider {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  /* The 44px floor (#779): the visible 5px track and the thumb are centred
+     in the box, so only the tappable band grows. */
+  height: var(--hit-min);
+  accent-color: var(--accent);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--light-slider-pct, 0%),
+    color-mix(in srgb, var(--line) 80%, transparent) var(--light-slider-pct, 0%),
+    color-mix(in srgb, var(--line) 80%, transparent) 100%
+  );
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 5px;
+  border-radius: var(--radius-pill);
+}
+.light-range-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 9px;
+  align-items: center;
+}
+.light-value-edit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-xs);
+  height: var(--control-h);
+  padding: 0 8px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  min-width: 0;
+}
+.light-value-edit .light-number {
+  width: 100%;
+  /* The wrapper draws the 36px field; the input itself overhangs it by
+     --control-inset above and below so its tap box is the 44px floor
+     (#779). Transparent, with no boundary of its own — the native-control
+     recipe's inset shadow would draw a second box inside the wrapper. */
+  height: var(--hit-min);
+  margin-block: calc(-1 * var(--control-inset));
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.light-value-edit:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.light-value-edit .light-number:focus { outline: none; }
+.light-value-unit {
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+.light-slider::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+.light-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: 0 2px 8px rgba(31, 35, 40, 0.18);
+  margin-top: -8.5px;
+}
+.light-slider::-moz-range-track {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--line) 80%, transparent);
+}
+.light-slider::-moz-range-progress {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.light-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: 0 2px 8px rgba(31, 35, 40, 0.18);
+}
+

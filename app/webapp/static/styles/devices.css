@@ -1,0 +1,396 @@
+/* ------------------------------------------- Devices tab (#884, Step 6/8)
+   The Power glance card's live figure, a value or a segmented verb as a
+   row's one trailing item, the Offline fold, and the tab's sheets. */
+.power-now {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 10px;
+}
+.power-watts {
+  font-size: var(--font-heading-lg);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.power-top {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+/* A value as the trailing item (a clamp's watts): tabular, in fg. */
+.row-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.row-value.is-muted { color: var(--muted); font-weight: 400; }
+/* A load circuit reading below zero means the clamp is still fitted
+   backwards: attention (a thing to fix), not danger (a thing that failed). */
+.row-value.circuit-watts-negative { color: var(--attention-text); }
+/* The All blinds row and the blind rows are two lists: one hairline between. */
+.blinds-all-row { border-bottom: 1px solid var(--line-muted); }
+/* The Offline fold: its chevron turns down while the plugs are listed. */
+.plugs-offline-row [aria-expanded="true"] .action-row-chevron { transform: rotate(90deg); }
+.group-foot-btn:disabled { color: var(--muted); cursor: not-allowed; }
+.device-rows .empty-state { padding: var(--space-md) 14px; }
+.sheet-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 18px 0 2px;
+  font-size: var(--font-body);
+  font-weight: 700;
+}
+.sheet-section-head .icon { width: var(--icon-title); height: var(--icon-title); }
+.ups-sheet-status > .empty-state { padding: var(--space-sm) 0; }
+.light-sheet .light-controls { padding: 12px 0; border-top: 1px solid var(--line); }
+.light-sheet .light-controls:empty { display: none; }
+/* The Network sheet holds the network cards (#884): inside the sheet they
+   are sections on a hairline, not cards in a card. */
+.network-body > .card,
+.network-body .net-health-row > .card {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+.network-body > .card--collapsible > .collapse-summary { padding-left: 0; padding-right: 0; }
+.network-body .net-health-row { gap: 0; margin: 0; }
+
+/* Exception chips only (#879): an active detector shows nothing. */
+.security-zone-flags {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: var(--space-xs);
+  flex: none;
+}
+/* Hidden detectors and people (shown only when "show hidden" is on) read
+   dimmed. */
+.security-zone.is-hidden .action-row-main,
+.presence-row.is-hidden .action-row-main { opacity: 0.55; }
+.security-zones-card .action-row-filter { margin: var(--gap) 12px 0; }
+/* A collapsible card's summary count and tools (other tabs' cards share these
+   since the Detectors card was their first user, #104). */
+.security-hidden-count { line-height: 1; white-space: nowrap; }
+/* Original RISCO name under the rename field in the detector modal (#104). */
+.zone-original-name { margin: 6px 0 0; }
+/* Bypass is a state toggle: bypassed (off) keeps the danger fill; monitored
+   (on) takes the shared accent from .toggle.on, since success is never a
+   switch's on-colour (#818). */
+.security-bypass.off {
+  background: var(--deficit);
+}
+.security-bypass.on .toggle-label,
+.security-bypass.off .toggle-label { color: var(--accent-fg); }
+/* Completed reminder: struck-through title, same muted convention as
+   net-dhcp's staged-removal rows (styles/dhcp.css .net-dhcp-existing-row.is-removing). */
+.reminder-row.is-done .action-row-title {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.alarm-schedule-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: var(--space-sm);
+}
+.alarm-schedule-day {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--font-caption);
+  font-weight: 700;
+  cursor: pointer;
+}
+.alarm-schedule-day.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-border-strong);
+  color: var(--accent-text);
+}
+/* Which blinds an entry moves: "All blinds" plus one chip per blind, the day
+   chips' toggle style, wrapping since names are longer than "Mon". */
+.blind-schedule-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: var(--space-sm);
+}
+.blind-schedule-targets .alarm-schedule-day { padding: 0 12px; }
+@media (max-width: 420px) {
+  .alarm-schedule-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Next up's ringing line (#885): first under the card's head, in attention,
+   with Dismiss. */
+.wake-ringing-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 0;
+}
+.wake-ringing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: var(--space-sm) 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--attention) 16%, transparent);
+  color: var(--attention-text);
+  font-size: var(--font-label);
+  font-weight: 700;
+}
+.wake-ringing-dismiss {
+  flex: none;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--attention) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--attention);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.presence-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.presence-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+/* Per-account iCloud rows + Renew trust (issue #659) — the .presence-row grid
+   (name + trust state left, one .utility-btn action right), state as plain
+   colour-coded caption text, no pill. Untrusted is
+   amber (attention), not red: Find My keeps serving, only fresh sign-ins get
+   expensive; a really broken account is red. */
+.presence-account-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--line);
+}
+.presence-account-row:first-child { border-top: 0; }
+.presence-account-state {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--muted);
+  white-space: normal;
+}
+.presence-account-note {
+  font-size: var(--font-caption);
+  color: var(--muted);
+  white-space: normal;
+}
+.presence-account-row.is-trusted .presence-account-state { color: var(--muted); }
+.presence-account-row.is-untrusted .presence-account-state { color: var(--attention); }
+.presence-account-row.is-broken .presence-account-state { color: var(--deficit); }
+.presence-account-renew { flex: none; white-space: nowrap; }
+.presence-settings {
+  display: grid;
+  gap: var(--space-sm);
+}
+.schedule-editor-days-block {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.schedule-editor-days-label { font-weight: 600; }
+/* The look is the vendored outlined destructive button (.button-tint.danger,
+   #779, #906): red text on a hairline, never a filled button, so a destructive
+   action is the least prominent control in its dialog. Layout only here. */
+.schedule-editor-delete {
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-sm);
+}
+.ac-feedback { margin: 0 0 var(--gap); }
+.presence-settings > .row,
+.pv-system-body > .row,
+.sun-overlay-body > .row,
+.boost-coord-body > .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--row-sm);
+}
+.presence-settings > .row > span,
+.pv-system-body > .row > span,
+.sun-overlay-body > .row > span,
+.boost-coord-body > .row > span { min-width: 0; }
+.presence-settings > .row > .input-native,
+.presence-settings > .row > .toggle,
+.pv-system-body > .row > .input-native,
+.sun-overlay-body > .row > .input-native,
+.boost-coord-body > .row > .input-native {
+  justify-self: end;
+  box-sizing: border-box;
+}
+#locationLabel,
+#locationLat,
+#locationLon,
+#pvLat,
+#pvLon,
+#pvPerformanceRatio,
+#boostSettleMin,
+#boostAdmissionMargin,
+#boostHardDeficit {
+  width: 8.5rem;
+}
+#locationLat,
+#locationLon {
+  text-align: right;
+}
+/* A native date field renders its own dd/mm/yyyy mask, which is wider than
+   the 8.5rem numeric fields above — sized to fit rather than to match. */
+#sunOverlayDate {
+  width: 10rem;
+}
+#presenceArmMinutes,
+#presenceStaleMinutes {
+  width: 5rem;
+  text-align: right;
+}
+/* In their Settings sheets (#886) these fields keep the compact widths
+   above, not the editor modal's 55% value column, so no label wraps at
+   390px. */
+.detail-card .presence-settings > .row > .input-native,
+.detail-card .pv-system-body > .row > .input-native,
+.detail-card .sun-overlay-body > .row > .input-native,
+.detail-card .boost-coord-body > .row > .input-native { min-width: 0; }
+/* Notification toggle lists (alarm + power cards): label on the left, the
+   canonical .toggle switch flush right — mirrors the detail-modal .row
+   convention (issue #360). */
+.notify-toggles { display: grid; }
+/* One rows.sm (44px) row per toggle, no gap (#779): the switch's ::before
+   reaches exactly 44px, so stacked rows meet edge to edge instead of the old
+   36px pitch overlapping each neighbour's tap zone. */
+.notify-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: var(--row-sm);
+}
+.notify-toggle span {
+  min-width: 0;
+}
+/* PC-fleet UPS shutdown (#498), in the UPS sheet since #884: the runtime
+   threshold is a sheet row; the machine roster follows the list-row contract —
+   flat rows on a top hairline divider, never nested cards. */
+.pc-fleet-threshold-row > .input-native {
+  width: 5rem;
+  text-align: right;
+}
+.pc-fleet-caption { margin: 2px 0 6px; }
+/* What the tower does last: label, the vendored segmented control, one hint
+   line. A single minmax(0, 1fr) track so the control never widens the sheet. */
+.pc-fleet-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+.pc-fleet-action .segmented { margin-bottom: 0; }
+.pc-fleet-action-label { font-weight: 600; }
+.pc-fleet-action-hint { margin: 0; }
+.pc-fleet-machines { padding: 0 0 4px; }
+.pc-fleet-machine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--row-sm);
+}
+.pc-fleet-machine + .pc-fleet-machine { border-top: 1px solid var(--line-muted); }
+.pc-fleet-machine-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pc-fleet-machine-rail {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 12px;
+}
+.pc-fleet-host-note { white-space: nowrap; }
+.presence-map-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  margin: 2px 0 6px;
+  /* The chip's side padding (design.md reference-pill: 2px × spacing.sm),
+     so the label clears the hairline (#958). */
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 700;
+}
+.presence-map-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+}
+/* Place editor's two lat/lon fill helpers share one full-width row (so
+   "Pick on map…" ends flush right, aligned with Delete/Save below) and take
+   a compact size: the 44px floor and inherited font instead of the tint's
+   48px / --font-body. flex-wrap + an auto basis lets
+   the pair stack, each full width, when both labels don't fit one line (the
+   old nowrap + flex: 1 pushed "Pick on map…" past the card at 390px, #861);
+   min-width: 0 + wrapping text keeps a lone button inside the card at 320px. */
+.place-coord-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.place-coord-btns .button-tint {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--hit-min);
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 700;
+}
+/* Interactive location-picker map (issue #438) — vendored Leaflet over the
+   presence-places editor. Taller than .presence-map-frame (a static embed):
+   picking a pin needs more room than glancing at one. */
+.place-map-picker {
+  width: 100%;
+  height: min(50vh, 360px);
+  margin: 4px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  overflow: hidden;
+}
+.place-map-pin {
+  color: var(--accent);
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
+}
+

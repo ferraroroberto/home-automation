@@ -1,0 +1,130 @@
+/* ----------------------------------------------------------- login */
+.login-overlay {
+  position: fixed; inset: 0;
+  background: var(--scrim);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50; padding: 20px;
+}
+.login-card {
+  background: var(--card); border-radius: var(--radius); padding: 22px;
+  width: min(360px, 92vw); display: flex; flex-direction: column; gap: 12px;
+}
+.login-card h2 { margin: 0; }
+.login-card input {
+  font-size: var(--font-body); padding: 12px; border-radius: var(--radius-md);
+  border: 1px solid var(--control-border); background: var(--input-bg);
+}
+.login-error { color: var(--deficit); font-size: var(--font-label); }
+.muted { color: var(--muted); }
+.small { font-size: var(--font-caption); }
+/* design.md `code-inline` (COMP-17): inline code is mono at 0.875em of the text
+   around it on the neutral-soft fill, never caption-sized. */
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.875em;
+  background: var(--neutral-soft);
+  color: var(--ink);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+/* One thin "showing older data" line for every tab (issue #571) — this used to
+   be six per-tab classes, four of them byte-identical. Only the two genuinely
+   different margins survive, as the modifiers below. Built by view-state.js's
+   staleNoteEl().
+
+   Position matters: the element also carries `muted small`, and `.muted` above
+   is the same specificity, so this rule has to sit AFTER it or the attention
+   colour loses. All six old rules declared that colour and five of them lost it
+   exactly this way — only .network-stale-note happened to be written below
+   .muted in the file, so only the Network tab rendered the amber the other five
+   also asked for. Collapsing them settles it on the declared intent rather than
+   on line number, which does make those five amber where they used to render
+   muted. */
+.stale-note { margin: 0 4px; color: var(--attention); }
+/* The two tabs whose note sits inside a card body rather than above one, so it
+   needs top spacing instead of side spacing. Kept here rather than in their own
+   tab sections because a modifier has to follow the base rule to win. */
+.security-stale-note { margin: var(--space-sm) 4px 0; }
+.ups-stale-note { margin: var(--space-sm) 0 0; }
+
+/* Canonical empty-state block (issue #362): icon + one-line reason + optional
+   action, used by any list/grid that can legitimately render with zero items
+   (e.g. the Lights grid with no reachable fixtures). Spans every grid column
+   so it reads as a single centered block instead of occupying one cell. */
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+  color: var(--muted);
+}
+.empty-state-icon { width: 24px; height: 24px; color: var(--muted); }
+.empty-state-message { margin: 0; font-size: var(--font-body); }
+.empty-state-action { flex: none; width: auto; min-width: 96px; padding: 8px 20px; }
+
+/* ----------------------------------------------------- collapsible cards */
+/* Disclosure-card padding contract (design.md): the card's own padding must
+   be zeroed so it never doubles up with the summary/body's own padding — the
+   root cause of every past collapsed-height regression. This one shared
+   modifier replaces 5 separate per-component `padding: 0` declaration sites
+   (fleet-config#234 dry-run evidence on issue #363) so a future disclosure
+   card can't repeat the fragmentation. */
+.card--collapsible { padding: 0; }
+
+/* Unified collapsible summary (issue #57): a left-aligned icon + title with a
+   disclosure chevron pinned to the right, shared by the Security and Network
+   sections so every collapsible reads the same. */
+.collapse-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+.collapse-summary::-webkit-details-marker { display: none; }
+.collapse-main {
+  grid-column: 1;
+  justify-self: start;
+  display: inline-flex;
+  /* Baseline so a trailing "N hidden" count sits on the title's baseline rather
+     than centred against it (#210). The leading icon is re-centred below so it
+     keeps reading aligned with the title. */
+  align-items: baseline;
+  gap: var(--space-sm);
+  min-width: 0;
+  line-height: 1;
+}
+.collapse-icon { font-size: var(--font-body); line-height: 1; align-self: center; }
+.collapse-title { margin: 0; font-weight: 700; font-size: var(--font-body); line-height: 1; }
+.collapse-chevron {
+  grid-column: 2;
+  justify-self: end;
+  color: var(--muted);
+  font-size: var(--font-heading-lg);
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); }
+/* Collapsible cards share one closed height: the summary owns the padding so
+   the Security and Network headers align exactly. Carried by the one shared
+   `.card--collapsible` modifier (issue #383 — replaces the old 13-selector
+   enumeration, the per-card drift design.md warns about; the child combinator
+   keeps the detail-modal's inner .collapse-summary sections untouched). The
+   open divider is border-muted per the design.md disclosure contract. */
+.card--collapsible > .collapse-summary {
+  height: 52px;
+  padding: 0 14px;
+}
+.card--collapsible[open] > .collapse-summary { border-bottom: 1px solid var(--line-muted); }
+
+/* Build-identity footer (which build the PWA is running). */
+.page-foot {
+  margin: var(--space-md) var(--space-xs);
+  text-align: center;
+}
+.page-foot p { margin: 2px 0; }
+

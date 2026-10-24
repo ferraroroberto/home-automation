@@ -829,7 +829,7 @@ def test_blocked_outcome_never_notifies_regardless_of_the_error_toggle() -> None
 def test_blocked_rows_get_the_same_amber_severity_as_errors() -> None:
     """A `blocked` row is adverse and must not fall through to `info` (#599).
 
-    `info` has no `.activity-sev-*` rule in styles.css, so the row would render
+    `info` has no `.activity-sev-*` rule in styles/activity.css, so the row would render
     with no severity wash at all — silently less visible than the condition
     deserves.
     """

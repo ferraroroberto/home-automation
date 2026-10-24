@@ -16,5 +16,5 @@ _STYLESHEET_HREFS = re.compile(r"""<link[^>]+rel=["']stylesheet["'][^>]*href=["'
 
 def test_index_does_not_link_the_map_stylesheet(client: TestClient) -> None:
     hrefs = _STYLESHEET_HREFS.findall(client.get("/").text)
-    assert any(h.startswith("/static/styles.css") for h in hrefs)  # the regex sees the real links
+    assert any(h.startswith("/static/styles/base.css") for h in hrefs)  # the regex sees the real links
     assert [h for h in hrefs if "leaflet" in h] == []
