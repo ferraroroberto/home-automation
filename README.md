@@ -15,7 +15,7 @@ The product is a **FastAPI + static PWA**: one row per unit (its mode glyph, the
 
 ## Layout
 
-The top-level directory map — what each directory *is*. The exhaustive module-by-module reference (every file in `src/` and `app/webapp/`, one line each) lives in [`docs/architecture.md`](docs/architecture.md).
+The top-level directory map — what each directory *is*. The exhaustive module-by-module reference (every file in `src/` and `app/webapp/`, one line each) lives in [`docs/architecture.md`](docs/architecture.md). Where new code goes, and the structure ratchet that holds it there: [`docs/layout.md`](docs/layout.md).
 
 - **`src/`** — non-UI Python: the device clients (MELCloud HVAC, Huawei solar, RISCO alarm, Tuya, cameras, network, UPS, Elgato, presence), their `list_*` CLIs, the automation/tariff/forecast logic, and the atomic display-name / hidden / preference stores. No Streamlit/FastAPI imports.
 - **`app/webapp/`** — **the product**: FastAPI (`server.py` + `middleware.py` + `routers/`) over the same core, serving the static PWA under `static/`, plus the lifecycle `manager.py` and the background tasks (energy sampler, HVAC/security/presence/wake-alarm automation, power monitor, SearXNG watchdog) owned by the app lifespan.
@@ -124,7 +124,7 @@ The signal that new code is live is the `GET /api/version` `git_sha` matching `g
 
 ## Verification gate
 
-One command runs byte-compile, the static ratchet, the docs ratchet and the backend suite, then routes the browser (e2e) phase to the size of the diff (docs-only skips it; a real UI change runs Chromium + WebKit):
+One command runs byte-compile, the static, docs, comment and structure ratchets and the backend suite, then routes the browser (e2e) phase to the size of the diff (docs-only skips it; a real UI change runs Chromium + WebKit):
 
 ```powershell
 & .\scripts\verify-before-ship.ps1
