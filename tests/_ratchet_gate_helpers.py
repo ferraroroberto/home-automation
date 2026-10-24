@@ -65,3 +65,14 @@ def assert_run_maps_every_script_exit(
         assert out.rstrip().splitlines()[-1].startswith(
             f"OK: {stage}" if code == 0 else f"FAIL: {stage}"
         )
+
+
+def assert_only_exit_zero_passes_and_three_is_not_confirmed(gate: ModuleType) -> None:
+    """`gate.classify_exit` passes on 0 alone, and labels 3 NOT CONFIRMED, never a skip."""
+    assert gate.classify_exit(0)[0] is True
+    for code in (1, 2, 3, 4, -1):
+        assert gate.classify_exit(code)[0] is False, code
+    ok, label = gate.classify_exit(3)
+    assert not ok
+    assert "NOT CONFIRMED" in label
+    assert "skip" not in label.lower()

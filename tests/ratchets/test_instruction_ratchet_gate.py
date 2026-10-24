@@ -19,6 +19,7 @@ import pytest
 
 from scripts import instruction_ratchet_gate as gate
 from tests._ratchet_gate_helpers import (
+    assert_only_exit_zero_passes_and_three_is_not_confirmed,
     assert_run_maps_every_script_exit,
     make_git_repo,
     real_exit,
@@ -38,17 +39,8 @@ def _repo(tmp_path: Path, claude_md: str = _CLEAN) -> Path:
     return make_git_repo(tmp_path, _FLEET, {"CLAUDE.md": claude_md})
 
 
-@pytest.mark.parametrize("code", [1, 2, 3, 4, -1])
-def test_every_exit_but_zero_fails(code: int) -> None:
-    assert gate.classify_exit(0)[0] is True
-    assert gate.classify_exit(code)[0] is False
-
-
-def test_exit_three_is_not_confirmed_and_never_a_skip() -> None:
-    ok, label = gate.classify_exit(3)
-    assert not ok
-    assert "NOT CONFIRMED" in label
-    assert "skip" not in label.lower()
+def test_only_exit_zero_passes_and_exit_three_is_not_confirmed() -> None:
+    assert_only_exit_zero_passes_and_three_is_not_confirmed(gate)
 
 
 def test_the_real_scripts_exit_three_fails_the_gate(tmp_path: Path) -> None:
