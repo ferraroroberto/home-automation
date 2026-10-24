@@ -1,0 +1,22 @@
+    <!-- =============================== AC =============================== -->
+    <section id="paneAc" class="pane" role="tabpanel" aria-labelledby="tabAc" aria-label="AC units" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-snowflake"></use></svg>
+          AC
+        </h2>
+        <span class="status" data-head="ac"></span>
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+        <button type="button" class="icon-button home-toggle hit-target settings-open-btn" data-track="head.settings"
+                title="Settings" aria-label="Settings">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+        </button>
+      </div>
+      <div id="acFeedback" class="ac-feedback" role="status" hidden></div>
+      <!-- The units on the shared row (row.js, #881): power on the row, the
+           rest one tap away in the unit sheet. -->
+      <section id="acUnits" class="card action-list ac-units" aria-label="Units" hidden></section>
+    </section>

@@ -60,3 +60,65 @@ def test_index_edit_on_disk_changes_the_etag(
     assert after.status_code == 200
     assert "two, edited" in after.text
     assert after.headers["etag"] != before.headers["etag"]
+
+
+def test_index_includes_view_partials_in_place(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from app.webapp.routers import misc
+
+    (tmp_path / "views").mkdir()
+    (tmp_path / "views" / "pane.html").write_text("<p>pane</p>\n", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        "<body>\n  <!-- @include views/pane.html -->\n</body>\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(misc, "STATIC_DIR", tmp_path)
+
+    assert client.get("/").text == "<body>\n<p>pane</p>\n</body>\n"
+
+
+def test_index_edit_of_a_partial_changes_the_etag(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from app.webapp.routers import misc
+
+    (tmp_path / "views").mkdir()
+    partial = tmp_path / "views" / "pane.html"
+    partial.write_text("<p>one</p>\n", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        "<!-- @include views/pane.html -->\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(misc, "STATIC_DIR", tmp_path)
+
+    before = client.get("/")
+    partial.write_text("<p>two, edited</p>\n", encoding="utf-8")
+    st = partial.stat()
+    os.utime(partial, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+
+    after = client.get("/", headers={"If-None-Match": before.headers["etag"]})
+    assert after.status_code == 200
+    assert "two, edited" in after.text
+    assert after.headers["etag"] != before.headers["etag"]
+
+
+@pytest.mark.parametrize("target", ["views/missing.html", "../outside.html"])
+def test_index_include_that_cannot_be_read_fails_loudly(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, target: str
+) -> None:
+    from app.webapp.routers import misc
+
+    static = tmp_path / "static"
+    static.mkdir()
+    (tmp_path / "outside.html").write_text("<p>secret</p>\n", encoding="utf-8")
+    (static / "index.html").write_text(
+        f"<!-- @include {target} -->\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(misc, "STATIC_DIR", static)
+
+    resp = client.get("/")
+    assert resp.status_code == 500
+    assert "secret" not in resp.text
+
+
+def test_real_index_has_no_unexpanded_include(client: TestClient) -> None:
+    assert "@include" not in client.get("/").text

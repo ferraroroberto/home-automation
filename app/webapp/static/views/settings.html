@@ -1,0 +1,173 @@
+    <!-- ============================= SETTINGS =========================== -->
+    <!-- No tab since #779: every page header's gear opens this pane. Since
+         #886 (Step 8/8 of #872) it is inset groups (design.md `settings
+         group`): an overline per group, then one row per setting, its current
+         value muted and a chevron to an instant sheet (settings.js). The two
+         settings changed in place stay inline: the text size and the
+         navigation log switch. The value spans keep the ids their modules
+         already write. -->
+    <section id="paneSettings" class="pane" aria-label="Settings" hidden>
+      <div class="card home-head page-head">
+        <h2 class="home-title">
+          <svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>
+          Settings
+        </h2>
+        <button type="button" class="icon-button home-toggle hit-target theme-toggle-btn" data-track="head.theme"
+                title="Toggle theme" aria-label="Toggle dark mode">
+          <svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg>
+        </button>
+      </div>
+
+      <h3 id="settingsDisplayHead" class="settings-overline">Display</h3>
+      <!-- Text size (#820): the vendored text-size control (text-size.html). The
+           zoom lock fails WCAG 1.4.4 without it; main.js binds it with the
+           home-automation prefix, the boot script stamps it before first paint. -->
+      <section class="card settings-group settings-text-size" aria-labelledby="settingsDisplayHead">
+        <span class="settings-text-size-label">
+          <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-type"></use></svg>
+          Text size
+        </span>
+        <div class="segmented" id="textSizeControl" role="group" aria-label="Text size" data-track="settings.text-size">
+          <button type="button" class="segmented-item" aria-pressed="false" data-textsize="small">Small</button>
+          <button type="button" class="segmented-item" aria-pressed="true" data-textsize="default">Default</button>
+          <button type="button" class="segmented-item" aria-pressed="false" data-textsize="large">Large</button>
+        </div>
+        <p class="muted small settings-text-size-hint">This device only. Buttons and spacing stay the same size.</p>
+      </section>
+
+      <h3 id="settingsNotifyHead" class="settings-overline">Notifications</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsNotifyHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyAlarmSheet" data-track="settings.notifyAlarmSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-shield-check"></use></svg>
+              <span class="action-row-title">Alarm</span>
+              <span id="notifyAlarmValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="notifyUpsSheet" data-track="settings.notifyUpsSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg>
+              <span class="action-row-title">UPS power</span>
+              <span id="notifyUpsValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsPeopleHead" class="settings-overline">Home &amp; people</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsPeopleHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="homeLocationSheet" data-track="settings.homeLocationSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-house"></use></svg>
+              <span class="action-row-title">Home location</span>
+              <span id="locationValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="presencePlacesSheet" data-track="settings.presencePlacesSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+              <span class="action-row-title">Places</span>
+              <span id="presencePlacesCount" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="presenceAutomationSheet" data-track="settings.presenceAutomationSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-users"></use></svg>
+              <span class="action-row-title">Presence automation</span>
+              <span id="presenceAutomationValue" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsEnergyHead" class="settings-overline">Energy</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsEnergyHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="pvSystemSheet" data-track="settings.pvSystemSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-sun"></use></svg>
+              <span class="action-row-title">PV system</span>
+              <span id="pvSystemTotal" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="exportRateSheet" data-track="settings.exportRateSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-euro"></use></svg>
+              <span class="action-row-title">Export compensation</span>
+              <span id="exportRateCurrent" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="boostCoordSheet" data-track="settings.boostCoordSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+              <span class="action-row-title">Solar boost</span>
+              <span id="boostCoordSummary" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="sunOverlaySheet" data-track="settings.sunOverlaySheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>
+              <span class="action-row-title">Sun-position check</span>
+              <span id="sunOverlayCount" class="settings-link-value"></span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsVoiceHead" class="settings-overline">Voice</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsVoiceHead">
+        <ul class="action-rows settings-links">
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="searxngSheet" data-track="settings.searxngSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-search"></use></svg>
+              <span class="action-row-title">Search engine</span>
+              <span id="searxngSummaryState" class="settings-link-value">Reading…</span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button type="button" class="action-row-main settings-link" data-settings-sheet="voiceSheet" data-track="settings.voiceSheet" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-mic"></use></svg>
+              <span class="action-row-title">What can I say?</span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <h3 id="settingsDiagnosticsHead" class="settings-overline">Diagnostics</h3>
+      <section class="card action-list settings-group" aria-labelledby="settingsDiagnosticsHead">
+        <ul class="action-rows settings-links">
+          <!-- Activity log (#289): the unified, filterable event history (arm and
+               disarm, plug switches, power, presence, panel events). activity.js
+               opens its own overlay from this row. -->
+          <li class="action-row">
+            <button id="activityOpen" data-track="settings.activity" type="button" class="action-row-main settings-link" aria-haspopup="dialog">
+              <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>
+              <span class="action-row-title">Activity log</span>
+              <svg class="icon settings-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <!-- The on-device navigation recorder (#300), a switch saved as it
+               changes (main.js). -->
+          <li class="action-row settings-switch-row">
+            <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-activity"></use></svg>
+            <span id="navDebugLabel" class="action-row-title">Record navigation log</span>
+            <button id="navDebugBtn" type="button" class="toggle" role="switch" aria-checked="false" aria-labelledby="navDebugLabel">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </section>

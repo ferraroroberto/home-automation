@@ -1,0 +1,193 @@
+  <!-- Named places for the "where's mom/dad" voice locator (issue #438): the
+       dense collection, each place edited in the staged presencePlaceDialog. -->
+  <dialog id="presencePlacesSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Places</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="presence-places-body">
+        <p class="muted small settings-sheet-note">Places the voice locator names instead of a distance from home.</p>
+        <ul id="presencePlacesList" class="action-rows sheet-rows" aria-label="Places"></ul>
+        <p id="presencePlacesNote" class="muted small settings-sheet-note" hidden></p>
+        <button id="presencePlaceAdd" type="button" class="schedule-add-btn">+ Add place</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="presenceAutomationSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Presence automation</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="presence-settings">
+        <div class="row">
+          <span>Auto arm on departure</span>
+          <button id="presenceAutoEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto arm on departure">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <label class="row">
+          <span>Away minutes before arm</span>
+          <input id="presenceArmMinutes" type="number" min="0" step="1" class="input-native" value="15">
+        </label>
+        <label class="row">
+          <span>Stale after minutes</span>
+          <input id="presenceStaleMinutes" type="number" min="1" step="1" class="input-native" value="60">
+        </label>
+        <div class="row">
+          <span>Auto disarm on arrival</span>
+          <button id="presenceDisarmOnArrival" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Auto disarm on arrival">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <p id="presenceAutomationNote" class="muted small settings-sheet-note" hidden></p>
+        <button id="pushSubscribe" type="button" class="button-tint">Enable notifications</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Find My accounts (#659, moved into a sheet by #882): each Apple ID's
+       browser trust with Renew trust, and how often the locations refresh. -->
+  <dialog id="presenceAccountsSheet" class="detail-dialog" data-testid="presence-accounts-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Accounts</h2>
+        <button id="presenceAccountsSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="presenceAccounts" class="presence-accounts" data-testid="presence-accounts" hidden>
+        <div id="presenceAccountsList" class="presence-accounts-list"></div>
+      </div>
+      <p id="presenceRefreshNote" class="muted small detail-hint"></p>
+      <div class="detail-actions">
+        <button id="presenceAccountsSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Named-place add/edit dialog (issue #438). Lat/lon can be typed directly,
+       filled from the device's own location, or picked on the map below. -->
+  <dialog id="presencePlaceDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="presencePlaceEditorTitle">Place</h2>
+        <button id="presencePlaceEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Label</span>
+        <input id="presencePlaceLabel" type="text" class="input-native" placeholder="e.g. the gym">
+      </label>
+      <label class="row">
+        <span>Latitude</span>
+        <input id="presencePlaceLat" type="number" step="0.000001" class="input-native" placeholder="—">
+      </label>
+      <label class="row">
+        <span>Longitude</span>
+        <input id="presencePlaceLon" type="number" step="0.000001" class="input-native" placeholder="—">
+      </label>
+      <label class="row">
+        <span>Radius (m)</span>
+        <input id="presencePlaceRadius" type="number" min="10" step="10" class="input-native" value="150">
+      </label>
+
+      <div class="place-coord-btns">
+        <button id="presencePlaceUseBrowser" type="button" class="button-tint">Use my current location</button>
+        <button id="presencePlacePickMap" type="button" class="button-tint">Pick on map…</button>
+      </div>
+
+      <button id="presencePlaceDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete place</button>
+
+      <div class="detail-actions">
+        <button id="presencePlaceSave" type="button" class="button-primary detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- iCloud browser-trust renewal code entry (issue #659). Opened after
+       POST /api/presence/icloud/{account}/trust/begin answers code_sent; Verify
+       posts the 6-digit code to …/trust/complete on the same live session. -->
+  <dialog id="presenceTrustDialog" class="detail-dialog" data-testid="presence-trust-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="presenceTrustTitle">Renew iCloud trust</h2>
+        <button id="presenceTrustClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="presenceTrustHint" class="muted small">Apple pushed a 6-digit code to the account's trusted devices.</p>
+      <label class="row">
+        <span>Code</span>
+        <input id="presenceTrustCode" type="text" class="input-native" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="123456" data-testid="presence-trust-code">
+      </label>
+      <p id="presenceTrustNote" class="muted small security-note" role="status" hidden></p>
+      <div class="detail-actions">
+        <button id="presenceTrustVerify" type="button" class="button-primary detail-save-btn" data-testid="presence-trust-verify">Verify</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Interactive map-pin picker (issue #438) — an alternative to "Use my
+       current location" for a place that isn't where the phone is right now.
+       Leaflet is vendored self-hosted (static/vendor/leaflet/), OSM raster
+       tiles fetched at runtime; lazy-initialized on first open. -->
+  <dialog id="presenceMapPickerDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Pick a location</h2>
+        <button id="presenceMapPickerClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small">Tap or drag the pin to the place you mean.</p>
+      <div id="presenceMapPicker" class="place-map-picker"></div>
+      <p id="presenceMapPickerCoords" class="muted small">—</p>
+      <div class="detail-actions">
+        <button id="presenceMapPickerConfirm" type="button" class="button-primary detail-save-btn">Use this location</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Presence entity/person detail + rename/hide modal. -->
+  <dialog id="presenceDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="presenceDetailName">Presence</h2>
+        <button id="presenceDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Status</span><span id="presenceDetailStatus" class="muted">—</span></div>
+      <div class="row"><span>Source</span><span id="presenceDetailSource" class="muted">—</span></div>
+      <div class="row"><span>Last seen</span><span id="presenceDetailLastSeen" class="muted">—</span></div>
+      <div class="row"><span>Distance</span><span id="presenceDetailDistance" class="muted">—</span></div>
+      <div class="row"><span>Place</span><span id="presenceDetailPlace" class="muted">—</span></div>
+      <a id="presenceMapLink" class="presence-map-link" target="_blank" rel="noreferrer">Open map</a>
+      <iframe id="presenceMapFrame" class="presence-map-frame" loading="lazy" title="Presence map"></iframe>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="presenceDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <p id="presenceOriginalName" class="muted small zone-original-name"></p>
+
+      <label class="row">
+        <span>Role</span>
+        <input id="presenceRole" type="text" class="input-native" placeholder="e.g. dad, mom…">
+      </label>
+      <p class="muted small">Lets the voice locator answer "where's dad" the same as "where's Roberto".</p>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="presenceHiddenDetailToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Hide presence entity">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
+      <div class="detail-actions">
+        <button id="presenceDetailSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>

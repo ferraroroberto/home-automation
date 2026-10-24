@@ -1,0 +1,406 @@
+  <!-- Devices › Network (decision 7 of #872; in Settings from #779 until
+       #884): internet health and the opt-in speed test, the access point
+       and router with their confirm-gated reboots, Wi-Fi diagnostics, the
+       walk test, the attached devices and the address reservation plan.
+       #networkBody carries its own data-state, so a read in flight or
+       failed hides only these cards. -->
+  <dialog id="networkSheet" class="detail-dialog network-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Network</h2>
+        <button id="networkSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div id="networkBody" class="network-body">
+        <div id="netFeedback" class="network-feedback" role="status" hidden></div>
+        <!-- Internet-health tile — big online/offline word, latency + loss
+             caption, last speed-test result, and the opt-in "Run speed test". -->
+        <section class="card net-internet" aria-label="Internet health">
+          <div class="net-internet-head">
+            <span class="net-internet-label"><svg class="icon title-icon" aria-hidden="true"><use href="#i-globe"></use></svg>Internet</span>
+            <span id="netInternetStatus" class="net-internet-status">— no data</span>
+          </div>
+          <p id="netInternetMeta" class="muted small net-internet-meta">— no data</p>
+          <p id="netSpeedResult" class="net-speed-result" hidden>—</p>
+          <div id="netTrends" class="net-trends" data-testid="net-trends" hidden></div>
+          <button id="netSpeedBtn" type="button" class="button-tint net-speed-btn" data-testid="net-speedtest">
+            <svg class="icon" aria-hidden="true"><use href="#i-gauge"></use></svg>Run speed test
+          </button>
+          <!-- Opt-in nightly run (#840), off until switched on. The 03:00 here is
+               NIGHTLY_HOUR in src/speedtest_prefs.py. -->
+          <div class="notify-toggles net-nightly">
+            <div class="notify-toggle">
+              <span>Nightly speed test</span>
+              <button id="netNightlyToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Nightly speed test" data-testid="net-nightly">
+                <span class="knob"></span><span class="toggle-label">OFF</span>
+              </button>
+            </div>
+            <p class="muted small net-nightly-hint">Opt-in. Runs once around 03:00 and uses real bandwidth.</p>
+          </div>
+        </section>
+
+        <!-- Network-quality alerts are intentionally not surfaced as a separate
+             strip here; weak clients are already counted and highlighted below,
+             and a new/offline device is badged on its own row in the inventory. -->
+
+        <!-- AP + router health row. The router Reboot stays disabled with a
+             "coming soon" title until Phase 3 wires reboot_router(). -->
+        <section class="net-health-row" aria-label="Devices health">
+          <section class="card net-health-card" id="netApCard">
+            <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-wifi"></use></svg><span id="netApName">Access point</span></h3>
+            <p id="netApMeta" class="muted small net-health-meta">— no data</p>
+            <button id="netApReboot" type="button" class="button-tint net-reboot-btn" data-testid="net-ap-reboot" hidden>
+              <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot AP
+            </button>
+          </section>
+          <section class="card net-health-card" id="netRouterCard">
+            <h3 class="net-health-title"><svg class="icon title-icon" aria-hidden="true"><use href="#i-router"></use></svg><span id="netRouterName">Router</span></h3>
+            <p id="netRouterMeta" class="muted small net-health-meta">— no data</p>
+            <button id="netRouterReboot" type="button" class="button-tint net-reboot-btn" data-testid="net-router-reboot" disabled
+                    title="Router login required to reboot">
+              <svg class="icon" aria-hidden="true"><use href="#i-rotate-cw"></use></svg>Reboot
+            </button>
+          </section>
+        </section>
+
+        <details class="card card--collapsible net-wifi-card">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
+              <h3 class="collapse-title">Wi-Fi diagnostics</h3>
+              <span id="netWifiHiddenCount" class="muted small security-hidden-count" hidden></span>
+            </span>
+            <span class="net-wifi-summary">
+              <span id="netWifiStatus" class="net-wifi-status">—</span>
+              <span id="netWifiSummary" class="muted small">—</span>
+              <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </span>
+          </summary>
+          <div class="net-wifi-body">
+            <div class="card-toolbar">
+              <button id="netWifiHiddenToggle" type="button" class="button-surface utility-btn" data-testid="net-wifi-show-hidden" hidden>Show hidden</button>
+            </div>
+            <p id="netWifiMeta" class="muted small net-wifi-meta">—</p>
+            <div id="netWifiRecommendations" class="net-wifi-recommendations" hidden></div>
+            <div class="net-wifi-charts" aria-label="Wi-Fi channel charts">
+              <section class="net-wifi-chart-card">
+                <h4 class="net-wifi-chart-title">2.4 GHz</h4>
+                <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart24"></canvas></div>
+              </section>
+              <section class="net-wifi-chart-card">
+                <h4 class="net-wifi-chart-title">5 GHz</h4>
+                <div class="chart-wrap net-wifi-chart-wrap"><canvas id="netWifiChart5"></canvas></div>
+              </section>
+            </div>
+            <section id="netWifiList" class="net-wifi-list" aria-label="Visible Wi-Fi radios"></section>
+            <p id="netWifiNote" class="muted small net-wifi-note" hidden></p>
+          </div>
+        </details>
+
+        <!-- Wi-Fi walk test (issue #547). The card above scans from the server PC,
+             so it only describes coverage where that PC sits. This one measures
+             coverage where *you* are: no browser on any platform exposes Wi-Fi
+             telemetry, so the phone is the probe and the AP/router is the meter —
+             you pick this device once, then record a sample per room. -->
+        <details class="card card--collapsible net-survey-card" id="netSurveyCard">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+              <h3 class="collapse-title">Walk test</h3>
+            </span>
+            <span class="net-wifi-summary">
+              <span id="netSurveyStatus" class="muted small">—</span>
+              <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </span>
+          </summary>
+          <div id="netSurveyBody" class="net-survey-body">
+            <p class="muted small net-survey-hint">
+              Your phone can’t scan Wi-Fi — no browser exposes it, on any platform. So the phone is the
+              probe and the access point is the meter: pick this device once, then walk the house and
+              record a sample per room.
+            </p>
+
+            <div id="netSurveyDeviceRow" class="net-survey-device">
+              <svg class="icon net-survey-device-icon" aria-hidden="true"><use href="#i-smartphone"></use></svg>
+              <span id="netSurveyDeviceName" class="net-survey-device-name">No device picked</span>
+              <button id="netSurveyDevicePick" type="button" class="button-surface utility-btn net-survey-action" data-testid="net-survey-pick">Pick device</button>
+            </div>
+
+            <div id="netSurveyForm" class="net-survey-form">
+              <input id="netSurveyRoom" type="text" class="input-native net-survey-room" list="netSurveyRoomList"
+                     placeholder="Room (e.g. Kitchen)" aria-label="Room" autocomplete="off"
+                     data-testid="net-survey-room">
+              <datalist id="netSurveyRoomList"></datalist>
+              <button id="netSurveyRecord" type="button" class="button-surface utility-btn net-survey-action net-survey-record"
+                      data-testid="net-survey-record">Record here</button>
+            </div>
+            <p id="netSurveyProgress" class="muted small net-survey-progress" role="status" aria-live="polite" hidden></p>
+
+            <section id="netSurveyRooms" class="net-survey-rooms" aria-label="Walk test results"></section>
+            <p id="netSurveyNote" class="muted small net-survey-note" hidden></p>
+          </div>
+        </details>
+
+        <details class="card card--collapsible net-devices-card">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
+              <h3 class="collapse-title">Attached devices</h3>
+              <span id="netHiddenCount" class="muted small security-hidden-count" hidden></span>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="net-devices-body">
+            <!-- Stat chips: Wired N · 5 GHz N · 2.4 GHz N · Weak N — filled in JS. -->
+            <div id="netStats" class="net-stats" aria-label="Device counts" hidden></div>
+
+            <div class="net-devices-head">
+              <div class="net-sort" role="group" aria-label="Sort attached devices">
+                <span class="net-sort-label">Order</span>
+                <button id="netSortAlpha" type="button" class="net-sort-btn active" data-sort="az">A-Z</button>
+                <button id="netSortSignal" type="button" class="net-sort-btn" data-sort="signal">Signal</button>
+              </div>
+              <button id="netOfflineToggle" type="button" class="button-surface utility-btn" data-testid="net-show-offline" hidden>Offline hidden</button>
+              <button id="netHiddenToggle" type="button" class="button-surface utility-btn" data-testid="net-show-hidden" hidden>Show hidden</button>
+            </div>
+
+            <!-- Group by: the user's own device groups (issue #513, the default —
+                 #519) or the original radio-band view. Persisted in localStorage. -->
+            <div class="net-devices-groupby">
+              <div class="net-sort" role="group" aria-label="Group attached devices">
+                <span class="net-sort-label">Group</span>
+                <button id="netGroupByGroup" type="button" class="net-sort-btn active" data-grouping="group" data-testid="net-group-custom">My groups</button>
+                <button id="netGroupByBand" type="button" class="net-sort-btn" data-grouping="band" data-testid="net-group-band">Band</button>
+              </div>
+            </div>
+
+            <!-- Attached-device inventory, grouped Wired / 5GHz / 2.4GHz — or by
+                 the user's own groups — with the selected sort applied inside each
+                 group. Built in network-devices.js. -->
+            <section id="netDevices" class="net-devices" aria-label="Attached devices"></section>
+            <p id="netDevicesNote" class="muted small net-devices-note" hidden></p>
+          </div>
+        </details>
+
+        <!-- DHCP reservation plan (issue #170 + #176) — a MAC→IP assignment grouped
+             by category, marking each row reserved / create / change against the
+             router's bindings. Lazy-loads on open. "Apply plan" is a confirm-gated
+             write of the create/change rows to the router (never automatic). -->
+        <details class="card card--collapsible net-dhcp-card" id="netDhcpCard">
+          <summary class="collapse-summary">
+            <span class="collapse-main">
+              <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-router"></use></svg>
+              <h3 class="collapse-title">DHCP reservation plan</h3>
+            </span>
+            <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </summary>
+          <div class="net-dhcp-body">
+            <div class="net-dhcp-head">
+              <p class="muted small net-dhcp-intro">Mark reservations to remove and tick suggestions to add, then apply everything at once. The router holds 10 reservations.</p>
+              <div class="net-dhcp-actions">
+                <button id="netDhcpRefresh" type="button" class="button-surface utility-btn" data-testid="net-dhcp-refresh">
+                  <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh
+                </button>
+              </div>
+            </div>
+            <div id="netDhcpWarnings" class="net-dhcp-warnings" role="status" hidden></div>
+
+            <!-- On the router now (#176): the current reservations, listed even when
+                 their device is offline; tick one to stage its removal (frees a slot). -->
+            <section id="netDhcpExistingWrap" class="net-dhcp-existing-wrap" hidden>
+              <h4 class="net-group-head" id="netDhcpExistingHead">On the router now</h4>
+              <div id="netDhcpExisting" class="net-dhcp-existing" aria-label="Reservations on the router"></div>
+            </section>
+
+            <!-- Suggested adds, unassigned (assignable) + randomised (un-reservable). -->
+            <section id="netDhcpPlan" class="net-dhcp-plan" aria-label="DHCP reservation plan"></section>
+
+            <!-- Manual reservation (#176): stage a binding for a device the rules
+                 can't place, or one not in the live inventory at all. -->
+            <details class="net-dhcp-manual" id="netDhcpManual">
+              <summary class="net-dhcp-manual-summary">Add a reservation manually</summary>
+              <div class="net-dhcp-manual-form">
+                <input id="netDhcpManualMac" type="text" class="net-dhcp-input" placeholder="Hardware address (AA:BB:CC:DD:EE:FF)" aria-label="Hardware address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-mac" />
+                <input id="netDhcpManualIp" type="text" class="net-dhcp-input" placeholder="Network address (192.168.0.x)" aria-label="Network address" autocomplete="off" spellcheck="false" data-testid="net-dhcp-manual-ip" />
+                <input id="netDhcpManualName" type="text" class="net-dhcp-input" placeholder="Name (optional)" aria-label="Name (optional)" autocomplete="off" data-testid="net-dhcp-manual-name" />
+                <button id="netDhcpManualAdd" type="button" class="button-surface utility-btn net-dhcp-manual-add" data-testid="net-dhcp-manual-add">
+                  <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> Stage
+                </button>
+              </div>
+            </details>
+            <div id="netDhcpManualStaged" class="net-dhcp-manual-staged"></div>
+
+            <!-- One Apply for the whole staged batch (#176): removes first, then adds. -->
+            <div id="netDhcpApplyBar" class="net-dhcp-applybar" hidden>
+              <span id="netDhcpBudget" class="net-dhcp-budget"></span>
+              <div class="net-dhcp-applybar-actions">
+                <button id="netDhcpClear" type="button" class="button-surface utility-btn net-dhcp-clear" data-testid="net-dhcp-clear">Clear</button>
+                <button id="netDhcpApply" type="button" class="button-surface utility-btn net-dhcp-apply" data-testid="net-dhcp-apply">
+                  <svg class="icon" aria-hidden="true"><use href="#i-router"></use></svg> Apply changes
+                </button>
+              </div>
+            </div>
+
+            <p id="netDhcpNote" class="muted small net-dhcp-note">Open to compute the plan.</p>
+          </div>
+        </details>
+
+      </div>
+      <div class="detail-actions">
+        <button id="networkSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Attached-device detail + rename modal (issue #129 Phase 2). Mirrors the
+       detector/plug rename dialogs; surfaces the read-only identity the AP
+       reports (vendor, IP, band, signal, link rate, SSID) plus the MAC, so a
+       custom label can be matched back to the physical device. -->
+  <dialog id="netDeviceDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="netDeviceDetailName">Device</h2>
+        <button id="netDeviceDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Status</span><span id="netDeviceStatus" class="muted">—</span></div>
+      <div class="row"><span>Vendor</span><span id="netDeviceVendor" class="muted">—</span></div>
+      <div class="row"><span>Network address</span><span id="netDeviceIp" class="muted">—</span></div>
+      <div class="row"><span>Connection</span><span id="netDeviceConn" class="muted">—</span></div>
+      <div class="row"><span>Signal</span><span id="netDeviceSignal" class="muted">—</span></div>
+      <div class="row"><span>Wi-Fi network</span><span id="netDeviceSsid" class="muted">—</span></div>
+      <!-- Which source reported the device: the access point, the router DHCP
+           table, or both (issue #169). -->
+      <div class="row"><span>Seen by</span><span id="netDeviceSource" class="muted">—</span></div>
+      <!-- The AP/router-reported hostname, kept visible as a data point even when
+           a custom display name overrides the label (issue #173). -->
+      <div class="row"><span>Hostname</span><span id="netDeviceHostname" class="muted">—</span></div>
+      <!-- History (Phase 4) — hidden for randomised MACs, which aren't tracked. -->
+      <div class="row" id="netDeviceSeenRow"><span>Seen</span><span id="netDeviceSeen" class="muted">—</span></div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="netDeviceDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+
+      <!-- Display group (issue #513). Options are the groups already in use plus
+           Unclassified and "New group…", which reveals the free-text field below.
+           Staged like every other field here — written only on Save. -->
+      <label class="row">
+        <span>Group</span>
+        <select id="netDeviceGroup" class="input-native" data-testid="net-device-group"></select>
+      </label>
+      <label class="row" id="netDeviceGroupNewRow" hidden>
+        <span>New group</span>
+        <input id="netDeviceGroupNew" type="text" class="input-native" placeholder="Group name…" data-testid="net-device-group-new">
+      </label>
+
+      <!-- Mark important: alerts when this device drops offline (Phase 4). Hidden
+           for randomised MACs (a rotating address can't be tracked). -->
+      <div class="row" id="netDeviceImportantRow">
+        <span>Important</span>
+        <button id="netDeviceImportant" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mark device important">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="netDeviceHiddenToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Hide network device">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
+      <!-- The MAC is the stable identifier the label maps back to; flagged when
+           it's a randomised (locally-administered) address. -->
+      <p id="netDeviceMac" class="muted small zone-original-name"></p>
+
+      <div class="detail-actions">
+        <button id="netDeviceSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Device-group rename / delete (issue #513). Reached from the pencil on a
+       group header in the "My groups" view; never shown for Unclassified, which
+       is synthetic. Deleting only drops the assignments — its devices fall back
+       to Unclassified, none are lost. -->
+  <dialog id="netGroupDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="netGroupDialogTitle">Group</h2>
+        <button id="netGroupDialogClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Devices</span><span id="netGroupMembers" class="muted">—</span></div>
+
+      <label class="row">
+        <span>Name</span>
+        <input id="netGroupName" type="text" class="input-native" placeholder="Group name…" data-testid="net-group-name">
+      </label>
+
+      <!-- Destructive action sits in the body above the footer, as the same
+           .schedule-editor-delete secondary every other editor modal here uses
+           (#570) — the design.md modal footer carries exactly one full-width
+           solid-accent primary, never a second always-visible action. -->
+      <button id="netGroupDelete" type="button" class="button-tint danger schedule-editor-delete" data-testid="net-group-delete">Delete group</button>
+
+      <div class="detail-actions">
+        <button id="netGroupSave" type="button" class="button-primary detail-save-btn" disabled>Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Wi-Fi radio detail + rename/hide modal. BSSID is the stable key when
+       present; SSID fallback is shown only for scan rows without a BSSID. -->
+  <dialog id="netWifiDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="netWifiDetailName">Wi-Fi</h2>
+        <button id="netWifiDetailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <div class="row"><span>Status</span><span id="netWifiDetailStatus" class="muted">—</span></div>
+      <div class="row"><span>Band</span><span id="netWifiDetailBand" class="muted">—</span></div>
+      <div class="row"><span>Channel</span><span id="netWifiDetailChannel" class="muted">—</span></div>
+      <div class="row"><span>Signal</span><span id="netWifiDetailSignal" class="muted">—</span></div>
+      <div class="row"><span>Security</span><span id="netWifiDetailSecurity" class="muted">—</span></div>
+
+      <label class="row">
+        <span>Display name</span>
+        <input id="netWifiDisplayName" type="text" class="input-native" placeholder="Custom label…">
+      </label>
+      <p id="netWifiOriginalName" class="muted small zone-original-name"></p>
+
+      <div class="row">
+        <span>Hidden</span>
+        <button id="netWifiHiddenDetailToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Hide Wi-Fi radio">
+          <span class="knob"></span><span class="toggle-label">OFF</span>
+        </button>
+      </div>
+
+      <!-- An instant sheet (#880): each field saves as it changes, so the one
+           primary is Done, which only closes. -->
+      <div class="detail-actions">
+        <button id="netWifiDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Walk-test device picker (issue #547). The server cannot identify the
+       browsing device on its own: over Tailscale every client arrives from a
+       100.x address, so there is nothing to map back to a LAN MAC. You pick
+       yourself once and the choice is remembered in this browser. -->
+  <dialog id="netSurveyDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Which device is this?</h2>
+        <button id="netSurveyDialogClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p class="muted small net-survey-picker-hint">
+        Pick the phone or tablet you’re holding. On iPhone, open Settings, then Wi-Fi, tap the
+        info button next to your network, and read Wi-Fi Address. iOS rotates its private Wi-Fi
+        address, so you may have to pick again later.
+      </p>
+      <div id="netSurveyDialogList" class="net-survey-picker"></div>
+    </div>
+  </dialog>

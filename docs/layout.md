@@ -10,7 +10,8 @@ home-automation/
 │   │   ├── middleware.py      # token / password gate, request logging
 │   │   ├── manager.py         # adopt-or-spawn / restart / stop for uvicorn (the tray's entry to the webapp)
 │   │   ├── routers/           # one module per API area
-│   │   └── static/            # the PWA: index.html, one JS module per view, styles/ (base.css + one file per view)
+│   │   └── static/            # the PWA: index.html (shell + nav), one JS module per view, views/ and styles/ (one file per view)
+│   │       ├── views/         # each view's markup: a pane file and a dialogs file, included into index.html
 │   │       ├── styles/        # base.css plus one stylesheet per view
 │   │       ├── vendor/        # third-party browser libraries, unmodified
 │   │       └── _vendored/     # components copied byte-for-byte from project-scaffolding
@@ -34,7 +35,7 @@ home-automation/
 
 - A device client, a store, an automation rule or any logic with no UI: `src/`. It never imports `app`, and the layer check fails a `src` module that does.
 - A route: `app/webapp/routers/`. A background task the lifespan owns: `app/webapp/`.
-- A view: one JS module and one stylesheet in `app/webapp/static/` and `app/webapp/static/styles/`, not a new section in `index.html` or `base.css`.
+- A view: one JS module, one stylesheet and its markup in `app/webapp/static/`, `app/webapp/static/styles/` and `app/webapp/static/views/` (`<view>.html` for the pane, `<view>-dialogs.html` for its dialogs, each pulled in by an `<!-- @include views/<file>.html -->` line in `index.html`), not a new section in `index.html` or `base.css`.
 - A tray behaviour: `app/tray/`.
 - A script an operator runs by hand, or a gate stage: `scripts/`.
 - A third-party browser library: `app/webapp/static/vendor/`. A scaffold component copied verbatim: its `[vendored]` entry's `dest`, never edited in place.

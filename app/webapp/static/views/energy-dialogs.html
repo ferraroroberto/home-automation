@@ -1,0 +1,229 @@
+  <!-- Energy › History › All figures (#883): every figure the Money view
+       summarises, for the selected period: the bill estimate and savings, then
+       each tariff period's rate, kWh and euros. Read-only, so it only has Done.
+       Filled by energy.js renderCost(). -->
+  <dialog id="energyFiguresSheet" class="detail-dialog energy-figures-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>All figures</h2>
+        <button id="energyFiguresSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <p id="energyFiguresRange" class="muted small detail-hint"></p>
+      <div id="energyFiguresBody" class="energy-figures"></div>
+      <div class="detail-actions">
+        <button id="energyFiguresSheetDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- PV system — the array the forecast is computed from (issue #561). Dense
+       collection: one summary row per physically-uniform panel row, edited in
+       a staged dialog; the system-level fields (shared derate + the home
+       coordinates) save on blur. Writes config/pv_system.json, which stays
+       hand-editable. -->
+  <dialog id="pvSystemSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>PV system</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="pv-system-body">
+        <p class="muted small settings-sheet-note">One panel row per orientation. The forecast is computed from these.</p>
+        <ul id="pvArrayList" class="action-rows sheet-rows" aria-label="Panel rows"></ul>
+        <button id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
+
+        <label class="row">
+          <span>Performance ratio</span>
+          <input id="pvPerformanceRatio" type="number" min="0.05" max="1" step="0.01" inputmode="decimal" class="input-native" placeholder="0.80">
+        </label>
+        <label class="row">
+          <span>Latitude</span>
+          <input id="pvLat" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+        </label>
+        <label class="row">
+          <span>Longitude</span>
+          <input id="pvLon" type="number" step="0.000001" inputmode="decimal" class="input-native" placeholder="—">
+        </label>
+        <p class="muted small pv-system-note">The ratio folds inverter, wiring, heat and dirt losses into one factor, typically 0.75 to 0.85.</p>
+
+        <!-- Horizon / shading profile (issue #578 part b) — obstruction
+             elevation by compass azimuth, entered here so the geometry is
+             ready whenever it gets armed. Not applied to the forecast yet:
+             the switch has no control here, on purpose (see docs/pv-forecast.md). -->
+        <h3 class="net-group-head">Horizon and shading</h3>
+        <p class="muted small settings-sheet-note">Obstruction height by compass direction. Not applied to the forecast yet.</p>
+        <ul id="pvHorizonList" class="action-rows sheet-rows" aria-label="Horizon points"></ul>
+        <button id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- One panel row of the PV system (issue #561). Staged editor: Save is the
+       only persistence boundary; Escape / backdrop / × discard. Tilt stays
+       non-negative — an opposite-facing row is expressed via azimuth, which is
+       why that field carries the convention hint and a live compass echo. -->
+  <dialog id="pvArrayDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="pvArrayEditorTitle">Panel row</h2>
+        <button id="pvArrayEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Peak power (kWp)</span>
+        <input id="pvArrayKwp" type="number" min="0" step="0.1" inputmode="decimal" class="input-native" placeholder="—">
+      </label>
+      <p id="pvArrayKwpError" class="pv-field-error" role="alert" hidden></p>
+
+      <label class="row">
+        <span>Tilt (°)</span>
+        <input id="pvArrayTilt" type="number" min="0" max="90" step="1" inputmode="decimal" class="input-native" placeholder="30">
+      </label>
+      <p id="pvArrayTiltError" class="pv-field-error" role="alert" hidden></p>
+
+      <label class="row">
+        <span>Azimuth (°)</span>
+        <input id="pvArrayAzimuth" type="number" min="-180" max="180" step="1" inputmode="decimal" class="input-native" placeholder="0">
+      </label>
+      <p class="muted small pv-field-hint">
+        <span>0 = south · −90 = east · 90 = west · ±180 = north</span>
+        <span id="pvArrayAzimuthEcho" class="pv-azimuth-echo"></span>
+      </p>
+      <p id="pvArrayAzimuthError" class="pv-field-error" role="alert" hidden></p>
+
+      <button id="pvArrayDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete panel row</button>
+
+      <div class="detail-actions">
+        <button id="pvArraySave" type="button" class="button-primary detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- One point of the horizon/shading profile (issue #578 part b). Same
+       staged-editor contract as the panel row dialog above. Azimuth here is
+       compass, clockwise from true north — a different convention from the
+       panel row's Open-Meteo south-relative one, because this is compared
+       against a computed sun position, not a panel orientation. -->
+  <dialog id="pvHorizonDialog" class="detail-dialog">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus id="pvHorizonEditorTitle">Horizon point</h2>
+        <button id="pvHorizonEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+
+      <label class="row">
+        <span>Azimuth (°)</span>
+        <input id="pvHorizonAzimuth" type="number" min="0" max="359" step="1" inputmode="decimal" class="input-native" placeholder="0">
+      </label>
+      <p class="muted small pv-field-hint">
+        <span>0 = north · 90 = east · 180 = south · 270 = west</span>
+        <span id="pvHorizonAzimuthEcho" class="pv-azimuth-echo"></span>
+      </p>
+      <p id="pvHorizonAzimuthError" class="pv-field-error" role="alert" hidden></p>
+
+      <label class="row">
+        <span>Obstruction elevation (°)</span>
+        <input id="pvHorizonElevation" type="number" min="0" max="90" step="1" inputmode="decimal" class="input-native" placeholder="0">
+      </label>
+      <p id="pvHorizonElevationError" class="pv-field-error" role="alert" hidden></p>
+
+      <button id="pvHorizonDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete horizon point</button>
+
+      <div class="detail-actions">
+        <button id="pvHorizonSave" type="button" class="button-primary detail-save-btn">Save</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Export compensation (moved to Settings from the Energy tab by #883):
+       the export-rate history and its form. The Energy tab's Money view
+       opens this sheet from its Export rate row. -->
+  <dialog id="exportRateSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Export compensation</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="export-rate-body">
+        <p class="muted small settings-sheet-note">Add a rate from the date it takes effect. Earlier rates stay in the history.</p>
+        <ul id="exportRateList" class="action-rows sheet-rows" aria-label="Export rates"></ul>
+        <div class="export-rate-form">
+          <input id="exportRateOriginalDate" type="hidden">
+          <label><span>Effective from</span><input id="exportRateDate" type="date" class="input-native"></label>
+          <label><span>EUR / kWh</span><input id="exportRateValue" type="number" min="0" max="10" step="0.00001" inputmode="decimal" class="input-native" placeholder="0.00000"></label>
+          <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
+          <div class="export-rate-actions">
+            <button id="exportRateDelete" type="button" class="button-tint danger" hidden>Delete</button>
+            <button id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
+          </div>
+        </div>
+        <p id="exportRateError" class="field-error" role="alert" hidden></p>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Solar boost sequencing (issue #562) — the fleet-level knobs deciding
+       how A/C units enter and leave solar boost: one at a time, measuring
+       real surplus between steps. Global by design; the per-unit opt-in stays
+       in each unit's sheet. Fields save on blur. -->
+  <dialog id="boostCoordSheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Solar boost</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="boost-coord-body">
+        <p class="muted small settings-sheet-note">Units enter and leave boost one at a time, so their combined draw never outruns the surplus.</p>
+
+        <label class="row">
+          <span>Settle interval (min)</span>
+          <input id="boostSettleMin" type="number" min="5" max="60" step="1" inputmode="numeric" class="input-native" placeholder="5">
+        </label>
+        <label class="row">
+          <span>Admission margin (W)</span>
+          <input id="boostAdmissionMargin" type="number" min="0" step="50" inputmode="numeric" class="input-native" placeholder="0">
+        </label>
+        <label class="row">
+          <span>Fast-shed import (W)</span>
+          <input id="boostHardDeficit" type="number" min="0" step="100" inputmode="numeric" class="input-native" placeholder="1000">
+        </label>
+
+        <p class="muted small boost-coord-note">The next unit waits a full settle interval, then needs the boost entry threshold plus the margin still measured spare. Sustained import above the fast-shed value drops every boost at once; otherwise they leave one at a time, most recent first. Units are admitted in a fixed order by unit id.</p>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Sun-position check (issue #590): the day's measured performance ratio
+       plotted against where the sun actually was, beside the modelled ratio.
+       Read only when the sheet opens (energy.js), so it costs nothing until
+       someone asks whether the afternoon drop-off is shading or weather. -->
+  <dialog id="sunOverlaySheet" class="detail-dialog settings-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Sun-position check</h2>
+        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="sun-overlay-body">
+        <p class="muted small settings-sheet-note">Measured performance by hour against the sun's direction. A dip at the same direction every day is shading; one that moves with the clock is weather.</p>
+        <label class="row">
+          <span>Day</span>
+          <input id="sunOverlayDate" type="date" class="input-native">
+        </label>
+        <div class="chart-wrap chart-wrap-forecast"><canvas id="sunOverlayChart"></canvas></div>
+        <p class="muted small" id="sunOverlayNote"></p>
+        <p id="sunOverlayEmpty" class="muted small chart-empty" hidden>No measured hours for this day.</p>
+      </div>
+      <div class="detail-actions">
+        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+      </div>
+    </div>
+  </dialog>
