@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 
+from src._no_window import NO_WINDOW
 from src.runtime_data import app_dir_env_var
 from tests.e2e.conftest import _REPO_ROOT, _autoboot_env
 
@@ -64,6 +65,7 @@ def test_autoboot_env_resolves_every_runtime_db_under_the_data_dir(
     out = subprocess.run(
         [sys.executable, "-c", _RESOLVE_SNIPPET],
         cwd=str(_REPO_ROOT), env=env, capture_output=True, text=True, check=True,
+        creationflags=NO_WINDOW,
     ).stdout
     resolved = json.loads(out)
 

@@ -11,7 +11,6 @@ no device or cloud API.
 
 from __future__ import annotations
 
-import tomllib
 from functools import partial
 from pathlib import Path
 
@@ -19,7 +18,9 @@ import pytest
 
 from scripts import instruction_ratchet_gate as gate
 from tests._ratchet_gate_helpers import (
+    assert_gate_stage_calls_the_wrapper,
     assert_only_exit_zero_passes_and_three_is_not_confirmed,
+    assert_ratchet_declared_and_vendored,
     assert_run_maps_every_script_exit,
     make_git_repo,
     real_exit,
@@ -82,20 +83,8 @@ def test_run_exits_nonzero_for_every_script_failure(
 
 
 def test_the_pre_ship_gate_calls_the_wrapper_not_the_script() -> None:
-    gate_ps1 = (REPO_ROOT / "scripts" / "verify-before-ship.ps1").read_text(encoding="utf-8")
-    stages = [line for line in gate_ps1.splitlines() if line.lstrip().startswith("Invoke-Stage")]
-    instruction = [line for line in stages if "instruction_ratchet" in line]
-    assert len(instruction) == 1
-    assert "-m scripts.instruction_ratchet_gate" in instruction[0]
-    assert "instruction_ratchet.py" not in instruction[0]
-    names = [line.split('"')[1] for line in stages]
-    assert names.index("instruction ratchet") == names.index("structure ratchet") + 1
+    assert_gate_stage_calls_the_wrapper("instruction_ratchet", "instruction ratchet", "structure ratchet")
 
 
 def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
-    fleet = tomllib.loads((REPO_ROOT / ".fleet.toml").read_text(encoding="utf-8"))
-    assert fleet["instruction_ratchet"]["enabled"] is True
-    assert (REPO_ROOT / fleet["instruction_ratchet"]["baseline"]).is_file()
-    entry = fleet["vendored"]["instruction_ratchet"]
-    assert entry["dest"] == "scripts/instruction_ratchet.py"
-    assert (REPO_ROOT / entry["dest"]).is_file()
+    assert_ratchet_declared_and_vendored("instruction_ratchet")

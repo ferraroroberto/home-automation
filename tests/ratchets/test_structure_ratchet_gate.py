@@ -12,14 +12,16 @@ cloud API.
 from __future__ import annotations
 
 import subprocess
-import tomllib
 from functools import partial
 from pathlib import Path
 
 import pytest
 
 from scripts import structure_ratchet_gate as gate
+from src._no_window import NO_WINDOW
 from tests._ratchet_gate_helpers import (
+    assert_gate_stage_calls_the_wrapper,
+    assert_ratchet_declared_and_vendored,
     assert_run_maps_every_script_exit,
     make_git_repo,
     real_exit,
@@ -86,7 +88,10 @@ def test_an_undeclared_root_folder_turns_the_gate_red_by_name(tmp_path: Path) ->
     assert _exit(repo, "--init") == 0
     (repo / "stray").mkdir()
     (repo / "stray" / "x.py").write_text("z = 1\n", encoding="utf-8")
-    subprocess.run(["git", "add", "stray/x.py"], cwd=repo, check=True, stdin=subprocess.DEVNULL)
+    subprocess.run(
+        ["git", "add", "stray/x.py"], cwd=repo, check=True, stdin=subprocess.DEVNULL,
+        creationflags=NO_WINDOW,
+    )
     proc = real_run(REAL_SCRIPT, repo)
     assert proc.returncode == 1
     assert "stray" in proc.stdout
@@ -99,22 +104,10 @@ def test_run_exits_nonzero_for_every_script_failure(
 
 
 def test_the_pre_ship_gate_calls_the_wrapper_not_the_script() -> None:
-    gate_ps1 = (REPO_ROOT / "scripts" / "verify-before-ship.ps1").read_text(encoding="utf-8")
-    stages = [line for line in gate_ps1.splitlines() if line.lstrip().startswith("Invoke-Stage")]
-    structure = [line for line in stages if "structure_ratchet" in line]
-    assert len(structure) == 1
-    assert "-m scripts.structure_ratchet_gate" in structure[0]
-    assert "structure_ratchet.py" not in structure[0]
-    names = [line.split('"')[1] for line in stages]
-    assert names.index("structure ratchet") == names.index("comment ratchet") + 1
+    assert_gate_stage_calls_the_wrapper("structure_ratchet", "structure ratchet", "comment ratchet")
 
 
 def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
-    fleet = tomllib.loads((REPO_ROOT / ".fleet.toml").read_text(encoding="utf-8"))
-    assert fleet["structure_ratchet"]["enabled"] is True
-    assert (REPO_ROOT / fleet["structure_ratchet"]["baseline"]).is_file()
+    fleet = assert_ratchet_declared_and_vendored("structure_ratchet")
     assert fleet["shape"] == "webapp-tray"
     assert set(fleet["extra_roots"]) == {"custom_components", "spike"}
-    entry = fleet["vendored"]["structure_ratchet"]
-    assert entry["dest"] == "scripts/structure_ratchet.py"
-    assert (REPO_ROOT / entry["dest"]).is_file()

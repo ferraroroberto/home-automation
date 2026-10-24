@@ -84,6 +84,7 @@ from tests.e2e._browser_sweep import (
     enumerate_browser_helpers,
     sweep_browser_helpers,
 )
+from src._no_window import NO_WINDOW
 from src.runtime_data import app_dir_env_var
 from tests.e2e._e2e_live_guard import require_disposable_instance
 from tests.e2e._shot import CHROMIUM_CAPTURE_ARGS
@@ -240,7 +241,7 @@ def _reap_orphaned_webkit_zombies() -> None:
                 "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
                 "-NoProfile", "-NonInteractive", "-Command", ps_script,
             ],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, timeout=20, creationflags=NO_WINDOW,
         )
         procs = json.loads(result.stdout) if result.stdout.strip() else []
     except Exception:
@@ -287,7 +288,7 @@ def _reap_orphaned_webkit_zombies() -> None:
         try:
             result = subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(pid)],
-                capture_output=True, timeout=10,
+                capture_output=True, timeout=10, creationflags=NO_WINDOW,
             )
             if result.returncode == 0:
                 killed += 1
@@ -662,7 +663,7 @@ def _bounded_teardown(fn: Callable[[], None], label: str, driver_pid: Optional[i
             if sys.platform == "win32":
                 subprocess.run(
                     ["taskkill", "/F", "/T", "/PID", str(driver_pid)],
-                    capture_output=True, timeout=10,
+                    capture_output=True, timeout=10, creationflags=NO_WINDOW,
                 )
             else:
                 os.kill(driver_pid, signal.SIGKILL)

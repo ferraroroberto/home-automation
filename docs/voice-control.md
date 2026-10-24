@@ -135,7 +135,7 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   plain `message:` announces let HA pick the engine, and that pick doesn't follow the
   wake-word-triggered pipeline — Spanish turns would otherwise come out in the English TTS
   voice. See
-  [`voice-pe-config/README.md`](voice-pe-config/README.md#family-locator-issue-438--wheres-momdad--same-turn-eta-470-485).
+  [`voice-pe-config/README.md`](voice-pe-config/README.md#family-locator--wheres-momdad--same-turn-eta).
 - **Adding more commands:** [`voice-commands-howto.md`](voice-commands-howto.md) — the
   reusable recipe (hassil sentence syntax, the `stop`/`action_response` gotcha,
   reload-vs-restart, code-gating, and testing a command without speaking). Read this
@@ -228,7 +228,7 @@ path itself works: HA debug logs confirm the model correctly calls
 what it is given — the problem is that the top-ranked SearXNG hit for this query shape
 is often a stale-cached reference/list page (Google's cached snippet for "List of FIFA
 World Cup finals - Wikipedia" still read "...from 1930 to 2022"), while the correct
-current answer sits at result #6+, outside a 3-snippet window. A secondary failure mode
+current answer sits at the sixth result or later, outside a 3-snippet window. A secondary failure mode
 at a wider window with `temperature: 0.5`: the small `qwen3.5-4b-nothink`
 model occasionally conflates facts across two different snippets in the same reply (one
 trial mixed an unrelated 1982-era snippet with the correct 2026 facts into "Italy...

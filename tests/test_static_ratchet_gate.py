@@ -10,12 +10,15 @@ temp directory: no network, no `npx`, and no device or cloud API.
 from __future__ import annotations
 
 import sys
-import tomllib
 from pathlib import Path
 
 import pytest
 
 from scripts import static_ratchet_gate as gate
+from tests._ratchet_gate_helpers import (
+    assert_gate_stage_calls_the_wrapper,
+    assert_ratchet_declared_and_vendored,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -103,23 +106,8 @@ def test_the_wrapper_runs_under_the_venv_interpreter(
 
 
 def test_the_pre_ship_gate_calls_the_wrapper_not_the_script() -> None:
-    gate_ps1 = (REPO_ROOT / "scripts" / "verify-before-ship.ps1").read_text(
-        encoding="utf-8"
-    )
-    stage_lines = [
-        line for line in gate_ps1.splitlines() if line.lstrip().startswith("Invoke-Stage")
-    ]
-    ratchet = [line for line in stage_lines if "static_ratchet" in line]
-    assert len(ratchet) == 1
-    assert "-m scripts.static_ratchet_gate" in ratchet[0]
-    assert "static_ratchet.py" not in ratchet[0]
+    assert_gate_stage_calls_the_wrapper("static_ratchet", "static ratchet")
 
 
 def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
-    fleet = tomllib.loads((REPO_ROOT / ".fleet.toml").read_text(encoding="utf-8"))
-    assert fleet["static_ratchet"]["enabled"] is True
-    baseline = REPO_ROOT / fleet["static_ratchet"]["baseline"]
-    assert baseline.is_file()
-    entry = fleet["vendored"]["static_ratchet"]
-    assert entry["dest"] == "scripts/static_ratchet.py"
-    assert (REPO_ROOT / entry["dest"]).is_file()
+    assert_ratchet_declared_and_vendored("static_ratchet")

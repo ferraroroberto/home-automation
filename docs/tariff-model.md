@@ -77,7 +77,7 @@ prorated by the window's day count and grossed up by VAT. It feeds the summary's
 
 ## Export income (surplus compensation)
 
-Export credit is priced hour by hour: `hourly export kWh × the latest export_rates entry effective on or before that local date`. The Export compensation editor in Settings (on the Energy tab until #883; the Money view's Export rate row opens it) can add, edit, and delete dated rates. Each entry may also carry 24 hourly overrides (00–23); a blank hour falls back to that entry's default. The Money view plots grid cost, avoided-import savings, and export income; its All figures sheet shows their totals and total solar benefit, and each period's rate, kWh and euros. Use the rate your surplus-compensation product pays; with no compensation contracted, enter `0.0`. Existing files with one `export_eur_kwh` scalar remain readable and that legacy value applies to all dates until the first UI save migrates it to the dated list.
+Export credit is priced hour by hour: `hourly export kWh × the latest export_rates entry effective on or before that local date`. The Export compensation editor in Settings (the Money view's Export rate row opens it) can add, edit, and delete dated rates. Each entry may also carry 24 hourly overrides (00–23); a blank hour falls back to that entry's default. The Money view plots grid cost, avoided-import savings, and export income; its All figures sheet shows their totals and total solar benefit, and each period's rate, kWh and euros. Use the rate your surplus-compensation product pays; with no compensation contracted, enter `0.0`. Existing files with one `export_eur_kwh` scalar remain readable and that legacy value applies to all dates until the first UI save migrates it to the dated list.
 
 ## Limitations
 

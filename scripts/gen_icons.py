@@ -32,6 +32,7 @@ from pathlib import Path
 # the env var isn't set (issue #633). Same `PROJECT_SCAFFOLDING_ROOT` spelling
 # as the sister repos' own `gen_icons.py`, so one export covers the fleet.
 SCAFFOLDING_ROOT = Path(
+    # no-drive-path-exempt: dev-only fallback to the local scaffold checkout; the env var overrides it
     os.environ.get("PROJECT_SCAFFOLDING_ROOT", r"E:\automation\project-scaffolding")
 )
 sys.path.insert(0, str(SCAFFOLDING_ROOT / "scripts"))
