@@ -13,7 +13,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from src.network_client import (
+from src.network.network_client import (
     AccessPointHealth,
     InternetHealth,
     NetDevice,
@@ -30,8 +30,8 @@ def test_network_visibility_and_wifi_rename_persist_and_merge(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """Network hidden/name stores persist, and ``GET /api/network`` merges them."""
-    import src.network_hidden as nh
-    import src.network_wifi_display_names as wdn
+    import src.network.network_hidden as nh
+    import src.network.network_wifi_display_names as wdn
 
     monkeypatch.setattr(nh, "DEVICE_DEFAULT_PATH", tmp_path / "network_hidden.json")
     monkeypatch.setattr(nh, "WIFI_DEFAULT_PATH", tmp_path / "network_wifi_hidden.json")
@@ -333,7 +333,7 @@ def test_network_reboot_router_invokes_core(
 
 def test_router_wan_parse_picks_live_internet_connection() -> None:
     """``_pick_internet_wan`` skips disconnected/0.0.0.0 instances, prefers default-GW."""
-    from src.network_client import _parse_instances, _pick_internet_wan
+    from src.network.network_client import _parse_instances, _pick_internet_wan
 
     xml = (
         "<root>"
@@ -365,7 +365,7 @@ def test_router_asy_encode_is_rsa_pkcs1v15_base64() -> None:
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
-    from src.network_client import _asy_encode
+    from src.network.network_client import _asy_encode
 
     priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     pem = priv.public_key().public_bytes(
@@ -385,7 +385,7 @@ def test_network_device_rename_persists(
     The MAC is normalised (upper-cased) before it becomes the store key, so a
     rename keyed under any casing round-trips (issue #129 Phase 2).
     """
-    import src.network_display_names as ndn
+    import src.network.network_display_names as ndn
 
     store = tmp_path / "network_display_names.json"
     monkeypatch.setattr(ndn, "DEFAULT_PATH", store)
@@ -410,7 +410,7 @@ def test_network_device_rename_persists(
 
 def test_network_oui_vendor_and_category_heuristics() -> None:
     """The bundled OUI table + heuristics: known prefix, miss, and randomised MAC."""
-    from src.network_oui import (
+    from src.network.network_oui import (
         category_for_device,
         is_randomized_mac,
         vendor_for_mac,
@@ -435,7 +435,7 @@ def test_network_oui_vendor_and_category_heuristics() -> None:
 
 def test_network_history_store_seeds_then_flags_new_and_prunes(tmp_path) -> None:
     """The MAC registry: silent cold-start seed, later-arrival ``new``, 180-day prune."""
-    from src.network_history import (
+    from src.network.network_history import (
         is_new,
         record_and_snapshot,
         set_important,
@@ -586,7 +586,7 @@ def test_nightly_speedtest_pref_is_off_by_default_and_round_trips(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """The opt-in is a persisted bool, off until the user turns it on (#840)."""
-    import src.speedtest_prefs as prefs_mod
+    import src.network.speedtest_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "speedtest_prefs.json")
 

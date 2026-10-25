@@ -1,7 +1,7 @@
 """API smoke for the iCloud browser-trust renewal endpoints (issue #659).
 
 ``POST /api/presence/icloud/{account}/trust/begin`` and ``…/complete`` drive
-:mod:`src.presence_client`'s two-step renewal on the tray's live pyicloud
+:mod:`src.presence.presence_client`'s two-step renewal on the tray's live pyicloud
 session. The client functions are monkeypatched here — nothing touches Apple —
 so these prove the routing, validation, and payload shape only.
 """
@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
-from src.presence_client import PresenceConfig, PresenceConfigError, TrustRenewalState
+from src.presence.presence_client import PresenceConfig, PresenceConfigError, TrustRenewalState
 
 ROUTER = "app.webapp.routers.presence_trust"
 

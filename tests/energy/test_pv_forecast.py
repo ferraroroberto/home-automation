@@ -21,11 +21,11 @@ from typing import Dict, List, Optional, Tuple
 import aiohttp
 import pytest
 
-import src.pv_forecast as pf
+import src.energy.pv_forecast as pf
 from src import _backoff as _backoff_module
 from src.location_config import LocationConfig
-from src.pv_system_config import PvArray, PvHorizonPoint, PvSystemConfig
-from src.sun_position import SunPosition
+from src.energy.pv_system_config import PvArray, PvHorizonPoint, PvSystemConfig
+from src.energy.sun_position import SunPosition
 
 _LOCATION = LocationConfig(lat=41.4, lon=2.1)
 _TODAY = date(2026, 7, 20)

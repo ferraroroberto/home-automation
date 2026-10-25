@@ -14,10 +14,10 @@ from typing import Any, Dict, List
 import pytest
 from fastapi.testclient import TestClient
 
-from src.hyperv_client import HyperVState
-from src.huawei_client import EnergyState
-from src.risco_client import SecurityState, SecurityZone
-from src.tuya_client import TuyaDeviceInfo
+from src.devices.hyperv_client import HyperVState
+from src.energy.huawei_client import EnergyState
+from src.security.risco_client import SecurityState, SecurityZone
+from src.devices.tuya_client import TuyaDeviceInfo
 
 _DISARMED = SecurityState(
     reachable=True,
@@ -188,7 +188,7 @@ def test_ups_reads_share_one_fetch_and_a_failed_read_shows_as_error_not_latency(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """#769: ``upsc`` ran inside every request and its 5 s timeout hit one a minute."""
-    from src.ups_client import UpsState
+    from src.energy.ups_client import UpsState
 
     fetches: List[int] = []
     failed = UpsState(available=False, source="none", error="upsc timed out")
@@ -210,7 +210,7 @@ def test_a_slow_ups_tick_never_blocks_a_request(monkeypatch: pytest.MonkeyPatch)
     import threading
 
     from app.webapp.routers import ups
-    from src.ups_client import UpsState
+    from src.energy.ups_client import UpsState
 
     release = threading.Event()
     slow = {"on": False}

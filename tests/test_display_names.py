@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.display_names` — atomic display-name persistence.
+"""Unit tests for :mod:`src.devices.display_names` — atomic display-name persistence.
 
 Round-trips against a ``tmp_path`` file: set, load, clear, and the
 atomic-overwrite path. No network, no shared state.
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from src import display_names as D
+from src.devices import display_names as D
 from src._schedule_store import StoreUnreadableError
 
 

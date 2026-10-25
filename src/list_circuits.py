@@ -10,7 +10,7 @@ Run from the project root with the venv interpreter::
     ./.venv/bin/python -m src.list_circuits                 # POSIX
 
 Meters are found over mDNS with no configuration — see
-:mod:`src.athom_client`. Every channel the meter has is listed whether or not a
+:mod:`src.energy.athom_client`. Every channel the meter has is listed whether or not a
 clamp is fitted, so an unclamped channel shows ``0 W`` rather than vanishing;
 ``n/a`` means the read did not produce a value at all.
 """
@@ -20,8 +20,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.athom_client import CircuitsState, MeterState, fetch_circuits_state
-from src.circuit_prefs import load_circuit_display_names
+from src.energy.athom_client import CircuitsState, MeterState, fetch_circuits_state
+from src.energy.circuit_prefs import load_circuit_display_names
 
 
 def _fmt_w(value: float | None) -> str:

@@ -9,9 +9,9 @@ import pytest
 
 import app.webapp.presence_automation as presence_automation
 import app.webapp.security_automation as security_automation
-from src import presence_engine
-from src.risco_client import RiscoCommandError
-from src.security_schedules import SecurityScheduleEntry
+from src.presence import presence_engine
+from src.security.risco_client import RiscoCommandError
+from src.security.security_schedules import SecurityScheduleEntry
 
 
 class _FakeSecurity:

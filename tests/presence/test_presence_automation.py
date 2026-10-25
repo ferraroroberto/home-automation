@@ -21,8 +21,9 @@ from datetime import datetime, timedelta, timezone
 import app.webapp.alarm_notify as AN
 import app.webapp.presence_automation as PA
 from src.activity_log import log_path_for
-from src.presence_engine import ArmBlockObservation, PresenceDecision
-from src.risco_client import RiscoCommandError
+from src.presence.presence_blocks import ArmBlockObservation
+from src.presence.presence_engine import PresenceDecision
+from src.security.risco_client import RiscoCommandError
 from tests._loop_probe import BLOCK_S, run_watching_the_loop
 
 
@@ -252,7 +253,7 @@ def test_sync_arm_block_diagnostic_logs_once_per_episode(monkeypatch, caplog) ->
     when it appears - and not again on a repeat tick with unchanged state.
     """
 
-    from src.presence_engine import PresenceBlock
+    from src.presence.presence_engine import PresenceBlock
 
     block = PresenceBlock(key="block:ana:t0", blocking_person_ids=("ana",), since=datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc))
     seen_keys: set[str] = set()
@@ -291,9 +292,9 @@ def test_sync_arm_block_diagnostic_alerts_via_telegram_once_per_episode(monkeypa
     episode - never on every ~10s poll while the same block persists.
     """
 
-    from src.presence_engine import PresenceBlock
+    from src.presence.presence_engine import PresenceBlock
 
-    monkeypatch.setattr("src.presence_engine.STATE_PATH", tmp_path / "presence_state.json")
+    monkeypatch.setattr("src.presence.presence_engine.STATE_PATH", tmp_path / "presence_state.json")
 
     block = PresenceBlock(
         key="block:ana:2026-07-25T20:21:21+00:00",
@@ -335,7 +336,7 @@ def test_sync_arm_block_diagnostic_wires_attempt_and_notified_markers(monkeypatc
     this exercises the wiring in ``_sync_arm_block_diagnostic``, not just the
     ``presence_engine`` state machine underneath it."""
 
-    from src.presence_engine import PresenceBlock
+    from src.presence.presence_engine import PresenceBlock
 
     block = PresenceBlock(
         key="block:ana:2026-07-25T20:21:21+00:00",
@@ -407,11 +408,11 @@ def test_sync_arm_block_diagnostic_end_to_end_writes_activity_log(monkeypatch, t
     only the ``logs/alarm.jsonl`` side effect is observed.
     """
 
-    from src.presence_engine import PresenceBlock
+    from src.presence.presence_engine import PresenceBlock
 
     monkeypatch.setattr(AN, "_DEDUPE_PATH", tmp_path / "alarm_notify_dedupe.json")
     AN._last_error_notify.clear()
-    monkeypatch.setattr("src.presence_engine.STATE_PATH", tmp_path / "presence_state.json")
+    monkeypatch.setattr("src.presence.presence_engine.STATE_PATH", tmp_path / "presence_state.json")
 
     block = PresenceBlock(
         key="block:ana:2026-07-25T20:21:21+00:00",
@@ -487,7 +488,7 @@ def test_presence_tick_wires_staleness_block_diagnostic(monkeypatch) -> None:
 
 
 def _entity(entity_id: str, name: str, *, last_seen=None, at_home=None):
-    from src.presence_client import PresenceEntity
+    from src.presence.presence_client import PresenceEntity
 
     return PresenceEntity(
         entity_id=entity_id,
@@ -663,7 +664,7 @@ def test_presence_tick_holds_arm_and_notifies_on_guardian_home(monkeypatch) -> N
 
 def test_consume_satisfied_disarm_marks_and_is_idempotent(monkeypatch, tmp_path) -> None:
     """The helper itself, against the real engine rather than the stubs."""
-    import src.presence_engine as P
+    import src.presence.presence_engine as P
 
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     arrival = datetime(2026, 8, 1, 17, 51, 39, tzinfo=timezone.utc)

@@ -13,7 +13,7 @@ live state once and, per unit:
 * **Rule** — if the unit is **on** and its current mode is steerable, nudge the
   unit's setpoint one step toward the rule's desired *room* target, but no more
   often than ``adjust_interval_s`` (the room responds slowly; over-nudging would
-  overshoot). The rule never touches power — see :mod:`src.hvac_automation`.
+  overshoot). The rule never touches power — see :mod:`src.devices.hvac_automation`.
 * **Solar-boost coordinator** (#562) — one fleet-wide decision per tick between
   the two per-unit passes above: at most one unit is admitted to (or shed from)
   boost per settle interval, measuring real surplus in between, and the
@@ -21,7 +21,7 @@ live state once and, per unit:
   waiting out the throttle. Without it every eligible unit reacted to the same
   surplus reading in the same tick, which oscillates rather than controls.
 
-The pure decision lives in :mod:`src.hvac_automation`; this module only owns the
+The pure decision lives in :mod:`src.devices.hvac_automation`; this module only owns the
 loop, the timing/edge state, and the MELCloud reads/writes. Gated by
 ``HVAC_AUTOMATION_ENABLED`` (``.env``) so the e2e suite and dev runs never drive
 real units. Never lets a per-unit error kill the loop (sampler pattern).
@@ -43,7 +43,7 @@ from app.webapp._env import _env_bool, _env_float, _env_int
 from app.webapp._task_loop import run_loop
 from src import telemetry
 from src._schedule_store import daily_due
-from src.hvac_automation import (
+from src.devices.hvac_automation import (
     TempRule,
     boosted_target,
     load_boost_config,
@@ -55,8 +55,8 @@ from src.hvac_automation import (
     target_for_mode,
     transition_setpoint,
 )
-from src.huawei_client import fetch_energy_state
-from src.melcloud_client import DeviceInfo, fetch_devices, set_device_state
+from src.energy.huawei_client import fetch_energy_state
+from src.devices.melcloud_client import DeviceInfo, fetch_devices, set_device_state
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class AutomationConfig:
     adjust_interval_s: int = 900  # 15 min between setpoint nudges per unit
     buffer_c: float = 0.5
     # Solar-surplus boost — hysteresis band + debounce, see
-    # src.hvac_automation.next_boost_state.
+    # src.devices.hvac_automation.next_boost_state.
     boost_surplus_on_w: float = 1500.0
     boost_surplus_off_w: float = 500.0
     boost_min_duration_s: int = 1800  # 30 min
@@ -247,7 +247,7 @@ async def _write_transition_setpoint(
 
     Bypasses the ``adjust_interval_s`` throttle for this one write and computes
     the setpoint straight from the (un)boosted target instead of one step from
-    the current one — see :func:`src.hvac_automation.transition_setpoint` for
+    the current one — see :func:`src.devices.hvac_automation.transition_setpoint` for
     why the sequencer is unsound without it. Still clamped by ``_mode_range``,
     and still a **setpoint write only**: the coordinator never adds a power
     path, so the compressor is never cycled.

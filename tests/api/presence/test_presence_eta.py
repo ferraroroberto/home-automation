@@ -16,8 +16,8 @@ from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
 from src.location_config import LocationConfig
-from src.presence_client import PresenceEntity
-from src.travel_time import TravelTime
+from src.presence.presence_client import PresenceEntity
+from src.presence.travel_time import TravelTime
 
 
 def _away_entity(entity_id: str = "roberto-phone") -> PresenceEntity:
@@ -38,9 +38,9 @@ def _away_entity(entity_id: str = "roberto-phone") -> PresenceEntity:
 
 
 def _wire_common(monkeypatch: pytest.MonkeyPatch, tmp_path, *, entities, people=None) -> None:
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
@@ -124,7 +124,7 @@ def test_eta_speech_formats_hours_and_minutes(seconds: int, lang: str, expected:
 def test_eta_already_home_skips_lookup(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    from src.presence_engine import PersonPresence
+    from src.presence.presence_engine import PersonPresence
 
     people = {"ana": PersonPresence("ana", "home", datetime(2026, 6, 22, 10, 0, tzinfo=timezone.utc))}
     _wire_common(monkeypatch, tmp_path, entities=[], people=people)

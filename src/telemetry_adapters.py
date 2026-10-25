@@ -100,7 +100,7 @@ def circuit_readings(meters: Iterable[Any]) -> List[Reading]:
     exposes no watts and the Tuya plugs cover a handful of appliances — so
     these are the rows that answer *"which circuit consumed what, when"*.
 
-    Entity is the stable ``"<meter_id>:<channel>"`` key :mod:`src.circuit_prefs`
+    Entity is the stable ``"<meter_id>:<channel>"`` key :mod:`src.energy.circuit_prefs`
     already uses. The meter id is its MAC, so a series survives a DHCP move and
     a re-discovery instead of forking into a new entity and orphaning history.
 
@@ -115,7 +115,7 @@ def circuit_readings(meters: Iterable[Any]) -> List[Reading]:
 
     Every channel is recorded whether or not a clamp is fitted — one added
     later must just start reading — and whether or not it is ``hidden``: this
-    module never consults :mod:`src.circuit_prefs`, so hiding stays
+    module never consults :mod:`src.energy.circuit_prefs`, so hiding stays
     presentation-only by construction rather than by discipline. The *meter* is
     what answers on the LAN, so its reachability is every one of its channels'
     ``quality``; an unreachable meter still carries its channels, each with

@@ -11,10 +11,10 @@ with an 8.8 kWp array and an RS485 power sensor on the grid connection. No
 battery is fitted.
 
 **Source: local Modbus TCP first, the FusionSolar cloud as fallback.** A **Smart
-Dongle `SDongleA-05`** is fitted to the inverter and wired to the LAN, so `src/huawei_modbus.py` reads PV production and the grid exchange
+Dongle `SDongleA-05`** is fitted to the inverter and wired to the LAN, so `src/energy/huawei_modbus.py` reads PV production and the grid exchange
 straight off the inverter's holding registers — about **1 s old**, against the
 portal's 5-minute grid and the further few minutes it runs behind. On any
-failure `src/huawei_client.py` falls back to the cloud path, and the
+failure `src/energy/huawei_client.py` falls back to the cloud path, and the
 serving source is logged whenever it changes so a fallback that quietly becomes
 permanent is visible. A cloud point older than `FUSIONSOLAR_MAX_STALENESS_S` is
 still treated as **stale** and reported unavailable rather than served as live,
@@ -51,12 +51,12 @@ also what keeps CI off the real inverter.
 > for `HUAWEI_MODBUS_CACHE_TTL_S` (default 5 s) to hold the on-device cadence
 > down, and the session is closed after every cycle. The dongle also **moves**:
 > it holds a DHCP lease, so the MAC is the authoritative address and a failed
-> read re-resolves it via `src.network_client.resolve_ip_by_mac` before conceding
+> read re-resolves it via `src.network.network_client.resolve_ip_by_mac` before conceding
 > to the cloud.
 
 **Reading around the source's gaps.** The portal serves the day as parallel
 5-minute series, and the newest data is not always trustworthy. Two hazards,
-both measured live and both handled in `src/huawei_client.py`:
+both measured live and both handled in `src/energy/huawei_client.py`:
 
 - The `fusion_solar_py` helper returns the newest non-null sample of *each
   series independently*, which mixes buckets whenever one lags. We read one
@@ -78,7 +78,7 @@ later), which is why the staleness window is 30 minutes rather than 15.
 **Sign convention worth knowing.** FusionSolar reports a single signed
 `meterActivePower` whose sign is the *opposite* of the one the portal's own
 device page shows. The identity `productPower + meterActivePower = usePower`
-pins it down: **positive means importing**. `src/huawei_client.py` splits it into
+pins it down: **positive means importing**. `src/energy/huawei_client.py` splits it into
 `grid_import_w` / `grid_export_w` so that logic lives in exactly one place.
 
 **When live data is unavailable, the app says why.** If the portal

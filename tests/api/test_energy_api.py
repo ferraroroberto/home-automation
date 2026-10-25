@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.huawei_client import EnergyState
+from src.energy.huawei_client import EnergyState
 
 
 def test_energy_route_runs_with_monkeypatched_cloud(

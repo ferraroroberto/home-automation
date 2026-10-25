@@ -16,9 +16,9 @@ import time
 from pathlib import Path
 
 import app.webapp.security_override_automation as engine
-import src.security_override as override_cfg
-import src.security_override_session as session_cfg
-from src.security_override import set_overrides
+import src.security.security_override as override_cfg
+import src.security.security_override_session as session_cfg
+from src.security.security_override import set_overrides
 
 
 class _FakeEvent:

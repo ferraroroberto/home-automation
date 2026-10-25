@@ -1,7 +1,7 @@
 """Alarm-triggered scene capture + AI verdict orchestrator (issue #162).
 
 This is the glue between the RISCO alarm and the camera/vision core
-(:mod:`src.alarm_scene`). It does **not** poll RISCO itself — the presence loop
+(:mod:`src.security.alarm_scene`). It does **not** poll RISCO itself — the presence loop
 (:mod:`app.webapp.presence_automation`) is the only unconditional interval
 reader of the alarm state (the watched ``/api/security`` snapshot also refetches,
 #759; any further poller would risk the cloud's third-party rate limit), so
@@ -17,16 +17,16 @@ same detector within one still-armed session never produced a fresh
 false->true transition under the old edge-detection design — every alarm after
 the first in a session was silently invisible to this automation. The live
 per-zone ``triggered`` boolean is worse still: it comes from a different API
-call than the system flags inside :func:`src.risco_client.fetch_security_state`
+call than the system flags inside :func:`src.security.risco_client.fetch_security_state`
 and can already be stale/cleared by the time a poll observes it, so even the
 one edge that *did* fire could resolve to zero triggered zones and skip the
 capture. Both failure modes were confirmed live against production logs before
 this fix (see issue #325).
 
 Instead, while the system reports an active intrusion, we periodically diff
-:func:`src.risco_client.fetch_events` against a cursor — the timestamp of the
+:func:`src.security.risco_client.fetch_events` against a cursor — the timestamp of the
 last-processed alarm event, persisted to disk via
-:mod:`src.alarm_scene_cursor` rather than kept in this module's in-memory
+:mod:`src.security.alarm_scene_cursor` rather than kept in this module's in-memory
 ``_state`` — so:
 
 * each individual "Alarm" event gets its own capture, regardless of how many
@@ -35,7 +35,7 @@ last-processed alarm event, persisted to disk via
   re-baselining and silently dropping an in-flight alarm.
 
 On each new alarm event we resolve its zone id to the configured camera
-pairings (:mod:`src.alarm_scene_config`) and:
+pairings (:mod:`src.security.alarm_scene_config`) and:
 
 * capture a frame from each *paired* camera at its PTZ preset,
 * send the frames (+ each camera's calm baseline) to the vision model,
@@ -70,7 +70,7 @@ from app.webapp._event_log_scan import ALARM_EVENT_TYPE, EventLogScanner
 from app.webapp._task_loop import spawn_background_task
 from app.webapp._zone_lookup import _zone_name_for
 from src.activity_log import append_activity
-from src.alarm_scene import (
+from src.security.alarm_scene import (
     DEFAULT_HUB_BASE_URL,
     DEFAULT_MODEL,
     DEFAULT_PRESET_SETTLE_S,
@@ -82,12 +82,12 @@ from src.alarm_scene import (
     capture_scene,
     refresh_baselines,
 )
-from src.alarm_scene_config import ScenePairing, pairings_for_zone
-from src.alarm_scene_cursor import load_last_alarm_event_time, save_last_alarm_event_time
+from src.security.alarm_scene_config import ScenePairing, pairings_for_zone
+from src.security.alarm_scene_cursor import load_last_alarm_event_time, save_last_alarm_event_time
 from src.notify import NotifierError
 from src.notify_config import build_alarm_notifier, load_notify_config
 from src.push_notifications import send_push
-from src.risco_client import fetch_events
+from src.security.risco_client import fetch_events
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,7 @@ def load_alarm_scene_config() -> AlarmSceneConfig:
 
 # Process-lifetime cadence state (baseline refresh here; event-scan throttle +
 # overlap guard in ``_scanner``). Onset detection itself is driven by the
-# disk-persisted cursor in ``src.alarm_scene_cursor`` — not this state —
+# disk-persisted cursor in ``src.security.alarm_scene_cursor`` — not this state —
 # precisely so a process restart doesn't lose track of which alarms were
 # already captured.
 _state: Dict[str, object] = {"last_baseline": None}
@@ -360,7 +360,7 @@ async def _run_baseline_refresh(config: AlarmSceneConfig) -> None:
     """Refresh calm baselines for every configured camera. Never raises."""
 
     try:
-        from src.camera_client import load_cameras
+        from src.devices.camera_client import load_cameras
 
         camera_ids = [cam.id for cam in load_cameras()]
         if not camera_ids:

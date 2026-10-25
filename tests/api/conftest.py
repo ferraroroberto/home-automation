@@ -38,7 +38,7 @@ def _isolate_network_history(tmp_path, monkeypatch) -> None:
     ``webapp/network_history.sqlite3``. A fresh DB per test also keeps the
     new-device / offline derivations deterministic.
     """
-    import src.network_history as nh
+    import src.network.network_history as nh
 
     monkeypatch.setattr(nh, "DEFAULT_DB_PATH", tmp_path / "network_history.sqlite3")
 

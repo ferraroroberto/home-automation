@@ -8,7 +8,7 @@ trimmed. This used to be copy-pasted as a private ``normalize_mac`` in each of
 ``network_survey``); they now all import it from here so the key form can never
 drift between them.
 
-Note: ``src.network_types._normalise_mac`` is a *different*, richer helper
+Note: ``src.network.network_types._normalise_mac`` is a *different*, richer helper
 (``Optional[str]`` in/out, re-joins to colon-separated hex pairs) used by the
 live network clients — it is intentionally not folded in here.
 """

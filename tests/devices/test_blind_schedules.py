@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.webapp import blind_schedules as engine
-from src import blind_automation as B
+from src.devices import blind_automation as B
 from src._schedule_store import StoreUnreadableError, daily_due
 
 # 2026-10-05 is a Monday, 2026-10-10 a Saturday.

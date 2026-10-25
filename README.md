@@ -194,7 +194,7 @@ Print visible iCloud Find My presence entities:
 ## Streamlit spike (POC)
 
 A lightweight, **throwaway** data/debug view — independent from the product,
-sharing only `src/melcloud_client.py`. Not the real UI; kept only as a fast
+sharing only `src/devices/melcloud_client.py`. Not the real UI; kept only as a fast
 way to eyeball the data.
 
 ```powershell

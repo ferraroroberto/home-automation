@@ -18,7 +18,7 @@ import contextlib
 import pytest
 from pyrisco.common import OperationError
 
-import src.risco_client as rc
+import src.security.risco_client as rc
 
 # A representative cloud-cached status payload: the panel is unreachable live,
 # but the cache still carries the zones and the system trouble/AC flags.

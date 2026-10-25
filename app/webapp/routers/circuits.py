@@ -32,14 +32,14 @@ from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import make_display_name_endpoint, make_hidden_endpoint
-from src.athom_client import (
+from src.energy.athom_client import (
     CircuitReading,
     CircuitsState,
     MeterState,
     clear_read_cache,
     fetch_circuits_state,
 )
-from src.circuit_prefs import (
+from src.energy.circuit_prefs import (
     load_circuit_display_names,
     load_hidden_channels,
     set_circuit_display_name,
@@ -66,7 +66,7 @@ CIRCUITS_SNAPSHOT: ReadSnapshot[CircuitsState] = ReadSnapshot(
     stale_after_s=60.0,
 )
 
-#: A meter id that is a real MAC, as :func:`src.athom_client._normalise_mac`
+#: A meter id that is a real MAC, as :func:`src.energy.athom_client._normalise_mac`
 #: writes it. A statically-configured meter (``ATHOM_METER_HOSTS``) instead gets
 #: ``"host:<ip>"`` until it is read, and has no MAC to report.
 _MAC_RE = re.compile(r"^[0-9A-F]{2}(?::[0-9A-F]{2}){5}$")

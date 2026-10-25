@@ -27,7 +27,9 @@ _DATA_DIR_VAR = app_dir_env_var("home-automation")
 
 _RESOLVE_SNIPPET = """
 import json
-from src import energy_history, network_history, network_survey, telemetry
+from src import telemetry
+from src.energy import energy_history
+from src.network import network_history, network_survey
 print(json.dumps({
     m.__name__: str(m.DEFAULT_DB_PATH)
     for m in (energy_history, network_history, network_survey, telemetry)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src import presence_client as P
+from src.presence import presence_client as P
 
 
 @pytest.fixture(autouse=True)

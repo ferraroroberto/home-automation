@@ -151,7 +151,7 @@ def test_real_rules_route_representative_paths() -> None:
         return classify(list(paths), cfg).tier
 
     # Real browser surface -> full.
-    assert tier("app/webapp/static/energy.js") == "full"
+    assert tier("app/webapp/static/energy/energy.js") == "full"
     assert tier("app/webapp/static/styles/base.css") == "full"
     assert tier("app/webapp/static/index.html") == "full"
     assert tier("app/webapp/static/views/home.html") == "full"
@@ -171,8 +171,8 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("app/webapp/static/_vendored/icons/icons-sprite.html") == "static"
 
     # Backend / tooling / docs / meta -> skip (no browser impact of their own).
-    assert tier("src/pv_forecast.py") == "skip"
-    assert tier("src/melcloud_client.py") == "skip"
+    assert tier("src/energy/pv_forecast.py") == "skip"
+    assert tier("src/devices/melcloud_client.py") == "skip"
     assert tier("custom_components/home_automation_app/climate.py") == "skip"
     assert tier("scripts/gen_icons.py") == "skip"
     assert tier("config/tariff.sample.json") == "skip"
@@ -202,8 +202,8 @@ def test_real_rules_route_representative_paths() -> None:
     # Mixed real diff (backend-only) -> skip; add a router/webapp file -> full.
     # (This is PR#596's actual shape: src + config + docs + tests, plus one
     # router line -- the router touch is what correctly forces full.)
-    assert tier("src/pv_forecast.py", "config/pv_system.sample.json", "docs/pv-forecast.md") == "skip"
+    assert tier("src/energy/pv_forecast.py", "config/pv_system.sample.json", "docs/pv-forecast.md") == "skip"
     assert tier(
-        "src/pv_forecast.py", "config/pv_system.sample.json",
+        "src/energy/pv_forecast.py", "config/pv_system.sample.json",
         "docs/pv-forecast.md", "app/webapp/routers/energy.py",
     ) == "full"

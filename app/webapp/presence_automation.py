@@ -30,8 +30,16 @@ from app.webapp.security_override_automation import (
 )
 from src._schedule_store import StoreUnreadableError
 from src.notify_config import notify_best_effort
-from src.presence_display_names import load_presence_display_names
-from src.presence_engine import (
+from src.presence.presence_display_names import load_presence_display_names
+from src.presence.presence_blocks import (
+    mark_arm_block_attempted,
+    mark_arm_block_notified,
+    mark_staleness_block_attempted,
+    mark_staleness_block_notified,
+    set_arm_block,
+    set_staleness_block,
+)
+from src.presence.presence_engine import (
     PresenceCorroboration,
     PresenceDecision,
     append_trigger_log,
@@ -42,19 +50,13 @@ from src.presence_engine import (
     load_kids_home_override,
     load_people,
     remember_known_people,
-    mark_arm_block_attempted,
-    mark_arm_block_notified,
     mark_decision_applied,
     mark_disarm_satisfied,
-    mark_staleness_block_attempted,
-    mark_staleness_block_notified,
     satisfied_disarm_key,
-    set_arm_block,
     set_kids_home_override,
-    set_staleness_block,
 )
 from src.push_notifications import send_push
-from src.risco_client import SecurityState, fetch_security_state
+from src.security.risco_client import SecurityState, fetch_security_state
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +191,7 @@ def _evaluate_current_decision(
     config = load_automation_config()
     if not config.auto_arm_enabled and not config.auto_disarm_enabled:
         return None
-    # Deliberately NOT filtered by src.presence_hidden: that flag is a UI-only
+    # Deliberately NOT filtered by src.presence.presence_hidden: that flag is a UI-only
     # "declutter the Presence list" toggle (mirrors security_hidden) and must
     # never narrow who the arm/disarm decision considers - hiding
     # one tracked person previously made the automation blind to them while

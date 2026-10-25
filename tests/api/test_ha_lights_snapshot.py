@@ -20,7 +20,7 @@ from typing import Any, Dict, List
 import pytest
 from fastapi.testclient import TestClient
 
-from src.elgato_client import ElgatoLight
+from src.devices.elgato_client import ElgatoLight
 
 
 def _age(snap: Any, seconds: float) -> None:

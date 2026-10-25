@@ -1,8 +1,8 @@
 """Shared SQLite connection helper (issue #452).
 
 Single canonical implementation of the WAL-mode connect context manager that
-used to be copy-pasted byte-for-byte across ``src/energy_history.py``,
-``src/network_history.py``, and ``src/telemetry.py`` — same pragmas
+used to be copy-pasted byte-for-byte across ``src/energy/energy_history.py``,
+``src/network/network_history.py``, and ``src/telemetry.py`` — same pragmas
 (``journal_mode=WAL``, ``busy_timeout=5000``), same ``mkdir`` + ``Row``
 factory, differing only in a docstring. Centralizes only the connection
 mechanics: callers keep their own ``DEFAULT_DB_PATH``, schema, and queries.

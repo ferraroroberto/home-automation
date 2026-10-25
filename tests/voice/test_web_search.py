@@ -13,7 +13,7 @@ import logging
 import httpx
 import pytest
 
-from src import web_search as ws
+from src.voice import web_search as ws
 
 
 def _hit(i: int, content: str = "") -> dict:

@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.quick_action_config import QuickActionsConfig
-from src.risco_client import RiscoCommandError, SecurityState
+from src.security.risco_client import RiscoCommandError, SecurityState
 
 # Issue #831: the real plug device id / climate entity are household-
 # identifying and live only in gitignored config/quick_actions.json — tests

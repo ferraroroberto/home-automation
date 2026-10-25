@@ -1,6 +1,6 @@
 """API smoke for the per-circuit endpoints (issue #25).
 
-The route handlers really run; only :func:`src.athom_client.fetch_circuits_state`
+The route handlers really run; only :func:`src.energy.athom_client.fetch_circuits_state`
 is monkeypatched, so no mDNS browse and no meter I/O ever happen here.
 """
 
@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from src.athom_client import CircuitReading, CircuitsState, MeterState
+from src.energy.athom_client import CircuitReading, CircuitsState, MeterState
 
 METER_ID = "AA:BB:CC:DD:EE:01"
 
@@ -61,7 +61,7 @@ def _state(reachable: bool = True) -> CircuitsState:
 @pytest.fixture
 def _prefs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the prefs store at a temp file so tests never touch the real one."""
-    import src.circuit_prefs as prefs
+    import src.energy.circuit_prefs as prefs
 
     path = tmp_path / "circuit_prefs.json"
     monkeypatch.setattr(prefs, "DEFAULT_PATH", path)
@@ -166,7 +166,7 @@ def test_a_meter_is_renamed_through_the_same_endpoint(
 def test_invert_is_persisted(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
 ) -> None:
-    from src.circuit_prefs import load_inverted_channels
+    from src.energy.circuit_prefs import load_inverted_channels
 
     _patch_state(monkeypatch, _state())
     key = f"{METER_ID}:3"
@@ -179,7 +179,7 @@ def test_invert_is_persisted(
 def test_hidden_is_persisted_and_rides_along_on_the_wire(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, _prefs: Path
 ) -> None:
-    from src.circuit_prefs import load_hidden_channels
+    from src.energy.circuit_prefs import load_hidden_channels
 
     _patch_state(monkeypatch, _state())
     key = f"{METER_ID}:5"

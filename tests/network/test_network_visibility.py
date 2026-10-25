@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from src.network_hidden import (
+from src.network.network_hidden import (
     load_hidden_device_macs,
     load_hidden_wifi_ids,
     normalize_wifi_id,
     set_device_hidden,
     set_wifi_hidden,
 )
-from src.network_wifi_display_names import (
+from src.network.network_wifi_display_names import (
     load_network_wifi_display_names,
     set_network_wifi_display_name,
 )

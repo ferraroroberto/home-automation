@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.tariff` — the tiered electricity cost/savings math.
+"""Unit tests for :mod:`src.energy.tariff` — the tiered electricity cost/savings math.
 
 Pure logic: no network, no clock dependence. The 2.0TD calendar is tested via
 explicit naive datetimes (timezone-independent); the cost arithmetic is tested
@@ -12,7 +12,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from src import tariff as T
+from src.energy import tariff as T
 
 
 # --------------------------------------------------------------- load_tariff

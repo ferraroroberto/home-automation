@@ -25,7 +25,7 @@ class _FakeResponse:
 
 
 def test_pc_fleet_prefs_defaults(client: TestClient, monkeypatch, tmp_path) -> None:
-    import src.pc_fleet_prefs as prefs_mod
+    import src.devices.pc_fleet_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "pc_fleet.json")
 
@@ -41,7 +41,7 @@ def test_pc_fleet_prefs_defaults(client: TestClient, monkeypatch, tmp_path) -> N
 def test_pc_fleet_prefs_put_persists_and_rereads(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.pc_fleet_prefs as prefs_mod
+    import src.devices.pc_fleet_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "pc_fleet.json")
 
@@ -69,7 +69,7 @@ def test_pc_fleet_prefs_put_persists_and_rereads(
 def test_pc_fleet_prefs_put_clamps_wild_threshold(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.pc_fleet_prefs as prefs_mod
+    import src.devices.pc_fleet_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "pc_fleet.json")
 
@@ -85,7 +85,7 @@ def test_pc_fleet_prefs_put_clamps_wild_threshold(
 def test_pc_fleet_prefs_put_excluded_round_trips(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.pc_fleet_prefs as prefs_mod
+    import src.devices.pc_fleet_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "pc_fleet.json")
 
@@ -176,7 +176,7 @@ def test_pc_fleet_prefs_put_tower_action_round_trips_and_validates(
 ) -> None:
     """#962: hibernate persists; an unknown value falls back to the default; an
     omitted key keeps what was saved."""
-    import src.pc_fleet_prefs as prefs_mod
+    import src.devices.pc_fleet_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "pc_fleet.json")
 

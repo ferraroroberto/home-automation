@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.presence_places import (
+from src.presence.presence_places import (
     PresencePlace,
     UNKNOWN_PLACE,
     load_presence_places,

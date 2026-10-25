@@ -5,7 +5,7 @@ A lightweight, throwaway way to eyeball the live MELCloud Home data and
 poke a single unit's controls (power, operation mode, target temperature,
 fan speed). It is **independent** from the product: the real control
 surface is the FastAPI + PWA webapp under ``app/webapp/``. This spike
-shares nothing with it beyond :mod:`src.melcloud_client`, and is kept
+shares nothing with it beyond :mod:`src.devices.melcloud_client`, and is kept
 around only as a fast data/debug view.
 
 Run with::
@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 
-from src.melcloud_client import (
+from src.devices.melcloud_client import (
     DeviceInfo,
     MelCloudConfigError,
     fetch_devices,

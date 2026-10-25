@@ -58,13 +58,13 @@ The sentence lists are in `custom_sentences/en/reminder.yaml`. All three intents
 
 ### Calendar — create-only
 
-A **separate** feature from Reminders above — every phrase says "calendar" so it never collides with `reminder.yaml`/`wake_alarm.yaml`/`alarm.yaml`. Writes a **real Google Calendar event** via this app's own Google OAuth token (`src/calendar_write.py`) — not Home Assistant's calendar integration, not a local JSON store. Google Calendar itself is the only source of truth: there's no `/api/calendar` list/edit surface, so there's nothing here to list, edit, or cancel yet (a natural follow-up, not built now).
+A **separate** feature from Reminders above — every phrase says "calendar" so it never collides with `reminder.yaml`/`wake_alarm.yaml`/`alarm.yaml`. Writes a **real Google Calendar event** via this app's own Google OAuth token (`src/presence/calendar_write.py`) — not Home Assistant's calendar integration, not a local JSON store. Google Calendar itself is the only source of truth: there's no `/api/calendar` list/edit surface, so there's nothing here to list, edit, or cancel yet (a natural follow-up, not built now).
 
 | You say (after "Okay Nabu, …") | Intent | App call |
 |---|---|---|
 | "add dentist appointment to my calendar tomorrow at 3pm" · "create a calendar event for team offsite on friday" · "put buy the cake on my calendar" | add | `POST /api/calendar/voice` → splits the event summary from an optional due-date/time cue, creates it in Google Calendar, speaks the confirmation |
 
-**Supported due-date/time cues** (parsed server-side in `src/calendar_events.py:parse_spoken_calendar_event`): `at 6pm` / `at 14:30`, `tomorrow`, `today`, `on friday`. A date with no time → an **all-day** event; a time with no date defaults to **today** (or **tomorrow** if that time has already passed); **no date at all fails gracefully** ("Sorry, I need at least a date...") — unlike reminders, a calendar event can't be undated. A timed event with no explicit duration defaults to **60 minutes** (`DEFAULT_EVENT_DURATION_MINUTES`).
+**Supported due-date/time cues** (parsed server-side in `src/presence/calendar_events.py:parse_spoken_calendar_event`): `at 6pm` / `at 14:30`, `tomorrow`, `today`, `on friday`. A date with no time → an **all-day** event; a time with no date defaults to **today** (or **tomorrow** if that time has already passed); **no date at all fails gracefully** ("Sorry, I need at least a date...") — unlike reminders, a calendar event can't be undated. A timed event with no explicit duration defaults to **60 minutes** (`DEFAULT_EVENT_DURATION_MINUTES`).
 
 The sentence list is in `custom_sentences/en/calendar.yaml`. Reuses the existing `!secret app_api_authorization` — **no new HA secret** (this hits the app's own API, never Google directly from HA). **English only for now**.
 
@@ -78,7 +78,7 @@ Read-only query — no actuation, so no code-gating needed. `{who}` is a free-te
 |---|---|---|
 | "where's dad" · "where is mom" · "where's Roberto" · "locate Ana" · "find dad" | locate + ETA (read) | `GET /api/presence/locate?who=<text>&lang=en` for the place, then (only if away) `GET /api/presence/eta?who=<text>&lang=en` for a traffic-aware drive time home — both spoken together in one announce |
 
-Also on the Spanish pipeline (after "Hey Mycroft, …"): "¿dónde está papá?" · "donde esta mamá" · "localiza a Roberto" · "encuentra a Ana" → spoken Spanish ("Roberto está en casa. Está a unos 30 minutos de casa con el tráfico actual."). Resolution is language-agnostic and variant-tolerant server-side (`src.presence_roles`): accents, doubled letters ("Anna" ↔ "Ana"), and kinship synonyms ("mum"/"mamá" → mom, "daddy"/"papá" → dad) all fold to the configured role/name.
+Also on the Spanish pipeline (after "Hey Mycroft, …"): "¿dónde está papá?" · "donde esta mamá" · "localiza a Roberto" · "encuentra a Ana" → spoken Spanish ("Roberto está en casa. Está a unos 30 minutos de casa con el tráfico actual."). Resolution is language-agnostic and variant-tolerant server-side (`src.presence.presence_roles`): accents, doubled letters ("Anna" ↔ "Ana"), and kinship synonyms ("mum"/"mamá" → mom, "daddy"/"papá" → dad) all fold to the configured role/name.
 
 **How the ETA works.** Whenever the person is found and **not already home**, the puck's single reply is the location sentence followed by a traffic-aware ETA (Google **Routes API**, `routingPreference: TRAFFIC_AWARE`) from their live coordinates to the home in `config/location.json`. Already home (or not found) → it just speaks the location, nothing more. Every failure mode (no location, home not set, no API key, no route) degrades to a spoken fallback, never an error — the same graceful contract as locate. It is deliberately one turn, not a "do you want the ETA?" `assist_satellite.ask_question` you would have to answer "yes" to: the follow-up didn't reliably get answered on the Voice PE hardware.
 

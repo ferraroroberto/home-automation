@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 
 def _wire_state_path(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    import src.presence_engine as pe
+    import src.presence.presence_engine as pe
 
     monkeypatch.setattr(pe, "STATE_PATH", tmp_path / "presence_state.json")
 
@@ -34,11 +34,12 @@ def test_presence_automation_defaults_to_not_blocked(
 def test_presence_automation_surfaces_persisted_block(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    import src.presence_engine as pe
+    import src.presence.presence_blocks as B
+    import src.presence.presence_engine as pe
 
     _wire_state_path(monkeypatch, tmp_path)
     since = datetime(2026, 7, 25, 20, 21, tzinfo=timezone.utc)
-    pe.set_arm_block(pe.PresenceBlock(key="block:ana:x", blocking_person_ids=("ana",), since=since))
+    B.set_arm_block(pe.PresenceBlock(key="block:ana:x", blocking_person_ids=("ana",), since=since))
 
     body = client.get("/api/presence/automation").json()
 
@@ -52,12 +53,12 @@ def test_put_automation_preserves_fields_the_pwa_does_not_send(
 ) -> None:
     """A save must not reset the knobs the PWA form has no input for (#598).
 
-    ``static/presence-automation.js`` only ever posts the four toggle/number
+    ``static/presence/presence-automation.js`` only ever posts the four toggle/number
     fields, so rebuilding the config from bare defaults silently wiped
     ``arm_action`` / ``disarm_action`` and would have wiped the new
     ``disarm_max_age_s`` safety bound every time a toggle was flipped.
     """
-    import src.presence_engine as pe
+    import src.presence.presence_engine as pe
 
     config_path = tmp_path / "presence_automation.json"
     monkeypatch.setattr(pe, "AUTOMATION_PATH", config_path)

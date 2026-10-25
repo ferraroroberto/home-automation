@@ -1,11 +1,11 @@
-"""iCloud browser-trust renewal flow over ``src.presence_client``.
+"""iCloud browser-trust renewal flow over ``src.presence.presence_client``.
 
 Split out of ``routers/presence.py`` (issue #702) — the two-step, attended
 2FA renewal (issue #659) is fully self-contained and shares no state with the
 rest of the presence router beyond triggering a diagnostics refresh on
 success. Two-step: begin makes Apple push a 2FA code to the account's trusted
 devices; complete verifies it on the SAME live pyicloud session (see
-``src.presence_client``) and swaps the trusted session into the tray's cache
+``src.presence.presence_client``) and swaps the trusted session into the tray's cache
 — no restart, no CLI. Same auth as every ``/api/*`` route.
 """
 
@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.webapp.presence_refresher import refresh_once
-from src.presence_client import (
+from src.presence.presence_client import (
     PresenceConfig,
     PresenceConfigError,
     TrustRenewalState,

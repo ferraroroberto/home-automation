@@ -70,7 +70,7 @@ from starlette.types import Scope
 from app.webapp import read_snapshot
 from app.webapp.middleware import BearerTokenMiddleware, StreamSafeGZipMiddleware
 from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
-from src.camera_token import verify as _verify_camera_token
+from src.devices.camera_token import verify as _verify_camera_token
 from app.webapp.routers import actions, activity, auth, blind_schedules, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
 from app.webapp.actions_registry import warn_unconfigured_quick_actions
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR

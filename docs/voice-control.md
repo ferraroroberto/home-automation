@@ -115,15 +115,15 @@ status"*. The full phrase lists and the exact HA config are the secret-free reco
   **multi-turn** flow (`assist_satellite.ask_question`); see its README section.
 - **Family locator + same-turn ETA:** a read-only "where's mom/dad"
   query — `{who}` (a spoken name or household role) resolves server-side against role
-  aliases / display names (`src.presence_roles`), then answers with the person's current
+  aliases / display names (`src.presence.presence_roles`), then answers with the person's current
   place from cached Find My data matched against user-configured named places
-  (`src.presence_places`) — home, a named place (e.g. "the gym"), or away. No new iCloud
+  (`src.presence.presence_places`) — home, a named place (e.g. "the gym"), or away. No new iCloud
   locate cost. Configured entirely from the webapp (a person's "Role" in Security › People, named
   places in Settings › Home & people › Places), not from YAML. Resolution is variant-tolerant (accents,
   "Anna"↔"Ana", "mum"/"mamá"→mom) and the locator also answers in Spanish on the
   "Hey Mycroft" pipeline ("¿dónde está papá?" → "Roberto está en casa"). When the person
   is **away**, the same reply also speaks a traffic-aware ETA (`GET /api/presence/eta` →
-  `src.travel_time` over the Google Routes API, `routingPreference: TRAFFIC_AWARE`; needs
+  `src.presence.travel_time` over the Google Routes API, `routingPreference: TRAFFIC_AWARE`; needs
   `GOOGLE_MAPS_API_KEY` in the app's `.env`, degrades to a spoken fallback without it) —
   one turn, no question asked: an `assist_satellite.ask_question` "do you want the ETA?"
   follow-up does not reliably get answered on the Voice PE hardware. Because the locator
@@ -180,7 +180,7 @@ is physical: say "Ok Nabu, where's dad" a few times and check
 `logs/presence_locate.jsonl` for `who: dad` resolving correctly. If it still misfires,
 whisper's prompt-based biasing may simply be too weak for this specific confusion, and
 the last resort — phonetic-confusion tolerance in
-`src.presence_roles.resolve_person` — would need reconsidering.
+`src.presence.presence_roles.resolve_person` — would need reconsidering.
 
 ## Web search (Tier 3)
 
@@ -281,7 +281,7 @@ result. Non-search questions are unaffected. Spanish search is verified by
 
 **Webapp status card:** the Home Assistant disclosure's **Search engine** sub-card
 (`GET /api/searxng`, `POST /api/searxng/start`) shows the container's live status and a
-Start button when it's down — `src/searxng_client.py` mirrors `src/hyperv_client.py`'s
+Start button when it's down — `src/voice/searxng_client.py` mirrors `src/devices/hyperv_client.py`'s
 shape (shell out, flatten, "partial data stays 200"), probing `/healthz` to distinguish
 "container up" from "actually answering queries". More in
 [`search-engine.md`](search-engine.md).
@@ -474,7 +474,7 @@ Runtime API: `GET /api/ha`; `POST /api/ha/satellites/{entity_id}/announce`; and 
 
 The reference companion to the push-to-talk mic above: the **"What can I say?"** sheet in Settings › Voice lists every wired voice command, so remembering one doesn't mean opening GitHub on a phone. Six groups — **Alarm**, **Wake alarms**, **Reminders**, **Family locator**, **Grocery list**, and the **built-ins** HA answers for free (timers, time/weather, exposed-entity on/off) — each command showing a worked example, its other phrasings, and what it speaks back. Phrasings are tagged with their wake word, since that is what picks the language: "Okay Nabu" is English, "Hey Mycroft" is Spanish (the family locator answers on both; grocery is Spanish-only) — "Hey Mycroft" rather than "Hey Jarvis" because Jarvis is the only built-in wake word still on the older, less accurate v1 [microWakeWord](https://github.com/OHF-Voice/micro-wake-word/releases) model. Read-only — commands are wired in Home Assistant, not here. Its last part, **In this app**, covers what *this webapp* does with Home Assistant rather than what you can *say*.
 
-The content is curated in [`src/voice_commands.py`](../src/voice_commands.py) and served by `GET /api/voice-commands`; the card fetches it once on first open and never polls (it only changes when the app is redeployed). It is deliberately **not** derived from `docs/voice-pe-config/custom_sentences/*.yaml`: those are hassil templates rather than readable examples, and they don't cover the multi-turn grocery flow or HA's built-ins. The cost of curating — a second place to update — is paid down by step 6 of [`voice-commands-howto.md`](voice-commands-howto.md)'s recipe, which makes updating the cheat sheet part of wiring any new command. The card never publishes a code or secret: the disarm command shows the same `<your code>` placeholder [`voice-pe-config/README.md`](voice-pe-config/README.md) already does, and `tests/voice/test_voice_commands.py` fails the build if a real one is ever pasted in.
+The content is curated in [`src/voice/voice_commands.py`](../src/voice/voice_commands.py) and served by `GET /api/voice-commands`; the card fetches it once on first open and never polls (it only changes when the app is redeployed). It is deliberately **not** derived from `docs/voice-pe-config/custom_sentences/*.yaml`: those are hassil templates rather than readable examples, and they don't cover the multi-turn grocery flow or HA's built-ins. The cost of curating — a second place to update — is paid down by step 6 of [`voice-commands-howto.md`](voice-commands-howto.md)'s recipe, which makes updating the cheat sheet part of wiring any new command. The card never publishes a code or secret: the disarm command shows the same `<your code>` placeholder [`voice-pe-config/README.md`](voice-pe-config/README.md) already does, and `tests/voice/test_voice_commands.py` fails the build if a real one is ever pasted in.
 
 ## Home Assistant config deploy over SSH
 

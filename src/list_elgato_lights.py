@@ -7,7 +7,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from src.elgato_client import (
+from src.devices.elgato_client import (
     ElgatoCommandError,
     ElgatoConfigError,
     ElgatoDiscoveryError,

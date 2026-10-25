@@ -16,7 +16,7 @@ def test_hyperv_route_runs_with_monkeypatched_core(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``GET /api/hyperv`` serialises the VM state — Hyper-V faked, no host I/O."""
-    from src.hyperv_client import HyperVState
+    from src.devices.hyperv_client import HyperVState
 
     state = HyperVState(
         available=True,
@@ -41,7 +41,7 @@ def test_hyperv_missing_config_is_503(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A missing ``HA_VM_NAME`` surfaces as 503, not a 500."""
-    from src.hyperv_client import HyperVConfigError
+    from src.devices.hyperv_client import HyperVConfigError
 
     def boom() -> None:
         raise HyperVConfigError("HA_VM_NAME is not set — add the Hyper-V VM name to .env.")
@@ -55,7 +55,7 @@ def test_hyperv_start_stop_invoke_core(
 ) -> None:
     """``POST /api/hyperv/{start|stop}`` calls the core and returns read-back state."""
     import app.webapp.routers.hyperv as hv
-    from src.hyperv_client import HyperVState
+    from src.devices.hyperv_client import HyperVState
 
     calls: List[str] = []
 
@@ -83,7 +83,7 @@ def test_hyperv_action_error_mapping(
 ) -> None:
     """Each distinct cause maps to its own status: 409/404/403, and 400 for a bad action."""
     import app.webapp.routers.hyperv as hv
-    from src.hyperv_client import (
+    from src.devices.hyperv_client import (
         HyperVNotFoundError,
         HyperVPermissionError,
         HyperVStateError,

@@ -14,14 +14,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
-from src.presence_client import PresenceEntity
+from src.presence.presence_client import PresenceEntity
 
 
 def _isolate_locate_stores(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Point the display-name, role and place stores at ``tmp_path``."""
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
@@ -30,8 +30,8 @@ def _isolate_locate_stores(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
 
 def _locate_sees_ana_home(monkeypatch: pytest.MonkeyPatch, tmp_path, now: datetime) -> None:
     """Ana (role ``mom``) is home as of 10:00 and the locator's clock reads ``now``."""
-    import src.presence_roles as pr
-    from src.presence_engine import PersonPresence
+    import src.presence.presence_roles as pr
+    from src.presence.presence_engine import PersonPresence
 
     _isolate_locate_stores(monkeypatch, tmp_path)
     pr.set_presence_role("ana", "mom")
@@ -52,7 +52,7 @@ def _locate_sees_ana_home(monkeypatch: pytest.MonkeyPatch, tmp_path, now: dateti
 def test_presence_places_endpoint_persists_normalized_entries(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    import src.presence_places as pp
+    import src.presence.presence_places as pp
 
     store = tmp_path / "presence_places.json"
     monkeypatch.setattr(pp, "PLACES_PATH", store)
@@ -83,10 +83,10 @@ def test_presence_route_surfaces_role(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """``GET /api/presence`` merges the role alongside display_name/hidden."""
-    import src.presence_display_names as pdn
-    import src.presence_hidden as ph
-    import src.presence_roles as pr
-    from src.presence_engine import PersonPresence
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_hidden as ph
+    import src.presence.presence_roles as pr
+    from src.presence.presence_engine import PersonPresence
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(ph, "DEFAULT_PATH", tmp_path / "presence_hidden.json")
@@ -112,7 +112,7 @@ def test_presence_route_surfaces_role(
 def test_presence_role_endpoint_persists(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    import src.presence_roles as pr
+    import src.presence.presence_roles as pr
 
     store = tmp_path / "presence_roles.json"
     monkeypatch.setattr(pr, "DEFAULT_PATH", store)
@@ -131,9 +131,9 @@ def test_presence_role_endpoint_persists(
 def test_presence_locate_resolves_role_to_named_place(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
@@ -233,9 +233,9 @@ def test_presence_locate_refreshes_stale_cache_on_demand(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """A stale (or never-refreshed) cache triggers one bounded on-demand refresh (#442)."""
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
@@ -287,10 +287,10 @@ def test_presence_locate_falls_back_to_cache_on_refresh_timeout(
     """A hung on-demand refresh times out and falls back to the existing cache (#442)."""
     import asyncio
 
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
-    from src.presence_engine import PersonPresence
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
+    from src.presence.presence_engine import PersonPresence
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
@@ -324,9 +324,9 @@ def test_presence_locate_reports_broken_source_for_icloud_only_alias(
 ) -> None:
     """A role known only via Find My, with the diagnostics refresher down, fails loud
     instead of a generic "unknown location" or a raw KeyError (#442)."""
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")
@@ -372,7 +372,7 @@ def _icloud_entity(entity_id: str, *, lat: float, lon: float) -> PresenceEntity:
 
 def _locate_sees_away_entity(monkeypatch: pytest.MonkeyPatch, tmp_path) -> PresenceEntity:
     """Ana's phone (role ``mom``) is the only located entity, away from every place."""
-    import src.presence_roles as pr
+    import src.presence.presence_roles as pr
 
     _isolate_locate_stores(monkeypatch, tmp_path)
     pr.set_presence_role("ana-phone", "mom")
@@ -441,9 +441,9 @@ def test_presence_locate_states_recency_fresh_and_stale_both_languages(
 ) -> None:
     """A fresh (<1 min) and a stale (15 min) fix both state a "last seen"
     recency, in English and Spanish (#492)."""
-    import src.presence_display_names as pdn
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(pr, "DEFAULT_PATH", tmp_path / "presence_roles.json")

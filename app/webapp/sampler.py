@@ -4,7 +4,7 @@ Runs as a single asyncio task started in the FastAPI lifespan, so it lives and
 dies with the webapp process the tray (or ``webapp.bat``) owns — no separate
 daemon. Every ``persist_interval_s`` it reads the live solar flow and persists one
 sample; every ``compact_interval_s`` it folds completed hours into rollups and
-prunes old raw data (see :mod:`src.energy_history`).
+prunes old raw data (see :mod:`src.energy.energy_history`).
 
 Gated by ``ENERGY_SAMPLER_ENABLED`` (``.env``): disabled, the webapp serves the
 live snapshot + whatever history already exists but writes nothing — which is
@@ -22,14 +22,14 @@ import time
 from dataclasses import dataclass
 
 from app.webapp._task_loop import run_loop
-from src.energy_history import (
+from src.energy.energy_history import (
     EnergyHistoryConfig,
     compact_and_prune,
     init_db,
     load_history_config,
     record_sample,
 )
-from src.huawei_client import fetch_energy_day, fetch_energy_state
+from src.energy.huawei_client import fetch_energy_day, fetch_energy_state
 
 logger = logging.getLogger(__name__)
 

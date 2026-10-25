@@ -1,4 +1,4 @@
-"""RISCO Cloud security API over ``src.risco_client`` — live state, events, and zone actions.
+"""RISCO Cloud security API over ``src.security.risco_client`` — live state, events, and zone actions.
 
 ``GET /api/security`` returns the live alarm snapshot, ``GET
 /api/security/events`` returns recent events, and the POST endpoints run the
@@ -36,7 +36,7 @@ from app.webapp.routers._helpers import (
     make_hidden_endpoint,
     make_http_error_mapper,
 )
-from src.risco_client import (
+from src.security.risco_client import (
     ACTIONS,
     RiscoCommandError,
     RiscoConfigError,
@@ -44,12 +44,12 @@ from src.risco_client import (
     fetch_security_state,
     set_zone_bypass,
 )
-from src.security_display_names import (
+from src.security.security_display_names import (
     load_security_display_names,
     set_security_display_name,
 )
-from src.security_hidden import load_hidden_zone_ids, set_zone_hidden
-from src.security_trouble_ignore import (
+from src.security.security_hidden import load_hidden_zone_ids, set_zone_hidden
+from src.security.security_trouble_ignore import (
     load_ignored_trouble_zone_ids,
     set_zone_trouble_ignored,
 )

@@ -14,8 +14,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
-from src.presence_client import PresenceEntity
-from src.presence_engine import PersonPresence
+from src.presence.presence_client import PresenceEntity
+from src.presence.presence_engine import PersonPresence
 
 
 def _icloud_entity(*, last_seen, entity_id: str = "roberto-phone") -> PresenceEntity:
@@ -36,10 +36,10 @@ def _icloud_entity(*, last_seen, entity_id: str = "roberto-phone") -> PresenceEn
 
 
 def _wire_cache(monkeypatch: pytest.MonkeyPatch, tmp_path, *, entities) -> None:
-    import src.presence_display_names as pdn
-    import src.presence_hidden as ph
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_hidden as ph
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(ph, "DEFAULT_PATH", tmp_path / "presence_hidden.json")
@@ -89,11 +89,11 @@ def test_webhook_person_stale_behavior_unchanged(
 ) -> None:
     """Webhook-backed people still use ``PresenceAutomationConfig.stale_after_s``,
     untouched by the iCloud staleness computation added in #483."""
-    import src.presence_display_names as pdn
-    import src.presence_engine as pe
-    import src.presence_hidden as ph
-    import src.presence_places as pp
-    import src.presence_roles as pr
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_engine as pe
+    import src.presence.presence_hidden as ph
+    import src.presence.presence_places as pp
+    import src.presence.presence_roles as pr
 
     monkeypatch.setattr(pdn, "DEFAULT_PATH", tmp_path / "presence_display_names.json")
     monkeypatch.setattr(ph, "DEFAULT_PATH", tmp_path / "presence_hidden.json")

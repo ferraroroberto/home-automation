@@ -3,7 +3,8 @@ corroboration and state-file write churn."""
 
 from datetime import datetime, timedelta, timezone
 
-from src import presence_engine as P
+from src.presence import presence_blocks as B
+from src.presence import presence_engine as P
 from tests.presence.test_presence_engine import _person
 
 
@@ -33,15 +34,15 @@ def test_two_arrivals_32s_apart_do_not_notify(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = _ana_block()
 
-    first = P.set_arm_block(block, dwell_s=900, at=_ANA_IN + timedelta(seconds=10))
+    first = B.set_arm_block(block, dwell_s=900, at=_ANA_IN + timedelta(seconds=10))
     assert first.changed is True      # still worth logging + showing in the UI
     assert first.notify is False      # ...but not worth paging about
 
     # The tick that actually paged in production.
-    assert P.set_arm_block(block, dwell_s=900, at=_ALERTED_AT).notify is False
+    assert B.set_arm_block(block, dwell_s=900, at=_ALERTED_AT).notify is False
 
     # roberto arrives; the block evaporates on its own.
-    cleared = P.set_arm_block(None, dwell_s=900, at=_ROB_IN)
+    cleared = B.set_arm_block(None, dwell_s=900, at=_ROB_IN)
     assert cleared.changed is True and cleared.notify is False
 
 
@@ -50,19 +51,19 @@ def test_block_notifies_once_after_dwell(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = _ana_block()
 
-    assert P.set_arm_block(block, dwell_s=900, at=_ANA_IN).notify is False
-    assert P.set_arm_block(
+    assert B.set_arm_block(block, dwell_s=900, at=_ANA_IN).notify is False
+    assert B.set_arm_block(
         block, dwell_s=900, at=_ANA_IN + timedelta(seconds=899)
     ).notify is False
-    assert P.set_arm_block(
+    assert B.set_arm_block(
         block, dwell_s=900, at=_ANA_IN + timedelta(seconds=900)
     ).notify is True
     # A confirmed send (#601) is what latches "already notified" - without it
     # the episode would keep reporting `notify=True` forever.
-    P.mark_arm_block_notified(block.key)
+    B.mark_arm_block_notified(block.key)
     # And not again on later ticks of the same episode.
     for extra in (901, 1200, 7200):
-        assert P.set_arm_block(
+        assert B.set_arm_block(
             block, dwell_s=900, at=_ANA_IN + timedelta(seconds=extra)
         ).notify is False
 
@@ -83,14 +84,14 @@ def test_notify_due_is_not_marked_notified_until_confirmed(monkeypatch, tmp_path
     the episode's alert - `set_arm_block` alone must never latch `notified`."""
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = _ana_block()
-    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+    B.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
 
     at = _ANA_IN + timedelta(seconds=900)
-    assert P.set_arm_block(block, dwell_s=900, at=at).notify is True
+    assert B.set_arm_block(block, dwell_s=900, at=at).notify is True
     # Nothing marked it delivered - still due on a later tick, once the retry
     # cooldown (untouched here) has elapsed.
-    assert P.set_arm_block(
-        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S)
+    assert B.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=B._ARM_BLOCK_RETRY_COOLDOWN_S)
     ).notify is True
 
 
@@ -99,22 +100,22 @@ def test_failed_attempt_backs_off_instead_of_retrying_every_tick(monkeypatch, tm
     poll tick - `mark_arm_block_attempted` is what backs this off."""
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = _ana_block()
-    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+    B.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
 
     at = _ANA_IN + timedelta(seconds=900)
-    assert P.set_arm_block(block, dwell_s=900, at=at).notify is True
-    P.mark_arm_block_attempted(block.key, at=at)  # attempted, but not confirmed sent
+    assert B.set_arm_block(block, dwell_s=900, at=at).notify is True
+    B.mark_arm_block_attempted(block.key, at=at)  # attempted, but not confirmed sent
 
     # A tick shortly after (the ~10s presence poll cadence) must not retry yet.
-    assert P.set_arm_block(
+    assert B.set_arm_block(
         block, dwell_s=900, at=at + timedelta(seconds=10)
     ).notify is False
-    assert P.set_arm_block(
-        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S - 1)
+    assert B.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=B._ARM_BLOCK_RETRY_COOLDOWN_S - 1)
     ).notify is False
     # Once the cooldown window elapses, a retry is due again.
-    assert P.set_arm_block(
-        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S)
+    assert B.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=B._ARM_BLOCK_RETRY_COOLDOWN_S)
     ).notify is True
 
 
@@ -123,14 +124,14 @@ def test_mark_arm_block_notified_ignores_a_stale_key(monkeypatch, tmp_path):
     the wrong (current) episode as notified."""
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = _ana_block()
-    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+    B.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
     at = _ANA_IN + timedelta(seconds=900)
-    P.set_arm_block(block, dwell_s=900, at=at)
+    B.set_arm_block(block, dwell_s=900, at=at)
 
-    P.mark_arm_block_notified("some-other-episode-key")
+    B.mark_arm_block_notified("some-other-episode-key")
 
-    assert P.set_arm_block(
-        block, dwell_s=900, at=at + timedelta(seconds=P._ARM_BLOCK_RETRY_COOLDOWN_S)
+    assert B.set_arm_block(
+        block, dwell_s=900, at=at + timedelta(seconds=B._ARM_BLOCK_RETRY_COOLDOWN_S)
     ).notify is True
 
 
@@ -139,14 +140,14 @@ def test_mark_arm_block_attempted_ignores_a_stale_key(monkeypatch, tmp_path):
     current one."""
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = _ana_block()
-    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
+    B.set_arm_block(block, dwell_s=900, at=_ANA_IN)  # establishes first_seen
     at = _ANA_IN + timedelta(seconds=900)
-    P.set_arm_block(block, dwell_s=900, at=at)
+    B.set_arm_block(block, dwell_s=900, at=at)
 
-    P.mark_arm_block_attempted("some-other-episode-key", at=at)
+    B.mark_arm_block_attempted("some-other-episode-key", at=at)
 
     # The (misdirected) attempt must not have started this episode's cooldown.
-    assert P.set_arm_block(
+    assert B.set_arm_block(
         block, dwell_s=900, at=at + timedelta(seconds=1)
     ).notify is True
 
@@ -166,8 +167,8 @@ def test_dwell_is_anchored_to_first_seen_not_to_since(monkeypatch, tmp_path):
         since=home_all_day,
     )
 
-    assert P.set_arm_block(block, dwell_s=900, at=other_leaves).notify is False
-    assert P.set_arm_block(
+    assert B.set_arm_block(block, dwell_s=900, at=other_leaves).notify is False
+    assert B.set_arm_block(
         block, dwell_s=900, at=other_leaves + timedelta(seconds=900)
     ).notify is True
 
@@ -175,8 +176,8 @@ def test_dwell_is_anchored_to_first_seen_not_to_since(monkeypatch, tmp_path):
 def test_new_episode_restarts_the_dwell(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     first = _ana_block()
-    P.set_arm_block(first, dwell_s=900, at=_ANA_IN)
-    assert P.set_arm_block(
+    B.set_arm_block(first, dwell_s=900, at=_ANA_IN)
+    assert B.set_arm_block(
         first, dwell_s=900, at=_ANA_IN + timedelta(seconds=900)
     ).notify is True
 
@@ -185,8 +186,8 @@ def test_new_episode_restarts_the_dwell(monkeypatch, tmp_path):
         key="block:ana,roberto:x", blocking_person_ids=("ana", "roberto"), since=_ANA_IN,
     )
     at = _ANA_IN + timedelta(seconds=1000)
-    assert P.set_arm_block(second, dwell_s=900, at=at).notify is False
-    assert P.set_arm_block(
+    assert B.set_arm_block(second, dwell_s=900, at=at).notify is False
+    assert B.set_arm_block(
         second, dwell_s=900, at=at + timedelta(seconds=900)
     ).notify is True
 
@@ -194,15 +195,15 @@ def test_new_episode_restarts_the_dwell(monkeypatch, tmp_path):
 def test_recurring_block_after_clear_notifies_again(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = _ana_block()
-    P.set_arm_block(block, dwell_s=900, at=_ANA_IN)
-    assert P.set_arm_block(
+    B.set_arm_block(block, dwell_s=900, at=_ANA_IN)
+    assert B.set_arm_block(
         block, dwell_s=900, at=_ANA_IN + timedelta(seconds=900)
     ).notify is True
-    P.set_arm_block(None, dwell_s=900, at=_ANA_IN + timedelta(hours=1))
+    B.set_arm_block(None, dwell_s=900, at=_ANA_IN + timedelta(hours=1))
 
     back = _ANA_IN + timedelta(hours=2)
-    assert P.set_arm_block(block, dwell_s=900, at=back).notify is False
-    assert P.set_arm_block(
+    assert B.set_arm_block(block, dwell_s=900, at=back).notify is False
+    assert B.set_arm_block(
         block, dwell_s=900, at=back + timedelta(seconds=900)
     ).notify is True
 
@@ -210,8 +211,8 @@ def test_recurring_block_after_clear_notifies_again(monkeypatch, tmp_path):
 def test_block_is_visible_in_the_api_before_the_dwell_elapses(monkeypatch, tmp_path):
     """The dwell gates the *notification*, not the diagnostic (#599)."""
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
-    P.set_arm_block(_ana_block(), dwell_s=900, at=_ANA_IN + timedelta(seconds=10))
-    assert P.load_arm_block() == {
+    B.set_arm_block(_ana_block(), dwell_s=900, at=_ANA_IN + timedelta(seconds=10))
+    assert B.load_arm_block() == {
         "blocked": True,
         "person_ids": ["ana"],
         "since": _ANA_IN.isoformat(),
@@ -457,32 +458,32 @@ def test_set_staleness_block_notifies_once_after_dwell(monkeypatch, tmp_path):
     t0 = datetime(2026, 8, 11, 6, 0, tzinfo=timezone.utc)
     block = P.StalePresenceBlock(key="stale:ana", stale_person_ids=("ana",))
 
-    assert P.set_staleness_block(block, dwell_s=900, at=t0).notify is False
-    assert P.set_staleness_block(
+    assert B.set_staleness_block(block, dwell_s=900, at=t0).notify is False
+    assert B.set_staleness_block(
         block, dwell_s=900, at=t0 + timedelta(seconds=899)
     ).notify is False
-    assert P.set_staleness_block(
+    assert B.set_staleness_block(
         block, dwell_s=900, at=t0 + timedelta(seconds=900)
     ).notify is True
-    P.mark_staleness_block_notified(block.key)
-    assert P.set_staleness_block(
+    B.mark_staleness_block_notified(block.key)
+    assert B.set_staleness_block(
         block, dwell_s=900, at=t0 + timedelta(seconds=1200)
     ).notify is False
 
     # Independent state namespace: the arm-block diagnostic must be unaffected.
-    assert P.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
-    assert P._STALE_BLOCK.load() == {"blocked": True, "person_ids": ["ana"]}
+    assert B.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
+    assert B._STALE_BLOCK.load() == {"blocked": True, "person_ids": ["ana"]}
 
 
 def test_set_staleness_block_clears(monkeypatch, tmp_path):
     monkeypatch.setattr(P, "STATE_PATH", tmp_path / "presence_state.json")
     block = P.StalePresenceBlock(key="stale:ana", stale_person_ids=("ana",))
-    P.set_staleness_block(block, dwell_s=0)
-    assert P._STALE_BLOCK.load()["blocked"] is True
+    B.set_staleness_block(block, dwell_s=0)
+    assert B._STALE_BLOCK.load()["blocked"] is True
 
-    cleared = P.set_staleness_block(None)
+    cleared = B.set_staleness_block(None)
     assert cleared.changed is True and cleared.notify is False
-    assert P._STALE_BLOCK.load() == {"blocked": False, "person_ids": []}
+    assert B._STALE_BLOCK.load() == {"blocked": False, "person_ids": []}
 
 
 # --- write churn on the shared state file (issue #689) ---
@@ -504,13 +505,13 @@ def test_unchanged_block_tick_does_not_rewrite_the_state_file(monkeypatch, tmp_p
         since=since,
     )
 
-    P.set_arm_block(block, dwell_s=900, at=since)
+    B.set_arm_block(block, dwell_s=900, at=since)
     settled = state.read_bytes()
     mtime = state.stat().st_mtime_ns
 
     # Same episode, same tick shape, nothing new to record.
-    P.set_arm_block(block, dwell_s=900, at=since + timedelta(seconds=10))
-    P.set_arm_block(block, dwell_s=900, at=since + timedelta(seconds=20))
+    B.set_arm_block(block, dwell_s=900, at=since + timedelta(seconds=10))
+    B.set_arm_block(block, dwell_s=900, at=since + timedelta(seconds=20))
 
     assert state.read_bytes() == settled
     assert state.stat().st_mtime_ns == mtime
@@ -519,12 +520,12 @@ def test_unchanged_block_tick_does_not_rewrite_the_state_file(monkeypatch, tmp_p
 def test_an_already_clear_block_does_not_rewrite_the_state_file(monkeypatch, tmp_path):
     state = tmp_path / "presence_state.json"
     monkeypatch.setattr(P, "STATE_PATH", state)
-    P.set_arm_block(None)
+    B.set_arm_block(None)
     settled = state.read_bytes()
     mtime = state.stat().st_mtime_ns
 
-    P.set_arm_block(None)
-    P.set_arm_block(None)
+    B.set_arm_block(None)
+    B.set_arm_block(None)
 
     assert state.read_bytes() == settled
     assert state.stat().st_mtime_ns == mtime
@@ -541,7 +542,7 @@ def test_a_real_block_change_still_persists(monkeypatch, tmp_path):
         key="block:roberto", blocking_person_ids=("roberto",), since=since
     )
 
-    P.set_arm_block(first, dwell_s=900, at=since)
-    assert P.load_arm_block()["person_ids"] == ["ana"]
-    assert P.set_arm_block(second, dwell_s=900, at=since).changed is True
-    assert P.load_arm_block()["person_ids"] == ["roberto"]
+    B.set_arm_block(first, dwell_s=900, at=since)
+    assert B.load_arm_block()["person_ids"] == ["ana"]
+    assert B.set_arm_block(second, dwell_s=900, at=since).changed is True
+    assert B.load_arm_block()["person_ids"] == ["roberto"]

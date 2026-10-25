@@ -1,6 +1,6 @@
 """Issue #466: EN/ES language toggle on the "What can I say?" voice cheat sheet.
 
-The catalogue (src/voice_commands.py) is bilingual for the alarm, wake-alarm and
+The catalogue (src/voice/voice_commands.py) is bilingual for the alarm, wake-alarm and
 locator groups, so the card offers an All/EN/ES segmented toggle. This drives the
 real GET /api/voice-commands (not stubbed) and checks the toggle narrows the list
 by the wake word each language leads with ("Okay Nabu," = en, "Hey Mycroft," = es).

@@ -2,7 +2,7 @@
 raises" / timeout contract that a ``subprocess.run(..., timeout=...)`` call
 can silently break by letting ``subprocess.TimeoutExpired`` escape unguarded.
 
-``src/hyperv_client.py``'s ``_run`` is the concrete instance this issue fixed:
+``src/devices/hyperv_client.py``'s ``_run`` is the concrete instance this issue fixed:
 ``fetch_hyperv_state`` documented "Raises only HyperVConfigError" while a slow
 ``Get-VM`` could raise ``TimeoutExpired`` straight through it, and a graceful
 ``Stop-VM`` past 120s escaped as an unhandled 500 with ``HYPERV_SNAPSHOT``
@@ -43,12 +43,12 @@ _BASELINE: FrozenSet[Tuple[str, str]] = frozenset(
         ("src/host_shutdown.py", "initiate_shutdown"),
         ("src/host_shutdown.py", "initiate_hibernate"),
         ("src/host_shutdown.py", "cancel_shutdown"),
-        ("src/network_host.py", "_run_quiet"),
-        ("src/searxng_client.py", "_compose"),
-        ("src/searxng_client.py", "_container_status"),
-        ("src/ups_client.py", "_read_nut"),
-        ("src/ups_client.py", "_read_nut_direct"),
-        ("src/ups_client.py", "_read_windows_battery"),
+        ("src/network/network_host.py", "_run_quiet"),
+        ("src/voice/searxng_client.py", "_compose"),
+        ("src/voice/searxng_client.py", "_container_status"),
+        ("src/energy/ups_client.py", "_read_nut"),
+        ("src/energy/ups_client.py", "_read_nut_direct"),
+        ("src/energy/ups_client.py", "_read_windows_battery"),
         ("app/tray/tray.py", "_run_tailscale"),
     }
 )
@@ -148,5 +148,5 @@ def test_hyperv_run_specifically_guards_its_timeout() -> None:
     assert not [
         (path, fn, lineno)
         for path, fn, lineno in found
-        if path == "src/hyperv_client.py"
+        if path == "src/devices/hyperv_client.py"
     ]

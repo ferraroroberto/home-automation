@@ -1,7 +1,7 @@
 """Tests for the local Modbus energy path (issue #618).
 
 Nothing here touches the real inverter: the transport
-(:func:`src.huawei_modbus._read_blocks`) and the config loader are both
+(:func:`src.energy.huawei_modbus._read_blocks`) and the config loader are both
 monkeypatched, so the register decoding, the sign convention, the caching, the
 MAC rediscovery and the fall-back-to-cloud branch are all exercised offline.
 
@@ -17,8 +17,8 @@ import struct
 
 import pytest
 
-from src import huawei_client, huawei_modbus
-from src.huawei_modbus import (
+from src.energy import huawei_client, huawei_modbus
+from src.energy.huawei_modbus import (
     ModbusConfig,
     _i32,
     _state_from_registers,
@@ -210,7 +210,7 @@ def test_rediscovers_by_mac_when_the_lease_moved(monkeypatch):
         return "192.168.0.108"
 
     monkeypatch.setattr(huawei_modbus, "_read_blocks", _read)
-    monkeypatch.setattr("src.network_client.resolve_ip_by_mac", _resolve)
+    monkeypatch.setattr("src.network.network_client.resolve_ip_by_mac", _resolve)
 
     state = asyncio.run(fetch_modbus_state())
 

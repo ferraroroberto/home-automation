@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 
 def test_scene_pairings_round_trip(client: TestClient, monkeypatch, tmp_path) -> None:
-    import src.alarm_scene_config as cfg
+    import src.security.alarm_scene_config as cfg
 
     monkeypatch.setattr(cfg, "PAIRINGS_PATH", tmp_path / "alarm_scene_pairings.json")
 
@@ -42,7 +42,7 @@ def test_scene_pairings_round_trip(client: TestClient, monkeypatch, tmp_path) ->
 
 
 def test_scene_pairings_rejects_non_list(client: TestClient, monkeypatch, tmp_path) -> None:
-    import src.alarm_scene_config as cfg
+    import src.security.alarm_scene_config as cfg
 
     monkeypatch.setattr(cfg, "PAIRINGS_PATH", tmp_path / "p.json")
     assert client.put("/api/security/scene-pairings", json={"entries": "nope"}).status_code == 400

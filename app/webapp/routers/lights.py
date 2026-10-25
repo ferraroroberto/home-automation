@@ -1,4 +1,4 @@
-"""Elgato lights API over ``src.elgato_client``."""
+"""Elgato lights API over ``src.devices.elgato_client``."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import make_http_error_mapper
-from src.elgato_client import (
+from src.devices.elgato_client import (
     ElgatoCommandError,
     ElgatoConfigError,
     ElgatoDiscoveryError,
@@ -19,7 +19,7 @@ from src.elgato_client import (
     fetch_lights,
     set_light_state,
 )
-from src.elgato_display_names import (
+from src.devices.elgato_display_names import (
     elgato_display_key,
     load_elgato_display_names,
     set_elgato_display_name,

@@ -1,13 +1,13 @@
 """DHCP per-MAC category-override store (issue #176 step 3).
 
-Reuses ``src.display_names``'s atomic load/save/set, so this only verifies the
+Reuses ``src.devices.display_names``'s atomic load/save/set, so this only verifies the
 MAC-normalising wrapper + the gitignored-file graceful default, not the atomic
 write itself (covered by the display-names tests).
 """
 
 from __future__ import annotations
 
-from src import dhcp_overrides
+from src.network import dhcp_overrides
 
 
 def test_dhcp_overrides_roundtrip_and_normalises(tmp_path) -> None:

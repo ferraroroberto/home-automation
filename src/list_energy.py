@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.huawei_client import EnergyState, fetch_energy_state
+from src.energy.huawei_client import EnergyState, fetch_energy_state
 
 
 def _fmt_w(value: float | None) -> str:

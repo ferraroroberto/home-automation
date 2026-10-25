@@ -1,4 +1,4 @@
-"""Local Smart Life / Tuya device API over ``src.tuya_client``.
+"""Local Smart Life / Tuya device API over ``src.devices.tuya_client``.
 
 ``GET /api/tuya`` lists every captured Tuya device with its live switch state
 and current wattage; ``POST /api/tuya/{id}/switch`` and
@@ -33,11 +33,11 @@ from app.webapp.routers._helpers import (
     make_display_name_endpoint,
     make_hidden_endpoint,
 )
-from src.blind_automation import BlindOutcome, move_blinds
-from src.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
-from src.tuya_display_names import load_tuya_display_names, set_tuya_display_name
-from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
-from src.tuya_client import (
+from src.devices.blind_automation import BlindOutcome, move_blinds
+from src.devices.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
+from src.devices.tuya_display_names import load_tuya_display_names, set_tuya_display_name
+from src.devices.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
+from src.devices.tuya_client import (
     TuyaBackoffActive,
     TuyaCommandError,
     TuyaConfigError,
@@ -288,7 +288,7 @@ class CoverGroupPayload(BaseModel):
 async def control_cover_group(payload: CoverGroupPayload) -> Dict[str, Any]:
     """Move several blinds at once — all of them when ``device_ids`` is omitted.
 
-    The commands go out in parallel (``src.blind_automation``). A blind that
+    The commands go out in parallel (``src.devices.blind_automation``). A blind that
     fails is reported per device rather than failing the group, and retried
     in the background (#899); only when *every* blind failed is the whole
     request a 502.

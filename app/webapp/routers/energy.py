@@ -20,7 +20,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.webapp.read_snapshot import ReadSnapshot
-from src.energy_history import (
+from src.energy.energy_history import (
     MIN_TRUSTED_COVERAGE,
     aggregate,
     framed_buckets,
@@ -30,17 +30,17 @@ from src.energy_history import (
 )
 from src._schedule_store import StoreUnreadableError
 from src.location_config import load_location_config
-from src.pv_forecast import MAX_PAST_DAYS, fetch_pv_forecast, fetch_pv_forecast_for_date
-from src.pv_system_config import (
+from src.energy.pv_forecast import MAX_PAST_DAYS, fetch_pv_forecast, fetch_pv_forecast_for_date
+from src.energy.pv_system_config import (
     PvArray,
     PvHorizonPoint,
     PvSystemConfig,
     load_pv_system_config,
     save_pv_system_config,
 )
-from src.sun_position import sun_position
-from src.huawei_client import EnergyState, fetch_energy_state
-from src.tariff import (
+from src.energy.sun_position import sun_position
+from src.energy.huawei_client import EnergyState, fetch_energy_state
+from src.energy.tariff import (
     cost_breakdown,
     delete_export_rate,
     export_rates_payload,
@@ -476,7 +476,7 @@ def _sun_overlay_points(
 
     Three kinds of hour are dropped, and the *why* matters more than the count:
 
-    * **Short coverage** (:data:`~src.energy_history.MIN_TRUSTED_COVERAGE`) —
+    * **Short coverage** (:data:`~src.energy.energy_history.MIN_TRUSTED_COVERAGE`) —
       the hour's Wh is an integral over the minutes that arrived, so an hour the
       feed spent half offline plots as half the performance. That is precisely
       the artefact this overlay would otherwise launder into "shading" (#579),
@@ -632,7 +632,7 @@ async def get_sun_overlay(date_: Optional[str] = Query(None, alias="date")) -> D
 # --------------------------------------------------------- PV system config
 # The write side of the forecast's inputs: the Energy tab's "PV
 # system" card edits the same gitignored ``config/pv_system.json`` a user may
-# still hand-edit. ``src.pv_forecast`` re-reads the file per request, so a save
+# still hand-edit. ``src.energy.pv_forecast`` re-reads the file per request, so a save
 # is live on the next forecast call — no cache to invalidate, no restart.
 
 
@@ -648,7 +648,7 @@ class PvHorizonPointPayload(BaseModel):
     """One horizon/shading point (issue #578 part b) as the editor sends it.
 
     ``azimuth_deg`` is compass, clockwise from true north — see
-    :mod:`src.pv_system_config`'s module docstring; deliberately not the same
+    :mod:`src.energy.pv_system_config`'s module docstring; deliberately not the same
     convention as ``PvArrayPayload.azimuth_deg``.
     """
 
@@ -714,7 +714,7 @@ async def update_pv_system(payload: PvSystemPayload) -> Dict[str, Any]:
 
     Unlike the read path this one is strict: an invalid row is a 400 naming the
     field, never a silently dropped or clamped value (see
-    :func:`src.pv_system_config.validate_pv_system`).
+    :func:`src.energy.pv_system_config.validate_pv_system`).
 
     The editor has no control for the panel-temperature switch (issue #591), but
     it does edit the ratio the switch reinterprets — so the stored switch is

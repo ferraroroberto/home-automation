@@ -18,12 +18,12 @@ from typing import Any, Dict
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from src.calendar_events import (
+from src.presence.calendar_events import (
     describe_calendar_event,
     parse_spoken_calendar_event,
     to_google_event_body,
 )
-from src.calendar_write import CalendarWriteError, insert_event, timezone_name
+from src.presence.calendar_write import CalendarWriteError, insert_event, timezone_name
 
 logger = logging.getLogger(__name__)
 

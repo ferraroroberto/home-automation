@@ -2,7 +2,8 @@
 
 from datetime import datetime, timedelta, timezone
 
-from src import presence_engine as P
+from src.presence import presence_blocks as B
+from src.presence import presence_engine as P
 
 
 def _person(person_id: str, state: str, at: datetime) -> P.PersonPresence:
@@ -434,22 +435,22 @@ def test_set_arm_block_persists_and_reports_new_episode(monkeypatch, tmp_path):
     block = P.PresenceBlock(key="block:ana:" + since.isoformat(), blocking_person_ids=("ana",), since=since)
 
     # dwell_s defaults to 0, i.e. notify is due on first observation (pre-#599 shape).
-    assert P.set_arm_block(block) == P.ArmBlockObservation(changed=True, notify=True)
-    assert P.load_arm_block() == {
+    assert B.set_arm_block(block) == B.ArmBlockObservation(changed=True, notify=True)
+    assert B.load_arm_block() == {
         "blocked": True,
         "person_ids": ["ana"],
         "since": since.isoformat(),
     }
     # A confirmed send is what latches "already notified" (#601) - set_arm_block
     # itself never marks it just because a send was due.
-    P.mark_arm_block_notified(block.key)
+    B.mark_arm_block_notified(block.key)
     # Same episode again - not a new observation, and already notified.
-    assert P.set_arm_block(block) == P.ArmBlockObservation(changed=False, notify=False)
+    assert B.set_arm_block(block) == B.ArmBlockObservation(changed=False, notify=False)
     # Clearing is itself a new observation, but never a notification.
-    assert P.set_arm_block(None) == P.ArmBlockObservation(changed=True, notify=False)
-    assert P.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
+    assert B.set_arm_block(None) == B.ArmBlockObservation(changed=True, notify=False)
+    assert B.load_arm_block() == {"blocked": False, "person_ids": [], "since": None}
     # Already clear - not new.
-    assert P.set_arm_block(None) == P.ArmBlockObservation(changed=False, notify=False)
+    assert B.set_arm_block(None) == B.ArmBlockObservation(changed=False, notify=False)
 
 
 # --- stale disarm decisions (issue #598) ---

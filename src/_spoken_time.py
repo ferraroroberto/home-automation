@@ -1,6 +1,6 @@
 """Single home for spoken date/time cue parsing (issue #571).
 
-``src/reminders.py`` and ``src/calendar_events.py`` both turn a spoken phrase
+``src/reminders.py`` and ``src/presence/calendar_events.py`` both turn a spoken phrase
 ("take out the trash at 6pm", "dentist tomorrow at 3pm") into a text remainder
 plus optional ``HH:MM`` / ``YYYY-MM-DD`` cues. The two used to carry verbatim
 copies of ``_fmt_time`` / ``_extract_time`` / ``_extract_date`` and the weekday

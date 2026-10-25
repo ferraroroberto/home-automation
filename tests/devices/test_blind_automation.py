@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.blind_automation` — the blind group move (#181).
+"""Unit tests for :mod:`src.devices.blind_automation` — the blind group move (#181).
 
 The Tuya LAN is never touched: ``list_devices`` and ``set_cover`` are faked, so
 these pin the fan-out contract — default target set, per-blind outcomes,
@@ -13,8 +13,8 @@ import time
 
 import pytest
 
-from src import blind_automation as B
-from src.tuya_client import TuyaCommandError, TuyaDeviceInfo
+from src.devices import blind_automation as B
+from src.devices.tuya_client import TuyaCommandError, TuyaDeviceInfo
 
 
 def _info(device_id: str, *, cover: bool) -> TuyaDeviceInfo:

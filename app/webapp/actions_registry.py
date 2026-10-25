@@ -24,7 +24,7 @@ import aiohttp
 
 from app.webapp import read_snapshot
 from app.webapp.alarm_notify import perform_manual_alarm_action
-from src.ha_client import HomeAssistantClient
+from src.voice.ha_client import HomeAssistantClient
 from src.quick_action_config import (
     QuickActionsConfig,
     load_quick_actions_config,
@@ -32,8 +32,8 @@ from src.quick_action_config import (
     require_plug_device_id,
     warn_missing_quick_action_keys,
 )
-from src.risco_client import ACTIONS as _ALARM_ACTIONS
-from src.tuya_client import set_switch
+from src.security.risco_client import ACTIONS as _ALARM_ACTIONS
+from src.devices.tuya_client import set_switch
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 _quick_actions_config: QuickActionsConfig = load_quick_actions_config()
 
 # HA's own MELCloud integration exposes one climate.* entity per room
-# (independent of this repo's src/melcloud_client.py, which is a separate
+# (independent of this repo's src/devices/melcloud_client.py, which is a separate
 # integration against the same units). Confirmed reachable + controllable
 # when first wired up — but only via ``climate.set_hvac_mode``:
 # ``climate.turn_on``/``turn_off`` 500 on this integration (live-tested

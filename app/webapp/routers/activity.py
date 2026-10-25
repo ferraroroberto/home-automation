@@ -17,12 +17,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 
 from src import telemetry
-from src.circuit_prefs import load_circuit_display_names
-from src.display_names import load_display_names
-from src.elgato_display_names import load_elgato_display_names
-from src.presence_display_names import load_presence_display_names
-from src.security_display_names import load_security_display_names
-from src.tuya_display_names import load_tuya_display_names
+from src.energy.circuit_prefs import load_circuit_display_names
+from src.devices.display_names import load_display_names
+from src.devices.elgato_display_names import load_elgato_display_names
+from src.presence.presence_display_names import load_presence_display_names
+from src.security.security_display_names import load_security_display_names
+from src.devices.tuya_display_names import load_tuya_display_names
 
 logger = logging.getLogger(__name__)
 

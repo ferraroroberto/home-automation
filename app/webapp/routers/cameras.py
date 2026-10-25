@@ -1,4 +1,4 @@
-"""Camera API over ``src.camera_client`` (issue #161).
+"""Camera API over ``src.devices.camera_client`` (issue #161).
 
 Read + control for the open RTSP/ONVIF cameras: list, fresh JPEG snapshot, live
 MJPEG stream, PTZ, server-side recording, and the display-name override. Auth is
@@ -17,7 +17,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from app.webapp.routers._helpers import make_http_error_mapper
-from src.camera_client import (
+from src.devices.camera_client import (
     CameraCommandError,
     CameraConfigError,
     fetch_cameras,
@@ -37,10 +37,10 @@ from src.camera_client import (
     start_record,
     stop_record,
 )
-from src.camera_display_names import load_camera_display_names, set_camera_display_name
-from src.camera_token import issue as _issue_camera_token
-from src.camera_preset_names import apply_overrides as apply_preset_overrides
-from src.camera_preset_names import set_preset_name
+from src.devices.camera_display_names import load_camera_display_names, set_camera_display_name
+from src.devices.camera_token import issue as _issue_camera_token
+from src.devices.camera_preset_names import apply_overrides as apply_preset_overrides
+from src.devices.camera_preset_names import set_preset_name
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-from src.melcloud_client import DeviceInfo
+from src.devices.melcloud_client import DeviceInfo
 
 _UNIT = DeviceInfo(
     unit_id="unit-x",

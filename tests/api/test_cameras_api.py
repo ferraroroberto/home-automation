@@ -12,7 +12,7 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-from src.camera_client import CameraInfo
+from src.devices.camera_client import CameraInfo
 
 
 def test_cameras_route_runs_with_monkeypatched_onvif(
@@ -101,7 +101,7 @@ def test_camera_stream_token_endpoint_issues_verifiable_token(
 ) -> None:
     """With auth configured the endpoint returns a token that verifies correctly."""
     from app.webapp.server import app as _app
-    from src.camera_token import verify as verify_camera_token
+    from src.devices.camera_token import verify as verify_camera_token
 
     monkeypatch.setattr(_app.state.webapp_config, "auth_token", "test-bearer-xyz")
 
@@ -123,7 +123,7 @@ def test_camera_stream_token_accepted_by_middleware(
     from fastapi.testclient import TestClient as TC
 
     from app.webapp.server import app as _app
-    from src.camera_token import issue as issue_camera_token
+    from src.devices.camera_token import issue as issue_camera_token
 
     monkeypatch.setattr(_app.state.webapp_config, "auth_token", "test-bearer-xyz")
     monkeypatch.setattr(
@@ -228,7 +228,7 @@ def test_camera_preset_routes(
     # at an empty file so the assertion never depends on config/ (a clone seeded
     # from the committed sample would otherwise rename "garden::1").
     monkeypatch.setattr(
-        "src.camera_preset_names.DEFAULT_PATH", tmp_path / "camera_preset_names.json"
+        "src.devices.camera_preset_names.DEFAULT_PATH", tmp_path / "camera_preset_names.json"
     )
     store: List[dict] = [{"token": "1", "name": "Position 1"}]
     events: List[str] = []
@@ -265,7 +265,7 @@ def test_camera_last_snapshot_only_serves_its_own_frame(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """``GET …/last_snapshot`` answers only from a camera's own persisted frame."""
-    from src import camera_ffmpeg
+    from src.devices import camera_ffmpeg
 
     snaps = tmp_path / "last"
     snaps.mkdir()

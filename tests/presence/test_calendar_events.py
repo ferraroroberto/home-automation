@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.calendar_events import (
+from src.presence.calendar_events import (
     DEFAULT_EVENT_DURATION_MINUTES,
     describe_calendar_event,
     parse_spoken_calendar_event,

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from src._schedule_store import StoreUnreadableError
-from src.circuit_prefs import (
+from src.energy.circuit_prefs import (
     load_circuit_display_names,
     load_circuit_prefs,
     load_hidden_channels,

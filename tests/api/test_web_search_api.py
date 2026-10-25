@@ -1,7 +1,7 @@
 """API smoke for the Spanish voice web search bridge (issue #865).
 
 ``POST /api/voice/search`` never touches SearXNG or the hub in tests — the two
-network seams in ``src.web_search`` are monkeypatched. Every path is a 200 with
+network seams in ``src.voice.web_search`` are monkeypatched. Every path is a 200 with
 ``{ok, speech, source}`` so HA always has a sentence to speak.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src import web_search as ws
+from src.voice import web_search as ws
 
 _HIT = [{"title": "T", "content": "C"}]
 

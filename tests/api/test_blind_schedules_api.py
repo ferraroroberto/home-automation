@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def store(monkeypatch: pytest.MonkeyPatch, tmp_path):
-    import src.blind_automation as B
+    import src.devices.blind_automation as B
 
     path = tmp_path / "blind_schedules.json"
     monkeypatch.setattr(B, "SCHEDULES_PATH", path)
@@ -43,7 +43,7 @@ def test_blind_schedules_reject_a_non_list(client: TestClient, store) -> None:
 def test_alarm_pairing_switch_round_trips(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    import src.blind_automation as B
+    import src.devices.blind_automation as B
 
     monkeypatch.setattr(B, "ALARM_PREFS_PATH", tmp_path / "blind_alarm.json")
     assert client.get("/api/blinds/alarm-pairing").json() == {"follow_alarm": False}

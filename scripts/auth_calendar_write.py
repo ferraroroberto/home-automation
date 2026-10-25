@@ -45,7 +45,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 from google_auth_oauthlib.flow import InstalledAppFlow  # noqa: E402
 
 from src._atomic_json import write_json_atomic  # noqa: E402
-from src.calendar_write import SCOPE, credentials_path, write_token_path  # noqa: E402
+from src.presence.calendar_write import SCOPE, credentials_path, write_token_path  # noqa: E402
 
 
 def main() -> int:

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from src import network_history as nh
+from src.network import network_history as nh
 
 NOW = 1_700_000_000
 

@@ -1,6 +1,6 @@
 """Pure-logic unit tests for the DHCP reservation planner (issue #170).
 
-No network, no FastAPI — exercises :mod:`src.dhcp_plan` directly: config loading
+No network, no FastAPI — exercises :mod:`src.network.dhcp_plan` directly: config loading
 + graceful fallback, classification precedence, and the deterministic, stable
 assignment (lowest-free IP, in-range stability, overflow / randomised / unassigned
 / overlap warnings).
@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.dhcp_plan import (
+from src.network.dhcp_plan import (
     CategoryRange,
     DeviceInput,
     DhcpPlanConfig,

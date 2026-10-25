@@ -30,31 +30,31 @@ import {
   restoreUnitsSnapshot,
   onUnitsTab,
   wireUnitsControls,
-} from './units.js';
+} from './devices/units.js';
 import {
   loadEnergy,
   wireEnergyControls,
   onEnergyTab,
   restyleEnergyCharts,
   restoreEnergySnapshots,
-} from './energy.js';
-import { onPlugsTab, wirePlugsPair, wireBlindsGroup, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './plugs.js';
-import { onCircuitsTab, wireCircuitsToggle, wireCircuitDetail } from './circuits.js';
-import { onUpsTab, restoreUpsSnapshot } from './ups.js';
-import { wirePowerNotify } from './ups-notify.js';
-import { wirePcFleet, onPcFleetTab } from './pc-fleet.js';
-import { onVmTab, restoreVmSnapshot, wireVm } from './vm.js';
+} from './energy/energy.js';
+import { onPlugsTab, wirePlugsPair, wireBlindsGroup, wirePlugsToggle, wirePlugDetail, restorePlugsSnapshot } from './devices/plugs.js';
+import { onCircuitsTab, wireCircuitsToggle, wireCircuitDetail } from './energy/circuits.js';
+import { onUpsTab, restoreUpsSnapshot } from './energy/ups.js';
+import { wirePowerNotify } from './energy/ups-notify.js';
+import { wirePcFleet, onPcFleetTab } from './devices/pc-fleet.js';
+import { onVmTab, restoreVmSnapshot, wireVm } from './devices/vm.js';
 import { onSearxngTab, wireSearxng } from './searxng.js';
 import { onHaTab, wireHa } from './ha.js';
-import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './lights.js';
-import { onBlindSchedulesTab, wireBlindSchedules } from './blind-schedules.js';
-import { onSecurityTab, wireSecuritySheets, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security.js';
+import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './devices/lights.js';
+import { onBlindSchedulesTab, wireBlindSchedules } from './devices/blind-schedules.js';
+import { onSecurityTab, wireSecuritySheets, wireZoneDetail, wireSecurityHiddenToggle, wireSecuritySchedules, wireScenePairings, wireSecurityOverrides, wirePresenceControls, wirePresencePlaces, wireSecurityNotify } from './security/security.js';
 import { onWakeAlarmsTab, wireWakeAlarms } from './wake-alarms.js';
 import { onRemindersTab, wireReminders } from './reminders.js';
 import { wireVoiceCommands } from './voice-commands.js';
-import { onCamerasTab, wireCameras } from './cameras.js';
-import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network.js';
-import { startWeatherPolling } from './weather.js';
+import { onCamerasTab, wireCameras } from './devices/cameras.js';
+import { onNetworkTab, wireNetworkControls, restyleNetworkCharts, restoreNetworkSnapshot } from './network/network.js';
+import { startWeatherPolling } from './energy/weather.js';
 import { wireActivity } from './activity.js';
 import { installDialogScrollLock } from './scroll-lock.js';
 import { wireConfirmDialog } from './confirm.js';

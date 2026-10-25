@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.network_client import NetDevice, NetworkState
+from src.network.network_client import NetDevice, NetworkState
 from tests.api.network.test_network_groups import _state
 
 

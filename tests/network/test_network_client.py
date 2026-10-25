@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from src import network_client, network_host, network_router
+from src.network import network_client, network_host, network_router
 
 
 def test_ping_hides_windows_console(monkeypatch) -> None:

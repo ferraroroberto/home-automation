@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 
-from src.security_schedules import (
+from src.security.security_schedules import (
     DAYS,
     SecurityScheduleEntry,
     load_security_schedules,

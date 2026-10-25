@@ -4,9 +4,9 @@ import asyncio
 import time
 
 import app.webapp.alarm_scene_automation as auto
-from src.alarm_scene import SceneCapture, SceneVerdict
-from src.alarm_scene_config import ScenePairing
-from src.risco_client import SecurityEvent, SecurityState, SecurityZone
+from src.security.alarm_scene import SceneCapture, SceneVerdict
+from src.security.alarm_scene_config import ScenePairing
+from src.security.risco_client import SecurityEvent, SecurityState, SecurityZone
 from tests._loop_probe import BLOCK_S, run_watching_the_loop
 
 
@@ -268,7 +268,7 @@ def test_two_concurrent_scans_only_deliver_once(monkeypatch, tmp_path) -> None:
 
     import functools
 
-    from src import alarm_scene_cursor as cursor_mod
+    from src.security import alarm_scene_cursor as cursor_mod
 
     cursor_path = tmp_path / "cursor.json"
     monkeypatch.setattr(
@@ -366,7 +366,7 @@ def test_run_event_scan_onset_failure_keeps_claim_and_releases_guard(monkeypatch
 
     import pytest
 
-    from src import alarm_scene_cursor as cursor_mod
+    from src.security import alarm_scene_cursor as cursor_mod
 
     cursor_path = tmp_path / "cursor.json"
     monkeypatch.setattr(

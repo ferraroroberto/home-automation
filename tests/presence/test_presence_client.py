@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.presence_client`.
+"""Unit tests for :mod:`src.presence.presence_client`.
 
 Pure normalization and auth-control tests: no Apple network calls, no real
 credentials, and no committed home coordinates.
@@ -10,7 +10,7 @@ from datetime import timezone
 
 import pytest
 
-from src import presence_client as P
+from src.presence import presence_client as P
 from src.location_config import LocationConfig
 
 

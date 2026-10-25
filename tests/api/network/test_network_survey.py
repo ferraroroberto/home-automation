@@ -15,13 +15,13 @@ from typing import Optional
 import pytest
 from fastapi.testclient import TestClient
 
-from src.network_client import NetDevice
+from src.network.network_client import NetDevice
 
 
 @pytest.fixture(autouse=True)
 def _isolate_survey_db(tmp_path, monkeypatch) -> None:
     """Point the survey store at a per-test temp DB, never the real one."""
-    import src.network_survey as ns
+    import src.network.network_survey as ns
 
     monkeypatch.setattr(ns, "DEFAULT_DB_PATH", tmp_path / "network_survey.sqlite3")
 

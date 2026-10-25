@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.presence_client`'s browser-trust renewal and its
+"""Unit tests for :mod:`src.presence.presence_client`'s browser-trust renewal and its
 Apple-terms and failure-detail paths.
 
 Every Apple exchange is faked; no real credentials or network calls.
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from src import presence_client as P
+from src.presence import presence_client as P
 from tests.presence.test_presence_client import _FakeApi
 
 

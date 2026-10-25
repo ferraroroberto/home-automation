@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.network_groups import (
+from src.network.network_groups import (
     delete_network_group,
     load_network_groups,
     rename_network_group,

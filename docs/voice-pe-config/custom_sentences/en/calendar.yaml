@@ -5,7 +5,7 @@
 # Distinct from reminder.yaml/wake_alarm.yaml/alarm.yaml — every sentence
 # here says "calendar" so it can never collide with those grammars.
 # Create-only: writes a real Google Calendar event, not an app-local list
-# (see src/calendar_write.py) — there is no cancel/list/edit intent here.
+# (see src/presence/calendar_write.py) — there is no cancel/list/edit intent here.
 #
 # {text} is a free-text wildcard capturing the whole spoken event
 # description PLUS an optional trailing due-date/time cue ("dentist
@@ -13,7 +13,7 @@
 # tail — including the embedded "to/on my/the calendar" filler — because a
 # single trailing wildcard can't be followed by more literal text once a
 # date/time cue trails it; the app splits summary from date/time and strips
-# the filler server-side (src/calendar_events.py:parse_spoken_calendar_event).
+# the filler server-side (src/presence/calendar_events.py:parse_spoken_calendar_event).
 language: "en"
 
 lists:

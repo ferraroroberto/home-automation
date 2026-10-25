@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.camera_presets` — the local PTZ-preset fallback.
+"""Unit tests for :mod:`src.devices.camera_presets` — the local PTZ-preset fallback.
 
 Round-trips against a ``tmp_path`` file: add (with token allocation), look up,
 remove, and the missing/garbage-file guards. No network, no ONVIF.
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from src import camera_presets as P
+from src.devices import camera_presets as P
 
 
 def test_list_missing_file_is_empty(tmp_path: Path) -> None:

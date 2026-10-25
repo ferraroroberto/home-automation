@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.security_trouble_ignore import (
+from src.security.security_trouble_ignore import (
     load_ignored_trouble_zone_ids,
     set_zone_trouble_ignored,
 )

@@ -1,6 +1,6 @@
 # Electricity tariff model
 
-How the Energy tab's **History › Money** view (the cost & savings breakdown) turns monitored energy into money, and how the default per-period prices were derived from a real Spanish PVPC 2.0TD invoice. The code lives in `src/tariff.py`; the rates live in `config/tariff.json` (gitignored; copy `config/tariff.sample.json`).
+How the Energy tab's **History › Money** view (the cost & savings breakdown) turns monitored energy into money, and how the default per-period prices were derived from a real Spanish PVPC 2.0TD invoice. The code lives in `src/energy/tariff.py`; the rates live in `config/tariff.json` (gitignored; copy `config/tariff.sample.json`).
 
 This is a **household-monitoring estimate**, not a billing-grade meter read. It is good enough to compare periods, track self-consumption value, and size the eventual solar load-balancing automation — but it will not match your utility bill to the cent.
 

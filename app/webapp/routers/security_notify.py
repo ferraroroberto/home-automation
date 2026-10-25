@@ -1,4 +1,4 @@
-"""Automatic-alarm notification toggles CRUD over ``src.alarm_notify_prefs``.
+"""Automatic-alarm notification toggles CRUD over ``src.security.alarm_notify_prefs``.
 
 Split out of ``routers/security.py`` (issue #346) — same rationale as
 ``security_schedules.py``: the seven per-event Telegram toggles are fully
@@ -11,7 +11,7 @@ stays in ``security.py``. The GET/PUT pair itself is the shared
 from __future__ import annotations
 
 from app.webapp.routers._helpers import make_bool_prefs_router
-from src.alarm_notify_prefs import (
+from src.security.alarm_notify_prefs import (
     AlarmNotifyPrefs,
     load_alarm_notify_prefs,
     save_alarm_notify_prefs,

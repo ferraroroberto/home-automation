@@ -62,6 +62,6 @@ def test_non_ascii_webhook_secret_is_401(
 
 
 def test_non_ascii_camera_token_is_rejected() -> None:
-    from src.camera_token import verify
+    from src.devices.camera_token import verify
 
     assert verify(f"{int(time.time()) + 60}.sigñ", "test-bearer-xyz") is False

@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.pc_fleet_prefs` — the UPS-shutdown prefs store (#498)."""
+"""Unit tests for :mod:`src.devices.pc_fleet_prefs` — the UPS-shutdown prefs store (#498)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from src._schedule_store import StoreUnreadableError
-from src.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs, save_pc_fleet_prefs
+from src.devices.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs, save_pc_fleet_prefs
 
 
 def test_save_load_round_trip(tmp_path: Path) -> None:

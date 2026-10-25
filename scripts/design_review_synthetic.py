@@ -14,7 +14,7 @@ reach the household's accounts or LAN:
 * every key in ``.env`` is blanked in the child's environment and
   ``dotenv.load_dotenv`` is turned into a no-op (``athom_client`` calls it with
   ``override=True`` on each read, which would otherwise restore them);
-* ``src.athom_client.discover_meters`` reports "found nothing", so
+* ``src.energy.athom_client.discover_meters`` reports "found nothing", so
   ``/api/circuits`` never sweeps mDNS or reads a meter.
 
 What it cannot isolate is ``config/*.json`` (device lists such as
@@ -59,7 +59,7 @@ def _serve(port: int, ssl_files: Optional[Tuple[str, str]]) -> int:
     dotenv.load_dotenv = lambda *args, **kwargs: False
 
     from app.webapp.event_loop import LOOP_FACTORY
-    from src import athom_client
+    from src.energy import athom_client
 
     async def _no_discovery(force: bool = False) -> Tuple[List, Optional[str]]:
         return [], None

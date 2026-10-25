@@ -12,8 +12,8 @@ import subprocess
 
 import pytest
 
-from src import searxng_client as client
-from src.searxng_client import SearxngCommandError, SearxngConfigError, SearxngState
+from src.voice import searxng_client as client
+from src.voice.searxng_client import SearxngCommandError, SearxngConfigError, SearxngState
 
 
 @pytest.fixture

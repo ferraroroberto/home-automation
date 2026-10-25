@@ -2,7 +2,7 @@
 
 Nothing reads the UPS server-side otherwise (the Plugs/Home tiles poll it only
 while a browser is open), so reliable power-lost / power-restored Telegram alerts
-need their own background task. This polls :func:`src.ups_client.fetch_ups_state`
+need their own background task. This polls :func:`src.energy.ups_client.fetch_ups_state`
 on an interval, tracks the last ``mains_online`` value in process memory, and
 fires :func:`app.webapp.power_notify.record_power_event` on each mains↔battery
 transition (baseline on first observation — no alert for the state at startup).
@@ -43,8 +43,8 @@ from app.webapp.power_notify import (
     record_low_battery_shutdown_cancelled,
     record_power_event,
 )
-from src.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
-from src.ups_client import UpsState, fetch_ups_state
+from src.devices.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
+from src.energy.ups_client import UpsState, fetch_ups_state
 
 logger = logging.getLogger(__name__)
 

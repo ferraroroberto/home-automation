@@ -18,8 +18,8 @@ from typing import Any, Dict, List
 import pytest
 from fastapi.testclient import TestClient
 
-from src.athom_client import CircuitReading, CircuitsState, MeterState
-from src.network_client import (
+from src.energy.athom_client import CircuitReading, CircuitsState, MeterState
+from src.network.network_client import (
     AccessPointHealth,
     InternetHealth,
     NetDevice,
@@ -135,7 +135,7 @@ def test_device_history_is_recorded_once_per_real_read(
 ) -> None:
     """A cached answer is not a sighting: ``times_seen`` counts AP reads only."""
     recorded: List[int] = []
-    import src.network_history as nh
+    import src.network.network_history as nh
 
     real = nh.record_and_snapshot
 
