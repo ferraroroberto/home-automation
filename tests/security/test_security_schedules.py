@@ -116,7 +116,7 @@ def _wire_engine(monkeypatch, entries, fake_confirm, panel_mode: str):
 def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> None:
     """The retry/backoff mechanics of confirming an action now live in
     ``confirm_alarm_action`` (shared with presence) and are covered in
-    ``tests/test_alarm_notify.py``. Here ``confirm_alarm_action`` is faked
+    ``tests/security/test_alarm_notify.py``. Here ``confirm_alarm_action`` is faked
     directly - this test is about tick()'s own day-based fire/retry bookkeeping."""
 
     import app.webapp.security_automation as engine

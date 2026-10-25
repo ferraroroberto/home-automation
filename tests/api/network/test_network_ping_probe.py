@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.network_client import NetDevice, NetworkState
-from tests.api.test_network_groups import _state
+from tests.api.network.test_network_groups import _state
 
 
 def _devices_by_mac(client: TestClient):

@@ -24,7 +24,7 @@ from tests._ratchet_gate_helpers import (
     real_run,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_SCRIPT = REPO_ROOT / "scripts" / "docs_ratchet.py"
 
 _FLEET = '[docs_ratchet]\nenabled = true\nbaseline = ".docs-ratchet-baseline.json"\n'

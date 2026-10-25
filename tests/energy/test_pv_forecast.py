@@ -2,7 +2,7 @@
 
 Nothing here touches the network — the fetch path uses a fake aiohttp session
 that serves a per-sub-array GTI response keyed by (tilt, azimuth), mirroring
-the pattern in ``tests/test_travel_time.py``. These pin: two sub-arrays being
+the pattern in ``tests/presence/test_travel_time.py``. These pin: two sub-arrays being
 requested concurrently and summed correctly, and one sub-array's failure
 sinking the whole forecast (never a silently-undercounted partial result).
 

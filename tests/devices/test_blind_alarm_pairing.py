@@ -76,7 +76,7 @@ def test_prefs_default_off_and_round_trip(tmp_path: Path) -> None:
 
 
 def test_committed_sample_is_off() -> None:
-    sample = Path(__file__).resolve().parent.parent / "config" / "blind_alarm.sample.json"
+    sample = Path(__file__).resolve().parents[2] / "config" / "blind_alarm.sample.json"
     assert B.load_blind_alarm_prefs(sample).follow_alarm is False
 
 

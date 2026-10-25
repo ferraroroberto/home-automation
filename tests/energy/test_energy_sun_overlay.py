@@ -19,8 +19,8 @@ import pytest
 
 from app.webapp.routers import energy as E
 from src.energy_history import MIN_TRUSTED_COVERAGE
-from tests.test_energy_forecast_curve import _covered
-from tests.test_energy_forecast_curve import _day as _forecast_day
+from tests.energy.test_energy_forecast_curve import _covered
+from tests.energy.test_energy_forecast_curve import _day as _forecast_day
 
 # 2026-07-30 00:00 UTC — the day #578's diagnosis table was derived from.
 _DAY_START = 1_785_369_600

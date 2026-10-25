@@ -2,7 +2,7 @@
 
 Nothing here touches the network — the fetch path uses a fake aiohttp session.
 The endpoint-level behaviour (resolution, home lookup, spoken fallbacks) is
-covered by ``tests/api/test_presence_eta.py`` with ``fetch_travel_time``
+covered by ``tests/api/presence/test_presence_eta.py`` with ``fetch_travel_time``
 monkeypatched.
 """
 

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.webapp.routers import energy as E
-from tests.test_energy_forecast_curve import (
+from tests.energy.test_energy_forecast_curve import (
     _FALL_BACK,
     _MADRID,
     _SPRING_FORWARD,
@@ -25,7 +25,7 @@ from tests.test_energy_forecast_curve import (
     _local_day,
 )
 
-_CHARTS_JS = Path(__file__).resolve().parents[1] / "app" / "webapp" / "static" / "charts.js"
+_CHARTS_JS = Path(__file__).resolve().parents[2] / "app" / "webapp" / "static" / "charts.js"
 
 _HARNESS = """
 import { setForecastData } from {charts_url};

@@ -109,7 +109,7 @@ HAOS host SSH on `:22222` (that's a break-glass developer channel, not used here
    card and `GET /api/voice-commands` pick it up with no other change. A whole new
    feature gets a new `VoiceCommandGroup`. Give every phrasing its wake word — **the
    wake word is the language switch** ("Okay Nabu" English, "Hey Mycroft" Spanish), so a
-   command on the Spanish pipeline must say so. `tests/test_voice_commands.py` enforces
+   command on the Spanish pipeline must say so. `tests/voice/test_voice_commands.py` enforces
    the shape; **never put a real code or secret in a phrase** — publish the
    `<your code>` placeholder, as the disarm command does. Update
    [`voice-pe-config/README.md`](voice-pe-config/README.md)'s table in the same PR: it

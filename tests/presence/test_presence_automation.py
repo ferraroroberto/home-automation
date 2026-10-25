@@ -6,7 +6,7 @@ that caused a real false alarm: RISCO's WebUI call rejected a presence-
 triggered "arm", but the panel confirmed armed shortly after, and this path
 had zero retry/backoff before alerting (issue #388 only covered the schedule
 engine). The retry/backoff mechanics themselves are covered in
-``tests/test_alarm_notify.py``; these tests only confirm tick() routes
+``tests/security/test_alarm_notify.py``; these tests only confirm tick() routes
 through the shared helper instead of calling ``control_system`` directly.
 """
 
@@ -85,7 +85,7 @@ def _wire_common(monkeypatch) -> None:
     # Issue #689: tick() also refreshes the known-people roster every round.
     # Stubbed so these tests can never write the real config/presence_roster.json
     # from their `{"p1": ...}` sentinel household; the roster's own behaviour is
-    # covered in tests/test_presence_roster.py.
+    # covered in tests/presence/test_presence_roster.py.
     monkeypatch.setattr(PA, "remember_known_people", lambda ids: tuple(ids))
     # Issue #875: the blinds-follow-the-alarm hook. Never the real one here —
     # it reads config/blind_alarm.json and would move real blinds.
@@ -108,7 +108,7 @@ def _wire_common(monkeypatch) -> None:
     # Same treatment as the arm-block diagnostic above: a cheap local-only step
     # that is not what these tests are about. `_Config` and the `load_people`
     # sentinel are deliberately minimal, so the real helper (#598) can't read
-    # them. Its own logic is covered in tests/test_presence_engine.py; that it
+    # them. Its own logic is covered in tests/presence/test_presence_engine.py; that it
     # is wired into tick() at all is asserted separately below.
     monkeypatch.setattr(
         PA,
