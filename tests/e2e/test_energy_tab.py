@@ -105,6 +105,11 @@ def test_energy_tab_renders_flow_and_charts(
     page.locator('#historyRange [data-range="day"]').click()
     expect(page.locator('#historyView [data-view="money"]')).to_be_enabled()
 
+    _edit_export_rates_from_money_view(page)
+
+
+def _edit_export_rates_from_money_view(page: Page) -> None:
+    """Add, edit and delete an export rate through Money's Export rate row."""
     # Export compensation moved to Settings (#883); Money's Export rate row
     # shows the current rate and opens its sheet there (#886).
     page.locator('#historyView [data-view="money"]').click()

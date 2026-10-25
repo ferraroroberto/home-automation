@@ -54,7 +54,7 @@ from src.presence_engine import (
     set_staleness_block,
 )
 from src.push_notifications import send_push
-from src.risco_client import fetch_security_state
+from src.risco_client import SecurityState, fetch_security_state
 
 logger = logging.getLogger(__name__)
 
@@ -384,19 +384,19 @@ async def _notify_guardian_hold(guardian_name: str) -> None:
     await notify_best_effort(text, label="Guardian-hold")
 
 
-async def tick() -> None:
-    """Alert on panel events, then evaluate one presence transition."""
+async def _alert_on_panel_events(security: SecurityState) -> None:
+    """Feed one security read to the panel-event alerts, scene capture and override.
 
-    # Panel-event alerts (intrusion / AC-power lost-restored) ride on this loop's
-    # one security read and fire regardless of the presence auto-arm toggle —
-    # those alerts must not depend on auto-arm being enabled. This is the only
-    # *unconditional* interval reader of RISCO state: the ``/api/security``
-    # snapshot also refetches every 10 s, but only while that endpoint is
-    # being watched, so an unwatched app still polls RISCO from here alone.
-    # Adding a further poller would risk the cloud's third-party rate limit;
-    # intrusion/AC alerts therefore require this task to be running
-    # (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
-    security = await fetch_security_state()
+    Panel-event alerts (intrusion / AC-power lost-restored) ride on this loop's
+    one security read and fire regardless of the presence auto-arm toggle —
+    those alerts must not depend on auto-arm being enabled. This is the only
+    *unconditional* interval reader of RISCO state: the ``/api/security``
+    snapshot also refetches every 10 s, but only while that endpoint is
+    being watched, so an unwatched app still polls RISCO from here alone.
+    Adding a further poller would risk the cloud's third-party rate limit;
+    intrusion/AC alerts therefore require this task to be running
+    (PRESENCE_AUTOMATION_ENGINE_ENABLED, default on).
+    """
     ongoing, memory = security.ongoing_alarm, security.memory_alarm
     # None,None means the RISCO WebUI scrape that backs these two flags came
     # back unreadable this poll — not "no alarm" (a transient
@@ -417,6 +417,62 @@ async def tick() -> None:
     # — runs every tick (not just while an alarm is active) so it
     # also catches the arm event that restores a previously bypassed zone.
     consider_security_override(security)
+
+
+def _append_decision_trigger_log(decision, outcome: str) -> None:
+    """One trigger-log line for a presence decision and how it ended."""
+    append_trigger_log(
+        {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "consumer": "alarm",
+            "event": decision.kind,
+            "action": decision.action,
+            "reason": decision.reason,
+            "transition_at": decision.transition_at.isoformat(),
+            "outcome": outcome,
+        }
+    )
+
+
+async def _report_decision_result(decision, failure: Optional[Exception]) -> None:
+    """Push, log and notify the result of one applied presence decision."""
+    if failure is None:
+        logger.info("✅ Presence automation %s -> %s", decision.reason, decision.action)
+        # send_push is blocking network I/O (one pywebpush HTTP POST per
+        # subscription) and this tick shares uvicorn's single event loop —
+        # thread it off so a slow/failing push can't stall the webapp.
+        await asyncio.to_thread(
+            send_push, "Presence automation", f"{decision.reason}: {decision.action}"
+        )
+        await record_alarm_action(
+            source=SOURCE_PRESENCE,
+            action=decision.action,
+            outcome=OUTCOME_OK,
+            detail=decision.reason,
+        )
+        # The blinds follow a *confirmed* arm/disarm when the
+        # Blinds card's switch is on. Never raises, and runs after the
+        # alarm is recorded so it cannot change that outcome.
+        await follow_alarm(decision.kind, decision.action)
+    else:
+        logger.warning("⚠️ Presence automation action failed: %s", failure)
+        # Failure leaves the decision un-applied, so the loop retries every tick;
+        # de-dupe the alert to once per day per presence transition kind.
+        await record_alarm_action(
+            source=SOURCE_PRESENCE,
+            action=decision.action,
+            outcome=OUTCOME_ERROR,
+            error=str(failure),
+            detail=decision.reason,
+            dedupe_key=f"presence:{decision.kind}",
+        )
+
+
+async def tick() -> None:
+    """Alert on panel events, then evaluate one presence transition."""
+
+    security = await fetch_security_state()
+    await _alert_on_panel_events(security)
 
     # Built once per tick from the live iCloud diagnostics cache
     # so a stale webhook person's last known state can be corroborated by a
@@ -454,17 +510,7 @@ async def tick() -> None:
         mark_decision_applied(decision, "held")
         logger.info("🏠 Presence automation holding arm — %s", decision.reason)
         await _notify_guardian_hold(guardian_home_name)
-        append_trigger_log(
-            {
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "consumer": "alarm",
-                "event": decision.kind,
-                "action": decision.action,
-                "reason": decision.reason,
-                "transition_at": decision.transition_at.isoformat(),
-                "outcome": "held",
-            }
-        )
+        _append_decision_trigger_log(decision, "held")
         return
 
     outcome = "started"
@@ -513,48 +559,9 @@ async def tick() -> None:
                 )
 
     try:
-        if failure is None:
-            logger.info("✅ Presence automation %s -> %s", decision.reason, decision.action)
-            # send_push is blocking network I/O (one pywebpush HTTP POST per
-            # subscription) and this tick shares uvicorn's single event loop —
-            # thread it off so a slow/failing push can't stall the webapp.
-            await asyncio.to_thread(
-                send_push, "Presence automation", f"{decision.reason}: {decision.action}"
-            )
-            await record_alarm_action(
-                source=SOURCE_PRESENCE,
-                action=decision.action,
-                outcome=OUTCOME_OK,
-                detail=decision.reason,
-            )
-            # The blinds follow a *confirmed* arm/disarm when the
-            # Blinds card's switch is on. Never raises, and runs after the
-            # alarm is recorded so it cannot change that outcome.
-            await follow_alarm(decision.kind, decision.action)
-        else:
-            logger.warning("⚠️ Presence automation action failed: %s", failure)
-            # Failure leaves the decision un-applied, so the loop retries every tick;
-            # de-dupe the alert to once per day per presence transition kind.
-            await record_alarm_action(
-                source=SOURCE_PRESENCE,
-                action=decision.action,
-                outcome=OUTCOME_ERROR,
-                error=str(failure),
-                detail=decision.reason,
-                dedupe_key=f"presence:{decision.kind}",
-            )
+        await _report_decision_result(decision, failure)
     finally:
-        append_trigger_log(
-            {
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "consumer": "alarm",
-                "event": decision.kind,
-                "action": decision.action,
-                "reason": decision.reason,
-                "transition_at": decision.transition_at.isoformat(),
-                "outcome": outcome,
-            }
-        )
+        _append_decision_trigger_log(decision, outcome)
 
 
 async def _run(interval_s: int) -> None:

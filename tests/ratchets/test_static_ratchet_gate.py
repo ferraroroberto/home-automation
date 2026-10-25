@@ -20,7 +20,7 @@ from tests._ratchet_gate_helpers import (
     assert_ratchet_declared_and_vendored,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _fake_script(tmp_path: Path, code: int, message: str = "") -> Path:

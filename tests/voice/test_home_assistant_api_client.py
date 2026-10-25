@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-_API_PATH = Path(__file__).resolve().parents[1] / "custom_components" / "home_automation_app" / "api.py"
+_API_PATH = Path(__file__).resolve().parents[2] / "custom_components" / "home_automation_app" / "api.py"
 _SPEC = importlib.util.spec_from_file_location("home_automation_app_api", _API_PATH)
 assert _SPEC and _SPEC.loader
 _api_module = importlib.util.module_from_spec(_SPEC)

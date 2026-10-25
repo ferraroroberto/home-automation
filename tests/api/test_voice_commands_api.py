@@ -2,7 +2,7 @@
 
 Static, read-only reference — no device I/O to stub, so this only pins the
 payload shape the PWA card reads. Content invariants live in
-``tests/test_voice_commands.py``.
+``tests/voice/test_voice_commands.py``.
 """
 
 from __future__ import annotations

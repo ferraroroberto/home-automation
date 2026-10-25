@@ -19,9 +19,16 @@ home-automation/
 │   └── .streamlit/            # Streamlit settings used by the spike
 ├── src/                       # UI-free domain logic: device clients, automations, stores, forecast and tariff maths
 │   └── notify/                # vendored notification package (byte-for-byte from project-scaffolding)
-├── tests/                     # backend suite (flat) and the browser suite
-│   ├── api/                   # API smoke tests through FastAPI's TestClient
-│   ├── ratchets/              # tests of the structure-, instruction-, doc-refs-, dead-code- and conventions-ratchet gate wrappers
+├── tests/                     # backend suite (cross-cutting tests at the top, the rest in domain subpackages) and the browser suite
+│   ├── api/                   # API smoke tests through FastAPI's TestClient; network/, presence/ and security/ hold those domains' routes
+│   ├── security/              # alarm, RISCO, scene capture, overrides and schedules
+│   ├── presence/              # presence engine, iCloud client, roster, places, travel time, calendar
+│   ├── network/               # LAN/Wi-Fi client, groups, history, survey, DHCP
+│   ├── energy/                # FusionSolar, Modbus, Athom circuits, PV forecast, tariff, charts, UPS
+│   ├── devices/               # HVAC, Tuya plugs, cameras, Elgato, Hyper-V, PC fleet, blinds
+│   ├── voice/                 # voice satellite, Home Assistant client and config sync, web search
+│   ├── ratchets/              # tests of every ratchet gate wrapper
+│   ├── harness/               # tests of the e2e harness's own helpers
 │   └── e2e/                   # Playwright suite and its fixtures
 ├── docs/                      # durable reference, one topic per file
 ├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools
@@ -42,8 +49,8 @@ home-automation/
 
 ## Tests
 
-- API tests go in `tests/api/`: they drive a route through `TestClient` with the cloud fetchers monkeypatched.
-- Unit tests over `src/` domain logic go flat in `tests/`, which is past the directory limit and takes no new module. A new test that fits no existing file goes in a domain subpackage (`tests/ratchets/` holds the structure-, instruction-, doc-refs- and dead-code-ratchet gate tests).
+- API tests go in `tests/api/`, or its `network/`, `presence/` or `security/` subpackage for those domains' routes: they drive a route through `TestClient` with the cloud fetchers monkeypatched.
+- Unit tests over `src/` domain logic go in the domain subpackage of `tests/` that owns the module (`security/`, `presence/`, `network/`, `energy/`, `devices/`, `voice/`). A ratchet gate test goes in `tests/ratchets/`, a test of the e2e harness's helpers in `tests/harness/`. Only cross-cutting tests (repo-wide guards, the webapp core, shared stores) sit at the top of `tests/`. Each subpackage has an `__init__.py`, and its name must not shadow an importable package, because pytest puts `tests/` on `sys.path`.
 - Browser tests go in `tests/e2e/`. Its `conftest.py` holds the harness (server boot, browser lifecycle, collection hooks); a new API-stub fixture goes in `tests/e2e/fixtures/<area>.py` and is imported in `conftest.py`.
 
 ## Declared exceptions

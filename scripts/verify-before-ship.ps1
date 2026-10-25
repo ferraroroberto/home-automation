@@ -156,14 +156,14 @@ function Invoke-Stage {
 $gateResult = "FAIL"
 try {
     Invoke-Stage "byte-compile" { & $py -m compileall -q app src tests scripts custom_components }
-    # The wrapper maps the script's exit 3 to NOT CONFIRMED (tests/test_static_ratchet_gate.py
+    # The wrapper maps the script's exit 3 to NOT CONFIRMED (tests/ratchets/test_static_ratchet_gate.py
     # pins it); call it, never scripts/static_ratchet.py directly.
     Invoke-Stage "static ratchet" { & $py -m scripts.static_ratchet_gate }
-    # Same exit-3 mapping for the docs ratchet (tests/test_docs_ratchet_gate.py).
+    # Same exit-3 mapping for the docs ratchet (tests/ratchets/test_docs_ratchet_gate.py).
     Invoke-Stage "docs ratchet" { & $py -m scripts.docs_ratchet_gate }
-    # Same exit-3 mapping for the comment ratchet (tests/test_comment_ratchet_gate.py).
+    # Same exit-3 mapping for the comment ratchet (tests/ratchets/test_comment_ratchet_gate.py).
     Invoke-Stage "comment ratchet" { & $py -m scripts.comment_ratchet_gate }
-    # Same exit-3 mapping for the structure ratchet (tests/test_structure_ratchet_gate.py).
+    # Same exit-3 mapping for the structure ratchet (tests/ratchets/test_structure_ratchet_gate.py).
     Invoke-Stage "structure ratchet" { & $py -m scripts.structure_ratchet_gate }
     # Same exit-3 mapping for the instruction ratchet (tests/ratchets/test_instruction_ratchet_gate.py).
     Invoke-Stage "instruction ratchet" { & $py -m scripts.instruction_ratchet_gate }

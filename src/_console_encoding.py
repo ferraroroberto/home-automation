@@ -23,7 +23,7 @@ Usage::
     subprocess.run(cmd, text=True, encoding=console_encoding(), errors="replace", ...)
 
 A function, not a module-level constant, deliberately -- tests monkeypatch
-``sys.platform`` per-case (``tests/test_network_client.py``) to exercise both
+``sys.platform`` per-case (``tests/network/test_network_client.py``) to exercise both
 the Windows and POSIX branches, which only works if the platform is read at
 call time.
 

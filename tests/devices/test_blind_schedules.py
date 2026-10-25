@@ -77,7 +77,7 @@ def test_load_path_pins_missing_non_list_junk_and_corrupt(
 
 
 def test_committed_sample_parses() -> None:
-    sample = Path(__file__).resolve().parent.parent / "config" / "blind_schedules.sample.json"
+    sample = Path(__file__).resolve().parents[2] / "config" / "blind_schedules.sample.json"
     entries = B.load_blind_schedules(sample)
     assert entries and all(e.action in B.SCHEDULE_ACTIONS for e in entries)
 
