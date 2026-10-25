@@ -448,45 +448,52 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     # already-boosted unit is back on the gradual one-step-per-interval law here;
     # only the admission/shed transition itself jumps (see _coordinate_boost). ---
     for item in steerable:
-        unit, rule = item.unit, item.rule
-        uid = unit.unit_id
-        last = state.last_adjust.get(uid, 0.0)
-        if monotonic - last < config.adjust_interval_s:
-            continue
+        await _nudge_setpoint(config, state, item, monotonic)
 
-        is_boosting = state.boost_active.get(uid, False)
-        effective_target = boosted_target(
-            operation_mode=unit.operation_mode,
-            target=item.target,
-            boost_offset_c=rule.boost_offset_c,
-            is_boosting=is_boosting,
-        )
 
-        tmin, tmax = _mode_range(unit)
-        new = next_setpoint(
-            operation_mode=unit.operation_mode,
-            room_temperature=unit.room_temperature,
-            set_temperature=unit.set_temperature,
-            target=effective_target,
-            buffer=config.buffer_c,
-            step=float(unit.temp_step) or 0.5,
-            tmin=tmin,
-            tmax=tmax,
+async def _nudge_setpoint(
+    config: AutomationConfig, state: "_EngineState", item: _Steerable, monotonic: float
+) -> None:
+    """Move one steerable unit's setpoint a step toward its (boosted) target."""
+    unit, rule = item.unit, item.rule
+    uid = unit.unit_id
+    last = state.last_adjust.get(uid, 0.0)
+    if monotonic - last < config.adjust_interval_s:
+        return
+
+    is_boosting = state.boost_active.get(uid, False)
+    effective_target = boosted_target(
+        operation_mode=unit.operation_mode,
+        target=item.target,
+        boost_offset_c=rule.boost_offset_c,
+        is_boosting=is_boosting,
+    )
+
+    tmin, tmax = _mode_range(unit)
+    new = next_setpoint(
+        operation_mode=unit.operation_mode,
+        room_temperature=unit.room_temperature,
+        set_temperature=unit.set_temperature,
+        target=effective_target,
+        buffer=config.buffer_c,
+        step=float(unit.temp_step) or 0.5,
+        tmin=tmin,
+        tmax=tmax,
+    )
+    # Record the cadence even on a hold so a steady room is re-checked at the
+    # adjust interval, not every poll.
+    state.last_adjust[uid] = monotonic
+    if new is None:
+        return
+    try:
+        logger.info(
+            "🌡️ '%s' room %.1f vs target %.1f%s → setpoint %.1f→%.1f",
+            unit.name, unit.room_temperature, effective_target,
+            " (boosted)" if is_boosting else "", unit.set_temperature, new,
         )
-        # Record the cadence even on a hold so a steady room is re-checked at the
-        # adjust interval, not every poll.
-        state.last_adjust[uid] = monotonic
-        if new is None:
-            continue
-        try:
-            logger.info(
-                "🌡️ '%s' room %.1f vs target %.1f%s → setpoint %.1f→%.1f",
-                unit.name, unit.room_temperature, effective_target,
-                " (boosted)" if is_boosting else "", unit.set_temperature, new,
-            )
-            await _write_unit(uid, set_temperature=new)
-        except Exception as exc:  # noqa: BLE001 — never kill the loop
-            logger.warning("⚠️ Setpoint nudge failed for %s: %s", uid, exc)
+        await _write_unit(uid, set_temperature=new)
+    except Exception as exc:  # noqa: BLE001 — never kill the loop
+        logger.warning("⚠️ Setpoint nudge failed for %s: %s", uid, exc)
 
 
 @dataclass

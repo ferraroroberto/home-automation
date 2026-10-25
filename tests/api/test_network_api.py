@@ -113,18 +113,9 @@ def test_network_visibility_and_wifi_rename_persist_and_merge(
     assert wifi["hidden"] is True
 
 
-def test_network_route_flattens_state_with_monkeypatched_core(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``GET /api/network`` flattens a ``NetworkState`` — core faked, no LAN I/O.
-
-    An unreachable router stays 200 (reported on its card, not a 500), and
-    ``is_wireless`` is sent per device so the band-grouped list doesn't re-derive
-    the wired/wireless split client-side (issue #129). Phase-2 identity is layered
-    on at render time: the OUI ``vendor``, a coarse ``category``, the ``randomized``
-    flag, and the per-MAC ``display_name`` override.
-    """
-    state = NetworkState(
+def _flatten_fixture_state() -> NetworkState:
+    """An AP-backed LAN with an unreachable router, two BSSIDs and two devices."""
+    return NetworkState(
         internet=InternetHealth(
             online=True, gateway_ms=3.0, external_ms=12.0, packet_loss_pct=0.0
         ),
@@ -189,6 +180,20 @@ def test_network_route_flattens_state_with_monkeypatched_core(
         ),
         alerts=("1 wireless client(s) on weak signal (<40%).",),
     )
+
+
+def test_network_route_flattens_state_with_monkeypatched_core(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``GET /api/network`` flattens a ``NetworkState`` — core faked, no LAN I/O.
+
+    An unreachable router stays 200 (reported on its card, not a 500), and
+    ``is_wireless`` is sent per device so the band-grouped list doesn't re-derive
+    the wired/wireless split client-side (issue #129). Phase-2 identity is layered
+    on at render time: the OUI ``vendor``, a coarse ``category``, the ``randomized``
+    flag, and the per-MAC ``display_name`` override.
+    """
+    state = _flatten_fixture_state()
 
     async def fake_fetch_network_state(include_speedtest: bool = False) -> NetworkState:
         assert include_speedtest is False  # plain poll never runs the speed test

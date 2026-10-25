@@ -301,6 +301,36 @@ async def perform_manual_alarm_action(action: str, actor: Optional[str] = None) 
     return state
 
 
+def _activity_record(
+    source: str,
+    action: str,
+    outcome: str,
+    error: Optional[str],
+    detail: Optional[str],
+    reason: Optional[str],
+    actor: Optional[str],
+    extra: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The activity-log entry for one alarm command; empty fields are left out."""
+    record: Dict[str, Any] = {
+        "source": source,
+        "action": action,
+        "event": "unset" if _verb(action) == "disarm" else "set",
+        "outcome": outcome,
+    }
+    if error:
+        record["error"] = error
+    if reason:
+        record["reason"] = reason
+    if detail:
+        record["detail"] = detail
+    if actor:
+        record["actor"] = actor
+    if extra:
+        record.update(extra)
+    return record
+
+
 async def record_alarm_action(
     *,
     source: str,
@@ -346,24 +376,10 @@ async def record_alarm_action(
         reached the send attempt — see :func:`src.presence_engine.set_arm_block`.
     """
 
-    event_kind = "unset" if _verb(action) == "disarm" else "set"
-    record: Dict[str, Any] = {
-        "source": source,
-        "action": action,
-        "event": event_kind,
-        "outcome": outcome,
-    }
-    if error:
-        record["error"] = error
-    if reason:
-        record["reason"] = reason
-    if detail:
-        record["detail"] = detail
-    if actor:
-        record["actor"] = actor
-    if extra:
-        record.update(extra)
-    append_activity("alarm", record)
+    append_activity(
+        "alarm",
+        _activity_record(source, action, outcome, error, detail, reason, actor, extra),
+    )
 
     # Manual actions are logged but never push — the user is at the app.
     if source == SOURCE_MANUAL:

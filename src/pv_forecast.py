@@ -454,42 +454,16 @@ async def fetch_pv_forecast_for_date(
         return _relabel(cached[1], day)
 
     if _backoff.seconds_remaining() is not None:
-        # Backing off a 429 — serve the last good curve rather than a blank
-        # card, as long as it isn't too old to still describe today's weather.
-        if cached is not None and now - cached[0] < _STALE_SERVE_MAX_S:
-            logger.info(
-                "ℹ️ PV forecast serving cached curve (%.0fs old) while "
-                "rate-limit backoff is active",
-                now - cached[0],
-            )
-            return _relabel(cached[1], day)
-        return _unavailable(day, "rate_limited")
+        return _stale_curve_or_rate_limited(
+            cached, now, day, "while rate-limit backoff is active"
+        )
 
     try:
-        session = await _get_session()
-        responses = await asyncio.gather(
-            *(
-                _fetch_array_gti(
-                    session,
-                    location,
-                    array,
-                    past_days,
-                    with_temperature=system.thermal_model_enabled,
-                    with_horizon=system.horizon_profile_enabled,
-                )
-                for array in system.arrays
-            )
-        )
+        responses = await _fetch_all_arrays(system, location, past_days)
     except aiohttp.ClientResponseError as exc:
         if exc.status == 429:
             _note_failure()
-            if cached is not None and now - cached[0] < _STALE_SERVE_MAX_S:
-                logger.info(
-                    "ℹ️ PV forecast serving cached curve (%.0fs old) after a 429",
-                    now - cached[0],
-                )
-                return _relabel(cached[1], day)
-            return _unavailable(day, "rate_limited")
+            return _stale_curve_or_rate_limited(cached, now, day, "after a 429")
         logger.warning("⚠️ Failed to read PV forecast: %s", exc)
         return _unavailable(day, "unreachable")
     except Exception as exc:  # noqa: BLE001 — forecast is decorative, fail quiet
@@ -498,68 +472,12 @@ async def fetch_pv_forecast_for_date(
 
     _note_success()
 
-    iso_prefix = target_day.isoformat()
     totals_by_hour: Dict[int, float] = {}
-
     for array, data in zip(system.arrays, responses):
-        hourly = data.get("hourly") or {}
-        times = hourly.get("time") or []
-        gti = hourly.get("global_tilted_irradiance") or []
-        if not times or len(times) != len(gti):
+        array_hours = _array_hourly_wh(array, data, system, location, target_day.isoformat())
+        if array_hours is None:
             return _unavailable(day, "no_data")
-
-        if system.thermal_model_enabled:
-            air = hourly.get("temperature_2m") or []
-            if len(air) != len(times):
-                return _unavailable(day, "no_data")
-        else:
-            air = [None] * len(times)
-
-        if system.horizon_profile_enabled:
-            direct_h = hourly.get("direct_radiation") or []
-            diffuse_h = hourly.get("diffuse_radiation") or []
-            if len(direct_h) != len(times) or len(diffuse_h) != len(times):
-                return _unavailable(day, "no_data")
-            utc_offset_s = data.get("utc_offset_seconds") or 0
-        else:
-            direct_h = [None] * len(times)
-            diffuse_h = [None] * len(times)
-            utc_offset_s = 0
-
-        # kWp is defined at 1000 W/m² STC: expected_W = kwp · GTI/1000 · PR. GTI
-        # is a preceding-hour mean, so one hour of it is expected_Wh directly.
-        scale = array.kwp * system.performance_ratio  # × (GTI/1000) × 1000h→Wh ⇒ × GTI
-
-        for stamp, irradiance, air_c, direct_w, diffuse_w in zip(
-            times, gti, air, direct_h, diffuse_h
-        ):
-            if not str(stamp).startswith(iso_prefix):
-                continue
-            watts = float(irradiance) if irradiance is not None else 0.0
-            wh = max(0.0, scale * watts)
-            # A null ambient for one hour (an upstream gap) falls back to no
-            # derate — the no-thermal-model value — rather than dropping the hour from
-            # a curve whose irradiance is perfectly good.
-            if system.thermal_model_enabled and air_c is not None:
-                wh *= thermal_derate(float(air_c), watts)
-            # Same fallback shape for a null direct/diffuse pair:
-            # skip the shading term for that hour rather than the
-            # whole curve.
-            if (
-                system.horizon_profile_enabled
-                and system.horizon_profile
-                and direct_w is not None
-                and diffuse_w is not None
-            ):
-                ts = _utc_epoch_s(stamp, utc_offset_s)
-                sun = sun_position(ts, location.lat, location.lon)
-                needed = horizon_elevation_deg(system.horizon_profile, sun.azimuth_deg)
-                if sun.elevation_deg <= needed:
-                    wh *= _diffuse_fraction(float(direct_w), float(diffuse_w))
-            try:
-                hour = datetime.fromisoformat(str(stamp)).hour
-            except ValueError:
-                continue
+        for hour, wh in array_hours.items():
             totals_by_hour[hour] = totals_by_hour.get(hour, 0.0) + wh
 
     if not totals_by_hour:
@@ -570,6 +488,127 @@ async def fetch_pv_forecast_for_date(
     ]
     total_wh = sum(totals_by_hour.values())
 
+    result = PvForecast(
+        available=True,
+        day=day,
+        expected=expected,
+        expected_total_wh=round(total_wh, 1),
+        system=_describe_system(system),
+    )
+    _prune_cache(now)
+    _forecast_cache[key] = (now, result)
+    return result
+
+
+def _stale_curve_or_rate_limited(
+    cached: Optional[Tuple[float, PvForecast]], now: float, day: str, why: str
+) -> PvForecast:
+    """While rate-limited, serve the last good curve rather than a blank card,
+    as long as it isn't too old to still describe today's weather."""
+    if cached is not None and now - cached[0] < _STALE_SERVE_MAX_S:
+        logger.info(
+            "ℹ️ PV forecast serving cached curve (%.0fs old) %s", now - cached[0], why
+        )
+        return _relabel(cached[1], day)
+    return _unavailable(day, "rate_limited")
+
+
+async def _fetch_all_arrays(
+    system: PvSystemConfig, location: LocationConfig, past_days: int
+) -> List[Dict[str, Any]]:
+    """One Open-Meteo response per sub-array, fetched concurrently."""
+    session = await _get_session()
+    return await asyncio.gather(
+        *(
+            _fetch_array_gti(
+                session,
+                location,
+                array,
+                past_days,
+                with_temperature=system.thermal_model_enabled,
+                with_horizon=system.horizon_profile_enabled,
+            )
+            for array in system.arrays
+        )
+    )
+
+
+def _array_hourly_wh(
+    array: PvArray,
+    data: Dict[str, Any],
+    system: PvSystemConfig,
+    location: LocationConfig,
+    iso_prefix: str,
+) -> Optional[Dict[int, float]]:
+    """Expected Wh per local hour of ``iso_prefix``'s day for one sub-array.
+
+    ``None`` when the response's series are missing or misaligned.
+    """
+    hourly = data.get("hourly") or {}
+    times = hourly.get("time") or []
+    gti = hourly.get("global_tilted_irradiance") or []
+    if not times or len(times) != len(gti):
+        return None
+
+    if system.thermal_model_enabled:
+        air = hourly.get("temperature_2m") or []
+        if len(air) != len(times):
+            return None
+    else:
+        air = [None] * len(times)
+
+    if system.horizon_profile_enabled:
+        direct_h = hourly.get("direct_radiation") or []
+        diffuse_h = hourly.get("diffuse_radiation") or []
+        if len(direct_h) != len(times) or len(diffuse_h) != len(times):
+            return None
+        utc_offset_s = data.get("utc_offset_seconds") or 0
+    else:
+        direct_h = [None] * len(times)
+        diffuse_h = [None] * len(times)
+        utc_offset_s = 0
+
+    # kWp is defined at 1000 W/m² STC: expected_W = kwp · GTI/1000 · PR. GTI
+    # is a preceding-hour mean, so one hour of it is expected_Wh directly.
+    scale = array.kwp * system.performance_ratio  # × (GTI/1000) × 1000h→Wh ⇒ × GTI
+
+    by_hour: Dict[int, float] = {}
+    for stamp, irradiance, air_c, direct_w, diffuse_w in zip(
+        times, gti, air, direct_h, diffuse_h
+    ):
+        if not str(stamp).startswith(iso_prefix):
+            continue
+        watts = float(irradiance) if irradiance is not None else 0.0
+        wh = max(0.0, scale * watts)
+        # A null ambient for one hour (an upstream gap) falls back to no
+        # derate — the no-thermal-model value — rather than dropping the hour from
+        # a curve whose irradiance is perfectly good.
+        if system.thermal_model_enabled and air_c is not None:
+            wh *= thermal_derate(float(air_c), watts)
+        # Same fallback shape for a null direct/diffuse pair:
+        # skip the shading term for that hour rather than the
+        # whole curve.
+        if (
+            system.horizon_profile_enabled
+            and system.horizon_profile
+            and direct_w is not None
+            and diffuse_w is not None
+        ):
+            ts = _utc_epoch_s(stamp, utc_offset_s)
+            sun = sun_position(ts, location.lat, location.lon)
+            needed = horizon_elevation_deg(system.horizon_profile, sun.azimuth_deg)
+            if sun.elevation_deg <= needed:
+                wh *= _diffuse_fraction(float(direct_w), float(diffuse_w))
+        try:
+            hour = datetime.fromisoformat(str(stamp)).hour
+        except ValueError:
+            continue
+        by_hour[hour] = by_hour.get(hour, 0.0) + wh
+    return by_hour
+
+
+def _describe_system(system: PvSystemConfig) -> Dict[str, Any]:
+    """The array summary a forecast reports alongside its curve."""
     described: Dict[str, Any] = {
         "arrays": [
             {"kwp": a.kwp, "tilt_deg": a.tilt_deg, "azimuth_deg": a.azimuth_deg}
@@ -585,14 +624,4 @@ async def fetch_pv_forecast_for_date(
             "gamma_per_c": THERMAL_GAMMA_PER_C,
             "noct_c": THERMAL_NOCT_C,
         }
-
-    result = PvForecast(
-        available=True,
-        day=day,
-        expected=expected,
-        expected_total_wh=round(total_wh, 1),
-        system=described,
-    )
-    _prune_cache(now)
-    _forecast_cache[key] = (now, result)
-    return result
+    return described

@@ -348,7 +348,7 @@ def _fetch_account(
     your account" prompts. A healthy account is never touched by this.
 
     The backoff timestamp is deliberately *not* cleared once the account
-    recovers (see the bottom of this function) — the backoff clock runs from
+    recovers (see :func:`_notify_episode_edge`) — the backoff clock runs from
     the last forced handshake, so an account that keeps failing and
     recovering is still throttled to one handshake per window.
 
@@ -382,91 +382,97 @@ def _fetch_account(
     if prior_failures >= _self_heal_after_failures() and _retry_due(
         config.label, now=now
     ):
-        invalidate_session(config)
-        _LAST_RETRY_ATTEMPT[config.label] = now
-        logger.warning(
-            "🔑 iCloud account %s broken for %d consecutive refresh(es) (%s) — "
-            "forcing a fresh sign-in (backoff %ds)",
-            config.label,
-            prior_failures,
-            prev_status.reason if prev_status else "?",
-            _retry_backoff_s(),
-        )
+        _force_fresh_sign_in(config, prev_status, prior_failures, now=now)
 
-    failures = prior_failures + 1  # the streak this poll would extend, if it fails
-    # Keep the episode's own start stamp; only a success clears it.
-    since = (
-        prev_status.failing_since
-        if prev_status is not None and prev_status.failing_since
-        else now.isoformat()
-    )
     try:
         entities = fetch_presence(config=replace(config, request_2fa_push=False))
-    except PresenceAuthError as exc:
-        logger.warning(
-            "⚠️ iCloud account %s needs re-auth (2fa_required): %s",
-            config.label,
-            readable_detail(str(exc)),
-        )
-        entities = []
-        status = _account_status(
-            config,
-            False,
-            "2fa_required",
-            str(exc),
-            consecutive_failures=failures,
-            failing_since=since,
-        )
-    except PresenceTermsError as exc:
-        logger.warning(
-            "⚠️ iCloud account %s needs updated Apple terms accepted (terms_required)",
-            config.label,
-        )
-        entities = []
-        status = _account_status(
-            config,
-            False,
-            "terms_required",
-            str(exc),
-            consecutive_failures=failures,
-            failing_since=since,
-        )
-    except PresenceConfigError as exc:
-        logger.warning(
-            "⚠️ iCloud account %s not configured: %s",
-            config.label,
-            readable_detail(str(exc)),
-        )
-        entities = []
-        status = _account_status(
-            config,
-            False,
-            "not_configured",
-            str(exc),
-            consecutive_failures=failures,
-            failing_since=since,
-        )
     except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "⚠️ Failed to refresh iCloud account %s: %s",
-            config.label,
-            readable_detail(str(exc)),
-        )
+        reason = _log_fetch_failure(config.label, exc)
         entities = []
         status = _account_status(
             config,
             False,
-            "error",
+            reason,
             str(exc),
-            consecutive_failures=failures,
-            failing_since=since,
+            consecutive_failures=prior_failures + 1,
+            # Keep the episode's own start stamp; only a success clears it.
+            failing_since=(
+                prev_status.failing_since
+                if prev_status is not None and prev_status.failing_since
+                else now.isoformat()
+            ),
         )
     else:
         status = _account_status(config, True, "ok", "", entity_count=len(entities))
 
+    _notify_episode_edge(config, status, notifier_factory, now=now)
+    return entities, status
+
+
+def _force_fresh_sign_in(
+    config: PresenceConfig,
+    prev_status: Optional[PresenceAccountStatus],
+    prior_failures: int,
+    *,
+    now: datetime,
+) -> None:
+    """Drop the account's session so the next fetch runs a fresh sign-in handshake."""
+
+    invalidate_session(config)
+    _LAST_RETRY_ATTEMPT[config.label] = now
+    logger.warning(
+        "🔑 iCloud account %s broken for %d consecutive refresh(es) (%s) — "
+        "forcing a fresh sign-in (backoff %ds)",
+        config.label,
+        prior_failures,
+        prev_status.reason if prev_status else "?",
+        _retry_backoff_s(),
+    )
+
+
+def _log_fetch_failure(label: str, exc: Exception) -> str:
+    """Log one failed Find My fetch and return its status reason."""
+
+    if isinstance(exc, PresenceAuthError):
+        logger.warning(
+            "⚠️ iCloud account %s needs re-auth (2fa_required): %s",
+            label,
+            readable_detail(str(exc)),
+        )
+        return "2fa_required"
+    if isinstance(exc, PresenceTermsError):
+        logger.warning(
+            "⚠️ iCloud account %s needs updated Apple terms accepted (terms_required)",
+            label,
+        )
+        return "terms_required"
+    if isinstance(exc, PresenceConfigError):
+        logger.warning(
+            "⚠️ iCloud account %s not configured: %s",
+            label,
+            readable_detail(str(exc)),
+        )
+        return "not_configured"
+    logger.warning(
+        "⚠️ Failed to refresh iCloud account %s: %s",
+        label,
+        readable_detail(str(exc)),
+    )
+    return "error"
+
+
+def _notify_episode_edge(
+    config: PresenceConfig,
+    status: PresenceAccountStatus,
+    notifier_factory: Callable[[], Optional[Notifier]],
+    *,
+    now: datetime,
+) -> None:
+    """Send the one stuck alert of a broken episode, or its paired recovery."""
+
     if status.available:
         # Deliberately not popped from _LAST_RETRY_ATTEMPT — see
-        # this function's docstring. The backoff clock keeps running from the
+        # _fetch_account's docstring. The backoff clock keeps running from the
         # last forced handshake regardless of a recovery in between, so a
         # flapping account still gets throttled to one handshake per window.
         if config.label in _ALERTED:
@@ -484,8 +490,6 @@ def _fetch_account(
     ):
         _ALERTED.add(config.label)
         _notify(notifier_factory, _stuck_alert_text(config, status, now=now))
-
-    return entities, status
 
 
 async def refresh_once(

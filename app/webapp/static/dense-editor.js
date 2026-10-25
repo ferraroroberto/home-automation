@@ -82,36 +82,8 @@ export function denseListEditor(config) {
     shell.close();
   }
 
-  // Optimistic update: swap the list, render, PUT — roll back on failure.
-  async function save(entries) {
-    const previous = config.getEntries();
-    config.setEntries(config.normalize(entries));
-    config.render();
-    const current = config.getEntries();
-    const payload = {};
-    payload[config.bodyKey] = config.payloadEntries ? config.payloadEntries(current) : current;
-    try {
-      const body = await jsonApi(config.endpoint, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      config.setEntries((body && body[config.bodyKey]) || []);
-      config.render();
-      const afterResult = config.afterSave ? await config.afterSave(config.getEntries()) : undefined;
-      const savedText = typeof config.toasts.saved === 'function'
-        ? await config.toasts.saved(afterResult)
-        : config.toasts.saved;
-      toast(savedText, 'success');
-      return true;
-    } catch (exc) {
-      config.setEntries(previous);
-      config.render();
-      if (!isAuthRequired(exc)) {
-        toast(config.toasts.failed, 'error');
-      }
-      return false;
-    }
+  function save(entries) {
+    return saveEntries(config, entries);
   }
 
   async function onSave() {
@@ -157,4 +129,36 @@ export function denseListEditor(config) {
     save: save,
     get staged() { return staged; },
   };
+}
+
+// Optimistic update: swap the list, render, PUT — roll back on failure.
+async function saveEntries(config, entries) {
+  const previous = config.getEntries();
+  config.setEntries(config.normalize(entries));
+  config.render();
+  const current = config.getEntries();
+  const payload = {};
+  payload[config.bodyKey] = config.payloadEntries ? config.payloadEntries(current) : current;
+  try {
+    const body = await jsonApi(config.endpoint, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    config.setEntries((body && body[config.bodyKey]) || []);
+    config.render();
+    const afterResult = config.afterSave ? await config.afterSave(config.getEntries()) : undefined;
+    const savedText = typeof config.toasts.saved === 'function'
+      ? await config.toasts.saved(afterResult)
+      : config.toasts.saved;
+    toast(savedText, 'success');
+    return true;
+  } catch (exc) {
+    config.setEntries(previous);
+    config.render();
+    if (!isAuthRequired(exc)) {
+      toast(config.toasts.failed, 'error');
+    }
+    return false;
+  }
 }

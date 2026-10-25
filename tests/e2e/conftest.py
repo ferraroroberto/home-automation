@@ -201,6 +201,46 @@ def _wait_healthz(base: str, timeout: float) -> bool:
 _WMI_DATE_RE = re.compile(r"^/Date\((-?\d+)\)/$")
 
 
+def _list_processes() -> Optional[list]:
+    """Every Win32 process as a dict of id, parent id, name and creation date.
+
+    ``None`` when the listing itself fails.
+    """
+    ps_script = (
+        "Get-CimInstance Win32_Process | "
+        "Select-Object ProcessId,ParentProcessId,Name,CreationDate | ConvertTo-Json -Compress"
+    )
+    try:
+        result = subprocess.run(
+            [
+                "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+                "-NoProfile", "-NonInteractive", "-Command", ps_script,
+            ],
+            capture_output=True, text=True, timeout=20, creationflags=NO_WINDOW,
+        )
+        procs = json.loads(result.stdout) if result.stdout.strip() else []
+    except Exception:
+        return None
+    return [procs] if isinstance(procs, dict) else procs
+
+
+def _parse_cim_date(ts: Optional[str]) -> Optional[datetime]:
+    # Get-CimInstance's ConvertTo-Json renders CreationDate as an ISO 8601
+    # string when queried through a server-side WQL -Filter, but as the
+    # legacy "/Date(<epoch-ms>)/" form when the full Win32_Process table
+    # is piped through Select-Object first (observed empirically) — both
+    # formats show up depending on how the process list is fetched.
+    if not ts:
+        return None
+    wmi_match = _WMI_DATE_RE.match(ts)
+    if wmi_match:
+        return datetime.fromtimestamp(int(wmi_match.group(1)) / 1000, tz=timezone.utc)
+    try:
+        return datetime.fromisoformat(ts)
+    except Exception:
+        return None
+
+
 def _reap_orphaned_webkit_zombies() -> None:
     """Best-effort kill of orphaned ``WebKitNetworkProcess`` zombies before this
     session boots its own browser (#480). #440's bounded teardown accepted a
@@ -231,40 +271,10 @@ def _reap_orphaned_webkit_zombies() -> None:
     """
     if sys.platform != "win32":
         return
-    ps_script = (
-        "Get-CimInstance Win32_Process | "
-        "Select-Object ProcessId,ParentProcessId,Name,CreationDate | ConvertTo-Json -Compress"
-    )
-    try:
-        result = subprocess.run(
-            [
-                "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
-                "-NoProfile", "-NonInteractive", "-Command", ps_script,
-            ],
-            capture_output=True, text=True, timeout=20, creationflags=NO_WINDOW,
-        )
-        procs = json.loads(result.stdout) if result.stdout.strip() else []
-    except Exception:
+    procs = _list_processes()
+    if procs is None:
         logger.warning("⚠️ zombie WebKitNetworkProcess sweep: process listing failed, skipping")
         return
-    if isinstance(procs, dict):
-        procs = [procs]
-
-    def _parse(ts: Optional[str]) -> Optional[datetime]:
-        # Get-CimInstance's ConvertTo-Json renders CreationDate as an ISO 8601
-        # string when queried through a server-side WQL -Filter, but as the
-        # legacy "/Date(<epoch-ms>)/" form when the full Win32_Process table
-        # is piped through Select-Object first (observed empirically) — both
-        # formats show up depending on how the process list is fetched.
-        if not ts:
-            return None
-        wmi_match = _WMI_DATE_RE.match(ts)
-        if wmi_match:
-            return datetime.fromtimestamp(int(wmi_match.group(1)) / 1000, tz=timezone.utc)
-        try:
-            return datetime.fromisoformat(ts)
-        except Exception:
-            return None
 
     by_pid = {p["ProcessId"]: p for p in procs if p.get("ProcessId") is not None}
     zombies = [p for p in procs if p.get("Name") == "WebKitNetworkProcess.exe"]
@@ -275,9 +285,9 @@ def _reap_orphaned_webkit_zombies() -> None:
     unreapable = 0
     for zombie in zombies:
         pid = zombie["ProcessId"]
-        child_created = _parse(zombie.get("CreationDate"))
+        child_created = _parse_cim_date(zombie.get("CreationDate"))
         parent = by_pid.get(zombie.get("ParentProcessId"))
-        parent_created = _parse(parent.get("CreationDate")) if parent else None
+        parent_created = _parse_cim_date(parent.get("CreationDate")) if parent else None
         orphaned = parent is None or (
             child_created is not None
             and parent_created is not None

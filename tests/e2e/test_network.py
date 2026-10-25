@@ -500,6 +500,34 @@ def test_network_rename_and_hide_wifi_and_attached_device(
     expect(hidden_device).to_have_class(re.compile(".*is-hidden.*"))
 
 
+# The groups test's offline device: ungrouped, with a last-known band and SSID.
+_GROUPED_OFFLINE_TABLET = {
+    "mac": "AA:00:00:00:00:05",
+    "ip": "192.0.2.15",
+    "name": "Offline Tablet",
+    "display_name": "Offline Tablet",
+    "vendor": "Fixture",
+    "category": "tablet",
+    "conn_type": None,
+    "is_wireless": False,
+    "signal": None,
+    "link_rate": None,
+    "ssid": None,
+    "source": "history",
+    "online": False,
+    "important": False,
+    "hidden": False,
+    "is_new": False,
+    "randomized": False,
+    "group": None,
+    "last_conn_type": "2.4GHz",
+    "last_ssid": "TestNet-IoT",
+    "first_seen": 1_700_000_000,
+    "last_seen": 1_700_000_100,
+    "times_seen": 4,
+}
+
+
 @pytest.mark.chromium_only
 def test_network_device_groups_create_move_rename_and_delete(
     page: Page,
@@ -516,31 +544,7 @@ def test_network_device_groups_create_move_rename_and_delete(
     snapshot = mock_network()
     # An offline device stays visible (shaded) in its group once the offline
     # toggle is on, with its last-known band and SSID still readable.
-    snapshot["devices"].append({
-        "mac": "AA:00:00:00:00:05",
-        "ip": "192.0.2.15",
-        "name": "Offline Tablet",
-        "display_name": "Offline Tablet",
-        "vendor": "Fixture",
-        "category": "tablet",
-        "conn_type": None,
-        "is_wireless": False,
-        "signal": None,
-        "link_rate": None,
-        "ssid": None,
-        "source": "history",
-        "online": False,
-        "important": False,
-        "hidden": False,
-        "is_new": False,
-        "randomized": False,
-        "group": None,
-        "last_conn_type": "2.4GHz",
-        "last_ssid": "TestNet-IoT",
-        "first_seen": 1_700_000_000,
-        "last_seen": 1_700_000_100,
-        "times_seen": 4,
-    })
+    snapshot["devices"].append(dict(_GROUPED_OFFLINE_TABLET))
     boot_home(page, base_url)
 
     open_network_sheet(page, "#networkDevicesOpen")

@@ -688,21 +688,33 @@ def complete_trust_renewal(config: PresenceConfig, code: str) -> TrustRenewalSta
         )
 
     if not accepted:
-        pending.attempts += 1
-        if pending.attempts >= MAX_CODE_ATTEMPTS:
-            _discard_pending(key)
-            detail = "Apple rejected the code again — start again to get a new code."
-        else:
-            detail = "Apple rejected the code — check it and try once more."
-        logger.warning(
-            "⚠️ iCloud account %s: Apple rejected the 2FA code (attempt %d/%d)",
-            config.label,
-            pending.attempts,
-            MAX_CODE_ATTEMPTS,
-        )
-        return TrustRenewalState("invalid_code", detail=detail, trusted=False)
+        return _rejected_code(config, pending, key)
 
     _discard_pending(key)
+    return _adopt_if_trusted(config, api)
+
+
+def _rejected_code(config: PresenceConfig, pending: _PendingTrust, key: str) -> TrustRenewalState:
+    """Count one rejected code; the last allowed attempt drops the pending challenge."""
+
+    pending.attempts += 1
+    if pending.attempts >= MAX_CODE_ATTEMPTS:
+        _discard_pending(key)
+        detail = "Apple rejected the code again — start again to get a new code."
+    else:
+        detail = "Apple rejected the code — check it and try once more."
+    logger.warning(
+        "⚠️ iCloud account %s: Apple rejected the 2FA code (attempt %d/%d)",
+        config.label,
+        pending.attempts,
+        MAX_CODE_ATTEMPTS,
+    )
+    return TrustRenewalState("invalid_code", detail=detail, trusted=False)
+
+
+def _adopt_if_trusted(config: PresenceConfig, api: Any) -> TrustRenewalState:
+    """Adopt a code-verified service, but only once Apple reports browser trust."""
+
     trusted = bool(getattr(api, "is_trusted_session", False)) and not bool(
         getattr(api, "requires_2fa", False)
     )

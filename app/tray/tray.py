@@ -217,27 +217,8 @@ def _notify(icon: Optional["pystray.Icon"], title: str, message: str) -> None:  
             logger.debug(f"tray notify failed: {exc}")
 
 
-def run_tray() -> int:
-    """Run the tray icon. Returns when the user picks Quit."""
-    try:
-        import pystray  # type: ignore
-        from pystray import Menu, MenuItem
-    except ImportError as exc:
-        logger.error(
-            f"❌ pystray not installed ({exc}); install via `pip install -r requirements.txt`"
-        )
-        return 1
-
-    # In-process single-instance guard guard: the tray.bat CIM
-    # pre-check can let two near-simultaneous launches through, so the guarantee
-    # must live in the process. Held for the tray's lifetime; the OS frees the
-    # named mutex on exit. `instance` is intentionally kept referenced (quit).
-    instance = SingleInstance(r"Global\home-automation-tray")
-    if not instance.acquired:
-        logger.info("ℹ️  Another home-automation tray is already running; exiting.")
-        return 0
-
-    manager = WebappManager(load_config())
+def _build_menu(manager: WebappManager, instance: SingleInstance, Menu, MenuItem):
+    """The tray's right-click menu, each item bound to ``manager``."""
 
     def _open_app() -> None:
         """Open the dashboard, preferring the trusted tailnet URL.
@@ -303,7 +284,7 @@ def run_tray() -> int:
     def on_left_click(icon, item):  # noqa: ARG001
         _open_app()
 
-    menu = Menu(
+    return Menu(
         MenuItem("🏠 Open home automation", on_left_click, default=True),
         MenuItem("📋 Copy local URL", copy_local),
         MenuItem("📋 Copy Tailscale URL", copy_tailscale),
@@ -314,20 +295,15 @@ def run_tray() -> int:
         MenuItem("🚪 Quit", quit_app),
     )
 
-    # Built (with its menu) before the background start thread below, so
-    # `_start` always has a live `icon` to notify through instead of racing
-    # `icon.run()` — which only has to happen last, to block until Quit.
-    icon = pystray.Icon(
-        "home-automation",
-        icon=_build_icon(),
-        title="Home Automation",
-        menu=menu,
-    )
 
-    # Kick off the webapp on a background thread so the tray comes up
-    # quickly even if uvicorn takes a second to start.
-    starter_error: dict = {"exc": None}
+def _start_webapp_in_background(
+    manager: WebappManager, icon: "pystray.Icon", starter_error: dict  # noqa: F821
+) -> None:
+    """Start the webapp on a daemon thread so the tray comes up at once.
 
+    A start that exhausts every retry is recorded in ``starter_error["exc"]``,
+    which makes the tray exit 1 on Quit.
+    """
     # `WebappStartupPending` is not a failure — it means the process came up
     # but is still slow to answer — so it must never be treated as a
     # `retry_with_backoff` attempt failure (which would spawn a second
@@ -349,6 +325,19 @@ def run_tray() -> int:
             logger.warning(
                 f"⚠️  webapp start attempt {attempt} failed, "
                 f"retrying in {delay:.0f}s: {exc}"
+            )
+
+    def _keep_watching():
+        if manager.watch_until_resolved():
+            wd_log("webapp started")
+            _notify(icon, "Home Automation webapp ready", manager.base_url)
+        else:
+            wd_log("webapp process exited before becoming ready")
+            logger.error("❌ webapp process exited before becoming ready")
+            _notify(
+                icon,
+                "Home Automation start failed",
+                "webapp process exited before becoming ready",
             )
 
     def _start():
@@ -375,20 +364,6 @@ def run_tray() -> int:
                 "Home Automation webapp starting…",
                 "Taking longer than usual — still watching.",
             )
-
-            def _keep_watching():
-                if manager.watch_until_resolved():
-                    wd_log("webapp started")
-                    _notify(icon, "Home Automation webapp ready", manager.base_url)
-                else:
-                    wd_log("webapp process exited before becoming ready")
-                    logger.error("❌ webapp process exited before becoming ready")
-                    _notify(
-                        icon,
-                        "Home Automation start failed",
-                        "webapp process exited before becoming ready",
-                    )
-
             threading.Thread(target=_keep_watching, daemon=True).start()
             return
 
@@ -396,6 +371,42 @@ def run_tray() -> int:
         _notify(icon, "Home Automation webapp ready", manager.base_url)
 
     threading.Thread(target=_start, daemon=True).start()
+
+
+def run_tray() -> int:
+    """Run the tray icon. Returns when the user picks Quit."""
+    try:
+        import pystray  # type: ignore
+        from pystray import Menu, MenuItem
+    except ImportError as exc:
+        logger.error(
+            f"❌ pystray not installed ({exc}); install via `pip install -r requirements.txt`"
+        )
+        return 1
+
+    # In-process single-instance guard guard: the tray.bat CIM
+    # pre-check can let two near-simultaneous launches through, so the guarantee
+    # must live in the process. Held for the tray's lifetime; the OS frees the
+    # named mutex on exit. `instance` is intentionally kept referenced (quit).
+    instance = SingleInstance(r"Global\home-automation-tray")
+    if not instance.acquired:
+        logger.info("ℹ️  Another home-automation tray is already running; exiting.")
+        return 0
+
+    manager = WebappManager(load_config())
+
+    # Built (with its menu) before the background start thread, so `_start`
+    # always has a live `icon` to notify through instead of racing
+    # `icon.run()` — which only has to happen last, to block until Quit.
+    icon = pystray.Icon(
+        "home-automation",
+        icon=_build_icon(),
+        title="Home Automation",
+        menu=_build_menu(manager, instance, Menu, MenuItem),
+    )
+
+    starter_error: dict = {"exc": None}
+    _start_webapp_in_background(manager, icon, starter_error)
 
     icon.run()
     if starter_error["exc"] is not None:

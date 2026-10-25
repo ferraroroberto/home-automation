@@ -383,6 +383,39 @@ function teardownDictation(button, satellite, eventSource, chunks, buffered) {
   button.disabled = !satellite.online;
 }
 
+// Ask for the microphone and wrap it in a MediaRecorder. Toasts the reason and
+// returns null when either step fails, so the caller only has to bail out.
+async function openRecorder() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (exc) {
+    toast('Microphone unavailable: ' + friendlyError(exc, 'permission or device missing'), 'error');
+    return null;
+  }
+  const mime = pickAudioMime();
+  try {
+    const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    return { stream: stream, recorder: recorder, mime: mime };
+  } catch (exc) {
+    stream.getTracks().forEach(function (track) { track.stop(); });
+    toast('Recorder failed: ' + friendlyError(exc, 'please try again'), 'error');
+    return null;
+  }
+}
+
+// Mirror the session's partial transcripts into the row while it records.
+function subscribePartials(sessionId, transcriptEl) {
+  const eventSource = new EventSource(voiceEventUrl(sessionId));
+  eventSource.addEventListener('partial', function (event) {
+    try {
+      const data = JSON.parse(event.data);
+      if (typeof data.transcript === 'string') transcriptEl.textContent = data.transcript;
+    } catch (_) { /* malformed upstream event is ignored */ }
+  });
+  return eventSource;
+}
+
 /* Push-to-talk state machine for one satellite row.
  *
  * Second click on the recording button stops it; a click elsewhere while one is
@@ -406,22 +439,9 @@ async function toggleDictation(satellite, row, button) {
   }
 
   const transcriptEl = row.querySelector('.ha-live-transcript');
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (exc) {
-    toast('Microphone unavailable: ' + friendlyError(exc, 'permission or device missing'), 'error');
-    return;
-  }
-  const mime = pickAudioMime();
-  let recorder;
-  try {
-    recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-  } catch (exc) {
-    stream.getTracks().forEach(function (track) { track.stop(); });
-    toast('Recorder failed: ' + friendlyError(exc, 'please try again'), 'error');
-    return;
-  }
+  const opened = await openRecorder();
+  if (!opened) return;
+  const { stream, recorder, mime } = opened;
 
   let sessionId = null;
   try {
@@ -435,15 +455,7 @@ async function toggleDictation(satellite, row, button) {
   let eventSource = null;
   let overload = false;
 
-  if (chunks) {
-    eventSource = new EventSource(voiceEventUrl(sessionId));
-    eventSource.addEventListener('partial', function (event) {
-      try {
-        const data = JSON.parse(event.data);
-        if (typeof data.transcript === 'string') transcriptEl.textContent = data.transcript;
-      } catch (_) { /* malformed upstream event is ignored */ }
-    });
-  }
+  if (chunks) eventSource = subscribePartials(sessionId, transcriptEl);
 
   recorder.addEventListener('dataavailable', function (event) {
     if (!event.data || !event.data.size) return;
