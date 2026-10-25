@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 
 def test_overrides_round_trip(client: TestClient, monkeypatch, tmp_path) -> None:
-    import src.security_override as cfg
+    import src.security.security_override as cfg
 
     monkeypatch.setattr(cfg, "OVERRIDES_PATH", tmp_path / "security_override.json")
 
@@ -41,7 +41,7 @@ def test_overrides_round_trip(client: TestClient, monkeypatch, tmp_path) -> None
 
 
 def test_overrides_rejects_non_list(client: TestClient, monkeypatch, tmp_path) -> None:
-    import src.security_override as cfg
+    import src.security.security_override as cfg
 
     monkeypatch.setattr(cfg, "OVERRIDES_PATH", tmp_path / "p.json")
     assert client.put("/api/security/overrides", json={"entries": "nope"}).status_code == 400

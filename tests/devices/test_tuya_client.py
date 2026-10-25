@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.tuya_client` LAN-rescan address reconciliation.
+"""Unit tests for :mod:`src.devices.tuya_client` LAN-rescan address reconciliation.
 
 Covers the Refresh-path logic that recovers stale ``devices.json`` IPs after a
 plug takes a new DHCP lease (issue #166): merge-by-device-id, no-IP recovery,
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from src import tuya_client as T
+from src.devices import tuya_client as T
 
 
 def _write_devices(path: Path, payload: object) -> None:

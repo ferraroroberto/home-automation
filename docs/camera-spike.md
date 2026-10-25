@@ -1,6 +1,6 @@
 # Cameras — open RTSP/ONVIF: spike findings & decision
 
-Decision record for replacing the YI Home / Kami cameras with **open, self-hosted** cameras. This is **path 2** from the feasibility study (the firmware-flash path was rejected): cameras that speak **standalone RTSP + ONVIF on the device itself**, with no vendor cloud, hub, or subscription. The spike validated one unit end-to-end from Python and became the product (`src/camera_client.py` + the Security-tab **Cameras** tile). The throwaway spike script has been removed — its logic lives in `src/camera_client.py`.
+Decision record for replacing the YI Home / Kami cameras with **open, self-hosted** cameras. This is **path 2** from the feasibility study (the firmware-flash path was rejected): cameras that speak **standalone RTSP + ONVIF on the device itself**, with no vendor cloud, hub, or subscription. The spike validated one unit end-to-end from Python and became the product (`src/devices/camera_client.py` + the Security-tab **Cameras** tile). The throwaway spike script has been removed — its logic lives in `src/devices/camera_client.py`.
 
 ## Hardware
 

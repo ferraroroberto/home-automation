@@ -4,7 +4,7 @@ RISCO's panel already auto-omits a repeatedly-triggered zone, but only after an
 uncontrolled, undocumented number of repeats — confirmed live in issue #325
 (a perimeter zone auto-bypassed itself after 5 alarms in one session).
 This module makes that behavior configurable per detector (1-3 repeats,
-``src/security_override.py``) and proactive, so a windy garden or a roaming
+``src/security/security_override.py``) and proactive, so a windy garden or a roaming
 animal stops re-triggering the scene-capture/notify pipeline (issue #162) well
 before the panel's own limit — while leaving the rest of the system armed.
 
@@ -37,9 +37,9 @@ from app.webapp._event_log_scan import ALARM_EVENT_TYPE, EventLogScanner
 from app.webapp._task_loop import spawn_background_task
 from app.webapp._zone_lookup import _zone_name_for
 from src import telemetry
-from src.risco_client import SecurityState, fetch_events, set_zone_bypass
-from src.security_override import load_overrides
-from src.security_override_session import load_override_session, save_override_session
+from src.security.risco_client import SecurityState, fetch_events, set_zone_bypass
+from src.security.security_override import load_overrides
+from src.security.security_override_session import load_override_session, save_override_session
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def load_override_automation_config() -> OverrideAutomationConfig:
 
 # Process-lifetime cadence/overlap guard only — the actual scan progress (the
 # cursor + per-zone counts + which zones are auto-bypassed) is persisted to
-# disk via ``src.security_override_session``, precisely so a restart doesn't
+# disk via ``src.security.security_override_session``, precisely so a restart doesn't
 # lose track mid-session (same reasoning as the cursor). Claims after
 # handling: the handler rewrites the same session file the cursor lives in.
 _scanner = EventLogScanner(

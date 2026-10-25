@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from src import presence_engine as P
-from src import presence_roster as R
+from src.presence import presence_engine as P
+from src.presence import presence_roster as R
 
 
 def _person(person_id: str, state: str, at: datetime) -> P.PersonPresence:

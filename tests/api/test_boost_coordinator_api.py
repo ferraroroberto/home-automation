@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture(autouse=True)
 def _isolate_boost_config(monkeypatch, tmp_path):
     """Point the coordinator store at a per-test file and hand back its path."""
-    import src.hvac_automation as hvac_automation
+    import src.devices.hvac_automation as hvac_automation
 
     path = tmp_path / "hvac_boost.json"
     monkeypatch.setattr(hvac_automation, "BOOST_CONFIG_PATH", path)

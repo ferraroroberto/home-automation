@@ -1,6 +1,6 @@
 """Home Assistant Hyper-V VM status + control (issue #240).
 
-``GET /api/hyperv`` returns one flattened :class:`~src.hyperv_client.HyperVState`
+``GET /api/hyperv`` returns one flattened :class:`~src.devices.hyperv_client.HyperVState`
 (name, running/off, uptime, IP, MAC). Only a missing ``HA_VM_NAME`` is a 503;
 every other read problem (VM off, not found, unprivileged read) rides in the body
 so the Home card can render a useful message — the network/UPS "partial data
@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict
 from fastapi import APIRouter, HTTPException
 
 from app.webapp.read_snapshot import ReadSnapshot
-from src.hyperv_client import (
+from src.devices.hyperv_client import (
     HyperVCommandError,
     HyperVConfigError,
     HyperVNotFoundError,

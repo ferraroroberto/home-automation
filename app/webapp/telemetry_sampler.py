@@ -14,7 +14,7 @@ switch turns the whole thing off (e2e/dev runs).
 
 Cadence defaults to 5 minutes (``TELEMETRY_SAMPLE_INTERVAL_S``): temperature and
 load trends don't need 60 s resolution, and the gentler cadence keeps cloud/LAN
-polling light. Energy stays in :mod:`src.energy_history`; presence is event-
+polling light. Energy stays in :mod:`src.energy.energy_history`; presence is event-
 driven (#289) and has no reading collector here.
 """
 
@@ -66,13 +66,13 @@ def load_sampler_config() -> TelemetrySamplerConfig:
 # ----------------------------------------------------- per-domain collectors
 # Each returns a list[Reading] or raises; the loop isolates failures per domain.
 async def _collect_hvac() -> list:
-    from src.melcloud_client import fetch_devices
+    from src.devices.melcloud_client import fetch_devices
 
     return adapters.hvac_readings(await fetch_devices())
 
 
 async def _collect_plugs() -> list:
-    from src.tuya_client import list_devices, read_device_state
+    from src.devices.tuya_client import list_devices, read_device_state
 
     def _read_all() -> list:
         states = []
@@ -92,19 +92,19 @@ async def _collect_plugs() -> list:
 
 
 async def _collect_ups() -> list:
-    from src.ups_client import fetch_ups_state
+    from src.energy.ups_client import fetch_ups_state
 
     return adapters.ups_readings(await asyncio.to_thread(fetch_ups_state))
 
 
 async def _collect_lights() -> list:
-    from src.elgato_client import fetch_lights
+    from src.devices.elgato_client import fetch_lights
 
     return adapters.light_readings(await fetch_lights())
 
 
 async def _collect_circuits() -> list:
-    from src.athom_client import fetch_circuits_state
+    from src.energy.athom_client import fetch_circuits_state
 
     # ``fetch_circuits_state`` never raises by contract: no meters, a meter
     # off Wi-Fi, and mDNS being unable to run all come back as a normal state

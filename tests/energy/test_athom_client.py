@@ -11,8 +11,8 @@ import time
 
 import pytest
 
-from src import athom_client as ac
-from src.athom_client import MeterEndpoint
+from src.energy import athom_client as ac
+from src.energy.athom_client import MeterEndpoint
 
 
 def _endpoint(channels: int = 6) -> MeterEndpoint:

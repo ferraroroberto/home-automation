@@ -1,4 +1,4 @@
-"""Unit tests for the pure control law in :mod:`src.hvac_automation`.
+"""Unit tests for the pure control law in :mod:`src.devices.hvac_automation`.
 
 Focus on :func:`next_setpoint` — the asymmetric drive-harder-by-step /
 jump-to-idle-on-reaching-target behaviour (issue #114) — plus the fleet
@@ -7,7 +7,7 @@ boost sequencer :func:`next_boost_admission` and its transition write
 clock: every decision here is a pure function of its arguments.
 """
 
-from src.hvac_automation import (
+from src.devices.hvac_automation import (
     IDLE_OFFSET,
     MIN_SETTLE_INTERVAL_S,
     BoostCoordinatorConfig,

@@ -122,6 +122,6 @@ fixed obstruction geometry; one that moves with the clock is not.
   not an error. Irradiance history reaches back ~92 days (Open-Meteo's
   `past_days` ceiling), hourly rollups 400 — beyond the former, `{available:
   false, reason: "too_old"}`.
-- **Sun position** is computed in-process by `src/sun_position.py` (NOAA's
+- **Sun position** is computed in-process by `src/energy/sun_position.py` (NOAA's
   low-precision algorithm, stdlib-only — no new dependency), from the same
   `config/location.json` coordinates the forecast and weather tile use.

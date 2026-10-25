@@ -13,8 +13,8 @@ import logging
 
 import pytest
 
-from src import melcloud_client
-from src.melcloud_client import DeviceInfo, _connectivity_map, _log_reachability_changes
+from src.devices import melcloud_client
+from src.devices.melcloud_client import DeviceInfo, _connectivity_map, _log_reachability_changes
 
 
 def _payload(units, key: str = "buildings"):

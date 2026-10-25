@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(autouse=True)
 def _isolate_tariff(monkeypatch, tmp_path):
-    import src.tariff as tariff
+    import src.energy.tariff as tariff
 
     path = tmp_path / "tariff.json"
     path.write_text(json.dumps({

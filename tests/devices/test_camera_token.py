@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.camera_token import issue, verify
+from src.devices.camera_token import issue, verify
 
 
 def test_issue_returns_expected_shape() -> None:

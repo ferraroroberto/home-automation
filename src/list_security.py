@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.risco_client import (
+from src.security.risco_client import (
     RiscoCommandError,
     RiscoConfigError,
     SecurityEvent,

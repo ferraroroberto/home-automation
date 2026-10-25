@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from src.calendar_write import CalendarWriteError
+from src.presence.calendar_write import CalendarWriteError
 
 
 def test_voice_add_creates_event_and_speaks(client: TestClient, monkeypatch) -> None:

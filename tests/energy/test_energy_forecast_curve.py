@@ -29,7 +29,7 @@ _HOUR = 3600
 def _day(overrides: Dict[int, Dict[str, Any]], day_start: int = _DAY_START) -> List[Dict[str, Any]]:
     """A 24-slot day frame of empty settled hours, with per-hour overrides.
 
-    Mirrors what :func:`src.energy_history.hourly_day` returns, coverage fields
+    Mirrors what :func:`src.energy.energy_history.hourly_day` returns, coverage fields
     included — an hour that carries PV is fully covered unless a case says
     otherwise.
     """

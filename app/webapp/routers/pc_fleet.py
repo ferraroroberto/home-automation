@@ -1,11 +1,11 @@
 """UPS-triggered PC-fleet shutdown preferences + hub proxy routes (#498).
 
-``GET/PUT /api/pc-fleet/prefs`` reads/writes :mod:`src.pc_fleet_prefs`
+``GET/PUT /api/pc-fleet/prefs`` reads/writes :mod:`src.devices.pc_fleet_prefs`
 (enabled, threshold_minutes, excluded, tower_action) — the whole-object shape, merged
 against the currently-saved values for any keys the caller omits (same
 partial-tolerant idiom as ``ups.py``'s notify-prefs route). Clamping of
 ``threshold_minutes`` to 1..240 happens inside
-:func:`src.pc_fleet_prefs.save_pc_fleet_prefs`; this router just re-reads the
+:func:`src.devices.pc_fleet_prefs.save_pc_fleet_prefs`; this router just re-reads the
 saved file afterwards so the response always reflects what actually landed
 on disk.
 
@@ -29,7 +29,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.webapp.routers._helpers import _json_body
-from src.pc_fleet_prefs import (
+from src.devices.pc_fleet_prefs import (
     PcFleetPrefs,
     clamp_tower_action,
     load_pc_fleet_prefs,

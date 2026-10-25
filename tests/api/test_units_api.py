@@ -13,7 +13,7 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-from src.melcloud_client import DeviceInfo
+from src.devices.melcloud_client import DeviceInfo
 
 
 def test_units_route_runs_with_monkeypatched_cloud(
@@ -101,7 +101,7 @@ def test_units_route_reports_signed_boost_delta(
     Reuses the same ``boosted_target()`` the automation engine applies, so the
     sign can never drift from what is actually being written to the unit.
     """
-    from src.hvac_automation import TempRule
+    from src.devices.hvac_automation import TempRule
 
     fake = DeviceInfo(
         unit_id="unit-boost",

@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.webapp import blind_schedules as engine
-from src import blind_automation as B
+from src.devices import blind_automation as B
 
 # 2026-10-05 is a Monday.
 MONDAY = datetime(2026, 10, 5)

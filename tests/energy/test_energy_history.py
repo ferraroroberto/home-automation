@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.energy_history` — the SQLite energy store.
+"""Unit tests for :mod:`src.energy.energy_history` — the SQLite energy store.
 
 Runs entirely against a ``tmp_path`` SQLite DB with explicit ``ts``/``now``, so
 there is no real clock, cloud, or shared-DB dependence. Energy is integrated by
@@ -10,8 +10,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from src import energy_history as H
-from src.huawei_client import EnergyState
+from src.energy import energy_history as H
+from src.energy.huawei_client import EnergyState
 
 
 def _state(pv=None, house=None, imp=None, exp=None) -> EnergyState:

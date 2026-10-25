@@ -1,4 +1,4 @@
-"""Unit tests for the NUT backoff in :mod:`src.ups_client` (issue #537).
+"""Unit tests for the NUT backoff in :mod:`src.energy.ups_client` (issue #537).
 
 A NUT server that isn't running had its upsc.exe/usbhid-ups.exe subprocess
 re-spawned (and timed out) on every poll tick; these tests cover the backoff
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from src import ups_client as U
+from src.energy import ups_client as U
 
 
 @pytest.fixture(autouse=True)

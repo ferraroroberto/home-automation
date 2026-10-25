@@ -4,7 +4,7 @@
 pipeline's ``rest_command``) and returns ``{ok, speech, source}``. Follows the
 "always speak something" convention of ``calendar_events.py``: every path
 returns 200, including SearXNG or hub failures, so HA always has a sentence to
-say back. ``source`` names which stage answered (see ``src.web_search``).
+say back. ``source`` names which stage answered (see ``src.voice.web_search``).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import Any, Dict
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from src.web_search import answer_query
+from src.voice.web_search import answer_query
 
 router = APIRouter()
 

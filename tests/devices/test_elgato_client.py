@@ -6,8 +6,8 @@ import asyncio
 
 import pytest
 
-import src.elgato_client as elgato
-from src.elgato_client import (
+import src.devices.elgato_client as elgato
+from src.devices.elgato_client import (
     ElgatoCommandError,
     ElgatoEndpoint,
     ElgatoLight,

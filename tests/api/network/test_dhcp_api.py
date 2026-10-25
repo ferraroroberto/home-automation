@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.network_client import (
+from src.network.network_client import (
     AccessPointHealth,
     InternetHealth,
     NetDevice,
@@ -30,7 +30,7 @@ def test_dhcp_plan_route_classifies_and_assigns(
     Core fetch + config are faked — no LAN I/O, no on-disk config. The route folds
     the display-name overrides + OUI vendor into the classifier (issue #170).
     """
-    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
+    from src.network.dhcp_plan import CategoryRange, DhcpPlanConfig
 
     state = NetworkState(
         internet=InternetHealth(online=True),
@@ -136,7 +136,7 @@ def test_dhcp_override_route_persists_and_validates(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``PUT .../dhcp-overrides/{mac}`` saves a per-MAC group choice (issue #176 step 3)."""
-    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
+    from src.network.dhcp_plan import CategoryRange, DhcpPlanConfig
 
     config = DhcpPlanConfig(
         subnet_prefix="192.168.0",
@@ -173,7 +173,7 @@ def test_dhcp_reservations_apply_removes_then_adds(
     recomputes the plan MACs' IPs server-side and hands one combined batch to
     ``apply_dhcp_changes`` (deletes first, then adds). Router I/O is monkeypatched.
     """
-    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
+    from src.network.dhcp_plan import CategoryRange, DhcpPlanConfig
 
     config = DhcpPlanConfig(
         subnet_prefix="192.168.0",
@@ -233,7 +233,7 @@ def test_dhcp_reservations_apply_rejects_malformed_input_before_any_router_call(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A bad ``inst_id``, MAC or off-subnet IP is a 400 and never reaches the router."""
-    from src.dhcp_plan import CategoryRange, DhcpPlanConfig
+    from src.network.dhcp_plan import CategoryRange, DhcpPlanConfig
 
     config = DhcpPlanConfig(
         subnet_prefix="192.168.0",

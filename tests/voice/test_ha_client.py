@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from src.ha_client import HaConfig, HomeAssistantClient, normalize_pipeline_run, timestamp_epoch
+from src.voice.ha_client import HaConfig, HomeAssistantClient, normalize_pipeline_run, timestamp_epoch
 
 
 def test_satellite_discovery_uses_ha_area_and_companion_volume(monkeypatch) -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from src.voice_client import VoiceTranscriberClient
+from src.voice.voice_client import VoiceTranscriberClient
 
 
 class _Response:

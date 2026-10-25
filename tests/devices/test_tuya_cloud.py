@@ -1,6 +1,6 @@
 """Unit tests for the Tuya Cloud bootstrap merge (issue #612).
 
-The point of ``src.tuya_cloud`` is that it does **not** persist TinyTuya's
+The point of ``src.devices.tuya_cloud`` is that it does **not** persist TinyTuya's
 ``getdevices()`` return value directly. That value is lossy: rows TinyTuya
 considers "changed" are rebuilt by its ``filter_devices()`` from a field
 whitelist with no ``ip`` and no ``dps``, so writing it straight out drops the
@@ -19,8 +19,8 @@ import json
 
 import pytest
 
-from src import tuya_client, tuya_cloud
-from src.tuya_cloud import TuyaCloudError, _merge_cloud_rows, sync_devices_from_cloud
+from src.devices import tuya_client, tuya_cloud
+from src.devices.tuya_cloud import TuyaCloudError, _merge_cloud_rows, sync_devices_from_cloud
 
 
 def _existing_row() -> dict:

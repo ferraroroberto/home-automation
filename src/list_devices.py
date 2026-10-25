@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.melcloud_client import DeviceInfo, MelCloudConfigError, fetch_devices
+from src.devices.melcloud_client import DeviceInfo, MelCloudConfigError, fetch_devices
 
 
 def _fmt_temp(value: float | None) -> str:

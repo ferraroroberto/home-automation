@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from src import network_client, network_router
+from src.network import network_client, network_router
 
 
 def _instances_xml(rows: list[dict]) -> str:

@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.network_client import (
+from src.network.network_client import (
     AccessPointHealth,
     InternetHealth,
     NetDevice,
@@ -35,7 +35,7 @@ def _state(*devices: NetDevice) -> NetworkState:
 @pytest.fixture
 def net(monkeypatch: pytest.MonkeyPatch, tmp_path):
     """Isolate the group store and serve a two-device fixture LAN."""
-    import src.network_groups as ng
+    import src.network.network_groups as ng
 
     monkeypatch.setattr(ng, "DEFAULT_PATH", tmp_path / "network_groups.json")
 

@@ -12,8 +12,8 @@ import asyncio
 
 import pytest
 
-import src.travel_time as tt
-from src.travel_time import ROUTES_URL, TravelTime, _parse_routes, fetch_travel_time
+import src.presence.travel_time as tt
+from src.presence.travel_time import ROUTES_URL, TravelTime, _parse_routes, fetch_travel_time
 
 
 def test_parse_routes_reads_duration_string() -> None:

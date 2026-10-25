@@ -36,7 +36,7 @@ import sys
 from datetime import datetime
 from typing import Optional
 
-from src.presence_client import (
+from src.presence.presence_client import (
     MAX_CODE_ATTEMPTS,
     PresenceAuthError,
     PresenceConfig,

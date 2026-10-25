@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from src.network_survey import (
+from src.network.network_survey import (
     SOURCE_NOT_FOUND,
     SOURCE_UNKNOWN,
     delete_room,

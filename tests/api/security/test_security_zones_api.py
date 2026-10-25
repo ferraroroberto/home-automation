@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.risco_client import SecurityState, SecurityZone
+from src.security.risco_client import SecurityState, SecurityZone
 
 
 def test_security_route_surfaces_trouble_and_ac_lost(
@@ -101,7 +101,7 @@ def test_security_zone_rename_persists(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """``PUT /api/security/zones/{id}/display_name`` writes the override atomically."""
-    import src.security_display_names as sdn
+    import src.security.security_display_names as sdn
 
     store = tmp_path / "security_display_names.json"
     monkeypatch.setattr(sdn, "DEFAULT_PATH", store)
@@ -122,7 +122,7 @@ def test_security_zone_hidden_persists_and_merges(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """``PUT /api/security/zones/{id}/hidden`` persists, and GET merges the flag."""
-    import src.security_hidden as shd
+    import src.security.security_hidden as shd
 
     store = tmp_path / "security_hidden.json"
     monkeypatch.setattr(shd, "DEFAULT_PATH", store)
@@ -165,7 +165,7 @@ def test_security_schedules_endpoint_persists_normalized_entries(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """``GET/PUT /api/security/schedules`` edits the local weekly alarm schedule list."""
-    import src.security_schedules as schedules
+    import src.security.security_schedules as schedules
 
     store = tmp_path / "security_schedules.json"
     monkeypatch.setattr(schedules, "SCHEDULES_PATH", store)
@@ -214,8 +214,8 @@ def test_security_zone_trouble_ignore(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     """Zone payload exposes trouble_ignored; PUT persists it via the store (#225)."""
-    import src.security_trouble_ignore as ti
-    from src.risco_client import SecurityState, SecurityZone
+    import src.security.security_trouble_ignore as ti
+    from src.security.risco_client import SecurityState, SecurityZone
 
     monkeypatch.setattr(ti, "DEFAULT_PATH", tmp_path / "security_trouble_ignore.json")
 

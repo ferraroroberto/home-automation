@@ -1,10 +1,10 @@
-"""DHCP reservation planner + staged reservation manager over ``src.dhcp_plan``.
+"""DHCP reservation planner + staged reservation manager over ``src.network.dhcp_plan``.
 
 Split out of ``routers/network.py`` (issue #328) — the DHCP-plan feature is
-self-contained (schema in :mod:`src.dhcp_plan`, per-MAC UI overrides in
-:mod:`src.dhcp_overrides`) and grew inside the network router only because
+self-contained (schema in :mod:`src.network.dhcp_plan`, per-MAC UI overrides in
+:mod:`src.network.dhcp_overrides`) and grew inside the network router only because
 that's where the AP device inventory lived. It still reads the live inventory
-via ``src.network_client.fetch_network_state`` for classification, but no
+via ``src.network.network_client.fetch_network_state`` for classification, but no
 longer shares any state with the main ``/api/network`` snapshot endpoint.
 
 The F6600P router caps its static DHCP binding table at 10 reservations
@@ -36,8 +36,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.webapp.routers._helpers import make_http_error_mapper
-from src.dhcp_overrides import load_dhcp_overrides, set_dhcp_override
-from src.dhcp_plan import (
+from src.network.dhcp_overrides import load_dhcp_overrides, set_dhcp_override
+from src.network.dhcp_plan import (
     Assignment,
     DhcpPlan,
     binding_name,
@@ -45,7 +45,7 @@ from src.dhcp_plan import (
     device_inputs_from_inventory,
     load_dhcp_plan_config,
 )
-from src.network_client import (
+from src.network.network_client import (
     DHCP_BIND_MAX,
     NetworkCommandError,
     NetworkConfigError,
@@ -53,7 +53,7 @@ from src.network_client import (
     fetch_dhcp_bindings,
     fetch_network_state,
 )
-from src.network_display_names import load_network_display_names, normalize_mac
+from src.network.network_display_names import load_network_display_names, normalize_mac
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +195,7 @@ async def _compute_dhcp_plan() -> tuple[DhcpPlan, Optional[List[dict]], Set[str]
     drives the create/change/reserved status. The binding read is best-effort: a
     failure yields a binding-less plan (every placed row reads as ``create``)
     rather than failing the whole plan. The webapp's per-MAC group overrides
-    (:mod:`src.dhcp_overrides`) are folded **over** the committed config so a UI
+    (:mod:`src.network.dhcp_overrides`) are folded **over** the committed config so a UI
     choice wins without editing ``config/dhcp_plan.json`` (issue #176 step 3).
 
     Returns ``(plan, existing_rows, online_macs)``: ``existing_rows`` is the actual

@@ -1,5 +1,5 @@
 {
-  "_doc": "Ordered DHCP reservation plan for the F6600P (issue #170, phase 1 = planner only, no router writes). Copy this file to config/dhcp_plan.json (gitignored — it would expose your device inventory in a public repo) and edit the ranges/rules to taste. The planner (src/dhcp_plan.py) reads it to assign each known LAN device a stable IP inside its category range; you apply the result manually in the router's DHCP Binding form. When config/dhcp_plan.json is absent the planner returns an empty plan (every device unassigned) with a warning rather than failing.",
+  "_doc": "Ordered DHCP reservation plan for the F6600P (issue #170, phase 1 = planner only, no router writes). Copy this file to config/dhcp_plan.json (gitignored — it would expose your device inventory in a public repo) and edit the ranges/rules to taste. The planner (src/network/dhcp_plan.py) reads it to assign each known LAN device a stable IP inside its category range; you apply the result manually in the router's DHCP Binding form. When config/dhcp_plan.json is absent the planner returns an empty plan (every device unassigned) with a warning rather than failing.",
 
   "subnet_prefix": "192.168.0",
 

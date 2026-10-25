@@ -25,21 +25,21 @@ import asyncio
 import logging
 import sys
 
-from src.dhcp_plan import (
+from src.network.dhcp_plan import (
     DhcpPlan,
     binding_name,
     build_plan,
     device_inputs_from_inventory,
     load_dhcp_plan_config,
 )
-from src.network_client import (
+from src.network.network_client import (
     NetworkCommandError,
     NetworkConfigError,
     apply_dhcp_bindings,
     fetch_dhcp_bindings,
     fetch_network_state,
 )
-from src.network_display_names import load_network_display_names
+from src.network.network_display_names import load_network_display_names
 
 
 # How each row's apply status renders in the CLI list.

@@ -1,4 +1,4 @@
-"""Home-network (LAN) API over ``src.network_client`` + ``src.network_history``.
+"""Home-network (LAN) API over ``src.network.network_client`` + ``src.network.network_history``.
 
 ``GET /api/network`` returns one :class:`NetworkState` snapshot — host-side
 internet health, the NETGEAR access-point health + full attached-device
@@ -6,7 +6,7 @@ inventory, and the Vodafone router reachability/login + WAN status. Reboots:
 ``POST /api/network/access-point/reboot`` and ``POST /api/network/router/reboot``
 (both confirm-gated client-side).
 
-Phase 4 layers a tiny per-MAC history (:mod:`src.network_history`) on top: each
+Phase 4 layers a tiny per-MAC history (:mod:`src.network.network_history`) on top: each
 read records the currently-seen, non-randomised devices, then the response
 carries each device's ``online`` state, ``first_seen`` / ``last_seen`` /
 ``times_seen``, the ``important`` flag, and an ``is_new`` badge — plus
@@ -27,14 +27,14 @@ The **Wi-Fi walk test** (issue #547) rides on the same device telemetry:
 ``POST /api/network/survey`` records one room-labelled coverage sample by asking
 the AP/router how well it currently hears a chosen client MAC, ``GET`` returns
 the per-room summary, and ``GET /api/network/survey/payload`` serves the bytes
-the browser times for its own throughput leg. Store: :mod:`src.network_survey`.
+the browser times for its own throughput leg. Store: :mod:`src.network.network_survey`.
 
 Partial data is normal and returned with 200: an unreachable AP or router is
 reported as ``reachable=false`` on its card, not a 500 — only an unexpected
 failure of the whole read surfaces as a 502. The opt-in throughput test
 (``?speedtest=1``) takes ~13 s and saturates the link, so it is a deliberate,
 separate call the 15 s poll never triggers. Each real read also leaves one
-throttled internet sample (:mod:`src.network_history`), and
+throttled internet sample (:mod:`src.network.network_history`), and
 ``GET /api/network/internet-history`` serves them as the tile's sparklines (#840).
 
 The snapshot is answered from memory (#926): the AP's SOAP read alone takes
@@ -46,8 +46,8 @@ per request, so an edit shows on the very next read.
 
 The DHCP reservation planner + staged reservation manager (issue #170/#176)
 used to live here too; it was split out to :mod:`app.webapp.routers.dhcp_plan`
-(issue #328) since it is a self-contained feature over ``src.dhcp_plan`` /
-``src.dhcp_overrides`` that only grew inside this router because the AP device
+(issue #328) since it is a self-contained feature over ``src.network.dhcp_plan`` /
+``src.network.dhcp_overrides`` that only grew inside this router because the AP device
 inventory lived here. The shared helpers below (``_device_dict``,
 ``_offline_device_dict``) stay with this main snapshot
 endpoint; the DHCP module makes its own, separate ``fetch_network_state`` call
@@ -71,7 +71,7 @@ from app.webapp.routers._helpers import (
     make_display_name_endpoint,
     make_hidden_endpoint,
 )
-from src.network_client import (
+from src.network.network_client import (
     InternetHealth,
     NetDevice,
     NetworkCommandError,
@@ -86,25 +86,25 @@ from src.network_client import (
     reboot_router,
     resolve_wireless_client_by_mac,
 )
-from src.network_display_names import (
+from src.network.network_display_names import (
     load_network_display_names,
     normalize_mac,
     set_network_display_name,
 )
-from src.network_groups import (
+from src.network.network_groups import (
     delete_network_group,
     load_network_groups,
     rename_network_group,
     set_network_group,
 )
-from src.network_hidden import (
+from src.network.network_hidden import (
     load_hidden_device_macs,
     load_hidden_wifi_ids,
     normalize_wifi_id,
     set_device_hidden,
     set_wifi_hidden,
 )
-from src.network_history import (
+from src.network.network_history import (
     internet_history,
     is_new,
     load_snapshot,
@@ -112,8 +112,8 @@ from src.network_history import (
     record_internet_sample,
     set_important,
 )
-from src.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
-from src.network_survey import (
+from src.network.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
+from src.network.network_survey import (
     SOURCE_NOT_FOUND,
     SOURCE_UNKNOWN,
     delete_room,
@@ -123,11 +123,11 @@ from src.network_survey import (
     record_sample,
     room_summary,
 )
-from src.network_wifi_display_names import (
+from src.network.network_wifi_display_names import (
     load_network_wifi_display_names,
     set_network_wifi_display_name,
 )
-from src.speedtest_prefs import SpeedtestPrefs, load_speedtest_prefs, save_speedtest_prefs
+from src.network.speedtest_prefs import SpeedtestPrefs, load_speedtest_prefs, save_speedtest_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -690,7 +690,7 @@ async def update_wifi_hidden(payload: WifiHiddenPayload) -> Dict[str, Any]:
 # for itself. The phone is the probe and the AP/router is the meter: the client
 # posts *where* it is plus its own round-trip measurements, and the server asks
 # the infrastructure how well it currently hears that MAC. See
-# :mod:`src.network_survey` and the README's Walk-test section.
+# :mod:`src.network.network_survey` and the README's Walk-test section.
 
 # Ceiling for the throughput-probe payload. Big enough to time a fast link
 # meaningfully, small enough that a mistyped query can't turn the endpoint into a

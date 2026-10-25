@@ -1,4 +1,4 @@
-"""Unit tests for the pure logic in :mod:`src.hyperv_client` (issue #240).
+"""Unit tests for the pure logic in :mod:`src.devices.hyperv_client` (issue #240).
 
 No real Hyper-V, no real subprocess spawn: the JSON status parsing, the
 error classification, the state/MAC normalisation, the config-name guard,
@@ -13,7 +13,7 @@ import subprocess
 
 import pytest
 
-from src import hyperv_client as H
+from src.devices import hyperv_client as H
 
 
 # ------------------------------------------------------------ status parsing

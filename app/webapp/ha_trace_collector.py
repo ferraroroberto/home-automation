@@ -13,7 +13,7 @@ import aiohttp
 
 from app.webapp._task_loop import run_loop
 from src import telemetry
-from src.ha_client import (
+from src.voice.ha_client import (
     HaClientError,
     HomeAssistantClient,
     load_config,

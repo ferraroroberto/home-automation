@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.ups_client import UpsState
+from src.energy.ups_client import UpsState
 
 
 def test_ups_route_runs_with_monkeypatched_local_read(

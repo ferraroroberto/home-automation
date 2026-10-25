@@ -25,7 +25,7 @@ from tests.energy.test_energy_forecast_curve import (
     _local_day,
 )
 
-_CHARTS_JS = Path(__file__).resolve().parents[2] / "app" / "webapp" / "static" / "charts.js"
+_CHARTS_JS = Path(__file__).resolve().parents[2] / "app" / "webapp" / "static" / "energy" / "charts.js"
 
 _HARNESS = """
 import { setForecastData } from {charts_url};

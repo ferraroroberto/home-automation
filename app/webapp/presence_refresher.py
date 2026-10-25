@@ -18,7 +18,7 @@ from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
-from src.presence_client import (
+from src.presence.presence_client import (
     PresenceAuthError,
     PresenceConfig,
     PresenceConfigError,

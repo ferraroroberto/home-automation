@@ -20,7 +20,7 @@ import asyncio
 import logging
 import sys
 
-from src.network_client import (
+from src.network.network_client import (
     NetworkConfigError,
     NetworkState,
     fetch_network_state,

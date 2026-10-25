@@ -3,7 +3,7 @@
  * in index.html, is the "What can I do?" guide).
  *
  * What you can *say* to the pucks. Content is the curated catalogue in
- * src/voice_commands.py, served by GET /api/voice-commands.
+ * src/voice/voice_commands.py, served by GET /api/voice-commands.
  *
  * Static reference — fetched once, the first time the sheet opens, and never
  * polled: it only changes when the app is redeployed with a new command wired.

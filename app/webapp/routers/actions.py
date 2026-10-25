@@ -21,10 +21,10 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.webapp.actions_registry import ACTIONS
 from src import telemetry
-from src.ha_client import HaClientError
+from src.voice.ha_client import HaClientError
 from src.quick_action_config import QuickActionConfigError
-from src.risco_client import RiscoCommandError, RiscoConfigError
-from src.tuya_client import TuyaCommandError, TuyaConfigError, TuyaDeviceNotFoundError
+from src.security.risco_client import RiscoCommandError, RiscoConfigError
+from src.devices.tuya_client import TuyaCommandError, TuyaConfigError, TuyaDeviceNotFoundError
 
 logger = logging.getLogger(__name__)
 

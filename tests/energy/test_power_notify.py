@@ -1,6 +1,6 @@
 """Unit tests for the UPS power-event notification path.
 
-Covers :mod:`src.power_notify_prefs`, :func:`app.webapp.power_notify.record_power_event`,
+Covers :mod:`src.energy.power_notify_prefs`, :func:`app.webapp.power_notify.record_power_event`,
 and the edge-triggering in :func:`app.webapp.power_monitor.tick` (baseline on
 first read, fire only on a mains↔battery transition). No subprocess, no network.
 """
@@ -17,13 +17,13 @@ from app.webapp import power_notify
 from app.webapp.power_notify import FleetShutdownResult
 from src import activity_log
 from src.notify import NotifierError
-from src.pc_fleet_prefs import PcFleetPrefs
-from src.power_notify_prefs import (
+from src.devices.pc_fleet_prefs import PcFleetPrefs
+from src.energy.power_notify_prefs import (
     PowerNotifyPrefs,
     load_power_notify_prefs,
     save_power_notify_prefs,
 )
-from src.ups_client import UpsState
+from src.energy.ups_client import UpsState
 
 
 def _fleet_noop(hub_reachable: bool = True):
@@ -93,7 +93,7 @@ def test_power_prefs_round_trip(tmp_path: Path) -> None:
 
 
 def test_power_prefs_dropped_auto_shutdown_field() -> None:
-    # The former auto_shutdown_low_battery toggle moved to src.pc_fleet_prefs.
+    # The former auto_shutdown_low_battery toggle moved to src.devices.pc_fleet_prefs.
     assert not hasattr(PowerNotifyPrefs(), "auto_shutdown_low_battery")
 
 

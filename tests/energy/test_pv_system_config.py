@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from src._schedule_store import StoreUnreadableError
-from src.pv_system_config import (
+from src.energy.pv_system_config import (
     MIN_THERMAL_PERFORMANCE_RATIO,
     PvArray,
     PvHorizonPoint,

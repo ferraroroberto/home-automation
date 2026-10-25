@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from src.voice_commands import (
+from src.voice.voice_commands import (
     VOICE_COMMAND_GROUPS,
     WAKE_WORD_EN,
     WAKE_WORD_ES,

@@ -13,10 +13,10 @@ from pathlib import Path
 
 import pytest
 
-import src.network_history as nh
-import src.speedtest_prefs as prefs_mod
+import src.network.network_history as nh
+import src.network.speedtest_prefs as prefs_mod
 from app.webapp import speedtest_schedule as sched
-from src.network_client import InternetHealth
+from src.network.network_client import InternetHealth
 
 class _Calls(list):
     """Call counter (its length) that also carries the fake result to return."""
@@ -39,7 +39,7 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def _no_real_speedtest(*_a, **_k):
         raise AssertionError("a real speed test was attempted")
 
-    monkeypatch.setattr("src.network_host._run_speedtest", _no_real_speedtest)
+    monkeypatch.setattr("src.network.network_host._run_speedtest", _no_real_speedtest)
 
 
 @pytest.fixture

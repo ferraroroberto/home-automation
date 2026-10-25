@@ -1,6 +1,6 @@
 """Voice-command cheat sheet API (issue #437).
 
-``GET /api/voice-commands`` serves the curated catalogue in ``src.voice_commands``
+``GET /api/voice-commands`` serves the curated catalogue in ``src.voice.voice_commands``
 for the Home tab's "What can I say?" card. Static, read-only reference — no
 device I/O, no secrets, nothing to configure.
 """
@@ -11,7 +11,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter
 
-from src.voice_commands import load_voice_commands
+from src.voice.voice_commands import load_voice_commands
 
 router = APIRouter()
 

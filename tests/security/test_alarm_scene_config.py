@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.alarm_scene_config import (
+from src.security.alarm_scene_config import (
     ScenePairing,
     load_scene_pairings,
     pairings_for_zone,

@@ -1,10 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "dir:app/webapp/static", "modules": 69},
-    {"key": "dir:src", "modules": 107},
-    {"key": "fn:src/presence_engine.py:evaluate_alarm_decision", "lines": 124},
-    {"key": "size:app/webapp/static/state.js", "lines": 1043},
-    {"key": "size:src/presence_engine.py", "lines": 1090}
-  ]
+  "entries": []
 }

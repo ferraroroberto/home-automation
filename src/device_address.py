@@ -167,7 +167,7 @@ def resolve_device_host_sync(configured: Optional[str]) -> Optional[str]:
 async def _lookup(mac: str) -> Optional[str]:
     """Current IP for *mac* from the live inventory, or None."""
     try:
-        from src.network_client import resolve_ip_by_mac
+        from src.network.network_client import resolve_ip_by_mac
 
         return await resolve_ip_by_mac(mac)
     except Exception as exc:  # noqa: BLE001 — resolution is best-effort

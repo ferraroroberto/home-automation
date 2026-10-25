@@ -23,7 +23,7 @@ from app.webapp.power_notify import (
     record_low_battery_shutdown,
 )
 from src import activity_log
-from src.pc_fleet_prefs import PcFleetPrefs
+from src.devices.pc_fleet_prefs import PcFleetPrefs
 
 
 class FakeNotifier:

@@ -20,11 +20,11 @@ runtime-data root (``<root>/home-automation/telemetry.sqlite3`` — see
 
 **Asleep is not zero.** A metric with no real numeric reading stores
 ``value_num = NULL`` (never 0), mirroring the convention in
-:mod:`src.energy_history` — a gap is a gap, not a misleading 0. Rollups hold
+:mod:`src.energy.energy_history` — a gap is a gap, not a misleading 0. Rollups hold
 the same line: an hour whose series had no numeric reading at all stores
 ``avg_num``/``min_num``/``max_num`` as ``NULL``, never 0.
 
-**Missing is not low** (the lesson :mod:`src.energy_history` learned in #579).
+**Missing is not low** (the lesson :mod:`src.energy.energy_history` learned in #579).
 An hour that was only *partly* sampled is neither present nor missing: its
 average is honest about the minutes that arrived and silent about the ones that
 did not. Rollups therefore record ``covered_s`` — how much of the hour the
@@ -36,7 +36,7 @@ Coverage is measured in *seconds*, not in sample counts, for the same reason
 hour have had?"), which is only knowable from the sampler cadence — so a
 cadence change would silently re-label every hour of stored history. Seconds
 are self-describing. The accrual rule differs from
-:mod:`src.energy_history`'s by design, and the difference is not an oversight:
+:mod:`src.energy.energy_history`'s by design, and the difference is not an oversight:
 that module *integrates* (the rectangular rule gives each sample the interval
 to its right, so an hour's last sample contributes nothing and a healthy hour
 lands at 0.917), whereas this one *averages* — here each reading stands for the
@@ -540,7 +540,7 @@ def compact_and_prune(
     indistinguishable from a real outage. Work resumes from the newest hour
     already rolled up (or the oldest surviving raw row on first run, which is
     what backfills existing history), mirroring
-    :func:`src.energy_history.compact_and_prune`.
+    :func:`src.energy.energy_history.compact_and_prune`.
     """
     cfg = config or load_telemetry_config()
     current = int(now if now is not None else time.time())

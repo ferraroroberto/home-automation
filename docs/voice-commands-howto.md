@@ -29,7 +29,7 @@ live in [`voice-control.md`](voice-control.md), the secret-free installed config
 
 You add three things per command in Home Assistant — **a sentence set**, **an
 intent_script**, **a rest_command** — plus one entry in this repo's
-[cheat sheet](../src/voice_commands.py) so the command is discoverable from the phone.
+[cheat sheet](../src/voice/voice_commands.py) so the command is discoverable from the phone.
 Everything else (wake word, STT, agent, TTS) is already wired.
 
 ## The 5-minute recipe
@@ -105,7 +105,7 @@ HAOS host SSH on `:22222` (that's a break-glass developer channel, not used here
 
 6. **Add it to the in-app cheat sheet** — a command nobody can find is a
    command nobody uses. Append it to the right group in
-   [`src/voice_commands.py`](../src/voice_commands.py); the Home tab's "What can I say?"
+   [`src/voice/voice_commands.py`](../src/voice/voice_commands.py); the Home tab's "What can I say?"
    card and `GET /api/voice-commands` pick it up with no other change. A whole new
    feature gets a new `VoiceCommandGroup`. Give every phrasing its wake word — **the
    wake word is the language switch** ("Okay Nabu" English, "Hey Mycroft" Spanish), so a

@@ -37,11 +37,11 @@ from weakref import WeakKeyDictionary
 from app.webapp import read_snapshot
 from src._atomic_json import write_json_atomic
 from src.activity_log import LOGS_DIR, append_activity
-from src.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
+from src.security.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
-from src.presence_engine import note_manual_alarm_action
-from src.risco_client import (
+from src.presence.presence_engine import note_manual_alarm_action
+from src.security.risco_client import (
     RiscoCommandError,
     RiscoConfigError,
     SecurityState,
@@ -129,7 +129,7 @@ def _verb(action: str) -> str:
 def action_took_effect(action: str, state: SecurityState) -> bool:
     """Whether a re-read ``SecurityState`` confirms the intent of ``action``.
 
-    ``control_system()`` (``src.risco_client``) re-reads the panel after every
+    ``control_system()`` (``src.security.risco_client``) re-reads the panel after every
     command and returns the fresh state - this is the check that turns "the
     WebUI call didn't raise" into "the panel actually ended up armed/disarmed".
     A door/window left open when arming is the common way a command "succeeds"
@@ -373,7 +373,7 @@ async def record_alarm_action(
         same-day dedupe hit, a missing notifier, or a delivery failure
         (#601). Callers that mark their own "already notified" bookkeeping
         must gate that marker on this return value, not on having merely
-        reached the send attempt — see :func:`src.presence_engine.set_arm_block`.
+        reached the send attempt — see :func:`src.presence.presence_blocks.set_arm_block`.
     """
 
     append_activity(

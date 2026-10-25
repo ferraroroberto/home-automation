@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture(autouse=True)
 def _isolate_pv_config(monkeypatch, tmp_path):
     """Point the PV-system store at a per-test file and hand back its path."""
-    import src.pv_system_config as pv_system_config
+    import src.energy.pv_system_config as pv_system_config
 
     path = tmp_path / "pv_system.json"
     monkeypatch.setattr(pv_system_config, "DEFAULT_CONFIG_PATH", path)

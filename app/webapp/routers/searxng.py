@@ -1,6 +1,6 @@
 """SearXNG status + start control (issue #321).
 
-``GET /api/searxng`` returns one flattened :class:`~src.searxng_client.SearxngState`
+``GET /api/searxng`` returns one flattened :class:`~src.voice.searxng_client.SearxngState`
 (container status, ``/healthz`` reachability, url). Any read problem (container
 not found, stopped, or up-but-unreachable) rides in the body so the Home card
 can render a useful message — the network/UPS "partial data stays 200" idiom.
@@ -18,7 +18,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 
-from src.searxng_client import (
+from src.voice.searxng_client import (
     SearxngCommandError,
     SearxngConfigError,
     fetch_searxng_state,

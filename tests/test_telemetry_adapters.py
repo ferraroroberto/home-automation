@@ -84,7 +84,7 @@ def test_light_readings_includes_temperature_only_when_supported() -> None:
 
 
 def _channel(channel, key, power_w=None, power_raw_w=None, energy_kwh=None):
-    """A stand-in for :class:`src.athom_client.CircuitReading`."""
+    """A stand-in for :class:`src.energy.athom_client.CircuitReading`."""
     return SimpleNamespace(
         channel=channel, key=key, power_w=power_w, power_raw_w=power_raw_w,
         current_a=None, energy_kwh=energy_kwh, inverted=power_w != power_raw_w,
@@ -92,7 +92,7 @@ def _channel(channel, key, power_w=None, power_raw_w=None, energy_kwh=None):
 
 
 def _meter(meter_id, reachable, channels):
-    """A stand-in for :class:`src.athom_client.MeterState`."""
+    """A stand-in for :class:`src.energy.athom_client.MeterState`."""
     return SimpleNamespace(meter_id=meter_id, reachable=reachable, channels=channels)
 
 
@@ -125,7 +125,7 @@ def test_circuit_readings_entity_is_the_stable_prefs_key() -> None:
 
 
 def test_circuit_readings_unreachable_meter_is_null_never_zero() -> None:
-    # An unreachable meter still carries its channels (src.athom_client's
+    # An unreachable meter still carries its channels (src.energy.athom_client's
     # _unreachable). "Could not read the clamp" must stay distinguishable from
     # "the clamp read 0 W" — which is itself a real, common answer here.
     meter = _meter("AA:BB:CC:DD:EE:02", False, [_channel(1, "AA:BB:CC:DD:EE:02:1")])

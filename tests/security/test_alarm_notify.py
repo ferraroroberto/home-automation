@@ -1,6 +1,6 @@
 """Unit tests for the alarm activity-log + Telegram notification wiring.
 
-Covers :mod:`src.activity_log`, :mod:`src.alarm_notify_prefs`, and the
+Covers :mod:`src.activity_log`, :mod:`src.security.alarm_notify_prefs`, and the
 :func:`app.webapp.alarm_notify.record_alarm_action` policy: manual never
 notifies, automatic notifies only when its toggle is on, errors use the
 ``error`` toggle, a ``blocked`` outcome never notifies regardless of any
@@ -19,13 +19,13 @@ from typing import List
 
 import app.webapp.alarm_notify as AN
 from src import activity_log
-from src.alarm_notify_prefs import (
+from src.security.alarm_notify_prefs import (
     AlarmNotifyPrefs,
     load_alarm_notify_prefs,
     save_alarm_notify_prefs,
 )
 from src.notify import NotifierError
-from src.risco_client import RiscoCommandError, RiscoConfigError
+from src.security.risco_client import RiscoCommandError, RiscoConfigError
 
 
 class FakeNotifier:

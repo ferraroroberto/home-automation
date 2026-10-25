@@ -1,7 +1,7 @@
 """Shared load/save shape for all-bool "notify prefs" dataclasses (issue #327).
 
-:class:`src.alarm_notify_prefs.AlarmNotifyPrefs` and
-:class:`src.power_notify_prefs.PowerNotifyPrefs` are near-identical frozen
+:class:`src.security.alarm_notify_prefs.AlarmNotifyPrefs` and
+:class:`src.energy.power_notify_prefs.PowerNotifyPrefs` are near-identical frozen
 dataclasses of boolean toggles, persisted atomically with the same
 load-with-defaults / save shape — only the field names (and the log label)
 differ. Parametrized here on the dataclass type so a third toggle-prefs

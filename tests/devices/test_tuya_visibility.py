@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
+from src.devices.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 
 
 def test_tuya_hidden_round_trips(tmp_path) -> None:

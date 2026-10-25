@@ -3,7 +3,7 @@
 One asyncio task started in the FastAPI lifespan by the automation owner, like
 the other write-side loops (no separate daemon). Every minute it asks one
 question — *is tonight's test due?* — and, only when the user has switched the
-nightly test on (:mod:`src.speedtest_prefs`, **off by default**), runs the same
+nightly test on (:mod:`src.network.speedtest_prefs`, **off by default**), runs the same
 host-side test the tile's button runs and stores the result in the history the
 sparklines read.
 
@@ -30,9 +30,9 @@ from typing import Optional
 
 from app.webapp._env import _env_bool
 from app.webapp._task_loop import run_loop
-from src.network_history import last_speed_sample_ts, record_internet_sample
-from src.network_host import fetch_internet_health
-from src.speedtest_prefs import NIGHTLY_HOUR, load_speedtest_prefs
+from src.network.network_history import last_speed_sample_ts, record_internet_sample
+from src.network.network_host import fetch_internet_health
+from src.network.speedtest_prefs import NIGHTLY_HOUR, load_speedtest_prefs
 
 logger = logging.getLogger(__name__)
 

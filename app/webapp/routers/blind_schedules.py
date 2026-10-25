@@ -17,7 +17,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from app.webapp.routers._helpers import make_list_crud_router
-from src.blind_automation import (
+from src.devices.blind_automation import (
     BlindAlarmPrefs,
     load_blind_alarm_prefs,
     load_blind_schedules,

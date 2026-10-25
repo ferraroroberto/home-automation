@@ -1,6 +1,6 @@
 """Pure-logic tests for the Huawei FusionSolar energy client.
 
-No network: every test feeds :mod:`src.huawei_client` a payload shaped like the
+No network: every test feeds :mod:`src.energy.huawei_client` a payload shaped like the
 portal's own response and asserts on the mapping. The alignment tests cover a
 real defect — see :func:`test_latest_aligned_prefers_a_common_bucket`.
 """
@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 import pytest
 
 from src import _backoff as _backoff_module
-from src import huawei_client
-from src.huawei_client import (
+from src.energy import huawei_client
+from src.energy.huawei_client import (
     EnergyState,
     _apply,
     _is_settled,

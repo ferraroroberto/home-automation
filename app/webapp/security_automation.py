@@ -25,9 +25,9 @@ from app.webapp.alarm_notify import (
 )
 from src._atomic_json import write_json_atomic
 from src.activity_log import LOGS_DIR
-from src.presence_engine import note_manual_alarm_action
-from src.risco_client import RiscoCommandError, RiscoConfigError, fetch_security_state
-from src.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
+from src.presence.presence_engine import note_manual_alarm_action
+from src.security.risco_client import RiscoCommandError, RiscoConfigError, fetch_security_state
+from src.security.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
 
 logger = logging.getLogger(__name__)
 

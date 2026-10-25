@@ -28,13 +28,13 @@ from app.webapp import read_snapshot
 from app.webapp._env import _env_int
 from app.webapp.presence_refresher import get_cache, refresh_once
 from src.location_config import LocationConfig, load_location_config, save_location_config
-from src.presence_client import PresenceEntity
-from src.presence_display_names import (
+from src.presence.presence_client import PresenceEntity
+from src.presence.presence_display_names import (
     load_presence_display_names,
     set_presence_display_name,
 )
-from src.presence_engine import (
-    load_arm_block,
+from src.presence.presence_blocks import load_arm_block
+from src.presence.presence_engine import (
     load_automation_config,
     load_kids_home_override,
     load_people,
@@ -43,14 +43,14 @@ from src.presence_engine import (
     set_kids_home_override,
     set_person_state,
 )
-from src.presence_hidden import load_hidden_presence_ids, set_presence_hidden
-from src.presence_places import (
+from src.presence.presence_hidden import load_hidden_presence_ids, set_presence_hidden
+from src.presence.presence_places import (
     PresencePlace,
     load_presence_places,
     resolve_place,
     set_presence_places,
 )
-from src.presence_roles import load_presence_roles, set_presence_role
+from src.presence.presence_roles import load_presence_roles, set_presence_role
 from src.secret_compare import secrets_match
 
 logger = logging.getLogger(__name__)

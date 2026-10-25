@@ -17,8 +17,8 @@ import pytest
 
 from app.webapp import blind_schedules as engine
 from app.webapp._task_loop import BACKGROUND_TASKS
-from src import blind_automation as B
-from src.tuya_client import TuyaCommandError, TuyaDeviceInfo
+from src.devices import blind_automation as B
+from src.devices.tuya_client import TuyaCommandError, TuyaDeviceInfo
 
 MONDAY_0800 = datetime(2026, 10, 5, 8, 0, 30)
 

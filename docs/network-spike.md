@@ -8,16 +8,16 @@ into the vendor web UIs by hand.
 **Shipped.** Every proof below has since landed in the product: the UI spans
 `network.js` / `network-devices.js` / `network-wifi.js` / `network-survey.js` /
 `network-dhcp.js` in `app/webapp/static/`, backed by `GET /api/network`
-(`app/webapp/routers/network.py`); the prototype `src/network_client.py` is
-now the orchestrator over the split `src/network_ap.py` /
-`src/network_router.py` / `src/network_host.py`. See [network.md](network.md) for the current product
+(`app/webapp/routers/network.py`); the prototype `src/network/network_client.py` is
+now the orchestrator over the split `src/network/network_ap.py` /
+`src/network/network_router.py` / `src/network/network_host.py`. See [network.md](network.md) for the current product
 surface;
 this doc stays as the decision record for *why* each piece works
 the way it does. The two "(follow-up)" headings below are historical: both
 items have shipped.
 
 This documents what the spike **proved against the live hardware** and what
-it recommended adopting. The prototype core lived in `src/network_client.py`
+it recommended adopting. The prototype core lived in `src/network/network_client.py`
 with the CLI `src/list_network.py`.
 
 ## TL;DR
@@ -106,7 +106,7 @@ off the live page JS and verified against the hardware:
   resets the connection as it restarts, so a post-accept transport error counts as
   success.
 
-All of this lives in `src/network_client.py` (`RouterClient.read_wan` /
+All of this lives in `src/network/network_client.py` (`RouterClient.read_wan` /
 `RouterClient.reboot` + the `_parse_instances` / `_pick_internet_wan` /
 `_extract_token` / `_extract_pubkey` / `_asy_encode` helpers).
 
@@ -123,7 +123,7 @@ the gateway ping for the local hop, plus an **opt-in** `speedtest-cli` run
 
 ## Proposed `NetworkState` shape
 
-Already prototyped in `src/network_client.py` as frozen dataclasses, mirroring
+Already prototyped in `src/network/network_client.py` as frozen dataclasses, mirroring
 `SecurityState` / `EnergyState`:
 
 - `InternetHealth` — `online, gateway_ms, external_ms, packet_loss_pct, download_mbps, upload_mbps, speedtest_server`
@@ -165,7 +165,7 @@ modal (`Seen by`), not the list.
 
 The user wants devices recognizable by MAC. Reused the existing display-name
 module verbatim, as `tuya_display_names.py` / `security_display_names.py` do:
-`src/network_display_names.py` over `config/network_display_names.json`
+`src/network/network_display_names.py` over `config/network_display_names.json`
 (gitignored, with a committed sample), keyed by **MAC**. Deferred out of the
 spike to keep it to the three proofs, then built as planned.
 

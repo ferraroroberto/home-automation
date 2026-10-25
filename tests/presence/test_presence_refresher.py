@@ -13,7 +13,7 @@ from datetime import timedelta
 import pytest
 
 from app.webapp import presence_refresher as R
-from src.presence_client import (
+from src.presence.presence_client import (
     PresenceAuthError,
     PresenceConfig,
     PresenceConfigError,

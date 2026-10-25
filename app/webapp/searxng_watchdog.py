@@ -41,7 +41,7 @@ from typing import Optional
 
 from app.webapp._task_loop import run_loop
 from src._backoff import BackoffTracker
-from src.searxng_client import (
+from src.voice.searxng_client import (
     SearxngCommandError,
     SearxngConfigError,
     SearxngState,

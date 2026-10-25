@@ -1,0 +1,509 @@
+r"""
+Home-network read + control orchestrator (async, UI-free)
+=========================================================
+Domain core for the Network view (issue #125). Mirrors the other domain cores
+(``melcloud_client`` / ``huawei_client`` / ``risco_client``): no Streamlit, no
+FastAPI, just credentials in → a flattened :class:`NetworkState` out, plus the
+reboot + DHCP-reservation controls.
+
+As of issue #197 the three independent device/probe surfaces this module used to
+inline live in their own files; this module is now the **orchestrator** that
+imports them and exposes the unchanged public surface so callers don't move:
+
+* **NETGEAR R9000 access point** → :mod:`src.network.network_ap` (inventory, AP health,
+  ``reboot_access_point``, MAC rediscovery).
+* **Vodafone ZXHN F6600P router (ZTE)** → :mod:`src.network.network_router`
+  (``RouterClient`` login + WAN/DHCP reads + binding write-back, ``reboot_router``).
+* **Host-side internet + Wi-Fi probes** → :mod:`src.network.network_host` (ping / packet
+  loss / speedtest / ``netsh wlan``).
+* **Shared dataclasses, exceptions, leaf helpers** → :mod:`src.network.network_types`.
+
+What stays here: the aggregate :func:`fetch_network_state`, the AP-rediscovery
+fold, the alert derivation, the cross-domain :func:`resolve_ip_by_mac`, and the
+confirm-gated DHCP-reservation control entry points (login once, apply on one
+session). Credentials still come from ``.env`` (loopback LAN, never committed)::
+
+    NETWORK_AP_HOST / NETWORK_AP_USERNAME / NETWORK_AP_PASSWORD
+    NETWORK_AP_MAC (optional) — stable MAC of the AP; enables auto-rediscovery
+    NETWORK_ROUTER_HOST / NETWORK_ROUTER_USERNAME / NETWORK_ROUTER_PASSWORD
+"""
+
+from __future__ import annotations
+
+import asyncio
+import dataclasses
+import logging
+import time
+from typing import Dict, Mapping, Optional, Tuple
+
+import requests
+
+# Shared types + leaf helpers.
+from src.network.network_types import (  # noqa: F401 — re-exported public surface
+    DHCP_BIND_MAX,
+    AccessPointHealth,
+    DhcpBindingTableFull,
+    DhcpReservationLost,
+    InternetHealth,
+    NetDevice,
+    NetworkCommandError,
+    NetworkConfigError,
+    NetworkState,
+    RouterHealth,
+    WifiBssid,
+    WifiChannelInsight,
+    WifiChannelScore,
+    WifiDiagnostics,
+    _normalise_mac,
+    _require,
+)
+# Host-side internet + Wi-Fi probes.
+from src.network.network_host import (  # noqa: F401 — re-exported public surface
+    fetch_internet_health,
+    fetch_wifi_diagnostics,
+    _parse_wifi_interfaces,
+    _parse_wifi_networks,
+    _ping_reachable,
+    _wifi_channel_insights,
+    _wifi_recommendations,
+)
+# NETGEAR access-point source.
+from src.network.network_ap import (  # noqa: F401 — re-exported public surface
+    fetch_access_point,
+    reboot_access_point,
+    _ap_mac,
+    _fetch_ap_sync,
+    _rediscover_ap_host,
+)
+# ZTE router source + DHCP-binding protocol.
+from src.network.network_router import (  # noqa: F401 — re-exported public surface
+    RouterClient,
+    fetch_router,
+    reboot_router,
+    _add_bindings_on_client,
+    _asy_encode,
+    _merge_router_leases,
+    _merge_router_wlan_clients,
+    _parse_instances,
+    _pick_internet_wan,
+    _router_creds,
+)
+
+logger = logging.getLogger(__name__)
+
+# A wireless client below this signal % is surfaced as a weak-link alert.
+_WEAK_SIGNAL_PCT = 40
+# Packet loss above this % to the outside world is surfaced as an alert.
+_HIGH_LOSS_PCT = 5.0
+# Keep the aggregate API under the browser's 30 s request budget even if one
+# device API stalls. The individual source tasks still run concurrently.
+_INTERNET_TIMEOUT_S = 24.0
+_INTERNET_FAST_TIMEOUT_S = 10.0
+_ACCESS_POINT_TIMEOUT_S = 12.0
+_ACCESS_POINT_REDISCOVER_TIMEOUT_S = 5.0
+_ROUTER_TIMEOUT_S = 18.0
+_WIFI_TIMEOUT_S = 6.0
+
+# Host-side ping probe for no-link devices — bounded so a batch of
+# unresponsive IPs can't stall GET /api/network, and cached briefly so a
+# flapping device doesn't visibly flicker between polls.
+_PING_PROBE_TIMEOUT_S = 3.0
+_PING_PROBE_CACHE_TTL_S = 30.0
+
+
+# --------------------------------------------------------------------------- #
+# Cross-domain helper                                                         #
+# --------------------------------------------------------------------------- #
+async def resolve_ip_by_mac(mac: str) -> Optional[str]:
+    """Best-effort current IP for a device MAC, from the live device inventory.
+
+    Lets other domains (e.g. cameras, issue #190; MAC-pinned config, issue #504)
+    self-heal a stale configured IP the way the AP and Tuya plugs already do.
+    Returns None when every source fails or the MAC isn't present — callers treat
+    that as "no recovery available" and leave the device flagged unreachable.
+
+    Both sources are consulted, because neither is complete on its own: clients
+    on the *router's* own radios are invisible to the AP (issue #502), so an AP
+    miss is not a miss overall. The AP is tried first as the cheaper read.
+    """
+    target = _normalise_mac(mac)
+    if not target:
+        return None
+    try:
+        _health, devices = await fetch_access_point()
+    except Exception as exc:  # noqa: BLE001 — recovery is best-effort, never fatal
+        logger.info("ℹ️ MAC→IP resolve via AP failed: %s", exc)
+        devices = []
+    for dev in devices:
+        if _normalise_mac(dev.mac) == target and dev.ip:
+            logger.info("ℹ️ MAC→IP resolved %s → %s via AP", target, dev.ip)
+            return dev.ip
+    try:
+        _router, leases, _wlan_clients = await fetch_router()
+    except Exception as exc:  # noqa: BLE001 — recovery is best-effort, never fatal
+        logger.info("ℹ️ MAC→IP resolve via router failed: %s", exc)
+        return None
+    # The lease rows are the IP source: the wlan-client rows carry no IP at all
+    # (the ZTE feed has none), and the DHCPHostInfo lease table
+    # covers wired *and* wireless clients. A lease row can outlive the device,
+    # but that is fine here — this resolves an address, not presence.
+    for row in leases:
+        if _normalise_mac(row.get("mac")) == target and row.get("ip"):
+            logger.info("ℹ️ MAC→IP resolved %s → %s via router leases", target, row["ip"])
+            return row["ip"]
+    logger.info(
+        "ℹ️ MAC→IP resolve found no address for %s (AP devices=%d, router leases=%d)",
+        target, len(devices), len(leases),
+    )
+    return None
+
+
+async def resolve_wireless_client_by_mac(mac: str) -> tuple[Optional[NetDevice], int]:
+    """Live telemetry for one client MAC, plus how many sources actually answered.
+
+    Backs the Wi-Fi walk test (issue #547): the phone is the probe, the AP/router
+    is the meter, so a sample is whatever the infrastructure currently measures
+    for that MAC. Returns ``(device, sources_read)`` — the merged
+    :class:`NetDevice` (``signal`` %, ``link_rate``, ``conn_type`` for the band,
+    ``ssid``, and ``source`` naming which box saw it) or ``None``, and how many of
+    the two sources produced a usable read.
+
+    **The count is not decoration — it is what separates "no coverage here" from
+    "we could not tell".** A bare ``None`` conflates a MAC both boxes agree is off
+    the air with a MAC nobody could be asked about because the AP read timed out
+    and the router login failed. The first is the strongest result a walk test can
+    produce; the second is no result at all, and recording it as a dead zone would
+    invent a coverage claim out of an outage. Only ``sources_read == 2`` with no
+    device is genuinely "on neither radio": if either source stayed silent, the
+    client could have been associated to exactly the one that did not answer.
+
+    **Both sources are read concurrently, then merged — never AP-only.** The AP
+    reports a client of the *router's* radio as ``conn_type="wired"`` at 100%,
+    because all it sees is traffic arriving over its uplink port
+    (:func:`src.network.network_router._merge_router_wlan_clients` documents the
+    artefact). Short-circuiting on an AP hit would therefore record a fabricated
+    perfect-wired reading for every sample taken while the phone is associated to
+    the router — silently poisoning exactly the measurement this exists to make.
+    Running the same merge the full snapshot uses keeps one definition of who is
+    authoritative for a link.
+
+    Unlike :func:`resolve_ip_by_mac`, the DHCP lease table is not consulted: a
+    lease can outlive the association, and "has an address" is not "is on the air
+    right now".
+    """
+    target = _normalise_mac(mac)
+    if not target:
+        return None, 0
+
+    ap_result, router_result = await asyncio.gather(
+        _with_timeout("access-point", fetch_access_point(), _ACCESS_POINT_TIMEOUT_S,
+                      (AccessPointHealth(reachable=False, error="read timed out"), [])),
+        _with_timeout("router", fetch_router(), _ROUTER_TIMEOUT_S,
+                      (RouterHealth(reachable=False, error="read timed out"), [], [])),
+        return_exceptions=True,
+    )
+    # A source counts as read only when it came back reachable: the timeout
+    # fallbacks above are shaped like a successful read (an empty device list),
+    # so an unreachable box would otherwise masquerade as "saw nothing".
+    ap_ok = isinstance(ap_result, tuple) and ap_result[0].reachable
+    router_ok = isinstance(router_result, tuple) and router_result[0].reachable
+    devices = ap_result[1] if isinstance(ap_result, tuple) else []
+    wlan_clients = router_result[2] if isinstance(router_result, tuple) else []
+    if not ap_ok:
+        logger.info("ℹ️ survey AP read unusable: %s", ap_result)
+    if not router_ok:
+        logger.info("ℹ️ survey router read unusable: %s", router_result)
+    sources_read = int(ap_ok) + int(router_ok)
+
+    for dev in _merge_router_wlan_clients(devices, wlan_clients):
+        if _normalise_mac(dev.mac) == target:
+            logger.info(
+                "ℹ️ survey resolved %s → signal=%s conn=%s source=%s",
+                target, dev.signal, dev.conn_type, dev.source,
+            )
+            return dev, sources_read
+    logger.info(
+        "ℹ️ survey saw no association for %s (sources read %d/2, AP devices=%d, "
+        "router clients=%d)",
+        target, sources_read, len(devices), len(wlan_clients),
+    )
+    return None, sources_read
+
+
+# --------------------------------------------------------------------------- #
+# DHCP reservation control — confirm-gated, never on a poll                    #
+# --------------------------------------------------------------------------- #
+def _fetch_dhcp_bindings_sync() -> list[dict]:
+    host, user, pwd = _router_creds()
+    # Retry once on failure: the F6600P tolerates only so many concurrent logins,
+    # and the 15 s Network-tab poll logs in on its own cadence — so a binding read
+    # fired at the same moment can lose the race. A fresh login after a short pause
+    # almost always wins the second time. Without this, a transient miss degrades the
+    # whole plan to "bindings unknown" (no reservation list, misleading status).
+    last_exc: Optional[Exception] = None
+    for attempt in range(2):
+        client = RouterClient(host, user, pwd)
+        try:
+            if not client.login():
+                raise NetworkCommandError("router login failed; cannot read DHCP bindings")
+            return client.read_dhcp_bindings()
+        except (NetworkCommandError, requests.RequestException) as exc:
+            last_exc = exc
+            logger.warning("⚠️ DHCP-binding read attempt %d/2 failed: %s", attempt + 1, exc)
+            if attempt == 0:
+                time.sleep(1.5)
+    raise last_exc if last_exc else NetworkCommandError("DHCP-binding read failed")
+
+
+async def fetch_dhcp_bindings() -> list[dict]:
+    """Async: the router's static-binding table (``[{name, mac, ip, inst_id}]``).
+
+    Raises on a login/read failure — the planner falls back to a binding-less plan
+    rather than presenting a misleading one as already-applied.
+    """
+    return await asyncio.to_thread(_fetch_dhcp_bindings_sync)
+
+
+def _apply_dhcp_bindings_sync(rows: list[Mapping[str, str]]) -> list[dict]:
+    host, user, pwd = _router_creds()
+    client = RouterClient(host, user, pwd)
+    if not client.login():
+        raise NetworkCommandError("router login failed; cannot apply DHCP bindings")
+    return _add_bindings_on_client(client, rows)
+
+
+async def apply_dhcp_bindings(rows: list[Mapping[str, str]]) -> list[dict]:
+    """Async: write each ``{name, mac, ip}`` binding row-by-row, never auto.
+
+    Logs in once and applies the rows on that one session. Returns a per-row
+    ``[{mac, ip, ok, error}]`` result; a mid-batch failure is recorded, not raised,
+    so a single rejected row can't silently drop the rest. **Only ever called from
+    an explicit, confirm-gated user action** — never on a poll.
+    """
+    return await asyncio.to_thread(_apply_dhcp_bindings_sync, rows)
+
+
+def _apply_dhcp_changes_sync(
+    remove_inst_ids: list[str], add_rows: list[Mapping[str, str]]
+) -> list[dict]:
+    host, user, pwd = _router_creds()
+    client = RouterClient(host, user, pwd)
+    if not client.login():
+        raise NetworkCommandError("router login failed; cannot apply DHCP changes")
+    results: list[dict] = []
+    # Deletes FIRST, on this one session: each frees a slot, so the add pass (which
+    # re-reads the table) sees the freed space and a create that previously wouldn't
+    # fit now does. A failed delete is recorded, not raised — the adds still run.
+    for inst_id in remove_inst_ids:
+        try:
+            client._delete_dhcp_binding(inst_id)
+            results.append({"op": "remove", "inst_id": inst_id, "ok": True, "error": None})
+            logger.info("ℹ️ DHCP binding deleted: %s", inst_id)
+        except NetworkCommandError as exc:
+            results.append({"op": "remove", "inst_id": inst_id, "ok": False, "error": str(exc)})
+            logger.warning("⚠️ DHCP delete failed for %s: %s", inst_id, exc)
+    add_results = _add_bindings_on_client(client, add_rows)
+    for r in add_results:
+        r.setdefault("op", "add")
+    results.extend(add_results)
+    return results
+
+
+async def apply_dhcp_changes(
+    remove_inst_ids: list[str], add_rows: list[Mapping[str, str]]
+) -> list[dict]:
+    """Async: apply a staged batch of reservation changes in one router session.
+
+    Deletes ``remove_inst_ids`` first (freeing slots), then writes ``add_rows``
+    (``{name, mac, ip}``) cap-aware — so the whole "remove these, add those" plan
+    goes in one sequence rather than the user juggling per-row writes (issue #176).
+    Returns a combined per-op result list (each row tagged ``op`` = ``remove`` /
+    ``add``); a single failure is recorded, not raised. **Only ever called from an
+    explicit, confirm-gated user action** — never on a poll.
+    """
+    return await asyncio.to_thread(
+        _apply_dhcp_changes_sync, list(remove_inst_ids), list(add_rows)
+    )
+
+
+# --------------------------------------------------------------------------- #
+# No-link device ping probe                                                   #
+# --------------------------------------------------------------------------- #
+# (mac, ip) -> (checked_at monotonic, reachable). Keyed by the pair rather than
+# just the IP so a DHCP reshuffle that hands a probed device's old IP to a
+# different device can't serve that device a stale neighbour's result.
+_ping_probe_cache: Dict[Tuple[str, str], Tuple[float, bool]] = {}
+
+
+def _needs_ping_probe(d: NetDevice) -> bool:
+    """Mirrors the UI's ``hasLiveLink()`` no-link test, restricted to devices
+    with an IP to target — nothing else is worth spending a probe on."""
+    return d.signal is None and d.conn_type != "wired" and bool(d.ip)
+
+
+async def _probe_nolink_devices(devices: list[NetDevice]) -> list[NetDevice]:
+    """Ping every currently no-link device (bounded, cached) and stamp the result.
+
+    Only devices :func:`_needs_ping_probe` selects are touched — everything else
+    (already has a signal reading, or reports ``wired``) passes through
+    unchanged. A cached result younger than :data:`_PING_PROBE_CACHE_TTL_S` is
+    reused instead of re-probing, so a flapping device doesn't visibly flicker
+    between the ~15 s Network tab polls. The whole batch is bounded by
+    :func:`_with_timeout` so a set of unresponsive IPs can't stall the read;
+    on timeout the affected devices simply keep ``ping_reachable=None``
+    (not probed this round) rather than a false negative.
+    """
+    now = time.monotonic()
+    targets = [d for d in devices if _needs_ping_probe(d)]
+    if not targets:
+        return devices
+
+    to_probe: list[NetDevice] = []
+    results: Dict[Tuple[str, str], bool] = {}
+    for d in targets:
+        key = (d.mac, d.ip or "")
+        cached = _ping_probe_cache.get(key)
+        if cached is not None and now - cached[0] < _PING_PROBE_CACHE_TTL_S:
+            results[key] = cached[1]
+        else:
+            to_probe.append(d)
+
+    if to_probe:
+        probed = await _with_timeout(
+            "ping probe",
+            asyncio.gather(*(asyncio.to_thread(_ping_reachable, d.ip) for d in to_probe)),
+            _PING_PROBE_TIMEOUT_S,
+            None,
+        )
+        if probed is not None:
+            for d, reachable in zip(to_probe, probed):
+                key = (d.mac, d.ip or "")
+                results[key] = reachable
+                _ping_probe_cache[key] = (now, reachable)
+
+    if not results:
+        return devices
+
+    updated = []
+    for d in devices:
+        key = (d.mac, d.ip or "")
+        if key in results:
+            d = dataclasses.replace(d, ping_reachable=results[key])
+        updated.append(d)
+    return updated
+
+
+# --------------------------------------------------------------------------- #
+# Aggregate                                                                   #
+# --------------------------------------------------------------------------- #
+def _derive_alerts(
+    internet: InternetHealth,
+    ap: AccessPointHealth,
+    router: RouterHealth,
+    devices: list[NetDevice],
+) -> list[str]:
+    alerts: list[str] = []
+    if not internet.online:
+        alerts.append("Internet appears DOWN (no reply from the outside world).")
+    if internet.packet_loss_pct and internet.packet_loss_pct >= _HIGH_LOSS_PCT:
+        alerts.append(f"High packet loss to the internet: {internet.packet_loss_pct:.0f}%.")
+    if not ap.reachable:
+        alerts.append(f"Access point unreachable: {ap.error or 'no response'}.")
+    if not router.reachable:
+        alerts.append(f"Router unreachable: {router.error or 'no response'}.")
+    weak = [d for d in devices if d.is_wireless and d.signal is not None and d.signal < _WEAK_SIGNAL_PCT]
+    if weak:
+        alerts.append(
+            f"{len(weak)} wireless client(s) on weak signal (<{_WEAK_SIGNAL_PCT}%)."
+        )
+    return alerts
+
+
+async def _with_timeout(label: str, coro, timeout_s: float, fallback):
+    """Return *fallback* if one source exceeds its budget.
+
+    ``asyncio.to_thread`` work cannot be force-killed, but bounding the awaited
+    result keeps ``GET /api/network`` responsive and lets faster sources render.
+    """
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_s)
+    except asyncio.TimeoutError:
+        logger.warning("⚠️ %s read timed out after %.0f s", label, timeout_s)
+        return fallback
+
+
+async def fetch_network_state(include_speedtest: bool = False) -> NetworkState:
+    """One snapshot: internet health + AP + router + device inventory + alerts.
+
+    The three sources are independent, so they run concurrently. A speed test is
+    opt-in (it takes ~10-15 s and saturates the link).
+    """
+    internet_timeout = _INTERNET_TIMEOUT_S if include_speedtest else _INTERNET_FAST_TIMEOUT_S
+    internet, (ap, devices), (router, leases, wlan_clients), wifi = await asyncio.gather(
+        _with_timeout(
+            "internet health",
+            fetch_internet_health(include_speedtest=include_speedtest),
+            internet_timeout,
+            InternetHealth(online=False),
+        ),
+        _with_timeout(
+            "access-point",
+            fetch_access_point(),
+            _ACCESS_POINT_TIMEOUT_S,
+            (AccessPointHealth(reachable=False, error="read timed out"), []),
+        ),
+        _with_timeout(
+            "router",
+            fetch_router(),
+            _ROUTER_TIMEOUT_S,
+            (RouterHealth(reachable=False, error="read timed out"), [], []),
+        ),
+        _with_timeout(
+            "Wi-Fi diagnostics",
+            fetch_wifi_diagnostics(),
+            _WIFI_TIMEOUT_S,
+            WifiDiagnostics(available=False, error="read timed out"),
+        ),
+    )
+    # When the AP is unreachable and NETWORK_AP_MAC is configured, attempt
+    # rediscovery via the router's lease table (already fetched above). This
+    # handles the common case where the AP received a new DHCP address: we look
+    # up the stable MAC in the lease table, verify the candidate with a short
+    # pynetgear login, and update the in-memory runtime host on success.
+    if not ap.reachable and leases:
+        ap_mac = _ap_mac()
+        if ap_mac:
+            candidate = _rediscover_ap_host(ap_mac, leases)
+            if candidate:
+                logger.info(
+                    "ℹ️ AP unreachable at configured host; trying discovered IP %s (MAC %s)",
+                    candidate, ap_mac,
+                )
+                try:
+                    ap, devices = await asyncio.wait_for(
+                        asyncio.to_thread(_fetch_ap_sync, candidate),
+                        timeout=_ACCESS_POINT_REDISCOVER_TIMEOUT_S,
+                    )
+                    if ap.reachable:
+                        logger.info("✅ AP rediscovered at %s", candidate)
+                except (asyncio.TimeoutError, Exception) as exc:
+                    logger.warning("⚠️ AP rediscovery probe at %s failed: %s", candidate, exc)
+
+    # Fold the router's own wireless clients in first — they are
+    # invisible to the AP, so this is the only source for them; then the router
+    # hostnames. A failed or empty router read leaves both lists
+    # empty, so the AP list passes through unchanged.
+    devices = _merge_router_wlan_clients(devices, wlan_clients)
+    devices = _merge_router_leases(devices, leases)
+    # Positively confirm no-link devices host-side where possible —
+    # bounded to that subset, cached briefly, never blocks alert derivation.
+    devices = await _probe_nolink_devices(devices)
+    alerts = _derive_alerts(internet, ap, router, devices)
+    return NetworkState(
+        internet=internet,
+        access_point=ap,
+        router=router,
+        wifi=wifi,
+        devices=tuple(devices),
+        alerts=tuple(alerts),
+    )

@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`src.camera_client` config + MAC address-recovery (#190).
+"""Unit tests for :mod:`src.devices.camera_client` config + MAC address-recovery (#190).
 
 Covers ``mac`` parsing, the atomic host-rewrite that persists a rediscovered
 address, and the ``_recover_host`` decision logic. No ONVIF, no network — the
@@ -12,8 +12,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from src import camera_client as C
-from src import network_client
+from src.devices import camera_client as C
+from src.network import network_client
 
 
 def _write(path: Path, cams: list) -> None:

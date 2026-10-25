@@ -12,7 +12,7 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-from src.elgato_client import ElgatoLight
+from src.devices.elgato_client import ElgatoLight
 
 
 def test_lights_route_runs_with_monkeypatched_lan(

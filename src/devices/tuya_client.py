@@ -1,0 +1,873 @@
+"""
+Tuya / Smart Life client
+========================
+Non-UI core for local Smart Life / Tuya device control.
+
+Smart Life devices are Tuya devices.  TinyTuya needs Tuya Cloud only for
+the one-time bootstrap that fetches local keys; runtime control and status
+reads here are LAN-only through the gitignored ``devices.json`` file.
+
+``devices.json`` is the TinyTuya wizard/snapshot output and may be either
+a plain list of devices or snapshot format ``{"timestamp": ..., "devices": [...]}``.
+It contains local keys, IPs, protocol versions, and per-device DPS mapping.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal, Optional
+
+import tinytuya
+from tinytuya import scanner as tuya_scanner
+
+from src._atomic_json import write_json_atomic
+from src._backoff import BackoffTracker
+from src._schedule_store import StoreUnreadableError
+from src._schedule_store import read_json as _read_store_json
+
+logger = logging.getLogger("tuya")
+
+_DEVICE_FILE = Path(__file__).resolve().parents[2] / "devices.json"
+_LOCAL_TIMEOUT_SECONDS = 1.0
+_LOCAL_RETRY_LIMIT = 1
+# UDP broadcast scan window for a Refresh-triggered LAN rediscovery. Long enough
+# for sleepy plugs to emit at least one beacon, short enough for an interactive
+# button press; gated to the explicit Refresh action (never a page-load read).
+_SCAN_TIME_SECONDS = 8.0
+
+# Per-device backoff for *passive* polling reads only — a device
+# stuck in a failed state was being reconnected on every poll tick (up to
+# several times/second across callers), each closed socket burning an
+# ephemeral port for ~120s in TIME_WAIT. Base matches the PWA's own poll
+# cadence (plugs.js POLL_MS); the exponent is capped so a device dead for
+# days can't grow consecutive_failures into an OverflowError. This never
+# gates set_switch/set_cover — a user-initiated command always goes out
+# immediately and its outcome updates the same backoff state. The cadence is
+# ``BackoffTracker``'s own defaults (15 s base, 300 s cap).
+
+
+_backoff_lock = threading.Lock()
+_backoff_state: dict[str, BackoffTracker] = {}
+
+
+def _seconds_until_retry(device_id: str) -> Optional[float]:
+    """Seconds remaining in this device's backoff window, or ``None`` if clear."""
+    with _backoff_lock:
+        state = _backoff_state.get(device_id)
+        if state is None:
+            return None
+        return state.seconds_remaining()
+
+
+def _record_backoff_failure(device_id: str) -> None:
+    """Escalate this device's backoff after a failed passive-poll attempt."""
+    with _backoff_lock:
+        state = _backoff_state.setdefault(device_id, BackoffTracker())
+        delay = state.record_failure()
+        failures = state.consecutive_failures
+    logger.info(
+        "⚠️ Tuya device %s unreachable (failure #%d) — backing off %.0fs before next background poll",
+        device_id, failures, delay,
+    )
+
+
+def _record_backoff_success(device_id: str) -> None:
+    """Clear this device's backoff after a successful attempt (poll or manual)."""
+    with _backoff_lock:
+        state = _backoff_state.pop(device_id, None)
+    if state is not None and state.consecutive_failures:
+        logger.info(
+            "✅ Tuya device %s reachable again after %d failed attempt(s)",
+            device_id, state.consecutive_failures,
+        )
+
+
+_SWITCH_CODES = ("switch_1", "switch", "switch_led")
+_COVER_CONTROL_CODES = ("control", "control_back", "mach_operate")
+# The value set a blind takes on its control DPS is local, not the cloud
+# schema's: a ``control`` DPS listed as the open / stop / close enum
+# can answer ``'1'`` over the LAN and silently ignore a written ``'close'``.
+# So each device's set is detected from its own ``status()`` exactly as
+# TinyTuya's ``CoverDevice`` does — its ``COVER_TYPES`` value sets, matched
+# in its priority order (overlapping values resolve to the commoner type) —
+# and cached per device id, persisted to ``_COVER_TYPES_FILE`` (gitignored) so
+# a restart keeps it.
+_COVER_TYPES: dict[int, dict[str, Any]] = tinytuya.CoverDevice.COVER_TYPES
+_COVER_TYPE_PRIORITY = (1, 8, 3, 4, 5, 7, 2, 6)
+_cover_types: dict[str, int] = {}
+_COVER_TYPES_FILE = Path(__file__).resolve().parents[2] / "config" / "tuya_cover_types.json"
+# Guards the cover-type store's load-modify-save in _remember_cover_type: the
+# webapp polls every blind concurrently via asyncio.to_thread, so two blinds
+# learning their type in the same poll can each load the same old contents
+# and the second write drops the first blind's entry.
+_cover_types_file_lock = threading.Lock()
+_BRIGHTNESS_CODES = ("bright_value", "bright_value_v2", "bright_value_1")
+# Tuya's documented raw brightness range per code, used only when a device's
+# mapping does not state its own min/max.
+_BRIGHTNESS_DEFAULT_RANGE = {"bright_value_v2": (10, 1000)}
+_BRIGHTNESS_FALLBACK_RANGE = (25, 255)
+_CURRENT_CODES = ("cur_current", "cur_current_1", "current")
+_POWER_CODES = ("cur_power", "cur_power_1", "power")
+_VOLTAGE_CODES = ("cur_voltage", "cur_voltage_1", "voltage")
+_ENERGY_CODES = ("add_ele", "add_ele_1", "electricity", "energy", "total_energy")
+# Tuya's standard light categories (bulbs, strips, ceiling lights, dimmer
+# switches). A device in one of these — or one whose switch is the lighting
+# ``switch_led`` code — is a light, so the PWA lists it under Lights rather
+# than Plugs. A smart plug feeding a lamp stays a plug.
+_LIGHT_CATEGORIES = frozenset({"dj", "dd", "dc", "xdd", "fwd", "tgq", "tgkg"})
+
+
+class TuyaConfigError(RuntimeError):
+    """Raised when required local Tuya metadata is missing."""
+
+
+class TuyaDeviceNotFoundError(RuntimeError):
+    """Raised when a requested Tuya device is not present in ``devices.json``."""
+
+
+class TuyaCommandError(RuntimeError):
+    """Raised when TinyTuya returns an error response or malformed payload."""
+
+
+class TuyaCoverTypeUnknown(TuyaCommandError):
+    """Raised by :func:`set_cover` when a blind's status shows no known cover
+    value set at its control DPS (#901) — distinct from a LAN failure: the
+    blind answered, but writing a guessed value would be acked and ignored."""
+
+
+class TuyaBackoffActive(TuyaCommandError):
+    """Raised by :func:`read_device_state` when a device is skipped because
+    it's still within its post-failure backoff window (issue #537) — distinct
+    from a genuine live failure so callers can log/report the two differently
+    ("backing off" vs "offline right now")."""
+
+
+@dataclass(frozen=True)
+class TuyaMapping:
+    """One DPS mapping entry from ``devices.json``."""
+
+    dps: str
+    code: str
+    type: Optional[str] = None
+    scale: int = 0
+    unit: Optional[str] = None
+    min: Optional[int] = None
+    max: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class TuyaDeviceInfo:
+    """Sanitized device summary safe to hand to UI/CLI callers."""
+
+    device_id: str
+    name: str
+    category: Optional[str] = None
+    product_id: Optional[str] = None
+    product_name: Optional[str] = None
+    model: Optional[str] = None
+    mac: Optional[str] = None
+    uuid: Optional[str] = None
+    sn: Optional[str] = None
+    ip: Optional[str] = None
+    version: float = 3.3
+    has_valid_ip: bool = False
+    has_local_key: bool = False
+    switch_dps: Optional[str] = None
+    cover_control_dps: Optional[str] = None
+    energy_dps: dict[str, str] = field(default_factory=dict)
+    is_light: bool = False
+    brightness_dps: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class _LocalDevice:
+    """Full local metadata used internally for LAN operations."""
+
+    device_id: str
+    name: str
+    key: str
+    address: str
+    version: float
+    raw: dict[str, Any]
+
+
+def _load_device_entries() -> list[dict[str, Any]]:
+    """Load TinyTuya devices from gitignored ``devices.json``."""
+    if not _DEVICE_FILE.exists():
+        raise TuyaConfigError(
+            "Missing devices.json. Reuse the captured TinyTuya device file or "
+            "run `python -m tinytuya wizard` once to fetch local keys."
+        )
+
+    with _DEVICE_FILE.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if isinstance(payload, dict):
+        payload = payload.get("devices", [])
+    if not isinstance(payload, list) or not payload:
+        raise TuyaConfigError("devices.json contains no Tuya devices")
+    return [device for device in payload if isinstance(device, dict)]
+
+
+def _has_valid_ip(device: dict[str, Any]) -> bool:
+    """Return true for usable LAN IPv4 addresses."""
+    ip = device.get("ip") or device.get("address") or ""
+    if not isinstance(ip, str):
+        return False
+    ip = ip.strip()
+    if not ip or ip == "Auto" or "No IP" in ip or "Error" in ip:
+        return False
+    parts = ip.split(".")
+    return len(parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255 for part in parts)
+
+
+def _version(value: object) -> float:
+    """Normalize TinyTuya protocol versions from ``devices.json``."""
+    if value is None or value == "":
+        return 3.3
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        logger.warning("⚠️ Invalid Tuya protocol version %r; using 3.3", value)
+        return 3.3
+
+
+def _mapping(device: dict[str, Any]) -> dict[str, TuyaMapping]:
+    """Return mapping entries keyed by Tuya code."""
+    result: dict[str, TuyaMapping] = {}
+    raw_mapping = device.get("mapping") or {}
+    if not isinstance(raw_mapping, dict):
+        return result
+
+    for dps, entry in raw_mapping.items():
+        if not isinstance(entry, dict):
+            continue
+        code = entry.get("code")
+        if not code:
+            continue
+        values = entry.get("values") if isinstance(entry.get("values"), dict) else {}
+        scale_raw = values.get("scale", 0)
+        try:
+            scale = int(scale_raw)
+        except (TypeError, ValueError):
+            scale = 0
+        result[str(code)] = TuyaMapping(
+            dps=str(dps),
+            code=str(code),
+            type=entry.get("type"),
+            scale=scale,
+            unit=values.get("unit"),
+            min=_int_or_none(values.get("min")),
+            max=_int_or_none(values.get("max")),
+        )
+    return result
+
+
+def _int_or_none(value: Any) -> Optional[int]:
+    """An integer mapping bound, or ``None`` when absent or malformed."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _brightness_range(mapping: TuyaMapping) -> tuple[int, int]:
+    """The device's raw ``(min, max)`` brightness, from its mapping if stated."""
+    default = _BRIGHTNESS_DEFAULT_RANGE.get(mapping.code, _BRIGHTNESS_FALLBACK_RANGE)
+    low = mapping.min if mapping.min is not None else default[0]
+    high = mapping.max if mapping.max is not None else default[1]
+    return (low, high) if high > low else default
+
+
+def brightness_to_raw(pct: int, mapping: TuyaMapping) -> int:
+    """Map 1–100 % linearly onto the device's own raw range (1 % → min)."""
+    low, high = _brightness_range(mapping)
+    return round(low + (pct - 1) * (high - low) / 99)
+
+
+def raw_to_brightness(raw: Any, mapping: TuyaMapping) -> Optional[int]:
+    """The inverse of :func:`brightness_to_raw`, clamped to 1–100 %."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    low, high = _brightness_range(mapping)
+    return max(1, min(100, round(1 + (value - low) * 99 / (high - low))))
+
+
+def _snapshot_dps(device: dict[str, Any]) -> dict[str, Any]:
+    """Return DPS values captured by TinyTuya scan/snapshot rows."""
+    dps = device.get("dps")
+    if isinstance(dps, dict) and isinstance(dps.get("dps"), dict):
+        dps = dps["dps"]
+    if not isinstance(dps, dict):
+        return {}
+    return {str(key): value for key, value in dps.items()}
+
+
+def _fallback_switch_mapping(device: dict[str, Any]) -> Optional[TuyaMapping]:
+    """Infer switch DPS from captured status when no mapping block exists."""
+    dps = _snapshot_dps(device)
+    if isinstance(dps.get("1"), bool):
+        return TuyaMapping(dps="1", code="switch_1", type="Boolean")
+    if isinstance(dps.get("20"), bool):
+        return TuyaMapping(dps="20", code="switch_led", type="Boolean")
+    return None
+
+
+def _fallback_energy_mappings(device: dict[str, Any]) -> dict[str, TuyaMapping]:
+    """Infer common metered-plug DPS mappings from captured status rows."""
+    dps = _snapshot_dps(device)
+    if {"18", "19", "20"}.issubset(dps):
+        mappings = {
+            "current_ma": TuyaMapping(dps="18", code="cur_current", type="Integer"),
+            "power_w": TuyaMapping(dps="19", code="cur_power", type="Integer", scale=1),
+            "voltage_v": TuyaMapping(dps="20", code="cur_voltage", type="Integer", scale=1),
+        }
+        if "17" in dps:
+            mappings["energy_kwh"] = TuyaMapping(
+                dps="17",
+                code="add_ele",
+                type="Integer",
+                scale=3,
+            )
+        return mappings
+    if {"4", "5", "6"}.issubset(dps):
+        return {
+            "current_ma": TuyaMapping(dps="4", code="cur_current", type="Integer"),
+            "power_w": TuyaMapping(dps="5", code="cur_power", type="Integer"),
+            "voltage_v": TuyaMapping(dps="6", code="cur_voltage", type="Integer"),
+        }
+    return {}
+
+
+def _first_mapping(device: dict[str, Any], codes: tuple[str, ...]) -> Optional[TuyaMapping]:
+    """Find the first mapping entry whose code is in ``codes``."""
+    mapping = _mapping(device)
+    for code in codes:
+        entry = mapping.get(code)
+        if entry:
+            return entry
+    if codes == _SWITCH_CODES:
+        return _fallback_switch_mapping(device)
+    return None
+
+
+def _energy_mappings(device: dict[str, Any]) -> dict[str, TuyaMapping]:
+    """Find model-specific energy mappings from captured DPS metadata."""
+    mappings: dict[str, TuyaMapping] = {}
+    for name, codes in {
+        "current_ma": _CURRENT_CODES,
+        "power_w": _POWER_CODES,
+        "voltage_v": _VOLTAGE_CODES,
+        "energy_kwh": _ENERGY_CODES,
+    }.items():
+        entry = _first_mapping(device, codes)
+        if entry:
+            mappings[name] = entry
+    return mappings or _fallback_energy_mappings(device)
+
+
+def _sanitize(device: dict[str, Any]) -> TuyaDeviceInfo:
+    """Return a non-secret summary for one device entry."""
+    switch = _first_mapping(device, _SWITCH_CODES)
+    cover = _first_mapping(device, _COVER_CONTROL_CODES)
+    energy = _energy_mappings(device)
+    brightness = _first_mapping(device, _BRIGHTNESS_CODES)
+    category = device.get("category")
+    return TuyaDeviceInfo(
+        device_id=str(device.get("id") or device.get("dev_id") or ""),
+        name=str(device.get("name") or device.get("id") or "Unnamed Tuya device"),
+        category=category,
+        product_id=device.get("product_id") or device.get("productId"),
+        product_name=device.get("product_name") or device.get("productName"),
+        model=device.get("model"),
+        mac=device.get("mac") or device.get("mac_address") or device.get("macAddress"),
+        uuid=device.get("uuid"),
+        sn=device.get("sn"),
+        ip=device.get("ip") or device.get("address"),
+        version=_version(device.get("version", device.get("ver"))),
+        has_valid_ip=_has_valid_ip(device),
+        has_local_key=bool(device.get("key") or device.get("local_key")),
+        switch_dps=switch.dps if switch else None,
+        cover_control_dps=cover.dps if cover else None,
+        energy_dps={name: entry.dps for name, entry in energy.items()},
+        is_light=switch is not None
+        and (switch.code == "switch_led" or category in _LIGHT_CATEGORIES),
+        brightness_dps=brightness.dps if brightness else None,
+    )
+
+
+def _select_device(device_id: str) -> dict[str, Any]:
+    """Find a device by id, preferring duplicate entries with usable LAN IPs."""
+    entries = _load_device_entries()
+    matches = [
+        device
+        for device in entries
+        if str(device.get("id") or device.get("dev_id") or "") == device_id
+    ]
+    if not matches:
+        raise TuyaDeviceNotFoundError(f"No Tuya device with id {device_id} in devices.json")
+    with_ip = [device for device in matches if _has_valid_ip(device)]
+    return with_ip[0] if with_ip else matches[0]
+
+
+def _local_metadata(device_id: str) -> _LocalDevice:
+    """Resolve full local metadata for one device id."""
+    device = _select_device(device_id)
+    key = str(device.get("key") or device.get("local_key") or "")
+    if not key:
+        raise TuyaConfigError(f"Device {device_id} has no local key in devices.json")
+    return _LocalDevice(
+        device_id=str(device.get("id") or device.get("dev_id")),
+        name=str(device.get("name") or device_id),
+        key=key,
+        address=(device.get("ip") or device.get("address") or "Auto"),
+        version=_version(device.get("version", device.get("ver"))),
+        raw=device,
+    )
+
+
+def _connect(device_id: str, cls: type[tinytuya.Device] = tinytuya.Device) -> tinytuya.Device:
+    """Create a short-timeout TinyTuya local device connection."""
+    metadata = _local_metadata(device_id)
+    # DEBUG, not INFO: this fires on every poll tick for every
+    # device — at a 15s cadence across ~10 devices that's pure noise that
+    # buried the real warnings. A failure/recovery still logs at INFO via
+    # _record_backoff_failure/_record_backoff_success below.
+    logger.debug("Connecting locally to Tuya device '%s' (%s)", metadata.name, device_id)
+    try:
+        device = cls(metadata.device_id, metadata.address, metadata.key, version=metadata.version)
+    except RuntimeError as exc:
+        raise TuyaCommandError(
+            f"Could not find Tuya device {device_id} on the LAN. Refresh devices.json "
+            "with a TinyTuya snapshot/update while on the home network."
+        ) from exc
+    device.set_socketPersistent(False)
+    device.set_socketTimeout(_LOCAL_TIMEOUT_SECONDS)
+    device.set_socketRetryLimit(_LOCAL_RETRY_LIMIT)
+    device.set_sendWait(1)
+    return device
+
+
+def _raise_for_tinytuya_error(response: Any, action: str) -> None:
+    """Turn TinyTuya error dictionaries into exceptions."""
+    if isinstance(response, dict):
+        if response.get("Err"):
+            raise TuyaCommandError(
+                f"{action} failed: {response.get('Error', 'TinyTuya error')} "
+                f"(Err {response['Err']})"
+            )
+        if "Error" in response and not response.get("dps"):
+            raise TuyaCommandError(f"{action} failed: {response['Error']}")
+
+
+def _status(device_id: str) -> dict[str, Any]:
+    """Read local status and return its DPS payload wrapper."""
+    device = _connect(device_id, tinytuya.OutletDevice)
+    response = device.status()
+    _raise_for_tinytuya_error(response, f"Read Tuya status {device_id}")
+    if not isinstance(response, dict) or not isinstance(response.get("dps"), dict):
+        raise TuyaCommandError(f"Read Tuya status {device_id} returned no DPS payload")
+    return response
+
+
+def _scaled(value: Any, mapping: TuyaMapping) -> Optional[float]:
+    """Apply Tuya mapping scale where present while preserving missing data."""
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number / (10 ** mapping.scale)
+
+
+def list_devices() -> list[TuyaDeviceInfo]:
+    """List Tuya devices captured in local ``devices.json``."""
+    devices = [_sanitize(device) for device in _load_device_entries()]
+    logger.info("✅ Loaded %d local Tuya device(s)", len(devices))
+    return devices
+
+
+def _scan_lan(scan_time: float) -> dict[str, dict[str, Any]]:
+    """Return ``{device_id: {"ip", "version"}}`` from a TinyTuya UDP scan.
+
+    Listens for the plaintext UDP beacons every Tuya device broadcasts on the
+    LAN — no Tuya Cloud and no local keys are needed — so it recovers the
+    current address of any powered-on device even when ``devices.json`` is
+    stale. Blocking socket I/O; run it in a worker thread from async code.
+    """
+    logger.info("ℹ️ Scanning LAN for Tuya devices (%.0fs)…", scan_time)
+    raw = tuya_scanner.devices(
+        verbose=False, scantime=scan_time, color=False, poll=False, byID=True
+    )
+    result: dict[str, dict[str, Any]] = {}
+    for device_id, info in (raw or {}).items():
+        if not isinstance(info, dict):
+            continue
+        ip = info.get("ip")
+        if not isinstance(ip, str) or not _has_valid_ip({"ip": ip}):
+            continue
+        result[str(device_id)] = {
+            "ip": ip.strip(),
+            "version": _version(info.get("version", info.get("ver"))),
+        }
+    return result
+
+
+def _save_payload(payload: Any) -> None:
+    """Atomically rewrite ``devices.json`` (temp-file swap, as display_names)."""
+    write_json_atomic(_DEVICE_FILE, payload)
+
+
+def _apply_discovered_addresses(discovered: dict[str, dict[str, Any]]) -> list[str]:
+    """Merge scanned IPs into ``devices.json`` by device id; return updated ids.
+
+    Rewrites only the address (and protocol version) of rows whose IP actually
+    changed — local keys and DPS mappings are preserved untouched, and an
+    unchanged scan never rewrites the file. A device may have several rows
+    (snapshot + wizard); every matching row is reconciled to the same address.
+    """
+    if not _DEVICE_FILE.exists():
+        raise TuyaConfigError("Missing devices.json; cannot persist rescanned addresses")
+    with _DEVICE_FILE.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    entries = payload.get("devices", []) if isinstance(payload, dict) else payload
+    if not isinstance(entries, list):
+        raise TuyaConfigError("devices.json has no device list to update")
+
+    updated: list[str] = []
+    changed = False
+    for device in entries:
+        if not isinstance(device, dict):
+            continue
+        device_id = str(device.get("id") or device.get("dev_id") or "")
+        match = discovered.get(device_id)
+        if not match:
+            continue
+        new_ip = match["ip"]
+        if (device.get("ip") or device.get("address") or "") == new_ip:
+            continue
+        device["ip"] = new_ip
+        if "address" in device:  # keep the legacy field aligned where present
+            device["address"] = new_ip
+        if match.get("version"):
+            device["version"] = match["version"]
+        changed = True
+        if device_id not in updated:
+            updated.append(device_id)
+
+    if changed:
+        _save_payload(payload)
+        logger.info("💾 Reconciled %d Tuya address(es) in devices.json", len(updated))
+    return updated
+
+
+def rescan_addresses(scan_time: float = _SCAN_TIME_SECONDS) -> dict[str, Any]:
+    """Broadcast-scan the LAN and reconcile stale ``devices.json`` addresses.
+
+    The Plugs Refresh path calls this so a plug that took a new DHCP lease
+    becomes locally controllable again without a manual ``tinytuya snapshot``.
+    Returns a summary: total responders found, the device ids whose stored IP
+    was updated, and the current ``{device_id: ip}`` map. Blocking; call via a
+    worker thread.
+    """
+    discovered = _scan_lan(scan_time)
+    updated = _apply_discovered_addresses(discovered) if discovered else []
+    logger.info(
+        "✅ Tuya LAN rescan: %d responder(s), %d address(es) reconciled",
+        len(discovered),
+        len(updated),
+    )
+    return {
+        "found": len(discovered),
+        "updated": updated,
+        "addresses": {device_id: info["ip"] for device_id, info in discovered.items()},
+    }
+
+
+def read_device_state(device_id: str) -> dict[str, Any]:
+    """Read one device's live switch + energy state in a single LAN status read.
+
+    Both the on/off switch and the metered-plug energy values come from the
+    same DPS payload, so this issues one ``status()`` round-trip rather than a
+    separate read per concern.  Returns ``reachable=True`` with whatever fields
+    the device exposes; an offline/timed-out device surfaces as a
+    :class:`TuyaCommandError` so the caller can mark just that card unavailable
+    without failing the whole listing.
+
+    This is the *passive polling* path (issue #537): a device with escalating
+    consecutive failures is skipped here — raising :class:`TuyaBackoffActive`
+    without opening a socket at all — rather than reconnected on every poll
+    tick. ``set_switch``/``set_cover`` never call this backoff check; a
+    user-initiated command always goes out immediately.
+    """
+    remaining = _seconds_until_retry(device_id)
+    if remaining is not None:
+        logger.debug(
+            "Tuya device %s still backed off (%.0fs remaining) — skipping poll", device_id, remaining
+        )
+        raise TuyaBackoffActive(
+            f"Device {device_id} is backed off for {remaining:.0f}s more after repeated failures"
+        )
+
+    metadata = _local_metadata(device_id)
+    switch = _first_mapping(metadata.raw, _SWITCH_CODES)
+    energy = _energy_mappings(metadata.raw)
+    brightness = _first_mapping(metadata.raw, _BRIGHTNESS_CODES)
+
+    try:
+        status = _status(device_id)
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
+    dps = status["dps"]
+
+    cover = _first_mapping(metadata.raw, _COVER_CONTROL_CODES)
+    if cover and cover.dps in dps:
+        type_id = _detect_cover_type(dps[cover.dps])
+        if type_id is not None:
+            _remember_cover_type(device_id, type_id, dps[cover.dps])
+
+    result: dict[str, Any] = {
+        "device_id": device_id,
+        "reachable": True,
+        "switch_on": None,
+        "power_w": None,
+        "current_ma": None,
+        "voltage_v": None,
+        "energy_kwh": None,
+        "brightness_pct": None,
+    }
+    if switch and switch.dps in dps:
+        result["switch_on"] = bool(dps.get(switch.dps))
+    if brightness and brightness.dps in dps:
+        result["brightness_pct"] = raw_to_brightness(dps.get(brightness.dps), brightness)
+    for name, mapping in energy.items():
+        result[name] = _scaled(dps.get(mapping.dps), mapping)
+    logger.debug("Read Tuya state from %s", device_id)  # per-tick noise; see _record_backoff_* for signal
+    return result
+
+
+def set_switch(device_id: str, on: bool) -> dict[str, Any]:
+    """Turn a Tuya plug/light switch on or off via local LAN control.
+
+    Deliberately never checks the passive-poll backoff (issue #537's
+    constraint): a user tapping a switch must go out immediately even if the
+    device is currently backed off. The outcome still updates the shared
+    backoff state either way, so the next background poll benefits from it.
+    """
+    metadata = _local_metadata(device_id)
+    switch = _first_mapping(metadata.raw, _SWITCH_CODES)
+    if not switch:
+        raise TuyaCommandError(f"Device {device_id} has no switch DPS mapping")
+
+    device = _connect(device_id)
+    logger.info(
+        "ℹ️ Setting Tuya switch %s DPS %s (%s) to %s",
+        device_id,
+        switch.dps,
+        switch.code,
+        "ON" if on else "OFF",
+    )
+    try:
+        response = device.set_value(switch.dps, on)
+        _raise_for_tinytuya_error(response, f"Set Tuya switch {device_id}")
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
+    logger.info("✅ Set Tuya switch %s", device_id)
+    return response if isinstance(response, dict) else {"response": response}
+
+
+def set_brightness(device_id: str, pct: int) -> dict[str, Any]:
+    """Set a dimmable Tuya light's brightness (1–100 %) via local LAN control.
+
+    The percentage is mapped onto the device's own raw range from its DPS
+    mapping (issue #870). Only the brightness DPS is written — an off light
+    stays off. Raises :class:`ValueError` for an out-of-range percentage or a
+    device with no brightness DPS (a caller error, not a LAN failure); same
+    backoff-bypass contract as :func:`set_switch`.
+    """
+    if isinstance(pct, bool) or not isinstance(pct, int) or not 1 <= pct <= 100:
+        raise ValueError("brightness must be an integer from 1 to 100")
+    metadata = _local_metadata(device_id)
+    brightness = _first_mapping(metadata.raw, _BRIGHTNESS_CODES)
+    if not brightness:
+        raise ValueError(f"Device {device_id} has no brightness DPS mapping")
+
+    raw = brightness_to_raw(pct, brightness)
+    device = _connect(device_id)
+    logger.info(
+        "ℹ️ Setting Tuya brightness %s DPS %s (%s) to %d%% (raw %d)",
+        device_id, brightness.dps, brightness.code, pct, raw,
+    )
+    try:
+        response = device.set_value(brightness.dps, raw)
+        _raise_for_tinytuya_error(response, f"Set Tuya brightness {device_id}")
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
+    logger.info("✅ Set Tuya brightness %s", device_id)
+    return response if isinstance(response, dict) else {"response": response}
+
+
+def _detect_cover_type(current: Any) -> Optional[int]:
+    """The cover type whose detect set holds ``current``, or None (never a guess)."""
+    if current is None:
+        return None
+    for type_id in _COVER_TYPE_PRIORITY:
+        if current in _COVER_TYPES[type_id]["detect_values"]:
+            return type_id
+    return None
+
+
+def _parse_cover_types(raw: Any) -> dict[str, int]:
+    """Validate a parsed cover-type store body into ``{device_id: type_id}``."""
+    if not isinstance(raw, dict):
+        logger.warning("⚠️ Tuya cover-type store %s is not an object — ignored", _COVER_TYPES_FILE)
+        return {}
+    return {
+        str(device_id): int(type_id)
+        for device_id, type_id in raw.items()
+        if str(type_id).isdigit() and int(type_id) in _COVER_TYPES
+    }
+
+
+def _load_cover_types() -> dict[str, int]:
+    """The persisted ``{device_id: cover type}`` store; empty when absent or unusable.
+
+    Unreadable or malformed content is ignored (logged), never overwritten
+    blind: the blind is simply detected live as before. Only safe for the
+    *read* path — :func:`_remember_cover_type`'s read-modify-write must tell
+    "unreadable" apart from "genuinely empty" instead (see there).
+    """
+    try:
+        raw = _read_store_json(_COVER_TYPES_FILE, {})
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ Tuya cover-type store %s unreadable: %s", _COVER_TYPES_FILE, exc)
+        return {}
+    return _parse_cover_types(raw)
+
+
+def _remember_cover_type(device_id: str, type_id: int, reading: Any) -> None:
+    """Cache this blind's cover type and persist it so a restart keeps it (#965).
+
+    A blind can read ``'3'`` — in no TinyTuya detect set — when a fresh process
+    looks at it, leaving a detection read nothing to match (#965). The type is a
+    fixed property of the hardware: learn it from any status that does show a
+    known value (the passive poll reads one anyway), and keep it across restarts.
+
+    The whole load-modify-save is serialised by ``_cover_types_file_lock``
+    (concurrent blinds learning their type in the same poll must not clobber
+    each other) and skips the persist entirely — keeping only the in-memory
+    cache — when the store exists but can't be read, rather than folding that
+    failure into "empty" and writing it back over every other blind's type.
+    """
+    if _cover_types.get(device_id) == type_id:
+        return
+    _cover_types[device_id] = type_id
+    logger.info("ℹ️ Tuya cover %s is cover type %d (DPS reads %r)", device_id, type_id, reading)
+    with _cover_types_file_lock:
+        try:
+            raw = _read_store_json(_COVER_TYPES_FILE, {})
+        except StoreUnreadableError as exc:
+            logger.warning(
+                "⚠️ Tuya cover-type store %s unreadable — skipping persist for %s "
+                "(kept in memory only): %s",
+                _COVER_TYPES_FILE, device_id, exc,
+            )
+            return
+        stored = _parse_cover_types(raw)
+        if stored.get(device_id) == type_id:
+            return
+        stored[device_id] = type_id
+        try:
+            write_json_atomic(_COVER_TYPES_FILE, stored)
+        except OSError as exc:
+            logger.warning("⚠️ Could not persist Tuya cover type for %s: %s", device_id, exc)
+
+
+def _cover_type(device_id: str, device: tinytuya.Device, dps: str) -> int:
+    """This blind's TinyTuya cover type: cached, else persisted from an earlier
+    process (#965), else detected from one ``status()`` read (#901).
+
+    Raises :class:`TuyaCoverTypeUnknown` (logged) when the control DPS holds
+    no value from any known set — never a guess — and leaves the cache empty
+    so a later command re-reads it.
+    """
+    cached = _cover_types.get(device_id)
+    if cached is not None:
+        return cached
+    persisted = _load_cover_types().get(device_id)
+    if persisted is not None:
+        _cover_types[device_id] = persisted
+        return persisted
+    response = device.status()
+    _raise_for_tinytuya_error(response, f"Read Tuya cover status {device_id}")
+    if not isinstance(response, dict) or not isinstance(response.get("dps"), dict):
+        raise TuyaCommandError(f"Read Tuya cover status {device_id} returned no DPS payload")
+    current = response["dps"].get(dps)
+    type_id = _detect_cover_type(current)
+    if type_id is not None:
+        _remember_cover_type(device_id, type_id, current)
+        return type_id
+    logger.error(
+        "❌ Tuya cover %s: unknown cover type, DPS %s reads %r — nothing written",
+        device_id, dps, current,
+    )
+    raise TuyaCoverTypeUnknown(
+        f"Device {device_id} reports no known cover value set on DPS {dps} ({current!r})"
+    )
+
+
+def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[str, Any]:
+    """Open, close, or stop a Tuya blind via local LAN control.
+
+    Writes the mapped control DPS directly rather than through TinyTuya's
+    ``CoverDevice`` (#899): its ``open_cover``/``close_cover``/``stop_cover``
+    return ``None``, so a blind that never answered was logged as sent and
+    never retried. The value written is the one the blind's own cover type
+    uses (#901, see :func:`_cover_type`) — one ``status()`` read per device
+    per process, then a single control frame per command.
+
+    Same backoff-bypass contract as :func:`set_switch` — never gated by the
+    passive-poll backoff, but its outcome updates the shared state.
+    """
+    metadata = _local_metadata(device_id)
+    control = _first_mapping(metadata.raw, _COVER_CONTROL_CODES)
+    if not control:
+        raise TuyaCommandError(f"Device {device_id} has no cover control DPS mapping")
+
+    device = _connect(device_id)
+    logger.info("ℹ️ Sending Tuya cover action %s to %s", action, device_id)
+    try:
+        cover_type = _cover_type(device_id, device, control.dps)
+    except TuyaCoverTypeUnknown:
+        raise  # the blind answered: not a reachability failure
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    value = _COVER_TYPES[cover_type].get(action)
+    if value is None:
+        raise TuyaCommandError(f"Device {device_id} cover type {cover_type} has no {action} value")
+    logger.info(
+        "ℹ️ Tuya cover %s DPS %s: %s -> %r (type %d)",
+        device_id, control.dps, action, value, cover_type,
+    )
+    try:
+        response = device.set_value(control.dps, value)
+        _raise_for_tinytuya_error(response, f"Set Tuya cover {device_id} {action}")
+    except TuyaCommandError:
+        _record_backoff_failure(device_id)
+        raise
+    _record_backoff_success(device_id)
+    logger.info("✅ Sent Tuya cover action %s to %s", action, device_id)
+    return response if isinstance(response, dict) else {"response": response}

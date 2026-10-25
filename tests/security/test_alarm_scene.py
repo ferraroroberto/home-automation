@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
-import src.alarm_scene as scene
-from src.alarm_scene import (
+import src.security.alarm_scene as scene
+from src.security.alarm_scene import (
     VERDICT_REAL,
     VERDICT_UNAVAILABLE,
     VERDICT_UNCERTAIN,
@@ -11,7 +11,7 @@ from src.alarm_scene import (
     analyze_scene,
     capture_scene,
 )
-from src.alarm_scene_config import ScenePairing
+from src.security.alarm_scene_config import ScenePairing
 
 
 def _capture(camera_id="garden", *, ok=True, baseline=b"BASE") -> SceneCapture:
@@ -103,7 +103,7 @@ def test_capture_scene_drives_preset_then_snapshots(monkeypatch, tmp_path) -> No
     async def fake_snapshot(camera_id, path=None):
         return b"JPEGDATA-" + camera_id.encode()
 
-    import src.camera_client as cc
+    import src.devices.camera_client as cc
 
     monkeypatch.setattr(cc, "goto_preset", fake_goto)
     monkeypatch.setattr(cc, "snapshot", fake_snapshot)
@@ -124,7 +124,7 @@ def test_capture_scene_flags_snapshot_failure(monkeypatch, tmp_path) -> None:
     async def fail_snapshot(camera_id, path=None):
         raise RuntimeError("camera offline")
 
-    import src.camera_client as cc
+    import src.devices.camera_client as cc
 
     monkeypatch.setattr(cc, "snapshot", fail_snapshot)
 

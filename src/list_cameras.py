@@ -16,14 +16,14 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from src.camera_client import (
+from src.devices.camera_client import (
     CameraConfigError,
     CameraInfo,
     close_all,
     fetch_cameras,
     load_cameras,
 )
-from src.camera_display_names import load_camera_display_names
+from src.devices.camera_display_names import load_camera_display_names
 
 
 def _print_camera(cam: CameraInfo, label: str) -> None:

@@ -6,7 +6,7 @@ on Windows (the proactor loop kills its listening socket on any aborted client
 connection). But Windows only implements ``asyncio`` subprocess transports on
 the *proactor* loop — ``asyncio.create_subprocess_exec`` called directly on a
 running selector loop raises a bare ``NotImplementedError``, which is exactly
-what ``src.camera_ffmpeg``'s ``snapshot`` / ``mjpeg_frames`` / ``start_record``
+what ``src.devices.camera_ffmpeg``'s ``snapshot`` / ``mjpeg_frames`` / ``start_record``
 do under the hood. These tests pin the fix (a persistent background-thread
 proactor loop every ffmpeg call is dispatched to via ``_run_on_proactor``),
 not the camera hardware — no RTSP/ONVIF I/O here, just real ``ffmpeg``-free
@@ -20,7 +20,7 @@ import sys
 
 import pytest
 
-from src import camera_ffmpeg as F
+from src.devices import camera_ffmpeg as F
 from src._no_window import NO_WINDOW
 
 _SELECTOR_LOOP_FACTORY = asyncio.SelectorEventLoop if sys.platform == "win32" else asyncio.new_event_loop
@@ -110,7 +110,7 @@ def test_mjpeg_viewer_leaving_does_not_wedge_proactor_loop(monkeypatch) -> None:
     """Closing the live view with a full frame queue must leave the shared
     proactor loop usable (audit #916): the pump's closing sentinel used to be a
     blocking ``Queue.put`` on the loop thread, stalling every later camera call."""
-    from src import camera_client
+    from src.devices import camera_client
 
     async def fake_exec(*_a, **_kw) -> _KillableProc:
         return _KillableProc()

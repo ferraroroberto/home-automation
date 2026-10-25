@@ -2,8 +2,8 @@
 
 The ``_read_json`` / ``_save`` / ``_safe_id`` / ``_clean_time`` / ``_clean_days``
 helpers below were duplicated verbatim across :mod:`src.wake_alarms` and
-:mod:`src.security_schedules` (the read/save pair a third time in
-:mod:`src.hvac_automation`, per its README note that ``wake_alarms`` was
+:mod:`src.security.security_schedules` (the read/save pair a third time in
+:mod:`src.devices.hvac_automation`, per its README note that ``wake_alarms`` was
 "cloned from security_schedules.py's atomic store"). Centralized here;
 callers keep their own dataclass shape and entry-cleaning logic — only the
 read/save mechanics, the list-of-entries load/save pair

@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceAccountStatus, PresenceDiagnosticsCache
-from src.presence_client import PresenceEntity
+from src.presence.presence_client import PresenceEntity
 
 
 def test_presence_route_serializes_find_my_snapshot(
@@ -142,8 +142,8 @@ def test_presence_route_surfaces_per_account_partial_state(
 def test_presence_hidden_and_display_name_persist(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    import src.presence_display_names as pdn
-    import src.presence_hidden as ph
+    import src.presence.presence_display_names as pdn
+    import src.presence.presence_hidden as ph
 
     names = tmp_path / "presence_display_names.json"
     hidden = tmp_path / "presence_hidden.json"

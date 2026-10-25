@@ -34,7 +34,7 @@ Do not commit real light hostnames/IPs, room names, or screenshots containing pr
 
 ## Recommendation
 
-Keep the minimal direct client in `src/elgato_client.py` rather than adding `python-elgato` for now. The required surface is small (`GET`/`PUT /elgato/lights`, optional `GET /elgato/accessory-info`), the app already depends on `aiohttp`, and direct handling lets the UI distinguish color-temperature-capable lights from brightness-only lights. Revisit a wrapper only if future work adds RGB color, scenes, or broader Elgato accessory support.
+Keep the minimal direct client in `src/devices/elgato_client.py` rather than adding `python-elgato` for now. The required surface is small (`GET`/`PUT /elgato/lights`, optional `GET /elgato/accessory-info`), the app already depends on `aiohttp`, and direct handling lets the UI distinguish color-temperature-capable lights from brightness-only lights. Revisit a wrapper only if future work adds RGB color, scenes, or broader Elgato accessory support.
 
 ## Control Center parity investigation
 

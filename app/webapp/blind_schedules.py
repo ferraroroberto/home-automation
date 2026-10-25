@@ -1,7 +1,7 @@
 """Background daily blind schedule evaluator (#871) and the alarm pairing (#875).
 
 Fires each enabled entry of ``config/blind_schedules.json`` once on its day at
-its time through :func:`src.blind_automation.move_blinds`, the same parallel
+its time through :func:`src.devices.blind_automation.move_blinds`, the same parallel
 group move as the Blinds card's All up / All down.
 
 The timing follows the HVAC schedule engine (``app.webapp.automation``): a
@@ -19,7 +19,7 @@ disarm, and it lowers every blind on a full arm or raises them on a daytime
 disarm when the Blinds card's "Follow the automatic alarm" switch is on.
 
 Both automatic paths retry a blind that failed — offline when the move fired —
-in the background through :func:`src.blind_automation.retry_failed_blinds`
+in the background through :func:`src.devices.blind_automation.retry_failed_blinds`
 (#897), so a retry never delays the schedule tick or the alarm path. The event
 record is written once the move has settled, with its attempt count; a blind
 still failing after the last retry sends one Telegram message per move.
@@ -42,7 +42,7 @@ from dotenv import load_dotenv
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop, spawn_background_task
 from src._schedule_store import daily_due
-from src.blind_automation import (
+from src.devices.blind_automation import (
     BlindOutcome,
     BlindRetryReport,
     BlindScheduleEntry,
@@ -58,10 +58,10 @@ from src.blind_automation import (
 )
 from src.location_config import load_location_config
 from src.notify_config import build_alarm_notifier, notify_best_effort
-from src.presence_engine import load_people
-from src.sun_position import sun_position
-from src.tuya_client import list_devices
-from src.tuya_display_names import load_tuya_display_names
+from src.presence.presence_engine import load_people
+from src.energy.sun_position import sun_position
+from src.devices.tuya_client import list_devices
+from src.devices.tuya_display_names import load_tuya_display_names
 
 logger = logging.getLogger(__name__)
 

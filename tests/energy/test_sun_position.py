@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from src.sun_position import solar_declination_deg, sun_position
+from src.energy.sun_position import solar_declination_deg, sun_position
 
 # Kept out of the assertions' way: a couple of real places, chosen only for
 # their latitude sign and magnitude.

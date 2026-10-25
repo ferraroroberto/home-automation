@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 def test_notify_prefs_round_trip_and_configured_flag(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.alarm_notify_prefs as prefs_mod
+    import src.security.alarm_notify_prefs as prefs_mod
 
     store = tmp_path / "alarm_notify_prefs.json"
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", store)
@@ -48,7 +48,7 @@ def test_notify_prefs_round_trip_and_configured_flag(
 def test_notify_prefs_unconfigured_reports_false(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.alarm_notify_prefs as prefs_mod
+    import src.security.alarm_notify_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "p.json")
     monkeypatch.setattr(
@@ -58,13 +58,13 @@ def test_notify_prefs_unconfigured_reports_false(
 
 
 def test_power_notify_prefs_round_trip(client: TestClient, monkeypatch, tmp_path) -> None:
-    import src.power_notify_prefs as prefs_mod
+    import src.energy.power_notify_prefs as prefs_mod
 
     monkeypatch.setattr(prefs_mod, "DEFAULT_PATH", tmp_path / "power_notify_prefs.json")
     monkeypatch.setattr("app.webapp.routers._helpers.is_notify_configured", lambda: True)
 
     # Default: both power toggles on (the auto-shutdown master moved to
-    # src.pc_fleet_prefs — no longer part of this surface).
+    # src.devices.pc_fleet_prefs — no longer part of this surface).
     body = client.get("/api/ups/notify-prefs").json()
     assert body["prefs"] == {
         "power_lost": True,

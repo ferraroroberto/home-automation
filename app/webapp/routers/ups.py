@@ -9,12 +9,12 @@ from fastapi import APIRouter
 
 from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import make_bool_prefs_router
-from src.power_notify_prefs import (
+from src.energy.power_notify_prefs import (
     PowerNotifyPrefs,
     load_power_notify_prefs,
     save_power_notify_prefs,
 )
-from src.ups_client import UpsState, fetch_ups_state
+from src.energy.ups_client import UpsState, fetch_ups_state
 
 router = APIRouter()
 

@@ -22,7 +22,7 @@ def _write_devices(path, payload) -> None:
 def test_backed_off_device_reports_distinct_error(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.tuya_client as tuya_client
+    import src.devices.tuya_client as tuya_client
 
     path = tmp_path / "devices.json"
     _write_devices(
@@ -59,7 +59,7 @@ def test_backed_off_device_reports_distinct_error(
 
 def _stub_devices_file(monkeypatch, tmp_path, rows) -> "object":
     """Point the Tuya client at a throwaway devices.json holding ``rows``."""
-    import src.tuya_client as tuya_client
+    import src.devices.tuya_client as tuya_client
 
     path = tmp_path / "devices.json"
     _write_devices(path, rows)
@@ -72,8 +72,8 @@ def test_pair_captures_a_new_device_and_rescans_the_lan(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
     """The happy path: a plug paired in Smart Life lands on the Plugs card."""
-    import src.tuya_client as tuya_client
-    import src.tuya_cloud as tuya_cloud
+    import src.devices.tuya_client as tuya_client
+    import src.devices.tuya_cloud as tuya_cloud
     from app.webapp.routers import tuya as tuya_router
 
     path = _stub_devices_file(
@@ -122,7 +122,7 @@ def test_pair_still_rescans_when_the_cloud_has_nothing_new(
     A plug that merely took a new DHCP lease must be recoverable here even
     though the cloud reports no new devices (the Refresh button is gone).
     """
-    import src.tuya_cloud as tuya_cloud
+    import src.devices.tuya_cloud as tuya_cloud
     from app.webapp.routers import tuya as tuya_router
 
     _stub_devices_file(monkeypatch, tmp_path, [{"id": "dev-1", "name": "Known", "key": "k1"}])
@@ -148,7 +148,7 @@ def test_pair_survives_a_failed_lan_scan(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
     """A scan failure must not sink a cloud sync that already landed."""
-    import src.tuya_cloud as tuya_cloud
+    import src.devices.tuya_cloud as tuya_cloud
     from app.webapp.routers import tuya as tuya_router
 
     _stub_devices_file(monkeypatch, tmp_path, [{"id": "dev-1", "name": "Known", "key": "k1"}])
@@ -168,7 +168,7 @@ def test_pair_survives_a_failed_lan_scan(
 def test_pair_surfaces_a_cloud_failure_as_actionable_503(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.tuya_cloud as tuya_cloud
+    import src.devices.tuya_cloud as tuya_cloud
 
     _stub_devices_file(monkeypatch, tmp_path, [{"id": "dev-1", "name": "Known", "key": "k1"}])
 
@@ -186,7 +186,7 @@ def test_pair_surfaces_a_cloud_failure_as_actionable_503(
 def test_pair_surfaces_an_unexpected_failure_as_502(
     client: TestClient, monkeypatch, tmp_path
 ) -> None:
-    import src.tuya_cloud as tuya_cloud
+    import src.devices.tuya_cloud as tuya_cloud
 
     _stub_devices_file(monkeypatch, tmp_path, [{"id": "dev-1", "name": "Known", "key": "k1"}])
 
@@ -207,8 +207,8 @@ def test_tuya_route_surfaces_no_ip_identity_and_refresh(
     """No-IP Tuya rows stay visible with stable non-secret identity metadata."""
     import json
 
-    import src.tuya_client as tuya_client
-    from src.tuya_client import TuyaDeviceInfo
+    import src.devices.tuya_client as tuya_client
+    from src.devices.tuya_client import TuyaDeviceInfo
 
     # ``POST /api/tuya/pair`` reads ``devices.json`` off disk (issue #621) —
     # point it at a throwaway file so the test never depends on whether the
@@ -253,7 +253,7 @@ def test_tuya_route_surfaces_no_ip_identity_and_refresh(
         "app.webapp.routers.tuya.rescan_addresses",
         lambda: {"found": 2, "updated": ["plug-noip"], "addresses": {"plug-noip": "192.0.2.7"}},
     )
-    monkeypatch.setattr("src.tuya_cloud._fetch_cloud_rows", lambda entries: [])
+    monkeypatch.setattr("src.devices.tuya_cloud._fetch_cloud_rows", lambda entries: [])
     paired = client.post("/api/tuya/pair")
     assert paired.status_code == 200
     pair = paired.json()["pair"]
@@ -264,8 +264,8 @@ def test_tuya_route_surfaces_no_ip_identity_and_refresh(
 
 def _stub_blinds(monkeypatch: pytest.MonkeyPatch, fail: tuple[str, ...] = ()) -> list:
     """Two fake blinds and a plug; ``set_cover`` records instead of dialing."""
-    import src.blind_automation as blind_automation
-    from src.tuya_client import TuyaCommandError, TuyaDeviceInfo
+    import src.devices.blind_automation as blind_automation
+    from src.devices.tuya_client import TuyaCommandError, TuyaDeviceInfo
 
     infos = [
         TuyaDeviceInfo(device_id="blind-1", name="Blind 1", cover_control_dps="1"),
@@ -360,7 +360,7 @@ def test_manual_single_cover_tap_supersedes_a_pending_retry(
 ) -> None:
     import asyncio
 
-    import src.blind_automation as blind_automation
+    import src.devices.blind_automation as blind_automation
 
     _stub_blinds(monkeypatch, fail=("blind-2",))
     outcomes = asyncio.run(blind_automation.move_blinds("open"))
@@ -447,7 +447,7 @@ def test_brightness_endpoint_writes_and_reads_back(
 def test_brightness_endpoint_maps_errors(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    from src.tuya_client import TuyaCommandError
+    from src.devices.tuya_client import TuyaCommandError
 
     _stub_devices_file(
         monkeypatch, tmp_path,

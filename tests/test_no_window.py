@@ -11,7 +11,7 @@ windowless tray, and both of its own `tailscale` spawns used to omit
 `creationflags` entirely — so each start flashed a console window at whoever was
 at the machine.
 
-Third, `src/camera_ffmpeg.py` (issue #633): its three `ffmpeg` spawns are the
+Third, `src/devices/camera_ffmpeg.py` (issue #633): its three `ffmpeg` spawns are the
 repo's most frequent short-lived children — one per snapshot, one per live-view
 pump, one per recording — and were the last call sites in the repo still missing
 the flag. They go through `asyncio.create_subprocess_exec`, which forwards the
@@ -31,8 +31,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from scripts import gen_tailscale_cert
-from src import camera_client
-from src import camera_ffmpeg
+from src.devices import camera_client
+from src.devices import camera_ffmpeg
 from src._no_window import NO_WINDOW
 
 

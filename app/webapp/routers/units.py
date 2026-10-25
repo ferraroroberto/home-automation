@@ -25,8 +25,8 @@ from app.webapp import automation
 from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import make_display_name_endpoint
 from src._schedule_store import StoreUnreadableError
-from src.display_names import load_display_names, set_display_name
-from src.hvac_automation import (
+from src.devices.display_names import load_display_names, set_display_name
+from src.devices.hvac_automation import (
     MIN_SETTLE_INTERVAL_S,
     BoostCoordinatorConfig,
     ScheduleEntry,
@@ -40,7 +40,7 @@ from src.hvac_automation import (
     set_schedules,
     target_for_mode,
 )
-from src.melcloud_client import (
+from src.devices.melcloud_client import (
     DeviceInfo,
     DeviceNotFoundError,
     MelCloudConfigError,
