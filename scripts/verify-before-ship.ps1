@@ -73,6 +73,8 @@ if (-not (Test-Path $py)) {
     exit 1
 }
 
+. (Join-Path $PSScriptRoot "box_lock_gate.ps1"); Enter-BoxLockGate
+
 # ---------------------------------------------------------- progress log
 # Per-test timings on disk: phase markers from this
 # script, START/DONE/FAILED lines from the pytest plugin tests/_progress_log.py
