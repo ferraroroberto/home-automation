@@ -68,7 +68,7 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from app.webapp import read_snapshot
-from app.webapp.middleware import BearerTokenMiddleware, StreamSafeGZipMiddleware
+from app.webapp.middleware import BearerTokenMiddleware
 from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
 from src.devices.camera_token import verify as _verify_camera_token
 from app.webapp.routers import actions, activity, auth, blind_schedules, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
@@ -88,6 +88,7 @@ from app.webapp.telemetry_sampler import start_telemetry_sampler
 from app.webapp.ha_trace_collector import start_ha_trace_collector
 from app.webapp.searxng_watchdog import start_searxng_watchdog
 from src import telemetry
+from src.compression import StreamSafeGZipMiddleware
 from src.push_notifications import validate_push_config
 from src.runtime_data import runtime_db_path
 from src.usage_log import usage_router
@@ -304,9 +305,12 @@ def create_app() -> FastAPI:
         ),
     )
 
-    app.add_middleware(StreamSafeGZipMiddleware, minimum_size=1000)
-    # Added last, so outermost: it times the whole request, gzip and auth included.
+    # Times the request through auth and the routes; compression sits outside it.
     app.add_middleware(SlowRequestLogMiddleware)
+    # Added last, so outermost: an auth failure or a bodyless response passes
+    # through it unchanged. The camera stream and snapshot are skipped by
+    # content type (multipart/x-mixed-replace, image/jpeg), so no bypass path.
+    app.add_middleware(StreamSafeGZipMiddleware, bypass_paths=())
 
     app.state.webapp_config = webapp_cfg
 

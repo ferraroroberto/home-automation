@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 
 from app.webapp import observability
 from app.webapp.observability import SlowRequestLogMiddleware
+from src.compression import StreamSafeGZipMiddleware
 
 _DELAY_S = 0.1
 
@@ -117,8 +118,11 @@ def test_stream_chunks_pass_through_unbuffered() -> None:
     assert [m.get("body") for m in forwarded[1:]] == [b"frame0", b"frame1", b"frame2"]
 
 
-def test_app_wires_the_middleware_outermost(client: TestClient) -> None:
-    assert client.app.user_middleware[0].cls is SlowRequestLogMiddleware
+def test_app_wires_the_middleware_just_inside_compression(client: TestClient) -> None:
+    # Compression is the outermost layer; the timer wraps auth and the routes.
+    stack = [m.cls for m in client.app.user_middleware]
+    assert stack[0] is StreamSafeGZipMiddleware
+    assert stack[1] is SlowRequestLogMiddleware
     handlers = logging.getLogger("home_automation.slowreq").handlers
     assert any(
         isinstance(h, logging.FileHandler) and Path(h.baseFilename).name == "slow-requests.log"

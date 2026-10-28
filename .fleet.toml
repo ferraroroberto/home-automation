@@ -43,6 +43,7 @@ dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "baac1ed97388a
 conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "baac1ed97388a3545bd1e52544821ec20f1dc77a", dest = "scripts/conventions_ratchet.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/tray/single_instance.py" }
 tray_watchdog = { src = "app/tray/watchdog.py", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/tray/watchdog.py" }
+compression = { src = "src/compression.py", sha = "40fe838efceefbda44cdafe8d01a4ec2c64ba4db", dest = "src/compression.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet.py, which fails on a
