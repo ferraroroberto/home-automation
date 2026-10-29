@@ -25,7 +25,7 @@ The top-level directory map — what each directory *is*. The exhaustive module-
 - **`spike/`** — `streamlit_app.py`, the independent Streamlit POC spike.
 - **`config/`** — committed `*.sample.json` templates; the real per-feature JSON stores are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `webapp.log` — the rotating process log that survives the tray's DEVNULL launch, `slow-requests.log` — one line per over-budget request, the SQLite stores); gitignored.
-- **`.env`** — MELCloud + FusionSolar credentials (gitignored; copy from `.env.example`).
+- **`.env`** — every integration's credentials (gitignored; copy from `.env.example`, which lists one key block per integration — MELCloud, FusionSolar, RISCO, Tuya, Huawei Modbus, network router/AP, iCloud presence, Home Assistant, Google Calendar, SearXNG, Elgato, Athom, and more). Each block is optional: the feature it backs degrades gracefully when its keys are absent, per [Feature reference](#feature-reference).
 
 ### Background polling (what fetches when)
 
@@ -66,8 +66,14 @@ The virtual environment lives at `.venv`. Install dependencies:
 Copy-Item .env.example .env      # Windows
 ```
 
-Then edit `.env` and set `MELCLOUD_EMAIL` and `MELCLOUD_PASSWORD` (your
-MELCloud Home login).
+`.env.example` lists every integration's keys — one block per integration
+(RISCO, Tuya, Huawei Modbus, network router/AP, iCloud presence, Home
+Assistant, Google Calendar, SearXNG, Elgato, Athom, and more) — and each is
+optional: the feature it backs degrades gracefully when its keys are absent.
+At minimum, set `MELCLOUD_EMAIL` and `MELCLOUD_PASSWORD` (your MELCloud Home
+login) to run the core HVAC product; fill in the other blocks only for the
+features you actually use, per [Feature reference](#feature-reference) for
+what each group enables.
 
 ## Run the webapp (the product)
 
