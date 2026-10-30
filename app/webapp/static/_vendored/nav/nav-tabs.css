@@ -335,6 +335,25 @@
     body::after { display: none; }
   }
 
+  /* Installed iOS app: the web view starts 59px short of the screen and, once
+     the page can scroll, grows to full height 1px at a time over ~3s, so a
+     bottom anchor slides down with it. 100lvh is the final height from the
+     first frame, so the bar and its fade anchor from the stable top edge.
+     Standalone only: in a browser tab lvh would hide the bar under the
+     toolbar. vh first: on iOS it equals the large viewport too. */
+  @media (display-mode: standalone) {
+    .tabs {
+      top: calc(100vh - var(--bottom-tabs-margin, 21px) - var(--bottom-tabs-height, 61px));
+      top: calc(100lvh - var(--bottom-tabs-margin, 21px) - var(--bottom-tabs-height, 61px));
+      bottom: auto;
+    }
+    body::before {
+      top: calc(100vh - 16px - var(--bottom-tabs-height, 61px) - var(--bottom-tabs-margin, 21px));
+      top: calc(100lvh - 16px - var(--bottom-tabs-height, 61px) - var(--bottom-tabs-margin, 21px));
+      bottom: auto;
+    }
+  }
+
   /* One capsule behind the tabs that springs to the tapped tab: the 1.35
      control point overshoots and settles. Its first placement (load, resize,
      rotate) jumps via .no-anim, so launch stays instant. */

@@ -100,3 +100,46 @@ def test_scroll_edge_fades_top_and_bottom(
         assert "linear-gradient" in fade["image"], fade
         assert fade["pointerEvents"] == "none", fade
         assert fade["z"] < fade["barZ"], fade
+
+
+@pytest.mark.chromium_only
+def test_installed_app_anchors_the_bar_from_the_large_viewport_top(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """In the installed app iOS grows the viewport after launch, so the bar is
+    placed from the top with 100lvh (its final position on frame one) rather
+    than from the moving bottom edge. No engine here emulates the standalone
+    display mode, so the nav's own standalone rules are applied unconditionally."""
+    mock_api(sample_units)
+    mock_energy()
+    boot_home(page, base_url)
+
+    m = page.evaluate("""() => {
+      const found = [];
+      const walk = rules => {
+        for (const r of rules) {
+          if (r.media && r.conditionText.includes('display-mode: standalone')) found.push(r);
+          else if (r.cssRules) walk(r.cssRules);
+        }
+      };
+      for (const sheet of document.styleSheets) {
+        if (sheet.href && sheet.href.includes('nav-tabs.css')) walk(sheet.cssRules);
+      }
+      // A constructed sheet, not an inline <style>, which the page's CSP refuses.
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(found.map(r => Array.from(r.cssRules, c => c.cssText).join(' ')).join(' '));
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      // Grow the bar: a top-anchored bar keeps its top edge, a bottom-anchored
+      // one keeps its bottom edge.
+      const bar = document.querySelector('.tabs');
+      const before = bar.getBoundingClientRect();
+      bar.style.height = (before.height + 40) + 'px';
+      const after = bar.getBoundingClientRect();
+      bar.style.height = '';
+      return { blocks: found.length, topBefore: before.top, topAfter: after.top, lvh: innerHeight };
+    }""")
+    assert m["blocks"] == 1, m
+    assert m["topAfter"] == m["topBefore"], m
+    # 21px margin + 61px bar above the large-viewport bottom.
+    assert m["topBefore"] == m["lvh"] - 82, m
