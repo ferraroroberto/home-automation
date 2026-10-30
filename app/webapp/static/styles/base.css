@@ -117,8 +117,10 @@
   --bottom-tabs-gap: 4px;
   --bottom-tabs-icon: 20px;
   --bottom-tabs-label: 11px;
-  --tabbar-bg: rgba(255, 255, 255, 0.85);
-  --tabbar-border: rgba(31, 35, 40, 0.12);
+  --tabbar-bg: rgba(255, 255, 255, 0.62);
+  --tabbar-border: rgba(0, 0, 0, 0.08);
+  --tabbar-pill: rgba(0, 0, 0, 0.07);
+  --tabbar-shadow: 0 8px 28px -6px rgba(20, 24, 40, 0.2), 0 1px 4px rgba(20, 24, 40, 0.06);
   color-scheme: light dark;
 }
 
@@ -154,8 +156,10 @@
   --close-bg: transparent;
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
-  --tabbar-bg: rgba(22, 27, 34, 0.86);
-  --tabbar-border: rgba(255, 255, 255, 0.13);
+  --tabbar-bg: rgba(42, 45, 52, 0.55);
+  --tabbar-border: rgba(255, 255, 255, 0.14);
+  --tabbar-pill: rgba(255, 255, 255, 0.14);
+  --tabbar-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6);
 }
 
 /* P3 wide-gamut twins — on a wide-gamut display the saturated tokens render the
@@ -229,9 +233,7 @@
 /* Reduced motion: honor the OS-level "reduce motion" preference
    by collapsing every authored transition/animation to near-instant. Duration
    is 0.01ms rather than 0 so a transitionend/animationend listener still
-   fires (some engines silently skip the event at 0s). Animation delays are
-   left untouched — e.g. the iOS cold-launch .tabs nav-boot-reveal delay below
-   is a functional wait for the viewport to settle, not decorative motion. */
+   fires (some engines silently skip the event at 0s). */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -253,12 +255,7 @@ html, body {
   /* No pinch / double-tap zoom — fixed-scale app, paired with the
      maximum-scale=1, user-scalable=no viewport meta. */
   touch-action: manipulation;
-  /* Kill rubber-band overscroll drag at the document edges so the floating
-     bottom-tab bar can't be tugged loose during momentum scroll;
-     pairs with the VisualViewport pinning in tabs.js. Not honored by the
-     standalone-PWA WKWebView *document* scroller, though — the installed app
-     additionally moves scrolling off the document entirely (the standalone
-     shell below). */
+  /* Kill rubber-band overscroll drag at the document edges. */
   overscroll-behavior: none;
 }
 
@@ -496,8 +493,8 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
    Nav geometry, the desktop segmented control, and the mobile floating pill
    are owned by the vendored _vendored/nav/nav-tabs.css — see its
    <link> in index.html, ordered before this stylesheet so overrides below win
-   the cascade. `.tab.active`, sizing, the standalone fixed-inset .app shell,
-   and the visualViewport pin all live there; do not re-add them here.
+   the cascade. `.tab.active`, sizing and the sliding capsule all live there;
+   do not re-add them here.
 
    The former desktop-icon override is gone: the
    vendored file now shows .tab-icon at every width itself, with `.tab` as a

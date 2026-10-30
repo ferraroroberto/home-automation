@@ -100,12 +100,6 @@ export function setNavDebugEnabled(next) {
   if (enabled) record('debug-on');
 }
 
-// Records a transform change or other nav-pin event; called from tabs.js so
-// the log captures *why* the bar moved, not just periodic snapshots.
-export function recordNavEvent(event) {
-  record(event);
-}
-
 export function installNavDebug() {
   try { enabled = localStorage.getItem(NAV_DEBUG_KEY) === '1'; } catch (_) { enabled = false; }
 
@@ -127,9 +121,6 @@ export function installNavDebug() {
   vhProbes = { lvh: mkVhProbe('lvh'), svh: mkVhProbe('svh'), dvh: mkVhProbe('dvh') };
 
   if (enabled) record('debug-on (restored on load)');
-
-  document.addEventListener('scroll-lock:engaged', function () { record('scroll-lock:engaged'); });
-  document.addEventListener('scroll-lock:released', function () { record('scroll-lock:released'); });
 
   // Keyboard show/hide is the user's own lead suspect — an editable
   // field grabbing focus inside a dialog is exactly what brings the iOS
@@ -159,7 +150,7 @@ export function installNavDebug() {
   // This turned out to be the key sample: it caught `navRect` shifting in
   // lockstep with `visualViewport.offsetTop` during ordinary momentum
   // scrolling (no dialog/keyboard involved), which is what actually explains
-  // the drift — see the postmortem in tabs.js's `pinNavToVisualViewport`.
+  // the drift (the bar is now bottom-anchored, so this sample is a regression probe).
   let scrollScheduled = false;
   window.addEventListener('scroll', function () {
     if (scrollScheduled) return;
