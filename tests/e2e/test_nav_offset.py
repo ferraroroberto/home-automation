@@ -93,8 +93,8 @@ def test_scroll_edge_fades_top_and_bottom(
     top = page.evaluate(_FADE_JS, "::after")
     assert top["position"] == "fixed", top
     assert top["top"] == "0px", top
-    # The eased tail under the status bar, inside the 24px .app top padding.
-    assert top["height"] == 24, top
+    # The eased tail under the status bar, inside the 8px .app top padding.
+    assert top["height"] == 8, top
 
     for fade in (bottom, top):
         assert "linear-gradient" in fade["image"], fade
