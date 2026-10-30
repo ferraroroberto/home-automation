@@ -93,8 +93,8 @@ def test_scroll_edge_fades_top_and_bottom(
     top = page.evaluate(_FADE_JS, "::after")
     assert top["position"] == "fixed", top
     assert top["top"] == "0px", top
-    # The eased tail under the status bar, inside the 12px .app top padding.
-    assert top["height"] == 12, top
+    # The eased tail under the status bar, inside the 18px .app top padding.
+    assert top["height"] == 18, top
 
     for fade in (bottom, top):
         assert "linear-gradient" in fade["image"], fade
@@ -143,3 +143,23 @@ def test_installed_app_anchors_the_bar_from_the_large_viewport_top(
     assert m["topAfter"] == m["topBefore"], m
     # 21px margin + 61px bar above the large-viewport bottom.
     assert m["topBefore"] == m["lvh"] - 82, m
+
+
+def test_document_stays_scrollable_under_an_open_dialog(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """scroll-lock.js pins the body while a dialog is open; if that left the
+    document unscrollable, an installed iOS app would shrink its viewport and
+    re-grow it over ~3s on close, revealing the bar bit by bit."""
+    mock_api(sample_units)
+    mock_energy()
+    boot_home(page, base_url)
+    page.locator(".tabs .tab[data-tab='ac']").click()
+    page.locator('#acUnits [data-unit-id="unit-1"] .action-row-main').click()
+    page.wait_for_function("() => document.body.style.position === 'fixed'")
+
+    overflow = page.evaluate(
+        "() => document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight"
+    )
+    assert overflow >= 1, overflow

@@ -228,20 +228,23 @@
    bottom-anchored fixed bar is in place from frame one. The bar's position
    never derives from the viewport height and nothing on it animates on load. */
 @media (pointer: coarse) and (max-width: 520px) {
-  .app {
-    /* Every tab one pixel taller than the viewport: an installed iOS app
-       anchors fixed elements to the physical screen bottom only while the
-       document is scrollable, so on a tab shorter than the screen the bar
-       otherwise floats up over a band of page background. vh first as the
-       no-dvh fallback. */
+  /* The document is always one pixel taller than the viewport: an installed
+     iOS app shrinks its viewport 59px whenever the document can't scroll and
+     grows it back over ~3s, painting nothing below the moving edge. On the
+     root, not .app, so it still holds while scroll-lock.js pins the body
+     under an open dialog. vh first as the no-dvh fallback. */
+  html {
     min-height: calc(100vh + 1px);
     min-height: calc(100dvh + 1px);
+  }
+
+  .app {
     /* Bottom reserve = bar + its margin above and below + the gap, so the
        last row scrolls clear of the fixed bar. Keep the bar a body-level
        sibling of .app: iOS captures fixed descendants of scrollers. */
     /* Top = the safe area plus the top fade's height, so the first card at
        scroll-top starts where the fade ends and is never dimmed. */
-    padding: calc(env(safe-area-inset-top, 0px) + 12px) var(--gap) calc(
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) var(--gap) calc(
       env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin, 21px) +
       var(--bottom-tabs-height, 61px) + var(--bottom-tabs-margin, 21px) + var(--gap)
     );
@@ -312,7 +315,7 @@
   /* Top fade, the same look as the shared nav under a translucent status
      bar: there the band is solid behind the clock and eases out below it.
      The `default` status bar is opaque in the page colour (theme-color), so
-     it is the solid part and only the eased tail is drawn, 12px tall, inside
+     it is the solid part and only the eased tail is drawn, 18px tall, inside
      the .app top padding. */
   body::after {
     content: '';
@@ -320,13 +323,13 @@
     top: 0;
     left: 0;
     right: 0;
-    height: calc(env(safe-area-inset-top, 0px) + 12px);
+    height: calc(env(safe-area-inset-top, 0px) + 18px);
     z-index: 110;
     pointer-events: none;
     background: linear-gradient(
       var(--bg) env(safe-area-inset-top, 0px),
-      color-mix(in srgb, var(--bg) 78%, transparent) calc(env(safe-area-inset-top, 0px) + 4px),
-      color-mix(in srgb, var(--bg) 35%, transparent) calc(env(safe-area-inset-top, 0px) + 8px),
+      color-mix(in srgb, var(--bg) 78%, transparent) calc(env(safe-area-inset-top, 0px) + 6px),
+      color-mix(in srgb, var(--bg) 35%, transparent) calc(env(safe-area-inset-top, 0px) + 12px),
       transparent
     );
   }
