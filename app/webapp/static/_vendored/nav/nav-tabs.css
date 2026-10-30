@@ -244,7 +244,7 @@
        sibling of .app: iOS captures fixed descendants of scrollers. */
     /* Top = the safe area plus the top fade's height, so the first card at
        scroll-top starts where the fade ends and is never dimmed. */
-    padding: calc(env(safe-area-inset-top, 0px) + 18px) var(--gap) calc(
+    padding: calc(env(safe-area-inset-top, 0px) + 24px) var(--gap) calc(
       env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin, 21px) +
       var(--bottom-tabs-height, 61px) + var(--bottom-tabs-margin, 21px) + var(--gap)
     );
@@ -315,7 +315,7 @@
   /* Top fade, the same look as the shared nav under a translucent status
      bar: there the band is solid behind the clock and eases out below it.
      The `default` status bar is opaque in the page colour (theme-color), so
-     it is the solid part and only the eased tail is drawn, 18px tall, inside
+     it is the solid part and only the eased tail is drawn, 24px tall, inside
      the .app top padding. */
   body::after {
     content: '';
@@ -323,13 +323,13 @@
     top: 0;
     left: 0;
     right: 0;
-    height: calc(env(safe-area-inset-top, 0px) + 18px);
+    height: calc(env(safe-area-inset-top, 0px) + 24px);
     z-index: 110;
     pointer-events: none;
     background: linear-gradient(
       var(--bg) env(safe-area-inset-top, 0px),
-      color-mix(in srgb, var(--bg) 78%, transparent) calc(env(safe-area-inset-top, 0px) + 6px),
-      color-mix(in srgb, var(--bg) 35%, transparent) calc(env(safe-area-inset-top, 0px) + 12px),
+      color-mix(in srgb, var(--bg) 78%, transparent) calc(env(safe-area-inset-top, 0px) + 8px),
+      color-mix(in srgb, var(--bg) 35%, transparent) calc(env(safe-area-inset-top, 0px) + 16px),
       transparent
     );
   }
