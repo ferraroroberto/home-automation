@@ -1,0 +1,94 @@
+"""Floating bottom-tab bar geometry per tab on a 390x844 phone.
+
+An installed iOS app anchors `position: fixed` to the physical screen bottom
+only while the document is scrollable, so a tab shorter than the screen left
+the bar floating higher than on Home. Desktop engines don't reproduce that
+anchoring, so beyond the bar's measured offset this pins the mechanism that
+prevents it: every tab's document scrolls by at least 1px. It also pins the
+scroll-edge fade band under the bar. Runs on Chromium and WebKit.
+"""
+
+from __future__ import annotations
+
+from typing import Callable, Dict, List
+
+import pytest
+from playwright.sync_api import Page
+
+from tests.e2e._app import boot_home
+
+_TABS = ("home", "ac", "energy", "iot", "security")
+
+_MEASURE_JS = """() => {
+  const bar = document.querySelector('.tabs').getBoundingClientRect();
+  const root = document.scrollingElement;
+  return {
+    pill: matchMedia('(pointer: coarse) and (max-width: 520px)').matches,
+    barBottomOffset: window.innerHeight - bar.bottom,
+    overflow: root.scrollHeight - root.clientHeight,
+  };
+}"""
+
+_FADE_JS = """() => {
+  const s = getComputedStyle(document.body, '::before');
+  const bar = getComputedStyle(document.querySelector('.tabs'));
+  return {
+    position: s.position, bottom: s.bottom, height: parseFloat(s.height),
+    image: s.backgroundImage, pointerEvents: s.pointerEvents,
+    z: Number(s.zIndex), barZ: Number(bar.zIndex),
+  };
+}"""
+
+
+@pytest.fixture
+def browser_context_args(browser_context_args: dict) -> dict:
+    # A phone with a coarse pointer on both engines, so the floating bar applies.
+    return {
+        **browser_context_args,
+        "viewport": {"width": 390, "height": 844},
+        "screen": {"width": 390, "height": 844},
+        "device_scale_factor": 3,
+        "is_mobile": True,
+        "has_touch": True,
+    }
+
+
+def test_bar_sits_at_the_same_offset_on_every_tab(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    boot_home(page, base_url)
+
+    offsets: Dict[str, float] = {}
+    for tab in _TABS:
+        page.locator(f".tabs .tab[data-tab='{tab}']").click()
+        page.wait_for_selector(f".tabs .tab[data-tab='{tab}'].active")
+        m = page.evaluate(_MEASURE_JS)
+        assert m["pill"], m
+        # The scrollable document is what keeps iOS anchoring the bar to the
+        # screen bottom on a short tab.
+        assert m["overflow"] >= 1, (tab, m)
+        offsets[tab] = round(m["barBottomOffset"], 1)
+
+    assert offsets["home"] == 21, offsets
+    assert set(offsets.values()) == {offsets["home"]}, offsets
+
+
+def test_scroll_edge_fade_sits_under_the_bar(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    boot_home(page, base_url)
+
+    fade = page.evaluate(_FADE_JS)
+    assert fade["position"] == "fixed", fade
+    assert fade["bottom"] == "0px", fade
+    # 32px lead-in above the bar + the 61px bar + its 21px bottom margin.
+    assert fade["height"] == 114, fade
+    assert "linear-gradient" in fade["image"], fade
+    assert fade["pointerEvents"] == "none", fade
+    assert fade["z"] < fade["barZ"], fade
