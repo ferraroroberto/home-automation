@@ -198,10 +198,10 @@ def test_app_padding_owned_by_vendored_nav_on_mobile(
         " top: parseFloat(s.paddingTop), bottom: parseFloat(s.paddingBottom) }; }"
     )
     if metrics["mobilePill"]:
-        # Top is the safe-area inset plus the 8px top scroll fade, so the
+        # Top is the safe-area inset plus the 4px top scroll fade, so the
         # first card starts where the fade ends; env(safe-area-inset-*) is 0
         # under emulation. Bottom keeps its margin+bar+margin+gap (~115px) floor.
-        assert metrics["top"] == 8, metrics
+        assert metrics["top"] == 4, metrics
         assert metrics["bottom"] >= 100, metrics
     else:
         # Desktop (below the 1100px rail breakpoint) keeps the styles/base.css
