@@ -225,10 +225,17 @@
 
    Instant on the first frame: the page head uses the `default` status-bar
    style, so an installed iOS app starts with its final viewport and a plain
-   bottom-anchored fixed bar is in place from frame one. Nothing here derives
-   from the viewport height and nothing on the bar animates on load. */
+   bottom-anchored fixed bar is in place from frame one. The bar's position
+   never derives from the viewport height and nothing on it animates on load. */
 @media (pointer: coarse) and (max-width: 520px) {
   .app {
+    /* Every tab one pixel taller than the viewport: an installed iOS app
+       anchors fixed elements to the physical screen bottom only while the
+       document is scrollable, so on a tab shorter than the screen the bar
+       otherwise floats up over a band of page background. vh first as the
+       no-dvh fallback. */
+    min-height: calc(100vh + 1px);
+    min-height: calc(100dvh + 1px);
     /* Bottom reserve = bar + its margin above and below + the gap, so the
        last row scrolls clear of the fixed bar. Keep the bar a body-level
        sibling of .app: iOS captures fixed descendants of scrollers. */
@@ -282,6 +289,27 @@
     content: '';
     position: absolute;
     inset: 0;
+  }
+
+  /* Scroll-edge fade under the bar: an inert band anchored to the screen
+     bottom like the bar itself, transparent 32px above the bar's top edge and
+     the page background from its midline down, so rows dim into the bar
+     instead of showing through the glass hard-edged. Above .app, below the
+     bar's 120; pointer-events: none so taps reach the row beneath. No top
+     band: the `default` status bar is opaque, so nothing scrolls under it. */
+  body::before {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(32px + var(--bottom-tabs-height, 61px) + var(--bottom-tabs-margin, 21px));
+    z-index: 110;
+    pointer-events: none;
+    background: linear-gradient(transparent, var(--bg) calc(32px + var(--bottom-tabs-height, 61px) / 2));
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    body::before { display: none; }
   }
 
   /* One capsule behind the tabs that springs to the tapped tab: the 1.35
