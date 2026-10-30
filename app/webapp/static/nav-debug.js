@@ -122,6 +122,24 @@ export function installNavDebug() {
 
   if (enabled) record('debug-on (restored on load)');
 
+  // Tab switch: a short tab changes whether the document can scroll, which is
+  // what moves the fixed bar's anchor. Sampled after layout settles, and again
+  // once any viewport change has finished.
+  document.addEventListener('click', function (e) {
+    const tab = e.target && e.target.closest ? e.target.closest('.tabs .tab') : null;
+    if (!tab) return;
+    const name = 'tab:' + (tab.dataset.tab || '?');
+    requestAnimationFrame(function () { requestAnimationFrame(function () { record(name); }); });
+    setTimeout(function () { record(name + ' +600ms'); }, 600);
+  });
+
+  // End of a touch: an overscroll at the document edge can move the bar
+  // without firing a scroll event.
+  document.addEventListener('touchend', function () {
+    requestAnimationFrame(function () { record('touchend'); });
+    setTimeout(function () { record('touchend +400ms'); }, 400);
+  }, { passive: true });
+
   // Keyboard show/hide is the user's own lead suspect — an editable
   // field grabbing focus inside a dialog is exactly what brings the iOS
   // keyboard up and shrinks the visual viewport far more than a toolbar ever

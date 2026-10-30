@@ -198,11 +198,10 @@ def test_app_padding_owned_by_vendored_nav_on_mobile(
         " top: parseFloat(s.paddingTop), bottom: parseFloat(s.paddingBottom) }; }"
     )
     if metrics["mobilePill"]:
-        # #288 (re-vendored home-automation#748): top is the safe-area inset
-        # alone now, no added --gap floor, so the first card sits directly
-        # under the status bar; env(safe-area-inset-*) is 0 under emulation.
-        # Bottom keeps its margin+bar+margin+gap (~115px) floor.
-        assert metrics["top"] == 0, metrics
+        # Top is the safe-area inset plus the 24px top scroll fade, so the
+        # first card starts where the fade ends; env(safe-area-inset-*) is 0
+        # under emulation. Bottom keeps its margin+bar+margin+gap (~115px) floor.
+        assert metrics["top"] == 24, metrics
         assert metrics["bottom"] >= 100, metrics
     else:
         # Desktop (below the 1100px rail breakpoint) keeps the styles/base.css

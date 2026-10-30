@@ -5,7 +5,7 @@ only while the document is scrollable, so a tab shorter than the screen left
 the bar floating higher than on Home. Desktop engines don't reproduce that
 anchoring, so beyond the bar's measured offset this pins the mechanism that
 prevents it: every tab's document scrolls by at least 1px. It also pins the
-scroll-edge fade band under the bar. Runs on Chromium and WebKit.
+scroll-edge fade bands at the top and under the bar. Runs on Chromium and WebKit.
 """
 
 from __future__ import annotations
@@ -29,11 +29,11 @@ _MEASURE_JS = """() => {
   };
 }"""
 
-_FADE_JS = """() => {
-  const s = getComputedStyle(document.body, '::before');
+_FADE_JS = """pseudo => {
+  const s = getComputedStyle(document.body, pseudo);
   const bar = getComputedStyle(document.querySelector('.tabs'));
   return {
-    position: s.position, bottom: s.bottom, height: parseFloat(s.height),
+    position: s.position, top: s.top, bottom: s.bottom, height: parseFloat(s.height),
     image: s.backgroundImage, pointerEvents: s.pointerEvents,
     z: Number(s.zIndex), barZ: Number(bar.zIndex),
   };
@@ -76,7 +76,7 @@ def test_bar_sits_at_the_same_offset_on_every_tab(
     assert set(offsets.values()) == {offsets["home"]}, offsets
 
 
-def test_scroll_edge_fade_sits_under_the_bar(
+def test_scroll_edge_fades_top_and_bottom(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -84,11 +84,19 @@ def test_scroll_edge_fade_sits_under_the_bar(
     mock_energy()
     boot_home(page, base_url)
 
-    fade = page.evaluate(_FADE_JS)
-    assert fade["position"] == "fixed", fade
-    assert fade["bottom"] == "0px", fade
+    bottom = page.evaluate(_FADE_JS, "::before")
+    assert bottom["position"] == "fixed", bottom
+    assert bottom["bottom"] == "0px", bottom
     # 32px lead-in above the bar + the 61px bar + its 21px bottom margin.
-    assert fade["height"] == 114, fade
-    assert "linear-gradient" in fade["image"], fade
-    assert fade["pointerEvents"] == "none", fade
-    assert fade["z"] < fade["barZ"], fade
+    assert bottom["height"] == 114, bottom
+
+    top = page.evaluate(_FADE_JS, "::after")
+    assert top["position"] == "fixed", top
+    assert top["top"] == "0px", top
+    # The eased tail under the status bar, inside the 24px .app top padding.
+    assert top["height"] == 24, top
+
+    for fade in (bottom, top):
+        assert "linear-gradient" in fade["image"], fade
+        assert fade["pointerEvents"] == "none", fade
+        assert fade["z"] < fade["barZ"], fade
