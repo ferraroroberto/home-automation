@@ -23,11 +23,6 @@ would make an outage worse, not shorter. It also remains the only source for
 :func:`fetch_energy_day` (the registers are instantaneous, with no history) and
 for today's cumulative kWh counters.
 
-(This section previously recorded that the inverter exposed no usable Modbus at
-all — TCP 502 refused on both the LAN address and its own access point, port
-6607 answering nothing because it is TLS-wrapped on this generation. That was
-true, and verified to the wire protocol, until the dongle existed.)
-
 Sign convention
 ---------------
 FusionSolar reports a single signed ``meterActivePower`` rather than separate

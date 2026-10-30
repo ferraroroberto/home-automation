@@ -28,19 +28,14 @@ code {
   border-radius: 6px;
 }
 
-/* One thin "showing older data" line for every tab — this used to
-   be six per-tab classes, four of them byte-identical. Only the two genuinely
-   different margins survive, as the modifiers below. Built by view-state.js's
-   staleNoteEl().
+/* One thin "showing older data" line, shared by every tab and built by
+   view-state.js's staleNoteEl(). Only the two genuinely different margins get
+   their own modifier, below.
 
-   Position matters: the element also carries `muted small`, and `.muted` above
-   is the same specificity, so this rule has to sit AFTER it or the attention
-   colour loses. All six old rules declared that colour and five of them lost it
-   exactly this way — only .network-stale-note happened to be written below
-   .muted in the file, so only the Network tab rendered the amber the other five
-   also asked for. Collapsing them settles it on the declared intent rather than
-   on line number, which does make those five amber where they used to render
-   muted. */
+   Position matters: the element also carries `muted small`, and `.muted`
+   above is the same specificity, so this rule must sit AFTER it — otherwise
+   `.muted`'s colour wins over the attention colour regardless of which tab
+   the note belongs to. */
 .stale-note { margin: 0 4px; color: var(--attention); }
 /* The two tabs whose note sits inside a card body rather than above one, so it
    needs top spacing instead of side spacing. Kept here rather than in their own

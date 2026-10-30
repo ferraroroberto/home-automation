@@ -11,14 +11,12 @@ selection + PIN login (``_SiteLoginParser``, ``_webui_login``), the arm/disarm
 command path (``_webui_arm_disarm``), and a best-effort read of the panel's raw
 state flags (``_webui_state_flags``).
 
-Extracted verbatim from ``risco_client.py`` (issue #328) to keep this brittle,
-screen-scraped path visually separate from the typed pyrisco Cloud fetcher —
-this is the path that was the source of the false-intrusion bug fixed in #307
-(a poll where the scrape comes back unreadable must read as *unknown*, not
-*cleared*). That interpretation lives in ``risco_client.py`` (``_has_ongoing_alarm``
-/ ``_state_from_alarm``), which merges this module's ``webui_flags`` dict with
-the pyrisco status — only the HTTP/scraping mechanics moved here, not the
-merge logic. This was a pure code move: no behavior changed.
+This module owns only the HTTP/scraping mechanics, kept visually separate from
+the typed pyrisco Cloud fetcher because the path is brittle and screen-scraped.
+A poll where the scrape comes back unreadable must read as *unknown*, not
+*cleared* — that interpretation lives in ``risco_client.py``
+(``_has_ongoing_alarm`` / ``_state_from_alarm``), which merges this module's
+``webui_flags`` dict with the pyrisco status; the merge logic never lives here.
 
 ``risco_client.py`` imports ``RiscoConfigError``, ``RiscoCommandError``,
 ``_load_credentials``, ``_webui_arm_disarm``, and ``_webui_state_flags`` from

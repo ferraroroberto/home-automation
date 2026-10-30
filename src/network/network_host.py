@@ -1,6 +1,6 @@
 r"""
-Host-side network probes — internet health + Wi-Fi diagnostics (issue #197 split).
-================================================================================
+Host-side network probes — internet health + Wi-Fi diagnostics.
+=================================================================
 The third source feeding :class:`NetworkState` (alongside the NETGEAR AP in
 ``network_ap`` and the ZTE router in ``network_router``): everything measured on
 the server PC itself, independent of either device's API.
@@ -11,8 +11,8 @@ the server PC itself, independent of either device's API.
   (Windows only): visible BSSIDs, the connected radio, and a channel-cleanliness
   scorer that recommends least-crowded channels.
 
-Extracted verbatim from ``network_client``; the orchestrator imports
-``fetch_internet_health`` / ``fetch_wifi_diagnostics`` from here.
+This module owns ``fetch_internet_health`` / ``fetch_wifi_diagnostics``; the
+orchestrator imports both from here.
 """
 
 from __future__ import annotations

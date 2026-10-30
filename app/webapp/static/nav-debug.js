@@ -1,10 +1,9 @@
 /* Persistent on-device diagnostic for the iOS modal/nav-pin bugs.
  *
- * Superseded two earlier attempts: a throwaway `?navdebug=1` query-param
- * overlay lost its flag the moment the page was "Added to Home Screen", and
- * the first on-screen panel that replaced it grew tall enough during a real
- * test session to cover the whole viewport and block interaction. This
- * version instead:
+ * A query-param overlay or an on-screen panel both lose the plot on a real
+ * iOS device: a `?navdebug=1` flag doesn't survive "Added to Home Screen",
+ * and an on-screen panel can grow tall enough during a real test session to
+ * cover the whole viewport and block interaction. This diagnostic instead:
  *   - toggles via a switch in Settings and
  *     persists the on/off state to localStorage, exactly like the theme and
  *     tab selection, so it survives a PWA relaunch from the home screen.

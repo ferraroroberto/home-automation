@@ -16,12 +16,10 @@ This module is that helper. Import it and pass the constant straight through::
 
 ``NO_WINDOW`` is ``0`` off Windows, which ``subprocess`` accepts everywhere
 (only a *non-zero* ``creationflags`` is rejected on POSIX), so call sites need
-no platform branch at all. Before issue #572 the same flag was re-derived in
-three incompatible spellings across eight modules — a module-level ternary, an
-inline ``kwargs[...] = ...`` under a ``sys.platform`` guard, and a
-``getattr(subprocess, ...)`` fallback — which is how ``scripts/gen_tailscale_cert.py``
-came to be missed entirely. Same "one home so it can't drift" role as
-``src/_mac.py`` and ``src/_atomic_json.py``.
+no platform branch at all. One module owning the constant is what keeps every
+call site's spelling identical instead of letting the ternary re-derive
+independently per call site, which is how a spawn goes unflagged. Same "one
+home so it can't drift" role as ``src/_mac.py`` and ``src/_atomic_json.py``.
 
 Note: a long-lived child that later needs ``CTRL_BREAK_EVENT`` combines this
 with its own process-group flag (``subprocess.CREATE_NEW_PROCESS_GROUP |
