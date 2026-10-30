@@ -118,11 +118,26 @@ export function initNavTabs(opts = {}) {
   });
 
   setTab(initialTab());
+  expandStandaloneViewport();
   // Rotation, a desktop↔phone width crossing or a text-size change moves the
   // tab cells: re-place the capsule without a slide.
   window.addEventListener('resize', function () { placePill(nav, pill, true); }, { passive: true });
 
   return { setTab: setTab, getTab: function () { return current; }, setBadge: setBadge };
+}
+
+// An installed iOS app opens with its viewport 59px short of the screen and,
+// on a cold launch, grows it 1px at a time over ~3s, painting nothing below
+// the moving edge, so the bar is revealed slowly. A 1px programmatic scroll
+// asks iOS for the full-height viewport at once; the page goes straight back
+// to the top. Once, at startup, and only when the page has not been scrolled.
+function expandStandaloneViewport() {
+  if (!window.matchMedia('(display-mode: standalone)').matches) return;
+  if (window.scrollY !== 0) return;
+  window.scrollTo(0, 1);
+  requestAnimationFrame(function () {
+    if (window.scrollY === 1) window.scrollTo(0, 0);
+  });
 }
 
 // tab name → { button, pane }. The pane is resolved from aria-controls; a tab
