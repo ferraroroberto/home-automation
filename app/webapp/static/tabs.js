@@ -6,17 +6,12 @@
  *
  * Thin adapter over the vendored _vendored/nav/nav-tabs.js — that
  * file owns tab/pane discovery, ARIA + roving tabindex, localStorage
- * persistence, the standalone-PWA .app scroller reset, and the
- * visualViewport pin (browser-tab toolbar only; never a measured translate
- * in standalone — the on-device lessons that shaped it, live in that file's own comments).
- * This module only keeps state.tab in sync, opens Settings, and forwards
- * nav-debug's recordNavEvent so the on-device forensics log keeps
- * working. */
+ * persistence and the sliding active capsule. This module only keeps
+ * state.tab in sync and opens Settings. */
 
 'use strict';
 
 import { state, TAB_KEY } from './state.js';
-import { recordNavEvent } from './nav-debug.js';
 import { initNavTabs } from './_vendored/nav/nav-tabs.js';
 
 // Tabs folded into 'iot'. The vendored switcher drops a stored tab
@@ -92,7 +87,6 @@ export function wireTabs(onTab) {
   migrateStoredTab();
   nav = initNavTabs({
     storageKey: TAB_KEY,
-    navEvent: recordNavEvent,
     onChange: function (tab) {
       state.tab = tab;
       const settings = document.getElementById('paneSettings');

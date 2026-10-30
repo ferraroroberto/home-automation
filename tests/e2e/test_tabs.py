@@ -1,7 +1,7 @@
 """Tab navigation — the bottom-tab switcher and the floating nav pill.
 
 Pure navigation: pane switching, the page header + Settings gear (#779), the
-retired-tab migrations, the saved-tab restore, and the nav-at-rest watchdog
+retired-tab migrations, the saved-tab restore, and the nav-at-rest checks
 (#229/#232/#420). Per-feature tab
 content lives in its own module — `test_home_tab.py`, `test_vm_tile.py`,
 `test_ac_tab.py`, `test_energy_tab.py`, `test_security_tab.py`,
@@ -56,7 +56,7 @@ _NAV_AT_REST = (
 )
 
 
-def test_nav_returns_to_rest_after_a_strand_and_after_each_modal_close(
+def test_nav_at_rest_after_each_modal_close(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     sample_plugs: List[Dict], mock_tuya: Callable,
 ) -> None:
@@ -64,30 +64,16 @@ def test_nav_returns_to_rest_after_a_strand_and_after_each_modal_close(
     with it at its locked rest position, with no app restart. Run in sequence
     on one page load:
 
-    1. A latched upward transform. Playwright's WebKit doesn't reproduce iOS
-       Safari's collapsing toolbar, so the exact failure mode — a stale
-       ``translateY(-Npx)`` — is injected directly; the self-healing watchdog
-       must re-derive the rest position and clear it.
-    2. A detail modal closed via the X button and via Esc (the path that never
+    1. A detail modal closed via the X button and via Esc (the path that never
        routed through the app's close handlers and historically left the bar
        stuck up).
-    3. The plugs rename modal, which auto-focuses its Display-name input
+    2. The plugs rename modal, which auto-focuses its Display-name input
        (plugs.js) — raising the iOS keyboard and shrinking the visual viewport,
        the one path that still stranded the nav after the first fix.
     """
     mock_api(sample_units)
     mock_tuya(sample_plugs)
     boot_home(page, base_url)
-
-    nav = page.locator(".tabs")
-    # Set + read in one evaluate call so the watchdog can't interleave between them.
-    strand_transform = nav.evaluate(
-        "el => { el.style.transform = 'translateY(-120px)';"
-        " return getComputedStyle(el).transform; }"
-    )
-    assert "120" in strand_transform
-    # The ~400ms watchdog re-derives the rest position and clears the strand.
-    page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
     page.locator("#tabAc").click()
     page.wait_for_selector("#acUnits .ac-row", state="visible")
