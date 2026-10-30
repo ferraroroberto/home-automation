@@ -1,13 +1,13 @@
 /* Shared dense-collection staged-dialog editor.
  *
+ * `denseListEditor(config)` owns the editor shell shared by
  * security-schedules.js / security-scene.js / security-override.js /
- * presence-places.js each hand-rolled the same editor shell: the
- * `editorIndex` / `editor<X>Id` / `editorReturnFocus` / `staged<X>` module
- * vars, `open<X>Editor` / `close<X>Editor`, a byte-identical
+ * presence-places.js: the `editorIndex` / `editor<X>Id` / `editorReturnFocus`
+ * / `staged<X>` state, `open<X>Editor` / `close<X>Editor`,
  * `restoreEditorFocus()`, an optimistic save-with-rollback PUT, and the
- * add/close/backdrop-click/save/delete-confirm wiring. `denseListEditor(config)`
- * owns that shell; each module keeps only its entry shape (defaults/normalize),
- * its dialog-field populate/collect, and any extra field wiring.
+ * add/close/backdrop-click/save/delete-confirm wiring. Each module keeps
+ * only its entry shape (defaults/normalize), its dialog-field
+ * populate/collect, and any extra field wiring.
  *
  * Config contract — elements (from state.js's `els`): `dialog`, `addButton`,
  * `closeButton`, `saveButton`, `deleteButton`, `titleEl`, `listEl`, `focusEl`;

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "app/tray/tray.py", "count": 1},
+    {"key": "app/webapp/static/network/network-dhcp.js", "count": 1},
+    {"key": "scripts/history_marker_ratchet.py", "count": 8},
+    {"key": "src/_atomic_json.py", "count": 1},
+    {"key": "src/_mac.py", "count": 1},
+    {"key": "src/_sqlite.py", "count": 1},
+    {"key": "src/notify_config.py", "count": 1},
+    {"key": "src/presence/presence_blocks.py", "count": 1},
+    {"key": "src/presence/presence_engine.py", "count": 1}
+  ]
+}

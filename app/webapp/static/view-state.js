@@ -1,11 +1,11 @@
 /* Shared tab view-state machine.
  *
- * Every tab-controller module (units/energy/plugs/lights/network/security/
- * cameras/presence/ups/vm) used to hand-roll the same trio: a
- * `<name>ViewState` / `<name>UpdatedAt` / `<name>LiveUnavailable` module-var
- * set, a `set<Name>ViewState(next, opts)` mutator, and a byte-identical
- * `lastUpdatedLabel()`. `createViewState(snapshotKey)` hides those vars in a
- * closure (same shape as poll.js's `createPoller`) and returns
+ * `createViewState(snapshotKey)` is the one place every tab-controller module
+ * (units/energy/plugs/lights/network/security/cameras/presence/ups/vm) gets
+ * its view-state trio: the `<name>ViewState` / `<name>UpdatedAt` /
+ * `<name>LiveUnavailable` vars, the `set<Name>ViewState(next, opts)` mutator,
+ * and `lastUpdatedLabel()`. It hides those vars in a closure (same shape as
+ * poll.js's `createPoller`) and returns
  * `{state, set, liveUnavailable, lastUpdatedLabel}`. `snapshotKey` names the
  * `state.snapshotUpdatedAt` entry used as the label's fallback timestamp —
  * omit it for tabs without a persisted snapshot.
@@ -137,10 +137,9 @@ export function markTabFailure(view, opts) {
  * return whether anything came back), flips the view to 'ready'/'empty' and
  * repaints. On failure, `load()` returns quietly on an auth redirect, else
  * degrades via `markTabFailure`. `restore()` repeats the same apply →
- * view('stale'/'empty') → render from the saved snapshot. Used to be
- * hand-rolled, with the copies already drifting, in `loadLights`/
- * `loadPlugs`+`applyPlugsBody`/`loadUnits`/`loadUps`/`loadCameras` and their
- * matching `restore*Snapshot`s.
+ * view('stale'/'empty') → render from the saved snapshot — the one path every
+ * tab controller (`loadLights`/`loadPlugs`+`applyPlugsBody`/`loadUnits`/
+ * `loadUps`/`loadCameras` and their matching `restore*Snapshot`s) shares.
  *
  * `beforeFetch` (optional) runs before the GET (cameras' token fetch).
  * `afterLoad` (optional) runs once `load()` settles — on success and on a

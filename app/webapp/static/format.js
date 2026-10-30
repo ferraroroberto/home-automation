@@ -1,11 +1,9 @@
 /* Home Automation — shared value-formatting helpers.
  *
- * One implementation for the formatting helpers that used to be duplicated
- * per tab module (the /design-sync sibling-consistency findings). The copies had drifted: energy's esc() didn't null-guard
- * (rendered the string "null") and skipped the quote entity, while plugs/ups
- * showed ungrouped watts ("1234 W") where energy grouped ("1,234 W") — the
- * same physical quantity formatted differently per tab. Same quantity, same
- * format, one write path.
+ * One implementation for the formatting helpers shared across every tab
+ * module, so the same physical quantity always formats the same way: esc()
+ * always null-guards and escapes the quote entity, and watts always render
+ * grouped ("1,234 W"). Same quantity, same format, one write path.
  *
  * Deliberately NOT here (verified distinct-by-design in the same lint run):
  * fmtTemp (units.js one-decimal AC setpoints vs weather.js rounded degrees),

@@ -168,6 +168,18 @@ enabled   = true
 shots_dir = "tests/e2e/shots"
 capture   = ["-m", "pytest", "tests/e2e/test_shot_baseline.py", "--browser", "chromium", "-q", "-p", "no:cacheprovider"]
 
+# [history_marker_ratchet] -- repo-specific (not vendored) stage over decision-history
+# narration in product-code comments/docstrings ("used to be duplicated", "Extracted
+# verbatim from X", "This was a pure code move"). The gate (scripts/verify-before-ship.ps1)
+# runs scripts/history_marker_ratchet.py through scripts/history_marker_ratchet_gate.py,
+# which fails when a file's marker count rises beyond .history-marker-ratchet-baseline.json.
+# comment_ratchet only counts #NNN references and skips docstrings, so this closes that gap
+# (audit #1044). Whole tree, never path-routed; exit 3 (git unusable, a file unreadable) is
+# NOT CONFIRMED and fails.
+[history_marker_ratchet]
+enabled  = true
+baseline = ".history-marker-ratchet-baseline.json"
+
 # /perf-review (fleet-config skills/perf-review): "ready" is the energy-flow tile
 # visible (the first Home card that needs live data), not first contentful paint,
 # which goes green on a painted shell before any card has data (#777). It must

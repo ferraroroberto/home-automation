@@ -1,6 +1,6 @@
 r"""
-NETGEAR R9000 access-point source (issue #197 split).
-=====================================================
+NETGEAR R9000 access-point source.
+===================================
 One of the two devices feeding :class:`NetworkState`: the NETGEAR R9000 read over
 ``pynetgear`` (SOAP on :80). Even in AP mode the R9000 reports the whole LAN
 (wired + wireless), so it carries the attached-device inventory on its own, plus
@@ -11,8 +11,8 @@ Credentials come from ``.env`` (loopback LAN, never committed)::
     NETWORK_AP_HOST / NETWORK_AP_USERNAME / NETWORK_AP_PASSWORD
     NETWORK_AP_MAC (optional) — stable MAC of the AP; enables auto-rediscovery
 
-Extracted verbatim from ``network_client``; the orchestrator imports the fetch /
-rediscovery / reboot surface from here.
+This module owns the fetch / rediscovery / reboot surface; the orchestrator
+imports it from here, kept separate from the host probes and router source.
 """
 
 from __future__ import annotations

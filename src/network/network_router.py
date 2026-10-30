@@ -1,6 +1,6 @@
 r"""
-Vodafone ZXHN F6600P (ZTE) router source (issue #197 split).
-============================================================
+Vodafone ZXHN F6600P (ZTE) router source.
+===========================================
 The second device feeding :class:`NetworkState`: the ZTE router reached over its
 SHA256 challenge-response web login. Owns the headless login, the authenticated
 WAN/DHCP-lease reads, the static DHCP-binding read/write-back (the integrity-
@@ -11,9 +11,9 @@ Credentials come from ``.env`` (loopback LAN, never committed)::
 
     NETWORK_ROUTER_HOST / NETWORK_ROUTER_USERNAME / NETWORK_ROUTER_PASSWORD
 
-Extracted verbatim from ``network_client``; the orchestrator imports the
-``RouterClient`` protocol surface, the fetch/reboot wrappers, the parsing helpers
-and ``_add_bindings_on_client`` from here.
+This module owns the ``RouterClient`` protocol surface, the fetch/reboot
+wrappers, the parsing helpers and ``_add_bindings_on_client``; the orchestrator
+imports all of them from here.
 """
 
 from __future__ import annotations

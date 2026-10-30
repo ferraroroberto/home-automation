@@ -1,14 +1,12 @@
 /* Shared fixed-DOM single-entity detail-modal save shell.
  *
- * plugs.js / circuits.js / security-alarm.js / network-devices.js each
- * hand-roll the same staged-edit shell around a fixed-DOM detail dialog: a
- * `let xStaged` var, a byte-identical `markXDirty()`/`clearXDirty()` pair,
- * and a `saveXDetail()` that builds an array of in-flight PUT/POST ops and
- * awaits them with the same try/Promise.all/toast/catch shell.
- * `detailModal(config)` owns that shell — the staged clone, dirty-button
- * bookkeeping, dialog open/close, and the save try/catch — while each module
- * keeps its own field population (`populate`) and diff-and-request logic
- * (`buildOps`), since those genuinely differ per module's field set.
+ * `detailModal(config)` owns the staged-edit shell around a fixed-DOM detail
+ * dialog — the staged clone, dirty-button bookkeeping, dialog open/close,
+ * and a `saveDetail()` try/Promise.all/toast/catch around the in-flight
+ * PUT/POST ops — shared by plugs.js / circuits.js / security-alarm.js /
+ * network-devices.js. Each module keeps only its own field population
+ * (`populate`) and diff-and-request logic (`buildOps`), since those
+ * genuinely differ per module's field set.
  *
  * cameras.js, presence.js and lights.js use it too: each has a staged
  * display-name Save. network-wifi.js and units.js don't share this shape —

@@ -1,20 +1,16 @@
-"""Persisted cursor for the alarm-scene event-log scan (issue #325).
+"""Persisted cursor for the alarm-scene event-log scan.
 
-``app/webapp/alarm_scene_automation.py`` used to detect a capture-worthy alarm
-onset from a false->true transition of RISCO's system-wide ``ongoing_alarm`` /
-``memory_alarm`` flags, tracked in a process-lifetime in-memory dict. That flag
-latches ``True`` until a full disarm+dismiss cycle, so a second real alarm on
-the same detector within one still-armed session never produced a second
-transition - and a webapp restart between the last dismiss and the first alarm
-of a new session could swallow that first alarm too, since restart resets the
-in-memory baseline.
-
-The fix reads RISCO's own event log instead (``src.security.risco_client.fetch_events``)
-and diffs it against the last-processed alarm-event timestamp - persisted here,
-not in memory - so each discrete "Alarm" event gets its own capture regardless
-of the system-wide latch, and a process restart mid-session resumes from where
-it left off instead of re-baselining. Same atomic load/save shape as
-``alarm_scene_config`` / ``display_names``.
+``app/webapp/alarm_scene_automation.py`` detects a capture-worthy alarm onset
+from RISCO's own event log (``src.security.risco_client.fetch_events``),
+diffed against the last-processed alarm-event timestamp persisted here rather
+than in memory. RISCO's system-wide ``ongoing_alarm`` / ``memory_alarm`` flags
+latch ``True`` until a full disarm+dismiss cycle, so they cannot distinguish a
+second real alarm on the same detector within one still-armed session from the
+first; reading the event log instead gives each discrete "Alarm" event its own
+capture regardless of that latch, and persisting the cursor to disk means a
+process restart mid-session resumes from where it left off instead of
+re-baselining. Same atomic load/save shape as ``alarm_scene_config`` /
+``display_names``.
 """
 
 from __future__ import annotations

@@ -44,13 +44,18 @@
                             no-drive-path or secret-compare hit rises beyond
                             .conventions-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
-     10. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
-     11. pytest (e2e)    — diff-proportionate: the browser slice is routed by
+     10. history marker ratchet — no product-code file's count of a decision-history
+                            narration phrase ("used to be", "Extracted verbatim from",
+                            "pure code move", ...) rises beyond
+                            .history-marker-ratchet-baseline.json. Whole tree, never
+                            routed; exit 3 is NOT CONFIRMED and fails.
+     11. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
+     12. pytest (e2e)    — diff-proportionate: the browser slice is routed by
                             scripts/classify_e2e.py against the .fleet.toml [e2e]
                             rules (skip / static / full), fail-safe to full
                             (the [e2e] table in .fleet.toml owns the rules)
                             Boots its own disposable instance per tests/e2e/conftest.py.
-     12. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
+     13. shot baseline   — scripts/shot_baseline.py: compares the screenshots the e2e
                             slice recaptured (tests/e2e/test_shot_baseline.py: phone +
                             desktop, light + dark) with the committed PNGs under
                             tests/e2e/shots, fails on a visible change, restores the
@@ -175,6 +180,8 @@ try {
     Invoke-Stage "dead code ratchet" { & $py -m scripts.dead_code_ratchet_gate }
     # Same exit-3 mapping for the conventions ratchet (tests/ratchets/test_conventions_ratchet_gate.py).
     Invoke-Stage "conventions ratchet" { & $py -m scripts.conventions_ratchet_gate }
+    # Same exit-3 mapping for the history marker ratchet (tests/ratchets/test_history_marker_ratchet_gate.py).
+    Invoke-Stage "history marker ratchet" { & $py -m scripts.history_marker_ratchet_gate }
     Invoke-Stage "pytest (unit, non-e2e)" { & $py -m pytest tests -p no:cacheprovider --ignore=tests/e2e }
 
     # ---------------------------------------------------------------- e2e routing
