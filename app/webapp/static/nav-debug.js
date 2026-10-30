@@ -100,6 +100,26 @@ export function setNavDebugEnabled(next) {
   if (enabled) record('debug-on');
 }
 
+// Tab switch: a short tab changes whether the document can scroll, which is
+// what moves the fixed bar's anchor; a touch end catches an edge overscroll
+// that fires no scroll event.
+function installTabAndTouchProbes() {
+  document.addEventListener('click', function (e) {
+    const tab = e.target && e.target.closest ? e.target.closest('.tabs .tab') : null;
+    if (!tab) return;
+    const name = 'tab:' + (tab.dataset.tab || '?');
+    requestAnimationFrame(function () { requestAnimationFrame(function () { record(name); }); });
+    setTimeout(function () { record(name + ' +600ms'); }, 600);
+  });
+
+  // End of a touch: an overscroll at the document edge can move the bar
+  // without firing a scroll event.
+  document.addEventListener('touchend', function () {
+    requestAnimationFrame(function () { record('touchend'); });
+    setTimeout(function () { record('touchend +400ms'); }, 400);
+  }, { passive: true });
+}
+
 export function installNavDebug() {
   try { enabled = localStorage.getItem(NAV_DEBUG_KEY) === '1'; } catch (_) { enabled = false; }
 
@@ -122,23 +142,7 @@ export function installNavDebug() {
 
   if (enabled) record('debug-on (restored on load)');
 
-  // Tab switch: a short tab changes whether the document can scroll, which is
-  // what moves the fixed bar's anchor. Sampled after layout settles, and again
-  // once any viewport change has finished.
-  document.addEventListener('click', function (e) {
-    const tab = e.target && e.target.closest ? e.target.closest('.tabs .tab') : null;
-    if (!tab) return;
-    const name = 'tab:' + (tab.dataset.tab || '?');
-    requestAnimationFrame(function () { requestAnimationFrame(function () { record(name); }); });
-    setTimeout(function () { record(name + ' +600ms'); }, 600);
-  });
-
-  // End of a touch: an overscroll at the document edge can move the bar
-  // without firing a scroll event.
-  document.addEventListener('touchend', function () {
-    requestAnimationFrame(function () { record('touchend'); });
-    setTimeout(function () { record('touchend +400ms'); }, 400);
-  }, { passive: true });
+  installTabAndTouchProbes();
 
   // Keyboard show/hide is the user's own lead suspect — an editable
   // field grabbing focus inside a dialog is exactly what brings the iOS
