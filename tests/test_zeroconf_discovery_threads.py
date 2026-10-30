@@ -27,9 +27,6 @@ def _install_fake_zeroconf(monkeypatch: pytest.MonkeyPatch) -> None:
             # Like the real one: shuts the sockets, leaves browser threads alone.
             return None
 
-    class ServiceListener:
-        pass
-
     class ServiceBrowser(threading.Thread):
         def __init__(self, zc: Zeroconf, service_type: str, listener: object) -> None:
             super().__init__(name=_BROWSER_THREAD, daemon=True)
@@ -46,7 +43,7 @@ def _install_fake_zeroconf(monkeypatch: pytest.MonkeyPatch) -> None:
     module = types.ModuleType("zeroconf")
     module.Zeroconf = Zeroconf
     module.ServiceBrowser = ServiceBrowser
-    module.ServiceListener = ServiceListener
+    module.ServiceListener = object
     monkeypatch.setitem(sys.modules, "zeroconf", module)
 
 
