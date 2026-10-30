@@ -77,6 +77,7 @@ from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from src.automation_owner import AutomationOwnership, automation_engines_opt_in
 from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
+from app.webapp.process_stats import start_process_stats
 from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
 from app.webapp.security_automation import start_security_schedules
@@ -266,6 +267,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         tasks = []
     # Read-side, so every instance runs them; each fetches only while read.
     tasks.extend(asyncio.create_task(s.tick_forever()) for s in read_snapshot.registered())
+    # Read-only, so any instance: the thread/handle/rss line that makes a slow leak visible.
+    process_stats = start_process_stats()
+    if process_stats is not None:
+        tasks.append(process_stats)
     # The owner only: it holds the single-client Modbus session, so a read-only
     # second instance must not open one at boot.
     if app.state.automation_owned:

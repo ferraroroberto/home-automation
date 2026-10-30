@@ -154,12 +154,17 @@ def _discover_sync(timeout_s: float) -> list[ElgatoEndpoint]:
 
     listener = _Listener()
     zc = Zeroconf()
+    browser = None
     try:
-        ServiceBrowser(zc, _SERVICE_TYPE, listener)
+        browser = ServiceBrowser(zc, _SERVICE_TYPE, listener)
         import time
 
         time.sleep(timeout_s)
     finally:
+        # ``Zeroconf.close()`` leaves the browser's worker thread parked on its
+        # queue for the life of the process; only ``cancel()`` ends it.
+        if browser is not None:
+            browser.cancel()
         zc.close()
 
     unique: dict[str, ElgatoEndpoint] = {}
