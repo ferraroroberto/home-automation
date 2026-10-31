@@ -120,6 +120,7 @@ function renderEditorDays() {
 }
 
 const scheduleEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.securityScheduleDialog,
   addButton: els.securityScheduleAdd,
   closeButton: els.securityScheduleEditorClose,
@@ -203,9 +204,11 @@ export async function loadSecuritySchedules() {
   try {
     const body = await jsonApi('/api/security/schedules');
     state.securitySchedules = (body && body.entries) || [];
+    scheduleEditor.setLoaded(true);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.securitySchedules = [];
+    scheduleEditor.setLoaded(false);
     if (els.securitySchedulesNote) {
       els.securitySchedulesNote.hidden = false;
       els.securitySchedulesNote.textContent = friendlyError(exc, 'Failed to load schedules.');

@@ -47,6 +47,7 @@ function normalizedOverrides(entries) {
 }
 
 const overrideEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.securityOverrideDialog,
   addButton: els.securityOverrideAdd,
   closeButton: els.securityOverrideEditorClose,
@@ -143,8 +144,10 @@ export async function loadSecurityOverrides() {
   try {
     const body = await jsonApi('/api/security/overrides');
     state.securityOverrides = (body && body.entries) || [];
+    overrideEditor.setLoaded(true);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
+    overrideEditor.setLoaded(false);
     state.securityOverrides = state.securityOverrides || [];
     if (els.securityOverridesNote) {
       els.securityOverridesNote.hidden = false;

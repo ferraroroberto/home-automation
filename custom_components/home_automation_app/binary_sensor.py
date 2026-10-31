@@ -48,7 +48,7 @@ class HomeAutomationZoneBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def available(self) -> bool:
-        return not bool(self._zone.get("hidden"))
+        return super().available and not bool(self._zone.get("hidden"))
 
     @property
     def is_on(self) -> bool:

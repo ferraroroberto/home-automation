@@ -258,3 +258,21 @@ def test_rollback_restores_each_language_from_its_own_backup(monkeypatch) -> Non
 
     assert files[en_path] == "english-before\n"
     assert files[es_path] == "spanish-before\n"
+
+
+def test_rollback_leaves_files_the_last_deploy_did_not_touch(monkeypatch) -> None:
+    en_path = f"{H.REMOTE_SENTENCES_ROOT}/en/alarm.yaml"
+    first, second = "20260628T141502Z", "20260629T090000Z"
+    # Deploy 1 changed the sentence file; deploy 2 changed only configuration.yaml.
+    files = {
+        H.backup_remote_path(en_path, first): "sentence-v0\n",
+        H.backup_remote_path(H.REMOTE_CONFIG, second): "config-v1\n",
+        en_path: "sentence-v1\n",
+        H.REMOTE_CONFIG: "config-v2\n",
+    }
+    monkeypatch.setattr(H, "HaSsh", lambda _cfg: _FakeSsh(files))
+
+    assert H.cmd_rollback(object()) == 0
+
+    assert files[H.REMOTE_CONFIG] == "config-v1\n"
+    assert files[en_path] == "sentence-v1\n"

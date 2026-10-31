@@ -232,6 +232,12 @@ def backup_remote_path(remote_path: str, stamp: str) -> str:
     return f"{BACKUP_DIR}/{backup_key(remote_path)}.{stamp}.bak"
 
 
+def backup_stamp(key: str, backup_path: str) -> str:
+    """The deploy stamp inside a ``<BACKUP_DIR>/<key>.<stamp>.bak`` path."""
+    name = backup_path.rsplit("/", 1)[-1]
+    return name[len(key) + 1 : -len(".bak")]
+
+
 def utc_stamp(now: Optional[datetime.datetime] = None) -> str:
     """Lexically-sortable UTC stamp, e.g. 20260628T141502Z."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
@@ -662,12 +668,25 @@ def cmd_rollback(cfg: HaConfig) -> int:
     try:
         ssh.connect()
         restored = 0
-        for remote_path in (REMOTE_CONFIG, *(r for _, r in SENTENCE_FILES)):
-            backups = ssh.list_backups(backup_key(remote_path))
-            if not backups:
-                _info(f"No backup found for {remote_path} — skipped.")
+        managed = (REMOTE_CONFIG, *(r for _, r in SENTENCE_FILES))
+        # One deploy backs up only the files it changed, all under one stamp, so
+        # rollback undoes that deploy alone: a file with no backup at the newest
+        # stamp is left as is rather than reverted to an older deploy's copy.
+        backups_by_path = {r: ssh.list_backups(backup_key(r)) for r in managed}
+        stamps = [
+            backup_stamp(backup_key(r), found[0])
+            for r, found in backups_by_path.items()
+            if found
+        ]
+        if not stamps:
+            print("Nothing restored — no backups present.")
+            return 1
+        newest = max(stamps)
+        for remote_path in managed:
+            latest = backup_remote_path(remote_path, newest)
+            if latest not in backups_by_path[remote_path]:
+                _info(f"No backup from the latest deploy for {remote_path} — skipped.")
                 continue
-            latest = backups[0]
             content = ssh.read(latest)
             if content is None:
                 _fail(f"Backup unreadable: {latest}")

@@ -96,6 +96,7 @@ function renderPresetSelect() {
 }
 
 const pairingEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.scenePairingDialog,
   addButton: els.scenePairingAdd,
   closeButton: els.scenePairingEditorClose,
@@ -211,8 +212,10 @@ export async function loadScenePairings() {
     ]);
     state.scenePairings = (results[0] && results[0].entries) || [];
     state.cameras = (results[1] && results[1].cameras) || [];
+    pairingEditor.setLoaded(true);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
+    pairingEditor.setLoaded(false);
     state.scenePairings = state.scenePairings || [];
     if (els.scenePairingsNote) {
       els.scenePairingsNote.hidden = false;

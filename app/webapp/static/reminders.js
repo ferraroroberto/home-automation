@@ -75,6 +75,7 @@ function reminderRow(entry, idx) {
 }
 
 const reminderEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.reminderDialog,
   addButton: els.reminderAdd,
   closeButton: els.reminderEditorClose,
@@ -153,10 +154,12 @@ export async function loadReminders() {
   try {
     const body = await jsonApi('/api/reminders');
     state.reminders = (body && body.entries) || [];
+    reminderEditor.setLoaded(true);
     renderNextUpNote('reminders', null);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.reminders = [];
+    reminderEditor.setLoaded(false);
     renderNextUpNote('reminders', friendlyError(exc, 'Failed to load reminders.'));
   }
   renderReminders();

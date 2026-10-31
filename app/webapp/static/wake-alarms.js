@@ -125,6 +125,7 @@ function renderEditorWhen() {
 }
 
 const alarmEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.wakeAlarmDialog,
   addButton: els.wakeAlarmAdd,
   closeButton: els.wakeAlarmEditorClose,
@@ -209,10 +210,12 @@ export async function loadWakeAlarms() {
   try {
     const body = await jsonApi('/api/wake-alarms');
     state.wakeAlarms = (body && body.entries) || [];
+    alarmEditor.setLoaded(true);
     renderNextUpNote('alarms', null);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.wakeAlarms = [];
+    alarmEditor.setLoaded(false);
     renderNextUpNote('alarms', friendlyError(exc, 'Failed to load wake alarms.'));
   }
   renderWakeAlarms();
