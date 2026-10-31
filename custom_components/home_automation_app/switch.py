@@ -47,7 +47,11 @@ class HomeAutomationSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        return bool(self._device.get("reachable")) and not bool(self._device.get("hidden"))
+        return (
+            super().available
+            and bool(self._device.get("reachable"))
+            and not bool(self._device.get("hidden"))
+        )
 
     @property
     def is_on(self) -> bool | None:

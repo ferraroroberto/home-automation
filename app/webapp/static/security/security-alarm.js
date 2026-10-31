@@ -119,14 +119,23 @@ async function postAction(action) {
       method: 'POST',
     });
     renderSecurity();
-    await loadSecurityEvents();
     toast(ACTION_DONE[action] || 'Done', 'success');
+    await refreshEventsAfterAction();
   } catch (exc) {
     reportActionFailure(exc, 'Failed');
   } finally {
     actionBusy = false;
     renderActions();
   }
+}
+
+// The panel already changed when this runs, so a failed events read must not
+// toast "Failed" over a successful arm/disarm and invite a second command to
+// the physical alarm; the list refreshes on the next poll.
+async function refreshEventsAfterAction() {
+  try {
+    await loadSecurityEvents();
+  } catch (_) { /* stale events only */ }
 }
 
 // Per-zone in-flight guard: bypassing zone A must not block zone B,
@@ -148,8 +157,8 @@ async function setBypass(zone, bypass, btn) {
       },
     );
     renderSecurity();
-    await loadSecurityEvents();
     toast(zoneLabel(zone) + (bypass ? ' bypassed' : ' active'), 'success');
+    await refreshEventsAfterAction();
   } catch (exc) {
     reportActionFailure(exc, 'Failed');
   } finally {

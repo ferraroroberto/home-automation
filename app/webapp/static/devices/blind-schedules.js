@@ -130,6 +130,7 @@ function renderEditorTargets() {
 }
 
 const scheduleEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.blindScheduleDialog,
   addButton: els.blindScheduleAdd,
   closeButton: els.blindScheduleEditorClose,
@@ -261,9 +262,11 @@ export async function loadBlindSchedules() {
     const body = await jsonApi('/api/blinds/schedules');
     state.blindSchedules = (body && body.entries) || [];
     schedulesRead = true;
+    scheduleEditor.setLoaded(true);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.blindSchedules = [];
+    scheduleEditor.setLoaded(false);
     if (els.blindSchedulesNote) {
       els.blindSchedulesNote.hidden = false;
       els.blindSchedulesNote.textContent = friendlyError(exc, 'Failed to load blind schedules.');

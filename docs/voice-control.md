@@ -485,7 +485,7 @@ The content is curated in [`src/voice/voice_commands.py`](../src/voice/voice_com
 & .\.venv\Scripts\python.exe -m scripts.ha_config_sync deploy --dry-run # unified diff, writes nothing
 & .\.venv\Scripts\python.exe -m scripts.ha_config_sync deploy           # backup + write + ha core check
 & .\.venv\Scripts\python.exe -m scripts.ha_config_sync deploy --restart # + the full HA restart a config change needs
-& .\.venv\Scripts\python.exe -m scripts.ha_config_sync rollback         # restore most recent backup + recheck
+& .\.venv\Scripts\python.exe -m scripts.ha_config_sync rollback         # undo the last deploy (only the files it backed up) + recheck
 & .\.venv\Scripts\python.exe -m scripts.ha_config_sync probe            # read-only "what is the alarm status" probe
 ```
 

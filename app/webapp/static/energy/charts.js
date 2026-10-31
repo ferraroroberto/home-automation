@@ -690,7 +690,8 @@ export function restyle(chart, unit) {
     : [pal.gen, pal.grid, pal.muted];
   chart.data.datasets.forEach(function (dataset, index) {
     dataset.borderColor = colors[index];
-    dataset.backgroundColor = index === 0 && chart.data.datasets.length === 5
+    // Filled areas stay translucent; a solid fill would hide the area behind it.
+    dataset.backgroundColor = dataset.fill
       ? alphaFill(colors[index], 0.18)
       : colors[index];
   });

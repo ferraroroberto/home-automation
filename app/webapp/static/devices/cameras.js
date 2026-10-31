@@ -98,8 +98,10 @@ function thumbUrl(cameraId) {
 }
 
 // A fresh frame was just persisted → bust the thumbnail cache and re-render.
-function bumpSnapshot(cameraId) {
+// The scoped token lives 60 s, so refresh it before the rebuilt thumbnail URL uses it.
+async function bumpSnapshot(cameraId) {
   snapVersions[cameraId] = Date.now();
+  await _ensureCameraToken();
   renderCameras();
 }
 

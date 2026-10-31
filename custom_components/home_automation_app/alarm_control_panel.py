@@ -39,7 +39,7 @@ class HomeAutomationAlarm(CoordinatorEntity, AlarmControlPanelEntity):
 
     @property
     def available(self) -> bool:
-        return bool((self.coordinator.data or {}).get("reachable", True))
+        return super().available and bool((self.coordinator.data or {}).get("reachable", True))
 
     @property
     def alarm_state(self) -> AlarmControlPanelState:

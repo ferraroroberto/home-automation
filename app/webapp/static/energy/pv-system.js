@@ -226,10 +226,14 @@ export async function loadPvSystem() {
     state.pvArrays = (body && body.arrays) || [];
     state.pvPerformanceRatio = (body && body.performance_ratio) || DEFAULT_PERFORMANCE_RATIO;
     state.pvHorizonProfile = (body && body.horizon_profile) || [];
+    arrayEditor.setLoaded(true);
+    horizonEditor.setLoaded(true);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.pvArrays = [];
     state.pvHorizonProfile = [];
+    arrayEditor.setLoaded(false);
+    horizonEditor.setLoaded(false);
   }
   if (els.pvPerformanceRatio) els.pvPerformanceRatio.value = state.pvPerformanceRatio;
   renderPvSystem();
@@ -281,6 +285,7 @@ function showFieldError(inputKey, lineKey, message) {
 // ------------------------------------------------------------ row editor
 
 const arrayEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.pvArrayDialog,
   addButton: els.pvArrayAdd,
   closeButton: els.pvArrayEditorClose,
@@ -357,6 +362,7 @@ function renderAzimuthEcho() {
 // --------------------------------------- horizon point editor (issue #578b)
 
 const horizonEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.pvHorizonDialog,
   addButton: els.pvHorizonAdd,
   closeButton: els.pvHorizonEditorClose,
@@ -440,12 +446,7 @@ async function savePerformanceRatio() {
     const body = await jsonApi('/api/energy/pv-system', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        arrays: (state.pvArrays || []).map(function (a) {
-          return { kwp: a.kwp, tilt_deg: a.tilt_deg, azimuth_deg: a.azimuth_deg };
-        }),
-        performance_ratio: ratio,
-      }),
+      body: JSON.stringify({ performance_ratio: ratio }),
     });
     state.pvPerformanceRatio = (body && body.performance_ratio) || ratio;
     const total = await safeOnSaved();

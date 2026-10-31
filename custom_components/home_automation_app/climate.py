@@ -57,7 +57,11 @@ class HomeAutomationClimate(CoordinatorEntity, ClimateEntity):
 
     @property
     def available(self) -> bool:
-        return bool(self._unit.get("unit_id"))
+        # super() carries the coordinator's last-update status, so a failing
+        # /api/units shows the unit unavailable instead of live with stale values.
+        return super().available and any(
+            str(unit.get("unit_id")) == self._unit_id for unit in self.coordinator.data or []
+        )
 
     @property
     def supported_features(self) -> ClimateEntityFeature:

@@ -86,9 +86,11 @@ export async function loadPresencePlaces() {
   try {
     const body = await jsonApi('/api/presence/places');
     state.presencePlacesList = (body && body.places) || [];
+    placeEditor.setLoaded(true);
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     state.presencePlacesList = [];
+    placeEditor.setLoaded(false);
     if (els.presencePlacesNote) {
       els.presencePlacesNote.hidden = false;
       els.presencePlacesNote.textContent = friendlyError(exc, 'Failed to load places.');
@@ -98,6 +100,7 @@ export async function loadPresencePlaces() {
 }
 
 const placeEditor = denseListEditor({
+  requireLoad: true,
   dialog: els.presencePlaceDialog,
   addButton: els.presencePlaceAdd,
   closeButton: els.presencePlaceEditorClose,

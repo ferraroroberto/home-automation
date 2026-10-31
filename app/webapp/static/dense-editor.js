@@ -26,10 +26,15 @@
  * touching the staged list), `afterSave(entries)` (awaited after the PUT
  * succeeds and before the saved toast, so a function-form `toasts.saved` can
  * consume its resolved value; `render()` already ran on the optimistic swap,
- * so `afterSave` is for derived-view work, not the row list itself).
+ * so `afterSave` is for derived-view work, not the row list itself),
+ * `requireLoad` (the list is read from the server and each save PUTs the
+ * whole list, so a save built on a list that failed to load would erase the
+ * stored one: Add is disabled and `save()` refuses until the module reports a
+ * successful read through `setLoaded(true)`, and again after a failed one).
  *
- * Returns `{open, close, wire, save, staged}` — `staged` is a live getter so
- * a module's own field listeners can mutate the staged entry in place.
+ * Returns `{open, close, wire, save, setLoaded, staged}` — `staged` is a live
+ * getter so a module's own field listeners can mutate the staged entry in
+ * place.
  */
 
 'use strict';
@@ -43,6 +48,8 @@ export function denseListEditor(config) {
   let editorIndex = null;
   let editorEntryId = null;
   let staged = null;
+  let loaded = !config.requireLoad;
+  if (config.addButton) config.addButton.disabled = !loaded;
 
   // The staged sheet shell (sheet.js): ×, Esc and the backdrop discard,
   // and focus goes back to the opener, else the edited row, else Add.
@@ -83,7 +90,13 @@ export function denseListEditor(config) {
   }
 
   function save(entries) {
+    if (!loaded) return Promise.resolve(false);
     return saveEntries(config, entries);
+  }
+
+  function setLoaded(value) {
+    loaded = value;
+    if (config.addButton) config.addButton.disabled = !loaded;
   }
 
   async function onSave() {
@@ -127,6 +140,7 @@ export function denseListEditor(config) {
     close: close,
     wire: wire,
     save: save,
+    setLoaded: setLoaded,
     get staged() { return staged; },
   };
 }
