@@ -3,10 +3,10 @@
 UI-free, network-free core for the "tidy the LAN" planner. Given the current
 attached-device inventory and a category-range config, it assigns **each known
 device the lowest free IP inside its category's range**, so an IP tells you what
-a device is (``2–10`` infra, ``11–20`` phones, …). The user applies the result
-manually in the F6600P's *DHCP Binding* form — **this module never writes to the
-router** (automated write-back is an explicit phase 2; the seam lives stubbed on
-:class:`src.network.network_client.RouterClient`).
+a device is (``2–10`` infra, ``11–20`` phones, …). **This module only plans and
+never writes to the router**: the confirm-gated write-back is performed by
+:func:`src.network.network_client.apply_dhcp_bindings` /
+:func:`src.network.network_client.apply_dhcp_changes`.
 
 **Config source.** Ranges + classification rules live in ``config/dhcp_plan.json``
 (gitignored; a committed ``config/dhcp_plan.sample.json`` documents the shape). A
@@ -83,7 +83,7 @@ class Assignment:
     current_ip: Optional[str]
     planned_ip: Optional[str]
     randomized: bool
-    # Action this row implies against the router's static-binding table (phase 2):
+    # Action this row implies against the router's static-binding table:
     # "reserved" already bound to planned_ip (no-op), "create" not yet
     # bound, "change" bound to a different IP, "none" nothing to write (unplaced /
     # randomised / unassigned). "none" whenever the real bindings aren't known.

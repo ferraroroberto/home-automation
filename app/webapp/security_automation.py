@@ -116,7 +116,7 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
             note_manual_alarm_action(entry.action)
             await confirm_alarm_action(entry.action)
     except (RiscoCommandError, RiscoConfigError) as exc:
-        # Every attempt (initial + all read-only retries) failed to confirm the
+        # Every attempt (initial + all re-read/resend retries) failed to confirm the
         # expected state, or credentials/config are missing entirely: log +
         # alert once per day, and re-raise so tick() leaves last_fire_day unset
         # and retries again on its own next poll.
