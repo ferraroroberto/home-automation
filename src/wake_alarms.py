@@ -22,6 +22,7 @@ from src._schedule_store import (
     safe_id,
     save_entry_list,
 )
+from src._spoken_time import speak_clock, speak_day
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 WAKE_ALARMS_PATH = _CONFIG_DIR / "wake_alarms.json"
@@ -164,13 +165,10 @@ def describe_alarm(entry: WakeAlarmEntry, lang: str = "en") -> str:
         return _describe_alarm_es(entry)
 
     hour, minute = (int(part) for part in entry.time.split(":", 1))
-    suffix = "AM" if hour < 12 else "PM"
-    h12 = hour % 12 or 12
-    clock = f"{h12} {suffix}" if minute == 0 else f"{h12}:{minute:02d} {suffix}"
+    clock = speak_clock(hour, minute)
 
     if entry.date:
-        day = datetime.strptime(entry.date, "%Y-%m-%d")
-        return f"{clock} on {day.strftime('%A')} {day.strftime('%B')} {day.day}"
+        return f"{clock} on {speak_day(datetime.strptime(entry.date, '%Y-%m-%d'))}"
 
     days = list(entry.days or DAYS)
     if len(days) == 7:

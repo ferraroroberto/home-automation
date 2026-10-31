@@ -21,8 +21,7 @@ import { state, els, toast, reportFetchFailure, reportFetchOk } from '../state.j
 import { jsonApi, isAuthRequired } from '../api.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from '../snapshots.js';
 import { confirmAction } from '../confirm.js';
-import { createPoller } from '../poll.js';
-import { createViewState } from '../view-state.js';
+import { createTabPollGate, createViewState } from '../view-state.js';
 import { setToggleState } from '../toggle.js';
 
 const POLL_MS = 30_000;
@@ -228,13 +227,4 @@ export function restoreVmSnapshot() {
   renderVm();
 }
 
-const schedule = createPoller(loadVm);
-
-export function onVmTab(tab) {
-  if (tab === 'iot') {
-    loadVm();
-    schedule(POLL_MS);
-  } else {
-    schedule(0);
-  }
-}
+export const onVmTab = createTabPollGate(loadVm, 'iot', POLL_MS);

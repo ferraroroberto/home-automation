@@ -19,7 +19,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from src._spoken_time import extract_date, extract_time
+from src._spoken_time import extract_date, extract_time, speak_clock, speak_day
 
 DEFAULT_EVENT_DURATION_MINUTES = 60
 
@@ -99,17 +99,10 @@ def to_google_event_body(parsed: Dict[str, Any], tz_name: str) -> Dict[str, Any]
 def describe_calendar_event(parsed: Dict[str, Any]) -> str:
     """A short, speakable description, e.g. ``"dentist appointment, Thursday July 2 at 3 PM"``."""
 
-    day = datetime.strptime(parsed["date"], "%Y-%m-%d")
-    try:
-        when = day.strftime("%A %B %-d")
-    except ValueError:  # %-d is POSIX-only; Windows needs %#d
-        when = day.strftime("%A %B %#d")
+    when = speak_day(datetime.strptime(parsed["date"], "%Y-%m-%d"))
 
     if parsed["all_day"]:
         return f"{parsed['summary']}, {when}, all day"
 
     hour, minute = (int(part) for part in parsed["time"].split(":", 1))
-    suffix = "AM" if hour < 12 else "PM"
-    h12 = hour % 12 or 12
-    clock = f"{h12} {suffix}" if minute == 0 else f"{h12}:{minute:02d} {suffix}"
-    return f"{parsed['summary']}, {when} at {clock}"
+    return f"{parsed['summary']}, {when} at {speak_clock(hour, minute)}"

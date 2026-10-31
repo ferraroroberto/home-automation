@@ -31,7 +31,7 @@ import { icon } from '../_vendored/icons/icons.js';
 // Same identity precedence the device list uses (custom label → vendor →
 // hostname → MAC), imported rather than restated so a rename shows up here too.
 import { deviceLabel } from './network-devices.js';
-import { closeDialog, openDialog } from '../dialog.js';
+import { sheet } from '../sheet.js';
 
 // One warm-up round-trip (discarded — it pays for connection setup) plus this
 // many timed ones. Ten keeps a sample under ~2 s on a healthy link while still
@@ -421,12 +421,17 @@ function pickerRow(d) {
 
   btn.addEventListener('click', function () {
     writeSurveyMac(d.mac);
-    closeDevicePicker();
+    pickerSheet.close();
     renderSurvey();
     toast('Walk test will profile ' + deviceLabel(d), 'success');
   });
   return btn;
 }
+
+const pickerSheet = sheet(els.netSurveyDialog, {
+  model: 'instant',
+  closeButton: els.netSurveyDialogClose,
+});
 
 function openDevicePicker() {
   const devices = wirelessDevices();
@@ -439,11 +444,7 @@ function openDevicePicker() {
   } else {
     devices.forEach(function (d) { els.netSurveyDialogList.appendChild(pickerRow(d)); });
   }
-  openDialog(els.netSurveyDialog);
-}
-
-function closeDevicePicker() {
-  closeDialog(els.netSurveyDialog);
+  pickerSheet.open(els.netSurveyDevicePick);
 }
 
 export function wireSurvey() {
@@ -453,10 +454,4 @@ export function wireSurvey() {
   els.netSurveyRoom.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); recordHere(); }
   });
-  if (els.netSurveyDialog) {
-    els.netSurveyDialogClose.addEventListener('click', closeDevicePicker);
-    els.netSurveyDialog.addEventListener('click', function (ev) {
-      if (ev.target === els.netSurveyDialog) closeDevicePicker();
-    });
-  }
 }

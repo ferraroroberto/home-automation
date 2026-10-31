@@ -16,7 +16,7 @@ import { state, els, toast } from '../state.js';
 import { jsonApi, isAuthRequired } from '../api.js';
 import { denseListEditor } from '../dense-editor.js';
 import { rowEl } from '../row.js';
-import { closeDialog, openDialog } from '../dialog.js';
+import { sheet } from '../sheet.js';
 import { loadScript, loadStyle } from '../lazy-script.js';
 import { friendlyError } from '../format.js';
 
@@ -201,6 +201,11 @@ function ensureMapPicker() {
   return mapPicker;
 }
 
+const mapPickerSheet = sheet(els.presenceMapPickerDialog, {
+  model: 'staged',
+  closeButton: els.presenceMapPickerClose,
+});
+
 async function openMapPicker() {
   // Leaflet's script and stylesheet load on the first open; a
   // failed load of either reports the map unavailable below.
@@ -218,7 +223,7 @@ async function openMapPicker() {
   }
   const center = mapPickerCenter();
   const zoom = center[0] === 0 && center[1] === 0 ? 2 : 15;
-  openDialog(els.presenceMapPickerDialog);
+  mapPickerSheet.open(els.presencePlacePickMap);
   requestAnimationFrame(function () {
     picker.map.invalidateSize();
     picker.map.setView(center, zoom);
@@ -227,16 +232,12 @@ async function openMapPicker() {
   });
 }
 
-function closeMapPicker() {
-  closeDialog(els.presenceMapPickerDialog);
-}
-
 async function confirmMapPicker() {
   if (!mapPicker) return;
   const latlng = mapPicker.marker.getLatLng();
   els.presencePlaceLat.value = latlng.lat.toFixed(6);
   els.presencePlaceLon.value = latlng.lng.toFixed(6);
-  closeMapPicker();
+  mapPickerSheet.close();
   if (!els.presencePlaceLabel.value.trim()) {
     try {
       const body = await jsonApi(
@@ -253,11 +254,5 @@ export function wirePresencePlaces() {
   if (els.presencePlacePickMap) els.presencePlacePickMap.addEventListener('click', openMapPicker);
   placeEditor.wire();
 
-  if (els.presenceMapPickerClose) els.presenceMapPickerClose.addEventListener('click', closeMapPicker);
-  if (els.presenceMapPickerDialog) {
-    els.presenceMapPickerDialog.addEventListener('click', function (ev) {
-      if (ev.target === els.presenceMapPickerDialog) closeMapPicker();
-    });
-  }
   if (els.presenceMapPickerConfirm) els.presenceMapPickerConfirm.addEventListener('click', confirmMapPicker);
 }

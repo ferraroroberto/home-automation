@@ -16,10 +16,16 @@ import { state, els, toast } from '../state.js';
 import { jsonApi, reportActionFailure } from '../api.js';
 import { renderNetwork } from './network.js';
 import { confirmAction } from '../confirm.js';
-import { closeDialog, openDialog } from '../dialog.js';
+import { sheet } from '../sheet.js';
 import { membersOf } from './network-devices.js';
 
 let selectedGroup = null;
+
+const groupSheet = sheet(els.netGroupDialog, {
+  model: 'staged',
+  closeButton: els.netGroupDialogClose,
+  onClose: function () { selectedGroup = null; },
+});
 
 export function openGroupDialog(name) {
   if (!els.netGroupDialog) return;
@@ -30,13 +36,8 @@ export function openGroupDialog(name) {
     (members.length === 1 ? ' device' : ' devices');
   els.netGroupName.value = name;
   if (els.netGroupSave) els.netGroupSave.disabled = true;
-  openDialog(els.netGroupDialog);
+  groupSheet.open();
   els.netGroupName.focus();
-}
-
-function closeGroupDialog() {
-  selectedGroup = null;
-  closeDialog(els.netGroupDialog);
 }
 
 // Rewrite the group on every local device row so the list re-renders without
@@ -52,7 +53,7 @@ async function saveGroupName() {
   const name = selectedGroup;
   if (!name) return;
   const next = els.netGroupName.value.trim();
-  if (!next || next === name) { closeGroupDialog(); return; }
+  if (!next || next === name) { groupSheet.close(); return; }
   if (els.netGroupSave) els.netGroupSave.disabled = true;
   try {
     await jsonApi('/api/network/groups/rename', {
@@ -60,7 +61,7 @@ async function saveGroupName() {
       body: JSON.stringify({ name: name, new_name: next }),
     });
     patchGroupLocally(name, next);
-    closeGroupDialog();
+    groupSheet.close();
     renderNetwork();
     toast('Group renamed', 'success');
   } catch (exc) {
@@ -88,7 +89,7 @@ async function deleteGroup() {
       body: JSON.stringify({ name: name }),
     });
     patchGroupLocally(name, '');
-    closeGroupDialog();
+    groupSheet.close();
     renderNetwork();
     toast('Group deleted', 'success');
   } catch (exc) {
@@ -98,10 +99,6 @@ async function deleteGroup() {
 
 export function wireNetGroupDialog() {
   if (!els.netGroupDialog) return;
-  els.netGroupDialogClose.addEventListener('click', closeGroupDialog);
-  els.netGroupDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.netGroupDialog) closeGroupDialog();  // backdrop
-  });
   els.netGroupName.addEventListener('input', function () {
     const next = els.netGroupName.value.trim();
     if (els.netGroupSave) els.netGroupSave.disabled = !next || next === selectedGroup;

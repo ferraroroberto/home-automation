@@ -22,7 +22,7 @@ from src._schedule_store import (
     safe_id,
     save_entry_list,
 )
-from src._spoken_time import extract_date, extract_time
+from src._spoken_time import extract_date, extract_time, speak_clock, speak_day
 
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 REMINDERS_PATH = _CONFIG_DIR / "reminders.json"
@@ -126,17 +126,10 @@ def describe_reminder(entry: ReminderEntry) -> str:
         return entry.text
 
     hour, minute = (int(part) for part in (entry.time or "00:00").split(":", 1))
-    day = datetime.strptime(entry.date, "%Y-%m-%d")
-    try:
-        when = day.strftime("%A %B %-d")
-    except ValueError:  # %-d is POSIX-only; Windows needs %#d
-        when = day.strftime("%A %B %#d")
+    when = speak_day(datetime.strptime(entry.date, "%Y-%m-%d"))
     if not entry.time:
         return f"{entry.text}, {when}"
-    suffix = "AM" if hour < 12 else "PM"
-    h12 = hour % 12 or 12
-    clock = f"{h12} {suffix}" if minute == 0 else f"{h12}:{minute:02d} {suffix}"
-    return f"{entry.text}, {when} at {clock}"
+    return f"{entry.text}, {when} at {speak_clock(hour, minute)}"
 
 
 # --------------------------------------------------------------------------- #

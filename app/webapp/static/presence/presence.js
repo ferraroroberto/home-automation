@@ -31,7 +31,7 @@ import { createViewState } from '../view-state.js';
 import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocationControls } from './presence-location.js';
 import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
 import { wirePresencePushControls } from './presence-push.js';
-import { closeDialog, openDialog } from '../dialog.js';
+import { sheet } from '../sheet.js';
 import { detailModal } from '../detail-modal.js';
 import { confirmAction } from '../confirm.js';
 import { friendlyError } from '../format.js';
@@ -389,6 +389,11 @@ function renderPresenceRefreshNote() {
 const accountNotes = {};   // label → inline result line, survives the 10 s re-render
 const accountBusy = {};    // label → true while begin is in flight
 let trustAccount = null;   // the account the code dialog is open for
+const trustSheet = sheet(els.presenceTrustDialog, {
+  model: 'staged',
+  closeButton: els.presenceTrustClose,
+  onClose: function () { trustAccount = null; },
+});
 
 function accountLabel(acct) {
   return acct.display_name || ('account ' + acct.label);
@@ -539,13 +544,8 @@ function openTrustCodeDialog(acct, hint) {
   els.presenceTrustNote.textContent = '';
   els.presenceTrustVerify.disabled = false;
   els.presenceTrustVerify.textContent = 'Verify';
-  openDialog(els.presenceTrustDialog);
+  trustSheet.open();
   els.presenceTrustCode.focus();
-}
-
-function closeTrustCodeDialog() {
-  trustAccount = null;
-  closeDialog(els.presenceTrustDialog);
 }
 
 function showTrustNote(text) {
@@ -576,7 +576,7 @@ async function verifyTrustCode() {
     if (status === 'trusted') {
       accountNotes[label] = res.detail || 'Browser trust renewed.';
       toast('iCloud trust renewed', 'success');
-      closeTrustCodeDialog();
+      trustSheet.close();
       loadPresence();
       return;
     }
@@ -597,11 +597,6 @@ async function verifyTrustCode() {
 
 function wirePresenceTrustDialog() {
   if (!els.presenceTrustDialog) return;
-  els.presenceTrustClose.addEventListener('click', closeTrustCodeDialog);
-  els.presenceTrustDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.presenceTrustDialog) closeTrustCodeDialog();
-  });
-  els.presenceTrustDialog.addEventListener('cancel', function () { trustAccount = null; });
   els.presenceTrustVerify.addEventListener('click', verifyTrustCode);
   els.presenceTrustCode.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); verifyTrustCode(); }
