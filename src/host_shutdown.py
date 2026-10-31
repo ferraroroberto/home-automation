@@ -18,8 +18,14 @@ from src._no_window import NO_WINDOW
 
 logger = logging.getLogger("host_shutdown")
 
+# Grace window between the low-UPS-battery trigger and the tower going down:
+# time for apps to save and close, and for mains to return and cancel it. Stated
+# guess that it fits inside the UPS runtime left at the trigger; the single value
+# the alert text, the hibernate timer and the shutdown call all share.
+LOW_BATTERY_GRACE_S = 180
 
-def initiate_shutdown(*, grace_seconds: int = 180, message: str = "") -> bool:
+
+def initiate_shutdown(*, grace_seconds: int = LOW_BATTERY_GRACE_S, message: str = "") -> bool:
     """Schedule a graceful Windows shutdown after ``grace_seconds``.
 
     Windows notifies running applications (``WM_QUERYENDSESSION``) during the

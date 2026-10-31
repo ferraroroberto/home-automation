@@ -16,6 +16,7 @@ import app.webapp.power_monitor as PM
 from app.webapp import power_notify
 from app.webapp.power_notify import FleetShutdownResult
 from src import activity_log
+from src.host_shutdown import LOW_BATTERY_GRACE_S
 from src.notify import NotifierError
 from src.devices.pc_fleet_prefs import PcFleetPrefs
 from src.energy.power_notify_prefs import (
@@ -176,7 +177,7 @@ def test_low_battery_shutdown_enabled_notifies_and_shuts_down(tmp_path: Path, mo
     ))
     assert result is True
     assert len(notifier.sent) == 1 and "Tower shutting down last" in notifier.sent[0]
-    assert calls == [{"grace_seconds": 180, "message": "Low UPS battery — PC shutting down to avoid data loss"}]
+    assert calls == [{"grace_seconds": LOW_BATTERY_GRACE_S, "message": "Low UPS battery — PC shutting down to avoid data loss"}]
     log = _read_power_log(tmp_path)
     assert log[0]["event"] == "low_battery_shutdown"
     assert log[0]["detail"] == "12min runtime"
