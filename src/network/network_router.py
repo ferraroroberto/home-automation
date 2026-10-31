@@ -74,8 +74,10 @@ class RouterClient:
     3. ``POST /?_type=loginData&_tag=login_entry`` with
        ``Password = sha256(password + challenge)`` -> ``login_need_refresh: true``
 
-    Authenticated data reads + reboot need ZTE's per-request session-token
-    integrity scheme; that is the issue #125 follow-up.
+    Authenticated data reads, DHCP-binding writes and reboot ride ZTE's
+    per-request integrity scheme: each POST carries the rolling session token
+    plus a ``Check`` header signed with the page's public key (see
+    :meth:`_signed_post`).
     """
 
     def __init__(self, host: str, user: str, password: str) -> None:

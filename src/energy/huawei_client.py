@@ -47,7 +47,7 @@ Config (from ``.env``):
 * ``FUSIONSOLAR_PLANT_DN`` — plant DN, e.g. ``NE=314891536`` (optional; the
   account's first plant is discovered automatically when blank)
 * ``FUSIONSOLAR_MAX_STALENESS_S`` — discard a cloud point older than this many
-  seconds (default 900), so a frozen upload cannot masquerade as live data
+  seconds (default 1800), so a frozen upload cannot masquerade as live data
 * ``FUSIONSOLAR_CACHE_TTL_S`` — reuse one cloud response for this many seconds
   (default 60). The portal's own resolution is 5 minutes, so polling it harder
   buys nothing and risks being throttled.

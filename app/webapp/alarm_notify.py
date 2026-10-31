@@ -73,11 +73,11 @@ OUTCOME_ALREADY = "already"
 
 # Backoff before giving up on confirming an arm/disarm action took effect - a
 # rejected command or a mismatched read-back is often a transient RISCO
-# cloud/panel lag, not a real failure. Retries are
-# read-only: once the command is issued, a retry only re-reads the panel via
-# ``fetch_security_state()`` - it never resends the command, since resending
-# to a panel that may already be mid-transition risks compounding the failure
-# or triggering another rejection. Worst case before giving up: 210s.
+# cloud/panel lag, not a real failure. After the first command, each delay
+# re-reads the panel via ``fetch_security_state()`` and, if the state is still
+# unconfirmed, resends the command (a genuinely dropped command needs a fresh
+# attempt). Only the final check is read-only: nothing is left to resend, so
+# it just re-reads once more. Worst case before giving up: 210s.
 CONFIRM_RETRY_DELAYS_S: tuple[int, ...] = (30, 60, 120)
 
 # Per-day error-notify de-dupe: dedupe_key -> "YYYY-MM-DD".

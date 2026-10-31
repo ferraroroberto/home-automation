@@ -13,10 +13,12 @@ restart" wedge (#396; sister-repo instance of app-launcher#388).
 The selector event loop's accept path has no such failure mode -- verified
 empirically: 800 concurrent aborted connections against a bare
 ``SelectorEventLoop`` server left it accepting fine, while the same abuse
-killed a ``ProactorEventLoop`` server after ~20. The webapp process spawns
-no asyncio subprocesses in-process (``WebappManager`` shells out via plain
-``subprocess.Popen``, never ``asyncio.create_subprocess_*``), so the
-selector loop's lack of subprocess support is a non-issue here.
+killed a ``ProactorEventLoop`` server after ~20. The selector loop has no
+asyncio subprocess support on Windows, so ``asyncio.create_subprocess_*``
+raises ``NotImplementedError`` when awaited on it. Any asyncio subprocess
+must go through ``src.devices.camera_ffmpeg``'s ``_run_on_proactor`` bridge
+(a background thread running a proactor loop); ``WebappManager`` sidesteps
+the limit with plain ``subprocess.Popen``.
 
 Wired into every place that spawns ``app.webapp.server:app`` under
 uvicorn -- ``--loop app.webapp.event_loop:selector_loop_factory`` for CLI
