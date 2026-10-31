@@ -104,6 +104,10 @@ function markLightsFailure() {
   });
 }
 
+// Pause between bulk commands so a many-light sweep does not hit the lights and
+// the Tuya cloud all at once (stated guess; no device limit measured).
+const BULK_COMMAND_GAP_MS = 250;
+
 function wait(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
@@ -139,12 +143,12 @@ async function applyAllLights(on) {
   const count = targets.length + tuyaTargets.length;
   if (!count) return;
   toast((on ? 'Activating ' : 'Deactivating ') + count + ' light' + (count === 1 ? '' : 's'));
-  await wait(250);
+  await wait(BULK_COMMAND_GAP_MS);
   // Tuya lights go through the plug switch path, which toasts and reports
   // its own outcome and re-renders this card via 'plugs:rendered'.
   for (const device of tuyaTargets) {
     await toggleSwitch(device, null);
-    await wait(250);
+    await wait(BULK_COMMAND_GAP_MS);
   }
   let failures = 0;
   for (const light of targets) {
@@ -159,12 +163,12 @@ async function applyAllLights(on) {
       });
       renderLights();
       toast(label(updated) + (on ? ' on' : ' off'));
-      await wait(250);
+      await wait(BULK_COMMAND_GAP_MS);
     } catch (exc) {
       failures += 1;
       if (!isAuthRequired(exc)) {
         toast('Failed: ' + label(light) + ': ' + friendlyError(exc), 'error');
-        await wait(250);
+        await wait(BULK_COMMAND_GAP_MS);
       }
     }
   }

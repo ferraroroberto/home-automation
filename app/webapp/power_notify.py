@@ -37,7 +37,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 import httpx
 
 from src.activity_log import append_activity
-from src.host_shutdown import cancel_shutdown, initiate_hibernate, initiate_shutdown
+from src.host_shutdown import LOW_BATTERY_GRACE_S, cancel_shutdown, initiate_hibernate, initiate_shutdown
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
 from src.devices.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
@@ -323,7 +323,7 @@ def _compose_shutdown_message(
     detail: Optional[str],
     fleet: FleetShutdownResult,
     tower_action: str = "shutdown",
-    grace_seconds: int = 180,
+    grace_seconds: int = LOW_BATTERY_GRACE_S,
 ) -> str:
     suffix = f" · {detail}" if detail else ""
     lines = [f"🔴 UPS battery critically low — shutting the PC fleet down{suffix}"]
@@ -346,7 +346,7 @@ async def record_low_battery_shutdown(
     *,
     detail: Optional[str] = None,
     extra: Optional[Dict[str, Any]] = None,
-    grace_seconds: int = 180,
+    grace_seconds: int = LOW_BATTERY_GRACE_S,
     pc_fleet_loader: Callable[[], PcFleetPrefs] = load_pc_fleet_prefs,
     notifier_factory: Callable[[], Optional[Notifier]] = build_alarm_notifier,
     shutdown_fn: Callable[..., bool] = initiate_shutdown,

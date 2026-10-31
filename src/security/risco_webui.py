@@ -54,6 +54,12 @@ _WEBUI_ACTION_TYPES = {
     "perimeter": "ELArm4",
 }
 
+# ``strResult`` on an arm/disarm reply is the panel's own estimate of seconds
+# until the command lands. The pad lets the panel finish before the Refresh
+# poll (stated guess); the cap bounds how long one command can hold the request.
+_REFRESH_PAD_S = 4
+_MAX_REFRESH_WAIT_S = 45
+
 
 class RiscoConfigError(RuntimeError):
     """Raised when required RISCO credentials/config are missing."""
@@ -197,7 +203,7 @@ async def _webui_wait_for_command_refresh(
     str_result = payload.get("strResult")
     if not isinstance(str_result, str) or not str_result.isdigit():
         return
-    wait_seconds = min(int(str_result) + 4, 45)
+    wait_seconds = min(int(str_result) + _REFRESH_PAD_S, _MAX_REFRESH_WAIT_S)
     await asyncio.sleep(wait_seconds)
     async with session.post(
         urljoin(_WEBUI_ROOT, "/Security/ArmDisarm"),

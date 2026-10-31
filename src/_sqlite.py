@@ -15,6 +15,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
+# How long a writer waits on a locked database before raising. Stated guess:
+# long enough to ride out a concurrent sampler write, short enough that a
+# wedged lock surfaces as an error instead of stalling a request thread.
+_BUSY_TIMEOUT_MS = 5000
+
 
 @contextmanager
 def connect(default_path: Path, path: Optional[Path] = None) -> Iterator[sqlite3.Connection]:
@@ -25,11 +30,11 @@ def connect(default_path: Path, path: Optional[Path] = None) -> Iterator[sqlite3
     """
     target = Path(path) if path is not None else default_path
     target.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(target), timeout=10)
+    conn = sqlite3.connect(str(target))
     conn.row_factory = sqlite3.Row
     try:
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
         yield conn
     finally:
         conn.close()
