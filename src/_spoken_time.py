@@ -7,7 +7,10 @@ copies of ``_fmt_time`` / ``_extract_time`` / ``_extract_date`` and the weekday
 vocabulary; they now import from here so the cue vocabulary can never drift
 between the reminder and calendar voice surfaces.
 
-Pure parsing only — no I/O, no persistence. What differs between the two
+Also home to the matching spoken forms (``speak_clock`` / ``speak_day``) every
+voice describer reads a time or date out with.
+
+Pure parsing and formatting only — no I/O, no persistence. What differs between the two
 callers (a reminder may be undated, a calendar event may not) stays in the
 caller.
 """
@@ -30,6 +33,24 @@ def fmt_time(hour: int, minute: int) -> Optional[str]:
     if 0 <= hour <= 23 and 0 <= minute <= 59:
         return f"{hour:02d}:{minute:02d}"
     return None
+
+
+def speak_clock(hour: int, minute: int) -> str:
+    """Speakable 12-hour clock: ``"6 PM"`` on the hour, else ``"6:30 PM"``."""
+
+    suffix = "AM" if hour < 12 else "PM"
+    h12 = hour % 12 or 12
+    return f"{h12} {suffix}" if minute == 0 else f"{h12}:{minute:02d} {suffix}"
+
+
+def speak_day(day: datetime) -> str:
+    """Speakable date without a zero-padded day: ``"Thursday July 2"``.
+
+    Built from ``day.day`` because the no-padding ``strftime`` flag is
+    ``%-d`` on POSIX and ``%#d`` on Windows.
+    """
+
+    return f"{day.strftime('%A %B')} {day.day}"
 
 
 def extract_time(text: str) -> Tuple[str, Optional[str]]:

@@ -29,7 +29,7 @@ import {
 import { persistedFlag } from '../persisted-pref.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { fmtW, friendlyError, staleReadingNote } from '../format.js';
-import { createPoller } from '../poll.js';
+import { createTabPollGate } from '../view-state.js';
 import { setToggleState } from '../toggle.js';
 import { detailModal } from '../detail-modal.js';
 import { rowEl } from '../row.js';
@@ -432,13 +432,4 @@ export function wireCircuitDetail() {
 }
 
 // --------------------------------------------------------- cadence + tabs
-const schedule = createPoller(loadCircuits);
-
-export function onCircuitsTab(tab) {
-  if (tab === 'iot') {
-    loadCircuits();
-    schedule(POLL_MS);
-  } else {
-    schedule(0);
-  }
-}
+export const onCircuitsTab = createTabPollGate(loadCircuits, 'iot', POLL_MS);

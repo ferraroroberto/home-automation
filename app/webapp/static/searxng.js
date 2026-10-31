@@ -10,8 +10,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
-import { createPoller } from './poll.js';
-import { createViewState } from './view-state.js';
+import { createTabPollGate, createViewState } from './view-state.js';
 import { friendlyError } from './format.js';
 
 const POLL_MS = 30_000;
@@ -117,14 +116,5 @@ export async function loadSearxng() {
   }
 }
 
-const schedule = createPoller(loadSearxng);
-
 // The Search engine row lives in Settings.
-export function onSearxngTab(tab) {
-  if (tab === 'settings') {
-    loadSearxng();
-    schedule(POLL_MS);
-  } else {
-    schedule(0);
-  }
-}
+export const onSearxngTab = createTabPollGate(loadSearxng, 'settings', POLL_MS);

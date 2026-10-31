@@ -23,7 +23,7 @@ import { emptyStateEl } from '../empty-state.js';
 import { icon } from '../_vendored/icons/icons.js';
 import { chipEl } from '../chip.js';
 import { createTabLoader, createViewState } from '../view-state.js';
-import { closeDialog, openDialog } from '../dialog.js';
+import { sheet } from '../sheet.js';
 import { detailModal } from '../detail-modal.js';
 import { rowEl } from '../row.js';
 
@@ -218,22 +218,26 @@ const camerasLoader = createTabLoader({
 export const loadCameras = camerasLoader.load;
 
 // --- snapshot zoom (the persisted last frame, full size) --------------------
+const zoomSheet = sheet(els.cameraZoomDialog, {
+  model: 'instant',
+  closeButton: els.cameraZoomClose,
+  onClose: function () {
+    els.cameraZoomImg.onerror = null;
+    els.cameraZoomImg.removeAttribute('src');
+  },
+});
+
 async function openZoom(cameraId) {
   const cam = cameraById(cameraId);
   if (!cam) return;
   await _ensureCameraToken();
   els.cameraZoomName.textContent = cameraLabel(cam);
   els.cameraZoomImg.onerror = function () {
-    closeZoom();
+    zoomSheet.close();
     toast('No snapshot yet — open the camera to capture one.', 'warning');
   };
   els.cameraZoomImg.src = thumbUrl(cameraId);
-  openDialog(els.cameraZoomDialog);
-}
-
-function closeZoom() {
-  els.cameraZoomImg.onerror = null;
-  closeDialog(els.cameraZoomDialog);
+  zoomSheet.open();
 }
 
 // --- detail snapshot (blob → objectURL; <img> can't send the bearer header) -
@@ -325,6 +329,14 @@ function setRecButton(on) {
   els.cameraRecBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
+// Closing by any path (×, backdrop, Esc) clears the <img> src, which
+// disconnects the MJPEG stream so the server tears down ffmpeg (no leak).
+const liveSheet = sheet(els.cameraLiveDialog, {
+  model: 'instant',
+  closeButton: els.cameraLiveClose,
+  onClose: function () { els.cameraLiveImg.removeAttribute('src'); },
+});
+
 async function openLiveView(cameraId) {
   const cam = cameraById(cameraId);
   if (!cam) return;
@@ -342,11 +354,7 @@ async function openLiveView(cameraId) {
   renderPresets();
   if (presetsOk) loadPresets(cameraId);
   if (cam.ptz_absolute) refreshCoords();
-  openDialog(els.cameraLiveDialog);
-}
-
-function closeLiveView() {
-  closeDialog(els.cameraLiveDialog);
+  liveSheet.open();
 }
 
 // --- PTZ: Step · Hold mode + step/hold buttons -------------------------------
@@ -447,13 +455,20 @@ function renderPresets() {
 // confirm.js's Promise<boolean>, replacing the one native window.prompt()
 // this app otherwise had. Resolves the trimmed name, or null on cancel.
 let presetNameResolver = null;
+let presetNameResult = null;   // the saved name; stays null for a cancel
 
-function closePresetNamePrompt(result) {
-  closeDialog(els.cameraPresetNameDialog);
-  const resolve = presetNameResolver;
-  presetNameResolver = null;
-  if (resolve) resolve(result);
-}
+// Save, ×, backdrop and Esc all close the sheet; onClose settles the promise.
+const presetNameSheet = sheet(els.cameraPresetNameDialog, {
+  model: 'staged',
+  closeButton: els.cameraPresetNameClose,
+  onClose: function () {
+    const resolve = presetNameResolver;
+    const result = presetNameResult;
+    presetNameResolver = null;
+    presetNameResult = null;
+    if (resolve) resolve(result);
+  },
+});
 
 function promptPresetName(title, initial) {
   if (!els.cameraPresetNameDialog) return Promise.resolve(null);
@@ -461,14 +476,15 @@ function promptPresetName(title, initial) {
   els.cameraPresetNameInput.value = initial || '';
   return new Promise(function (resolve) {
     presetNameResolver = resolve;
-    openDialog(els.cameraPresetNameDialog);
+    presetNameSheet.open();
     els.cameraPresetNameInput.focus();
     els.cameraPresetNameInput.select();
   });
 }
 
 function onPresetNameSave() {
-  closePresetNamePrompt(els.cameraPresetNameInput.value.trim());
+  presetNameResult = els.cameraPresetNameInput.value.trim();
+  presetNameSheet.close();
 }
 
 async function loadPresets(cameraId) {
@@ -660,23 +676,6 @@ export function wireCameras() {
   });
 
   // Zoom lightbox (last persisted frame).
-  els.cameraZoomClose.addEventListener('click', closeZoom);
-  els.cameraZoomDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.cameraZoomDialog) closeZoom();
-  });
-  els.cameraZoomDialog.addEventListener('close', function () {
-    els.cameraZoomImg.removeAttribute('src');
-  });
-
-  els.cameraLiveClose.addEventListener('click', closeLiveView);
-  els.cameraLiveDialog.addEventListener('click', function (ev) {
-    if (ev.target === els.cameraLiveDialog) closeLiveView();
-  });
-  // 'close' covers the button, backdrop, AND Esc: clearing the <img> src
-  // disconnects the MJPEG stream so the server tears down ffmpeg (no leak).
-  els.cameraLiveDialog.addEventListener('close', function () {
-    els.cameraLiveImg.removeAttribute('src');
-  });
   bindPtzButton(els.cameraPtzUp, { direction: 'up' });
   bindPtzButton(els.cameraPtzDown, { direction: 'down' });
   bindPtzButton(els.cameraPtzLeft, { direction: 'left' });
@@ -686,11 +685,6 @@ export function wireCameras() {
   els.cameraPtzMode.addEventListener('click', pickPtzMode);
   els.cameraPresetSave.addEventListener('click', savePreset);
   if (els.cameraPresetNameDialog) {
-    els.cameraPresetNameClose.addEventListener('click', function () { closePresetNamePrompt(null); });
-    els.cameraPresetNameDialog.addEventListener('click', function (ev) {
-      if (ev.target === els.cameraPresetNameDialog) closePresetNamePrompt(null);
-    });
-    els.cameraPresetNameDialog.addEventListener('cancel', function () { closePresetNamePrompt(null); });
     els.cameraPresetNameSave.addEventListener('click', onPresetNameSave);
     els.cameraPresetNameInput.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); onPresetNameSave(); }

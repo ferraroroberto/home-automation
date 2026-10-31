@@ -12,7 +12,7 @@
 
 import { jsonApi } from './api.js';
 import { toast } from './state.js';
-import { closeDialog, openDialog } from './dialog.js';
+import { sheet } from './sheet.js';
 import { friendlyError } from './format.js';
 
 const PAGE_LIMIT = 100;
@@ -20,7 +20,7 @@ let mode = 'events'; // 'events' | 'readings'
 // A domain asked for by the opener (All events → 'security'), applied once the
 // domain list for the view has loaded.
 let wantedDomain = null;
-let returnFocus = null;
+let activitySheet = null;   // built in wireActivity once the dialog exists
 
 function el(id) {
   return document.getElementById(id);
@@ -212,26 +212,18 @@ function applyModeButtons() {
 // Security tab's All events passes 'security'); without it the log keeps the
 // filter it had. `opts.trigger` gets focus back on close.
 export async function openActivity(opts) {
-  const dlg = el('activityDialog');
-  if (!dlg) return;
+  if (!activitySheet) return;
   const options = opts || {};
-  returnFocus = options.trigger || null;
   wantedDomain = options.domain || null;
   if (wantedDomain && mode !== 'events') {
     mode = 'events';
     applyModeButtons();
   }
-  openDialog(dlg);
+  activitySheet.open(options.trigger);
   await refreshDomains();
   if (wantedDomain) el('activityDomain').value = wantedDomain;
   wantedDomain = null;
   reload();
-}
-
-function closeActivity() {
-  const dlg = el('activityDialog');
-  if (!dlg) return;
-  closeDialog(dlg);
 }
 
 // Debounce a free-text input so each keystroke doesn't fire a request.
@@ -248,16 +240,7 @@ function wireDebounced(input, fn) {
 export function wireActivity() {
   const open = el('activityOpen');
   if (open) open.addEventListener('click', function () { openActivity({ trigger: open }); });
-  const close = el('activityClose');
-  if (close) close.addEventListener('click', closeActivity);
-  const dlg = el('activityDialog');
-  if (dlg) {
-    dlg.addEventListener('close', function () {
-      const target = returnFocus;
-      returnFocus = null;
-      if (target && target.isConnected) target.focus();
-    });
-  }
+  activitySheet = sheet(el('activityDialog'), { model: 'instant', closeButton: el('activityClose') });
   const modeEvents = el('activityModeEvents');
   if (modeEvents) modeEvents.addEventListener('click', function () { applyMode('events'); });
   const modeReadings = el('activityModeReadings');
