@@ -17,7 +17,7 @@ home-automation/
 │   │       ├── vendor/        # third-party browser libraries, unmodified
 │   │       └── _vendored/     # components copied byte-for-byte from project-scaffolding
 │   ├── tray/                  # the Windows tray that owns the webapp lifecycle
-│   └── .streamlit/            # Streamlit settings used by the spike
+│   └── streamlit_spike.py     # standalone Streamlit POC, launched by launch_app.bat
 ├── src/                       # UI-free domain logic; shared helpers, cross-domain stores and the list_* CLIs at the top level
 │   ├── security/              # RISCO client, alarm scene, overrides, schedules and their stores
 │   ├── presence/              # presence engine and block state, iCloud client, roster, places, travel time, calendar
@@ -41,8 +41,7 @@ home-automation/
 ├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools
 ├── config/                    # committed *.sample.json templates; the live stores are gitignored
 ├── assets/                    # tray icon and Stream Deck art — not served by the PWA
-├── custom_components/         # Home Assistant integration (declared exception)
-└── spike/                     # standalone Streamlit POC (declared exception)
+└── custom_components/         # Home Assistant integration (declared exception)
 ```
 
 ## Where new code goes
@@ -62,10 +61,9 @@ home-automation/
 
 ## Declared exceptions
 
-The `webapp-tray` preset lists `app`, `src`, `tests`, `docs` as required and `scripts`, `data`, `brand`, `assets`, `config` as allowed. Two tracked root folders are outside it and are listed in `extra_roots`:
+The `webapp-tray` preset lists `app`, `src`, `tests`, `docs` as required and `scripts`, `data`, `brand`, `assets`, `config` as allowed. One tracked root folder is outside it and is listed in `extra_roots`:
 
 - **`custom_components/`** — Home Assistant loads a custom integration from a folder of this exact name under its config directory, so it cannot live under `app/` or `src/`. It is a thin API client and imports nothing from `src`.
-- **`spike/`** — the independent Streamlit POC (`spike/streamlit_app.py`, launched by `launch_app.bat`). It shares only `src/devices/melcloud_client.py` and is deliberately outside the product.
 
 ## The structure ratchet
 

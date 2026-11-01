@@ -11,8 +11,8 @@ around only as a fast data/debug view.
 Run with::
 
     .\launch_app.bat                                                   # Windows
-    & .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py  # Windows (direct)
-    ./.venv/bin/python -m streamlit run spike/streamlit_app.py            # POSIX
+    & .\.venv\Scripts\python.exe -m streamlit run app/streamlit_spike.py  # Windows (direct)
+    ./.venv/bin/python -m streamlit run app/streamlit_spike.py            # POSIX
 
 All MELCloud logic lives in ``src/`` — this file only renders + dispatches.
 """

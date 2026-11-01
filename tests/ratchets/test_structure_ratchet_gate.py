@@ -110,4 +110,4 @@ def test_the_pre_ship_gate_calls_the_wrapper_not_the_script() -> None:
 def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
     fleet = assert_ratchet_declared_and_vendored("structure_ratchet")
     assert fleet["shape"] == "webapp-tray"
-    assert set(fleet["extra_roots"]) == {"custom_components", "spike"}
+    assert set(fleet["extra_roots"]) == {"custom_components"}

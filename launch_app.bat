@@ -21,5 +21,5 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-".venv\Scripts\python.exe" -m streamlit run "spike\streamlit_app.py" --browser.gatherUsageStats=false
+".venv\Scripts\python.exe" -m streamlit run "app\streamlit_spike.py" --browser.gatherUsageStats=false
 pause

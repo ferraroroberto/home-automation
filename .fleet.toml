@@ -8,10 +8,9 @@ port        = 8447
 description = "Home automation: AC, solar, per-circuit energy, alarm, network health, Home Assistant."
 chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "Tuya", "HA", "Telegram"]
 shape       = "webapp-tray"
-# Root folders the webapp-tray preset does not list: Home Assistant loads the integration
-# from custom_components/ by name, and spike/ holds the standalone Streamlit POC
-# (spike/streamlit_app.py, launched by launch_app.bat). docs/layout.md gives the reasons.
-extra_roots = ["custom_components", "spike"]
+# Root folder the webapp-tray preset does not list: Home Assistant loads the integration
+# from custom_components/ by name. docs/layout.md gives the reason.
+extra_roots = ["custom_components"]
 
 [vendored]
 surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
@@ -297,8 +296,8 @@ prefix = "docs/"
 # The throwaway Streamlit POC spike -- a separate manual :8501 launch, not
 # exercised by tests/e2e at all.
 [[e2e.rule]]
-tier   = "none"
-prefix = "spike/"
+tier = "none"
+path = "app/streamlit_spike.py"
 
 # Static icon/image assets (tray icon, Stream Deck art) -- not served by the
 # webapp's PWA static tree, no browser impact.
