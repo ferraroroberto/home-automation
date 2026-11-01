@@ -1,5 +1,8 @@
 {
   "version": 1,
   "band": {"files": 4, "functions": 10},
-  "entries": []
+  "root_extras": ["custom_components", "spike"],
+  "entries": [
+    {"key": "place:app/.streamlit", "files": 1}
+  ]
 }
