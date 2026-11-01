@@ -9,7 +9,7 @@ The product is a **FastAPI + static PWA**: one row per unit (its mode glyph, the
 - **Tailscale** (anywhere on the tailnet, including this PC): `https://<pc>.<tailnet>.ts.net:8447` — trusted cert, no per-device setup
 - **Loopback** (plain desktop access on the PC): `http://localhost:8447` — plain HTTP; `https://localhost` would warn (the cert is for the `.ts.net` name — see [Webapp access](docs/webapp-access.md))
 
-> The **Streamlit app is a POC spike** (`spike/streamlit_app.py`) — a
+> The **Streamlit app is a POC spike** (`app/streamlit_spike.py`) — a
 > throwaway data/debug view, independent from the product. See
 > [Streamlit spike](#streamlit-spike-poc).
 
@@ -22,7 +22,7 @@ The top-level directory map — what each directory *is*. The exhaustive module-
 - **`app/tray/`** — the Windows tray that owns the webapp lifecycle (`tray.bat` → `python -m app.tray`); `single_instance.py` vendored verbatim from the scaffold. `tray_lifecycle.ps1` is never vendored per-app — `tray.bat` shells out to the one shared, machine-local copy fleet-config installs at `%USERPROFILE%\.claude\tray\tray_lifecycle.ps1`.
 - **`custom_components/home_automation_app/`** — Home Assistant custom integration: a thin adapter over the `/api/*` endpoints exposing native `climate` / `switch` / `alarm_control_panel` / `binary_sensor` / `sensor` entities. See [`docs/home-assistant-integration/`](docs/home-assistant-integration/README.md).
 - **`scripts/`** — ops helpers: `gen_tailscale_cert.py` (HTTPS cert), `gen_token.py` / `set_password.py` (auth), `gen_web_push_keys.py`, `gen_icons.py`, `ha_config_sync.py` (voice-PE HA config deploy over SSH; see [Voice control](docs/voice-control.md)).
-- **`spike/`** — `streamlit_app.py`, the independent Streamlit POC spike.
+- **`app/streamlit_spike.py`** — the independent Streamlit POC spike.
 - **`config/`** — committed `*.sample.json` templates; the real per-feature JSON stores are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `webapp.log` — the rotating process log that survives the tray's DEVNULL launch, `slow-requests.log` — one line per over-budget request, the SQLite stores); gitignored.
 - **`.env`** — every integration's credentials (gitignored; copy from `.env.example`, which lists one key block per integration — MELCloud, FusionSolar, RISCO, Tuya, Huawei Modbus, network router/AP, iCloud presence, Home Assistant, Google Calendar, SearXNG, Elgato, Athom, and more). Each block is optional: the feature it backs degrades gracefully when its keys are absent, per [Feature reference](#feature-reference).
@@ -211,4 +211,4 @@ way to eyeball the data.
 ./launch_app.sh                                                   # POSIX
 ```
 
-…or directly: `& .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py`.
+…or directly: `& .\.venv\Scripts\python.exe -m streamlit run app/streamlit_spike.py`.

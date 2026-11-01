@@ -178,7 +178,7 @@ def test_real_rules_route_representative_paths() -> None:
     assert tier("config/tariff.sample.json") == "skip"
     assert tier("docs/pv-forecast.md") == "skip"
     assert tier("tests/energy/test_pv_forecast.py") == "skip"
-    assert tier("spike/streamlit_app.py") == "skip"  # #701 trap
+    assert tier("app/streamlit_spike.py") == "skip"  # #701 trap
     assert tier("assets/tray/home-automation.ico") == "skip"  # #701 trap
     assert tier("assets/stream-deck/home-automation-144.png") == "skip"  # #701 trap
     assert tier("README.md") == "skip"

@@ -5,7 +5,7 @@ Claude Code reads this file directly as project memory; other agents (Cursor, Co
 > Universal dev-workflow directives (plan mode, asking, editing, git, branch/PR, docs) live in `~/.claude/CLAUDE.md`, not restated here. This file owns only what is specific to this project's shape.
 
 ## Streamlit conventions
-*Apply only to the Streamlit **spike** (`spike/streamlit_app.py`) — the product is the FastAPI + PWA webapp under `app/webapp/`, not Streamlit.*
+*Apply only to the Streamlit **spike** (`app/streamlit_spike.py`) — the product is the FastAPI + PWA webapp under `app/webapp/`, not Streamlit.*
 
 - `st.set_page_config(layout="wide", page_title="...")` MUST be the first Streamlit call.
 - Use `width="stretch"` (and `width="content"` where appropriate). **Never** introduce new `use_container_width=True` — deprecated; migrate existing uses you touch.
@@ -56,7 +56,7 @@ Windows / PowerShell:
 - Syntax: `& .\.venv\Scripts\python.exe -m py_compile <file>`
 - CLI smoke: `& .\.venv\Scripts\python.exe -m src.list_devices` (HVAC) · `& .\.venv\Scripts\python.exe -m src.list_energy` (FusionSolar energy) · `& .\.venv\Scripts\python.exe -m src.list_circuits` (Athom per-circuit clamps)
 - Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8447` then `curl -k https://127.0.0.1:8447/healthz`, `…/api/units` and `…/api/energy` (loopback bypasses the token).
-- Streamlit spike boot check: `& .\.venv\Scripts\python.exe -m streamlit run spike/streamlit_app.py --server.headless true`
+- Streamlit spike boot check: `& .\.venv\Scripts\python.exe -m streamlit run app/streamlit_spike.py --server.headless true`
 
 **Pre-ship gate — one command, routes itself:** `& .\scripts\verify-before-ship.ps1`. Runs byte-compile, the backend suite, the eight vendored ratchets below and the repo-specific history-marker ratchet **unconditionally** (`tests -p no:cacheprovider --ignore=tests/e2e` — API smoke via FastAPI `TestClient` under `tests/api/` + unit tests over the `src/` domain logic; cloud fetchers are monkeypatched, nothing touches MELCloud/FusionSolar/Tuya/Risco; re-count with `--collect-only -q`, [`docs/testing.md`](docs/testing.md) § "Backend suite"), then routes **only** the browser phase.
 
@@ -106,7 +106,7 @@ Proof-of-concept for reading and controlling Mitsubishi Electric HVAC units, ahe
 - `app/tray/` — the Windows tray that owns the webapp lifecycle (`tray.bat` → `python -m app.tray`). `tray.py` (pystray icon + menu), `__main__.py` (entry); imports `WebappManager` from `app.webapp.manager`. `single_instance.py` is vendored verbatim from `project-scaffolding` — never edit per-app. `watchdog.py` is also vendored verbatim (`retry_with_backoff` wraps the initial `manager.start()` at tray boot; `BreadcrumbLog` writes tray-boot breadcrumbs to `webapp/watchdog.log` — a `pythonw`-hosted tray has no `sys.stderr`, so `logging.basicConfig()` alone discards everything). `tray_lifecycle.ps1` is never vendored per-app — `tray.bat` shells out to the shared machine-local copy fleet-config installs at `%USERPROFILE%\.claude\tray\tray_lifecycle.ps1`.
 - `custom_components/home_automation_app/` — Home Assistant custom integration (#235): a thin, reusable adapter over the FastAPI `/api/*` endpoints. Exposes HVAC as `climate`, Tuya plugs as `switch`, RISCO as `alarm_control_panel` + zone `binary_sensor`, FusionSolar flow as `sensor`. Must not import `src.*` or duplicate device logic; HA is just another API client. Deployment docs: `docs/home-assistant-integration/README.md`.
 - `scripts/` — `gen_tailscale_cert.py` (HTTPS via `tailscale cert` — a real Let's Encrypt leaf for the tailnet `.ts.net` name; `--check` auto-renews within 30 days of expiry), `gen_token.py` / `set_password.py` (auth), `gen_icons.py` (PWA icons; Pillow dev-only), `ha_config_sync.py` (#243 — deploy the repo-owned voice-PE HA config into the HA VM's `/config` over SSH via the Terminal & SSH add-on: `preflight`/`deploy`/`rollback`/`probe`, managed-block replace in `configuration.yaml`, timestamped remote backups, `ha core check`, guarded `--restart`; HA secrets stay live-only — only key names are verified, never values).
-- `spike/streamlit_app.py` — the independent POC spike (throwaway data/debug view; shares only `src/devices/melcloud_client.py`), launched via `launch_app.bat` on :8501.
+- `app/streamlit_spike.py` — the independent POC spike (throwaway data/debug view; shares only `src/devices/melcloud_client.py`), launched via `launch_app.bat` on :8501.
 
 **Interacting with the Home Assistant VM — SSH first, browser only as fallback (#243).** Read [`docs/home-assistant-vm.md`](docs/home-assistant-vm.md) before touching the HA VM (SSH, `ha` CLI, `scp`, HA REST API, `scripts/ha_config_sync.py`, or any browser-driven HA step) — it holds the full procedure, the SSH-first order of preference, and when the browser is allowed.
 

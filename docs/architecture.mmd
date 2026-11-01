@@ -104,7 +104,7 @@ flowchart TB
   CERTGEN -->|provisions HTTPS cert for| RUNTIME
   HASYNC -->|SSH deploy voice-PE config| HAVM
 
-  subgraph spike_sub["spike/ — independent Streamlit POC"]
-    STREAMLIT["streamlit_app.py :8501"]
+  subgraph spike_sub["app/ — independent Streamlit POC"]
+    STREAMLIT["streamlit_spike.py :8501"]
   end
   CLIENTS -->|shares melcloud_client only| STREAMLIT

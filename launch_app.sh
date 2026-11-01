@@ -12,7 +12,7 @@ if [ ! -f ".venv/bin/python" ]; then
     exit 1
 fi
 
-.venv/bin/python -m streamlit run spike/streamlit_app.py \
+.venv/bin/python -m streamlit run app/streamlit_spike.py \
     --server.enableXsrfProtection false \
     --server.enableCORS false \
     --browser.gatherUsageStats=false
