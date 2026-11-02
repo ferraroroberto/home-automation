@@ -16,18 +16,35 @@ import { icon } from '../_vendored/icons/icons.js';
 const W = 300;          // viewBox width — the SVG stretches to its cell
 const H = 40;           // viewBox height (CSS pins the rendered height)
 const PAD = 4;          // vertical inset so the stroke never clips
+const LATENCY_MIN_SPAN_MS = 10;   // a steady link must not read as a swing
+const SPEED_MIN_TESTS = 3;        // fewer tests than this is not a trend
 
 function fmtMs(v) { return Math.round(Number(v)) + ' ms'; }
 function fmtMbps(v) { return Math.round(Number(v)) + ' Mbps'; }
 
-/** Map `[[ts, value], ...]` to SVG coordinates on a shared y scale `[0, yMax]`. */
-function project(points, yMax, t0, t1) {
+/** Map `[[ts, value], ...]` to SVG coordinates on a shared y scale `scale = {lo, hi}`. */
+function project(points, scale, t0, t1) {
   const span = t1 - t0;
+  const yRange = scale.hi - scale.lo;
   return points.map(function (p) {
     const x = span > 0 ? ((p[0] - t0) / span) * W : W;
-    const y = H - PAD - (Math.max(0, p[1]) / yMax) * (H - 2 * PAD);
+    const y = H - PAD - ((p[1] - scale.lo) / yRange) * (H - 2 * PAD);
     return [x, y];
   });
+}
+
+/**
+ * Latency's own range, centred and widened to at least `LATENCY_MIN_SPAN_MS`,
+ * so a steady 14-15 ms link plots mid-chart with its jitter visible instead
+ * of pinned to the top of a zero-based axis. Never dips below 0 ms.
+ */
+function latencyScale(values) {
+  const lo = Math.min.apply(null, values);
+  const hi = Math.max.apply(null, values);
+  const span = Math.max(hi - lo, LATENCY_MIN_SPAN_MS);
+  const mid = (hi + lo) / 2;
+  const floor = Math.max(0, mid - span / 2);
+  return { lo: floor, hi: floor + span, flat: hi - lo < LATENCY_MIN_SPAN_MS };
 }
 
 function pathOf(coords) {
@@ -39,13 +56,12 @@ function pathOf(coords) {
   }).join('');
 }
 
-function sparkline(series, label) {
+function sparkline(series, label, scale) {
   const all = series.reduce(function (acc, s) { return acc.concat(s.points); }, []);
   const t0 = Math.min.apply(null, all.map(function (p) { return p[0]; }));
   const t1 = Math.max.apply(null, all.map(function (p) { return p[0]; }));
-  const yMax = Math.max.apply(null, all.map(function (p) { return p[1]; })) || 1;
   const parts = series.map(function (s) {
-    const coords = project(s.points, yMax, t0, t1);
+    const coords = project(s.points, scale, t0, t1);
     const line = '<path class="net-spark-line ' + s.cls + '" d="' + pathOf(coords) + '"/>';
     if (!s.area || coords.length < 2) return line;
     const first = coords[0];
@@ -77,8 +93,11 @@ function latencyRow(points) {
   const hi = Math.max.apply(null, vals);
   const label = 'Latency, last 24 hours: ' + fmtMs(lo) + ' to ' + fmtMs(hi) + ', latest ' +
     fmtMs(points[points.length - 1][1]);
+  // The fill reads as "amount above zero", which a floating range is not: a
+  // flat series keeps just the line.
+  const scale = latencyScale(vals);
   return row('Latency', fmtMs(points[points.length - 1][1]),
-    sparkline([{ points: points, cls: 'is-latency', area: true }], label));
+    sparkline([{ points: points, cls: 'is-latency', area: !scale.flat }], label, scale));
 }
 
 function speedRow(down, up) {
@@ -87,14 +106,20 @@ function speedRow(down, up) {
   if (!down.length && !up.length) {
     return row(name, '30 d', empty('Run a speed test to start this trend.'));
   }
+  const count = Math.max(down.length, up.length);
+  if (count < SPEED_MIN_TESTS) {
+    return row(name, count + (count === 1 ? ' test' : ' tests'),
+      empty('A trend needs ' + SPEED_MIN_TESTS + ' tests; ' + count + ' so far.'));
+  }
   const series = [];
   if (down.length) series.push({ points: down, cls: 'is-down' });
   if (up.length) series.push({ points: up, cls: 'is-up' });
-  const count = Math.max(down.length, up.length);
   const label = 'Download and upload speed, last 30 days, ' + count + ' test' + (count === 1 ? '' : 's') +
     (down.length ? ', latest download ' + fmtMbps(down[down.length - 1][1]) : '') +
     (up.length ? ', latest upload ' + fmtMbps(up[up.length - 1][1]) : '');
-  return row(name, count + (count === 1 ? ' test' : ' tests'), sparkline(series, label));
+  // Throughput keeps a zero baseline: the gap between tests is the signal.
+  const top = Math.max.apply(null, down.concat(up).map(function (p) { return p[1]; })) || 1;
+  return row(name, count + ' tests', sparkline(series, label, { lo: 0, hi: top }));
 }
 
 export function renderTrends(history) {
