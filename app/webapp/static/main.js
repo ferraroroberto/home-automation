@@ -19,6 +19,7 @@ import {
 } from './state.js';
 import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
+import { buildReadoutText } from './_vendored/page-foot/page-foot.js';
 import { initUsageLog } from './_vendored/usage-log/usage-log.js';
 import { jsonApi, hideLogin } from './api.js';
 import { wireTabs } from './tabs.js';
@@ -61,15 +62,6 @@ import { wireConfirmDialog } from './confirm.js';
 import { friendlyError } from './format.js';
 
 // --------------------------------------------------- build identity
-function fmtBuildTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso).replace('T', ' ').slice(0, 16);
-  const pad = function (n) { return String(n).padStart(2, '0'); };
-  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-}
-
 const ASSET_HASH_KEY = 'home-automation.assetHash';
 const ASSET_RELOAD_KEY = 'home-automation.assetReloadedFor';
 
@@ -95,8 +87,7 @@ async function fetchVersion() {
       return;
     }
     if (assetHash) localStorage.setItem(ASSET_HASH_KEY, assetHash);
-    const ts = fmtBuildTime(body.built_at || '');
-    els.buildReadout.textContent = ts ? ('Build: ' + sha + ' · ' + ts) : ('Build: ' + sha);
+    els.buildReadout.textContent = buildReadoutText(sha, body.built_at || '');
   } catch (_) {
     els.buildReadout.textContent = '';
   }
