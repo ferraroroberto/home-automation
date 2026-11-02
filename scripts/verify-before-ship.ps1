@@ -49,7 +49,14 @@
                             "pure code move", ...) rises beyond
                             .history-marker-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
-     11. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e)
+     10b. runtime write ratchet — no file's count of write targets resolving under a
+                            code folder (src, app, scripts, custom_components) rises
+                            beyond .runtime-write-ratchet-baseline.json. Whole tree,
+                            never routed; exit 3 is NOT CONFIRMED and fails.
+     11. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e);
+                            stages 11-13 run inside the runtime write probe
+                            (--snapshot before, --probe after), which fails on any
+                            untracked or ignored file they leave under a code folder
      12. pytest (e2e)    — diff-proportionate: the browser slice is routed by
                             scripts/classify_e2e.py against the .fleet.toml [e2e]
                             rules (skip / static / full), fail-safe to full
@@ -182,6 +189,14 @@ try {
     Invoke-Stage "conventions ratchet" { & $py -m scripts.conventions_ratchet_gate }
     # Same exit-3 mapping for the history marker ratchet (tests/ratchets/test_history_marker_ratchet_gate.py).
     Invoke-Stage "history marker ratchet" { & $py -m scripts.history_marker_ratchet_gate }
+    # Same exit-3 mapping for the runtime write ratchet (tests/ratchets/test_runtime_write_ratchet_gate.py).
+    Invoke-Stage "runtime write ratchet" { & $py -m scripts.runtime_write_ratchet_gate }
+    # Runtime write probe, first half: what already sits untracked or ignored under the
+    # code folders, so the probe after the test runs names only what they wrote. The
+    # script's own --snapshot/--probe modes; the static stage above goes through the wrapper.
+    $runtimeWrite = "scripts/runtime_write_ratchet.py"
+    $runtimeSnapshot = Join-Path ([IO.Path]::GetTempPath()) "runtime-write-snapshot-$PID.json"
+    Invoke-Stage "runtime write probe (snapshot)" { & $py $runtimeWrite --snapshot $runtimeSnapshot }
     Invoke-Stage "pytest (unit, non-e2e)" { & $py -m pytest tests -p no:cacheprovider --ignore=tests/e2e }
 
     # ---------------------------------------------------------------- e2e routing
@@ -266,6 +281,9 @@ try {
             }
         }
     }
+
+    # Runtime write probe, second half: any file the unit, e2e and shot runs left under a code folder.
+    Invoke-Stage "runtime write probe" { & $py $runtimeWrite --probe $runtimeSnapshot }
 
     $gateResult = "PASS"
     Write-Host ""
