@@ -116,10 +116,4 @@ details[open] > .collapse-summary .collapse-chevron { transform: rotate(90deg); 
 }
 .card--collapsible[open] > .collapse-summary { border-bottom: 1px solid var(--line-muted); }
 
-/* Build-identity footer (which build the PWA is running). */
-.page-foot {
-  margin: var(--space-md) var(--space-xs);
-  text-align: center;
-}
-.page-foot p { margin: 2px 0; }
 
