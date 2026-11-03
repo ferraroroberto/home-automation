@@ -37,13 +37,15 @@ from src.presence.presence_blocks import load_arm_block
 from src.presence.presence_engine import (
     load_automation_config,
     load_kids_home_override,
-    load_skip_away_arm_override,
     load_people,
     now_utc,
     save_automation_config,
     set_kids_home_override,
-    set_skip_away_arm_override,
     set_person_state,
+)
+from src.presence.presence_skip_away_arm import (
+    load_skip_away_arm_override,
+    set_skip_away_arm_override,
 )
 from src.presence.presence_hidden import load_hidden_presence_ids, set_presence_hidden
 from src.presence.presence_places import (

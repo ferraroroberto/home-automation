@@ -17,7 +17,7 @@ import { loadPresence, presenceById, presenceEntityLabel } from './presence.js';
 
 // Kids home is a switch on the Security glance card,
 // live only once presence has been read.
-export function renderKidsHomeToggle(viewReady) {
+function renderKidsHomeToggle(viewReady) {
   if (!els.presenceKidsHome) return;
   setToggleState(els.presenceKidsHome, !!(state.presence && state.presence.kids_home_override));
   els.presenceKidsHome.disabled = !viewReady;
@@ -25,10 +25,16 @@ export function renderKidsHomeToggle(viewReady) {
 
 // One-shot: the server clears it after skipping an away-arm, and the tab's
 // presence poll flips the switch off.
-export function renderSkipAwayArmToggle(viewReady) {
+function renderSkipAwayArmToggle(viewReady) {
   if (!els.presenceSkipAwayArm) return;
   setToggleState(els.presenceSkipAwayArm, !!(state.presence && state.presence.skip_away_arm_override));
   els.presenceSkipAwayArm.disabled = !viewReady;
+}
+
+// Both override switches on the Security glance card.
+export function renderGlanceOverrides(viewReady) {
+  renderKidsHomeToggle(viewReady);
+  renderSkipAwayArmToggle(viewReady);
 }
 
 export function renderPresenceAutomationNote() {

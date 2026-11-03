@@ -49,13 +49,15 @@ from src.presence.presence_engine import (
     load_automation_config,
     load_kids_home_override,
     load_people,
-    load_skip_away_arm_override,
     remember_known_people,
     mark_decision_applied,
     mark_disarm_satisfied,
-    record_away_arm_skip,
     satisfied_disarm_key,
     set_kids_home_override,
+)
+from src.presence.presence_skip_away_arm import (
+    load_skip_away_arm_override,
+    record_away_arm_skip,
 )
 from src.push_notifications import send_push
 from src.security.risco_client import SecurityState, fetch_security_state
@@ -440,6 +442,27 @@ async def _apply_away_arm_skip(decision: PresenceDecision) -> None:
     await _notify_away_arm_skip(kids_home_cleared)
 
 
+async def _apply_non_command_decision(
+    decision: PresenceDecision, guardian_home_name: Optional[str]
+) -> bool:
+    """Apply a decision that sends no RISCO command; ``False`` for arm/disarm.
+
+    The guardian hold and the away-arm skip never reach the confirm/lock
+    machinery or the blinds.
+    """
+
+    if decision.kind == "guardian_hold":
+        mark_decision_applied(decision, "held")
+        logger.info("🏠 Presence automation holding arm — %s", decision.reason)
+        await _notify_guardian_hold(guardian_home_name)
+        _append_decision_trigger_log(decision, "held")
+        return True
+    if decision.kind == "skip_arm":
+        await _apply_away_arm_skip(decision)
+        return True
+    return False
+
+
 async def _alert_on_panel_events(security: SecurityState) -> None:
     """Feed one security read to the panel-event alerts, scene capture and override.
 
@@ -560,19 +583,7 @@ async def tick() -> None:
     if decision is None:
         return
 
-    if decision.kind == "guardian_hold":
-        # No RISCO command was ever considered here — mark applied directly
-        # and notify, skipping the confirm/lock machinery below entirely.
-        mark_decision_applied(decision, "held")
-        logger.info("🏠 Presence automation holding arm — %s", decision.reason)
-        await _notify_guardian_hold(guardian_home_name)
-        _append_decision_trigger_log(decision, "held")
-        return
-
-    if decision.kind == "skip_arm":
-        # No RISCO command and no blinds: handled before the alarm lock, like
-        # the guardian hold.
-        await _apply_away_arm_skip(decision)
+    if await _apply_non_command_decision(decision, guardian_home_name):
         return
 
     outcome = "started"

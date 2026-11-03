@@ -16,6 +16,7 @@ import pytest
 import app.webapp.presence_automation as PA
 from src._schedule_store import StoreUnreadableError
 from src.presence import presence_engine as P
+from src.presence import presence_skip_away_arm as S
 
 _LEFT = datetime(2026, 11, 3, 9, 0, tzinfo=timezone.utc)
 _NOW = _LEFT + timedelta(minutes=6)
@@ -87,43 +88,43 @@ def test_no_skip_while_someone_is_home(state) -> None:
 
 def test_recording_the_skip_clears_both_overrides_and_consumes_the_arm(state) -> None:
     P.set_kids_home_override(True)
-    P.set_skip_away_arm_override(True)
+    S.set_skip_away_arm_override(True)
     people = [_away("roberto"), _away("ana")]
-    decision = _decide(people, skip_away_arm=P.load_skip_away_arm_override())
+    decision = _decide(people, skip_away_arm=S.load_skip_away_arm_override())
 
-    kids_home_was_on = P.record_away_arm_skip(decision.key)
+    kids_home_was_on = S.record_away_arm_skip(decision.key)
 
     assert kids_home_was_on is True
-    assert P.load_skip_away_arm_override() is False
+    assert S.load_skip_away_arm_override() is False
     assert P.load_kids_home_override() is False
     meta = json.loads(state.read_text(encoding="utf-8"))["automation"]
     assert meta["last_arm_key"] == decision.key
     assert meta["last_arm_outcome"] == "skipped"
     # Same departure, a tick later: nothing left to arm or skip.
     later = _NOW + timedelta(seconds=10)
-    assert _decide(people, at=later, skip_away_arm=P.load_skip_away_arm_override()) is None
+    assert _decide(people, at=later, skip_away_arm=S.load_skip_away_arm_override()) is None
 
 
 def test_the_next_departure_after_a_skip_arms_normally(state) -> None:
-    P.set_skip_away_arm_override(True)
-    first = _decide([_away("roberto")], skip_away_arm=P.load_skip_away_arm_override())
-    P.record_away_arm_skip(first.key)
+    S.set_skip_away_arm_override(True)
+    first = _decide([_away("roberto")], skip_away_arm=S.load_skip_away_arm_override())
+    S.record_away_arm_skip(first.key)
 
     left_again = _LEFT + timedelta(hours=3)
     at = left_again + timedelta(minutes=6)
     people = [P.PersonPresence("roberto", "away", at, state_since=left_again)]
-    decision = _decide(people, at=at, skip_away_arm=P.load_skip_away_arm_override())
+    decision = _decide(people, at=at, skip_away_arm=S.load_skip_away_arm_override())
 
     assert decision is not None
     assert (decision.kind, decision.action) == ("arm", "arm")
 
 
 def test_override_persists_and_loads(state) -> None:
-    assert P.load_skip_away_arm_override() is False
-    P.set_skip_away_arm_override(True)
-    assert P.load_skip_away_arm_override() is True
-    P.set_skip_away_arm_override(False)
-    assert P.load_skip_away_arm_override() is False
+    assert S.load_skip_away_arm_override() is False
+    S.set_skip_away_arm_override(True)
+    assert S.load_skip_away_arm_override() is True
+    S.set_skip_away_arm_override(False)
+    assert S.load_skip_away_arm_override() is False
 
 
 # --- Tick ---------------------------------------------------------------------
@@ -193,13 +194,13 @@ def house(monkeypatch, state):
 
 
 def test_tick_skips_the_arm_clears_the_override_and_announces_it(house) -> None:
-    P.set_skip_away_arm_override(True)
+    S.set_skip_away_arm_override(True)
 
     asyncio.run(PA.tick())
 
     assert house["confirm"] == []
     assert house["follow"] == []
-    assert P.load_skip_away_arm_override() is False
+    assert S.load_skip_away_arm_override() is False
     assert len(house["notify"]) == 1
     assert "Don't arm when away" in house["notify"][0]
     assert "Kids home" not in house["notify"][0]
@@ -213,12 +214,12 @@ def test_tick_skips_the_arm_clears_the_override_and_announces_it(house) -> None:
 
 def test_tick_with_both_overrides_arms_nothing_and_clears_both(house) -> None:
     P.set_kids_home_override(True)
-    P.set_skip_away_arm_override(True)
+    S.set_skip_away_arm_override(True)
 
     asyncio.run(PA.tick())
 
     assert house["confirm"] == []
-    assert P.load_skip_away_arm_override() is False
+    assert S.load_skip_away_arm_override() is False
     assert P.load_kids_home_override() is False
     assert "Kids home was reset too" in house["notify"][0]
 
@@ -242,7 +243,7 @@ def test_an_unreadable_override_counts_as_off_and_the_house_arms(house, monkeypa
 
 
 def test_a_skip_that_cannot_be_saved_arms_nothing_and_retries(house, monkeypatch) -> None:
-    P.set_skip_away_arm_override(True)
+    S.set_skip_away_arm_override(True)
 
     def unsaveable(key):
         raise StoreUnreadableError("presence_state.json unreadable")
@@ -252,14 +253,14 @@ def test_a_skip_that_cannot_be_saved_arms_nothing_and_retries(house, monkeypatch
 
     assert house["confirm"] == []
     assert house["notify"] == []
-    assert P.load_skip_away_arm_override() is True
+    assert S.load_skip_away_arm_override() is True
 
     # The store recovers: the next tick records the skip, still no arm.
-    monkeypatch.setattr(PA, "record_away_arm_skip", P.record_away_arm_skip)
+    monkeypatch.setattr(PA, "record_away_arm_skip", S.record_away_arm_skip)
     asyncio.run(PA.tick())
 
     assert house["confirm"] == []
-    assert P.load_skip_away_arm_override() is False
+    assert S.load_skip_away_arm_override() is False
     assert len(house["notify"]) == 1
 
 
@@ -275,7 +276,7 @@ def test_override_switched_on_while_waiting_for_the_lock_sends_no_command(
             self._inner = real_lock()
 
         async def __aenter__(self):
-            P.set_skip_away_arm_override(True)
+            S.set_skip_away_arm_override(True)
             return await self._inner.__aenter__()
 
         async def __aexit__(self, *exc):
@@ -290,4 +291,4 @@ def test_override_switched_on_while_waiting_for_the_lock_sends_no_command(
     monkeypatch.setattr(PA, "automatic_alarm_action_lock", real_lock)
     asyncio.run(PA.tick())
     assert house["confirm"] == []
-    assert P.load_skip_away_arm_override() is False
+    assert S.load_skip_away_arm_override() is False
