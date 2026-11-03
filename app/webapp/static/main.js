@@ -1,7 +1,7 @@
 /* Home Automation — entry module: boots the dashboard and wires events.
  *
  * Loaded by index.html as <script type="module">. Thin orchestrator
- * (the same pattern as security.js/network.js): owns boot wiring, the theme toggle, nav-debug init, and login.
+ * (the same pattern as security.js/network.js): owns boot wiring, the theme toggle, nav-debug init, and the sign-in hook.
  * The AC rows (Home and the AC tab, one shared row) and the unit sheet
  * (setpoint, power, mode, fan, vanes, temperature rule, schedules, name)
  * live in ./units.js — each command there hits POST /api/units/{id} and
@@ -21,7 +21,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { buildReadoutText } from './_vendored/page-foot/page-foot.js';
 import { initUsageLog } from './_vendored/usage-log/usage-log.js';
-import { jsonApi, hideLogin } from './api.js';
+import { jsonApi, setSignInHandler } from './api.js';
 import { wireTabs } from './tabs.js';
 import { wireSettings } from './settings.js';
 import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';
@@ -59,7 +59,6 @@ import { startWeatherPolling } from './energy/weather.js';
 import { wireActivity } from './activity.js';
 import { installDialogScrollLock } from './scroll-lock.js';
 import { wireConfirmDialog } from './confirm.js';
-import { friendlyError } from './format.js';
 
 // --------------------------------------------------- build identity
 const ASSET_HASH_KEY = 'home-automation.assetHash';
@@ -131,30 +130,9 @@ bindTextSize(document.getElementById('textSizeControl'), 'home-automation');
   wireToggle(els.navDebugBtn, setNavDebugEnabled);
 })();
 
-els.loginForm.addEventListener('submit', async function (ev) {
-  ev.preventDefault();
-  els.loginError.hidden = true;
-  const password = els.loginPassword.value;
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    });
-    const body = await res.json().catch(function () { return null; });
-    if (!res.ok || !body || !body.token) {
-      els.loginError.textContent = friendlyError(body && body.detail, 'Login failed');
-      els.loginError.hidden = false;
-      return;
-    }
-    writeToken(body.token);
-    hideLogin();
-    loadUnits();
-  } catch (exc) {
-    els.loginError.textContent = friendlyError(exc, 'Login failed');
-    els.loginError.hidden = false;
-  }
-});
+// A successful sign-in (the vendored sheet stores the token via api.js) reloads
+// the dashboard's units.
+setSignInHandler(loadUnits);
 
 (function boot() {
   const fromUrl = tokenFromUrl();

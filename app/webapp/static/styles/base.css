@@ -197,7 +197,7 @@
 * { box-sizing: border-box; }
 
 /* The `hidden` attribute must always win, even over a class that sets
-   `display` (e.g. .login-overlay / .row use flex). Without this the UA
+   `display` (e.g. .row uses flex). Without this the UA
    `[hidden]{display:none}` rule loses to author styles and "hidden"
    elements stay laid out — intercepting clicks. */
 [hidden] { display: none !important; }
@@ -506,19 +506,6 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
    file scopes its icon sizes as `.tabs .tab-icon`, so .icon below can't
    shrink them at any width; no per-app icon-size
    override is needed here. */
-
-/* Overlay-hide glue the vendored file anticipates (its README: "a non-<dialog>
-   overlay -> add the class nav-hidden to <body>") — #loginOverlay is a
-   hand-rolled [hidden]-toggled overlay, not a native <dialog>, which the
-   vendored file already covers via body:has(dialog[open]). visibility (not
-   display) matches the vendored technique — gentler on iOS fixed-layer
-   repainting across show/hide. */
-@media (pointer: coarse) and (max-width: 520px) {
-  body:has(#loginOverlay:not([hidden])) .tabs {
-    visibility: hidden;
-    pointer-events: none;
-  }
-}
 
 /* ----------------------------------------------------------- AC rows */
 /* Home's AC rows (its Climate group) and the AC tab's are the one

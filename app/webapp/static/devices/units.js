@@ -854,7 +854,7 @@ const unitsLoader = createTabLoader({
   // An open sheet is not part of renderUnits(): refresh it from the new
   // read, so a unit that drops offline (or a poll that fails) inerts its
   // controls rather than leaving them live. Not run after a quiet
-  // 401 return — the login overlay is already up (api.js → showLogin).
+  // 401 return — the sign-in sheet is already up (api.js → showLogin).
   afterLoad: refreshOpenSheet,
 });
 
