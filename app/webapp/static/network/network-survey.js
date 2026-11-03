@@ -287,6 +287,7 @@ function roomRow(entry) {
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'icon-button danger net-survey-row-delete';
+  del.dataset.track = 'network.survey-room-delete';
   del.title = 'Delete this room’s samples';
   del.setAttribute('aria-label', 'Delete samples for ' + entry.room);
   del.innerHTML = icon('trash-2');
@@ -403,6 +404,7 @@ function pickerRow(d) {
   btn.className = 'net-survey-picker-row' +
     (String(d.mac || '').toUpperCase() === String(state.networkSurveyMac || '').toUpperCase()
       ? ' is-current' : '');
+  btn.dataset.track = 'network.survey-pick-device';
 
   const name = document.createElement('span');
   name.className = 'net-survey-picker-name';

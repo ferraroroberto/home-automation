@@ -482,6 +482,7 @@ function renderPresenceAccounts(presence) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'button-surface utility-btn presence-account-renew';
+    btn.dataset.track = 'presence.renew-trust';
     if (trust.cls !== 'is-trusted') btn.classList.add('active');
     btn.dataset.testid = 'presence-account-renew';
     btn.textContent = accountBusy[label] ? 'Sending…' : 'Renew trust';

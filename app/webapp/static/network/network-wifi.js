@@ -94,6 +94,7 @@ function wifiRow(b) {
   const name = document.createElement('button');
   name.type = 'button';
   name.className = 'net-wifi-row-name';
+  name.dataset.track = 'network.wifi-open';
   name.title = 'Wi-Fi details · rename';
   name.textContent = wifiLabel(b);
   name.addEventListener('click', function () { openNetWifiDetail(wifiId(b)); });

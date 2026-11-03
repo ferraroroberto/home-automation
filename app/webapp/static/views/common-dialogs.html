@@ -1,16 +1,16 @@
   <!-- Reusable confirm modal (issue #129): a styled <dialog> for deliberate,
        destructive-ish actions — currently the AP reboot, reused by the Phase-3
        router reboot. Title + message + Cancel/confirm are set per-open in JS. -->
-  <dialog id="confirmDialog" class="detail-dialog confirm-dialog">
+  <dialog data-track-view="confirm-dialog" id="confirmDialog" class="detail-dialog confirm-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="confirmTitle">Confirm</h2>
-        <button id="confirmClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="common.confirm-close" id="confirmClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="confirmMessage" class="muted confirm-message">— no data</p>
       <div class="confirm-actions">
-        <button id="confirmCancel" type="button" class="button-tint confirm-cancel">Cancel</button>
-        <button id="confirmOk" type="button" class="button-tint confirm-ok" data-testid="confirm-ok">Confirm</button>
+        <button data-track="common.confirm-cancel" id="confirmCancel" type="button" class="button-tint confirm-cancel">Cancel</button>
+        <button data-track="common.confirm-ok" id="confirmOk" type="button" class="button-tint confirm-ok" data-testid="confirm-ok">Confirm</button>
       </div>
     </div>
   </dialog>
@@ -18,11 +18,11 @@
   <!-- Activity / telemetry overlay (#289): the unified, filterable event history,
        opened from the Home "Activity log" button. Read-only; rows come from
        GET /api/activity filtered server-side by the domain/type selectors. -->
-  <dialog id="activityDialog" class="detail-dialog activity-dialog">
+  <dialog data-track-view="activity-dialog" id="activityDialog" class="detail-dialog activity-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus><svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Activity log</h2>
-        <button id="activityClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="common.activity-close" id="activityClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="segmented activity-modes" role="group" aria-label="View" data-track="activity.mode">
@@ -35,7 +35,7 @@
            styled with the shared chevron-only disclosure affordance (#363)
            instead of the native triangle marker. -->
       <details class="activity-legend">
-        <summary class="collapse-summary">
+        <summary data-track="common.activity-legend" class="collapse-summary">
           <span class="collapse-main">What do these mean?</span>
           <svg class="icon collapse-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </summary>
@@ -64,7 +64,7 @@
       <div class="activity-filters">
         <label class="row">
           <span>Domain</span>
-          <select id="activityDomain" class="select-native"><option value="">All</option></select>
+          <select data-track="common.activity-domain" id="activityDomain" class="select-native"><option value="">All</option></select>
         </label>
         <label class="row" id="activityTypeRow">
           <span>Type</span>

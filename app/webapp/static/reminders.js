@@ -57,7 +57,7 @@ function reminderRow(entry, idx) {
     reminderEditor.save(state.reminders.map(function (reminder, i) {
       return i === idx ? { ...reminder, done: on } : reminder;
     }));
-  });
+  }, 'reminders.done');
   toggle.setAttribute('aria-label', entry.done ? 'Mark not done' : 'Mark done');
   const day = dueDay(entry);
   const row = rowEl({

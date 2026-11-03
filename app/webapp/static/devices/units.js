@@ -378,6 +378,7 @@ function backToMain() {
 function renderSegmented(group, options, current, opts) {
   group.innerHTML = '';
   options.forEach(function (value) {
+    // untracked-control-exempt: the segmented group (data-track="ac.mode" / "ac.fan" in ac-dialogs.html) counts clicks inside it
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'segmented-item';
@@ -745,7 +746,7 @@ function renderScheduleList() {
         scheduleEditor.save(currentScheduleEntries.map(function (e, index) {
           return index === item.idx ? Object.assign({}, e, { enabled: on }) : e;
         }));
-      });
+      }, 'ac.schedule-row-enabled');
       toggle.setAttribute('aria-label', 'Enable schedule at ' + entry.time);
       const row = rowEl({
         title: entry.time || '08:00',

@@ -55,6 +55,7 @@ function renderLangToggle() {
   if (!toggle) return;
   toggle.innerHTML = '';
   LANG_FILTERS.forEach(function (filter) {
+    // untracked-control-exempt: the language group (data-track="voice.lang" in settings-dialogs.html) counts clicks inside it
     const btn = document.createElement('button');
     const pressed = (state.voiceLang || 'all') === filter.id;
     btn.type = 'button';
@@ -142,6 +143,7 @@ function renderGroup(group) {
 
   const summary = document.createElement('summary');
   summary.className = 'collapse-summary';
+  summary.dataset.track = 'voice.group';
 
   const main = document.createElement('span');
   main.className = 'collapse-main';

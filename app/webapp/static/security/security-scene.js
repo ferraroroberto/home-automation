@@ -189,7 +189,7 @@ export function renderScenePairings() {
         return pairingIndex === idx ? { ...pairing, enabled: on } : pairing;
       });
       pairingEditor.save(proposed);
-    });
+    }, 'security.scene-pairing-row-enabled');
     toggle.setAttribute('aria-label', 'Enable scene pairing for ' + detectorName(entry.zone_id));
     const row = rowEl({
       title: detectorName(entry.zone_id),

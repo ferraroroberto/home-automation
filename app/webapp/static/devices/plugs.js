@@ -292,6 +292,7 @@ function blindVerbs(name, act) {
   group.setAttribute('role', 'group');
   group.setAttribute('aria-label', 'Move ' + name);
   BLIND_VERBS.forEach(function (spec) {
+    // untracked-control-exempt: the enclosing group carries data-track="blind.move", which counts clicks inside it
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'icon-button action-row-verb blind-btn';

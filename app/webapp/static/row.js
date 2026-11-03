@@ -65,6 +65,7 @@ export function rowEl(opts) {
   if (opts.onOpen) {
     main.type = 'button';
     if (opts.openLabel) main.setAttribute('aria-label', opts.openLabel);
+    // dynamic-id-exempt: every caller passes a literal `track:` id
     if (opts.track) main.dataset.track = opts.track;
     main.addEventListener('click', function () { opts.onOpen(main); });
   }

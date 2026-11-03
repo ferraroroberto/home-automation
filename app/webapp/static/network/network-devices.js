@@ -246,6 +246,7 @@ function buildDeviceRow(d, grouped) {
   const name = document.createElement('button');
   name.type = 'button';
   name.className = 'net-device-name';
+  name.dataset.track = 'network.device-open';
   name.title = 'Device details · rename';
   let inner = '<svg class="icon net-device-icon" aria-hidden="true"><use href="#i-' +
     categoryIcon(d.category) + '"></use></svg>';
@@ -492,6 +493,7 @@ function appendCustomGroup(name, members, editable, showOffline) {
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'icon-button net-group-edit';
+    edit.dataset.track = 'network.group-edit';
     edit.title = 'Rename or delete this group';
     edit.setAttribute('aria-label', 'Edit group ' + name);
     edit.dataset.group = name;

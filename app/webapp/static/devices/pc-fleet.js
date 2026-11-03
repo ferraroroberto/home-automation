@@ -106,6 +106,7 @@ function machineRow(machine) {
     const wake = document.createElement('button');
     wake.type = 'button';
     wake.className = 'icon-button action-row-verb pc-fleet-wake';
+    wake.dataset.track = 'pc-fleet.wake';
     wake.dataset.machineId = machine.id;
     wake.title = 'Wake';
     wake.setAttribute('aria-label', 'Wake ' + (machine.display_name || machine.id));
@@ -126,7 +127,7 @@ function machineRow(machine) {
       else set.add(machine.id);
       prefs.excluded = Array.from(set);
       savePrefs();
-    });
+    }, 'pc-fleet.include');
     toggle.setAttribute('aria-label', 'Include ' + (machine.display_name || machine.id) + ' in fleet shutdown');
     rail.appendChild(toggle);
   }

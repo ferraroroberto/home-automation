@@ -79,6 +79,7 @@ function existingRow(e) {
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'icon-button danger net-dhcp-ex-del' + (staged ? ' is-active' : '');
+  del.dataset.track = 'network.dhcp-reservation-delete';
   del.title = staged ? 'Keep this reservation' : 'Delete this reservation (frees a slot)';
   del.setAttribute('aria-label', staged ? 'Keep this reservation' : 'Delete this reservation');
   del.disabled = !e.inst_id;
@@ -162,7 +163,7 @@ function suggestedRow(a) {
   const cb = buildToggle('net-dhcp-check', stagedAdd.has(key), function (on) {
     if (on) stagedAdd.add(key); else stagedAdd.delete(key);
     renderDhcpPlan(lastDhcpPlan);
-  });
+  }, 'network.dhcp-select');
   cb.title = 'Add this reservation';
   cb.setAttribute('aria-label', 'Add this reservation');
 
@@ -204,6 +205,7 @@ function randomisedRow(a) {
 function dhcpGroupSelect(a) {
   const sel = document.createElement('select');
   sel.className = 'net-dhcp-group';
+  sel.dataset.track = 'network.dhcp-group';
   sel.title = 'Assign a category — the planner then gives it an IP in that range';
   const labels = (lastDhcpPlan && lastDhcpPlan.category_labels) || [];
   const blank = document.createElement('option');
@@ -239,6 +241,7 @@ function renderDhcpSuggestions(plan) {
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'net-dhcp-selectall';
+    toggle.dataset.track = 'network.dhcp-select-all';
     toggle.textContent = allOn ? 'none' : 'all';
     toggle.addEventListener('click', function () {
       pending.forEach(function (a) {
@@ -278,6 +281,7 @@ function renderManualStaged() {
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'icon-button net-dhcp-chip-x';
+    x.dataset.track = 'network.dhcp-staged-remove';
     x.title = 'Delete this staged add';
     x.setAttribute('aria-label', 'Delete this staged add');
     x.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg>';

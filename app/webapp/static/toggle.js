@@ -30,9 +30,12 @@ export function isToggleOn(btn) {
 // Builds a standalone <button class="toggle" role="switch"> node for
 // dynamically-rendered rows (schedule/pairing/override/wake-alarm entries).
 // `onToggle(next)` receives the new boolean state; the caller owns persistence.
-export function buildToggle(className, on, onToggle) {
+// `track` is the caller's constant usage-log id for the switch.
+export function buildToggle(className, on, onToggle, track) {
   const btn = document.createElement('button');
   btn.type = 'button';
+  // dynamic-id-exempt: every caller passes a literal id, so the ids stay constants
+  if (track) btn.dataset.track = track;
   btn.className = 'toggle' + (className ? ' ' + className : '') + (on ? ' on' : '');
   btn.setAttribute('role', 'switch');
   btn.setAttribute('aria-checked', on ? 'true' : 'false');

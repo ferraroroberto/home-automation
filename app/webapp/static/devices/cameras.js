@@ -111,6 +111,7 @@ function buildThumb(cam) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'camera-thumb';
+  btn.dataset.track = 'camera.thumb';
   btn.setAttribute('aria-label', 'Zoom last snapshot ' + cameraLabel(cam));
   if (cam.reachable) {
     const img = document.createElement('img');
@@ -176,6 +177,7 @@ function cameraRow(cam) {
     live = document.createElement('button');
     live.type = 'button';
     live.className = 'icon-button action-row-verb camera-row-live';
+    live.dataset.track = 'camera.live';
     live.title = 'Live view';
     live.setAttribute('aria-label', 'Live view ' + cameraLabel(cam));
     live.innerHTML = icon('video');
@@ -431,18 +433,21 @@ function renderPresets() {
     const go = document.createElement('button');
     go.type = 'button';
     go.className = 'camera-preset-go';
+    go.dataset.track = 'camera.preset-go';
     go.textContent = p.name || p.token;
     go.title = 'Recall ' + (p.name || p.token);
     go.addEventListener('click', function () { gotoPreset(p.token); });
     const rename = document.createElement('button');
     rename.type = 'button';
     rename.className = 'icon-button camera-preset-rename';
+    rename.dataset.track = 'camera.preset-rename';
     rename.setAttribute('aria-label', 'Rename ' + (p.name || p.token));
     rename.innerHTML = icon('pencil');
     rename.addEventListener('click', function () { renamePreset(p.token, p.name || ''); });
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'icon-button danger camera-preset-del';
+    del.dataset.track = 'camera.preset-delete';
     del.setAttribute('aria-label', 'Delete ' + (p.name || p.token));
     del.innerHTML = icon('x');
     del.addEventListener('click', function () { removePreset(p.token, p.name || p.token); });

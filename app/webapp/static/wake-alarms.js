@@ -89,6 +89,7 @@ function ringingRow(iconName, text, onDismiss) {
   const dismiss = document.createElement('button');
   dismiss.type = 'button';
   dismiss.className = 'wake-ringing-dismiss';
+  dismiss.dataset.track = 'alarms.ringing-dismiss';
   dismiss.textContent = 'Dismiss';
   dismiss.addEventListener('click', onDismiss);
   row.appendChild(dismiss);
@@ -176,7 +177,7 @@ function alarmRow(entry, idx) {
     alarmEditor.save(state.wakeAlarms.map(function (alarm, i) {
       return i === idx ? { ...alarm, enabled: on } : alarm;
     }));
-  });
+  }, 'alarms.row-enabled');
   toggle.setAttribute('aria-label', (entry.label || 'Wake alarm') + ' at ' + entry.time);
   const when = entry.date ? 'Once · ' + dateWords(entry.date) : daysSummary(entry.days);
   const row = rowEl({
@@ -237,6 +238,7 @@ function timerRow(timer, now) {
   const cancel = document.createElement('button');
   cancel.type = 'button';
   cancel.className = 'icon-button wake-timer-cancel';
+  cancel.dataset.track = 'timers.cancel';
   cancel.setAttribute('aria-label', 'Cancel ' + (timer.label || 'timer'));
   cancel.innerHTML = icon('x');
   cancel.addEventListener('click', function () { cancelWakeTimer(timer.id); });
