@@ -53,6 +53,11 @@
                             code folder (src, app, scripts, custom_components) rises
                             beyond .runtime-write-ratchet-baseline.json. Whole tree,
                             never routed; exit 3 is NOT CONFIRMED and fails.
+     10c. usage track ratchet — no file's count of untracked controls, untracked
+                            sheets or built ids rises beyond
+                            .usage-track-ratchet-baseline.json, and the usage log is
+                            wired. Whole tree, never routed; exit 3 is NOT CONFIRMED
+                            and fails.
      11. pytest (non-e2e) — the fast backend suite (tests/, excluding tests/e2e);
                             stages 11-13 run inside the runtime write probe
                             (--snapshot before, --probe after), which fails on any
@@ -191,6 +196,8 @@ try {
     Invoke-Stage "history marker ratchet" { & $py -m scripts.history_marker_ratchet_gate }
     # Same exit-3 mapping for the runtime write ratchet (tests/ratchets/test_runtime_write_ratchet_gate.py).
     Invoke-Stage "runtime write ratchet" { & $py -m scripts.runtime_write_ratchet_gate }
+    # Same exit-3 mapping for the usage track ratchet (tests/ratchets/test_usage_track_ratchet_gate.py).
+    Invoke-Stage "usage track ratchet" { & $py -m scripts.usage_track_ratchet_gate }
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote. The
     # script's own --snapshot/--probe modes; the static stage above goes through the wrapper.
