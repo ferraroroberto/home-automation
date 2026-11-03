@@ -7,6 +7,7 @@ icon        = "🌡️"
 port        = 8447
 description = "Home automation: AC, solar, per-circuit energy, alarm, network health, Home Assistant."
 chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "Tuya", "HA", "Telegram"]
+depends_on  = ["local-llm-hub", "project-scaffolding", "voice-transcriber"]
 shape       = "webapp-tray"
 # Root folder the webapp-tray preset does not list: Home Assistant loads the integration
 # from custom_components/ by name. docs/layout.md gives the reason.
