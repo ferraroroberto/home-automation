@@ -37,10 +37,12 @@ from src.presence.presence_blocks import load_arm_block
 from src.presence.presence_engine import (
     load_automation_config,
     load_kids_home_override,
+    load_skip_away_arm_override,
     load_people,
     now_utc,
     save_automation_config,
     set_kids_home_override,
+    set_skip_away_arm_override,
     set_person_state,
 )
 from src.presence.presence_hidden import load_hidden_presence_ids, set_presence_hidden
@@ -181,6 +183,7 @@ def _presence_payload(entities: list[PresenceEntity]) -> Dict[str, Any]:
         },
         "automation": asdict(load_automation_config()),
         "kids_home_override": load_kids_home_override(),
+        "skip_away_arm_override": load_skip_away_arm_override(),
     }
 
 
@@ -365,6 +368,21 @@ class KidsHomeOverridePayload(BaseModel):
 async def update_kids_home_override(payload: KidsHomeOverridePayload) -> Dict[str, Any]:
     set_kids_home_override(payload.active)
     return {"active": load_kids_home_override()}
+
+
+@router.get("/api/presence/skip_away_arm_override")
+async def get_skip_away_arm_override() -> Dict[str, Any]:
+    return {"active": load_skip_away_arm_override()}
+
+
+class SkipAwayArmOverridePayload(BaseModel):
+    active: bool = False
+
+
+@router.put("/api/presence/skip_away_arm_override")
+async def update_skip_away_arm_override(payload: SkipAwayArmOverridePayload) -> Dict[str, Any]:
+    set_skip_away_arm_override(payload.active)
+    return {"active": load_skip_away_arm_override()}
 
 
 @router.post("/api/presence/refresh")

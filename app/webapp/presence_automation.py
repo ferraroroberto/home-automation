@@ -49,9 +49,11 @@ from src.presence.presence_engine import (
     load_automation_config,
     load_kids_home_override,
     load_people,
+    load_skip_away_arm_override,
     remember_known_people,
     mark_decision_applied,
     mark_disarm_satisfied,
+    record_away_arm_skip,
     satisfied_disarm_key,
     set_kids_home_override,
 )
@@ -180,6 +182,19 @@ def _resolve_guardian_home(
     return None
 
 
+def _skip_away_arm_or_off() -> bool:
+    """The "Don't arm when away" flag, read as off when the store is unreadable.
+
+    Off is the safe way to be wrong: a broken read must never stop an arm.
+    """
+
+    try:
+        return load_skip_away_arm_override()
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ Don't arm when away unreadable, arming as usual: %s", exc)
+        return False
+
+
 def _evaluate_current_decision(
     security_mode: str,
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
@@ -209,6 +224,7 @@ def _evaluate_current_decision(
         corroboration=corroboration,
         known_person_ids=known_person_ids,
         guardian_home_name=guardian_home_name,
+        skip_away_arm=_skip_away_arm_or_off(),
     )
 
 
@@ -386,6 +402,44 @@ async def _notify_guardian_hold(guardian_name: str) -> None:
     await notify_best_effort(text, label="Guardian-hold")
 
 
+async def _notify_away_arm_skip(kids_home_cleared: bool) -> None:
+    """Best-effort Telegram line for a skipped away-arm, on the guardian-hold path.
+
+    Like the guardian hold, no alarm command was attempted, so it bypasses
+    ``record_alarm_action``'s composer and always reaches Telegram.
+    """
+
+    text = (
+        "🏠 Everyone left, but Don't arm when away was on, so the alarm was not "
+        "armed. The override is now off; the next time everyone leaves, the "
+        "house arms normally."
+    )
+    if kids_home_cleared:
+        text += " Kids home was reset too."
+    await notify_best_effort(text, label="Away-arm skip")
+
+
+async def _apply_away_arm_skip(decision: PresenceDecision) -> None:
+    """Record a skipped away-arm, clear the overrides, log and notify.
+
+    A save that fails sends nothing and arms nothing: the key stays pending and
+    the override stays on, so the next tick retries the skip. Arming instead
+    would ignore an override that was read successfully, with people inside.
+    """
+
+    try:
+        kids_home_cleared = record_away_arm_skip(decision.key)
+    except StoreUnreadableError as exc:
+        logger.warning("⚠️ Don't arm when away skip could not be saved, retrying next tick: %s", exc)
+        return
+    logger.info(
+        "🛑 Presence automation skipped away-arm — Don't arm when away was on; override now off%s",
+        " (Kids home reset too)" if kids_home_cleared else "",
+    )
+    _append_decision_trigger_log(decision, "skipped")
+    await _notify_away_arm_skip(kids_home_cleared)
+
+
 async def _alert_on_panel_events(security: SecurityState) -> None:
     """Feed one security read to the panel-event alerts, scene capture and override.
 
@@ -515,6 +569,12 @@ async def tick() -> None:
         _append_decision_trigger_log(decision, "held")
         return
 
+    if decision.kind == "skip_arm":
+        # No RISCO command and no blinds: handled before the alarm lock, like
+        # the guardian hold.
+        await _apply_away_arm_skip(decision)
+        return
+
     outcome = "started"
     failure: Optional[Exception] = None
     async with automatic_alarm_action_lock():
@@ -525,7 +585,9 @@ async def tick() -> None:
         refreshed_decision = _evaluate_current_decision(
             security.mode, corroboration, known_person_ids, guardian_home_name
         )
-        if refreshed_decision is None:
+        # A re-check that now yields a non-command decision (the override was
+        # switched on while waiting) is stale too; the next tick applies it.
+        if refreshed_decision is None or refreshed_decision.kind not in ("arm", "disarm"):
             logger.info(
                 "ℹ️ Presence automation skipped stale %s decision after coordinated re-check",
                 decision.kind,

@@ -38,6 +38,19 @@
               <span class="knob"></span><span class="toggle-label">OFF</span>
             </button>
           </li>
+          <li class="action-row security-kids-row">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg></span>
+              <span class="action-row-text">
+                <span id="presenceSkipAwayArmLabel" class="action-row-title">Don't arm when away</span>
+                <span class="action-row-meta"><span class="action-row-meta-text">Once — turns off after use</span></span>
+              </span>
+            </div>
+            <span id="presenceSkipAwayArmHint" class="visually-hidden">Skip the arm the next time everyone leaves. Turns itself off after skipping once.</span>
+            <button id="presenceSkipAwayArm" data-track="presence.skip-away-arm" type="button" class="toggle action-row-trail" role="switch" aria-checked="false" aria-labelledby="presenceSkipAwayArmLabel" aria-describedby="presenceSkipAwayArmHint">
+              <span class="knob"></span><span class="toggle-label">OFF</span>
+            </button>
+          </li>
         </ul>
       </section>
 

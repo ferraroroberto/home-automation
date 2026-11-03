@@ -348,6 +348,60 @@ def load_kids_home_override() -> bool:
     return bool(meta.get("kids_home_override", False))
 
 
+def set_skip_away_arm_override(active: bool, *, at: Optional[datetime] = None) -> None:
+    """Persist the one-shot "Don't arm when away" override.
+
+    Runtime ``automation`` meta like the kids-home flag, because it clears
+    itself the first time it skips an away-arm (:func:`record_away_arm_skip`).
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    meta["skip_away_arm_override"] = bool(active)
+    meta["skip_away_arm_override_at"] = _iso(at or now_utc())
+    _save_state(raw)
+
+
+def load_skip_away_arm_override() -> bool:
+    """Return the one-shot "Don't arm when away" flag (defaults off).
+
+    Raises :class:`StoreUnreadableError` like every state read; the consumer
+    treats that as off so a broken store never stops an arm.
+    """
+
+    meta = _load_state().get("automation", {})
+    if not isinstance(meta, dict):
+        return False
+    return bool(meta.get("skip_away_arm_override", False))
+
+
+def record_away_arm_skip(key: str) -> bool:
+    """Consume the away-arm ``key`` as skipped and clear both overrides.
+
+    One save, so the arm key and the reset land together: were the overrides
+    cleared without the key, the next tick would see a pending arm for the same
+    departure and arm the house anyway. Kids home clears too because a skip
+    leaves the panel disarmed, so its usual reset-on-disarm would never come and
+    it would silently carry over to the next away-cycle. Returns whether Kids
+    home was on.
+    """
+
+    raw = _load_state()
+    meta = _automation_meta(raw)
+    stamp = _iso(now_utc())
+    kids_home_was_on = bool(meta.get("kids_home_override", False))
+    meta["last_arm_key"] = key
+    meta["last_arm_outcome"] = "skipped"
+    meta["last_arm_at"] = stamp
+    meta["skip_away_arm_override"] = False
+    meta["skip_away_arm_override_at"] = stamp
+    if kids_home_was_on:
+        meta["kids_home_override"] = False
+        meta["kids_home_override_at"] = stamp
+    _save_state(raw)
+    return kids_home_was_on
+
+
 def _mark_key(kind: str, key: str, outcome: str) -> None:
     """The single writer for the ``last_<kind>_*`` edge-trigger bookkeeping."""
 
@@ -514,6 +568,7 @@ def evaluate_alarm_decision(
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: Iterable[str] = (),
     guardian_home_name: Optional[str] = None,
+    skip_away_arm: bool = False,
 ) -> Optional[PresenceDecision]:
     """Return the next alarm action, or ``None`` when no action is safe.
 
@@ -540,6 +595,10 @@ def evaluate_alarm_decision(
     the branch below) so the underlying "everyone away" arm trigger is left
     unconsumed — once the guardian leaves or their read goes stale, the same
     departure episode can still arm normally.
+
+    ``skip_away_arm`` (the one-shot "Don't arm when away" toggle) turns the
+    arm that is about to be issued into a ``skip_arm`` decision carrying the
+    same ``arm:`` key. It never creates an arm and loses to the guardian hold.
     """
 
     stamp = at or now_utc()
@@ -571,6 +630,7 @@ def evaluate_alarm_decision(
             stamp=stamp,
             override_perimeter=override_perimeter,
             guardian_home_name=guardian_home_name,
+            skip_away_arm=skip_away_arm,
         )
     return None
 
@@ -622,6 +682,7 @@ def _arm_decision(
     stamp: datetime,
     override_perimeter: bool,
     guardian_home_name: Optional[str],
+    skip_away_arm: bool = False,
 ) -> Optional[PresenceDecision]:
     """The arm branch of :func:`evaluate_alarm_decision`: every fresh person is
     away and the panel is disarmed."""
@@ -649,6 +710,17 @@ def _arm_decision(
         )
     key = f"arm:{all_away_since.isoformat()}"
     if key != _last_key("arm") and not _manual_after(all_away_since):
+        if skip_away_arm:
+            # Last, after every gate above: the skip only replaces an arm that
+            # was about to be sent, and shares its key so recording it consumes
+            # this departure's arm.
+            return PresenceDecision(
+                kind="skip_arm",
+                action="skip",
+                key=key,
+                reason="everyone away past grace (Don't arm when away)",
+                transition_at=all_away_since,
+            )
         return PresenceDecision(
             kind="arm",
             action="perimeter" if override_perimeter else config.arm_action,

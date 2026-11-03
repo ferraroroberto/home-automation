@@ -94,3 +94,17 @@ def test_put_automation_preserves_fields_the_pwa_does_not_send(
     assert body["arm_block_notify_after_s"] == 120
     assert pe.load_automation_config(config_path).disarm_max_age_s == 300
     assert pe.load_automation_config(config_path).arm_action == "perimeter"
+
+
+def test_skip_away_arm_override_round_trips(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """The one-shot "Don't arm when away" switch: PUT, GET and the snapshot."""
+    _wire_state_path(monkeypatch, tmp_path)
+
+    assert client.get("/api/presence/skip_away_arm_override").json() == {"active": False}
+    put = client.put("/api/presence/skip_away_arm_override", json={"active": True})
+    assert put.status_code == 200
+    assert put.json() == {"active": True}
+    assert client.get("/api/presence/skip_away_arm_override").json() == {"active": True}
+    assert client.get("/api/presence").json()["skip_away_arm_override"] is True
