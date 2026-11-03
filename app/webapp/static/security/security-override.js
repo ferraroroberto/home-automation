@@ -124,7 +124,7 @@ export function renderSecurityOverrides() {
         return overrideIndex === idx ? { ...override, enabled: on } : override;
       });
       overrideEditor.save(proposed);
-    });
+    }, 'security.override-row-enabled');
     toggle.setAttribute('aria-label', 'Enable override for ' + detectorName(entry.zone_id));
     const row = rowEl({
       title: detectorName(entry.zone_id),

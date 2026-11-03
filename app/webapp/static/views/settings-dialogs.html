@@ -5,97 +5,97 @@
        change, text and numbers on change or blur, each with a toast; a saved
        item (a place, a panel row, a horizon point) keeps its staged editor on
        top. Done only closes. -->
-  <dialog id="notifyAlarmSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="notify-alarm-sheet" id="notifyAlarmSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Alarm notifications</h2>
-        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="settings.notify-alarm-sheet-close" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p class="muted small settings-sheet-note">Telegram alerts for automatic arm and disarm. Arming from this app is never notified.</p>
       <div class="notify-toggles">
         <div class="notify-toggle">
           <span>Automatic arm (schedule)</span>
-          <button id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
+          <button data-track="settings.notify-schedule-arm" id="notifyScheduleArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic arm (schedule)">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
         <div class="notify-toggle">
           <span>Automatic disarm (schedule)</span>
-          <button id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
+          <button data-track="settings.notify-schedule-disarm" id="notifyScheduleDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Automatic disarm (schedule)">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
         <div class="notify-toggle">
           <span>Arm on everyone-away (presence)</span>
-          <button id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
+          <button data-track="settings.notify-presence-arm" id="notifyPresenceArm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Arm on everyone-away (presence)">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
         <div class="notify-toggle">
           <span>Disarm on arrival (presence)</span>
-          <button id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
+          <button data-track="settings.notify-presence-disarm" id="notifyPresenceDisarm" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Disarm on arrival (presence)">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
         <div class="notify-toggle">
           <span>Error on any automatic arm/disarm</span>
-          <button id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
+          <button data-track="settings.notify-error" id="notifyError" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Error on any automatic arm/disarm">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
         <div class="notify-toggle">
           <span>Alarm triggered (intrusion)</span>
-          <button id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
+          <button data-track="settings.notify-intrusion" id="notifyIntrusion" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Alarm triggered (intrusion)">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
         <div class="notify-toggle">
           <span>Panel mains power lost/restored</span>
-          <button id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
+          <button data-track="settings.notify-ac-lost" id="notifyAcLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Panel mains power lost/restored">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
       </div>
       <p id="notifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
       <div class="detail-actions">
-        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+        <button data-track="settings.notify-alarm-sheet-done" type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
 
-  <dialog id="notifyUpsSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="notify-ups-sheet" id="notifyUpsSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>UPS notifications</h2>
-        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="settings.notify-ups-sheet-close" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p class="muted small settings-sheet-note">Telegram alerts when the PC and Wi-Fi UPS loses or regains mains power. The low-battery shutdown is in Devices › UPS.</p>
       <div class="notify-toggles">
         <div class="notify-toggle">
           <span>Mains power lost (on UPS battery)</span>
-          <button id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
+          <button data-track="settings.notify-power-lost" id="notifyPowerLost" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Mains power lost (on UPS battery)">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
         <div class="notify-toggle">
           <span>Power restored (back on mains)</span>
-          <button id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
+          <button data-track="settings.notify-power-restored" id="notifyPowerRestored" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power restored (back on mains)">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
       </div>
       <p id="powerNotifyConfiguredNote" class="muted small settings-sheet-note" hidden></p>
       <div class="detail-actions">
-        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+        <button data-track="settings.notify-ups-sheet-done" type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
 
-  <dialog id="homeLocationSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="home-location-sheet" id="homeLocationSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Home location</h2>
-        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="settings.home-location-sheet-close" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="presence-settings">
         <label class="row">
@@ -110,10 +110,10 @@
           <span>Longitude</span>
           <input id="locationLon" type="number" step="0.000001" class="input-native" placeholder="—">
         </label>
-        <button id="locationUseBrowser" type="button" class="button-tint">Use this device location</button>
+        <button data-track="settings.location-use-browser" id="locationUseBrowser" type="button" class="button-tint">Use this device location</button>
       </div>
       <div class="detail-actions">
-        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+        <button data-track="settings.home-location-sheet-done" type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -121,16 +121,16 @@
   <!-- Search engine for the voice assistant's web-search answers (issue
        #321): SearXNG in a Docker container on the hub PC (GET /api/searxng),
        with Start while it is down. Read on entering Settings, then slowly. -->
-  <dialog id="searxngSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="searxng-sheet" id="searxngSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Search engine</h2>
-        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="settings.searxng-sheet-close" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="searxngNote" class="muted small settings-sheet-note">Answers "Okay Nabu" web-search questions (SearXNG, self-hosted, no cloud).</p>
-      <button id="searxngStartBtn" type="button" class="button-tint searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
+      <button data-track="settings.searxng-start" id="searxngStartBtn" type="button" class="button-tint searxng-start-btn" data-testid="searxng-start" hidden>Start</button>
       <div class="detail-actions">
-        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+        <button data-track="settings.searxng-sheet-done" type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>
@@ -140,11 +140,11 @@
        src/voice/voice_commands.py), fetched the first time the sheet opens and
        never polled. "In this app" below it is what used to be the separate
        "What can I do?" card (#239): what this app does with Home Assistant. -->
-  <dialog id="voiceSheet" class="detail-dialog settings-sheet voice-sheet">
+  <dialog data-track-view="voice-sheet" id="voiceSheet" class="detail-dialog settings-sheet voice-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>What can I say?</h2>
-        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="settings.voice-sheet-close" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div id="voiceLangToggle" class="segmented voice-lang-toggle" role="group" data-track="voice.lang" aria-label="Filter voice commands by language" hidden></div>
       <div id="voiceCommandsList" class="voice-commands-list" aria-live="polite"></div>
@@ -170,7 +170,7 @@
         </section>
       </section>
       <div class="detail-actions">
-        <button type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
+        <button data-track="settings.voice-sheet-done" type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
       </div>
     </div>
   </dialog>

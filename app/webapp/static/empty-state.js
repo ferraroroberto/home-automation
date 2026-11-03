@@ -28,6 +28,7 @@ export function emptyStateEl(name, message, opts) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'button-surface utility-btn empty-state-action';
+    btn.dataset.track = 'empty-state.action';
     btn.textContent = opts.actionLabel;
     if (opts.onAction) btn.addEventListener('click', opts.onAction);
     wrap.appendChild(btn);

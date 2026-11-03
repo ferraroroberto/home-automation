@@ -3,12 +3,12 @@
        the one primary is Done. The main page holds what is used daily (the
        setpoint, power, mode, fan); the rarer settings are rows that open a
        page of this same sheet, with a back button in the header. -->
-  <dialog id="detailDialog" class="detail-dialog unit-sheet">
+  <dialog data-track-view="ac-detail" id="detailDialog" class="detail-dialog unit-sheet">
     <div class="detail-card">
       <div class="detail-header">
-        <button id="detailBack" type="button" class="icon-button detail-close unit-sheet-back" aria-label="Back" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
+        <button data-track="ac.detail-back" id="detailBack" type="button" class="icon-button detail-close unit-sheet-back" aria-label="Back" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
         <h2 tabindex="-1" autofocus id="detailName">Unit</h2>
-        <button id="detailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="ac.detail-close" id="detailClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <!-- Shown when the unit's adapter has lost its cloud connection (#520):
@@ -20,16 +20,16 @@
       <div class="unit-sheet-page" data-page="main">
         <div class="unit-setpoint">
           <div class="unit-setpoint-stepper">
-            <button id="detailTempDown" type="button" class="icon-button unit-setpoint-step" aria-label="Lower the set temperature"><svg class="icon" aria-hidden="true"><use href="#i-minus"></use></svg></button>
+            <button data-track="ac.detail-temp-down" id="detailTempDown" type="button" class="icon-button unit-setpoint-step" aria-label="Lower the set temperature"><svg class="icon" aria-hidden="true"><use href="#i-minus"></use></svg></button>
             <output id="detailSetTemp" class="unit-setpoint-value" aria-live="polite">—</output>
-            <button id="detailTempUp" type="button" class="icon-button unit-setpoint-step" aria-label="Raise the set temperature"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
+            <button data-track="ac.detail-temp-up" id="detailTempUp" type="button" class="icon-button unit-setpoint-step" aria-label="Raise the set temperature"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>
           </div>
           <p id="detailRoomLine" class="unit-setpoint-note"></p>
         </div>
 
         <div class="row">
           <span>Power</span>
-          <button id="detailPower" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power">
+          <button data-track="ac.detail-power" id="detailPower" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Power">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
@@ -48,7 +48,7 @@
              the label, the current value muted and a chevron to its page. -->
         <ul class="action-rows unit-sheet-links">
           <li id="detailVanesLink" class="action-row" hidden>
-            <button type="button" class="action-row-main settings-link" data-page-to="vanes">
+            <button data-track="ac.page-vanes" type="button" class="action-row-main settings-link" data-page-to="vanes">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-wind"></use></svg>
               <span class="action-row-title">Vanes</span>
               <span id="detailVanesValue" class="settings-link-value"></span>
@@ -56,7 +56,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-page-to="rule">
+            <button data-track="ac.page-rule" type="button" class="action-row-main settings-link" data-page-to="rule">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-thermometer"></use></svg>
               <span class="action-row-title">Temperature rule</span>
               <span id="detailRuleValue" class="settings-link-value"></span>
@@ -64,7 +64,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-page-to="schedules">
+            <button data-track="ac.page-schedules" type="button" class="action-row-main settings-link" data-page-to="schedules">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
               <span class="action-row-title">Schedules</span>
               <span id="detailSchedValue" class="settings-link-value"></span>
@@ -72,7 +72,7 @@
             </button>
           </li>
           <li class="action-row">
-            <button type="button" class="action-row-main settings-link" data-page-to="name">
+            <button data-track="ac.page-name" type="button" class="action-row-main settings-link" data-page-to="name">
               <svg class="icon settings-link-icon" aria-hidden="true"><use href="#i-pencil"></use></svg>
               <span class="action-row-title">Name</span>
               <span id="detailNameValue" class="settings-link-value"></span>
@@ -85,11 +85,11 @@
       <div class="unit-sheet-page" data-page="vanes" data-title="Vanes" hidden>
         <label class="row" id="detailVaneVerticalRow" hidden>
           <span>Vertical</span>
-          <select id="detailVaneVertical" class="select-native"></select>
+          <select data-track="ac.detail-vane-vertical" id="detailVaneVertical" class="select-native"></select>
         </label>
         <label class="row" id="detailVaneHorizontalRow" hidden>
           <span>Horizontal</span>
-          <select id="detailVaneHorizontal" class="select-native"></select>
+          <select data-track="ac.detail-vane-horizontal" id="detailVaneHorizontal" class="select-native"></select>
         </label>
       </div>
 
@@ -99,7 +99,7 @@
       <div class="unit-sheet-page" data-page="rule" data-title="Temperature rule" hidden>
         <div class="row">
           <span>Enabled</span>
-          <button id="ruleEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable temperature rule">
+          <button data-track="ac.rule-enabled" id="ruleEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable temperature rule">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
@@ -116,7 +116,7 @@
              bank thermal inertia. Only takes effect while Enabled is on. -->
         <div class="row">
           <span>Solar boost</span>
-          <button id="ruleBoostEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable solar-surplus boost">
+          <button data-track="ac.rule-boost-enabled" id="ruleBoostEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable solar-surplus boost">
             <span class="knob"></span><span class="toggle-label">OFF</span>
           </button>
         </div>
@@ -132,7 +132,7 @@
       <div class="unit-sheet-page" data-page="schedules" data-title="Schedules" hidden>
         <ul id="schedList" class="action-rows sheet-rows" aria-label="Schedules"></ul>
         <p id="schedNote" class="muted small schedule-empty" hidden>No schedules yet.</p>
-        <button id="schedAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
+        <button data-track="ac.sched-add" id="schedAdd" type="button" class="schedule-add-btn">+ Add schedule</button>
         <p class="muted small detail-hint">Each runs once a day. An Off entry only turns the unit off.</p>
       </div>
 
@@ -145,7 +145,7 @@
       </div>
 
       <div class="detail-actions">
-        <button id="detailDone" type="button" class="button-primary detail-save-btn">Done</button>
+        <button data-track="ac.detail-done" id="detailDone" type="button" class="button-primary detail-save-btn">Done</button>
       </div>
     </div>
   </dialog>
@@ -153,16 +153,16 @@
   <!-- AC schedule add/edit dialog (#881): the staged dense-collection editor
        (dense-editor.js) every schedule in the app uses. Save is the only
        persistence boundary; ×, Esc and the backdrop discard. -->
-  <dialog id="acScheduleDialog" class="detail-dialog">
+  <dialog data-track-view="ac-schedule-dialog" id="acScheduleDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="acScheduleEditorTitle">Schedule</h2>
-        <button id="acScheduleEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="ac.schedule-editor-close" id="acScheduleEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
         <span>Enabled</span>
-        <button id="acScheduleEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable schedule">
+        <button data-track="ac.schedule-enabled" id="acScheduleEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable schedule">
           <span class="knob"></span><span class="toggle-label">ON</span>
         </button>
       </div>
@@ -172,7 +172,7 @@
       </label>
       <label class="row">
         <span>Power</span>
-        <select id="acSchedulePower" class="select-native">
+        <select data-track="ac.schedule-power" id="acSchedulePower" class="select-native">
           <option value="true">On</option>
           <option value="false">Off</option>
         </select>
@@ -181,7 +181,7 @@
       <div id="acScheduleProfile">
         <label class="row">
           <span>Mode</span>
-          <select id="acScheduleMode" class="select-native"></select>
+          <select data-track="ac.schedule-mode" id="acScheduleMode" class="select-native"></select>
         </label>
         <label class="row">
           <span>Set temp now (°C)</span>
@@ -193,22 +193,22 @@
         </label>
         <label class="row">
           <span>Fan</span>
-          <select id="acScheduleFan" class="select-native"></select>
+          <select data-track="ac.schedule-fan" id="acScheduleFan" class="select-native"></select>
         </label>
         <label class="row" id="acScheduleVvRow">
           <span>Vane, vertical</span>
-          <select id="acScheduleVv" class="select-native"></select>
+          <select data-track="ac.schedule-vv" id="acScheduleVv" class="select-native"></select>
         </label>
         <label class="row" id="acScheduleVhRow">
           <span>Vane, horizontal</span>
-          <select id="acScheduleVh" class="select-native"></select>
+          <select data-track="ac.schedule-vh" id="acScheduleVh" class="select-native"></select>
         </label>
       </div>
 
-      <button id="acScheduleDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete schedule</button>
+      <button data-track="ac.schedule-delete" id="acScheduleDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete schedule</button>
 
       <div class="detail-actions">
-        <button id="acScheduleSave" type="button" class="button-primary detail-save-btn">Save</button>
+        <button data-track="ac.schedule-save" id="acScheduleSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>

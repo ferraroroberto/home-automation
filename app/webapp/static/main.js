@@ -224,6 +224,7 @@ els.loginForm.addEventListener('submit', async function (ev) {
   // Energy, Plugs, Lights, Network, and Security each adjust their own
   // polling cadence on tab change.
   wireTabs(function (tab) {
+    // dynamic-id-exempt: `tab` is one of the fixed nav tab keys, never user content
     usage.trackView(tab);
     onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onCircuitsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onBlindSchedulesTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
   });

@@ -202,6 +202,7 @@ function renderActionsInto(el) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'segmented-item security-action security-action-' + action;
+    // dynamic-id-exempt: the suffix comes from the fixed ACTIONS list, so the ids are alarm.disarm/partial/perimeter/arm
     btn.dataset.track = 'alarm.' + action;
     btn.textContent = SEGMENT_LABELS[action];
     btn.setAttribute('aria-pressed', action === selected ? 'true' : 'false');
@@ -262,6 +263,7 @@ function renderSecurityState() {
     const badge = document.createElement('button');
     badge.type = 'button';
     badge.className = 'chip chip-button security-trouble-badge';
+    badge.dataset.track = 'security.trouble-badge';
     badge.dataset.tone = 'attention';
     badge.textContent = troubled.length + ' trouble';
     badge.setAttribute('aria-label', troubleLabel(troubled));

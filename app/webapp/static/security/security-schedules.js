@@ -185,7 +185,7 @@ export function renderSchedules() {
         return scheduleIndex === idx ? { ...schedule, enabled: on } : schedule;
       });
       scheduleEditor.save(proposed);
-    });
+    }, 'security.schedule-row-enabled');
     toggle.setAttribute('aria-label', 'Enable schedule at ' + entry.time);
     const row = rowEl({
       title: entry.time,

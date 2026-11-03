@@ -88,6 +88,7 @@ function chip(text, active, onClick) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'alarm-schedule-day' + (active ? ' active' : '');
+  btn.dataset.track = 'blind-schedule.chip';
   btn.textContent = text;
   btn.setAttribute('aria-pressed', active ? 'true' : 'false');
   btn.addEventListener('click', onClick);
@@ -210,7 +211,7 @@ export function renderBlindSchedules() {
       scheduleEditor.save(state.blindSchedules.map(function (schedule, index) {
         return index === item.idx ? Object.assign({}, schedule, { enabled: on }) : schedule;
       }));
-    });
+    }, 'devices.blind-schedule-row-enabled');
     toggle.setAttribute('aria-label', 'Enable blind schedule at ' + entry.time);
     const row = rowEl({
       title: entry.time,

@@ -41,6 +41,7 @@ export function renderDayPicker(el, days, onChange) {
     const active = days.includes(day[0]);
     btn.type = 'button';
     btn.className = 'alarm-schedule-day' + (active ? ' active' : '');
+    btn.dataset.track = 'schedule.day';
     btn.textContent = day[1];
     btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     btn.addEventListener('click', function () {

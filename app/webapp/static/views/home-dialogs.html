@@ -2,16 +2,16 @@
        alarm rows, the same denseListEditor shell as reminderDialog: Save is the
        only persistence boundary. Replaces the inline cards that saved on every
        keystroke (#304). -->
-  <dialog id="wakeAlarmDialog" class="detail-dialog">
+  <dialog data-track-view="wake-alarm-dialog" id="wakeAlarmDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="wakeAlarmEditorTitle">Wake alarm</h2>
-        <button id="wakeAlarmEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="home.wake-alarm-editor-close" id="wakeAlarmEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <div class="row">
         <span>Enabled</span>
-        <button id="wakeAlarmEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable wake alarm">
+        <button data-track="home.wake-alarm-enabled" id="wakeAlarmEnabled" type="button" class="toggle on" role="switch" aria-checked="true" aria-label="Enable wake alarm">
           <span class="knob"></span><span class="toggle-label">ON</span>
         </button>
       </div>
@@ -25,7 +25,7 @@
       </label>
       <div class="row">
         <span>Just once</span>
-        <button id="wakeAlarmOnce" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Ring just once">
+        <button data-track="home.wake-alarm-once" id="wakeAlarmOnce" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Ring just once">
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
       </div>
@@ -38,11 +38,11 @@
         <div id="wakeAlarmDays" class="alarm-schedule-days"></div>
       </div>
 
-      <button id="wakeAlarmDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete wake alarm</button>
+      <button data-track="home.wake-alarm-delete" id="wakeAlarmDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete wake alarm</button>
       <p class="muted small detail-hint">By voice: “Okay Nabu, set a wake alarm for 7&nbsp;am on weekdays.”</p>
 
       <div class="detail-actions">
-        <button id="wakeAlarmSave" type="button" class="button-primary detail-save-btn">Save</button>
+        <button data-track="home.wake-alarm-save" id="wakeAlarmSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
@@ -50,17 +50,17 @@
   <!-- Timer sheet (#885) — Next up's Start timer: a preset or a number of
        minutes starts one at once (instant), and the sheet closes onto the
        running row. Timers are ephemeral, never saved. -->
-  <dialog id="wakeTimerSheet" class="detail-dialog">
+  <dialog data-track-view="wake-timer-sheet" id="wakeTimerSheet" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Timer</h2>
-        <button id="wakeTimerSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="home.wake-timer-sheet-close" id="wakeTimerSheetClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <div class="segmented segmented--verbs wake-timer-presets" role="group" aria-label="Start a timer">
-        <button type="button" class="segmented-item" data-seconds="300">5 min</button>
-        <button type="button" class="segmented-item" data-seconds="600">10 min</button>
-        <button type="button" class="segmented-item" data-seconds="900">15 min</button>
-        <button type="button" class="segmented-item" data-seconds="1800">30 min</button>
+        <button data-track="home.wake-timer-5m" type="button" class="segmented-item" data-seconds="300">5 min</button>
+        <button data-track="home.wake-timer-10m" type="button" class="segmented-item" data-seconds="600">10 min</button>
+        <button data-track="home.wake-timer-15m" type="button" class="segmented-item" data-seconds="900">15 min</button>
+        <button data-track="home.wake-timer-30m" type="button" class="segmented-item" data-seconds="1800">30 min</button>
       </div>
       <label class="row">
         <span>Minutes</span>
@@ -68,18 +68,18 @@
       </label>
       <p class="muted small detail-hint">By voice: “Okay Nabu, set a timer for 5&nbsp;minutes.”</p>
       <div class="detail-actions">
-        <button id="wakeTimerCustomAdd" type="button" class="button-primary detail-save-btn">Start timer</button>
+        <button data-track="home.wake-timer-custom-add" id="wakeTimerCustomAdd" type="button" class="button-primary detail-save-btn">Start timer</button>
       </div>
     </div>
   </dialog>
 
   <!-- Reminder add/edit dialog (issue #314) — staged editor for the Home tab's
        Next up reminder rows, same denseListEditor shell as securityScheduleDialog. -->
-  <dialog id="reminderDialog" class="detail-dialog">
+  <dialog data-track-view="reminder-dialog" id="reminderDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="reminderEditorTitle">Reminder</h2>
-        <button id="reminderEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+        <button data-track="home.reminder-editor-close" id="reminderEditorClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
 
       <label class="row">
@@ -89,7 +89,7 @@
 
       <div class="row">
         <span>Due date</span>
-        <button id="reminderDueToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Set a due date">
+        <button data-track="home.reminder-due-toggle" id="reminderDueToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Set a due date">
           <span class="knob"></span><span class="toggle-label">OFF</span>
         </button>
       </div>
@@ -104,11 +104,11 @@
         </label>
       </div>
 
-      <button id="reminderDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete reminder</button>
+      <button data-track="home.reminder-delete" id="reminderDelete" type="button" class="button-tint danger schedule-editor-delete" hidden>Delete reminder</button>
       <p class="muted small detail-hint">By voice: “Okay Nabu, remind me to take out the trash at 6&nbsp;pm tomorrow.”</p>
 
       <div class="detail-actions">
-        <button id="reminderSave" type="button" class="button-primary detail-save-btn">Save</button>
+        <button data-track="home.reminder-save" id="reminderSave" type="button" class="button-primary detail-save-btn">Save</button>
       </div>
     </div>
   </dialog>
