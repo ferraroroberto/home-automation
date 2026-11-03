@@ -50,9 +50,27 @@ _HA_BODY = {
 _MEDIA_RECORDER = """
 (() => {
   navigator.mediaDevices = navigator.mediaDevices || {};
-  navigator.mediaDevices.getUserMedia = async () => ({
-    getTracks: () => [{ stop: () => {} }],
-  });
+  // A synthetic tone stands in for the mic, so the level reader has a real
+  // signal; where Web Audio is missing the stream is a bare stub.
+  window.__audioContexts = 0;
+  const RealContext = window.AudioContext || window.webkitAudioContext;
+  if (RealContext) {
+    window.AudioContext = class extends RealContext {
+      constructor(...args) { super(...args); window.__audioContexts += 1; }
+    };
+  }
+  navigator.mediaDevices.getUserMedia = async () => {
+    try {
+      const ctx = new RealContext();
+      const tone = ctx.createOscillator();
+      const dest = ctx.createMediaStreamDestination();
+      tone.connect(dest);
+      tone.start();
+      return dest.stream;
+    } catch (_) {
+      return { getTracks: () => [{ stop: () => {} }] };
+    }
+  };
   class FakeRecorder {
     constructor(_stream, opts) {
       this.mimeType = (opts && opts.mimeType) || 'audio/webm';
@@ -277,13 +295,23 @@ def test_streamed_partial_finishes_and_announces_to_selected_room(
     expect(mic).to_have_text("Talk")
     mic.click()
     expect(mic).to_have_class(re.compile(r"\brecording\b"))
-    expect(mic).to_have_text("Stop")
+    expect(mic.locator(".ha-mic-label")).to_have_text("Stop")
+    # The shared waveform replaces the glyph for the take: a measured level and exactly one
+    # AudioContext on Chromium (the tone's own is built from the unwrapped class).
+    glyph = mic.locator(".ha-mic-glyph")
+    expect(glyph).to_have_attribute("data-rec-wave", "on")
+    expect(glyph.locator(".rec-wave")).to_be_visible()
+    if page.context.browser.browser_type.name == "chromium":
+        expect(glyph).to_have_attribute("data-rec-wave-state", "live")
+        assert page.evaluate("window.__audioContexts") == 1
     expect(row.locator(".ha-live-transcript")).to_have_text("live partial")
 
     mic.click()
     expect(row.locator(".ha-live-transcript")).to_contain_text("final message · Announced")
     assert chunks == ["POST"]
     assert announced == [{"text": "final message"}]
+    expect(mic.locator(".ha-mic-glyph")).not_to_have_attribute("data-rec-wave", "on")
+    expect(mic.locator(".rec-wave")).to_have_count(0)
 
 
 def test_recent_interactions_is_hidden_until_there_is_one(
