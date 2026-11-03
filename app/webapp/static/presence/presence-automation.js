@@ -3,8 +3,9 @@
  * Owns GET/PUT /api/presence/automation (arm-away delay, stale threshold,
  * disarm-on-arrival) and the "kids home" override (PUT
  * /api/presence/kids_home_override) that makes the everyone-away webhook arm
- * perimeter instead of full. Calls back into ./presence.js's loadPresence()
- * after a kids-home write so the switch reflects the new override immediately.
+ * perimeter instead of full, plus the one-shot "Don't arm when away" override
+ * (PUT /api/presence/skip_away_arm_override). Calls back into ./presence.js's
+ * loadPresence() after either write so the switch reflects it immediately.
  */
 
 'use strict';
@@ -16,10 +17,24 @@ import { loadPresence, presenceById, presenceEntityLabel } from './presence.js';
 
 // Kids home is a switch on the Security glance card,
 // live only once presence has been read.
-export function renderKidsHomeToggle(viewReady) {
+function renderKidsHomeToggle(viewReady) {
   if (!els.presenceKidsHome) return;
   setToggleState(els.presenceKidsHome, !!(state.presence && state.presence.kids_home_override));
   els.presenceKidsHome.disabled = !viewReady;
+}
+
+// One-shot: the server clears it after skipping an away-arm, and the tab's
+// presence poll flips the switch off.
+function renderSkipAwayArmToggle(viewReady) {
+  if (!els.presenceSkipAwayArm) return;
+  setToggleState(els.presenceSkipAwayArm, !!(state.presence && state.presence.skip_away_arm_override));
+  els.presenceSkipAwayArm.disabled = !viewReady;
+}
+
+// Both override switches on the Security glance card.
+export function renderGlanceOverrides(viewReady) {
+  renderKidsHomeToggle(viewReady);
+  renderSkipAwayArmToggle(viewReady);
 }
 
 export function renderPresenceAutomationNote() {
@@ -64,6 +79,21 @@ async function toggleKidsHome() {
     toast(next ? 'Kids home on · perimeter when away' : 'Kids home off', 'success');
   } catch (exc) {
     reportActionFailure(exc, 'Kids home toggle failed');
+  }
+}
+
+async function toggleSkipAwayArm() {
+  const next = !(state.presence && state.presence.skip_away_arm_override);
+  try {
+    await jsonApi('/api/presence/skip_away_arm_override', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: next }),
+    });
+    await loadPresence();
+    toast(next ? "Don't arm when away on · skips the next away-arm" : "Don't arm when away off", 'success');
+  } catch (exc) {
+    reportActionFailure(exc, "Don't arm when away toggle failed");
   }
 }
 
@@ -117,6 +147,7 @@ async function savePresenceAutomation() {
 
 export function wirePresenceAutomationControls() {
   if (els.presenceKidsHome) els.presenceKidsHome.addEventListener('click', toggleKidsHome);
+  if (els.presenceSkipAwayArm) els.presenceSkipAwayArm.addEventListener('click', toggleSkipAwayArm);
   [els.presenceArmMinutes, els.presenceStaleMinutes].forEach(function (el) {
     if (el) el.addEventListener('change', savePresenceAutomation);
   });

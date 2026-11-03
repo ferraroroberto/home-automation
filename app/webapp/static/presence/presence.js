@@ -29,7 +29,7 @@ import { emptyStateEl } from '../empty-state.js';
 import { setToggleState } from '../toggle.js';
 import { createViewState } from '../view-state.js';
 import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocationControls } from './presence-location.js';
-import { renderKidsHomeToggle, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
+import { renderGlanceOverrides, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
 import { wirePresencePushControls } from './presence-push.js';
 import { sheet } from '../sheet.js';
 import { detailModal } from '../detail-modal.js';
@@ -233,7 +233,7 @@ function renderHousePeople() {
 
 export function renderPresence() {
   renderHousePeople();
-  renderKidsHomeToggle(presenceView.state === 'ready');
+  renderGlanceOverrides(presenceView.state === 'ready');
   if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
   els.presenceList.innerHTML = '';
   els.presenceList.dataset.state = presenceView.state;

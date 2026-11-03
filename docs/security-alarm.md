@@ -8,8 +8,9 @@ The tab opens on a **glance card**
 that answers "is the house protected?": the mode word with any exception chips
 (AC power lost, trouble), the arm control as one segmented control (`Off` /
 `Partial` / `Perimeter` / `Full`, the selected segment is the mode, never red),
-the next schedule as one line (`Next: Arm full at 23:00`) and the **Kids home**
-switch. Below it are open groups on the shared row (`row.js`): **Detectors**,
+the next schedule as one line (`Next: Arm full at 23:00`), the **Kids home**
+switch and, below it, the one-shot **Don't arm when away** switch (turns itself
+off after skipping one away-arm; see `docs/presence.md`). Below it are open groups on the shared row (`row.js`): **Detectors**,
 **Cameras**, **People**, **Recent events** and **Automations** (Schedules, Scene
 capture and Override, each a sheet). The same state line and segmented control
 are mirrored, actionable, on the **Home** tab.

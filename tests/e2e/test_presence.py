@@ -241,6 +241,43 @@ def test_kids_home_is_a_switch_on_the_glance_card(
 
 
 @pytest.mark.chromium_only
+def test_dont_arm_when_away_is_a_switch_below_kids_home(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable,
+) -> None:
+    """The one-shot "Don't arm when away" switch sits directly below Kids home."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence()
+    puts: List[Dict] = []
+
+    def handle_skip(route: Route) -> None:
+        puts.append(json.loads(route.request.post_data or "{}"))
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    page.route("**/api/presence/skip_away_arm_override", handle_skip)
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    rows = page.locator(".security-glance .security-glance-rows > li")
+    expect(rows).to_have_count(2)
+    expect(rows.nth(1).locator("#presenceSkipAwayArm")).to_have_count(1)
+    switch = page.locator(".security-glance #presenceSkipAwayArm")
+    expect(switch).to_have_attribute("role", "switch")
+    expect(switch).to_have_attribute("aria-checked", "false")
+    expect(switch).to_have_attribute("data-track", "presence.skip-away-arm")
+    expect(switch).to_have_accessible_name("Don't arm when away")
+    expect(rows.nth(1)).to_contain_text("turns off after use")
+    expect(switch).to_be_enabled()
+    switch.click()
+
+    expect(page.locator("#toast")).to_contain_text("Don't arm when away on")
+    assert puts == [{"active": True}]
+
+
+@pytest.mark.chromium_only
 def test_this_device_presence_is_diagnostic_only(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,

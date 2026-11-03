@@ -78,6 +78,7 @@ def _wire_common(monkeypatch) -> None:
     monkeypatch.setattr(PA, "load_people", lambda: {"p1": object()})
     monkeypatch.setattr(PA, "evaluate_alarm_decision", lambda *a, **k: _DECISION)
     monkeypatch.setattr(PA, "load_kids_home_override", lambda: False)
+    monkeypatch.setattr(PA, "load_skip_away_arm_override", lambda: False)
     monkeypatch.setattr(PA, "send_push", lambda *a, **k: None)
     monkeypatch.setattr(PA, "append_trigger_log", lambda event: None)
     # Issue #653: tick() builds an iCloud corroboration map every round. Not
@@ -224,6 +225,7 @@ def test_evaluate_current_decision_considers_every_tracked_person(monkeypatch) -
     monkeypatch.setattr(PA, "load_people", lambda: {"ana": object(), "roberto": object()})
     monkeypatch.setattr(PA, "evaluate_alarm_decision", fake_evaluate)
     monkeypatch.setattr(PA, "load_kids_home_override", lambda: False)
+    monkeypatch.setattr(PA, "load_skip_away_arm_override", lambda: False)
 
     PA._evaluate_current_decision("disarmed")
 

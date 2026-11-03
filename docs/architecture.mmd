@@ -30,7 +30,7 @@ flowchart TB
   end
 
   subgraph core["src/ — UI-free device clients & domain logic\n(security/ · presence/ · network/ · energy/ · devices/ · voice/ subpackages)"]
-    CLIENTS["melcloud_client · huawei_client (+huawei_modbus) · athom_client ·\nrisco_client/risco_webui ·\ntuya_client (+tuya_cloud) · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine (+blocks)/\npresence_places/presence_roles/presence_roster · ups_client (+host_shutdown) ·\nhyperv_client · ha_client · voice_client · searxng_client · web_search"]
+    CLIENTS["melcloud_client · huawei_client (+huawei_modbus) · athom_client ·\nrisco_client/risco_webui ·\ntuya_client (+tuya_cloud) · elgato_client · network_client (+ap/router/host) ·\ncamera_client (+ffmpeg) · presence_client/presence_engine (+blocks, +skip_away_arm)/\npresence_places/presence_roles/presence_roster · ups_client (+host_shutdown) ·\nhyperv_client · ha_client · voice_client · searxng_client · web_search"]
     DOMAIN["tariff · pv_forecast · sun_position · hvac_automation · blind_automation · dhcp_plan ·\ntelemetry / energy_history / network_history / network_survey ·\nusage_log (vendored: PWA views + taps)"]
     STORES["display_names & sibling rename/hidden/prefs stores\n(_atomic_json · _schedule_store · _toggle_prefs)"]
     ACTIVITY["activity_log — domain-free append-only event log\n(one logs/*.jsonl file per consumer)"]

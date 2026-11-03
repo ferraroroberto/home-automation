@@ -514,6 +514,7 @@ def evaluate_alarm_decision(
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: Iterable[str] = (),
     guardian_home_name: Optional[str] = None,
+    skip_away_arm: bool = False,
 ) -> Optional[PresenceDecision]:
     """Return the next alarm action, or ``None`` when no action is safe.
 
@@ -540,6 +541,10 @@ def evaluate_alarm_decision(
     the branch below) so the underlying "everyone away" arm trigger is left
     unconsumed — once the guardian leaves or their read goes stale, the same
     departure episode can still arm normally.
+
+    ``skip_away_arm`` (the one-shot "Don't arm when away" toggle) turns the
+    arm that is about to be issued into a ``skip_arm`` decision carrying the
+    same ``arm:`` key. It never creates an arm and loses to the guardian hold.
     """
 
     stamp = at or now_utc()
@@ -571,6 +576,7 @@ def evaluate_alarm_decision(
             stamp=stamp,
             override_perimeter=override_perimeter,
             guardian_home_name=guardian_home_name,
+            skip_away_arm=skip_away_arm,
         )
     return None
 
@@ -622,6 +628,7 @@ def _arm_decision(
     stamp: datetime,
     override_perimeter: bool,
     guardian_home_name: Optional[str],
+    skip_away_arm: bool = False,
 ) -> Optional[PresenceDecision]:
     """The arm branch of :func:`evaluate_alarm_decision`: every fresh person is
     away and the panel is disarmed."""
@@ -649,6 +656,17 @@ def _arm_decision(
         )
     key = f"arm:{all_away_since.isoformat()}"
     if key != _last_key("arm") and not _manual_after(all_away_since):
+        if skip_away_arm:
+            # Last, after every gate above: the skip only replaces an arm that
+            # was about to be sent, and shares its key so recording it consumes
+            # this departure's arm.
+            return PresenceDecision(
+                kind="skip_arm",
+                action="skip",
+                key=key,
+                reason="everyone away past grace (Don't arm when away)",
+                transition_at=all_away_since,
+            )
         return PresenceDecision(
             kind="arm",
             action="perimeter" if override_perimeter else config.arm_action,
