@@ -6,8 +6,8 @@
  *
  * Auth: a bearer token is stored in localStorage under TOKEN_KEY. The
  * page extracts it from ?token=… on first load (then strips it from the
- * visible URL). On 401, api.js shows the login overlay; the password is
- * swapped for the token via POST /api/login.
+ * visible URL). On 401, api.js opens the vendored sign-in sheet; the
+ * password is swapped for the token via POST /api/login.
  */
 
 'use strict';
@@ -908,11 +908,6 @@ export const els = {
   acScheduleVh: document.getElementById('acScheduleVh'),
   acScheduleDelete: document.getElementById('acScheduleDelete'),
   acScheduleSave: document.getElementById('acScheduleSave'),
-  // Login overlay
-  loginOverlay: document.getElementById('loginOverlay'),
-  loginForm: document.getElementById('loginForm'),
-  loginPassword: document.getElementById('loginPassword'),
-  loginError: document.getElementById('loginError'),
 };
 
 // ----------------------------------------------------------- auth utils
