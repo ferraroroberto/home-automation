@@ -154,6 +154,7 @@ Config in `.env`:
 | `BLIND_SCHEDULES_POLL_INTERVAL_S` | Optional, default `60`; how often the tray-owned webapp checks due blind schedules. |
 | `TELEGRAM_BOT_TOKEN` | Optional; Telegram Bot API token for automatic-alarm notifications. Overrides `config/notify_config.json`. Unset → notifier is a silent no-op. |
 | `TELEGRAM_CHAT_ID` | Optional; Telegram chat id the alerts are delivered to (the family-radar chat). Overrides `config/notify_config.json`. |
+| `TELEGRAM_ALERT_CHAT_ID` | Optional; the `coding alerts` chat for act-now messages (a repeated-wrong-password alert from the login route). Overrides `alert_chat_id` in `config/notify_config.json`; with neither set it falls back to the main chat id. |
 | `PC_FLEET_HUB_BASE` | Optional, default `http://127.0.0.1:8000`; base URL of the local-llm-hub whose machine API the PC-fleet shutdown/wake proxies use. |
 
 Read-only smoke command:

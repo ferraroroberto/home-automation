@@ -60,6 +60,42 @@ def load_notify_config(path: Optional[Path] = None) -> TelegramConfig:
     return TelegramConfig(bot_token=bot_token, chat_id=chat_id)
 
 
+def load_alert_chat_id(path: Optional[Path] = None) -> str:
+    """The act-now ``coding alerts`` chat id, falling back to the main ``chat_id``.
+
+    Env ``TELEGRAM_ALERT_CHAT_ID`` wins over the file's ``alert_chat_id``; empty
+    when neither it nor the main chat is configured.
+    """
+
+    load_dotenv(override=True)
+    target = Path(path) if path is not None else DEFAULT_PATH
+    file_alert = ""
+    if target.exists():
+        try:
+            raw = json.loads(target.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                file_alert = str(raw.get("alert_chat_id") or "")
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("⚠️ Could not read %s (%s); using env/defaults", target, exc)
+    alert = (os.getenv("TELEGRAM_ALERT_CHAT_ID") or file_alert).strip()
+    return alert or load_notify_config(path).chat_id
+
+
+def build_attention_notifier(path: Optional[Path] = None) -> Optional[Notifier]:
+    """A notifier for the ``coding alerts`` chat, or ``None`` when unconfigured.
+
+    Same pytest send-proofing as :func:`build_alarm_notifier`: a test that does
+    not inject a fake notifier must never reach the real chat.
+    """
+
+    if "pytest" in sys.modules:
+        return None
+    bot_token = load_notify_config(path).bot_token
+    chat_id = load_alert_chat_id(path)
+    name = "telegram" if (bot_token and chat_id) else "none"
+    return build_notifier(name, TelegramConfig(bot_token=bot_token, chat_id=chat_id))
+
+
 def is_notify_configured(path: Optional[Path] = None) -> bool:
     """True when both a bot token and a chat id are available."""
 

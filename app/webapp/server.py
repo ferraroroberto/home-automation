@@ -318,6 +318,7 @@ def create_app() -> FastAPI:
     app.add_middleware(StreamSafeGZipMiddleware, bypass_paths=())
 
     app.state.webapp_config = webapp_cfg
+    app.state.login_lockout = auth.build_login_lockout()
 
     if STATIC_DIR.exists():
         app.mount(
