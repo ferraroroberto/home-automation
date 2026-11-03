@@ -7,6 +7,8 @@
 /app/webapp/static/_vendored/icon-button
 /app/webapp/static/_vendored/modal
 /app/webapp/static/_vendored/nav
+/app/webapp/static/_vendored/page-foot
+/app/webapp/static/_vendored/rec-wave
 /app/webapp/static/_vendored/segmented
 /app/webapp/static/_vendored/text-size
 /app/webapp/static/_vendored/usage-log
@@ -25,6 +27,8 @@
 /scripts/structure_band.py
 /scripts/structure_layout.py
 /scripts/structure_ratchet.py
+/scripts/usage_track_ratchet.py
+/scripts/usage_track_scan.py
 /src/compression.py
 /src/notify
 /src/runtime_data.py
