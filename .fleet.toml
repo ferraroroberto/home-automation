@@ -31,6 +31,7 @@ button = { src = "app/webapp/static/_vendored/button", sha = "5d460bd1d9d44eed95
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/segmented" }
 page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "35c1f11348e100fa6b5da487411424c6d6ced43c", dest = "app/webapp/static/_vendored/page-foot" }
 modal = { src = "app/webapp/static/_vendored/modal", sha = "713b1d1e36989440679ec4e415ff149b14d96c81", dest = "app/webapp/static/_vendored/modal" }
+rec-wave = { src = "app/webapp/static/_vendored/rec-wave", sha = "35c1f11348e100fa6b5da487411424c6d6ced43c", dest = "app/webapp/static/_vendored/rec-wave" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/static_ratchet.py" }
 docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/docs_ratchet.py" }
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "baac1ed97388a3545bd1e52544821ec20f1dc77a", dest = "scripts/comment_ratchet.py" }

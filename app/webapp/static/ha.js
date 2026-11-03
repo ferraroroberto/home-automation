@@ -18,6 +18,7 @@ import { els, readToken, state, toast } from './state.js';
 import { esc, friendlyError, staleReadingNote } from './format.js';
 import { chipHtml } from './chip.js';
 import { sheet } from './sheet.js';
+import { attachRecWave, createLevelSource } from './_vendored/rec-wave/rec-wave.js';
 
 const POLL_MS = 15_000;
 const CHUNK_MS = 1_000;
@@ -84,7 +85,8 @@ function renderInteractions(rows) {
 // The button's face: icon plus a visible word (push-to-talk is the
 // row's main action, so it is never icon-only).
 function micFace(iconName, word) {
-  return icon(iconName) + '<span class="ha-mic-label">' + word + '</span>';
+  // The glyph sits in its own span: rec-wave takes that host over while recording.
+  return '<span class="ha-mic-glyph">' + icon(iconName) + '</span><span class="ha-mic-label">' + word + '</span>';
 }
 
 function micButtonHtml(satellite) {
@@ -416,6 +418,21 @@ function subscribePartials(sessionId, transcriptEl) {
   return eventSource;
 }
 
+// Transcribe the finished take and announce it; failures surface in the row and a toast.
+async function finishTake(satellite, transcriptEl, chunks, buffered, mimeType, overload) {
+  try {
+    const result = await transcribeFinal(chunks, buffered, mimeType);
+    if (result && result.silent) {
+      await announceFinal(satellite, '', transcriptEl);
+    } else if (!overload) {
+      await announceFinal(satellite, result && result.transcript, transcriptEl);
+    }
+  } catch (exc) {
+    transcriptEl.textContent = friendlyError(exc, 'Transcription failed');
+    toast(friendlyError(exc, 'Transcription failed'), 'error');
+  }
+}
+
 /* Push-to-talk state machine for one satellite row.
  *
  * Second click on the recording button stops it; a click elsewhere while one is
@@ -439,8 +456,13 @@ async function toggleDictation(satellite, row, button) {
   }
 
   const transcriptEl = row.querySelector('.ha-live-transcript');
+  // Built inside the tap: iOS resumes an AudioContext only within a user gesture.
+  const levelSource = createLevelSource();
   const opened = await openRecorder();
-  if (!opened) return;
+  if (!opened) {
+    if (levelSource) levelSource.close();
+    return;
+  }
   const { stream, recorder, mime } = opened;
 
   let sessionId = null;
@@ -454,6 +476,7 @@ async function toggleDictation(satellite, row, button) {
   const buffered = [];
   let eventSource = null;
   let overload = false;
+  let stopWave = function () {};
 
   if (chunks) eventSource = subscribePartials(sessionId, transcriptEl);
 
@@ -478,25 +501,20 @@ async function toggleDictation(satellite, row, button) {
   });
 
   recorder.addEventListener('stop', async function () {
+    stopWave();
     stream.getTracks().forEach(function (track) { track.stop(); });
     showMicTranscribing(button);
     try {
-      const result = await transcribeFinal(chunks, buffered, recorder.mimeType || mime);
-      if (result && result.silent) {
-        await announceFinal(satellite, '', transcriptEl);
-      } else if (!overload) {
-        await announceFinal(satellite, result && result.transcript, transcriptEl);
-      }
-    } catch (exc) {
-      transcriptEl.textContent = friendlyError(exc, 'Transcription failed');
-      toast(friendlyError(exc, 'Transcription failed'), 'error');
+      await finishTake(satellite, transcriptEl, chunks, buffered, recorder.mimeType || mime, overload);
     } finally {
       teardownDictation(button, satellite, eventSource, chunks, buffered);
+      if (levelSource) levelSource.close();
     }
   });
 
   recorder.start(chunks ? CHUNK_MS : undefined);
   showMicRecording(button, satellite);
+  stopWave = attachRecWave(button.querySelector('.ha-mic-glyph'), stream, { source: levelSource });
   transcriptEl.textContent = 'Listening…';
   activeDictation = {
     button: button,
