@@ -25,6 +25,16 @@ from src.secret_compare import secrets_match
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
+
+def is_pc_itself(request: Request) -> bool:
+    """True when the caller is this PC: the same check that skips the token.
+
+    The app is reached directly over Tailscale HTTPS (no tunnel or proxy in
+    front), so a loopback socket address is the PC itself and never a public caller.
+    """
+    return (request.client.host if request.client else "") in _LOOPBACK_HOSTS
+
+
 _AUTH_EXEMPT_PREFIXES = (
     "/static/",
     "/healthz",
@@ -60,8 +70,7 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         if not token:
             return await call_next(request)
 
-        client_host = request.client.host if request.client else ""
-        if client_host in _LOOPBACK_HOSTS:
+        if is_pc_itself(request):
             return await call_next(request)
 
         path = request.url.path
