@@ -36,7 +36,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -52,25 +52,23 @@ def _free_port() -> int:
 
 
 def _serve(port: int, ssl_files: Optional[Tuple[str, str]]) -> int:
-    """Child process: neutralise the outbound integrations, then run uvicorn."""
+    """Child process: neutralise the outbound integrations, then serve the app."""
     import dotenv
-    import uvicorn
 
     dotenv.load_dotenv = lambda *args, **kwargs: False
 
-    from app.webapp.event_loop import LOOP_FACTORY
+    from app.webapp.event_loop import selector_loop_factory
+    from app.webapp.serve import run
     from src.energy import athom_client
 
     async def _no_discovery(force: bool = False) -> Tuple[List, Optional[str]]:
         return [], None
 
     athom_client.discover_meters = _no_discovery
-    kwargs: Dict[str, object] = {}
-    if ssl_files:
-        kwargs["ssl_certfile"], kwargs["ssl_keyfile"] = ssl_files
-    uvicorn.run(
-        "app.webapp.server:app", host="127.0.0.1", port=port,
-        log_level="warning", loop=LOOP_FACTORY, **kwargs,
+    certfile, keyfile = ssl_files if ssl_files else (None, None)
+    run(
+        "127.0.0.1", port, certfile=certfile, keyfile=keyfile,
+        log_level="warning", loop_factory=selector_loop_factory,
     )
     return 0
 

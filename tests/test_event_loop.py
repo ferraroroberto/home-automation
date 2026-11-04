@@ -50,6 +50,14 @@ def test_selector_loop_factory_is_zero_arg_and_returns_an_instance():
         loop.close()
 
 
+def test_manager_build_command_launches_serve_module_with_the_configured_server():
+    cmd = WebappManager(WebappManagerConfig(port=18447))._build_command()
+    assert cmd[cmd.index("-m") + 1] == "app.webapp.serve"
+    assert cmd[cmd.index("--server") + 1] == "hypercorn"
+    fallback = WebappManager(WebappManagerConfig(port=18447, server="uvicorn"))._build_command()
+    assert fallback[fallback.index("--server") + 1] == "uvicorn"
+
+
 def test_manager_build_command_passes_loop_factory():
     mgr = WebappManager(WebappManagerConfig(port=18447))
     cmd = mgr._build_command()

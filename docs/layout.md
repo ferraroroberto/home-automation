@@ -8,7 +8,7 @@ home-automation/
 │   ├── webapp/                # the product: FastAPI + static PWA, plus the background tasks the app lifespan owns
 │   │   ├── server.py          # app assembly, lifespan, auth wiring
 │   │   ├── middleware.py      # token / password gate, request logging
-│   │   ├── manager.py         # adopt-or-spawn / restart / stop for uvicorn (the tray's entry to the webapp)
+│   │   ├── manager.py         # adopt-or-spawn / restart / stop for the webapp (the tray's entry to it)
 │   │   ├── routers/           # one module per API area
 │   │   └── static/            # the PWA: index.html (shell + nav), the shared modules (state, api, format, toggles, sheets) and the views that are not part of a domain
 │   │       ├── network/ security/ presence/ energy/ devices/   # the domain views' JS modules, one folder per domain
