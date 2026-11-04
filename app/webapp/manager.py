@@ -1,10 +1,10 @@
-"""Webapp process manager — adopt-or-spawn for uvicorn.
+"""Webapp process manager — adopt-or-spawn for the HTTP/2 webapp.
 
 Adapted from the canonical fleet manager (photo-ocr / voice-transcriber):
 
 - ``status()`` checks ``GET /healthz`` and a low-level TCP probe.
-- ``start()`` adopts an already-listening uvicorn (no second spawn) or
-  spawns ``python -m uvicorn app.webapp.server:app`` from this venv.
+- ``start()`` adopts an already-listening webapp (no second spawn) or
+  spawns ``python -m app.webapp.serve`` from this venv.
 - ``stop()`` only terminates a process this manager spawned. An
   externally started uvicorn is left alone.
 
@@ -72,6 +72,8 @@ class WebappManagerConfig:
     startup_timeout_seconds: float = 15.0
     request_timeout_seconds: float = 1.0
     poll_interval_seconds: float = 0.4
+    # hypercorn serves HTTP/2 over the certificate; uvicorn is the HTTP/1.1 fallback.
+    server: str = "hypercorn"
 
 
 @dataclass
@@ -87,7 +89,7 @@ class WebappStatus:
 def load_config() -> WebappManagerConfig:
     """Build the manager config from the repo's webapp_config loader."""
     cfg = load_webapp_config()
-    return WebappManagerConfig(host=cfg.host, port=cfg.port)
+    return WebappManagerConfig(host=cfg.host, port=cfg.port, server=cfg.server)
 
 
 def cert_paths(project_root: Optional[Path] = None) -> Optional[tuple[Path, Path]]:
@@ -146,7 +148,7 @@ def _probe_url(scheme: str, host: str, port: int) -> str:
 
 
 class WebappManager:
-    """Start / stop / health-check the webapp uvicorn process."""
+    """Start / stop / health-check the webapp process."""
 
     def __init__(self, config: Optional[WebappManagerConfig] = None) -> None:
         self.config = config or WebappManagerConfig()
@@ -317,8 +319,7 @@ class WebappManager:
         cmd: List[str] = [
             py,
             "-m",
-            "uvicorn",
-            "app.webapp.server:app",
+            "app.webapp.serve",
             "--host",
             self.config.host,
             "--port",
@@ -327,6 +328,8 @@ class WebappManager:
             "warning",
             "--loop",
             LOOP_FACTORY,
+            "--server",
+            self.config.server,
         ]
         certs = cert_paths()
         if certs is not None:

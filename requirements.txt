@@ -21,6 +21,7 @@ python-dotenv>=1.0.0
 # FastAPI + PWA control dashboard (the product)
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
+hypercorn>=0.18
 
 # Async HTTP for the keyless Open-Meteo weather read (GET /api/weather)
 aiohttp>=3.9.0

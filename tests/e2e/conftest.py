@@ -557,7 +557,7 @@ def base_url(request: pytest.FixtureRequest) -> Iterator[str]:
     https = _CERT.exists() and _KEY.exists()
     scheme = "https" if https else "http"
     cmd = [
-        sys.executable, "-m", "uvicorn", "app.webapp.server:app",
+        sys.executable, "-m", "app.webapp.serve",
         "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning",
         "--loop",
         LOOP_FACTORY,

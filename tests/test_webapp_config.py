@@ -37,3 +37,13 @@ def test_unreadable_file_raises_instead_of_returning_defaults(tmp_path: Path) ->
     path.write_text("{ not json", encoding="utf-8")
     with pytest.raises(StoreUnreadableError):
         load_webapp_config(path)
+
+
+def test_server_defaults_to_hypercorn_round_trips_and_rejects_unknown_values(tmp_path: Path) -> None:
+    path = tmp_path / "webapp_config.json"
+    assert load_webapp_config(path).server == "hypercorn"
+    save_webapp_config(WebappConfig(server="uvicorn"), path)
+    assert load_webapp_config(path).server == "uvicorn"
+    path.write_text('{"server": "gunicorn"}', encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_webapp_config(path)
