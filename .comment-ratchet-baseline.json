@@ -1,4 +1,19 @@
 {
   "version": 1,
-  "entries": []
+  "entries": [
+    {"key": ".github/workflows/ci.yml", "count": 2},
+    {"key": "docs/voice-pe-config/configuration.snippet.yaml", "count": 27},
+    {"key": "docs/voice-pe-config/custom_sentences/en/alarm.yaml", "count": 1},
+    {"key": "docs/voice-pe-config/custom_sentences/en/calendar.yaml", "count": 1},
+    {"key": "docs/voice-pe-config/custom_sentences/en/locate.yaml", "count": 4},
+    {"key": "docs/voice-pe-config/custom_sentences/en/reminder.yaml", "count": 1},
+    {"key": "docs/voice-pe-config/custom_sentences/en/wake_alarm.yaml", "count": 1},
+    {"key": "docs/voice-pe-config/custom_sentences/es/alarm.yaml", "count": 2},
+    {"key": "docs/voice-pe-config/custom_sentences/es/grocery.yaml", "count": 3},
+    {"key": "docs/voice-pe-config/custom_sentences/es/locate.yaml", "count": 3},
+    {"key": "docs/voice-pe-config/custom_sentences/es/wake_alarm.yaml", "count": 1},
+    {"key": "docs/voice-pe-config/custom_sentences/es/websearch.yaml", "count": 2},
+    {"key": "docs/voice-pe-config/secrets.snippet.yaml", "count": 2},
+    {"key": "scripts/voice_bench/dataset.yaml", "count": 1}
+  ]
 }
