@@ -2,5 +2,15 @@
   "version": 1,
   "band": {"files": 4, "functions": 10},
   "root_extras": ["custom_components"],
+  "shape_contract": {
+    "root_files": ["launch_app.sh"],
+    "redundant": [],
+    "folder_types": {
+      "docs/voice-pe-config": 2,
+      "docs/voice-pe-config/custom_sentences/en": 5,
+      "docs/voice-pe-config/custom_sentences/es": 5,
+      "scripts/voice_bench": 1
+    }
+  },
   "entries": []
 }
