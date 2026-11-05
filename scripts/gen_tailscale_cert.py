@@ -36,6 +36,10 @@ from typing import Optional
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CERT_DIR = PROJECT_ROOT / "webapp" / "certificates"
 RENEW_WITHIN_DAYS = 30
+# `--check` runs before uvicorn binds, so a wedged tailscaled or a stalled Let's
+# Encrypt round trip must fail fast instead of hanging app startup; 60 s is
+# several times a healthy `tailscale cert` issuance.
+TAILSCALE_TIMEOUT_S = 60
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -44,12 +48,16 @@ from src._tailscale_binary import tailscale_binary  # noqa: E402
 
 
 def _tailscale_hostname(binary: str) -> str:
-    result = subprocess.run(
-        [binary, "status", "--json"],
-        capture_output=True,
-        text=True,
-        creationflags=NO_WINDOW,
-    )
+    try:
+        result = subprocess.run(
+            [binary, "status", "--json"],
+            capture_output=True,
+            text=True,
+            creationflags=NO_WINDOW,
+            timeout=TAILSCALE_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"tailscale status timed out after {TAILSCALE_TIMEOUT_S}s. Is tailscaled responding?") from None
     if result.returncode != 0:
         raise SystemExit("tailscale status failed. Is tailscale running?")
     data = json.loads(result.stdout)
@@ -93,17 +101,21 @@ def _provision(hostname: str, binary: str) -> None:
     cert_path = CERT_DIR / "cert.pem"
     key_path = CERT_DIR / "key.pem"
 
-    result = subprocess.run(
-        [
-            binary, "cert",
-            "--cert-file", str(cert_path),
-            "--key-file", str(key_path),
-            hostname,
-        ],
-        capture_output=True,
-        text=True,
-        creationflags=NO_WINDOW,
-    )
+    try:
+        result = subprocess.run(
+            [
+                binary, "cert",
+                "--cert-file", str(cert_path),
+                "--key-file", str(key_path),
+                hostname,
+            ],
+            capture_output=True,
+            text=True,
+            creationflags=NO_WINDOW,
+            timeout=TAILSCALE_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"tailscale cert timed out after {TAILSCALE_TIMEOUT_S}s.") from None
     if result.returncode != 0:
         msg = (result.stderr or result.stdout).strip()
         print(msg)
