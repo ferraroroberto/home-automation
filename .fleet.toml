@@ -133,6 +133,11 @@ baseline   = ".doc-refs-ratchet-baseline.json"
 # backend, the whisper server, the voice transcriber, the sibling grocery app and
 # the Home Assistant host's break-glass SSH; src/server.py is the hub repo's file.
 allow_refs = [":8000", ":8088", ":8090", ":8443", ":8502", ":22222", "src/server.py"]
+# Names of removed endpoints: a doc that names one sends the next reader to a route that is gone.
+retired = [
+  { term = "/api/network/dhcp-plan/apply", why = "endpoint removed; use /api/network/dhcp-reservations/apply" },
+  { term = "/api/network/dhcp-bindings/delete", why = "endpoint removed; use /api/network/dhcp-reservations/apply" },
+]
 
 # [dead_code_ratchet] -- the scaffold's baseline-and-ratchet stage over definitions
 # nothing refers to. The gate (scripts/verify-before-ship.ps1) runs
