@@ -121,8 +121,13 @@
   --tabbar-border: rgba(0, 0, 0, 0.08);
   --tabbar-pill: rgba(0, 0, 0, 0.07);
   --tabbar-shadow: 0 8px 28px -6px rgba(20, 24, 40, 0.2), 0 1px 4px rgba(20, 24, 40, 0.06);
-  color-scheme: light dark;
+  color-scheme: light dark;   /* fallback until data-theme is stamped */
 }
+
+/* Native controls (select list, date/time pickers, scrollbars) follow the chosen
+   theme, not the OS. :root[data-theme] (0,2,0) beats the bare :root above. */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 [data-theme="dark"] {
   --bg: #0d1117;            /* canvas (GitHub dark canvas) */
