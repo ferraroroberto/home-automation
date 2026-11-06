@@ -3,7 +3,7 @@
 # the product — the real control surface is the FastAPI + PWA webapp).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR/.."
 
 if [ ! -f ".venv/bin/python" ]; then
     echo "[ERROR] Virtual environment not found."

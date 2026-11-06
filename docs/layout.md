@@ -38,7 +38,7 @@ home-automation/
 │   ├── harness/               # tests of the e2e harness's own helpers
 │   └── e2e/                   # Playwright suite and its fixtures
 ├── docs/                      # durable reference, one topic per file
-├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools
+├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools, launch_app.sh (POSIX Streamlit spike launcher)
 ├── config/                    # committed *.sample.json templates; the live stores are gitignored
 ├── assets/                    # tray icon and Stream Deck art — not served by the PWA
 └── custom_components/         # Home Assistant integration (declared exception)

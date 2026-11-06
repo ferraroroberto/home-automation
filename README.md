@@ -208,7 +208,7 @@ way to eyeball the data.
 ```
 
 ```bash
-./launch_app.sh                                                   # POSIX
+./scripts/launch_app.sh                                                # POSIX
 ```
 
 …or directly: `& .\.venv\Scripts\python.exe -m streamlit run app/streamlit_spike.py`.
