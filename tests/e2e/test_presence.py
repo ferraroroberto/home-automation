@@ -280,7 +280,7 @@ def test_dont_arm_when_away_is_a_switch_below_kids_home(
 @pytest.mark.chromium_only
 @pytest.mark.parametrize(
     ("clear", "meta"),
-    [("ok", "clears on next away or return"), ("not_confirmed", "not confirmed")],
+    [("ok", "clears on away/return"), ("not_confirmed", "not confirmed")],
 )
 def test_dont_arm_when_away_on_shows_when_it_clears(
     page: Page, base_url: str, sample_units: List[Dict],

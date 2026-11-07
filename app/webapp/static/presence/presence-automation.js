@@ -25,10 +25,14 @@ function renderKidsHomeToggle(viewReady) {
 
 const SKIP_AWAY_ARM_IDLE_META = 'Once — turns off after use';
 
+// Time only when set today, so the meta line fits a phone row.
 function fmtSetAt(value) {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  const today = date.toDateString() === new Date().toDateString();
+  return date.toLocaleString([], today
+    ? { hour: '2-digit', minute: '2-digit' }
+    : { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 // One-shot: the server clears it after skipping an away-arm or on the first
@@ -46,7 +50,7 @@ function renderSkipAwayArmToggle(viewReady) {
     meta = 'Turn-off not confirmed — still on';
   } else if (active) {
     const setAt = fmtSetAt(presence.skip_away_arm_override_at);
-    meta = (setAt ? 'Set ' + setAt + ' · ' : '') + 'clears on next away or return';
+    meta = (setAt ? 'Since ' + setAt + ' · ' : '') + 'clears on away/return';
   }
   els.presenceSkipAwayArmMeta.textContent = meta;
 }
