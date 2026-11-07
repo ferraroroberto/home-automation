@@ -283,6 +283,7 @@ export const els = {
   presenceNote: document.getElementById('presenceNote'),
   presenceKidsHome: document.getElementById('presenceKidsHome'),
   presenceSkipAwayArm: document.getElementById('presenceSkipAwayArm'),
+  presenceSkipAwayArmMeta: document.getElementById('presenceSkipAwayArmMeta'),
   presenceRefreshNote: document.getElementById('presenceRefreshNote'),
   // Per-account iCloud rows + browser-trust renewal dialog.
   presenceAccounts: document.getElementById('presenceAccounts'),

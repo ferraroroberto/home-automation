@@ -44,7 +44,9 @@ from src.presence.presence_engine import (
     set_person_state,
 )
 from src.presence.presence_skip_away_arm import (
+    SkipAwayArmStatus,
     load_skip_away_arm_override,
+    load_skip_away_arm_status,
     set_skip_away_arm_override,
 )
 from src.presence.presence_hidden import load_hidden_presence_ids, set_presence_hidden
@@ -185,7 +187,22 @@ def _presence_payload(entities: list[PresenceEntity]) -> Dict[str, Any]:
         },
         "automation": asdict(load_automation_config()),
         "kids_home_override": load_kids_home_override(),
-        "skip_away_arm_override": load_skip_away_arm_override(),
+        **_skip_away_arm_fields(load_skip_away_arm_status()),
+    }
+
+
+def _skip_away_arm_fields(status: SkipAwayArmStatus) -> Dict[str, Any]:
+    """The override's switch state, set time and clear confirmation.
+
+    ``clear`` is ``not_confirmed`` while a clear could not be saved: the
+    switch still reads on, and the card says so rather than looking forgotten.
+    """
+
+    return {
+        "skip_away_arm_override": status.active,
+        "skip_away_arm_override_at": status.set_at.isoformat() if status.set_at else None,
+        "skip_away_arm_clear": "not_confirmed" if status.clear_failed_at else "ok",
+        "skip_away_arm_clear_error": status.clear_error,
     }
 
 

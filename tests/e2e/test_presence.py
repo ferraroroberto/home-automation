@@ -278,6 +278,39 @@ def test_dont_arm_when_away_is_a_switch_below_kids_home(
 
 
 @pytest.mark.chromium_only
+@pytest.mark.parametrize(
+    ("clear", "meta"),
+    [("ok", "clears on next away or return"), ("not_confirmed", "not confirmed")],
+)
+def test_dont_arm_when_away_on_shows_when_it_clears(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable, mock_security: Callable,
+    mock_presence: Callable, clear: str, meta: str,
+) -> None:
+    """While on, the card says it clears on the next away or return, or that a
+    clear the server could not save is not confirmed — never a bare "off"."""
+    mock_api(sample_units)
+    mock_energy()
+    mock_security()
+    mock_presence({
+        "available": True,
+        "entities": [],
+        "diagnostics": {"available": True, "reason": "ok", "detail": "", "refreshed_at": None},
+        "automation": {"auto_arm_enabled": True, "arm_away_after_s": 900, "stale_after_s": 3600, "auto_disarm_enabled": True},
+        "skip_away_arm_override": True,
+        "skip_away_arm_override_at": "2026-11-06T08:00:00+00:00",
+        "skip_away_arm_clear": clear,
+        "skip_away_arm_clear_error": None,
+    })
+    boot_home(page, base_url)
+    page.locator("#tabSecurity").click()
+
+    switch = page.locator(".security-glance #presenceSkipAwayArm")
+    expect(switch).to_have_attribute("aria-checked", "true")
+    expect(page.locator("#presenceSkipAwayArmMeta")).to_contain_text(meta)
+
+
+@pytest.mark.chromium_only
 def test_this_device_presence_is_diagnostic_only(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,

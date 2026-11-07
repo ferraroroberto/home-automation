@@ -108,3 +108,24 @@ def test_skip_away_arm_override_round_trips(
     assert put.json() == {"active": True}
     assert client.get("/api/presence/skip_away_arm_override").json() == {"active": True}
     assert client.get("/api/presence").json()["skip_away_arm_override"] is True
+
+
+def test_presence_reports_when_the_override_was_set_and_an_unconfirmed_clear(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import src.presence.presence_skip_away_arm as S
+
+    _wire_state_path(monkeypatch, tmp_path)
+    monkeypatch.setattr(S, "_CLEAR_FAILURE", S._ClearFailure())
+    set_at = datetime(2026, 11, 6, 8, 0, tzinfo=timezone.utc)
+    S.set_skip_away_arm_override(True, at=set_at)
+
+    body = client.get("/api/presence").json()
+    assert body["skip_away_arm_override_at"] == set_at.isoformat()
+    assert body["skip_away_arm_clear"] == "ok"
+
+    S.note_clear_failure(OSError("disk full"))
+    body = client.get("/api/presence").json()
+    assert body["skip_away_arm_override"] is True
+    assert body["skip_away_arm_clear"] == "not_confirmed"
+    assert "disk full" in body["skip_away_arm_clear_error"]

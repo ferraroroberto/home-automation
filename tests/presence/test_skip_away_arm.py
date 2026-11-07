@@ -190,6 +190,8 @@ def house(monkeypatch, state):
     monkeypatch.setattr(PA, "follow_alarm", follow)
     monkeypatch.setattr(PA, "notify_best_effort", notify)
     monkeypatch.setattr(PA, "append_trigger_log", lambda e: calls["trigger"].append(e))
+    monkeypatch.setattr(S, "_CLEAR_FAILURE", S._ClearFailure())
+    calls["people"] = people
     return calls
 
 
@@ -292,3 +294,90 @@ def test_override_switched_on_while_waiting_for_the_lock_sends_no_command(
     asyncio.run(PA.tick())
     assert house["confirm"] == []
     assert S.load_skip_away_arm_override() is False
+
+
+# --- Never outlives one away/return cycle ---------------------------------------
+
+_SET_AT = _LEFT - timedelta(hours=2)
+
+
+def test_tick_clears_the_override_on_the_first_arrival_after_it_was_set(house, caplog) -> None:
+    """Set while away, someone comes home: off, so the next empty house arms."""
+
+    S.set_skip_away_arm_override(True, at=_SET_AT)
+    house["people"]["roberto"] = _home("roberto", _SET_AT + timedelta(hours=1))
+
+    with caplog.at_level("INFO"):
+        asyncio.run(PA.tick())
+
+    assert S.load_skip_away_arm_override() is False
+    assert house["confirm"] == []
+    assert any("cleared" in r.getMessage() and "roberto" in r.getMessage() for r in caplog.records)
+
+    # Everyone leaves again later: the house arms normally, no skip.
+    house["people"]["roberto"] = _away("roberto", _LEFT)
+    asyncio.run(PA.tick())
+    assert house["confirm"] == ["arm"]
+    assert house["notify"] == []
+
+
+def test_someone_already_home_when_it_was_set_does_not_clear_it(house) -> None:
+    """The usual case: set at home before leaving. Only a later arrival clears."""
+
+    house["people"]["roberto"] = _home("roberto", _SET_AT - timedelta(hours=1))
+    S.set_skip_away_arm_override(True, at=_SET_AT)
+
+    asyncio.run(PA.tick())
+
+    assert S.load_skip_away_arm_override() is True
+    assert house["confirm"] == []
+
+
+def test_set_then_everyone_leaves_skips_and_clears(house) -> None:
+    house["people"]["roberto"] = _home("roberto", _SET_AT - timedelta(hours=1))
+    S.set_skip_away_arm_override(True, at=_SET_AT)
+    asyncio.run(PA.tick())
+    assert S.load_skip_away_arm_override() is True
+
+    house["people"]["roberto"] = _away("roberto", _LEFT)
+    asyncio.run(PA.tick())
+
+    assert house["confirm"] == []
+    assert [e["outcome"] for e in house["trigger"]] == ["skipped"]
+    assert S.load_skip_away_arm_override() is False
+
+
+@pytest.mark.parametrize("path", ["skip", "arrival"])
+def test_a_clear_that_cannot_be_saved_is_reported_not_confirmed(
+    house, monkeypatch, path
+) -> None:
+    S.set_skip_away_arm_override(True, at=_SET_AT)
+    if path == "arrival":
+        house["people"]["roberto"] = _home("roberto", _SET_AT + timedelta(hours=1))
+
+    def unsaveable(raw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(S, "_save_state", unsaveable)
+    asyncio.run(PA.tick())
+
+    status = S.load_skip_away_arm_status()
+    assert status.active is True
+    assert status.clear_failed_at is not None
+    assert "disk full" in status.clear_error
+    assert house["confirm"] == []
+
+    # The store recovers: the next tick clears it and the note goes away.
+    monkeypatch.setattr(S, "_save_state", P._save_state)
+    asyncio.run(PA.tick())
+    status = S.load_skip_away_arm_status()
+    assert (status.active, status.clear_failed_at) == (False, None)
+
+
+def test_every_set_is_logged(state, caplog) -> None:
+    with caplog.at_level("INFO"):
+        S.set_skip_away_arm_override(True, at=_SET_AT)
+        S.set_skip_away_arm_override(False)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("switched on" in m and _SET_AT.isoformat() in m for m in messages)
+    assert any("switched off" in m for m in messages)

@@ -23,12 +23,32 @@ function renderKidsHomeToggle(viewReady) {
   els.presenceKidsHome.disabled = !viewReady;
 }
 
-// One-shot: the server clears it after skipping an away-arm, and the tab's
-// presence poll flips the switch off.
+const SKIP_AWAY_ARM_IDLE_META = 'Once — turns off after use';
+
+function fmtSetAt(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+// One-shot: the server clears it after skipping an away-arm or on the first
+// arrival home, and the tab's presence poll flips the switch off. A clear the
+// server could not save keeps the switch on and says so.
 function renderSkipAwayArmToggle(viewReady) {
   if (!els.presenceSkipAwayArm) return;
-  setToggleState(els.presenceSkipAwayArm, !!(state.presence && state.presence.skip_away_arm_override));
+  const presence = state.presence || {};
+  const active = !!presence.skip_away_arm_override;
+  setToggleState(els.presenceSkipAwayArm, active);
   els.presenceSkipAwayArm.disabled = !viewReady;
+  if (!els.presenceSkipAwayArmMeta) return;
+  let meta = SKIP_AWAY_ARM_IDLE_META;
+  if (active && presence.skip_away_arm_clear === 'not_confirmed') {
+    meta = 'Turn-off not confirmed — still on';
+  } else if (active) {
+    const setAt = fmtSetAt(presence.skip_away_arm_override_at);
+    meta = (setAt ? 'Set ' + setAt + ' · ' : '') + 'clears on next away or return';
+  }
+  els.presenceSkipAwayArmMeta.textContent = meta;
 }
 
 // Both override switches on the Security glance card.
@@ -91,7 +111,7 @@ async function toggleSkipAwayArm() {
       body: JSON.stringify({ active: next }),
     });
     await loadPresence();
-    toast(next ? "Don't arm when away on · skips the next away-arm" : "Don't arm when away off", 'success');
+    toast(next ? "Don't arm when away on · clears on next away or return" : "Don't arm when away off", 'success');
   } catch (exc) {
     reportActionFailure(exc, "Don't arm when away toggle failed");
   }
