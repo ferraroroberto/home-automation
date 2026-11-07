@@ -25,6 +25,7 @@ from app.webapp.alarm_notify import (
 )
 from src._atomic_json import write_json_atomic
 from src.activity_log import LOGS_DIR
+from src.local_time import HOME_TZ, to_home_wall
 from src.presence.presence_engine import note_manual_alarm_action
 from src.security.risco_client import RiscoCommandError, RiscoConfigError, fetch_security_state
 from src.security.security_schedules import SecurityScheduleEntry, load_security_schedules, schedule_due
@@ -140,13 +141,17 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
 
 
 async def tick(config: SecurityScheduleConfig, state: _EngineState, now: Optional[datetime] = None) -> None:
-    """Apply every due enabled schedule at most once per local date."""
+    """Apply every due enabled schedule at most once per Europe/Madrid date.
+
+    Schedule times are Madrid wall times, so the clock is read in that zone
+    rather than the host's, keeping fires on time across a DST change.
+    """
 
     schedules = load_security_schedules()
     if not any(entry.enabled for entry in schedules):
         return
 
-    instant = now or datetime.now()
+    instant = to_home_wall(now or datetime.now(HOME_TZ))
     today = instant.strftime("%Y-%m-%d")
     for entry in schedules:
         if not entry.enabled or not schedule_due(entry, instant, config.fire_grace_s):

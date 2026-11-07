@@ -50,6 +50,7 @@ from pyrisco.common import (
     UnauthorizedError,
 )
 
+from src.local_time import HOME_TZ
 from src.security.risco_webui import (
     RiscoCommandError,
     RiscoConfigError,  # noqa: F401  re-exported: routers, automation and tests import it from here
@@ -286,14 +287,12 @@ def _partition(partition: object) -> SecurityPartition:
     )
 
 
-# The RISCO panel stamps event times with a trailing "Z" but the clock is
-# fixed CET (UTC+1) and does *not* observe DST — so the value is panel-local,
-# not real UTC. Empirically verified: an event read at 17:32 UTC carried
-# "17:58:02Z" (impossible as real UTC), and the UI rendered events ~1h in the
-# future. We reinterpret the stamp as UTC+1 and re-emit a *true* UTC instant so
-# the UI can render it DST-aware in the viewer's timezone (Europe/Madrid → CEST
-# in summer, CET in winter) via the browser, with no hardcoded display offset.
-_PANEL_TZ = timezone(timedelta(hours=1))
+# The RISCO cloud stamps event times with a trailing "Z", but the value is the
+# panel's Europe/Madrid wall time minus a fixed hour in every season: a 05:00
+# local event reads "04:00Z" under CEST and under CET alike. So the stamp plus
+# one hour is the local wall time, and Europe/Madrid (via zoneinfo) turns that
+# into a true UTC instant the browser renders in the viewer's zone.
+_PANEL_STAMP_LAG = timedelta(hours=1)
 
 
 def _normalize_event_time(raw: str) -> str:
@@ -301,14 +300,41 @@ def _normalize_event_time(raw: str) -> str:
     if not s:
         return s
     try:
-        naive = datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+        stamp = datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         return s  # unrecognised format — leave untouched
-    return (
-        naive.replace(tzinfo=_PANEL_TZ)
-        .astimezone(timezone.utc)
-        .strftime("%Y-%m-%dT%H:%M:%SZ")
-    )
+    local = (stamp + _PANEL_STAMP_LAG).replace(tzinfo=HOME_TZ)
+    return local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# Persisted event-log cursors record which stamp reading wrote them. Readings
+# before convention 2 subtracted a flat hour from the raw stamp, which is an
+# hour early for every CET (winter) event, so such a cursor is re-read once.
+EVENT_STAMP_CONVENTION = 2
+_logged_cursor_migrations: set[str] = set()
+
+
+def migrate_event_cursor(value: Optional[str], convention: object) -> Optional[str]:
+    """Return a persisted event-log cursor in the current stamp reading.
+
+    A cursor saved under an older ``convention`` is mapped back to its raw
+    panel stamp and normalized again, so events it already covered stay
+    covered instead of reading as new after the change.
+    """
+
+    if not value or convention == EVENT_STAMP_CONVENTION:
+        return value
+    try:
+        legacy = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return value
+    migrated = _normalize_event_time((legacy + _PANEL_STAMP_LAG).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    # The scanners reload their cursor every few seconds until the next save,
+    # so each re-read value is logged once rather than on every reload.
+    if migrated != value and value not in _logged_cursor_migrations:
+        _logged_cursor_migrations.add(value)
+        logger.info("ℹ️ RISCO event cursor %s re-read as %s (stamp convention %s)", value, migrated, EVENT_STAMP_CONVENTION)
+    return migrated
 
 
 def _event(event: object) -> SecurityEvent:
@@ -587,6 +613,15 @@ async def fetch_events(count: int = 50, days: int = 30) -> List[SecurityEvent]:
         raw = await risco.get_events(newer_than, count)
     events = [_event(e) for e in raw or []]
     logger.info("RISCO events: %d entr(y/ies)", len(events))
+    if raw:
+        newest_raw = str(getattr(raw[0], "time", "") or "")
+        newest = events[0].time
+        try:
+            local = datetime.strptime(newest, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(HOME_TZ)
+            local_text = local.isoformat()
+        except ValueError:
+            local_text = "unparsed"
+        logger.info("ℹ️ RISCO newest event stamp %s -> instant %s -> local %s", newest_raw, newest, local_text)
     return events
 
 

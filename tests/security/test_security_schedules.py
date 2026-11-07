@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from src.security.security_schedules import (
     DAYS,
@@ -111,6 +113,44 @@ def _wire_engine(monkeypatch, entries, fake_confirm, panel_mode: str):
     monkeypatch.setattr(engine, "confirm_alarm_action", fake_confirm)
     monkeypatch.setattr(engine, "record_alarm_action", fake_record_alarm_action)
     return engine.SecurityScheduleConfig(enabled=True, poll_interval_s=60), recorded
+
+
+@pytest.mark.parametrize(
+    ("utc_instant", "local_day"),
+    [
+        # 05:00:30 Europe/Madrid on each side of the Oct 2026 and Mar 2027 changes.
+        (datetime(2026, 10, 24, 3, 0, 30, tzinfo=timezone.utc), "2026-10-24"),
+        (datetime(2026, 10, 26, 4, 0, 30, tzinfo=timezone.utc), "2026-10-26"),
+        (datetime(2027, 3, 27, 4, 0, 30, tzinfo=timezone.utc), "2027-03-27"),
+        (datetime(2027, 3, 29, 3, 0, 30, tzinfo=timezone.utc), "2027-03-29"),
+    ],
+)
+def test_security_schedule_tick_fires_at_local_wall_time_across_dst(
+    monkeypatch, utc_instant: datetime, local_day: str
+) -> None:
+    """A 05:00 schedule fires at 05:00 Europe/Madrid whatever the season, and
+    not an hour earlier, whichever zone the clock instant is expressed in."""
+
+    import app.webapp.security_automation as engine
+
+    calls: list[str] = []
+    entries = [SecurityScheduleEntry(id="unset", time="05:00", days=list(DAYS), action="disarm")]
+
+    async def fake_confirm(action: str) -> object:
+        calls.append(action)
+        return _FakeState("disarmed")
+
+    config, _ = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
+    monkeypatch.setattr(engine, "_save_last_fire_day", lambda _days: None)
+
+    one_hour_early = engine._EngineState(last_fire_day={})
+    asyncio.run(engine.tick(config, one_hour_early, utc_instant - timedelta(hours=1)))
+    assert calls == []
+
+    state = engine._EngineState(last_fire_day={})
+    asyncio.run(engine.tick(config, state, utc_instant))
+    assert calls == ["disarm"]
+    assert state.last_fire_day == {"unset": local_day}
 
 
 def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> None:

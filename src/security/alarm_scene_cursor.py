@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from src._atomic_json import write_json_atomic
+from src.security.risco_client import EVENT_STAMP_CONVENTION, migrate_event_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +40,20 @@ def load_last_alarm_event_time(path: Optional[Path] = None) -> Optional[str]:
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("⚠️ Could not read %s (%s); ignoring cursor", target, exc)
         return None
-    value = data.get("last_alarm_event_time") if isinstance(data, dict) else None
-    return str(value) if value else None
+    if not isinstance(data, dict):
+        return None
+    value = data.get("last_alarm_event_time")
+    return migrate_event_cursor(str(value) if value else None, data.get("stamp_convention"))
 
 
 def save_last_alarm_event_time(value: str, path: Optional[Path] = None) -> None:
     """Atomically persist the last-processed alarm-event timestamp."""
 
     target = Path(path) if path is not None else CURSOR_PATH
-    # Matches the original bare json.dumps(...) call: no indent, ensure_ascii=True.
-    write_json_atomic(target, {"last_alarm_event_time": value}, indent=None, ensure_ascii=True)
+    write_json_atomic(
+        target,
+        {"last_alarm_event_time": value, "stamp_convention": EVENT_STAMP_CONVENTION},
+        indent=None,
+        ensure_ascii=True,
+    )
     logger.info("💾 Saved %s", target)
