@@ -5,8 +5,8 @@
 layer       = "working-web"
 icon        = "🌡️"
 port        = 8447
-description = "Home automation: AC, solar, per-circuit energy, alarm, network health, Home Assistant."
-chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "Tuya", "HA", "Telegram"]
+description = "Home automation: AC, solar, per-circuit energy, alarm, network health, Home Assistant, Tesla."
+chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "Tuya", "HA", "Tesla", "Telegram"]
 depends_on  = ["local-llm-hub", "project-scaffolding", "voice-transcriber"]
 shape       = "webapp-tray"
 # Root folder the webapp-tray preset does not list: Home Assistant loads the integration

@@ -86,6 +86,7 @@ from app.webapp.wake_alarm_automation import start_wake_alarms
 from app.webapp.sampler import start_sampler
 from app.webapp.speedtest_schedule import start_nightly_speedtest
 from app.webapp.telemetry_sampler import start_telemetry_sampler
+from app.webapp.tesla_sampler import start_tesla_sampler
 from app.webapp.ha_trace_collector import start_ha_trace_collector
 from app.webapp.searxng_watchdog import start_searxng_watchdog
 from src import telemetry
@@ -246,6 +247,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             t for t in (
                 start_sampler(),
                 start_telemetry_sampler(),
+                start_tesla_sampler(),
                 start_automation(),
                 start_presence_refresher(),
                 start_presence_automation(),

@@ -24,6 +24,7 @@ os.environ.setdefault("ENERGY_SAMPLER_ENABLED", "0")
 os.environ.setdefault("HVAC_AUTOMATION_ENABLED", "0")
 os.environ.setdefault("PRESENCE_ICLOUD_REFRESH_ENABLED", "0")
 os.environ.setdefault("PRESENCE_AUTOMATION_ENGINE_ENABLED", "0")
+os.environ.setdefault("TESLA_SAMPLER_ENABLED", "0")
 
 import pytest
 from fastapi.testclient import TestClient

@@ -25,7 +25,7 @@ The top-level directory map — what each directory *is*. The exhaustive module-
 - **`app/streamlit_spike.py`** — the independent Streamlit POC spike.
 - **`config/`** — committed `*.sample.json` templates; the real per-feature JSON stores are gitignored.
 - **`webapp/`** — runtime state (`certificates/`, `auth.log`, `webapp.log` — the rotating process log that survives the tray's DEVNULL launch, `slow-requests.log` — one line per over-budget request, the SQLite stores); gitignored.
-- **`.env`** — every integration's credentials (gitignored; copy from `.env.example`, which lists one key block per integration — MELCloud, FusionSolar, RISCO, Tuya, Huawei Modbus, network router/AP, iCloud presence, Home Assistant, Google Calendar, SearXNG, Elgato, Athom, and more). Each block is optional: the feature it backs degrades gracefully when its keys are absent, per [Feature reference](#feature-reference).
+- **`.env`** — every integration's credentials (gitignored; copy from `.env.example`, which lists one key block per integration — MELCloud, FusionSolar, RISCO, Tuya, Huawei Modbus, network router/AP, iCloud presence, Home Assistant, Google Calendar, SearXNG, Elgato, Athom, Tesla, and more). Each block is optional: the feature it backs degrades gracefully when its keys are absent, per [Feature reference](#feature-reference).
 
 ### Background polling (what fetches when)
 
@@ -154,6 +154,7 @@ One line per feature; the reference for each (behaviour, config, endpoints, inva
 | Weather and solar forecast | [`docs/weather-solar-forecast.md`](docs/weather-solar-forecast.md) · [`docs/pv-forecast.md`](docs/pv-forecast.md) |
 | Tuya / Smart Life plugs, covers and the Devices tab | [`docs/tuya.md`](docs/tuya.md) |
 | Elgato lights | [`docs/elgato-lights.md`](docs/elgato-lights.md) |
+| Tesla (read-only Fleet API ingestion, drives and charging sessions) | [`docs/tesla.md`](docs/tesla.md) |
 | Cameras | [`docs/cameras.md`](docs/cameras.md) · [`docs/camera-spike.md`](docs/camera-spike.md) |
 | Wake alarms and timers, reminders, calendar | [`docs/timers-reminders-calendar.md`](docs/timers-reminders-calendar.md) |
 | Voice control (hands-free, fully local), Voice PE satellites | [`docs/voice-control.md`](docs/voice-control.md) · [`docs/voice-commands-howto.md`](docs/voice-commands-howto.md) · [`docs/voice-pe-config/`](docs/voice-pe-config/README.md) · [`docs/voice-model-benchmark.md`](docs/voice-model-benchmark.md) |
