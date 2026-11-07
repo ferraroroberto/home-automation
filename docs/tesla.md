@@ -53,6 +53,18 @@ Weekly and monthly figures (km, drive kWh, charged kWh, home-charged kWh, kWh pe
 
 `python -m src.list_tesla stored` prints the latest sample, the recent drives and charging sessions, and the monthly totals straight from the store, with no Tesla call.
 
+## Read API and the car card
+
+`app/webapp/routers/tesla.py` serves the store over three GET-only routes. None of them calls Tesla, so reading them costs no Fleet API request, and a test fails if a non-GET route is added under `/api/tesla`:
+
+- `GET /api/tesla` returns `configured` (the app identity and an owner login are present), `sampler_enabled`, `usable_kwh`, the latest stored `sample`, and the last connectivity `state` with its `checked_at`. The client's error text is not passed on.
+- `GET /api/tesla/sessions?limit=` (1–200, default 20) returns the newest drives and charging sessions.
+- `GET /api/tesla/history?period=week|month` returns the weekly or monthly buckets described above.
+
+Until the car is configured the store is not opened, and the routes answer `configured: false` or empty lists.
+
+The Devices tab's **Car** card (`static/devices/tesla.js`, `styles/tesla.css`) polls `GET /api/tesla` every minute while Devices is open. It shows battery % with a level meter, range, the charging state (with power and energy added while charging), and last seen: the state word and the age of the latest reading, with the avatar's alive badge only while the car answered online. The card stays hidden while the car is not configured. Once it is configured but has no stored reading, it shows an empty state that says whether collection (`TESLA_SAMPLER_ENABLED`) is off. When a refresh fails after a good read, the figures stay on screen and the header says when they were last updated. The card has no controls.
+
 ## Privacy
 
 The repo is public. The client secret is in `.env`; the OAuth tokens are in the gitignored `config/tesla_tokens.json`; neither is ever logged. The VIN is never stored or logged (`TESLA_VIN` is only needed for an account with more than one car). Coordinates are compared against the home location in `config/location.json` in memory and dropped; only the `at_home` flag is stored. The home radius is `TESLA_HOME_RADIUS_M` (150).

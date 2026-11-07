@@ -101,7 +101,9 @@ from tests.e2e.fixtures.stubs import (  # noqa: F401
     _stub_circuits_api,
     _stub_home_assistant_api,
     _stub_network_api,
+    _stub_tesla_api,
 )
+from tests.e2e.fixtures.tesla import mock_tesla, sample_tesla  # noqa: F401
 from tests.e2e.fixtures.units import mock_api, sample_units  # noqa: F401
 
 logger = logging.getLogger(__name__)

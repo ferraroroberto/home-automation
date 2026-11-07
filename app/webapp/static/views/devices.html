@@ -129,6 +129,50 @@
         </div>
       </section>
 
+      <!-- Car: the Tesla's last stored reading from GET /api/tesla (battery,
+           range, charging, last seen). Read-only: no verb, no switch. Hidden
+           until the Fleet API app and login are set up; the empty state
+           covers a set-up car with no stored reading yet. -->
+      <section id="teslaCard" class="card action-list devices-group tesla-card" aria-labelledby="teslaTitle" data-testid="tesla-card" hidden>
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-car"></use></svg>
+          <h3 id="teslaTitle" class="group-title">Car</h3>
+          <span id="teslaState" class="group-meta"></span>
+        </div>
+        <div id="teslaEmpty" class="group-note" role="status" hidden></div>
+        <ul id="teslaRows" class="action-rows" aria-live="polite" hidden>
+          <li class="action-row">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-battery"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Battery</span>
+                <span class="action-row-meta"><span id="teslaRange" class="action-row-meta-text" data-testid="tesla-range"></span></span>
+                <span id="teslaMeter" class="meter tesla-meter" role="meter" aria-label="Battery level" aria-valuemin="0" aria-valuemax="100"><span id="teslaMeterFill" class="meter-fill"></span></span>
+              </span>
+            </div>
+            <span id="teslaBattery" class="action-row-value action-row-trail" data-testid="tesla-battery">—</span>
+          </li>
+          <li class="action-row">
+            <div class="action-row-main has-avatar">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg></span>
+              <span class="action-row-text">
+                <span id="teslaCharging" class="action-row-title" data-testid="tesla-charging">—</span>
+                <span class="action-row-meta"><span id="teslaChargingMeta" class="action-row-meta-text"></span></span>
+              </span>
+            </div>
+          </li>
+          <li class="action-row">
+            <div class="action-row-main has-avatar">
+              <span id="teslaSeenAvatar" class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">Last seen</span>
+                <span class="action-row-meta"><span id="teslaSeen" class="action-row-meta-text" data-testid="tesla-seen"></span></span>
+              </span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
       <!-- Home Assistant (decision 1 of #872, moved from Home): the VM's power
            switch on its row (#240, Stop is confirm-gated), the voice
            satellites with push-to-talk and the recent interactions (#239)

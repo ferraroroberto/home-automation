@@ -64,3 +64,23 @@ def _stub_network_api(page: Page) -> None:
 
     page.route("**/api/network", handle)
     page.route("**/api/network?*", handle)
+
+
+@pytest.fixture(autouse=True)
+def _stub_tesla_api(page: Page) -> None:
+    """Keep the car card hidden unless a test installs ``mock_tesla``.
+
+    ``GET /api/tesla`` only reads the local store, but whether the boot sees a
+    configured car depends on the checkout's ``.env`` and token file; a fixed
+    not-configured answer keeps every Devices test independent of that.
+    """
+
+    page.route(
+        "**/api/tesla",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"configured":false,"sampler_enabled":false,"usable_kwh":60,'
+                 '"sample":null,"state":null,"checked_at":null}',
+        ),
+    )
