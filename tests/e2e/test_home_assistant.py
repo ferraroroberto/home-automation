@@ -59,7 +59,10 @@ _MEDIA_RECORDER = """
       constructor(...args) { super(...args); window.__audioContexts += 1; }
     };
   }
-  navigator.mediaDevices.getUserMedia = async () => {
+  // Patched on the prototype: macOS WebKit re-wraps navigator.mediaDevices, so a method
+  // set on the instance is gone by the time the page calls it and the native one rejects
+  // NotAllowedError for want of a real mic.
+  const fakeGetUserMedia = async () => {
     try {
       const ctx = new RealContext();
       const tone = ctx.createOscillator();
@@ -71,6 +74,11 @@ _MEDIA_RECORDER = """
       return { getTracks: () => [{ stop: () => {} }] };
     }
   };
+  const mediaTarget = window.MediaDevices && navigator.mediaDevices instanceof window.MediaDevices
+    ? window.MediaDevices.prototype : navigator.mediaDevices;
+  Object.defineProperty(mediaTarget, 'getUserMedia', {
+    value: fakeGetUserMedia, configurable: true, writable: true,
+  });
   class FakeRecorder {
     constructor(_stream, opts) {
       this.mimeType = (opts && opts.mimeType) || 'audio/webm';
