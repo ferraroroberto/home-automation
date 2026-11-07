@@ -698,3 +698,95 @@ export function restyle(chart, unit) {
   Object.assign(chart.options.scales, baseScales(pal, unit));
   chart.update('none');
 }
+
+// ------------------------------------------------------------ car history
+// Two bar charts for the car's history sheet, one bucket (week or month) per
+// bar. Distance is one series; charged energy stacks Home under Away, told
+// apart by fill as well as colour: Home is a solid bar with a square legend
+// mark, Away an outlined, lightly tinted bar with a diamond.
+function teslaBarOptions(pal, unit, stacked) {
+  const opts = commonOptions(pal, unit, false);
+  opts.scales.x.stacked = stacked;
+  opts.scales.y.stacked = stacked;
+  opts.plugins.legend.display = stacked;
+  return opts;
+}
+
+function teslaChargeColors(pal) {
+  return [
+    { borderColor: pal.gen, backgroundColor: pal.gen, borderWidth: 0 },
+    { borderColor: pal.attention, backgroundColor: alphaFill(pal.attention, 0.18), borderWidth: 2 },
+  ];
+}
+
+export function createTeslaKmChart(canvas) {
+  const pal = palette();
+  const opts = teslaBarOptions(pal, 'km', false);
+  // The efficiency rides in the tooltip, the precise-value path.
+  opts.plugins.tooltip = {
+    callbacks: {
+      footer: function (items) {
+        const eff = items.length ? items[0].chart.$efficiency[items[0].dataIndex] : null;
+        return eff == null ? '' : eff.toFixed(1) + ' kWh/100 km';
+      },
+    },
+  };
+  const chart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{ label: 'Distance', data: [], borderColor: pal.accent, backgroundColor: pal.accent, pointStyle: 'rect' }],
+    },
+    options: opts,
+  });
+  chart.$efficiency = [];
+  return chart;
+}
+
+export function createTeslaChargeChart(canvas) {
+  const pal = palette();
+  const [home, away] = teslaChargeColors(pal);
+  return new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [
+        Object.assign({ label: 'Home', data: [], pointStyle: 'rect' }, home),
+        Object.assign({ label: 'Away', data: [], pointStyle: 'rectRot' }, away),
+      ],
+    },
+    options: teslaBarOptions(pal, 'kWh', true),
+  });
+}
+
+// `buckets`: one entry per bar, oldest first, each {label, km, charged_kwh,
+// charged_home_kwh, kwh_per_100km}; a period with no activity is all zeros.
+export function setTeslaHistoryData(kmChart, chargeChart, buckets) {
+  const labels = buckets.map(function (b) { return b.label; });
+  kmChart.data.labels = labels;
+  kmChart.data.datasets[0].data = buckets.map(function (b) { return b.km; });
+  kmChart.$efficiency = buckets.map(function (b) { return b.kwh_per_100km; });
+  kmChart.update('none');
+  chargeChart.data.labels = labels;
+  chargeChart.data.datasets[0].data = buckets.map(function (b) { return b.charged_home_kwh; });
+  chargeChart.data.datasets[1].data = buckets.map(function (b) {
+    return Math.max(0, b.charged_kwh - b.charged_home_kwh);
+  });
+  chargeChart.update('none');
+}
+
+export function restyleTeslaCharts(kmChart, chargeChart) {
+  const pal = palette();
+  if (kmChart) {
+    kmChart.data.datasets[0].borderColor = pal.accent;
+    kmChart.data.datasets[0].backgroundColor = pal.accent;
+    Object.assign(kmChart.options.scales, teslaBarOptions(pal, 'km', false).scales);
+    kmChart.update('none');
+  }
+  if (chargeChart) {
+    chargeChart.options.plugins.legend.labels.color = pal.ink;
+    teslaChargeColors(pal).forEach(function (c, i) { Object.assign(chargeChart.data.datasets[i], c); });
+    Object.assign(chargeChart.options.scales, teslaBarOptions(pal, 'kWh', true).scales);
+    chargeChart.update('none');
+  }
+}

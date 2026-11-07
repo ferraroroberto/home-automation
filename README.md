@@ -154,7 +154,7 @@ One line per feature; the reference for each (behaviour, config, endpoints, inva
 | Weather and solar forecast | [`docs/weather-solar-forecast.md`](docs/weather-solar-forecast.md) · [`docs/pv-forecast.md`](docs/pv-forecast.md) |
 | Tuya / Smart Life plugs, covers and the Devices tab | [`docs/tuya.md`](docs/tuya.md) |
 | Elgato lights | [`docs/elgato-lights.md`](docs/elgato-lights.md) |
-| Tesla (read-only Fleet API ingestion, drives and charging sessions, the Devices car card) | [`docs/tesla.md`](docs/tesla.md) |
+| Tesla (read-only Fleet API ingestion, drives and charging sessions, the Devices car card and its history sheet) | [`docs/tesla.md`](docs/tesla.md) |
 | Cameras | [`docs/cameras.md`](docs/cameras.md) · [`docs/camera-spike.md`](docs/camera-spike.md) |
 | Wake alarms and timers, reminders, calendar | [`docs/timers-reminders-calendar.md`](docs/timers-reminders-calendar.md) |
 | Voice control (hands-free, fully local), Voice PE satellites | [`docs/voice-control.md`](docs/voice-control.md) · [`docs/voice-commands-howto.md`](docs/voice-commands-howto.md) · [`docs/voice-pe-config/`](docs/voice-pe-config/README.md) · [`docs/voice-model-benchmark.md`](docs/voice-model-benchmark.md) |

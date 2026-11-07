@@ -46,6 +46,7 @@ import { wirePowerNotify } from './energy/ups-notify.js';
 import { wirePcFleet, onPcFleetTab } from './devices/pc-fleet.js';
 import { onVmTab, restoreVmSnapshot, wireVm } from './devices/vm.js';
 import { onTeslaTab } from './devices/tesla.js';
+import { restyleTeslaHistoryCharts, wireTeslaHistory } from './devices/tesla-history.js';
 import { onSearxngTab, wireSearxng } from './searxng.js';
 import { onHaTab, wireHa } from './ha.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './devices/lights.js';
@@ -103,6 +104,7 @@ function applyTheme(dark) {
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
   restyleEnergyCharts();
   restyleNetworkCharts();
+  restyleTeslaHistoryCharts();
 }
 
 function toggleTheme() {
@@ -170,6 +172,7 @@ setSignInHandler(loadUnits);
   wireCircuitDetail();
   wirePowerNotify();
   wirePcFleet();
+  wireTeslaHistory();
   wireLightControls();
   wireZoneDetail();
   wireSecurityHiddenToggle();
