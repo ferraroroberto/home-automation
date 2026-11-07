@@ -45,6 +45,7 @@ import { onUpsTab, restoreUpsSnapshot } from './energy/ups.js';
 import { wirePowerNotify } from './energy/ups-notify.js';
 import { wirePcFleet, onPcFleetTab } from './devices/pc-fleet.js';
 import { onVmTab, restoreVmSnapshot, wireVm } from './devices/vm.js';
+import { onTeslaTab } from './devices/tesla.js';
 import { onSearxngTab, wireSearxng } from './searxng.js';
 import { onHaTab, wireHa } from './ha.js';
 import { onLightsTab, wireLightControls, restoreLightsSnapshot } from './devices/lights.js';
@@ -204,7 +205,7 @@ setSignInHandler(loadUnits);
   wireTabs(function (tab) {
     // dynamic-id-exempt: `tab` is one of the fixed nav tab keys, never user content
     usage.trackView(tab);
-    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onCircuitsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onBlindSchedulesTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
+    onUnitsTab(tab); onEnergyTab(tab); onPlugsTab(tab); onCircuitsTab(tab); onUpsTab(tab); onPcFleetTab(tab); onVmTab(tab); onTeslaTab(tab); onSearxngTab(tab); onHaTab(tab); onLightsTab(tab); onBlindSchedulesTab(tab); onNetworkTab(tab); onSecurityTab(tab); onCamerasTab(tab); onWakeAlarmsTab(tab); onRemindersTab(tab);
   });
 
   // AC units only matter on Home and AC (their rows), so poll them

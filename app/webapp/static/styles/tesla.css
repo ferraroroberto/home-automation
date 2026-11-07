@@ -1,0 +1,11 @@
+/* ------------------------------------------- Devices tab: the car card
+   Battery, charging and last-seen rows on the shared action-row; the
+   battery bar is the shared `.meter` (energy.css) under the range line, a
+   level rather than usage against a budget, so it stays accent. */
+.tesla-meter {
+  width: 100%;
+  max-width: 220px;
+  margin-top: var(--space-xs);
+}
+.tesla-card .group-note { padding: 0; }
+.tesla-card .group-note > .empty-state { padding: var(--space-md) 14px; }

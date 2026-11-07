@@ -71,7 +71,7 @@ from app.webapp import read_snapshot
 from app.webapp.middleware import BearerTokenMiddleware
 from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
 from src.devices.camera_token import verify as _verify_camera_token
-from app.webapp.routers import actions, activity, auth, blind_schedules, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
+from app.webapp.routers import actions, activity, auth, blind_schedules, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tesla, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
 from app.webapp.actions_registry import warn_unconfigured_quick_actions
 from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from src.automation_owner import AutomationOwnership, automation_engines_opt_in
@@ -329,40 +329,16 @@ def create_app() -> FastAPI:
             name="static",
         )
 
-    app.include_router(misc.router)
-    app.include_router(auth.router)
-    app.include_router(units.router)
-    app.include_router(energy.router)
-    app.include_router(circuits.router)
-    app.include_router(weather.router)
-    app.include_router(tuya.router)
-    app.include_router(blind_schedules.router)
-    app.include_router(ups.router)
-    app.include_router(lights.router)
-    app.include_router(cameras.router)
-    app.include_router(security.router)
-    app.include_router(security_schedules.router)
-    app.include_router(security_scene.router)
-    app.include_router(security_override.router)
-    app.include_router(security_notify.router)
-    app.include_router(network.router)
-    app.include_router(dhcp_plan.router)
-    app.include_router(presence.router)
-    app.include_router(presence_locate.router)
-    app.include_router(presence_trust.router)
-    app.include_router(push.router)
-    app.include_router(hyperv.router)
-    app.include_router(searxng.router)
-    app.include_router(ha.router)
-    app.include_router(activity.router)
-    app.include_router(nav_debug.router)
-    app.include_router(wake_alarms.router)
-    app.include_router(reminders.router)
-    app.include_router(calendar_events.router)
-    app.include_router(voice_commands.router)
-    app.include_router(web_search.router)
-    app.include_router(pc_fleet.router)
-    app.include_router(actions.router)
+    # Registration order is the match order for overlapping paths.
+    for module in (
+        misc, auth, units, energy, circuits, weather, tuya, blind_schedules, ups, tesla,
+        lights, cameras, security, security_schedules, security_scene,
+        security_override, security_notify, network, dhcp_plan, presence,
+        presence_locate, presence_trust, push, hyperv, searxng, ha, activity, nav_debug,
+        wake_alarms, reminders, calendar_events, voice_commands, web_search, pc_fleet,
+        actions,
+    ):
+        app.include_router(module.router)
     # Which views and controls get used, and on which device class, so a design
     # review reads frequencies instead of asking.
     # Local SQLite only, behind BearerTokenMiddleware like every /api route.
