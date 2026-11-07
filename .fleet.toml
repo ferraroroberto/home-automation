@@ -263,6 +263,19 @@ startup_timeout_s = 60
 command = ["-m", "pytest", "tests/e2e", "--e2e-autoboot", "-q"]
 timeout_s = 900
 
+# Nightly CI on the Mac Mini (project-scaffolding docs/mac-runner.md, "The
+# [ci.nightly] table"): project-scaffolding's nightly-mac workflow reads this from
+# main and runs the WebKit e2e leg and the iOS Simulator smoke of / whenever main
+# moved since the last green night, and every Sunday. No `unit` yet: the backend
+# suite joins once its Windows-desktop tests carry the windows_only marker
+# (per-repo adoption, project-scaffolding#663).
+[ci.nightly]
+python       = "3.14"
+requirements = ["requirements.txt", "requirements-dev.txt"]
+samples      = "config"
+e2e          = ["tests/e2e", "--e2e-autoboot"]
+views        = ["/"]
+
 # Diff-proportionate e2e routing (ferraroroberto/home-automation#603,
 # project-scaffolding#180, schema: project-scaffolding/docs/e2e-routing.md).
 # Rules are evaluated top-to-bottom; FIRST MATCH WINS -- a narrow rule for a
