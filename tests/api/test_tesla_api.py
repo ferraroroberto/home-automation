@@ -1,7 +1,7 @@
-"""API smoke for the Tesla read routes.
+"""API smoke for the Tesla read route.
 
-``/api/tesla*`` serve the local store only: a request never reaches the Fleet
-API, and no route under the prefix accepts anything but GET.
+``GET /api/tesla`` serves the local store only: a request never reaches the
+Fleet API, and no route under the prefix accepts anything but GET.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def test_every_tesla_route_is_get_only() -> None:
 
     routes = [r for r in router.routes if isinstance(r, APIRoute)]
     assert len(routes) == len(router.routes)
-    assert {r.path for r in routes} == {"/api/tesla", "/api/tesla/sessions", "/api/tesla/history"}
+    assert {r.path for r in routes} == {"/api/tesla"}
     for route in routes:
         assert route.methods <= {"GET", "HEAD"}, f"{route.path} accepts {route.methods}"
 
@@ -62,8 +62,6 @@ def test_unconfigured_reports_hidden_and_opens_no_store(
     body = client.get("/api/tesla").json()
     assert body["configured"] is False
     assert body["sample"] is None
-    assert client.get("/api/tesla/sessions").json() == {"drives": [], "charging": []}
-    assert client.get("/api/tesla/history").json() == {"period": "week", "buckets": []}
     assert not db.exists()
 
 
@@ -87,31 +85,3 @@ def test_latest_sample_and_state_come_from_the_store(client: TestClient, store: 
     assert body["checked_at"] == 1_700_000_600
     assert "error" not in body
 
-
-def test_sessions_and_history(client: TestClient, store: Path) -> None:
-    tesla_history.init_db()
-    t0 = 1_700_000_000
-    for sample in (
-        _sample(t0),
-        _sample(t0 + 600, shift_state="D", speed_kmh=50.0, odometer_km=1005.0),
-        _sample(t0 + 1200, odometer_km=1012.0, battery_pct=78.0),
-        _sample(t0 + 1800, charging_state="Charging", charger_power_kw=7.0, charge_energy_added_kwh=1.0),
-        _sample(t0 + 3600, charging_state="Complete", charge_energy_added_kwh=4.5, battery_pct=85.0),
-    ):
-        tesla_history.record_sample(sample)
-    tesla_history.refresh_sessions(tesla_history.TeslaHistoryConfig())
-
-    sessions = client.get("/api/tesla/sessions?limit=5").json()
-    assert [d["km"] for d in sessions["drives"]] == [12.0]
-    assert [c["kwh_added"] for c in sessions["charging"]] == [4.5]
-
-    month = client.get("/api/tesla/history?period=month").json()
-    assert month["period"] == "month"
-    assert month["buckets"][0]["km"] == 12.0
-    assert month["buckets"][0]["charged_home_kwh"] == 4.5
-
-
-@pytest.mark.parametrize("query", ["period=day", "limit=0", "limit=500"])
-def test_bad_query_is_rejected(client: TestClient, store: Path, query: str) -> None:
-    path = "/api/tesla/history" if query.startswith("period") else "/api/tesla/sessions"
-    assert client.get(f"{path}?{query}").status_code == 422
