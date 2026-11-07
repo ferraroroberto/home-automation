@@ -9,3 +9,29 @@
 }
 .tesla-card .group-note { padding: 0; }
 .tesla-card .group-note > .empty-state { padding: var(--space-md) 14px; }
+
+/* ------------------------------------------- Car › History sheet
+   Three figures for the current period on one row, then the two bar
+   charts and the recent-session lists on the shared action rows. */
+.tesla-history-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin: var(--space-xs) 0 0;
+}
+.tesla-stat { min-width: 0; }
+.tesla-stat dt { color: var(--muted); font-size: var(--font-label); }
+.tesla-stat dd {
+  margin: 2px 0 0;
+  font-size: var(--font-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.tesla-stat-unit { font-size: var(--font-label); font-weight: 400; white-space: nowrap; }
+.tesla-history-caption { margin: var(--space-xs) 0 0; }
+.tesla-chart-wrap { height: 190px; }
+.tesla-history-note > .empty-state { padding: var(--space-lg) 0; }
+.tesla-history-note:not(:has(.empty-state)) { color: var(--muted); font-size: var(--font-label); }
+.tesla-session-list { margin: 0; padding: 0; }
+.tesla-session-none { padding: var(--space-sm) 0; }

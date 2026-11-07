@@ -180,6 +180,46 @@
     </div>
   </dialog>
 
+  <!-- Car › History: km and charged kWh per week or month, efficiency, and
+       the latest charging sessions and drives, all from the local store
+       (GET /api/tesla/history and /sessions). Read-only: the period toggle is
+       the sheet's only control. -->
+  <dialog data-track-view="tesla-history-sheet" id="teslaHistorySheet" class="detail-dialog tesla-history-sheet" data-testid="tesla-history-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Car history</h2>
+        <button data-track="devices.tesla-history-close" id="teslaHistoryClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="segmented" id="teslaHistoryPeriod" role="group" aria-label="History period" data-track="tesla.history-period">
+        <button type="button" class="segmented-item" aria-pressed="true" data-period="week">Week</button>
+        <button type="button" class="segmented-item" aria-pressed="false" data-period="month">Month</button>
+      </div>
+      <div id="teslaHistoryBody" class="tesla-history-body" data-state="loading" aria-live="polite">
+        <div id="teslaHistoryNote" class="tesla-history-note" role="status"></div>
+        <div id="teslaHistoryData" hidden>
+          <dl id="teslaHistoryStats" class="tesla-history-stats" data-testid="tesla-history-stats">
+            <div class="tesla-stat"><dt>Distance</dt><dd id="teslaStatKm">—</dd></div>
+            <div class="tesla-stat"><dt>Charged</dt><dd id="teslaStatCharged">—</dd></div>
+            <div class="tesla-stat"><dt>Efficiency</dt><dd id="teslaStatEff">—</dd></div>
+          </dl>
+          <p id="teslaStatsCaption" class="muted small tesla-history-caption"></p>
+          <h3 class="sheet-section-head"><svg class="icon" aria-hidden="true"><use href="#i-car"></use></svg>Distance</h3>
+          <div class="chart-wrap tesla-chart-wrap"><canvas id="teslaKmChart" aria-label="Kilometres driven per period" role="img"></canvas></div>
+          <h3 class="sheet-section-head"><svg class="icon" aria-hidden="true"><use href="#i-battery-charging"></use></svg>Charged energy</h3>
+          <div class="chart-wrap tesla-chart-wrap"><canvas id="teslaChargeChart" aria-label="Energy charged per period, home and away" role="img"></canvas></div>
+          <h3 class="sheet-section-head"><svg class="icon" aria-hidden="true"><use href="#i-plug-zap"></use></svg>Recent charging</h3>
+          <ul id="teslaChargeList" class="action-rows tesla-session-list" data-testid="tesla-charge-list"></ul>
+          <h3 class="sheet-section-head"><svg class="icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>Recent drives</h3>
+          <ul id="teslaDriveList" class="action-rows tesla-session-list" data-testid="tesla-drive-list"></ul>
+        </div>
+      </div>
+      <p class="muted small detail-hint">Home-charging energy is the car's own figure. Drive energy is estimated from the battery drop.</p>
+      <div class="detail-actions">
+        <button data-track="devices.tesla-history-done" id="teslaHistoryDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Elgato light detail + rename modal. Mirrors the plug rename flow while
        surfacing the read-only LAN identity needed to map physical lights. -->
   <dialog data-track-view="light-dialog" id="lightDialog" class="detail-dialog">

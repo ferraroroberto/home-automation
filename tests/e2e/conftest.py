@@ -103,7 +103,13 @@ from tests.e2e.fixtures.stubs import (  # noqa: F401
     _stub_network_api,
     _stub_tesla_api,
 )
-from tests.e2e.fixtures.tesla import mock_tesla, sample_tesla  # noqa: F401
+from tests.e2e.fixtures.tesla import (  # noqa: F401
+    mock_tesla,
+    mock_tesla_history,
+    sample_tesla,
+    sample_tesla_history,
+    sample_tesla_sessions,
+)
 from tests.e2e.fixtures.units import mock_api, sample_units  # noqa: F401
 
 logger = logging.getLogger(__name__)

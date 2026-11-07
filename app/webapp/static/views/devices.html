@@ -130,9 +130,10 @@
       </section>
 
       <!-- Car: the Tesla's last stored reading from GET /api/tesla (battery,
-           range, charging, last seen). Read-only: no verb, no switch. Hidden
-           until the Fleet API app and login are set up; the empty state
-           covers a set-up car with no stored reading yet. -->
+           range, charging, last seen). Read-only: no verb, no switch; the one
+           link opens the history sheet. Hidden until the Fleet API app and
+           login are set up; the empty state covers a set-up car with no
+           stored reading yet. -->
       <section id="teslaCard" class="card action-list devices-group tesla-card" aria-labelledby="teslaTitle" data-testid="tesla-card" hidden>
         <div class="group-head">
           <svg class="icon group-icon" aria-hidden="true"><use href="#i-car"></use></svg>
@@ -169,6 +170,18 @@
                 <span class="action-row-meta"><span id="teslaSeen" class="action-row-meta-text" data-testid="tesla-seen"></span></span>
               </span>
             </div>
+          </li>
+        </ul>
+        <ul class="action-rows group-links">
+          <li class="action-row">
+            <button id="teslaHistoryOpen" data-track="tesla.history" type="button" class="action-row-main has-avatar group-link" aria-haspopup="dialog">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-chart-line"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title">History</span>
+                <span class="action-row-meta"><span class="action-row-meta-text">Distance, charging and efficiency</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
           </li>
         </ul>
       </section>

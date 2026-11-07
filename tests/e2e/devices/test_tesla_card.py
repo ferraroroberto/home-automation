@@ -54,8 +54,10 @@ def test_car_card_shows_battery_range_charging_and_last_seen(
     expect(page.locator("#teslaChargingMeta")).to_have_text("7.2 kW · +12.4 kWh added")
     expect(page.get_by_test_id("tesla-seen")).to_have_text(re.compile(r"^Online · data from \d+ min ago$"))
     expect(page.locator("#teslaSeenAvatar")).to_have_attribute("data-badge", "up")
-    # Read-only: the card carries no control at all.
-    expect(card.locator("button, input, [role=switch]")).to_have_count(0)
+    # Read-only: no control, only the link that opens the history sheet.
+    expect(card.locator("input, [role=switch]")).to_have_count(0)
+    expect(card.locator("button")).to_have_count(1)
+    expect(card.locator("button")).to_have_id("teslaHistoryOpen")
     assert_no_horizontal_overflow(page)
 
 
