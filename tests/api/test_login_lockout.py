@@ -6,7 +6,7 @@ proves the wiring in ``app/webapp/routers/auth.py`` without waiting or sending.
 
 from __future__ import annotations
 
-from typing import Any, Callable, List
+from typing import Any, Callable, Iterator, List
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,7 +61,7 @@ def notifier() -> _FakeNotifier:
 @pytest.fixture()
 def lockout(
     monkeypatch: pytest.MonkeyPatch, clock: _Clock, notifier: _FakeNotifier
-) -> LoginLockout:
+) -> Iterator[LoginLockout]:
     from app.webapp.server import app as _app
 
     _InlineThread.started = 0
@@ -71,8 +71,15 @@ def lockout(
     monkeypatch.setattr(cfg, "auth_token", _TOKEN)
     monkeypatch.setattr(cfg, "auth_password", _PASSWORD)
     lk = LoginLockout(clock=clock, on_alert=make_login_alert(lambda: notifier))
-    monkeypatch.setattr(_app.state, "login_lockout", lk, raising=False)
-    return lk
+    # Saved and restored by hand: pytest 9.2's monkeypatch reads the old value from
+    # `target.__dict__`, and Starlette's `State` keeps its values in `_state`, so it
+    # would record the live lockout as absent and delete it on teardown.
+    original = _app.state.login_lockout
+    _app.state.login_lockout = lk
+    try:
+        yield lk
+    finally:
+        _app.state.login_lockout = original
 
 
 def _client(host: str) -> TestClient:
