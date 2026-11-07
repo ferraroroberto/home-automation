@@ -40,8 +40,8 @@ env:
 jobs:
   gate:
     runs-on: windows-2025          # not windows-latest -- pin the OS image
-    # Cap a wedge: GitHub's default is 6 h. The WebKit/phone projection is the part
-    # that can hang on the slower hosted runner; a wedge is a flake, not the diff.
+    # Cap a wedge: GitHub's default is 6 h. A hung browser helper on the slower
+    # hosted runner is a flake, not the diff.
     timeout-minutes: 45            # ADAPT: ~4x this repo's typical green
     steps:
       - uses: actions/checkout@v6
@@ -64,7 +64,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install Playwright browsers
-        run: .\.venv\Scripts\python.exe -m playwright install chromium webkit
+        # Chromium only: the WebKit/iPhone projection runs nightly on the real Mac
+        # (project-scaffolding nightly-mac), not on this hosted runner.
+        run: .\.venv\Scripts\python.exe -m playwright install chromium
 
       - name: Seed gitignored config from committed samples
         # Config files are gitignored; only the `*.sample.*` templates are
@@ -78,14 +80,14 @@ jobs:
             if (-not (Test-Path $dest)) { Copy-Item $_.FullName $dest }
           }
 
-      - name: Pre-ship gate (byte-compile, unit suite, e2e chromium + webkit/iPhone)
+      - name: Pre-ship gate (byte-compile, unit suite, e2e chromium)
         # ADAPT: the repo's own gate instead of the template's separate pytest
         # steps. verify-before-ship.ps1 is the contract locally and already knows
         # CI: with CI=true it skips diff routing and runs the whole tests/e2e
-        # suite. That suite boots its own disposable app instance (conftest
-        # fixture) and runs both projections itself -- Chromium desktop and WebKit
-        # projected onto an iPhone -- so the template's separate phone step (a
-        # `phone` marker + `--device`) has nothing to add and is dropped.
+        # suite on Chromium only (the gate adds `--browser chromium` under CI). That
+        # suite boots its own disposable app instance (conftest fixture); the
+        # WebKit/iPhone projection is the Mac nightly's, so the template's separate
+        # phone step (a `phone` marker + `--device`) has nothing to add and is dropped.
         # PYTEST_ADDOPTS keeps the template's failure artifacts: a trace and a
         # screenshot only for a failing test, uploaded below only on failure.
         env:

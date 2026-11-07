@@ -218,7 +218,10 @@ try {
     # the full suite always runs -- the local gate is where routing is proven first.
     $tier = "full"; $e2eTarget = "tests/e2e"; $e2eBrowsers = ""; $routeReason = ""
     if ($env:CI -eq "true") {
-        $routeReason = "CI always runs the full e2e suite"
+        # Chromium only: WebKit runs nightly on the real Mac (project-scaffolding
+        # nightly-mac), a more faithful engine than WebKit on a hosted Windows runner.
+        $e2eBrowsers = "chromium"
+        $routeReason = "CI always runs the full e2e suite, Chromium only"
     } else {
         $classifyOut = & $py "scripts/classify_e2e.py"
         $kv = @{}
