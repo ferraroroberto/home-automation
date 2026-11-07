@@ -166,6 +166,7 @@ _PER_FILE_DB_ENV_VARS = frozenset({
     "ENERGY_HISTORY_DB_PATH",
     "NETWORK_HISTORY_DB_PATH",
     "NETWORK_SURVEY_DB_PATH",
+    "TESLA_HISTORY_DB_PATH",
 })
 
 _SSL_CTX = ssl.create_default_context()
@@ -498,6 +499,8 @@ def _autoboot_env(data_dir: Path) -> Dict[str, str]:
         # real HVAC (cloud) / plugs / UPS / lights every few minutes from a
         # test boot. The activity UI is driven against the API directly.
         "TELEMETRY_SAMPLER_ENABLED": "0",
+        # Never read the car from a test boot: each Fleet API read is billed.
+        "TESLA_SAMPLER_ENABLED": "0",
         # And redirect the telemetry DB to a throwaway file so control
         # actions in the e2e flow (arm/disarm/plug toggles) can't mirror
         # events into the real webapp/telemetry.sqlite3 (#296).
