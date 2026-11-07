@@ -138,6 +138,20 @@ be traced to its caller without guessing. RISCO's own cloud event
 log cannot make this distinction: every command, automated or manual, goes out
 under the same dedicated WebUI account.
 
+**Times and daylight saving.** Every wall-clock rule runs in `Europe/Madrid`
+through `zoneinfo` (`src/local_time.py`), never a fixed offset. Schedule times
+are Madrid wall times, and the evaluator reads its clock in that zone, so a
+05:00 schedule fires at 05:00 in summer and in winter alike. RISCO event
+stamps end in `Z` but are not UTC: each is the panel's local wall time minus a
+flat hour in every season (a 05:00 event reads `04:00:01Z` under CEST and
+under CET alike). `src/security/risco_client.py` adds the hour back, reads the
+result as Madrid time and emits a true UTC instant that the PWA renders in the
+viewer's zone. The event-log cursors record a `stamp_convention`, so a cursor
+saved under an older reading is re-read once rather than replaying the events
+it already covered. Each event read logs the newest event's raw stamp,
+instant and local time at info level, which is where to look if a DST change
+ever shifts the Recent events times.
+
 Config in `.env`:
 
 | Key | Meaning |

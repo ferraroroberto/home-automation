@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src._schedule_store import read_json, save_json
+from src.security.risco_client import EVENT_STAMP_CONVENTION, migrate_event_cursor
 
 _CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 SESSION_PATH = _CONFIG_DIR / "security_override_session.json"
@@ -46,7 +47,10 @@ def load_override_session(path: Optional[Path] = None) -> OverrideSession:
     counts = data.get("session_counts")
     zones = data.get("auto_bypassed_zones")
     return OverrideSession(
-        last_event_time=str(data["last_event_time"]) if data.get("last_event_time") else None,
+        last_event_time=migrate_event_cursor(
+            str(data["last_event_time"]) if data.get("last_event_time") else None,
+            data.get("stamp_convention"),
+        ),
         session_counts={str(k): int(v) for k, v in counts.items()} if isinstance(counts, dict) else {},
         auto_bypassed_zones=[int(z) for z in zones] if isinstance(zones, list) else [],
     )
@@ -60,6 +64,7 @@ def save_override_session(session: OverrideSession, path: Optional[Path] = None)
         target,
         {
             "last_event_time": session.last_event_time,
+            "stamp_convention": EVENT_STAMP_CONVENTION,
             "session_counts": session.session_counts,
             "auto_bypassed_zones": session.auto_bypassed_zones,
         },
