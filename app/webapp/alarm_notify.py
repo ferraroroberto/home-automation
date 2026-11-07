@@ -35,6 +35,7 @@ from typing import Any, Callable, Dict, Optional
 from weakref import WeakKeyDictionary
 
 from app.webapp import read_snapshot
+from app.webapp.blind_schedules import follow_alarm
 from src._atomic_json import write_json_atomic
 from src.activity_log import LOGS_DIR, append_activity
 from src.security.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
@@ -298,6 +299,12 @@ async def perform_manual_alarm_action(action: str, actor: Optional[str] = None) 
     await record_alarm_action(
         source=SOURCE_MANUAL, action=action, outcome=OUTCOME_OK, actor=actor
     )
+    # Coming home and disarming by hand (the PWA, a phone shortcut, a quick
+    # action) must raise the blinds like the presence disarm does. Only a
+    # disarm: a manual arm says nothing about who is inside. Never raises, and
+    # runs after the alarm is recorded so it cannot change that outcome.
+    if action == "disarm":
+        await follow_alarm("disarm", action, source=SOURCE_MANUAL)
     return state
 
 

@@ -303,13 +303,17 @@ def _sun_elevation_now() -> Optional[float]:
     return sun_position(time.time(), location.lat, location.lon).elevation_deg
 
 
-async def follow_alarm(kind: str, action: str, now: Optional[datetime] = None) -> Optional[str]:
-    """Move the blinds after a *confirmed* automatic alarm decision (#875).
+async def follow_alarm(
+    kind: str, action: str, now: Optional[datetime] = None, source: str = "presence"
+) -> Optional[str]:
+    """Move the blinds after a *confirmed* alarm decision.
 
-    ``kind``/``action`` are the presence decision's (``arm``/``disarm`` and
-    the panel action). Returns the blind action sent, or ``None`` when the
-    blinds were left alone. Never raises: the alarm action already happened,
-    and nothing here may change its outcome, record or notification.
+    ``kind``/``action`` are the decision's (``arm``/``disarm`` and the panel
+    action); ``source`` names who made it (``presence`` or ``manual``) so a
+    missed move is traceable in the log. Returns the blind action sent, or
+    ``None`` when the blinds were left alone. Never raises: the alarm action
+    already happened, and nothing here may change its outcome, record or
+    notification.
     """
     try:
         enabled = load_blind_alarm_prefs().follow_alarm
@@ -324,27 +328,31 @@ async def follow_alarm(kind: str, action: str, now: Optional[datetime] = None) -
             why = f"{why} ({day_why})"
         if blind_action is None:
             if enabled:
-                logger.info("ℹ️ Blinds left alone after alarm %s/%s: %s", kind, action, why)
+                logger.info(
+                    "ℹ️ Blinds left alone after alarm %s/%s (%s): %s", kind, action, source, why
+                )
             return None
         outcomes = await move_blinds(blind_action)  # type: ignore[arg-type]
         moved = sum(1 for o in outcomes if o.ok)
         logger.info(
-            "🪟 Blinds %s after alarm %s/%s — %s; %d of %d moved",
-            blind_action, kind, action, why, moved, len(outcomes),
+            "🪟 Blinds %s after alarm %s/%s (%s) — %s; %d of %d moved",
+            blind_action, kind, action, source, why, moved, len(outcomes),
         )
 
         def _record_report(report: BlindRetryReport) -> None:
             fields = _report_fields(report)
             _record_event(
                 blind_action, "all", "alarm", _report_outcome(report),
-                {"alarm": kind, "alarm_action": action, "detail": why,
+                {"alarm": kind, "alarm_action": action, "alarm_source": source, "detail": why,
                  "result": fields.pop("detail"), "total": len(outcomes), **fields},
             )
 
         await _settle(blind_action, outcomes, "following the alarm", _record_report)
         return blind_action
     except Exception as exc:  # noqa: BLE001 — never let blinds touch the alarm path
-        logger.warning("⚠️ Blinds could not follow the alarm %s/%s: %s", kind, action, exc)
+        logger.warning(
+            "⚠️ Blinds could not follow the alarm %s/%s (%s): %s", kind, action, source, exc
+        )
         return None
 
 

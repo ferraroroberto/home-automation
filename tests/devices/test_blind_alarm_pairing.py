@@ -131,3 +131,65 @@ def test_pairing_off_moves_nothing(house) -> None:
 def test_a_blind_failure_never_raises_into_the_alarm_path(house) -> None:
     house.boom = True
     assert _follow("arm", "arm") is None  # swallowed and logged, not raised
+
+
+# ------------------------------------- manual disarm (phone shortcut, PWA tap)
+@pytest.fixture
+def manual_panel(house, monkeypatch: pytest.MonkeyPatch):
+    """The manual alarm path over a fake panel; blinds are the real engine's."""
+    import app.webapp.alarm_notify as alarm_notify
+
+    house.panel_fails = False
+    # No schedule day window, so the sun decides: 20 deg is day, -10 is night.
+    house.schedule = []
+
+    async def _control(action: str):
+        if house.panel_fails:
+            raise RuntimeError("panel did not confirm")
+        return SimpleNamespace(mode="disarmed" if action == "disarm" else "armed")
+
+    async def _record(**_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(alarm_notify, "control_system", _control)
+    monkeypatch.setattr(alarm_notify, "note_manual_alarm_action", lambda _a: None)
+    monkeypatch.setattr(alarm_notify, "record_alarm_action", _record)
+    return house
+
+
+def _manual(action: str):
+    import app.webapp.alarm_notify as alarm_notify
+
+    return asyncio.run(alarm_notify.perform_manual_alarm_action(action, "webapp"))
+
+
+def test_manual_disarm_in_daytime_raises_the_blinds(manual_panel, caplog) -> None:
+    with caplog.at_level("INFO"):
+        _manual("disarm")
+    assert manual_panel.moves == ["open"]
+    sent = [r.getMessage() for r in caplog.records if "Blinds open after alarm" in r.getMessage()]
+    assert len(sent) == 1 and "manual" in sent[0]
+
+
+def test_manual_disarm_at_night_leaves_the_blinds(manual_panel) -> None:
+    manual_panel.sun = -10.0
+    _manual("disarm")
+    assert manual_panel.moves == []
+
+
+def test_manual_disarm_with_pairing_off_leaves_the_blinds(manual_panel) -> None:
+    manual_panel.enabled = False
+    _manual("disarm")
+    assert manual_panel.moves == []
+
+
+def test_a_failed_manual_disarm_moves_nothing(manual_panel) -> None:
+    manual_panel.panel_fails = True
+    with pytest.raises(RuntimeError):
+        _manual("disarm")
+    assert manual_panel.moves == []
+
+
+def test_a_manual_arm_does_not_move_the_blinds(manual_panel) -> None:
+    _manual("arm")
+    assert manual_panel.moves == []
