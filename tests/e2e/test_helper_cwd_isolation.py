@@ -24,6 +24,7 @@ the helpers are the processes that actually wedge.
 
 from __future__ import annotations
 
+import sys
 
 import pytest
 
@@ -34,6 +35,13 @@ from tests.e2e._browser_sweep import (
     path_is_within,
 )
 from tests.e2e.conftest import _REPO_ROOT, _driver_pid
+
+# The cwd probes read another process's PEB through kernel32, which exists only
+# on Windows; the pinned-directory failure they guard is Windows-only too.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason=f"reads Win32 process internals (kernel32); not available on {sys.platform}",
+)
 
 
 def test_driver_does_not_root_in_the_checkout(playwright, browser_name: str) -> None:
