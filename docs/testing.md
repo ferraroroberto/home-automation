@@ -18,7 +18,7 @@ change skips the browser suite entirely, an inert static asset gets a narrow
 Chromium-only smoke check, and any real UI/behaviour change (including a
 change to the e2e harness itself) gets the full Chromium + WebKit run. Any
 mixed, unmatched, or ambiguous diff fails safe to the full suite — routing
-never narrows coverage on uncertainty. On CI the full suite always runs.
+never narrows coverage on uncertainty. On CI the full suite always runs, on Chromium only.
 
 The static ratchet (`scripts/static_ratchet.py`, vendored byte-identical from
 `project-scaffolding`; `.fleet.toml` `[static_ratchet]`) compares the tree with
@@ -52,7 +52,8 @@ for every PR and every push to `main`: a fresh `.venv` from the requirements
 files, only committed files, and each `config/*.sample.json` copied to its live
 name. It is advisory (no branch protection); the local gate is the contract.
 CI needs no secret, and no test or workflow step reaches a real device, camera,
-calendar or push service. A failing run uploads its Playwright traces and
+calendar or push service. It runs Chromium only: the WebKit/iPhone projection runs nightly on
+the real Mac (`project-scaffolding` nightly-mac). A failing run uploads its Playwright traces and
 screenshots as an artifact. To reproduce a clean-runner red locally, run the
 suite from a checkout that has only the sample config files.
 
