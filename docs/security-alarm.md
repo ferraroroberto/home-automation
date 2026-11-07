@@ -10,7 +10,7 @@ that answers "is the house protected?": the mode word with any exception chips
 `Partial` / `Perimeter` / `Full`, the selected segment is the mode, never red),
 the next schedule as one line (`Next: Arm full at 23:00`), the **Kids home**
 switch and, below it, the one-shot **Don't arm when away** switch (turns itself
-off after skipping one away-arm; see `docs/presence.md`). Below it are open groups on the shared row (`row.js`): **Detectors**,
+off after skipping one away-arm or on the next arrival home; see `docs/presence.md`). Below it are open groups on the shared row (`row.js`): **Detectors**,
 **Cameras**, **People**, **Recent events** and **Automations** (Schedules, Scene
 capture and Override, each a sheet). The same state line and segmented control
 are mirrored, actionable, on the **Home** tab.

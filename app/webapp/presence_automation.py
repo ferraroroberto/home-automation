@@ -56,6 +56,7 @@ from src.presence.presence_engine import (
     set_kids_home_override,
 )
 from src.presence.presence_skip_away_arm import (
+    clear_skip_away_arm_on_arrival,
     load_skip_away_arm_override,
     record_away_arm_skip,
 )
@@ -386,6 +387,32 @@ def _consume_satisfied_disarm(
     logger.info("ℹ️ Retired already-satisfied disarm arrival %s", key)
 
 
+def _clear_skip_away_arm_on_arrival() -> None:
+    """Turn "Don't arm when away" off once someone comes home after it was set.
+
+    So it never outlives one away/return cycle: without this, an override set
+    while people were home stayed on through every return until the house was
+    next empty, however many days later. Local reads and one save, no RISCO.
+    """
+
+    people = list(load_people().values())
+    try:
+        person = clear_skip_away_arm_on_arrival(people)
+    except (StoreUnreadableError, OSError) as exc:
+        logger.warning(
+            "⚠️ Don't arm when away arrival clear could not be saved; clear not confirmed, "
+            "retrying next tick: %s",
+            exc,
+        )
+        return
+    if person is not None:
+        logger.info(
+            "ℹ️ Don't arm when away cleared — %s arrived home at %s",
+            person.person_id,
+            person.state_since.isoformat(),
+        )
+
+
 async def _notify_guardian_hold(guardian_name: str) -> None:
     """Best-effort Telegram message for a guardian-home arm hold (issue #693).
 
@@ -431,8 +458,12 @@ async def _apply_away_arm_skip(decision: PresenceDecision) -> None:
 
     try:
         kids_home_cleared = record_away_arm_skip(decision.key)
-    except StoreUnreadableError as exc:
-        logger.warning("⚠️ Don't arm when away skip could not be saved, retrying next tick: %s", exc)
+    except (StoreUnreadableError, OSError) as exc:
+        logger.warning(
+            "⚠️ Don't arm when away skip could not be saved; clear not confirmed, "
+            "retrying next tick: %s",
+            exc,
+        )
         return
     logger.info(
         "🛑 Presence automation skipped away-arm — Don't arm when away was on; override now off%s",
@@ -576,6 +607,7 @@ async def tick() -> None:
     await _sync_arm_block_diagnostic(security.mode, corroboration, known_person_ids)
     await _sync_staleness_block_diagnostic(corroboration, known_person_ids)
     _consume_satisfied_disarm(security.mode, corroboration, known_person_ids)
+    _clear_skip_away_arm_on_arrival()
 
     decision = _evaluate_current_decision(
         security.mode, corroboration, known_person_ids, guardian_home_name
