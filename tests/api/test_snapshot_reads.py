@@ -15,9 +15,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.devices.hyperv_client import HyperVState
+from src.devices.tuya_client import TuyaDeviceInfo
 from src.energy.huawei_client import EnergyState
 from src.security.risco_client import SecurityState, SecurityZone
-from src.devices.tuya_client import TuyaDeviceInfo
 
 _DISARMED = SecurityState(
     reachable=True,

@@ -18,7 +18,11 @@ from pydantic import BaseModel
 from app.webapp.read_snapshot import ReadSnapshot
 from src import telemetry
 from src.voice.ha_client import HaClientError, HomeAssistantClient
-from src.voice.voice_client import VoiceTranscriberClient, VoiceTranscriberError, load_base_url
+from src.voice.voice_client import (
+    VoiceTranscriberClient,
+    VoiceTranscriberError,
+    load_base_url,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

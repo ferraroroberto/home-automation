@@ -28,7 +28,6 @@ from src.energy.huawei_client import (
     _state_from_point,
 )
 
-
 _real_get_client = huawei_client._get_client
 
 

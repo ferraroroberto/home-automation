@@ -24,7 +24,7 @@ import aiohttp
 
 from app.webapp import read_snapshot
 from app.webapp.alarm_notify import perform_manual_alarm_action
-from src.voice.ha_client import HomeAssistantClient
+from src.devices.tuya_client import set_switch
 from src.quick_action_config import (
     QuickActionsConfig,
     load_quick_actions_config,
@@ -33,7 +33,7 @@ from src.quick_action_config import (
     warn_missing_quick_action_keys,
 )
 from src.security.risco_client import ACTIONS as _ALARM_ACTIONS
-from src.devices.tuya_client import set_switch
+from src.voice.ha_client import HomeAssistantClient
 
 logger = logging.getLogger(__name__)
 

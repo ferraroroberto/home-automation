@@ -36,7 +36,11 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from src._mac import normalize_mac
-from src.devices.display_names import load_display_names, save_display_names, set_display_name
+from src.devices.display_names import (
+    load_display_names,
+    save_display_names,
+    set_display_name,
+)
 
 DEFAULT_PATH = (
     Path(__file__).resolve().parents[2] / "config" / "network_groups.json"

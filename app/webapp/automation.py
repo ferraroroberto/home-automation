@@ -55,8 +55,8 @@ from src.devices.hvac_automation import (
     target_for_mode,
     transition_setpoint,
 )
-from src.energy.huawei_client import fetch_energy_state
 from src.devices.melcloud_client import DeviceInfo, fetch_devices, set_device_state
+from src.energy.huawei_client import fetch_energy_state
 
 logger = logging.getLogger(__name__)
 

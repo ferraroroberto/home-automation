@@ -30,14 +30,22 @@ from typing import Any, Dict, Optional, Tuple
 from fastapi import APIRouter
 
 from app.webapp._env import _env_int
-from app.webapp.presence_refresher import PresenceDiagnosticsCache, get_cache, refresh_once
+from app.webapp.presence_refresher import (
+    PresenceDiagnosticsCache,
+    get_cache,
+    refresh_once,
+)
 from app.webapp.routers import presence as _presence_router
 from src.activity_log import append_activity
 from src.location_config import load_location_config
 from src.presence.presence_client import PresenceEntity
 from src.presence.presence_display_names import load_presence_display_names
 from src.presence.presence_engine import load_people, now_utc
-from src.presence.presence_places import UNKNOWN_PLACE, load_presence_places, resolve_place
+from src.presence.presence_places import (
+    UNKNOWN_PLACE,
+    load_presence_places,
+    resolve_place,
+)
 from src.presence.presence_roles import load_presence_roles, resolve_person
 from src.presence.travel_time import fetch_travel_time
 

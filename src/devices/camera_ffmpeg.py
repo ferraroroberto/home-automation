@@ -170,7 +170,11 @@ async def snapshot(camera_id: str, path: Optional[Path] = None) -> bytes:
     The grabbed frame is also persisted as the camera's last-known snapshot so
     the list can show it without re-hitting the camera (issue #190).
     """
-    from src.devices.camera_client import CameraCommandError, _stream_url_for, get_camera_config
+    from src.devices.camera_client import (
+        CameraCommandError,
+        _stream_url_for,
+        get_camera_config,
+    )
 
     cfg = get_camera_config(camera_id, path)
     url = await _stream_url_for(cfg, main=False)
@@ -296,7 +300,11 @@ def is_recording(camera_id: str) -> bool:
 
 async def start_record(camera_id: str, path: Optional[Path] = None) -> str:
     """Start recording the main stream to ``webapp/camera_captures/``. Returns the filename."""
-    from src.devices.camera_client import CameraCommandError, _stream_url_for, get_camera_config
+    from src.devices.camera_client import (
+        CameraCommandError,
+        _stream_url_for,
+        get_camera_config,
+    )
 
     if is_recording(camera_id):
         raise CameraCommandError(f"camera {camera_id} is already recording")

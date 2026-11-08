@@ -68,29 +68,65 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from app.webapp import read_snapshot
+from app.webapp.actions_registry import warn_unconfigured_quick_actions
+from app.webapp.automation import start_automation
+from app.webapp.blind_schedules import start_blind_schedules
+from app.webapp.ha_trace_collector import start_ha_trace_collector
 from app.webapp.middleware import BearerTokenMiddleware
 from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
-from src.devices.camera_token import verify as _verify_camera_token
-from app.webapp.routers import actions, activity, auth, blind_schedules, calendar_events, cameras, circuits, dhcp_plan, energy, ha, hyperv, lights, misc, nav_debug, network, pc_fleet, presence, presence_locate, presence_trust, push, reminders, searxng, security, security_notify, security_override, security_schedules, security_scene, tesla, tuya, units, ups, voice_commands, wake_alarms, web_search, weather
-from app.webapp.actions_registry import warn_unconfigured_quick_actions
-from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
-from src.automation_owner import AutomationOwnership, automation_engines_opt_in
-from app.webapp.automation import start_automation
 from app.webapp.power_monitor import start_power_monitor
-from app.webapp.process_stats import start_process_stats
 from app.webapp.presence_automation import start_presence_automation
 from app.webapp.presence_refresher import start_presence_refresher
-from app.webapp.security_automation import start_security_schedules
-from app.webapp.blind_schedules import start_blind_schedules
-from app.webapp.wake_alarm_automation import start_wake_alarms
+from app.webapp.process_stats import start_process_stats
+from app.webapp.routers import (
+    actions,
+    activity,
+    auth,
+    blind_schedules,
+    calendar_events,
+    cameras,
+    circuits,
+    dhcp_plan,
+    energy,
+    ha,
+    hyperv,
+    lights,
+    misc,
+    nav_debug,
+    network,
+    pc_fleet,
+    presence,
+    presence_locate,
+    presence_trust,
+    push,
+    reminders,
+    searxng,
+    security,
+    security_notify,
+    security_override,
+    security_scene,
+    security_schedules,
+    tesla,
+    tuya,
+    units,
+    ups,
+    voice_commands,
+    wake_alarms,
+    weather,
+    web_search,
+)
+from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
 from app.webapp.sampler import start_sampler
+from app.webapp.searxng_watchdog import start_searxng_watchdog
+from app.webapp.security_automation import start_security_schedules
 from app.webapp.speedtest_schedule import start_nightly_speedtest
 from app.webapp.telemetry_sampler import start_telemetry_sampler
 from app.webapp.tesla_sampler import start_tesla_sampler
-from app.webapp.ha_trace_collector import start_ha_trace_collector
-from app.webapp.searxng_watchdog import start_searxng_watchdog
+from app.webapp.wake_alarm_automation import start_wake_alarms
 from src import telemetry
+from src.automation_owner import AutomationOwnership, automation_engines_opt_in
 from src.compression import StreamSafeGZipMiddleware
+from src.devices.camera_token import verify as _verify_camera_token
 from src.push_notifications import validate_push_config
 from src.runtime_data import runtime_db_path
 from src.usage_log import usage_router

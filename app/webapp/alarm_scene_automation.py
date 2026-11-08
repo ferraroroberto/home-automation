@@ -70,6 +70,9 @@ from app.webapp._event_log_scan import ALARM_EVENT_TYPE, EventLogScanner
 from app.webapp._task_loop import spawn_background_task
 from app.webapp._zone_lookup import _zone_name_for
 from src.activity_log import append_activity
+from src.notify import NotifierError
+from src.notify_config import build_alarm_notifier, load_notify_config
+from src.push_notifications import send_push
 from src.security.alarm_scene import (
     DEFAULT_HUB_BASE_URL,
     DEFAULT_MODEL,
@@ -83,10 +86,10 @@ from src.security.alarm_scene import (
     refresh_baselines,
 )
 from src.security.alarm_scene_config import ScenePairing, pairings_for_zone
-from src.security.alarm_scene_cursor import load_last_alarm_event_time, save_last_alarm_event_time
-from src.notify import NotifierError
-from src.notify_config import build_alarm_notifier, load_notify_config
-from src.push_notifications import send_push
+from src.security.alarm_scene_cursor import (
+    load_last_alarm_event_time,
+    save_last_alarm_event_time,
+)
 from src.security.risco_client import fetch_events
 
 logger = logging.getLogger(__name__)

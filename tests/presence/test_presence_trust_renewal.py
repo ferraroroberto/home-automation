@@ -6,7 +6,6 @@ Every Apple exchange is faked; no real credentials or network calls.
 
 from __future__ import annotations
 
-
 import pytest
 
 from src.presence import presence_client as P

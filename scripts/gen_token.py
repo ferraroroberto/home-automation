@@ -39,6 +39,7 @@ import secrets
 import sys
 
 import _cli_boot  # noqa: F401  — UTF-8 stdout + repo root on sys.path, before src imports
+
 from src.webapp_config import (
     DEFAULT_CONFIG_PATH,
     load_webapp_config,

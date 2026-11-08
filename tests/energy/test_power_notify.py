@@ -16,8 +16,6 @@ import app.webapp.power_monitor as PM
 from app.webapp import power_notify
 from app.webapp.power_notify import FleetShutdownResult
 from src import activity_log
-from src.host_shutdown import LOW_BATTERY_GRACE_S
-from src.notify import NotifierError
 from src.devices.pc_fleet_prefs import PcFleetPrefs
 from src.energy.power_notify_prefs import (
     PowerNotifyPrefs,
@@ -25,6 +23,8 @@ from src.energy.power_notify_prefs import (
     save_power_notify_prefs,
 )
 from src.energy.ups_client import UpsState
+from src.host_shutdown import LOW_BATTERY_GRACE_S
+from src.notify import NotifierError
 
 
 def _fleet_noop(hub_reachable: bool = True):

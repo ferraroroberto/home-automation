@@ -37,11 +37,16 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 import httpx
 
 from src.activity_log import append_activity
-from src.host_shutdown import LOW_BATTERY_GRACE_S, cancel_shutdown, initiate_hibernate, initiate_shutdown
-from src.notify import Notifier, NotifierError
-from src.notify_config import build_alarm_notifier
 from src.devices.pc_fleet_prefs import PcFleetPrefs, load_pc_fleet_prefs
 from src.energy.power_notify_prefs import PowerNotifyPrefs, load_power_notify_prefs
+from src.host_shutdown import (
+    LOW_BATTERY_GRACE_S,
+    cancel_shutdown,
+    initiate_hibernate,
+    initiate_shutdown,
+)
+from src.notify import Notifier, NotifierError
+from src.notify_config import build_alarm_notifier
 
 logger = logging.getLogger(__name__)
 

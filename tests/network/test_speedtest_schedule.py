@@ -18,6 +18,7 @@ import src.network.speedtest_prefs as prefs_mod
 from app.webapp import speedtest_schedule as sched
 from src.network.network_client import InternetHealth
 
+
 class _Calls(list):
     """Call counter (its length) that also carries the fake result to return."""
 

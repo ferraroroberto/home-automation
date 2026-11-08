@@ -37,10 +37,13 @@ from src.devices.camera_client import (
     start_record,
     stop_record,
 )
-from src.devices.camera_display_names import load_camera_display_names, set_camera_display_name
-from src.devices.camera_token import issue as _issue_camera_token
+from src.devices.camera_display_names import (
+    load_camera_display_names,
+    set_camera_display_name,
+)
 from src.devices.camera_preset_names import apply_overrides as apply_preset_overrides
 from src.devices.camera_preset_names import set_preset_name
+from src.devices.camera_token import issue as _issue_camera_token
 
 logger = logging.getLogger(__name__)
 

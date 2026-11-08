@@ -34,8 +34,8 @@ from typing import Any
 import tinytuya
 from dotenv import load_dotenv
 
-from src.devices import tuya_client
 from src._atomic_json import write_json_atomic
+from src.devices import tuya_client
 
 logger = logging.getLogger("tuya.cloud")
 

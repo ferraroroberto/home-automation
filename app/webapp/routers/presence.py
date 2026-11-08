@@ -13,27 +13,31 @@ already use:
 from __future__ import annotations
 
 import logging
+import os
 from collections import OrderedDict
 from dataclasses import asdict, replace
 from datetime import datetime
-import os
 from typing import Any, Dict
 
 import aiohttp
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from dotenv import load_dotenv
 
 from app.webapp import read_snapshot
 from app.webapp._env import _env_int
 from app.webapp.presence_refresher import get_cache, refresh_once
-from src.location_config import LocationConfig, load_location_config, save_location_config
+from src.location_config import (
+    LocationConfig,
+    load_location_config,
+    save_location_config,
+)
+from src.presence.presence_blocks import load_arm_block
 from src.presence.presence_client import PresenceEntity
 from src.presence.presence_display_names import (
     load_presence_display_names,
     set_presence_display_name,
 )
-from src.presence.presence_blocks import load_arm_block
 from src.presence.presence_engine import (
     load_automation_config,
     load_kids_home_override,
@@ -43,12 +47,6 @@ from src.presence.presence_engine import (
     set_kids_home_override,
     set_person_state,
 )
-from src.presence.presence_skip_away_arm import (
-    SkipAwayArmStatus,
-    load_skip_away_arm_override,
-    load_skip_away_arm_status,
-    set_skip_away_arm_override,
-)
 from src.presence.presence_hidden import load_hidden_presence_ids, set_presence_hidden
 from src.presence.presence_places import (
     PresencePlace,
@@ -57,6 +55,12 @@ from src.presence.presence_places import (
     set_presence_places,
 )
 from src.presence.presence_roles import load_presence_roles, set_presence_role
+from src.presence.presence_skip_away_arm import (
+    SkipAwayArmStatus,
+    load_skip_away_arm_override,
+    load_skip_away_arm_status,
+    set_skip_away_arm_override,
+)
 from src.secret_compare import secrets_match
 
 logger = logging.getLogger(__name__)

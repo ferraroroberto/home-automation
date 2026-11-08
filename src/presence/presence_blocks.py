@@ -25,7 +25,6 @@ from src.presence.presence_engine import (
     now_utc,
 )
 
-
 # Floor between retried block-notification attempts once one is due,
 # independent of ``dwell_s``, which only gates the *first* attempt.
 # Without this, a send that keeps declining or failing (Telegram down, no

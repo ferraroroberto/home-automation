@@ -12,7 +12,6 @@ from tests.e2e._app import boot_home
 from tests.e2e._geometry import apply_matrix_leg
 from tests.e2e.test_network import open_network_sheet
 
-
 _SPARK_PATH_Y = (
     r"el => (el.getAttribute('d').match(/[ML]\s*[\d.]+\s+([\d.]+)/g) || [])"
     r".map(m => parseFloat(m.trim().split(/\s+/).pop()))"

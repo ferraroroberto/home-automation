@@ -17,7 +17,12 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from aiomelcloudhome import ATAFanSpeed, ATAOperationMode, ATAVaneHorizontal, ATAVaneVertical
+from aiomelcloudhome import (
+    ATAFanSpeed,
+    ATAOperationMode,
+    ATAVaneHorizontal,
+    ATAVaneVertical,
+)
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ValidationError, field_validator
 

@@ -39,7 +39,10 @@ from app.webapp._zone_lookup import _zone_name_for
 from src import telemetry
 from src.security.risco_client import SecurityState, fetch_events, set_zone_bypass
 from src.security.security_override import load_overrides
-from src.security.security_override_session import load_override_session, save_override_session
+from src.security.security_override_session import (
+    load_override_session,
+    save_override_session,
+)
 
 logger = logging.getLogger(__name__)
 

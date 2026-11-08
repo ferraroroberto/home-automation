@@ -37,8 +37,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src._atomic_json import atomic_write_bytes
-from src.security.alarm_scene_config import ScenePairing
 from src.devices.camera_ffmpeg import CAPTURE_DIR
+from src.security.alarm_scene_config import ScenePairing
 
 logger = logging.getLogger(__name__)
 

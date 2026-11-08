@@ -27,6 +27,13 @@ import webbrowser
 from pathlib import Path
 from typing import List, Optional
 
+from app.tray.single_instance import SingleInstance
+from app.tray.watchdog import (
+    DEFAULT_STARTUP_RETRY_DELAYS_S,
+    BreadcrumbLog,
+    retry_with_backoff,
+)
+
 # Local imports
 from app.webapp.manager import (
     WebappManager,
@@ -34,8 +41,6 @@ from app.webapp.manager import (
     cert_paths,
     load_config,
 )
-from app.tray.single_instance import SingleInstance
-from app.tray.watchdog import BreadcrumbLog, DEFAULT_STARTUP_RETRY_DELAYS_S, retry_with_backoff
 from src._no_window import NO_WINDOW
 from src._tailscale_binary import tailscale_binary
 from src.webapp_config import append_auth_token, load_webapp_config

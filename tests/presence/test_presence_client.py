@@ -10,8 +10,8 @@ from datetime import timezone
 
 import pytest
 
-from src.presence import presence_client as P
 from src.location_config import LocationConfig
+from src.presence import presence_client as P
 
 
 class _FakeDevices:

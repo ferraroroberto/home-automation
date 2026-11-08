@@ -28,14 +28,15 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.alarm_notify import perform_manual_alarm_action
+from app.webapp.read_snapshot import ReadSnapshot
 from app.webapp.routers._helpers import (
     DisplayNamePayload,
     _bool_field,
     make_hidden_endpoint,
     make_http_error_mapper,
 )
+from src import telemetry
 from src.security.risco_client import (
     ACTIONS,
     RiscoCommandError,
@@ -53,7 +54,6 @@ from src.security.security_trouble_ignore import (
     load_ignored_trouble_zone_ids,
     set_zone_trouble_ignored,
 )
-from src import telemetry
 
 logger = logging.getLogger(__name__)
 
