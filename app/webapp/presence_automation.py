@@ -30,7 +30,6 @@ from app.webapp.security_override_automation import (
 )
 from src._schedule_store import StoreUnreadableError
 from src.notify_config import notify_best_effort
-from src.presence.presence_display_names import load_presence_display_names
 from src.presence.presence_blocks import (
     mark_arm_block_attempted,
     mark_arm_block_notified,
@@ -39,6 +38,7 @@ from src.presence.presence_blocks import (
     set_arm_block,
     set_staleness_block,
 )
+from src.presence.presence_display_names import load_presence_display_names
 from src.presence.presence_engine import (
     PresenceCorroboration,
     PresenceDecision,
@@ -49,9 +49,9 @@ from src.presence.presence_engine import (
     load_automation_config,
     load_kids_home_override,
     load_people,
-    remember_known_people,
     mark_decision_applied,
     mark_disarm_satisfied,
+    remember_known_people,
     satisfied_disarm_key,
     set_kids_home_override,
 )

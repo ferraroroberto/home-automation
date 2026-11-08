@@ -1,4 +1,4 @@
-# Representative voice utterances for the Tier-2 classifier benchmark (#234).
+# Representative voice utterances for the Tier-2 classifier benchmark.
 #
 # Buckets:
 #   command  — must produce a correct intent + slots; this is the primary metric.

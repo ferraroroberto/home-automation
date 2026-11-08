@@ -19,12 +19,12 @@ from typing import List
 
 import app.webapp.alarm_notify as AN
 from src import activity_log
+from src.notify import NotifierError
 from src.security.alarm_notify_prefs import (
     AlarmNotifyPrefs,
     load_alarm_notify_prefs,
     save_alarm_notify_prefs,
 )
-from src.notify import NotifierError
 from src.security.risco_client import RiscoCommandError, RiscoConfigError
 
 

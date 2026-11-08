@@ -20,8 +20,8 @@ import sys
 
 import pytest
 
-from src.devices import camera_ffmpeg as F
 from src._no_window import NO_WINDOW
+from src.devices import camera_ffmpeg as F
 
 _SELECTOR_LOOP_FACTORY = asyncio.SelectorEventLoop if sys.platform == "win32" else asyncio.new_event_loop
 

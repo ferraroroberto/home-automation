@@ -788,8 +788,8 @@ class StalePresenceBlock:
     ``missing_person_ids`` — they have no record at all, though the roster says
     they should (issue #689). The engine doesn't know they exist any more. This
     is the strictly worse one: a stale person still blocks the freshness gate,
-    while a vanished person used to be invisible to every gate, which is how
-    the house armed itself on a household of two with one person asleep inside.
+    while a vanished person would be invisible to every gate, which is how the
+    house could arm itself on a household of two with one person asleep inside.
 
     ``contradicted_person_ids`` — their webhook data is still fresh by the
     clock, but a strictly newer iCloud/Find My read actively disagrees with

@@ -15,8 +15,8 @@ from types import SimpleNamespace
 import pytest
 
 from app.webapp import blind_schedules as engine
-from src.devices import blind_automation as B
 from src._schedule_store import StoreUnreadableError, daily_due
+from src.devices import blind_automation as B
 
 # 2026-10-05 is a Monday, 2026-10-10 a Saturday.
 MONDAY_0800 = datetime(2026, 10, 5, 8, 0, 30)

@@ -28,7 +28,10 @@ from __future__ import annotations
 import argparse
 import sys
 
-from _cli_boot import PROJECT_ROOT  # UTF-8 stdout + repo root on sys.path, before src imports
+from _cli_boot import (
+    PROJECT_ROOT,  # UTF-8 stdout + repo root on sys.path, before src imports
+)
+
 from src.webapp_config import (
     DEFAULT_CONFIG_PATH,
     load_webapp_config,

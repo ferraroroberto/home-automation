@@ -11,11 +11,11 @@ from src.devices.elgato_client import (
     ElgatoCommandError,
     ElgatoEndpoint,
     ElgatoLight,
+    _clamp_int,
+    _parse_host,
     kelvin_to_temperature,
     set_light_state,
     temperature_to_kelvin,
-    _clamp_int,
-    _parse_host,
 )
 
 

@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from src.devices import display_names as D
 from src._schedule_store import StoreUnreadableError
+from src.devices import display_names as D
 
 
 def test_load_missing_file_is_empty(tmp_path: Path) -> None:

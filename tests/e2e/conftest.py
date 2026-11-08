@@ -71,12 +71,14 @@ import urllib.request
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, IO, Iterator, List, Optional
+from typing import IO, Callable, Dict, Iterator, List, Optional
 
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Playwright, sync_playwright
 
 from app.webapp.event_loop import LOOP_FACTORY
+from src._no_window import NO_WINDOW
+from src.runtime_data import app_dir_env_var
 from tests._progress_log import note as progress_note
 from tests.e2e._browser_sweep import (
     STATE_WEDGED,
@@ -84,8 +86,6 @@ from tests.e2e._browser_sweep import (
     enumerate_browser_helpers,
     sweep_browser_helpers,
 )
-from src._no_window import NO_WINDOW
-from src.runtime_data import app_dir_env_var
 from tests.e2e._e2e_live_guard import require_disposable_instance
 from tests.e2e._shot import CHROMIUM_CAPTURE_ARGS
 from tests.e2e._surface import pytest_collection_modifyitems as _deselect_non_capturing

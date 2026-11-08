@@ -19,12 +19,12 @@ from app.webapp._task_loop import run_loop
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
 from src.presence.presence_client import (
+    TERMS_REQUIRED_DETAIL,
     PresenceAuthError,
     PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
     PresenceTermsError,
-    TERMS_REQUIRED_DETAIL,
     fetch_presence,
     invalidate_session,
     load_presence_configs,

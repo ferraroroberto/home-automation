@@ -1,18 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "app/webapp/observability.py", "counts": {"unresolved": 2}},
-    {"key": "app/webapp/routers/auth.py", "counts": {"unresolved": 2}},
-    {"key": "app/webapp/routers/nav_debug.py", "counts": {"unresolved": 1}},
-    {"key": "app/webapp/server.py", "counts": {"unresolved": 2}},
-    {"key": "scripts/history_marker_ratchet.py", "counts": {"unresolved": 2}},
-    {"key": "scripts/voice_bench/runner.py", "counts": {"unresolved": 1}},
-    {"key": "src/_atomic_json.py", "counts": {"unresolved": 2}},
-    {"key": "src/_sqlite.py", "counts": {"unresolved": 2}},
-    {"key": "src/activity_log.py", "counts": {"unresolved": 2}},
-    {"key": "src/automation_owner.py", "counts": {"unresolved": 2}},
-    {"key": "src/presence/presence_client.py", "counts": {"unresolved": 2}},
-    {"key": "src/security/alarm_scene.py", "counts": {"unresolved": 2}},
-    {"key": "src/webapp_config.py", "counts": {"unresolved": 1}}
-  ]
+  "entries": []
 }

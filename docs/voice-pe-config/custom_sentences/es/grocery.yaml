@@ -1,4 +1,4 @@
-# Home Assistant custom sentences — grocery voice commands in SPANISH (#315).
+# Home Assistant custom sentences — grocery voice commands in SPANISH.
 #
 # Install at the HA VM path: /config/custom_sentences/es/grocery.yaml
 #
@@ -7,7 +7,7 @@
 # built-in deterministic conversation agent (no LLM fallback — unmatched
 # speech gets "no entiendo", never a hallucination). The {details} wildcard
 # fragment is parsed server-side by the grocery app (/api/voice/command),
-# which now replies in Spanish (grocery#89).
+# which now replies in Spanish.
 #
 # Critical accented words are written as (qué|que)-style alternatives so a
 # transcription with or without the accent matches either way.
@@ -59,7 +59,7 @@ intents:
           - "(lee|léeme|leeme|dime) la lista [de la compra]"
           - "lista de la compra"
 
-  # Spoken menu — the voice twin of the in-app cheat sheet (#437).
+  # Spoken menu — the voice twin of the in-app cheat sheet.
   GroceryHelp:
     data:
       - sentences:

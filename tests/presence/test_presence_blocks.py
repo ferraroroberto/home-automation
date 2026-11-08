@@ -7,7 +7,6 @@ from src.presence import presence_blocks as B
 from src.presence import presence_engine as P
 from tests.presence.test_presence_engine import _person
 
-
 # --- arm-block notification dwell (issue #599) ---
 #
 # Production incident 2026-08-01: ana's arrival webhook landed at 17:51:07 and

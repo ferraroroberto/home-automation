@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from src.network.network_survey import (
+    _PRUNE_AFTER_S,
     SOURCE_NOT_FOUND,
     SOURCE_UNKNOWN,
     delete_room,
@@ -22,7 +23,6 @@ from src.network.network_survey import (
     load_samples,
     record_sample,
     room_summary,
-    _PRUNE_AFTER_S,
 )
 
 

@@ -1,6 +1,6 @@
 # >>> home-automation:voice-pe-alarm (managed — edit docs/voice-pe-config/configuration.snippet.yaml, deploy via scripts/ha_config_sync.py) >>>
 #
-# Voice PE deterministic alarm action bridge (issue #88, Phase 4).
+# Voice PE deterministic alarm action bridge.
 #
 # Deploy this block with `scripts/ha_config_sync.py deploy` (preferred), which
 # replaces everything between these >>> / <<< markers and leaves the rest of
@@ -50,7 +50,7 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
-  # Family locator (issue #438) — read-only "where's mom/dad" query. {who} is
+  # Family locator — read-only "where's mom/dad" query. {who} is
   # the spoken name/role; the app resolves it and returns a ready-made speech
   # string (found or not), same "app owns the spoken text" pattern as the wake
   # alarms/grocery commands below.
@@ -61,7 +61,7 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
-  # ETA-home follow-up (issue #470) — the app resolves {who} to their live
+  # ETA-home follow-up — the app resolves {who} to their live
   # location and returns a ready-made traffic-aware `speech` ("… about 18
   # minutes from home in current traffic"). Longer timeout: it makes a live
   # Google Directions call. Every failure mode is a spoken fallback, not a 500.
@@ -72,7 +72,7 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 20
-  # Wake alarms (issue #306) — distinct from the RISCO alarm above. {when} is
+  # Wake alarms — distinct from the RISCO alarm above. {when} is
   # the spoken time/schedule; the app parses it and returns a spoken reply.
   wake_alarm_set:
     url: "https://192.168.0.13:8447/api/wake-alarms/voice?lang={{ lang | default('en') }}"
@@ -97,7 +97,7 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
-  # Reminders (issue #314) — bidirectional voice/app free-text checklist,
+  # Reminders — bidirectional voice/app free-text checklist,
   # distinct from the wake alarms above (those ring at a set time). English
   # only — no `lang` param, unlike wake alarms. {text} is the whole spoken
   # reminder; the app splits content from an optional due-date/time cue.
@@ -124,7 +124,7 @@ rest_command:
       authorization: !secret app_api_authorization
     verify_ssl: false
     timeout: 15
-  # Calendar (issue #313) — create-only, real Google Calendar events (not an
+  # Calendar — create-only, real Google Calendar events (not an
   # app-local list). {text} is the whole spoken event description plus an
   # optional trailing due-date/time cue; the app splits, shapes the Google
   # event body, creates it, and returns a ready-made speech string.
@@ -137,7 +137,7 @@ rest_command:
     payload: '{"phrase": "{{ text }}"}'
     verify_ssl: false
     timeout: 30
-  # Spanish web search (issue #866). {query} is the free spoken question; the
+  # Spanish web search. {query} is the free spoken question; the
   # app searches SearXNG in Spanish and returns {ok, speech, source}. `tojson`
   # keeps free spoken text JSON-safe. The summarising hub pass can take a few
   # seconds, hence the longer timeout.
@@ -150,8 +150,8 @@ rest_command:
     payload: '{"query": {{ query | default("") | tojson }}}'
     verify_ssl: false
     timeout: 30
-  # Grocery list (issue #315) — the grocery-shopping-automation app on :8502
-  # (grocery#86). One parameterized command: the app decides everything from
+  # Grocery list — the grocery-shopping-automation app on :8502.
+  # One parameterized command: the app decides everything from
   # {intent, text}; `tojson` keeps free spoken text JSON-safe.
   grocery_voice:
     url: "https://192.168.0.13:8502/api/voice/command"
@@ -223,7 +223,7 @@ intent_script:
       text: >-
         {% if (lang | default('en')) == 'es' %}Para desarmar, di desarma seguido de tu código.{% else %}To disarm, say disarm followed by your code.{% endif %}
 
-  # Family locator (issue #438) + ETA-home follow-up (issue #470).
+  # Family locator + ETA-home follow-up.
   # The plain "where's mom/dad" relay used to live here as `intent_script.Locate`,
   # but an intent_script has no handle on the satellite that asked, so it cannot
   # ask a follow-up question. The locate match + the "how long to get home?"
@@ -233,7 +233,7 @@ intent_script:
   # intents are intentionally emptied to hand the "where's X" match to that
   # automation without double-matching.
 
-  # Wake alarms (issue #306). The app parses the spoken time and returns a
+  # Wake alarms. The app parses the spoken time and returns a
   # ready-made `speech` string, so these templates just relay it.
   WakeAlarmSet:
     action:
@@ -272,7 +272,7 @@ intent_script:
       text: >-
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% elif (lang | default('en')) == 'es' %}Lo siento, no puedo consultar tus alarmas.{% else %}Sorry, I couldn't reach your wake alarms.{% endif %}
 
-  # Reminders (issue #314). The app parses the spoken text and returns a
+  # Reminders. The app parses the spoken text and returns a
   # ready-made `speech` string, so these templates just relay it. English
   # only — no `lang` templating, unlike wake alarms above.
   ReminderAdd:
@@ -319,7 +319,7 @@ intent_script:
       text: >-
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Sorry, I couldn't add that to your calendar.{% endif %}
 
-  # Grocery list (issue #315) — SPANISH-ONLY flows on the "Asistente (es)"
+  # Grocery list — SPANISH-ONLY flows on the "Asistente (es)"
   # pipeline (wake word "Hey Mycroft"): es-hinted STT, es_ES Piper voice,
   # deterministic built-in agent. The app parses the free Spanish fragment
   # and returns a ready-made Spanish `speech` string; these just relay it.
@@ -363,7 +363,7 @@ intent_script:
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Lo siento, no puedo conectar con la lista.{% endif %}
 
   # "no quedan huevos" — the sentence consumed the zero cue, so re-prefix it
-  # before the app parses (zero-phrase → stock 0, grocery#89).
+  # before the app parses (zero-phrase → stock 0).
   GroceryOut:
     action:
       - service: rest_command.grocery_voice
@@ -389,13 +389,13 @@ intent_script:
       text: >-
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}Lo siento, no puedo conectar con la lista.{% endif %}
 
-  # Spoken menu (the voice cheat sheet, #437's twin). Static — no rest call.
+  # Spoken menu (the voice cheat sheet). Static — no rest call.
   GroceryHelp:
     speech:
       text: >-
         Puedes decir: añade leche y dos huevos. Pon el objetivo de leche a cuatro. Anota que tenemos dos aceites. No quedan huevos. Qué hay que comprar. O di: quiero añadir cosas a la lista, y te preguntaré qué quieres.
 
-  # Spanish web search (issues #321, #842, #866) — the "Asistente (es)" pipeline
+  # Spanish web search — the "Asistente (es)" pipeline
   # has no LLM fallback by design (docs/voice-control.md), so a search-shaped
   # Spanish question (custom_sentences/es/websearch.yaml) calls the app's
   # POST /api/voice/search, which searches SearXNG in Spanish, summarises via
@@ -414,7 +414,7 @@ intent_script:
       text: >-
         {% if action_response is defined and action_response.status == 200 %}{{ action_response.content.speech }}{% else %}No puedo buscar ahora mismo.{% endif %}
 
-# Multi-turn grocery add (issue #315): the trigger phrase opens a follow-up
+# Multi-turn grocery add: the trigger phrase opens a follow-up
 # question on the same puck (assist_satellite.ask_question, HA 2025.7+), the
 # free Spanish answer is captured by a bare wildcard and relayed to the app,
 # and the app's Spanish reply is announced back. A labeled `automation`
@@ -455,7 +455,7 @@ automation grocery_voice:
           message: >-
             {% if r is defined and r.status == 200 %}{{ r.content.speech }}{% else %}Lo siento, la lista no responde.{% endif %}
 
-# Family locator + ETA-home follow-up (issues #438, #446, #470, #485, #487). A
+# Family locator + ETA-home follow-up. A
 # conversation trigger (not an intent_script) because it needs
 # `trigger.device_id` to resolve the satellite for assist_satellite.announce.
 # One automation, two triggers keyed by `id` (en/es) so the app is called with
@@ -466,17 +466,16 @@ automation grocery_voice:
 # conversation triggers) before any LLM agent, the same path the old
 # custom-sentence Locate intent relied on.
 #
-# #485: the ETA used to be a second turn (assist_satellite.ask_question "do you
-# want the ETA?" -> spoken "yes" -> announce) but that follow-up didn't
-# reliably answer on the Voice PE hardware. Now it's unconditional and
-# single-turn: whenever the person is found and not home, the ETA is fetched
-# and spoken in the same announce as the location, with no question asked.
+# The ETA is unconditional and single-turn: whenever the person is found and
+# not home, the ETA is fetched and spoken in the same announce as the location,
+# with no question asked (an assist_satellite.ask_question follow-up does not
+# reliably answer on the Voice PE hardware).
 #
-# #487: plain `message:` on assist_satellite.announce lets HA pick the TTS
-# engine, which doesn't follow the wake-word-triggered pipeline (Spanish
-# "Hey Mycroft" turns were coming out in the English voice) — announce is a
-# standalone action, not scoped to the in-flight conversation's pipeline. Fixed
-# by pre-rendering the announcement via a `media-source://tts/<engine>` URI
+# Plain `message:` on assist_satellite.announce lets HA pick the TTS engine,
+# which does not follow the wake-word-triggered pipeline (Spanish "Hey Mycroft"
+# turns would come out in the English voice) — announce is a standalone action,
+# not scoped to the in-flight conversation's pipeline. So the announcement is
+# pre-rendered via a `media-source://tts/<engine>` URI
 # naming the exact TTS entity for `lang` (`tts.piper` es / `tts.openai_tts_orpheus`
 # en — see docs/voice-control.md "Pipelines"), passed as `media_id` instead of
 # `message`, so the engine is explicit rather than inferred.

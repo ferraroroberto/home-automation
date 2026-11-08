@@ -14,12 +14,12 @@ import pytest
 
 from app.webapp import presence_refresher as R
 from src.presence.presence_client import (
+    TERMS_REQUIRED_DETAIL,
     PresenceAuthError,
     PresenceConfig,
     PresenceConfigError,
     PresenceEntity,
     PresenceTermsError,
-    TERMS_REQUIRED_DETAIL,
 )
 
 

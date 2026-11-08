@@ -18,8 +18,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.routers import energy as E
-from src.location_config import LocationConfig
 from src.energy.pv_forecast import PvForecast
+from src.location_config import LocationConfig
 
 _HOUR = 3600
 _KWP = 4.0

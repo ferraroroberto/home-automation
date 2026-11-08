@@ -12,7 +12,10 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from app.webapp.presence_refresher import PresenceAccountStatus, PresenceDiagnosticsCache
+from app.webapp.presence_refresher import (
+    PresenceAccountStatus,
+    PresenceDiagnosticsCache,
+)
 from src.presence.presence_client import PresenceEntity
 
 

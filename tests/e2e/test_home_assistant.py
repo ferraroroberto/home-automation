@@ -11,7 +11,6 @@ from playwright.sync_api import Page, expect
 from tests.e2e._app import open_settings_sheet
 from tests.e2e._surface import surface
 
-
 _HA_BODY = {
     "satellites": [
         {

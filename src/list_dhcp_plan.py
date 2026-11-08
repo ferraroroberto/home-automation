@@ -41,7 +41,6 @@ from src.network.network_client import (
 )
 from src.network.network_display_names import load_network_display_names
 
-
 # How each row's apply status renders in the CLI list.
 _STATUS_TAG = {
     "reserved": "✅ reserved",

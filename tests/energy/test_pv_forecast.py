@@ -23,9 +23,9 @@ import pytest
 
 import src.energy.pv_forecast as pf
 from src import _backoff as _backoff_module
-from src.location_config import LocationConfig
 from src.energy.pv_system_config import PvArray, PvHorizonPoint, PvSystemConfig
 from src.energy.sun_position import SunPosition
+from src.location_config import LocationConfig
 
 _LOCATION = LocationConfig(lat=41.4, lon=2.1)
 _TODAY = date(2026, 7, 20)

@@ -38,6 +38,40 @@ from typing import Dict, Mapping, Optional, Tuple
 
 import requests
 
+# NETGEAR access-point source.
+from src.network.network_ap import (  # noqa: F401 — re-exported public surface
+    _ap_mac,
+    _fetch_ap_sync,
+    _rediscover_ap_host,
+    fetch_access_point,
+    reboot_access_point,
+)
+
+# Host-side internet + Wi-Fi probes.
+from src.network.network_host import (  # noqa: F401 — re-exported public surface
+    _parse_wifi_interfaces,
+    _parse_wifi_networks,
+    _ping_reachable,
+    _wifi_channel_insights,
+    _wifi_recommendations,
+    fetch_internet_health,
+    fetch_wifi_diagnostics,
+)
+
+# ZTE router source + DHCP-binding protocol.
+from src.network.network_router import (  # noqa: F401 — re-exported public surface
+    RouterClient,
+    _add_bindings_on_client,
+    _asy_encode,
+    _merge_router_leases,
+    _merge_router_wlan_clients,
+    _parse_instances,
+    _pick_internet_wan,
+    _router_creds,
+    fetch_router,
+    reboot_router,
+)
+
 # Shared types + leaf helpers.
 from src.network.network_types import (  # noqa: F401 — re-exported public surface
     DHCP_BIND_MAX,
@@ -56,37 +90,6 @@ from src.network.network_types import (  # noqa: F401 — re-exported public sur
     WifiDiagnostics,
     _normalise_mac,
     _require,
-)
-# Host-side internet + Wi-Fi probes.
-from src.network.network_host import (  # noqa: F401 — re-exported public surface
-    fetch_internet_health,
-    fetch_wifi_diagnostics,
-    _parse_wifi_interfaces,
-    _parse_wifi_networks,
-    _ping_reachable,
-    _wifi_channel_insights,
-    _wifi_recommendations,
-)
-# NETGEAR access-point source.
-from src.network.network_ap import (  # noqa: F401 — re-exported public surface
-    fetch_access_point,
-    reboot_access_point,
-    _ap_mac,
-    _fetch_ap_sync,
-    _rediscover_ap_host,
-)
-# ZTE router source + DHCP-binding protocol.
-from src.network.network_router import (  # noqa: F401 — re-exported public surface
-    RouterClient,
-    fetch_router,
-    reboot_router,
-    _add_bindings_on_client,
-    _asy_encode,
-    _merge_router_leases,
-    _merge_router_wlan_clients,
-    _parse_instances,
-    _pick_internet_wan,
-    _router_creds,
 )
 
 logger = logging.getLogger(__name__)

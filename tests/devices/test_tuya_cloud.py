@@ -20,7 +20,11 @@ import json
 import pytest
 
 from src.devices import tuya_client, tuya_cloud
-from src.devices.tuya_cloud import TuyaCloudError, _merge_cloud_rows, sync_devices_from_cloud
+from src.devices.tuya_cloud import (
+    TuyaCloudError,
+    _merge_cloud_rows,
+    sync_devices_from_cloud,
+)
 
 
 def _existing_row() -> dict:

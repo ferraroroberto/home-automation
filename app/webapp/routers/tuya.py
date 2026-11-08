@@ -34,9 +34,6 @@ from app.webapp.routers._helpers import (
     make_hidden_endpoint,
 )
 from src.devices.blind_automation import BlindOutcome, move_blinds
-from src.devices.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
-from src.devices.tuya_display_names import load_tuya_display_names, set_tuya_display_name
-from src.devices.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 from src.devices.tuya_client import (
     TuyaBackoffActive,
     TuyaCommandError,
@@ -49,6 +46,12 @@ from src.devices.tuya_client import (
     set_brightness,
     set_switch,
 )
+from src.devices.tuya_cloud import TuyaCloudError, sync_devices_from_cloud
+from src.devices.tuya_display_names import (
+    load_tuya_display_names,
+    set_tuya_display_name,
+)
+from src.devices.tuya_hidden import load_hidden_tuya_ids, set_tuya_hidden
 
 logger = logging.getLogger(__name__)
 

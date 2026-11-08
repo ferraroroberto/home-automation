@@ -14,7 +14,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.webapp.presence_refresher import PresenceDiagnosticsCache
-from src.presence.presence_client import PresenceConfig, PresenceConfigError, TrustRenewalState
+from src.presence.presence_client import (
+    PresenceConfig,
+    PresenceConfigError,
+    TrustRenewalState,
+)
 
 ROUTER = "app.webapp.routers.presence_trust"
 

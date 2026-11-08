@@ -23,6 +23,7 @@ import sys
 
 import aiohttp
 
+from src.devices import tesla_history
 from src.devices.tesla_auth import (
     TeslaAuthError,
     authorize_url,
@@ -30,7 +31,6 @@ from src.devices.tesla_auth import (
     load_app_config,
     partner_token,
 )
-from src.devices import tesla_history
 from src.devices.tesla_client import REQUESTS, read_vehicle
 
 logger = logging.getLogger("list_tesla")

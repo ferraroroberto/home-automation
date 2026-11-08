@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from src.presence.presence_roles import load_presence_roles, resolve_person, set_presence_role
+from src.presence.presence_roles import (
+    load_presence_roles,
+    resolve_person,
+    set_presence_role,
+)
 
 
 def test_presence_role_store_roundtrips(tmp_path) -> None:

@@ -48,8 +48,8 @@ from dotenv import load_dotenv
 
 from src._env import _env_bool, _env_int
 from src._sqlite import connect as _sqlite_connect
-from src.runtime_data import runtime_db_path
 from src.energy.huawei_client import EnergyState
+from src.runtime_data import runtime_db_path
 
 logger = logging.getLogger("energy_history")
 

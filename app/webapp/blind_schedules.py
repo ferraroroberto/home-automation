@@ -56,12 +56,12 @@ from src.devices.blind_automation import (
     retry_delays,
     retry_failed_blinds,
 )
+from src.devices.tuya_client import list_devices
+from src.devices.tuya_display_names import load_tuya_display_names
+from src.energy.sun_position import sun_position
 from src.location_config import load_location_config
 from src.notify_config import build_alarm_notifier, notify_best_effort
 from src.presence.presence_engine import load_people
-from src.energy.sun_position import sun_position
-from src.devices.tuya_client import list_devices
-from src.devices.tuya_display_names import load_tuya_display_names
 
 logger = logging.getLogger(__name__)
 

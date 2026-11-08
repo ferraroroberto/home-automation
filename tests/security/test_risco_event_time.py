@@ -60,8 +60,14 @@ def test_legacy_winter_cursor_still_covers_the_event_it_last_saw(tmp_path) -> No
 
     import json
 
-    from src.security.alarm_scene_cursor import load_last_alarm_event_time, save_last_alarm_event_time
-    from src.security.security_override_session import load_override_session, save_override_session
+    from src.security.alarm_scene_cursor import (
+        load_last_alarm_event_time,
+        save_last_alarm_event_time,
+    )
+    from src.security.security_override_session import (
+        load_override_session,
+        save_override_session,
+    )
 
     event_now = _normalize_event_time("2026-11-07T04:00:01Z")
 

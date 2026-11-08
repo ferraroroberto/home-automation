@@ -1,9 +1,9 @@
 """Shared atomic write helper (issue #327).
 
 Single canonical implementation of the write-tmp + ``os.replace`` pattern
-that used to be copy-pasted across 18 ``src/`` modules — plain dict/list
+that the ``src/`` modules persisting JSON share — plain dict/list
 JSON, dataclass JSON, and a couple of camera modules persisting raw JPEG
-bytes all shared the exact same on-disk swap mechanics. Centralizes only
+bytes all use the exact same on-disk swap mechanics. Centralizes only
 the write mechanics: callers keep their own read/clean/log logic, since
 payload shapes (dict/list/dataclass) and log messages differ by call
 site.
@@ -25,8 +25,10 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
     ``foo.jpg`` -> ``foo.jpg.tmp``), matching every duplicated call site
     this replaces.
     """
+    # runtime-write-exempt: writes the caller's path; every caller passes a config/ or webapp/ file
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
+    # runtime-write-exempt: the sibling .tmp of the caller's path, replaced onto it next
     tmp.write_bytes(data)
     os.replace(tmp, path)
 

@@ -136,9 +136,8 @@ async def notify_best_effort(
 
     Collapses the identical "build the notifier, no-op if unconfigured,
     thread the blocking send off the event loop, swallow ``NotifierError``
-    with a warning" shape that used to be a private ``_notify`` helper
-    duplicated in the wake-alarm, blind-schedule and presence-automation
-    engines. ``label`` names the caller in the log lines (e.g.
+    with a warning" shape the wake-alarm, blind-schedule and
+    presence-automation engines all need. ``label`` names the caller in the log lines (e.g.
     ``"Wake-alarm"``, ``"Blind failure"``) — never raises, so a delivery
     failure can never break the automation loop that called it.
 

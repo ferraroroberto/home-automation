@@ -38,10 +38,10 @@ from app.webapp import read_snapshot
 from app.webapp.blind_schedules import follow_alarm
 from src._atomic_json import write_json_atomic
 from src.activity_log import LOGS_DIR, append_activity
-from src.security.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_alarm_notifier
 from src.presence.presence_engine import note_manual_alarm_action
+from src.security.alarm_notify_prefs import AlarmNotifyPrefs, load_alarm_notify_prefs
 from src.security.risco_client import (
     RiscoCommandError,
     RiscoConfigError,

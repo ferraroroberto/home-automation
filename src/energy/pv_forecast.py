@@ -61,7 +61,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import aiohttp
 
 from src._backoff import BackoffTracker
-from src.location_config import LocationConfig, load_location_config
 from src.energy.pv_system_config import (
     PvArray,
     PvHorizonPoint,
@@ -70,6 +69,7 @@ from src.energy.pv_system_config import (
     thermal_migration_error,
 )
 from src.energy.sun_position import sun_position
+from src.location_config import LocationConfig, load_location_config
 
 logger = logging.getLogger(__name__)
 

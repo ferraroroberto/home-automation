@@ -98,7 +98,9 @@ class AutomationOwnership:
 
     def _acquire(self) -> bool:
         try:
+            # runtime-write-exempt: the lock file under config/, not a code folder
             self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+            # runtime-write-exempt: the lock file under config/, not a code folder
             fh = open(self.lock_path, "a+b")
         except OSError as exc:
             logger.warning(

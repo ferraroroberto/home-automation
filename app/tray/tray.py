@@ -27,6 +27,13 @@ import webbrowser
 from pathlib import Path
 from typing import List, Optional
 
+from app.tray.single_instance import SingleInstance
+from app.tray.watchdog import (
+    DEFAULT_STARTUP_RETRY_DELAYS_S,
+    BreadcrumbLog,
+    retry_with_backoff,
+)
+
 # Local imports
 from app.webapp.manager import (
     WebappManager,
@@ -34,8 +41,6 @@ from app.webapp.manager import (
     cert_paths,
     load_config,
 )
-from app.tray.single_instance import SingleInstance
-from app.tray.watchdog import BreadcrumbLog, DEFAULT_STARTUP_RETRY_DELAYS_S, retry_with_backoff
 from src._no_window import NO_WINDOW
 from src._tailscale_binary import tailscale_binary
 from src.webapp_config import append_auth_token, load_webapp_config
@@ -209,10 +214,10 @@ def _tailscale_url(port: int, token: str) -> Optional[str]:
 def _notify(icon: Optional["pystray.Icon"], title: str, message: str) -> None:  # noqa: F821
     """Surface a tray message via the OS notification balloon, plus a log line.
 
-    pythonw has no console, so the log line (always written) used to be the
-    *only* trace of these events — `icon.notify(...)` was never actually
-    called, so every startup/restart/status/copy-URL message was silently
-    invisible in the real `pythonw.exe -m app.tray` launch path. `icon` may be
+    pythonw has no console, so the log line (always written) is the fallback
+    trace and `icon.notify(...)` is what makes every startup/restart/status/
+    copy-URL message visible in the real `pythonw.exe -m app.tray` launch
+    path. `icon` may be
     ``None`` when this fires before the tray icon exists yet (the webapp-start
     notification can race the icon's own construction); the OS balloon is
     skipped then, but the log line still lands.

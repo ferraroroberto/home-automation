@@ -15,7 +15,6 @@ from tests.e2e._app import boot_home, hold_reads, open_settings, open_settings_s
 from tests.e2e._geometry import chart_dataset_cues, chart_tick_budget
 from tests.e2e._surface import surface
 
-
 # A 503's raw backend detail. The UI shows its own copy ("live data
 # unavailable") and must never surface this text (#778: the leak checks had
 # asserted on an IP the detail stopped carrying when SMA became FusionSolar,

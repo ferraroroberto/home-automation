@@ -31,9 +31,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from scripts import gen_tailscale_cert
-from src.devices import camera_client
-from src.devices import camera_ffmpeg
 from src._no_window import NO_WINDOW
+from src.devices import camera_client, camera_ffmpeg
 
 
 def test_no_window_is_create_no_window_on_windows_and_zero_elsewhere() -> None:

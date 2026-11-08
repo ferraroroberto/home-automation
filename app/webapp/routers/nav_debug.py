@@ -29,6 +29,7 @@ LOG_PATH = PROJECT_ROOT / "webapp" / "nav_debug.log"
 @router.post("/api/nav-debug")
 async def record_nav_debug_event(payload: Dict[str, Any] = Body(...)) -> Dict[str, bool]:
     try:
+        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         with LOG_PATH.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
     except OSError as exc:  # noqa: BLE001 — a debug sink must never break the app

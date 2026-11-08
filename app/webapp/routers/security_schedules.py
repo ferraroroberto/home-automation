@@ -14,7 +14,10 @@ The GET/PUT shape itself is the shared ``make_list_crud_router`` factory
 from __future__ import annotations
 
 from app.webapp.routers._helpers import make_list_crud_router
-from src.security.security_schedules import load_security_schedules, set_security_schedules
+from src.security.security_schedules import (
+    load_security_schedules,
+    set_security_schedules,
+)
 
 router = make_list_crud_router(
     load_security_schedules,

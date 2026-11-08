@@ -17,7 +17,10 @@ from pathlib import Path
 import pytest
 
 from src._schedule_store import StoreUnreadableError
-from src.security.security_override_session import OverrideSession, load_override_session
+from src.security.security_override_session import (
+    OverrideSession,
+    load_override_session,
+)
 
 
 def test_absent_store_returns_a_fresh_session(tmp_path) -> None:

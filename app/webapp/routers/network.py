@@ -112,7 +112,11 @@ from src.network.network_history import (
     record_internet_sample,
     set_important,
 )
-from src.network.network_oui import category_for_device, is_randomized_mac, vendor_for_mac
+from src.network.network_oui import (
+    category_for_device,
+    is_randomized_mac,
+    vendor_for_mac,
+)
 from src.network.network_survey import (
     SOURCE_NOT_FOUND,
     SOURCE_UNKNOWN,
@@ -127,7 +131,11 @@ from src.network.network_wifi_display_names import (
     load_network_wifi_display_names,
     set_network_wifi_display_name,
 )
-from src.network.speedtest_prefs import SpeedtestPrefs, load_speedtest_prefs, save_speedtest_prefs
+from src.network.speedtest_prefs import (
+    SpeedtestPrefs,
+    load_speedtest_prefs,
+    save_speedtest_prefs,
+)
 
 logger = logging.getLogger(__name__)
 

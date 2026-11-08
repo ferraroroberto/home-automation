@@ -5,7 +5,11 @@ import asyncio
 import pytest
 
 from app.webapp import searxng_watchdog as wdog
-from src.voice.searxng_client import SearxngCommandError, SearxngConfigError, SearxngState
+from src.voice.searxng_client import (
+    SearxngCommandError,
+    SearxngConfigError,
+    SearxngState,
+)
 
 
 def _state(**kwargs) -> SearxngState:
