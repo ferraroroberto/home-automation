@@ -24,6 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.runtime_files import make_dirs, open_runtime
+
 logger = logging.getLogger("activity_log")
 
 LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
@@ -98,10 +100,8 @@ def append_activity(
     record.setdefault("ts", datetime.now(timezone.utc).isoformat())
     record.setdefault("consumer", consumer)
     try:
-        # runtime-write-exempt: the logs/ dir at the repo root, gitignored runtime output
-        target.parent.mkdir(parents=True, exist_ok=True)
-        # runtime-write-exempt: the logs/ dir at the repo root, gitignored runtime output
-        with target.open("a", encoding="utf-8") as fh:
+        make_dirs(target.parent)
+        with open_runtime(target, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
     except OSError as exc:  # pragma: no cover - disk failure is not worth crashing for
         logger.warning("⚠️ Could not append activity to %s (%s)", target, exc)

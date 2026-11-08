@@ -19,7 +19,7 @@ Claude Code reads this file directly as project memory; other agents (Cursor, Co
 ## End-to-end UI testing
 *Apply only if this project serves a browser UI.*
 
-Two loops, kept separate — don't conflate them. Setup and bootstrap recipe: `project-scaffolding`'s [`docs/playwright-ui-testing.md`](https://github.com/ferraroroberto/project-scaffolding/blob/main/docs/playwright-ui-testing.md) (canonical); this repo's [`docs/playwright-ui-testing.md`](docs/playwright-ui-testing.md) is a pointer plus what's specific here.
+Two loops, kept separate — don't conflate them. The canonical setup lives in the sister repo `project-scaffolding` (its playwright doc); this repo's [`docs/playwright-ui-testing.md`](docs/playwright-ui-testing.md) lists the local differences.
 
 ### Iterative verification (headed, agent-driven)
 - Drive the running app via the **Playwright MCP server in `--headed` mode** (Claude Code, Codex CLI). Without MCP support, fall back to a small `playwright` Python script run via Bash with `headless=False`.
@@ -66,7 +66,7 @@ Windows / PowerShell:
 - **comment**: a product-code file's count of `#NNN` issue-reference comments above its baseline entry — comments state the present-tense why, not decision history; reword the comment.
 - **structure**: `.fleet.toml [structure_ratchet]` plus top-level `shape = "webapp-tray"` and `extra_roots`; fails on a new file over 1,000 lines, function over 100 lines or directory over 40 modules, a baselined offender growing past its entry, a `src` module importing `app`, or a root folder the shape and `extra_roots` do not list. New code goes where [`docs/layout.md`](docs/layout.md) puts it — split rather than grow; `--allow-additions` only for reviewed growth.
 - **instruction**: `CLAUDE.md` or `AGENTS.md` gaining a prompt-audit lint hit (e.g. a forced re-check line) or passing its size cap — reword the line.
-- **doc-refs**: `.fleet.toml [doc_refs_ratchet]` with `allow_refs` for the other services' ports the docs name on purpose; fails when `README.md`, `CLAUDE.md` or `docs/**/*.md` names a repo path, `python -m` module, relative link or loopback port that does not exist — point it at what exists.
+- **doc-refs**: `.fleet.toml [doc_refs_ratchet]` with `allow_refs` for the other services' ports the docs name on purpose; fails on a doc reference to a missing repo path, module, link or port — point it at what exists.
 - **dead-code**: `.fleet.toml [dead_code_ratchet]` with `allow` for the Home Assistant setup hooks it calls by name; fails on a function, class or method no file references beyond the baseline (route handlers, tests and decorated hooks are entry points) — delete it or call it.
 - **conventions**: `.fleet.toml [conventions_ratchet]` enables `no-window`, `logging-not-print`, `no-drive-path` and `secret-compare` (helper `src/secret_compare.py`) and `subprocess-timeout` (a blocking `subprocess.run`/`call`/`check_*` with no `timeout=`; size the timeout to the call and give its expiry its own error; `git-wrapper` is off, no helper); fails when a file's hit count for an enabled rule rises above its baseline entry — fix the call or add a reasoned `# <rule>-exempt: why` marker.
 
@@ -78,8 +78,7 @@ Run the browser suite directly when iterating: `& .\.venv\Scripts\python.exe -m 
 
 ## CI expectations
 - Workflow `.github/workflows/ci.yml`, job `gate`, on every PR and every push to `main`. **Advisory, not required** (no branch protection) — the local gate is the contract. It runs `scripts/verify-before-ship.ps1` on a clean `windows-2025` runner (fresh `.venv` from both requirements files, committed files plus the `config/*.sample.json` twins only; with `CI=true` the gate skips diff routing and runs the whole `tests/e2e` suite on Chromium only), uploading traces and screenshots only on failure. No secret or device/camera/calendar/push service is reachable; the automation engines stay off.
-- Typical green: **~12 min**. Investigate at **>24 min**; treat as wedged at **>45 min** (the job's `timeout-minutes`).
-- CI never installs or runs WebKit: the WebKit/iPhone projection runs nightly on the real Mac (`project-scaffolding` nightly-mac). A hung browser helper on the hosted runner (capped by `timeout-minutes: 45`) is a flake, not the diff.
+- Typical green: **~12 min**. Investigate at **>24 min**; treat as wedged at **>45 min** (the job's `timeout-minutes`). CI never runs WebKit (it runs nightly on the real Mac); a hung browser helper on the hosted runner is a flake, not the diff.
 - CI's only signal beyond the local gate is a clean machine: the same e2e suite the gate already runs, on a checkout with no gitignored config. Its e2e surface = `app/webapp/`, `app/tray/`, `tests/e2e/`, and the files the workflow runs (`requirements*.txt`, `config/*.sample.json`, `.github/workflows/ci.yml`). A diff touching none of these gains nothing from CI.
 
 ## Internal architecture

@@ -115,7 +115,7 @@ from app.webapp.routers import (
     weather,
     web_search,
 )
-from app.webapp.routers._helpers import BUILD_INFO, PROJECT_ROOT, STATIC_DIR
+from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from app.webapp.sampler import start_sampler
 from app.webapp.searxng_watchdog import start_searxng_watchdog
 from app.webapp.security_automation import start_security_schedules
@@ -197,7 +197,7 @@ class CachingStaticFiles(StaticFiles):
 # Attached to the ROOT logger so it captures every module regardless of how
 # the webapp was launched (tray, webapp.bat, bare uvicorn). Rotating so it can
 # never grow unbounded; webapp/*.log is gitignored.
-_WEBAPP_LOG_PATH = PROJECT_ROOT / "webapp" / "webapp.log"
+_WEBAPP_LOG_PATH = Path(__file__).resolve().parents[2] / "webapp" / "webapp.log"
 
 
 def ensure_webapp_log_handler() -> None:
@@ -210,9 +210,7 @@ def ensure_webapp_log_handler() -> None:
     ):
         return
     try:
-        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         _WEBAPP_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         fh = logging.handlers.RotatingFileHandler(
             _WEBAPP_LOG_PATH, maxBytes=2_000_000, backupCount=3, encoding="utf-8"
         )

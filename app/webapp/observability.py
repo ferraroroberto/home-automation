@@ -25,12 +25,10 @@ from pathlib import Path
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.webapp.routers._helpers import PROJECT_ROOT
-
 logger = logging.getLogger(__name__)
 slow_logger = logging.getLogger("home_automation.slowreq")
 
-_SLOW_LOG_PATH = PROJECT_ROOT / "webapp" / "slow-requests.log"
+_SLOW_LOG_PATH = Path(__file__).resolve().parents[2] / "webapp" / "slow-requests.log"
 
 SLOW_REQUEST_S = 3.0
 _API_BUDGET_S = 0.25
@@ -56,9 +54,7 @@ def ensure_slow_log_handler() -> None:
     ):
         return
     try:
-        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         _SLOW_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         fh = logging.handlers.RotatingFileHandler(
             _SLOW_LOG_PATH, maxBytes=1_000_000, backupCount=2, encoding="utf-8"
         )

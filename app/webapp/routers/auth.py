@@ -10,7 +10,6 @@ from typing import Any, Callable, Dict, Optional
 from fastapi import APIRouter, HTTPException, Request
 
 from app.webapp.middleware import is_pc_itself
-from app.webapp.routers._helpers import PROJECT_ROOT
 from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_attention_notifier
@@ -24,7 +23,7 @@ router = APIRouter()
 # Dedicated logger for password attempts — written to webapp/auth.log so
 # failed attempts are easy to find without scrolling the full server log.
 auth_logger = logging.getLogger("home_automation.auth")
-_AUTH_LOG_PATH = PROJECT_ROOT / "webapp" / "auth.log"
+_AUTH_LOG_PATH = Path(__file__).resolve().parents[3] / "webapp" / "auth.log"
 
 
 def ensure_auth_log_handler() -> None:
@@ -36,9 +35,7 @@ def ensure_auth_log_handler() -> None:
     ):
         return
     try:
-        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         _AUTH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         fh = logging.FileHandler(_AUTH_LOG_PATH, encoding="utf-8")
         fh.setLevel(logging.INFO)
         fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))

@@ -29,6 +29,8 @@ import httpx
 import yaml
 from jsonschema import Draft202012Validator
 
+from src.runtime_files import write_text
+
 from .hub import ChatResult, HubClient
 from .schema import INTENT_JSON_SCHEMA, RESPONSE_FORMAT, SYSTEM_PROMPT
 
@@ -377,8 +379,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         hub.close()
 
     if args.out:
-        # runtime-write-exempt: --out is a path the operator passes on the command line
-        Path(args.out).write_text(json.dumps(results, indent=2), encoding="utf-8")
+        write_text(args.out, json.dumps(results, indent=2))
         log(f"\nwrote {args.out}")
     log("\n" + markdown_table(results))
     return 0

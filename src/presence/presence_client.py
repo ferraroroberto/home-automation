@@ -63,6 +63,7 @@ from dotenv import load_dotenv
 
 from src._env import _env_float
 from src.location_config import LocationConfig, load_location_config
+from src.runtime_files import make_dirs
 
 logger = logging.getLogger("presence")
 
@@ -270,8 +271,7 @@ def fetch_presence(
     """
 
     cfg = config or load_presence_config()
-    # runtime-write-exempt: the iCloud session dir under webapp/, not a code folder
-    cfg.session_dir.mkdir(parents=True, exist_ok=True)
+    make_dirs(cfg.session_dir)
     try:
         api = _connect(cfg)
     except Exception as exc:  # noqa: BLE001 - re-raised or mapped, never swallowed
@@ -566,8 +566,7 @@ def begin_trust_renewal(config: PresenceConfig) -> TrustRenewalState:
 
     key = str(config.session_dir)
     _discard_pending(key)
-    # runtime-write-exempt: the iCloud session dir under webapp/, not a code folder
-    config.session_dir.mkdir(parents=True, exist_ok=True)
+    make_dirs(config.session_dir)
     try:
         api = _build_service(replace(config, request_2fa_push=True))
         # A brand-new session dir has no token to log in with, so the build
