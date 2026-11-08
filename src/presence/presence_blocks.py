@@ -60,9 +60,9 @@ class _BlockNamespace:
     can't tell what's going on with someone") diagnostics run the *same*
     changed / notify / dwell / cooldown contract and must never share a notify
     latch — so each persists under an independent ``<prefix>_blocked_*`` key
-    namespace. That independence is what the ``prefix`` argument buys (issue
-    #664); it used to be bought by a verbatim copy of the whole machine, which
-    is exactly the kind of clone that drifts the moment one side is fixed.
+    namespace. That independence is what the ``prefix`` argument buys; a verbatim
+    copy of the whole machine would buy it too, but that is exactly the kind of
+    clone that drifts the moment one side is fixed.
 
     ``person_ids_attr`` is the block dataclass's ids field
     (:class:`PresenceBlock` names it ``blocking_person_ids``,

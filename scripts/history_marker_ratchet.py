@@ -1,9 +1,8 @@
 """Ratchet on decision-history narration inside product-code comments/docstrings.
 
 Audit #1044 (two consecutive `claude-md-drift` findings): a module header or
-inline comment that narrates how the code got here -- "used to be duplicated",
-"the copies had drifted", "Extracted verbatim from X", "This was a pure code
-move" -- teaches the next refactor to add another paragraph of the same shape.
+inline comment that narrates how the code got here (a story of what it replaced,
+copied or moved) -- teaches the next refactor to add another paragraph of the same shape.
 That story belongs in the issue, the PR and `git log`; a comment states why the
 code is the way it is *now* (global `~/.claude/CLAUDE.md`, "Comments state the
 present-tense why"). `comment_ratchet.py` (vendored) only counts `#NNN`
@@ -15,9 +14,8 @@ phrases appear in its text, compares the count with a committed baseline, and
 fails only when a file's count *rises*. Existing debt never blocks work, but it
 cannot grow.
 
-Markers (case-insensitive, word-bounded): "used to be", "extracted verbatim",
-"pure code move", "previously recorded", "had drifted". Chosen from the exact
-phrasing the audit quoted -- high-precision, narrow on purpose, so the stage
+Markers (case-insensitive, word-bounded): the five phrases in `_MARKERS` below.
+Chosen from the exact phrasing the audit quoted -- high-precision, narrow on purpose, so the stage
 never fires on a legitimate present-tense comment.
 
 Unlike `comment_ratchet.py`, this stage does not parse out comments/docstrings

@@ -1,9 +1,9 @@
 """Shared atomic write helper (issue #327).
 
 Single canonical implementation of the write-tmp + ``os.replace`` pattern
-that used to be copy-pasted across 18 ``src/`` modules — plain dict/list
+that the ``src/`` modules persisting JSON share — plain dict/list
 JSON, dataclass JSON, and a couple of camera modules persisting raw JPEG
-bytes all shared the exact same on-disk swap mechanics. Centralizes only
+bytes all use the exact same on-disk swap mechanics. Centralizes only
 the write mechanics: callers keep their own read/clean/log logic, since
 payload shapes (dict/list/dataclass) and log messages differ by call
 site.

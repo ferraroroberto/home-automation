@@ -2,11 +2,9 @@
 
 Every network module keys devices, overrides and rename stores by the same
 canonical MAC form — upper-case, separators left as reported, whitespace
-trimmed. This used to be copy-pasted as a private ``normalize_mac`` in each of
-``dhcp_plan`` / ``network_oui`` / ``network_display_names`` / ``dhcp_overrides``
-(and, until issue #571, as ``_norm`` / ``_norm_mac`` in ``network_history`` /
-``network_survey``); they now all import it from here so the key form can never
-drift between them.
+trimmed. ``dhcp_plan``, ``network_oui``, ``network_display_names``,
+``dhcp_overrides``, ``network_history`` and ``network_survey`` all import it
+from here so the key form can never drift between them.
 
 Note: ``src.network.network_types._normalise_mac`` is a *different*, richer helper
 (``Optional[str]`` in/out, re-joins to colon-separated hex pairs) used by the

@@ -118,7 +118,7 @@ function renderDhcpExisting(plan) {
 
 // ---- Suggested adds + unassigned (assignable) + randomised (un-reservable) ----
 // All three rows are the same four cells — lead control, name, MAC, trailing
-// status — and used to be built out longhand three times. Only the
+// status — so one builder serves them. Only the
 // lead cell and the trailing cell genuinely differ, so they are the parameters.
 function dhcpRowBase(a, opts) {
   const row = document.createElement('div');
