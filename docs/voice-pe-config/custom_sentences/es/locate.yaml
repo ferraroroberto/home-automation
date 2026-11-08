@@ -1,8 +1,8 @@
-# Home Assistant custom sentences — family locator in SPANISH (#446).
+# Home Assistant custom sentences — family locator in SPANISH.
 #
 # Install at the HA VM path: /config/custom_sentences/es/locate.yaml
 #
-# INTENTIONALLY EMPTY (#470, #485). Same reason as the English file: the
+# INTENTIONALLY EMPTY. Same reason as the English file: the
 # Spanish "¿dónde está…?" match and the same-turn ETA-home speech now live in
 # the bilingual `presence_locator` conversation-trigger automation in
 # configuration.snippet.yaml (the `es` trigger id sets lang=es). Emptied

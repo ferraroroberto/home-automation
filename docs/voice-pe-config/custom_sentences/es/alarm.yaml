@@ -1,4 +1,4 @@
-# Home Assistant custom sentences — RISCO alarm voice commands in SPANISH (#466).
+# Home Assistant custom sentences — RISCO alarm voice commands in SPANISH.
 #
 # Install at the HA VM path: /config/custom_sentences/es/alarm.yaml
 #
@@ -6,7 +6,7 @@
 # they merge additively with the English ones and the SHARED intent_scripts in
 # configuration.snippet.yaml fire regardless of pipeline language — each intent
 # here sets a fixed `lang: es` slot, so those templates speak Spanish back (the
-# same pattern the bilingual Locate intent already uses, #446).
+# same pattern the bilingual Locate intent already uses).
 #
 # Matches on the "Asistente (es)" pipeline: es-hinted Whisper STT, es_ES Piper
 # voice, built-in deterministic agent (no LLM — an unmatched phrase gets "no

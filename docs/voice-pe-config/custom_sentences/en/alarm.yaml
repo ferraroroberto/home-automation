@@ -1,4 +1,4 @@
-# Home Assistant custom sentences — deterministic alarm voice commands (#88 Phase 4).
+# Home Assistant custom sentences — deterministic alarm voice commands.
 #
 # Install at the HA VM path: /config/custom_sentences/en/alarm.yaml
 #

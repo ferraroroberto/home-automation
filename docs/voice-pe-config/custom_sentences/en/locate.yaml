@@ -1,9 +1,9 @@
-# Home Assistant custom sentences — "where's mom/dad" family locator (#438).
+# Home Assistant custom sentences — "where's mom/dad" family locator.
 #
 # Install at the HA VM path: /config/custom_sentences/en/locate.yaml
 #
-# INTENTIONALLY EMPTY (#470, #485). The "where's X" match plus the same-turn
-# ETA-home speech (#485: no longer a follow-up question) now live together as
+# INTENTIONALLY EMPTY. The "where's X" match plus the same-turn
+# ETA-home speech (not a follow-up question) now live together as
 # the `presence_locator` conversation-trigger automation in
 # configuration.snippet.yaml — a conversation trigger (unlike this
 # intent_script-backed custom sentence) has a handle on the satellite that

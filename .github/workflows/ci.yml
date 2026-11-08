@@ -1,7 +1,7 @@
 # Web-app CI gate: install, then the repo's own pre-ship gate on a clean runner.
 #
-# Adopted from project-scaffolding's canonical `ci.yml.template` (home-automation#905,
-# project-scaffolding#351; adoption notes in its docs/ci-conventions.md ->
+# Adopted from project-scaffolding's canonical `ci.yml.template` (adoption notes in
+# its docs/ci-conventions.md ->
 # "Web-app CI template"). Only the template's `# ADAPT:` lines changed, plus the
 # gate step below (see its comment): it follows every rule in docs/ci-conventions.md
 # (dated runner, Node-24 action majors, one run per commit, a timeout that caps a
