@@ -38,6 +38,7 @@ from typing import Any, Dict, List, Optional
 
 from src._atomic_json import atomic_write_bytes
 from src.devices.camera_ffmpeg import CAPTURE_DIR
+from src.runtime_files import make_dirs, write_bytes
 from src.security.alarm_scene_config import ScenePairing
 
 logger = logging.getLogger(__name__)
@@ -146,12 +147,10 @@ async def refresh_baselines(camera_ids: List[str]) -> int:
 # Capture — drive each pairing's camera to its preset and snapshot            #
 # --------------------------------------------------------------------------- #
 def _save_trigger_frame(camera_id: str, zone_id: int, data: bytes, stamp: str) -> Path:
-    # runtime-write-exempt: webapp/camera_captures/alarm, not a code folder
-    TRIGGER_DIR.mkdir(parents=True, exist_ok=True)
+    make_dirs(TRIGGER_DIR)
     target = TRIGGER_DIR / f"{stamp}-z{zone_id}-{camera_id}.jpg"
     try:
-        # runtime-write-exempt: webapp/camera_captures/alarm, not a code folder
-        target.write_bytes(data)
+        write_bytes(target, data)
     except OSError as exc:  # noqa: BLE001 — keep the in-memory frame even if disk fails
         logger.warning("⚠️ could not persist trigger frame %s: %s", target.name, exc)
     return target

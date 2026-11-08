@@ -16,6 +16,8 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
+from src.runtime_files import make_dirs, write_bytes
+
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
     """Atomically write raw bytes to ``path`` (write-tmp + ``os.replace``).
@@ -25,11 +27,9 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
     ``foo.jpg`` -> ``foo.jpg.tmp``), matching every duplicated call site
     this replaces.
     """
-    # runtime-write-exempt: writes the caller's path; every caller passes a config/ or webapp/ file
-    path.parent.mkdir(parents=True, exist_ok=True)
+    make_dirs(path.parent)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    # runtime-write-exempt: the sibling .tmp of the caller's path, replaced onto it next
-    tmp.write_bytes(data)
+    write_bytes(tmp, data)
     os.replace(tmp, path)
 
 

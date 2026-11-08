@@ -94,6 +94,7 @@ baseline = ".docs-ratchet-baseline.json"
 [comment_ratchet]
 enabled  = true
 baseline = ".comment-ratchet-baseline.json"
+history_phrases = true
 
 # [structure_ratchet] -- the scaffold's baseline-and-ratchet layout stage. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/structure_ratchet.py through
@@ -119,6 +120,10 @@ baseline = ".structure-ratchet-baseline.json"
 [instruction_ratchet]
 enabled  = true
 baseline = ".instruction-ratchet-baseline.json"
+ci_expectations     = true
+agents_pointer      = true
+claude_md_max_lines = 120
+repeated_text_words = 12
 
 # [doc_refs_ratchet] -- the scaffold's baseline-and-ratchet stage over documentation
 # references. The gate (scripts/verify-before-ship.ps1) runs scripts/doc_refs_ratchet.py
@@ -182,6 +187,14 @@ secret_helpers = ["src/secret_compare.py"]
 call   = "sqlite3.connect"
 helper = ["src/_sqlite.py"]
 why    = "src/_sqlite.py is the one SQLite connection helper (WAL, busy timeout)"
+
+[[conventions_ratchet.must_use]]
+# A bare requests.<verb> opens a fresh TCP connection per call; src/pooled_http.py (manifest key
+# pooled_http) is the keep-alive pool to vendor when this app first needs one. The two network
+# modules build their own long-lived requests.Session, which is not a bare verb call.
+call   = ["requests.get", "requests.post", "requests.put", "requests.patch", "requests.delete", "requests.head", "requests.request"]
+helper = ["src/pooled_http.py"]
+why    = "outbound HTTP goes through src/pooled_http.py (one pooled keep-alive session)"
 
 [[conventions_ratchet.must_use]]
 call   = "os.replace"

@@ -45,8 +45,8 @@
                             .conventions-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
      10. history marker ratchet — no product-code file's count of a decision-history
-                            narration phrase ("used to be", "Extracted verbatim from",
-                            "pure code move", ...) rises beyond
+                            narration phrase (the list in history_marker_ratchet.py)
+                            rises beyond
                             .history-marker-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
      10b. runtime write ratchet — no file's count of write targets resolving under a

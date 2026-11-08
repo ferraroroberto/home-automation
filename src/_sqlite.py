@@ -15,6 +15,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
+from src.runtime_files import make_dirs
+
 # How long a writer waits on a locked database before raising. Stated guess:
 # long enough to ride out a concurrent sampler write, short enough that a
 # wedged lock surfaces as an error instead of stalling a request thread.
@@ -29,9 +31,8 @@ def connect(default_path: Path, path: Optional[Path] = None) -> Iterator[sqlite3
     ``path`` is not given (e.g. tests pointing at a tmp-path store).
     """
     target = Path(path) if path is not None else default_path
-    # runtime-write-exempt: the caller's own DB path, a webapp/ or config/ file
-    target.parent.mkdir(parents=True, exist_ok=True)
-    # runtime-write-exempt: the caller's own DB path, a webapp/ or config/ file
+    make_dirs(target.parent)
+    # runtime-write-exempt: connect must stay in this helper (must_use); make_dirs above refused a code-folder path
     conn = sqlite3.connect(str(target))
     conn.row_factory = sqlite3.Row
     try:

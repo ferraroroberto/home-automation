@@ -38,6 +38,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from src.runtime_files import make_dirs, open_runtime
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_LOCK_PATH = (
@@ -98,10 +100,8 @@ class AutomationOwnership:
 
     def _acquire(self) -> bool:
         try:
-            # runtime-write-exempt: the lock file under config/, not a code folder
-            self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-            # runtime-write-exempt: the lock file under config/, not a code folder
-            fh = open(self.lock_path, "a+b")
+            make_dirs(self.lock_path.parent)
+            fh = open_runtime(self.lock_path, "a+b")
         except OSError as exc:
             logger.warning(
                 "⚠️  automation-owner lock: could not open %s (%s) — failing open",
