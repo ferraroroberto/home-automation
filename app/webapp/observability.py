@@ -56,7 +56,9 @@ def ensure_slow_log_handler() -> None:
     ):
         return
     try:
+        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         _SLOW_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         fh = logging.handlers.RotatingFileHandler(
             _SLOW_LOG_PATH, maxBytes=1_000_000, backupCount=2, encoding="utf-8"
         )

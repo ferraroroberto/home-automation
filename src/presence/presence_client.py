@@ -270,6 +270,7 @@ def fetch_presence(
     """
 
     cfg = config or load_presence_config()
+    # runtime-write-exempt: the iCloud session dir under webapp/, not a code folder
     cfg.session_dir.mkdir(parents=True, exist_ok=True)
     try:
         api = _connect(cfg)
@@ -565,6 +566,7 @@ def begin_trust_renewal(config: PresenceConfig) -> TrustRenewalState:
 
     key = str(config.session_dir)
     _discard_pending(key)
+    # runtime-write-exempt: the iCloud session dir under webapp/, not a code folder
     config.session_dir.mkdir(parents=True, exist_ok=True)
     try:
         api = _build_service(replace(config, request_2fa_push=True))

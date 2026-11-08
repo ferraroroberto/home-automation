@@ -384,6 +384,7 @@ def run(root: Path, *, init: bool, update: bool, allow_additions: bool) -> int:
     current = {path: len(found) for path, found in hits.items()}
 
     if init:
+        # runtime-write-exempt: the baseline file named by .fleet.toml, a repo-root dotfile
         baseline_path.write_text(render_baseline(current), encoding="utf-8", newline="\n")
         print(f"history marker ratchet: wrote {cfg.baseline} with {len(current)} file(s), {sum(current.values())} marker(s)")
         return EXIT_PASS
@@ -394,6 +395,7 @@ def run(root: Path, *, init: bool, update: bool, allow_additions: bool) -> int:
             _report_rose(rose, hits, baseline)
             print("history marker ratchet: nothing written -- reword the markers, or raise the baseline with --allow-additions")
             return EXIT_RISE
+        # runtime-write-exempt: the baseline file named by .fleet.toml, a repo-root dotfile
         baseline_path.write_text(render_baseline(current), encoding="utf-8", newline="\n")
         print(f"history marker ratchet: {cfg.baseline} now has {len(current)} file(s), {sum(current.values())} marker(s) "
               f"({len(shrank)} lowered or dropped, {len(rose)} raised or added)")

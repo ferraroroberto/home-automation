@@ -36,7 +36,9 @@ def ensure_auth_log_handler() -> None:
     ):
         return
     try:
+        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         _AUTH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        # runtime-write-exempt: the gitignored webapp/ state dir at the repo root, not a code folder
         fh = logging.FileHandler(_AUTH_LOG_PATH, encoding="utf-8")
         fh.setLevel(logging.INFO)
         fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))

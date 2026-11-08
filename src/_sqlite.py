@@ -29,7 +29,9 @@ def connect(default_path: Path, path: Optional[Path] = None) -> Iterator[sqlite3
     ``path`` is not given (e.g. tests pointing at a tmp-path store).
     """
     target = Path(path) if path is not None else default_path
+    # runtime-write-exempt: the caller's own DB path, a webapp/ or config/ file
     target.parent.mkdir(parents=True, exist_ok=True)
+    # runtime-write-exempt: the caller's own DB path, a webapp/ or config/ file
     conn = sqlite3.connect(str(target))
     conn.row_factory = sqlite3.Row
     try:

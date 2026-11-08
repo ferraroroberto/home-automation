@@ -377,6 +377,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         hub.close()
 
     if args.out:
+        # runtime-write-exempt: --out is a path the operator passes on the command line
         Path(args.out).write_text(json.dumps(results, indent=2), encoding="utf-8")
         log(f"\nwrote {args.out}")
     log("\n" + markdown_table(results))

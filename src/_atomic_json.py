@@ -25,8 +25,10 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
     ``foo.jpg`` -> ``foo.jpg.tmp``), matching every duplicated call site
     this replaces.
     """
+    # runtime-write-exempt: writes the caller's path; every caller passes a config/ or webapp/ file
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
+    # runtime-write-exempt: the sibling .tmp of the caller's path, replaced onto it next
     tmp.write_bytes(data)
     os.replace(tmp, path)
 
