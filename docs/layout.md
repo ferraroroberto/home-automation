@@ -34,7 +34,7 @@ home-automation/
 │   ├── energy/                # FusionSolar, Modbus, Athom circuits, PV forecast, tariff, charts, UPS
 │   ├── devices/               # HVAC, Tuya plugs, cameras, Elgato, Hyper-V, PC fleet, blinds
 │   ├── voice/                 # voice satellite, Home Assistant client and config sync, web search
-│   ├── ratchets/              # tests of every ratchet gate wrapper
+│   ├── ratchets/              # tests of every ratchet gate wrapper and of the gate's verdict line
 │   ├── harness/               # tests of the e2e harness's own helpers
 │   └── e2e/                   # Playwright suite and its fixtures
 ├── docs/                      # durable reference, one topic per file

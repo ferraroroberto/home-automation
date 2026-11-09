@@ -19,6 +19,7 @@ Chromium-only smoke check, and any real UI/behaviour change (including a
 change to the e2e harness itself) gets the full Chromium + WebKit run. Any
 mixed, unmatched, or ambiguous diff fails safe to the full suite — routing
 never narrows coverage on uncertainty. On CI the full suite always runs, on Chromium only.
+The gate's last stdout line is `GATE-RESULT: PASS` or `GATE-RESULT: FAIL` on every path, so a caller that must pipe it asserts on that line instead of the pipe's exit code (`tests/ratchets/test_gate_result.py`).
 
 The static ratchet (`scripts/static_ratchet.py`, vendored byte-identical from
 `project-scaffolding`; `.fleet.toml` `[static_ratchet]`) compares the tree with
