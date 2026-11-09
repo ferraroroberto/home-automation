@@ -35,7 +35,13 @@ from playwright.sync_api import Locator, Page
 # element (`position: absolute`); each negative computed inset side grows the
 # effective rect outward by its magnitude (the `.hit-target` pattern — e.g.
 # a 34px visual control with `::before { inset: -5px }` hits 44px effective).
-_EFFECTIVE_RECT_JS = """el => {
+#
+# Public because it has a second consumer: fleet-config's /design-review
+# (`skills/_lib/design_review/walk.py`) imports it from the scaffold checkout
+# and splices it into its in-page measurement, so an edit here is scored
+# against the design rubric (TOUCH-01/TOUCH-02), not only asserted by this
+# repo's e2e tests. Keep the name and the returned keys stable.
+EFFECTIVE_RECT_JS = """el => {
   const rect = el.getBoundingClientRect();
   const expansion = { left: 0, right: 0, top: 0, bottom: 0 };
   for (const which of ['::before', '::after']) {
@@ -53,6 +59,8 @@ _EFFECTIVE_RECT_JS = """el => {
     expandTop: expansion.top, expandBottom: expansion.bottom,
   };
 }"""
+# The name the helpers below were written against; kept so nothing else moves.
+_EFFECTIVE_RECT_JS = EFFECTIVE_RECT_JS
 
 
 @dataclass(frozen=True)
@@ -158,48 +166,6 @@ def assert_no_overlap(targets: Locator | Iterable[Locator]) -> None:
                 raise AssertionError(
                     f"effective rects overlap: #{i} {first} and #{j} {second}"
                 )
-
-
-# ---------------------------------------------------------------------------
-# Unpainted row verbs (fleet-config#1420)
-
-_UNPAINTED_JS = """els => els.map(el => {
-  const cs = getComputedStyle(el);
-  const borders = ['Top', 'Right', 'Bottom', 'Left']
-    .reduce((sum, side) => sum + parseFloat(cs['border' + side + 'Width']), 0);
-  return {
-    fill: cs.backgroundColor,
-    image: cs.backgroundImage,
-    borders,
-    shadow: cs.boxShadow,
-  };
-})"""
-
-
-def assert_unpainted(page: Page, locator: Locator) -> None:
-    """Every match is a plain icon-button at rest: no fill, border or shadow,
-    in both themes (the verb is a glyph on nothing, fleet-config#1420).
-
-    The dark leg stamps ``dataset.theme`` for a computed-style read only — the
-    palette is pure CSS tokens, so no boot mechanism is under test here.
-    """
-    original = page.evaluate("document.documentElement.dataset.theme || ''")
-    try:
-        for theme in ("light", "dark"):
-            page.evaluate("t => { document.documentElement.dataset.theme = t; }", theme)
-            styles = locator.evaluate_all(_UNPAINTED_JS)
-            assert styles, f"no matches for {locator}"
-            for index, style in enumerate(styles):
-                assert style["fill"] in ("rgba(0, 0, 0, 0)", "transparent"), (theme, index, style)
-                assert style["image"] == "none", (theme, index, style)
-                assert style["borders"] == 0, (theme, index, style)
-                assert style["shadow"] == "none", (theme, index, style)
-    finally:
-        page.evaluate(
-            "t => { if (t) document.documentElement.dataset.theme = t;"
-            " else delete document.documentElement.dataset.theme; }",
-            original,
-        )
 
 
 # ---------------------------------------------------------------------------
