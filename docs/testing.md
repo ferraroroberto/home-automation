@@ -181,9 +181,8 @@ Rendered-geometry design checks (44px effective touch targets, non-overlap,
 horizontal overflow, live Chart.js tick/cue config) go through
 `tests/e2e/_geometry.py` — vendored **byte-identical** from
 `project-scaffolding/tests/e2e/_geometry.py` (like `app/tray/single_instance.py`;
-never fork it, upstream changes first). The one local assertion the scaffold lacks,
-`assert_unpainted` (a row verb draws no fill, border or shadow at rest, in both themes),
-lives in `tests/e2e/_unpainted.py` so the vendored file stays untouched.
+never fork it, upstream changes first). It also ships `assert_unpainted` (a row verb
+draws no fill, border or shadow at rest, in both themes), which the row-verb tests call.
 `tests/e2e/test_design_matrix.py` runs
 the helper's 320/390/430/772px × light/dark matrix against the home view,
 driving the theme through the app's own `home-automation.theme` localStorage

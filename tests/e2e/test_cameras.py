@@ -14,9 +14,8 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
-from tests.e2e._geometry import assert_min_target, assert_no_overlap
+from tests.e2e._geometry import assert_min_target, assert_no_overlap, assert_unpainted
 from tests.e2e._surface import surface
-from tests.e2e._unpainted import assert_unpainted
 
 _CAMERA = {
     "id": "front-door",

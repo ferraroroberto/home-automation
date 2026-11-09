@@ -19,10 +19,10 @@ from playwright.sync_api import Page, expect
 from tests.e2e._app import LAYOUT_10_MAX_GROWTH_PX, hold_reads
 from tests.e2e._geometry import (
     assert_no_horizontal_overflow,
+    assert_unpainted,
     effective_rects,
 )
 from tests.e2e._surface import surface
-from tests.e2e._unpainted import assert_unpainted
 
 
 def _boot_plugs(
