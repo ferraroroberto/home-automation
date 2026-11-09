@@ -177,7 +177,7 @@ def test_presence_miss_skips_for_the_day(world) -> None:
     world.people = {"p1": "away"}
     _tick(state, MONDAY_0800.replace(second=59))  # leaving later does not trigger it
     assert world.moves == []
-    assert state.last_fire_day["up"] == "2026-10-05"
+    assert state.latch.days["up"] == "2026-10-05"
 
 
 def test_unknown_presence_skips(world) -> None:

@@ -41,7 +41,7 @@ from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop, spawn_background_task
-from src._schedule_store import daily_due
+from src._schedule_store import FIRE_SKIPPED, DailyFireLatch, FireLatchPolicy, daily_due
 from src.devices.blind_automation import (
     BlindOutcome,
     BlindRetryReport,
@@ -79,10 +79,20 @@ class BlindScheduleConfig:
         return max(120, self.poll_interval_s * 2)
 
 
+# A move that could not be attempted retries inside the grace window; a
+# deliberate skip (presence not met, no blinds left) spends the day.
+FIRE_LATCH_POLICY = FireLatchPolicy(
+    name="Blind schedule",
+    file_name="blind_schedule_last_fire.json",
+    window="grace",
+    skip_consumes_day=True,
+)
+
+
 @dataclass
 class _EngineState:
     # entry id -> local date it last fired (or was deliberately skipped).
-    last_fire_day: Dict[str, str] = field(default_factory=dict)
+    latch: DailyFireLatch = field(default_factory=lambda: DailyFireLatch(FIRE_LATCH_POLICY))
 
 
 def load_blind_schedule_config() -> BlindScheduleConfig:
@@ -232,12 +242,13 @@ async def settle_manual_move(action: str, outcomes: List[BlindOutcome]) -> None:
     await _settle(action, outcomes, "manual", None)
 
 
-async def _apply(entry: BlindScheduleEntry) -> None:
+async def _apply(entry: BlindScheduleEntry) -> Optional[str]:
     """Run one due entry, which settles it for today.
 
     It moves its blinds (failed ones are retried in the background) or is
-    deliberately skipped (presence, no blinds left). Only an exception leaves
-    it due, so the next poll inside the window tries again.
+    deliberately skipped (presence, no blinds left), returning
+    :data:`FIRE_SKIPPED`. Only an exception leaves it due, so the next poll
+    inside the window tries again.
     """
     allowed, why = presence_allows(entry.presence, (p.state for p in load_people().values()))
     if not allowed:
@@ -246,7 +257,7 @@ async def _apply(entry: BlindScheduleEntry) -> None:
             entry.id, entry.time, entry.action, entry.presence, why,
         )
         _record(entry, "skipped", why)
-        return
+        return FIRE_SKIPPED
 
     known = cover_device_ids()
     targets = [d for d in entry.targets if d in known] if entry.targets else known
@@ -259,7 +270,7 @@ async def _apply(entry: BlindScheduleEntry) -> None:
     if not targets:
         logger.warning("⚠️ Blind schedule %s has no blinds left to move — skipped", entry.id)
         _record(entry, "skipped", "no blinds")
-        return
+        return FIRE_SKIPPED
 
     logger.info(
         "⏰ Applying blind schedule %s (%s %s, %d blind(s), %s)",
@@ -272,6 +283,7 @@ async def _apply(entry: BlindScheduleEntry) -> None:
         _record(entry, _report_outcome(report), fields.pop("detail"), fields)
 
     await _settle(entry.action, outcomes, f"schedule {entry.time}", _record_report)
+    return None
 
 
 async def tick(
@@ -284,13 +296,14 @@ async def tick(
     instant = now or datetime.now()
     today = instant.strftime("%Y-%m-%d")
     for entry in schedules:
-        if not entry.enabled or state.last_fire_day.get(entry.id) == today:
+        if not entry.enabled:
             continue
-        if not daily_due(entry.time, instant, config.fire_grace_s, entry.days):
+        due = daily_due(entry.time, instant, config.fire_grace_s, entry.days)
+        state.latch.note_window(entry.id, today, due)
+        if not due or state.latch.fired(entry.id, today):
             continue
         try:
-            await _apply(entry)
-            state.last_fire_day[entry.id] = today
+            await state.latch.fire_once(entry.id, today, lambda e=entry: _apply(e))
         except Exception as exc:  # noqa: BLE001 — never kill the loop
             logger.warning("⚠️ Blind schedule apply failed for %s: %s", entry.id, exc)
 

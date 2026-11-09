@@ -90,7 +90,7 @@ def schedule_due(entry: SecurityScheduleEntry, now: datetime, grace_s: int) -> b
     that same calendar day, so a schedule that first fails (a transient RISCO
     outage, say) keeps getting retried on later polls instead of only getting
     one narrow window and then waiting until the same time tomorrow (#527).
-    ``tick()``'s own ``last_fire_day`` bookkeeping is what actually stops a
+    ``tick()``'s own fire latch is what actually stops a
     schedule firing twice in one day, so widening this window is safe on its
     own — it only controls how long a *not-yet-successful* schedule keeps
     being retried.

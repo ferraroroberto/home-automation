@@ -42,7 +42,7 @@ from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_float, _env_int
 from app.webapp._task_loop import run_loop
 from src import telemetry
-from src._schedule_store import daily_due
+from src._schedule_store import DailyFireLatch, FireLatchPolicy, daily_due
 from src.devices.hvac_automation import (
     TempRule,
     boosted_target,
@@ -137,6 +137,13 @@ async def _apply_schedule(unit: DeviceInfo, sched) -> None:
         vane_vertical_direction=sched.vane_vertical_direction,
         vane_horizontal_direction=sched.vane_horizontal_direction,
     )
+
+
+# A failed apply retries on the next poll inside the grace window; only a
+# successful apply spends the day.
+FIRE_LATCH_POLICY = FireLatchPolicy(
+    name="HVAC schedule", file_name="hvac_schedule_last_fire.json", window="grace"
+)
 
 
 def _schedule_due(sched, now: datetime, grace_s: int) -> bool:
@@ -403,16 +410,21 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
         # --- Schedules: edge-triggered, once per local day per entry. ---
         applied_schedule = False
         for sched in schedules.get(uid, []):
+            if not sched.enabled:
+                continue
             fire_key = f"{uid}:{sched.id}"
-            if sched.enabled and _schedule_due(sched, now, config.fire_grace_s):
-                if state.last_fire_day.get(fire_key) != today:
-                    try:
-                        await _apply_schedule(unit, sched)
-                        state.last_fire_day[fire_key] = today
-                        state.last_adjust[uid] = monotonic
-                        applied_schedule = True
-                    except Exception as exc:  # noqa: BLE001 — never kill the loop
-                        logger.warning("⚠️ Schedule apply failed for %s/%s: %s", uid, sched.id, exc)
+            due = _schedule_due(sched, now, config.fire_grace_s)
+            state.latch.note_window(fire_key, today, due)
+            if not due or state.latch.fired(fire_key, today):
+                continue
+            try:
+                await state.latch.fire_once(
+                    fire_key, today, lambda u=unit, s=sched: _apply_schedule(u, s)
+                )
+                state.last_adjust[uid] = monotonic
+                applied_schedule = True
+            except Exception as exc:  # noqa: BLE001 — never kill the loop
+                logger.warning("⚠️ Schedule apply failed for %s/%s: %s", uid, sched.id, exc)
         if applied_schedule:
             continue  # a schedule just changed power/profile; skip a same-tick nudge
 
@@ -498,12 +510,13 @@ async def _nudge_setpoint(
 
 @dataclass
 class _EngineState:
-    """In-memory timing/edge state, keyed by unit id (not persisted)."""
+    """Timing/edge state keyed by unit id; only the schedule latch is persisted."""
 
-    last_adjust: Dict[str, float]  # monotonic ts of last setpoint write
-    last_fire_day: Dict[str, str]  # local date a schedule entry last fired
-    boost_active: Dict[str, bool]  # is this unit currently solar-boosted
-    boost_since: Dict[str, float]  # monotonic ts the current boost started
+    last_adjust: Dict[str, float] = field(default_factory=dict)  # monotonic ts of last setpoint write
+    boost_active: Dict[str, bool] = field(default_factory=dict)  # is this unit currently solar-boosted
+    boost_since: Dict[str, float] = field(default_factory=dict)  # monotonic ts the current boost started
+    # "unit:entry" -> local date the schedule entry last fired.
+    latch: DailyFireLatch = field(default_factory=lambda: DailyFireLatch(FIRE_LATCH_POLICY))
     # Coordinator state. boost_order is the *admission order* — an explicit
     # ordered record, because boost_since is a dict of transition stamps and is
     # the wrong shape to reason about LIFO shedding with.
@@ -528,7 +541,7 @@ def get_boost_active(unit_id: str) -> bool:
 async def _run(config: AutomationConfig) -> None:
     """Poll → apply schedules → nudge setpoints, until cancelled."""
     global _ENGINE_STATE
-    state = _EngineState(last_adjust={}, last_fire_day={}, boost_active={}, boost_since={})
+    state = _EngineState()
     _ENGINE_STATE = state
     await run_loop(
         lambda: _tick(config, state),

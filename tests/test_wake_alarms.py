@@ -102,7 +102,7 @@ def test_wake_alarm_tick_fires_once_and_disables_one_shot(monkeypatch) -> None:
     monkeypatch.setattr(engine, "build_alarm_notifier", lambda: _FakeNotifier())
 
     config = engine.WakeAlarmConfig(enabled=True, poll_interval_s=15)
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     now = datetime(2026, 6, 22, 7, 0, 10)
 
     try:
@@ -110,7 +110,7 @@ def test_wake_alarm_tick_fires_once_and_disables_one_shot(monkeypatch) -> None:
         asyncio.run(engine.tick(config, state, now))  # same tick again — must not re-fire either entry
 
         assert len(notified) == 2  # one per entry, only on the first tick
-        assert state.last_fire_day == {"daily": "2026-06-22", "once": "2026-06-22"}
+        assert state.latch.days == {"daily": "2026-06-22", "once": "2026-06-22"}
         assert {"daily", "once"} <= engine.ringing_alarm_ids()
         # Only the one-shot entry got persisted back disabled; recurring is untouched.
         assert len(saved) == 1

@@ -171,7 +171,7 @@ def test_schedule_retries_in_the_background_without_holding_the_tick(house, lan,
 
     def _tick_returned_before_any_retry() -> None:
         assert clock.slept == [] and BACKGROUND_TASKS
-        assert state.last_fire_day["up"] == "2026-10-05"  # settled for today already
+        assert state.latch.days["up"] == "2026-10-05"  # settled for today already
 
     _tick_schedule(state, _tick_returned_before_any_retry)
     assert clock.slept == [30.0, 60.0]
@@ -206,7 +206,7 @@ def test_an_unattempted_move_stays_due_for_the_next_poll(house, monkeypatch) -> 
     monkeypatch.setattr(engine, "move_blinds", _boom)
     state = engine._EngineState()
     _tick_schedule(state)
-    assert "up" not in state.last_fire_day
+    assert "up" not in state.latch.days
 
 
 def test_follow_alarm_returns_at_once_then_retries_and_notifies(house, lan, clock) -> None:
