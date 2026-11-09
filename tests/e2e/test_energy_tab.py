@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings, open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import chart_dataset_cues, chart_tick_budget
 from tests.e2e._surface import surface
 
@@ -23,7 +25,7 @@ _RAW_503_DETAIL = "FusionSolar portal timed out after 10 seconds"
 _RAW_503_BODY = '{"detail":"%s"}' % _RAW_503_DETAIL
 
 
-def test_energy_tab_renders_flow_and_charts(
+def _energy_tab_renders_flow_and_charts(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -147,7 +149,7 @@ def _edit_export_rates_from_money_view(page: Page) -> None:
     expect(page.locator("#exportRateList")).not_to_contain_text("2026-09-05")
 
 
-def test_energy_tab_shows_contextual_unavailable_state(
+def _energy_tab_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_security: Callable,
 ) -> None:
@@ -177,7 +179,7 @@ def test_energy_tab_shows_contextual_unavailable_state(
     surface(page, "energy.unavailable")
 
 
-def test_energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure(
+def _energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -218,7 +220,7 @@ def test_energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure(
     surface(page, "energy.stale")
 
 
-def test_energy_chart_tick_budget_updates_with_viewport(
+def _energy_chart_tick_budget_updates_with_viewport(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -268,7 +270,7 @@ def test_energy_chart_tick_budget_updates_with_viewport(
     )
 
 
-def test_energy_series_have_non_colour_visual_cues(
+def _energy_series_have_non_colour_visual_cues(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -288,7 +290,7 @@ def test_energy_series_have_non_colour_visual_cues(
     ]
 
 
-def test_a_feed_outage_is_visible_as_an_outage_not_a_collapse(
+def _a_feed_outage_is_visible_as_an_outage_not_a_collapse(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -345,7 +347,7 @@ def test_a_feed_outage_is_visible_as_an_outage_not_a_collapse(
     assert marks["dashedAtGood"] == "undefined"
 
 
-def test_sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
+def _sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -419,7 +421,7 @@ def test_sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped(
     surface(page, "energy.sun-overlay-sheet")
 
 
-def test_sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
+def _sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -434,3 +436,20 @@ def test_sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error(
     expect(empty).to_contain_text("No measured hours")
     expect(page.locator("#sunOverlayNote")).to_contain_text("0 hours plotted")
     surface(page, "energy.sun-overlay-empty")
+
+
+def test_energy_tab(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Energy tab: flow and charts, unavailable and stale states, tick budget, outage, sun-position diagnostic."""
+    run_flow(
+        request, page, base_url,
+        _energy_tab_renders_flow_and_charts,
+        _energy_tab_shows_contextual_unavailable_state,
+        _energy_tab_loads_then_keeps_and_labels_last_good_flow_on_poll_failure,
+        _energy_chart_tick_budget_updates_with_viewport,
+        _energy_series_have_non_colour_visual_cues,
+        _a_feed_outage_is_visible_as_an_outage_not_a_collapse,
+        _sun_position_diagnostic_plots_measured_pr_and_names_what_it_dropped,
+        _sun_position_diagnostic_empty_day_is_an_empty_state_not_an_error,
+    )

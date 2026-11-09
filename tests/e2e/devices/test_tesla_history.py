@@ -8,6 +8,7 @@ the rest are DOM-state checks and run on Chromium only.
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Callable, Dict, List
 
@@ -15,6 +16,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_no_horizontal_overflow
 
 _THEME_KEY = "home-automation.theme"
@@ -37,17 +39,15 @@ def _open_history(page: Page, base_url: str) -> None:
     expect(page.get_by_test_id("tesla-history-sheet")).to_be_visible()
 
 
-@pytest.fixture
-def car_set_up(mock_api: Callable, sample_units: List[Dict], mock_energy: Callable,
-               mock_tesla: Callable, sample_tesla: Dict) -> None:
+def _set_up_car(mock_api: Callable, sample_units: List[Dict], mock_energy: Callable,
+                mock_tesla: Callable, sample_tesla: Dict) -> None:
     mock_api(sample_units)
     mock_energy()
     mock_tesla(sample_tesla)
 
 
-@pytest.mark.parametrize("leg", _LEGS, ids=lambda leg: f"{leg[0]}px-{leg[1]}")
-def test_history_sheet_shows_figures_charts_and_sessions(
-    leg, page: Page, base_url: str, car_set_up: None, mock_tesla_history: Callable,
+def _history_sheet_shows_figures_charts_and_sessions(
+    leg, page: Page, base_url: str, mock_tesla_history: Callable,
     sample_tesla_history: Callable, sample_tesla_sessions: Dict,
 ) -> None:
     width, theme = leg
@@ -84,8 +84,8 @@ def test_history_sheet_shows_figures_charts_and_sessions(
 
 
 @pytest.mark.chromium_only
-def test_month_toggle_reads_the_monthly_figures(
-    page: Page, base_url: str, car_set_up: None, mock_tesla_history: Callable,
+def _month_toggle_reads_the_monthly_figures(
+    page: Page, base_url: str, mock_tesla_history: Callable,
     sample_tesla_history: Callable, sample_tesla_sessions: Dict,
 ) -> None:
     mock_tesla_history(sample_tesla_history, sample_tesla_sessions)
@@ -102,8 +102,8 @@ def test_month_toggle_reads_the_monthly_figures(
 
 
 @pytest.mark.chromium_only
-def test_history_empty_state_while_collection_is_off(
-    page: Page, base_url: str, car_set_up: None, mock_tesla_history: Callable,
+def _history_empty_state_while_collection_is_off(
+    page: Page, base_url: str, mock_tesla_history: Callable,
 ) -> None:
     def _empty(period: str) -> Dict:
         return {"configured": True, "sampler_enabled": False, "period": period, "buckets": []}
@@ -118,10 +118,31 @@ def test_history_empty_state_while_collection_is_off(
 
 
 @pytest.mark.chromium_only
-def test_history_error_offers_retry(page: Page, base_url: str, car_set_up: None) -> None:
+def _history_error_offers_retry(page: Page, base_url: str) -> None:
     page.route("**/api/tesla/history*", lambda route: route.fulfill(status=503, body='{"detail":"down"}'))
     _open_history(page, base_url)
 
     body = page.locator("#teslaHistoryBody")
     expect(body).to_have_attribute("data-state", "error")
     expect(body.locator(".empty-state-action")).to_have_text("Retry")
+
+
+def test_tesla_history(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+    mock_api: Callable, sample_units: List[Dict], mock_energy: Callable,
+    mock_tesla: Callable, sample_tesla: Dict,
+) -> None:
+    """Car history sheet: figures, charts and sessions at phone and desktop widths in both themes, month toggle, empty state, error retry."""
+    run_flow(
+        request, page, base_url,
+        (_history_sheet_shows_figures_charts_and_sessions, {'leg': (390, 'light')}),
+        (_history_sheet_shows_figures_charts_and_sessions, {'leg': (390, 'dark')}),
+        (_history_sheet_shows_figures_charts_and_sessions, {'leg': (1280, 'light')}),
+        (_history_sheet_shows_figures_charts_and_sessions, {'leg': (1280, 'dark')}),
+        _month_toggle_reads_the_monthly_figures,
+        _history_empty_state_while_collection_is_off,
+        _history_error_offers_retry,
+        per_step=lambda: _set_up_car(
+            mock_api, copy.deepcopy(sample_units), mock_energy, mock_tesla, copy.deepcopy(sample_tesla),
+        ),
+    )

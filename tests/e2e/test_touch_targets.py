@@ -11,13 +11,15 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_min_target, assert_no_overlap, effective_rects
 
 
-def test_native_controls_and_stacked_switches_meet_the_44px_floor(
+def _native_controls_and_stacked_switches_meet_the_44px_floor(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -48,7 +50,7 @@ def test_native_controls_and_stacked_switches_meet_the_44px_floor(
     assert_no_overlap(switches)
 
 
-def test_card_toolbar_and_light_controls_keep_their_own_tap_zones(
+def _card_toolbar_and_light_controls_keep_their_own_tap_zones(
     page: Page, base_url: str, sample_units: List[Dict], sample_lights: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_lights: Callable,
@@ -78,3 +80,14 @@ def test_card_toolbar_and_light_controls_keep_their_own_tap_zones(
     expect(reachable.first).to_be_visible()
     assert_min_target(reachable)
     assert_min_target(page.locator("#lightSheet .light-number"))
+
+
+def test_touch_targets(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """44px floor for native controls, stacked switches, card toolbars and light controls."""
+    run_flow(
+        request, page, base_url,
+        _native_controls_and_stacked_switches_meet_the_44px_floor,
+        _card_toolbar_and_light_controls_keep_their_own_tap_zones,
+    )

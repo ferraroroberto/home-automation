@@ -21,9 +21,11 @@ import tomllib
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+import pytest
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import LAYOUT_10_MAX_GROWTH_PX, boot_home, hold_reads
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import (
     assert_min_target,
     assert_no_horizontal_overflow,
@@ -127,7 +129,7 @@ def _boot(page: Page, base_url: str, sample_units: List[Dict], mock_api: Callabl
     boot_home(page, base_url)
 
 
-def test_home_header_controls_have_non_overlapping_44px_targets(
+def _home_header_controls_have_non_overlapping_44px_targets(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -160,7 +162,7 @@ def test_home_header_controls_have_non_overlapping_44px_targets(
     assert_no_horizontal_overflow(page)
 
 
-def test_home_is_a_dashboard_of_house_climate_and_next_up(
+def _home_is_a_dashboard_of_house_climate_and_next_up(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
 ) -> None:
@@ -200,7 +202,7 @@ def test_home_is_a_dashboard_of_house_climate_and_next_up(
     expect(page.locator("#presenceCard")).to_be_in_viewport()
 
 
-def test_house_chips_open_the_tab_that_owns_the_exception(
+def _house_chips_open_the_tab_that_owns_the_exception(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
 ) -> None:
@@ -240,7 +242,7 @@ def test_house_chips_open_the_tab_that_owns_the_exception(
     expect(page.locator("#upsSheetStatus")).to_contain_text("On battery")
 
 
-def test_home_shows_ac_summary_line_per_unit(
+def _home_shows_ac_summary_line_per_unit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -262,7 +264,7 @@ def test_home_shows_ac_summary_line_per_unit(
     expect(page.locator("#detailDialog")).not_to_have_attribute("open", "")
 
 
-def test_wake_alarm_row_keeps_its_card_inset(
+def _wake_alarm_row_keeps_its_card_inset(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -285,7 +287,7 @@ def test_wake_alarm_row_keeps_its_card_inset(
     assert abs((card["x"] + card["width"] - (toggle["x"] + toggle["width"])) - 14) <= 1, (toggle, card)
 
 
-def test_wake_alarm_editor_is_staged(
+def _wake_alarm_editor_is_staged(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -336,7 +338,7 @@ def test_wake_alarm_editor_is_staged(
     expect(page.locator("#wakeAlarmEditorTitle")).to_have_text("Add wake alarm")
 
 
-def test_timers_and_reminders_are_next_up_rows(
+def _timers_and_reminders_are_next_up_rows(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -380,7 +382,7 @@ def test_timers_and_reminders_are_next_up_rows(
     surface(page, "home.reminder-dialog")
 
 
-def test_perf_review_ready_selector_is_visible_on_home(
+def _perf_review_ready_selector_is_visible_on_home(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -398,7 +400,7 @@ def _perf_review_ready_selector() -> str:
     return tomllib.loads(fleet.read_text(encoding="utf-8"))["perf"]["review"]["ready_selector"]
 
 
-def test_house_card_keeps_its_height_while_its_reads_land(
+def _house_card_keeps_its_height_while_its_reads_land(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
 ) -> None:
@@ -425,3 +427,21 @@ def test_house_card_keeps_its_height_while_its_reads_land(
     expect(page.locator("#housePeople .action-row-title")).to_have_text("1 home · 1 away · 1 unknown")
     settled_px = house.evaluate("el => el.offsetHeight")
     assert settled_px - first_px <= LAYOUT_10_MAX_GROWTH_PX, (first_px, settled_px)
+
+
+def test_home_dashboard(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Home: header targets, dashboard cards, house chips, AC summary, wake alarm, next-up rows, stable card heights."""
+    run_flow(
+        request, page, base_url,
+        _home_header_controls_have_non_overlapping_44px_targets,
+        _home_is_a_dashboard_of_house_climate_and_next_up,
+        _house_chips_open_the_tab_that_owns_the_exception,
+        _home_shows_ac_summary_line_per_unit,
+        _wake_alarm_row_keeps_its_card_inset,
+        _wake_alarm_editor_is_staged,
+        _timers_and_reminders_are_next_up_rows,
+        _perf_review_ready_selector_is_visible_on_home,
+        _house_card_keeps_its_height_while_its_reads_land,
+    )

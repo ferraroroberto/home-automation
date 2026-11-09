@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_no_horizontal_overflow
 from tests.e2e._surface import surface
 
@@ -72,7 +74,7 @@ def _open_schedule_sheet(page: Page) -> None:
     expect(page.locator("#blindSchedulesSheet")).to_be_visible()
 
 
-def test_blind_schedule_lists_and_adds_an_entry(
+def _blind_schedule_lists_and_adds_an_entry(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -130,7 +132,7 @@ def test_blind_schedule_lists_and_adds_an_entry(
     expect(page.locator("#blindSchedulesSheet")).to_be_hidden()
 
 
-def test_schedule_row_tap_opens_editor_and_switch_does_not(
+def _schedule_row_tap_opens_editor_and_switch_does_not(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -159,7 +161,7 @@ def test_schedule_row_tap_opens_editor_and_switch_does_not(
     expect(page.locator("#blindScheduleTime")).to_have_value("21:30")
 
 
-def test_blinds_follow_alarm_switch_saves(
+def _blinds_follow_alarm_switch_saves(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -186,7 +188,7 @@ def test_blinds_follow_alarm_switch_saves(
     expect(page.locator("#blindSchedulesMeta")).to_have_text("None · follows alarm")
 
 
-def test_schedule_row_text_is_flush_with_the_sheet_content_edge(
+def _schedule_row_text_is_flush_with_the_sheet_content_edge(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -212,3 +214,16 @@ def test_schedule_row_text_is_flush_with_the_sheet_content_edge(
     assert abs(title["x"] - edge["x"]) <= 1, (title["x"], edge["x"])
     assert abs(follow["x"] - edge["x"]) <= 1, (follow["x"], edge["x"])
     assert abs((switch["x"] + switch["width"]) - (edge["x"] + edge["width"])) <= 1, (switch, edge)
+
+
+def test_blind_schedules(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Blind schedules: list and add, row tap vs switch, follow-alarm switch, row text inset."""
+    run_flow(
+        request, page, base_url,
+        _blind_schedule_lists_and_adds_an_entry,
+        _schedule_row_tap_opens_editor_and_switch_does_not,
+        _blinds_follow_alarm_switch_saves,
+        _schedule_row_text_is_flush_with_the_sheet_content_edge,
+    )

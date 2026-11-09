@@ -14,6 +14,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, open_settings
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_no_horizontal_overflow
 
 # design.md text-size: 93.75% / 100% / 112.5% of the 16px UA root.
@@ -35,7 +36,7 @@ def _boot_settings(page: Page, base_url: str, mocks: List[Callable]) -> None:
 
 
 @pytest.mark.chromium_only
-def test_each_step_changes_root_font_size_and_persists_across_reload(
+def _each_step_changes_root_font_size_and_persists_across_reload(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
 ) -> None:
@@ -76,7 +77,7 @@ def test_each_step_changes_root_font_size_and_persists_across_reload(
     )
 
 
-def test_large_text_does_not_overflow_the_phone_viewport(
+def _large_text_does_not_overflow_the_phone_viewport(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
 ) -> None:
@@ -93,3 +94,14 @@ def test_large_text_does_not_overflow_the_phone_viewport(
     control = page.locator("#textSizeControl")
     box = control.bounding_box()
     assert box is not None and box["x"] >= 0 and box["x"] + box["width"] <= 390
+
+
+def test_text_size(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Each text-size step changes the root size and persists; large text never overflows the phone."""
+    run_flow(
+        request, page, base_url,
+        _each_step_changes_root_font_size_and_persists_across_reload,
+        _large_text_does_not_overflow_the_phone_viewport,
+    )

@@ -16,6 +16,7 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e._app import LAYOUT_10_MAX_GROWTH_PX, boot_home, hold_reads
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import (
     EffectiveRect,
     assert_min_target,
@@ -38,7 +39,7 @@ def _stable_effective_rects(locator: Locator) -> List[EffectiveRect]:
     return rects
 
 
-def test_security_tab_shows_contextual_unavailable_state(
+def _security_tab_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -67,7 +68,7 @@ def test_security_tab_shows_contextual_unavailable_state(
     surface(page, "security.unavailable")
 
 
-def test_security_tab_loads_then_keeps_state_and_disables_actions_on_poll_failure(
+def _security_tab_loads_then_keeps_state_and_disables_actions_on_poll_failure(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -113,7 +114,7 @@ def test_security_tab_loads_then_keeps_state_and_disables_actions_on_poll_failur
     surface(page, "security.stale")
 
 
-def test_security_schedule_editor_cancels_then_adds(
+def _security_schedule_editor_cancels_then_adds(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -166,7 +167,7 @@ def test_security_schedule_editor_cancels_then_adds(
     surface(page, "security.schedule-dialog")
 
 
-def test_scene_pairing_editor_cancels_then_adds(
+def _scene_pairing_editor_cancels_then_adds(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -242,7 +243,7 @@ def test_scene_pairing_editor_cancels_then_adds(
     surface(page, "security.scene-pairing-dialog")
 
 
-def test_security_override_editor_cancels_then_adds(
+def _security_override_editor_cancels_then_adds(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -300,7 +301,7 @@ def test_security_override_editor_cancels_then_adds(
     surface(page, "security.override-dialog")
 
 
-def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
+def _alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -333,7 +334,7 @@ def test_alarm_actions_and_weekdays_meet_44px_mobile_target_floor(
 
 
 @pytest.mark.chromium_only
-def test_recent_events_show_three_and_all_events_opens_the_alarm_log(
+def _recent_events_show_three_and_all_events_opens_the_alarm_log(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -395,7 +396,7 @@ def test_recent_events_show_three_and_all_events_opens_the_alarm_log(
 
 
 @pytest.mark.chromium_only
-def test_glance_card_shows_next_schedule_and_trouble_opens_the_detector(
+def _glance_card_shows_next_schedule_and_trouble_opens_the_detector(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -450,7 +451,7 @@ def test_glance_card_shows_next_schedule_and_trouble_opens_the_detector(
 
 
 @pytest.mark.chromium_only
-def test_detectors_fold_behind_show_all_and_filter_when_long(
+def _detectors_fold_behind_show_all_and_filter_when_long(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -498,7 +499,7 @@ def test_detectors_fold_behind_show_all_and_filter_when_long(
 
 
 @pytest.mark.chromium_only
-def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
+def _alarm_mode_is_the_selected_segment_and_armed_is_not_red(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -564,7 +565,7 @@ def test_alarm_mode_is_the_selected_segment_and_armed_is_not_red(
     surface(page, "security.pane")
 
 
-def test_security_glance_card_keeps_its_height_when_the_schedule_lands(
+def _security_glance_card_keeps_its_height_when_the_schedule_lands(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
 ) -> None:
@@ -596,3 +597,23 @@ def test_security_glance_card_keeps_its_height_when_the_schedule_lands(
     expect(page.locator("#securityNext")).to_contain_text("Next: Arm full")
     settled_px = card.evaluate("el => el.offsetHeight")
     assert settled_px - first_px <= LAYOUT_10_MAX_GROWTH_PX, (first_px, settled_px)
+
+
+def test_security_tab(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Security tab: unavailable and stale states, schedule/pairing/override editors, 44px floor, events log, glance card, detector fold, mode segment, stable card height."""
+    run_flow(
+        request, page, base_url,
+        _security_tab_shows_contextual_unavailable_state,
+        _security_tab_loads_then_keeps_state_and_disables_actions_on_poll_failure,
+        _security_schedule_editor_cancels_then_adds,
+        _scene_pairing_editor_cancels_then_adds,
+        _security_override_editor_cancels_then_adds,
+        _alarm_actions_and_weekdays_meet_44px_mobile_target_floor,
+        _recent_events_show_three_and_all_events_opens_the_alarm_log,
+        _glance_card_shows_next_schedule_and_trouble_opens_the_detector,
+        _detectors_fold_behind_show_all_and_filter_when_long,
+        _alarm_mode_is_the_selected_segment_and_armed_is_not_red,
+        _security_glance_card_keeps_its_height_when_the_schedule_lands,
+    )

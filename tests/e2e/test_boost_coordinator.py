@@ -13,9 +13,11 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 
@@ -31,7 +33,7 @@ def _boot_boost_card(
     open_settings_sheet(page, "boostCoordSheet")
 
 
-def test_stored_values_read_in_the_summary_and_populate_the_fields(
+def _stored_values_read_in_the_summary_and_populate_the_fields(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -53,7 +55,7 @@ def test_stored_values_read_in_the_summary_and_populate_the_fields(
     surface(page, "energy.boost-coord-sheet")
 
 
-def test_editing_the_settle_interval_and_margin_persists_and_updates_the_summary(
+def _editing_the_settle_interval_and_margin_persists_and_updates_the_summary(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -73,7 +75,7 @@ def test_editing_the_settle_interval_and_margin_persists_and_updates_the_summary
     expect(page.locator("#boostCoordSummary")).to_have_text("12 min · +300 W")
 
 
-def test_out_of_range_values_are_refused_and_rolled_back(
+def _out_of_range_values_are_refused_and_rolled_back(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -100,3 +102,15 @@ def test_out_of_range_values_are_refused_and_rolled_back(
 
     expect(toast).to_contain_text("0 W or more")
     expect(page.locator("#boostAdmissionMargin")).to_have_value("100")
+
+
+def test_boost_coordinator(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Boost coordinator card: stored values, persisted edits, refused out-of-range values."""
+    run_flow(
+        request, page, base_url,
+        _stored_values_read_in_the_summary_and_populate_the_fields,
+        _editing_the_settle_interval_and_margin_persists_and_updates_the_summary,
+        _out_of_range_values_are_refused_and_rolled_back,
+    )

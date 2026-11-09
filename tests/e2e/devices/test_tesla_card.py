@@ -15,6 +15,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_no_horizontal_overflow
 
 _THEME_KEY = "home-automation.theme"
@@ -28,8 +29,7 @@ def _open_devices(page: Page, base_url: str) -> None:
     page.wait_for_selector("#paneIot", state="visible")
 
 
-@pytest.mark.parametrize("leg", _LEGS, ids=lambda leg: f"{leg[0]}px-{leg[1]}")
-def test_car_card_shows_battery_range_charging_and_last_seen(
+def _car_card_shows_battery_range_charging_and_last_seen(
     leg, page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_tesla: Callable, sample_tesla: Dict,
 ) -> None:
@@ -62,7 +62,7 @@ def test_car_card_shows_battery_range_charging_and_last_seen(
 
 
 @pytest.mark.chromium_only
-def test_car_card_hidden_when_not_configured(
+def _car_card_hidden_when_not_configured(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable,
 ) -> None:
@@ -74,7 +74,7 @@ def test_car_card_hidden_when_not_configured(
 
 
 @pytest.mark.chromium_only
-def test_car_card_empty_state_while_collection_is_off(
+def _car_card_empty_state_while_collection_is_off(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_tesla: Callable, sample_tesla: Dict,
 ) -> None:
@@ -90,7 +90,7 @@ def test_car_card_empty_state_while_collection_is_off(
 
 
 @pytest.mark.chromium_only
-def test_car_card_asleep_then_stale_keeps_the_figures(
+def _car_card_asleep_then_stale_keeps_the_figures(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_tesla: Callable, sample_tesla: Dict,
 ) -> None:
@@ -114,3 +114,19 @@ def test_car_card_asleep_then_stale_keeps_the_figures(
     expect(card).to_have_attribute("data-state", "stale")
     expect(page.locator("#teslaState")).to_contain_text("live data unavailable")
     expect(page.get_by_test_id("tesla-battery")).to_have_text("72 %")
+
+
+def test_tesla_car_card(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Car card: figures at phone and desktop widths in both themes, hidden when not configured, empty while collection is off, asleep-then-stale."""
+    run_flow(
+        request, page, base_url,
+        (_car_card_shows_battery_range_charging_and_last_seen, {'leg': (390, 'light')}),
+        (_car_card_shows_battery_range_charging_and_last_seen, {'leg': (390, 'dark')}),
+        (_car_card_shows_battery_range_charging_and_last_seen, {'leg': (1280, 'light')}),
+        (_car_card_shows_battery_range_charging_and_last_seen, {'leg': (1280, 'dark')}),
+        _car_card_hidden_when_not_configured,
+        _car_card_empty_state_while_collection_is_off,
+        _car_card_asleep_then_stale_keeps_the_figures,
+    )

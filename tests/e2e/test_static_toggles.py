@@ -24,6 +24,7 @@ import pytest
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 from tests.e2e.test_circuits import _boot_circuits, _meter
 from tests.e2e.test_network import open_network_sheet
 
@@ -55,7 +56,7 @@ def _json_ok(route: Route) -> None:
 
 
 @pytest.mark.chromium_only
-def test_plug_hidden_switch(
+def _plug_hidden_switch(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -70,7 +71,7 @@ def test_plug_hidden_switch(
 
 
 @pytest.mark.chromium_only
-def test_circuit_invert_and_hidden_switches(
+def _circuit_invert_and_hidden_switches(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -83,7 +84,7 @@ def test_circuit_invert_and_hidden_switches(
 
 
 @pytest.mark.chromium_only
-def test_zone_hidden_and_ignore_trouble_switches(
+def _zone_hidden_and_ignore_trouble_switches(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -101,7 +102,7 @@ def test_zone_hidden_and_ignore_trouble_switches(
 
 
 @pytest.mark.chromium_only
-def test_presence_hidden_switch(
+def _presence_hidden_switch(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -118,7 +119,7 @@ def test_presence_hidden_switch(
 
 
 @pytest.mark.chromium_only
-def test_network_device_and_wifi_switches(
+def _network_device_and_wifi_switches(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_network: Callable,
 ) -> None:
@@ -145,3 +146,18 @@ def test_network_device_and_wifi_switches(
     expect(page.locator("#netDeviceDialog")).to_be_visible()
     _cycle(page, "#netDeviceImportant")
     _cycle(page, "#netDeviceHiddenToggle")
+
+
+@pytest.mark.chromium_only
+def test_static_toggles(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Hide/invert/ignore switches across plugs, circuits, zones, presence and network."""
+    run_flow(
+        request, page, base_url,
+        _plug_hidden_switch,
+        _circuit_invert_and_hidden_switches,
+        _zone_hidden_and_ignore_trouble_switches,
+        _presence_hidden_switch,
+        _network_device_and_wifi_switches,
+    )

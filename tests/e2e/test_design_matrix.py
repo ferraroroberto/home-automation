@@ -17,11 +17,11 @@ from typing import Callable, Dict, List, Tuple
 import pytest
 from playwright.sync_api import Page
 
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import (
     MATRIX,
     apply_matrix_leg,
     assert_no_horizontal_overflow,
-    matrix_id,
 )
 
 # The app's own persistence key (state.js THEME_KEY, read by the index.html
@@ -42,8 +42,7 @@ def _set_theme_via_local_storage(page: Page, theme: str) -> None:
     page.wait_for_selector("#paneHome", state="visible")
 
 
-@pytest.mark.parametrize("leg", MATRIX, ids=matrix_id)
-def test_home_view_is_fluid_across_viewport_theme_matrix(
+def _home_view_is_fluid_across_viewport_theme_matrix(
     leg: Tuple[int, str], page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -70,3 +69,13 @@ def test_home_view_is_fluid_across_viewport_theme_matrix(
     # Home renders its summary content before we measure the layout.
     page.wait_for_selector("#paneHome .flow-row", state="visible")
     assert_no_horizontal_overflow(page)
+
+
+def test_home_view_is_fluid_across_matrix(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Home view has no horizontal overflow across the viewport x theme matrix."""
+    run_flow(
+        request, page, base_url,
+        *[(_home_view_is_fluid_across_viewport_theme_matrix, {"leg": leg}) for leg in MATRIX],
+    )

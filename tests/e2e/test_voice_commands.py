@@ -11,9 +11,11 @@ from __future__ import annotations
 import json
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 _HA_BODY = {"satellites": [], "interactions": [], "voice_transcriber": False}
@@ -50,7 +52,7 @@ def _open_cheat_sheet(
     page.wait_for_selector('[data-testid="voice-lang-es"]')
 
 
-def test_language_toggle_filters_by_pipeline(
+def _language_toggle_filters_by_pipeline(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -79,7 +81,7 @@ def test_language_toggle_filters_by_pipeline(
     surface(page, "settings.voice-sheet")
 
 
-def test_alarm_group_is_bilingual_in_the_card(
+def _alarm_group_is_bilingual_in_the_card(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -92,3 +94,14 @@ def test_alarm_group_is_bilingual_in_the_card(
     page.locator('[data-testid="voice-lang-es"]').click()
     alarm = page.locator('#voiceCommandsList .voice-group[data-group-id="alarm"]')
     expect(alarm).to_contain_text("arma la alarma")
+
+
+def test_voice_commands(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Voice commands cheat sheet: language filter and the bilingual alarm group."""
+    run_flow(
+        request, page, base_url,
+        _language_toggle_filters_by_pipeline,
+        _alarm_group_is_bilingual_in_the_card,
+    )

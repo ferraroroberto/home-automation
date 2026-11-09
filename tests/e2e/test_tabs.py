@@ -12,12 +12,14 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, open_settings
+from tests.e2e._flow import run_flow
 
 
-def test_tab_navigation_switches_panes(
+def _tab_navigation_switches_panes(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -56,7 +58,7 @@ _NAV_AT_REST = (
 )
 
 
-def test_nav_at_rest_after_each_modal_close(
+def _nav_at_rest_after_each_modal_close(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     sample_plugs: List[Dict], mock_tuya: Callable,
 ) -> None:
@@ -101,7 +103,7 @@ def test_nav_at_rest_after_each_modal_close(
     page.wait_for_function(_NAV_AT_REST, timeout=3000)
 
 
-def test_saved_tab_restores_with_retired_tabs_migrated(
+def _saved_tab_restores_with_retired_tabs_migrated(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -137,7 +139,7 @@ def test_saved_tab_restores_with_retired_tabs_migrated(
     expect(page.locator("#networkCard")).to_be_visible()
 
 
-def test_every_pane_opens_with_a_page_header_and_the_gear_opens_settings(
+def _every_pane_opens_with_a_page_header_and_the_gear_opens_settings(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -174,7 +176,7 @@ def test_every_pane_opens_with_a_page_header_and_the_gear_opens_settings(
     expect(page.locator("#paneAc")).to_be_visible()
 
 
-def test_app_padding_owned_by_vendored_nav_on_mobile(
+def _app_padding_owned_by_vendored_nav_on_mobile(
     page: Page, base_url: str, browser_name: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -208,3 +210,17 @@ def test_app_padding_owned_by_vendored_nav_on_mobile(
         # padding: 0 var(--gap) 24px.
         assert metrics["top"] == 0, metrics
         assert metrics["bottom"] == 24, metrics
+
+
+def test_tab_navigation(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Tab switching, nav at rest after modals, saved-tab restore, page headers and the gear, nav-owned padding."""
+    run_flow(
+        request, page, base_url,
+        _tab_navigation_switches_panes,
+        _nav_at_rest_after_each_modal_close,
+        _saved_tab_restores_with_retired_tabs_migrated,
+        _every_pane_opens_with_a_page_header_and_the_gear_opens_settings,
+        _app_padding_owned_by_vendored_nav_on_mobile,
+    )

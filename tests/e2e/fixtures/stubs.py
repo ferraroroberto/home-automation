@@ -6,8 +6,7 @@ import pytest
 from playwright.sync_api import Page, Route
 
 
-@pytest.fixture(autouse=True)
-def _stub_home_assistant_api(page: Page) -> None:
+def stub_home_assistant_api(page: Page) -> None:
     """Never let a browser regression test inspect the household's live HA."""
 
     page.route(
@@ -20,8 +19,7 @@ def _stub_home_assistant_api(page: Page) -> None:
     )
 
 
-@pytest.fixture(autouse=True)
-def _stub_circuits_api(page: Page) -> None:
+def stub_circuits_api(page: Page) -> None:
     """Never let a browser regression test run a live mDNS sweep (issue #25).
 
     Unstubbed, ``GET /api/circuits`` really browses the LAN, so the suite's
@@ -41,8 +39,7 @@ def _stub_circuits_api(page: Page) -> None:
     )
 
 
-@pytest.fixture(autouse=True)
-def _stub_network_api(page: Page) -> None:
+def stub_network_api(page: Page) -> None:
     """Never let a browser regression test read the live router and AP (#884).
 
     The Devices tab reads ``GET /api/network`` on entry since #884 (its
@@ -66,8 +63,7 @@ def _stub_network_api(page: Page) -> None:
     page.route("**/api/network?*", handle)
 
 
-@pytest.fixture(autouse=True)
-def _stub_tesla_api(page: Page) -> None:
+def stub_tesla_api(page: Page) -> None:
     """Keep the car card hidden unless a test installs ``mock_tesla``.
 
     ``GET /api/tesla`` only reads the local store, but whether the boot sees a
@@ -84,3 +80,16 @@ def _stub_tesla_api(page: Page) -> None:
                  '"sample":null,"state":null,"checked_at":null}',
         ),
     )
+
+
+def install_baseline_stubs(page: Page) -> None:
+    """Install every always-on stub on ``page`` (again, after a flow reset)."""
+    stub_home_assistant_api(page)
+    stub_circuits_api(page)
+    stub_network_api(page)
+    stub_tesla_api(page)
+
+
+@pytest.fixture(autouse=True)
+def _baseline_stubs(page: Page) -> None:
+    install_baseline_stubs(page)

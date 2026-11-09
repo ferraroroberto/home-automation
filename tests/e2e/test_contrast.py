@@ -15,6 +15,7 @@ import pytest
 from playwright.sync_api import Page
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 
 # Contrast of an element's text against its composited background. Colours are
 # resolved through a canvas so oklch()/color() (the P3 twins) parse too.
@@ -39,8 +40,7 @@ _CONTRAST_JS = """el => {
 }"""
 
 
-@pytest.mark.parametrize("theme", ["light", "dark"])
-def test_tinted_and_solid_controls_clear_aa(
+def _tinted_and_solid_controls_clear_aa(
     page: Page, base_url: str, theme: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
 ) -> None:
@@ -66,3 +66,14 @@ def test_tinted_and_solid_controls_clear_aa(
     page.evaluate("() => document.getElementById('reminderDialog').showModal()")
     ratio = page.locator("#reminderSave").evaluate(_CONTRAST_JS)
     assert ratio >= 4.5, (theme, "#reminderSave", ratio)
+
+
+def test_controls_clear_aa(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Tinted and solid controls clear WCAG AA in both themes."""
+    run_flow(
+        request, page, base_url,
+        (_tinted_and_solid_controls_clear_aa, {'theme': 'light'}),
+        (_tinted_and_solid_controls_clear_aa, {'theme': 'dark'}),
+    )

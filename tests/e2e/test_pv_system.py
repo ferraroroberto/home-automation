@@ -18,9 +18,11 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 
@@ -40,7 +42,7 @@ def _boot_pv_system(
     open_settings_sheet(page, "pvSystemSheet")  # a Settings sheet since #886
 
 
-def test_card_renders_a_summary_row_per_panel_row(
+def _card_renders_a_summary_row_per_panel_row(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -62,7 +64,7 @@ def test_card_renders_a_summary_row_per_panel_row(
     surface(page, "energy.pv-system-sheet")
 
 
-def test_empty_config_shows_the_empty_state_not_a_blank_list(
+def _empty_config_shows_the_empty_state_not_a_blank_list(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -74,7 +76,7 @@ def test_empty_config_shows_the_empty_state_not_a_blank_list(
     surface(page, "energy.pv-system-empty")
 
 
-def test_adding_a_row_validates_then_updates_the_forecast_and_its_toast(
+def _adding_a_row_validates_then_updates_the_forecast_and_its_toast(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -143,7 +145,7 @@ def test_adding_a_row_validates_then_updates_the_forecast_and_its_toast(
     expect(toast).to_have_text("PV system saved")
 
 
-def test_horizon_point_editor_opens_from_the_sheet(
+def _horizon_point_editor_opens_from_the_sheet(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -155,3 +157,16 @@ def test_horizon_point_editor_opens_from_the_sheet(
     expect(page.locator("#pvHorizonDialog")).to_be_visible()
     expect(page.locator("#pvHorizonEditorTitle")).to_have_text("Add horizon point")
     surface(page, "energy.pv-horizon-dialog")
+
+
+def test_pv_system(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """PV system card: rows, empty state, validated add updates the forecast, horizon editor."""
+    run_flow(
+        request, page, base_url,
+        _card_renders_a_summary_row_per_panel_row,
+        _empty_config_shows_the_empty_state_not_a_blank_list,
+        _adding_a_row_validates_then_updates_the_forecast_and_its_toast,
+        _horizon_point_editor_opens_from_the_sheet,
+    )

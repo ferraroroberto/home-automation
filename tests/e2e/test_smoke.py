@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
+
+from tests.e2e._flow import run_flow
 
 
 def _boot(page: Page, base_url: str) -> list:
@@ -19,7 +22,7 @@ def _boot(page: Page, base_url: str) -> list:
     return errors
 
 
-def test_boots_without_console_errors(
+def _boots_without_console_errors(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -29,7 +32,7 @@ def test_boots_without_console_errors(
     assert errors == [], "JS errors during boot:\n  - " + "\n  - ".join(errors)
 
 
-def test_renders_unit_rows_with_their_anatomy(
+def _renders_unit_rows_with_their_anatomy(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -53,3 +56,14 @@ def test_renders_unit_rows_with_their_anatomy(
     off = page.locator('#acUnits [data-unit-id="unit-2"]')
     expect(off.locator(".ac-line-toggle")).to_have_attribute("aria-checked", "false")
     expect(off.locator(".row-avatar")).not_to_have_attribute("data-badge", "up")
+
+
+def test_app_boots_and_renders_unit_rows(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """The dashboard boots without JS errors and renders each unit row with its anatomy."""
+    run_flow(
+        request, page, base_url,
+        _boots_without_console_errors,
+        _renders_unit_rows_with_their_anatomy,
+    )

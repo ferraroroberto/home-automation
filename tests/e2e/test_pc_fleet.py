@@ -18,8 +18,10 @@ import json
 import re
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_min_target, assert_unpainted
 from tests.e2e._surface import surface
 
@@ -127,7 +129,7 @@ def _boot_pc_fleet(
     return store
 
 
-def test_pc_fleet_renders_machine_list_with_state_chips(
+def _pc_fleet_renders_machine_list_with_state_chips(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -157,7 +159,7 @@ def test_pc_fleet_renders_machine_list_with_state_chips(
     surface(page, "iot.pc-fleet-machines")
 
 
-def test_include_toggle_flip_puts_excluded(
+def _include_toggle_flip_puts_excluded(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -180,7 +182,7 @@ def test_include_toggle_flip_puts_excluded(
     assert last["threshold_minutes"] == 15
 
 
-def test_master_toggle_and_threshold_put(
+def _master_toggle_and_threshold_put(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -208,7 +210,7 @@ def test_master_toggle_and_threshold_put(
     assert last["enabled"] is True
 
 
-def test_wake_button_visibility_and_no_confirm_post(
+def _wake_button_visibility_and_no_confirm_post(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -242,7 +244,7 @@ def test_wake_button_visibility_and_no_confirm_post(
     assert dialogs == [], f"unexpected confirm dialog: {dialogs}"
 
 
-def test_hub_unreachable_shows_note_and_keeps_prefs_editable(
+def _hub_unreachable_shows_note_and_keeps_prefs_editable(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -265,7 +267,7 @@ def test_hub_unreachable_shows_note_and_keeps_prefs_editable(
     assert last["excluded"] == ["ghost-pc"], last
 
 
-def test_tower_action_segmented_puts_hibernate(
+def _tower_action_segmented_puts_hibernate(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -288,3 +290,18 @@ def test_tower_action_segmented_puts_hibernate(
     last = store["put_bodies"][-1]
     assert last["tower_action"] == "hibernate", last
     assert last["enabled"] is True and last["threshold_minutes"] == 15
+
+
+def test_pc_fleet(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """PC fleet card: roster chips, include and master toggles, wake button, hub-unreachable note, tower action."""
+    run_flow(
+        request, page, base_url,
+        _pc_fleet_renders_machine_list_with_state_chips,
+        _include_toggle_flip_puts_excluded,
+        _master_toggle_and_threshold_put,
+        _wake_button_visibility_and_no_confirm_post,
+        _hub_unreachable_shows_note_and_keeps_prefs_editable,
+        _tower_action_segmented_puts_hibernate,
+    )

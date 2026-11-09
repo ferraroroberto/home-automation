@@ -19,6 +19,7 @@ import pytest
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 _CAMERA = {
@@ -99,7 +100,7 @@ def _assert_staged_name_flow(
 
 
 @pytest.mark.chromium_only
-def test_camera_name_dialog_stages_the_edit(
+def _camera_name_dialog_stages_the_edit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -146,7 +147,7 @@ def test_camera_name_dialog_stages_the_edit(
 
 
 @pytest.mark.chromium_only
-def test_presence_name_dialog_stages_the_edit(
+def _presence_name_dialog_stages_the_edit(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -187,7 +188,7 @@ def test_presence_name_dialog_stages_the_edit(
 
 
 @pytest.mark.chromium_only
-def test_light_name_dialog_stages_the_edit(
+def _light_name_dialog_stages_the_edit(
     page: Page, base_url: str, sample_units: List[Dict], sample_lights: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_lights: Callable,
     mock_tuya: Callable,
@@ -225,3 +226,16 @@ def test_light_name_dialog_stages_the_edit(
     assert writes[0]["body"] == {
         "display_name": "Desk left", "display_key": "mac:AA:BB:CC:DD:EE:FF",
     }
+
+
+@pytest.mark.chromium_only
+def test_name_dialogs(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Camera, presence and light name dialogs stage the edit."""
+    run_flow(
+        request, page, base_url,
+        _camera_name_dialog_stages_the_edit,
+        _presence_name_dialog_stages_the_edit,
+        _light_name_dialog_stages_the_edit,
+    )

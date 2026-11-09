@@ -97,12 +97,7 @@ from tests.e2e.fixtures.network import mock_network  # noqa: F401
 from tests.e2e.fixtures.plugs import mock_tuya, sample_plugs, sample_plugs_with_no_ip  # noqa: F401
 from tests.e2e.fixtures.presence import mock_presence  # noqa: F401
 from tests.e2e.fixtures.security import mock_security  # noqa: F401
-from tests.e2e.fixtures.stubs import (  # noqa: F401
-    _stub_circuits_api,
-    _stub_home_assistant_api,
-    _stub_network_api,
-    _stub_tesla_api,
-)
+from tests.e2e.fixtures.stubs import _baseline_stubs  # noqa: F401
 from tests.e2e.fixtures.tesla import (  # noqa: F401
     mock_tesla,
     mock_tesla_history,
