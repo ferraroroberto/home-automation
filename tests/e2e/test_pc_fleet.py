@@ -20,8 +20,9 @@ from typing import Callable, Dict, List
 
 from playwright.sync_api import Page, Route, expect
 
-from tests.e2e._geometry import assert_min_target, assert_unpainted
+from tests.e2e._geometry import assert_min_target
 from tests.e2e._surface import surface
+from tests.e2e._unpainted import assert_unpainted
 
 
 def _sample_machines() -> List[Dict]:

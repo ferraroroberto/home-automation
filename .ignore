@@ -6,6 +6,7 @@
 /app/webapp/static/_vendored/button
 /app/webapp/static/_vendored/home-head
 /app/webapp/static/_vendored/icon-button
+/app/webapp/static/_vendored/icons
 /app/webapp/static/_vendored/modal
 /app/webapp/static/_vendored/nav
 /app/webapp/static/_vendored/page-foot
@@ -41,6 +42,7 @@
 /src/usage_log.py
 /tests/e2e/_browser_sweep.py
 /tests/e2e/_e2e_live_guard.py
+/tests/e2e/_geometry.py
 /tests/e2e/_shot.py
 /tests/e2e/_surface.py
 # END vendored-copies
