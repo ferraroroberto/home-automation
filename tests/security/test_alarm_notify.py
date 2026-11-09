@@ -912,17 +912,14 @@ def test_already_outcome_disarm_reminder_is_delivered_when_error_toggle_on(tmp_p
 # ----------------------------------------------------- persisted state writes
 
 def _state_writers():
-    import app.webapp.security_automation as SA
-
     return [
         (AN, "_DEDUPE_PATH", AN._save_dedupe),
         (AN, "_SECURITY_STATE_PATH", AN._save_security_state),
-        (SA, "_LAST_FIRE_PATH", SA._save_last_fire_day),
     ]
 
 
 def test_state_writes_are_compact_atomic_and_never_raise(tmp_path: Path, monkeypatch, caplog) -> None:
-    """The three small engine-state files (#912): compact UTF-8 JSON, no
+    """The small engine-state files (#912): compact UTF-8 JSON, no
     leftover ``.tmp``, and a filesystem error is logged rather than raised —
     a failed persist must never take an alarm engine down with it."""
 

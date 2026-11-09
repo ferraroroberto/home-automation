@@ -8,7 +8,9 @@ helpers below were duplicated verbatim across :mod:`src.wake_alarms` and
 callers keep their own dataclass shape and entry-cleaning logic — only the
 read/save mechanics, the list-of-entries load/save pair
 (:func:`load_entry_list` / :func:`save_entry_list`, issue #912) and the
-id/time/days field cleaners are shared.
+id/time/days field cleaners are shared, plus the due-window check
+(:func:`daily_due`) and the persisted once-a-day fire latch
+(:class:`DailyFireLatch`) the schedule engines fire through.
 """
 
 from __future__ import annotations
@@ -17,11 +19,12 @@ import json
 import logging
 import re
 import time
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Sequence, TypeVar
+from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Sequence, TypeVar
 
+from src import activity_log
 from src._atomic_json import write_json_atomic
 
 logger = logging.getLogger(__name__)
@@ -215,3 +218,113 @@ def daily_due(
     if days is not None and now.strftime("%a").lower()[:3] not in days:
         return False
     return 0 <= (now - fire_at).total_seconds() < grace_s
+
+
+FIRE_SKIPPED = "skipped"
+"""What a fire callable returns when it deliberately did not act (a presence
+rule not met, say), so its engine's policy decides whether the day is spent."""
+
+
+@dataclass(frozen=True)
+class FireLatchPolicy:
+    """How one schedule engine spends an entry's once-a-day fire.
+
+    ``window`` names the engine's due window, ``"grace"`` (a few minutes past
+    HH:MM) or ``"rest_of_day"`` (until midnight, so a failure keeps retrying);
+    the engine's own due function enforces it. ``mark_before_fire`` spends the
+    day before the fire is attempted, so a failure is not retried; otherwise
+    only a fire that returns normally spends it. ``skip_consumes_day`` decides
+    whether a fire that returns :data:`FIRE_SKIPPED` spends the day too.
+    """
+
+    name: str
+    file_name: str
+    window: Literal["grace", "rest_of_day"]
+    mark_before_fire: bool = False
+    skip_consumes_day: bool = False
+
+
+class DailyFireLatch:
+    """Entry key -> the local date it last fired, persisted under ``logs/``.
+
+    Persisted so a tray restart that lands inside an entry's due window does
+    not fire it a second time that day. The file is a flat
+    ``{key: "YYYY-MM-DD"}`` object; a missing or unreadable file starts empty.
+    """
+
+    def __init__(self, policy: FireLatchPolicy) -> None:
+        self.policy = policy
+        self._days: Dict[str, str] = self._load()
+        # Key -> the day its window was seen open without a fire yet, so a
+        # window that closes unfired is logged exactly once.
+        self._open: Dict[str, str] = {}
+
+    @property
+    def path(self) -> Path:
+        # Read at call time so a redirected logs directory (tests) is honoured.
+        return activity_log.LOGS_DIR / self.policy.file_name
+
+    @property
+    def days(self) -> Dict[str, str]:
+        """A copy of the persisted key -> day map."""
+        return dict(self._days)
+
+    def _load(self) -> Dict[str, str]:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("⚠️ %s fire state unreadable, starting empty: %s", self.policy.name, exc)
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): v for k, v in raw.items() if isinstance(v, str)}
+
+    def _save(self) -> None:
+        try:
+            write_json_atomic(self.path, self._days, indent=None)
+        except OSError as exc:
+            logger.warning("⚠️ Could not persist %s fire state: %s", self.policy.name, exc)
+
+    def fired(self, key: str, day: str) -> bool:
+        """True when ``key`` already fired on ``day``."""
+        return self._days.get(key) == day
+
+    def mark(self, key: str, day: str) -> None:
+        """Spend ``day`` for ``key`` and persist. Entries for other days are
+        dropped, since only the current day is ever compared."""
+        self._days = {k: v for k, v in self._days.items() if v == day}
+        self._days[key] = day
+        self._save()
+
+    def note_window(self, key: str, day: str, due: bool) -> None:
+        """Track ``key``'s due window; log once when it closes unfired."""
+        if due:
+            if self.fired(key, day):
+                self._open.pop(key, None)
+            else:
+                self._open.setdefault(key, day)
+            return
+        opened = self._open.pop(key, None)
+        if opened is not None and not self.fired(key, opened):
+            logger.info(
+                "ℹ️ %s %s missed on %s: its %s window closed with no fire",
+                self.policy.name, key, opened, self.policy.window,
+            )
+
+    async def fire_once(
+        self, key: str, day: str, fire: Callable[[], Awaitable[Optional[str]]]
+    ) -> bool:
+        """Run ``fire`` and spend the day as the policy says.
+
+        Returns ``True`` when ``fire`` acted, ``False`` when it returned
+        :data:`FIRE_SKIPPED`. An exception from ``fire`` propagates, after the
+        day is spent when the policy marks before firing.
+        """
+        if self.policy.mark_before_fire:
+            self.mark(key, day)
+        skipped = await fire() == FIRE_SKIPPED
+        if not self.policy.mark_before_fire and (not skipped or self.policy.skip_consumes_day):
+            self.mark(key, day)
+        return not skipped

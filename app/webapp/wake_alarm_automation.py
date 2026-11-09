@@ -17,14 +17,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Dict, Optional, Set
+from typing import Optional, Set
 
 from dotenv import load_dotenv
 
 from app.webapp._env import _env_bool, _env_int
 from app.webapp._task_loop import run_loop
+from src._schedule_store import DailyFireLatch, FireLatchPolicy
 from src.activity_log import append_activity
 from src.notify_config import build_alarm_notifier, notify_best_effort
 from src.wake_alarms import (
@@ -52,9 +53,19 @@ class WakeAlarmConfig:
         return max(60, self.poll_interval_s * 2)
 
 
+# The day is spent before the ring is attempted, so a failed notify never
+# rings the same alarm twice.
+FIRE_LATCH_POLICY = FireLatchPolicy(
+    name="Wake alarm",
+    file_name="wake_alarm_last_fire.json",
+    window="grace",
+    mark_before_fire=True,
+)
+
+
 @dataclass
 class _EngineState:
-    last_fire_day: Dict[str, str]
+    latch: DailyFireLatch = field(default_factory=lambda: DailyFireLatch(FIRE_LATCH_POLICY))
 
 
 def load_wake_alarm_config() -> WakeAlarmConfig:
@@ -124,15 +135,12 @@ async def tick(config: WakeAlarmConfig, state: _EngineState, now: Optional[datet
     updated = False
     next_alarms = []
     for entry in alarms:
-        due = (
-            entry.enabled
-            and wake_alarm_due(entry, instant, config.fire_grace_s)
-            and state.last_fire_day.get(entry.id) != today
-        )
-        if due:
-            state.last_fire_day[entry.id] = today
+        due = entry.enabled and wake_alarm_due(entry, instant, config.fire_grace_s)
+        if entry.enabled:
+            state.latch.note_window(entry.id, today, due)
+        if due and not state.latch.fired(entry.id, today):
             try:
-                await _fire_alarm(entry)
+                await state.latch.fire_once(entry.id, today, lambda e=entry: _fire_alarm(e))
             except Exception as exc:  # noqa: BLE001 — never kill the loop
                 logger.warning("⚠️ Wake alarm fire failed for %s: %s", entry.id, exc)
             if entry.date:  # one-shot — disable after firing
@@ -150,7 +158,7 @@ async def tick(config: WakeAlarmConfig, state: _EngineState, now: Optional[datet
 
 
 async def _run(config: WakeAlarmConfig) -> None:
-    state = _EngineState(last_fire_day={})
+    state = _EngineState()
     await run_loop(
         lambda: tick(config, state),
         config.poll_interval_s,

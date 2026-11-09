@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -23,8 +22,7 @@ from app.webapp.alarm_notify import (
     confirm_alarm_action,
     record_alarm_action,
 )
-from src._atomic_json import write_json_atomic
-from src.activity_log import LOGS_DIR
+from src._schedule_store import DailyFireLatch, FireLatchPolicy
 from src.local_time import HOME_TZ, to_home_wall
 from src.presence.presence_engine import note_manual_alarm_action
 from src.security.risco_client import (
@@ -57,30 +55,18 @@ class SecurityScheduleConfig:
         return max(120, self.poll_interval_s * 2)
 
 
+# The window stays open for the rest of the day so a failed arm or disarm
+# keeps retrying; only a confirmed apply spends the day.
+FIRE_LATCH_POLICY = FireLatchPolicy(
+    name="Alarm schedule",
+    file_name="security_schedule_last_fire.json",
+    window="rest_of_day",
+)
+
+
 @dataclass
 class _EngineState:
-    last_fire_day: Dict[str, str]
-
-
-# Per-schedule once-per-day fire gate: schedule id -> "YYYY-MM-DD". Persisted
-# to disk so a tray/webapp restart after a schedule's fire time does not
-# refire it later the same day — mirrors alarm_notify.py's dedupe cache.
-_LAST_FIRE_PATH = LOGS_DIR / "security_schedule_last_fire.json"
-
-
-def _load_last_fire_day() -> Dict[str, str]:
-    try:
-        raw = json.loads(_LAST_FIRE_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _save_last_fire_day(state: Dict[str, str]) -> None:
-    try:
-        write_json_atomic(_LAST_FIRE_PATH, state, indent=None)
-    except OSError as exc:
-        logger.warning("⚠️ Could not persist alarm schedule fire state: %s", exc)
+    latch: DailyFireLatch = field(default_factory=lambda: DailyFireLatch(FIRE_LATCH_POLICY))
 
 
 def load_security_schedule_config() -> SecurityScheduleConfig:
@@ -127,7 +113,7 @@ async def _apply_schedule(entry: SecurityScheduleEntry) -> None:
     except (RiscoCommandError, RiscoConfigError) as exc:
         # Every attempt (initial + all re-read/resend retries) failed to confirm the
         # expected state, or credentials/config are missing entirely: log +
-        # alert once per day, and re-raise so tick() leaves last_fire_day unset
+        # alert once per day, and re-raise so tick() leaves the day unspent
         # and retries again on its own next poll.
         await record_alarm_action(
             source=SOURCE_SCHEDULE,
@@ -162,20 +148,20 @@ async def tick(config: SecurityScheduleConfig, state: _EngineState, now: Optiona
     instant = to_home_wall(now or datetime.now(HOME_TZ))
     today = instant.strftime("%Y-%m-%d")
     for entry in schedules:
-        if not entry.enabled or not schedule_due(entry, instant, config.fire_grace_s):
+        if not entry.enabled:
             continue
-        if state.last_fire_day.get(entry.id) == today:
+        due = schedule_due(entry, instant, config.fire_grace_s)
+        state.latch.note_window(entry.id, today, due)
+        if not due or state.latch.fired(entry.id, today):
             continue
         try:
-            await _apply_schedule(entry)
-            state.last_fire_day[entry.id] = today
-            _save_last_fire_day(state.last_fire_day)
+            await state.latch.fire_once(entry.id, today, lambda e=entry: _apply_schedule(e))
         except Exception as exc:  # noqa: BLE001 - never kill the loop
             logger.warning("⚠️ Alarm schedule apply failed for %s: %s", entry.id, exc)
 
 
 async def _run(config: SecurityScheduleConfig) -> None:
-    state = _EngineState(last_fire_day=_load_last_fire_day())
+    state = _EngineState()
     await run_loop(
         lambda: tick(config, state),
         config.poll_interval_s,

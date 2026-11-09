@@ -61,7 +61,7 @@ def test_security_schedule_due_respects_weekday_and_stays_due_all_day() -> None:
     # #527: still due hours later the same day — a schedule that first fails
     # (e.g. a transient RISCO outage) keeps getting retried, not just given a
     # narrow window and then abandoned until the same time tomorrow. tick()'s
-    # own last_fire_day bookkeeping (tested separately) is what actually stops
+    # own fire-latch bookkeeping (tested separately) is what actually stops
     # a schedule firing twice once it succeeds.
     assert schedule_due(entry, datetime(2026, 6, 22, 21, 3, 0), 120) is True
     assert schedule_due(entry, datetime(2026, 6, 22, 23, 59, 0), 120) is True
@@ -141,16 +141,15 @@ def test_security_schedule_tick_fires_at_local_wall_time_across_dst(
         return _FakeState("disarmed")
 
     config, _ = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
-    monkeypatch.setattr(engine, "_save_last_fire_day", lambda _days: None)
 
-    one_hour_early = engine._EngineState(last_fire_day={})
+    one_hour_early = engine._EngineState()
     asyncio.run(engine.tick(config, one_hour_early, utc_instant - timedelta(hours=1)))
     assert calls == []
 
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     asyncio.run(engine.tick(config, state, utc_instant))
     assert calls == ["disarm"]
-    assert state.last_fire_day == {"unset": local_day}
+    assert state.latch.days == {"unset": local_day}
 
 
 def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> None:
@@ -176,14 +175,14 @@ def test_security_schedule_tick_fires_once_and_logs_failures(monkeypatch) -> Non
     # Neither "arm" nor "disarm" is already satisfied by this mode, so both
     # entries fall through to confirm_alarm_action (#676).
     config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "perimeter")
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     now = datetime(2026, 6, 22, 21, 0, 10)
 
     asyncio.run(engine.tick(config, state, now))
     asyncio.run(engine.tick(config, state, now))
 
     assert calls == ["arm", "disarm", "disarm"]
-    assert state.last_fire_day == {"ok": "2026-06-22"}
+    assert state.latch.days == {"ok": "2026-06-22"}
     # Both schedule entries record their outcome; "bad" fires twice (tick retries failed entries).
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert ("schedule", "arm", "ok") in outcomes
@@ -206,12 +205,12 @@ def test_security_schedule_tick_alerts_after_confirm_exhausts_retries(monkeypatc
 
     # not "armed" - the arm request is not yet satisfied
     config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "disarmed")
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     now = datetime(2026, 6, 22, 21, 0, 10)
 
     asyncio.run(engine.tick(config, state, now))
 
-    assert state.last_fire_day == {}
+    assert state.latch.days == {}
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "arm", "error")]
     assert recorded[0]["dedupe_key"] == "schedule:arm-fails"
@@ -237,12 +236,12 @@ def test_security_schedule_tick_alerts_on_missing_credentials(monkeypatch) -> No
 
     # not "disarmed" - the disarm request is not yet satisfied
     config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     now = datetime(2026, 6, 22, 5, 0, 10)
 
     asyncio.run(engine.tick(config, state, now))
 
-    assert state.last_fire_day == {}
+    assert state.latch.days == {}
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "disarm", "error")]
     assert "Missing credentials" in recorded[0]["error"]
@@ -268,15 +267,15 @@ def test_security_schedule_tick_retries_failed_entry_hours_later_same_day(monkey
 
     # not "disarmed" - the disarm request is not yet satisfied
     config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
 
     # First attempt, right at the fire time, fails.
     asyncio.run(engine.tick(config, state, datetime(2026, 6, 22, 5, 4, 0)))
-    assert state.last_fire_day == {}
+    assert state.latch.days == {}
 
     # Hours later, well past the old ~120s grace window, it succeeds.
     asyncio.run(engine.tick(config, state, datetime(2026, 6, 22, 11, 0, 0)))
-    assert state.last_fire_day == {"flaky": "2026-06-22"}
+    assert state.latch.days == {"flaky": "2026-06-22"}
 
     outcomes_seen = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes_seen == [
@@ -311,15 +310,15 @@ def test_security_schedule_last_fire_day_survives_restart(monkeypatch) -> None:
     now = datetime(2026, 6, 22, 21, 0, 10)
 
     # First process: the schedule fires and its fire state is persisted.
-    state = engine._EngineState(last_fire_day=engine._load_last_fire_day())
+    state = engine._EngineState()
     asyncio.run(engine.tick(config, state, now))
-    assert state.last_fire_day == {"perimeter-21": "2026-06-22"}
+    assert state.latch.days == {"perimeter-21": "2026-06-22"}
     assert len(recorded) == 1
 
     # Restart: a brand-new process reloads state from disk instead of
     # starting with an empty dict, then polls again later the same day.
-    restarted_state = engine._EngineState(last_fire_day=engine._load_last_fire_day())
-    assert restarted_state.last_fire_day == {"perimeter-21": "2026-06-22"}
+    restarted_state = engine._EngineState()
+    assert restarted_state.latch.days == {"perimeter-21": "2026-06-22"}
 
     later_same_day = datetime(2026, 6, 22, 21, 6, 40)
     asyncio.run(engine.tick(config, restarted_state, later_same_day))
@@ -340,12 +339,12 @@ def test_security_schedule_tick_confirms_disarm_success(monkeypatch) -> None:
 
     # not "disarmed" - the disarm request is not yet satisfied
     config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     now = datetime(2026, 6, 22, 21, 0, 10)
 
     asyncio.run(engine.tick(config, state, now))
 
-    assert state.last_fire_day == {"disarm-ok": "2026-06-22"}
+    assert state.latch.days == {"disarm-ok": "2026-06-22"}
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "disarm", "ok")]
 
@@ -364,12 +363,12 @@ def test_security_schedule_tick_skips_already_satisfied_arm(monkeypatch) -> None
         raise AssertionError("confirm_alarm_action must not be called when already satisfied")
 
     config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "armed")
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     now = datetime(2026, 6, 22, 23, 0, 10)
 
     asyncio.run(engine.tick(config, state, now))
 
-    assert state.last_fire_day == {"night": "2026-06-22"}
+    assert state.latch.days == {"night": "2026-06-22"}
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "perimeter", "already")]
 
@@ -388,11 +387,11 @@ def test_security_schedule_tick_skips_already_satisfied_disarm(monkeypatch) -> N
         raise AssertionError("confirm_alarm_action must not be called when already satisfied")
 
     config, recorded = _wire_engine(monkeypatch, entries, fake_confirm, "disarmed")
-    state = engine._EngineState(last_fire_day={})
+    state = engine._EngineState()
     now = datetime(2026, 6, 22, 5, 0, 10)
 
     asyncio.run(engine.tick(config, state, now))
 
-    assert state.last_fire_day == {"morning": "2026-06-22"}
+    assert state.latch.days == {"morning": "2026-06-22"}
     outcomes = [(r["source"], r["action"], r["outcome"]) for r in recorded]
     assert outcomes == [("schedule", "disarm", "already")]
