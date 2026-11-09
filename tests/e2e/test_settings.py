@@ -16,6 +16,7 @@ from typing import Callable, Dict, List
 
 import pytest
 from playwright.sync_api import Page, expect
+
 from tests.e2e._app import boot_home, open_settings, open_settings_sheet
 from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_no_horizontal_overflow

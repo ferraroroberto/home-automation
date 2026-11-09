@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, Tuple
 
 import pytest
 from playwright.sync_api import Page, expect
+
 from tests.e2e._app import boot_home, open_settings_sheet
 from tests.e2e._flow import run_flow
 from tests.e2e._geometry import (
