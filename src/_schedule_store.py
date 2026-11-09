@@ -22,7 +22,17 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 from src import activity_log
 from src._atomic_json import write_json_atomic
