@@ -22,8 +22,10 @@ import json
 import re
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 METER_ID = "AA:BB:CC:DD:EE:01"
@@ -105,7 +107,7 @@ def _boot_circuits(
     page.wait_for_selector("#paneIot", state="visible")
 
 
-def test_every_channel_renders_even_with_no_clamp_fitted(
+def _every_channel_renders_even_with_no_clamp_fitted(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -120,7 +122,7 @@ def test_every_channel_renders_even_with_no_clamp_fitted(
     expect(rows.nth(5)).to_contain_text("Clamp 6")
 
 
-def test_a_measured_zero_is_shown_and_an_unmeasured_channel_is_not_faked(
+def _a_measured_zero_is_shown_and_an_unmeasured_channel_is_not_faked(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -135,7 +137,7 @@ def test_a_measured_zero_is_shown_and_an_unmeasured_channel_is_not_faked(
     expect(rows.nth(2).locator(".circuit-watts")).to_have_text("No reading")
 
 
-def test_an_offline_meter_keeps_its_channel_rows(
+def _an_offline_meter_keeps_its_channel_rows(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -155,7 +157,7 @@ def test_an_offline_meter_keeps_its_channel_rows(
     surface(page, "iot.circuits-offline")
 
 
-def test_rename_dialog_shows_the_clamp_flip_only_for_a_channel(
+def _rename_dialog_shows_the_clamp_flip_only_for_a_channel(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -182,7 +184,7 @@ def test_rename_dialog_shows_the_clamp_flip_only_for_a_channel(
     expect(page.locator("#circuitHiddenSection")).to_be_hidden()
 
 
-def test_the_meter_row_carries_the_name_alone(
+def _the_meter_row_carries_the_name_alone(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -209,7 +211,7 @@ def test_the_meter_row_carries_the_name_alone(
     surface(page, "iot.circuit-meter-dialog")
 
 
-def test_a_channels_reference_figures_live_in_the_dialog(
+def _a_channels_reference_figures_live_in_the_dialog(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -232,7 +234,7 @@ def test_a_channels_reference_figures_live_in_the_dialog(
     expect(page.locator("#circuitReadings")).to_be_hidden()
 
 
-def test_meters_are_ordered_by_name_not_discovery(
+def _meters_are_ordered_by_name_not_discovery(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -269,7 +271,7 @@ def test_meters_are_ordered_by_name_not_discovery(
     expect(rows.nth(18)).to_have_class(re.compile(r"\bcircuit-meter\b"))
 
 
-def test_tapping_the_meter_renames_it(
+def _tapping_the_meter_renames_it(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -299,7 +301,7 @@ def test_tapping_the_meter_renames_it(
     ).to_have_text("main board")
 
 
-def test_a_hidden_channel_is_put_away_but_never_lost(
+def _a_hidden_channel_is_put_away_but_never_lost(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -336,7 +338,7 @@ def test_a_hidden_channel_is_put_away_but_never_lost(
     expect(page.locator("#circuitHiddenToggle")).to_have_attribute("aria-checked", "true")
 
 
-def test_the_hidden_toggle_stays_out_of_the_way_when_nothing_is_hidden(
+def _the_hidden_toggle_stays_out_of_the_way_when_nothing_is_hidden(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -345,7 +347,7 @@ def test_the_hidden_toggle_stays_out_of_the_way_when_nothing_is_hidden(
     expect(page.locator("#circuitsHiddenToggle")).to_be_hidden()
 
 
-def test_the_hidden_toggle_filters_rows_from_the_group_footer(
+def _the_hidden_toggle_filters_rows_from_the_group_footer(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -374,3 +376,23 @@ def test_the_hidden_toggle_filters_rows_from_the_group_footer(
 
     toggle.click()
     expect(page.locator("#circuitsList .circuit-row")).to_have_count(1)
+
+
+def test_circuits(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """CT-clamp group: every channel renders, rename dialog, ordering, hide and un-hide."""
+    run_flow(
+        request, page, base_url,
+        _every_channel_renders_even_with_no_clamp_fitted,
+        _a_measured_zero_is_shown_and_an_unmeasured_channel_is_not_faked,
+        _an_offline_meter_keeps_its_channel_rows,
+        _rename_dialog_shows_the_clamp_flip_only_for_a_channel,
+        _the_meter_row_carries_the_name_alone,
+        _a_channels_reference_figures_live_in_the_dialog,
+        _meters_are_ordered_by_name_not_discovery,
+        _tapping_the_meter_renames_it,
+        _a_hidden_channel_is_put_away_but_never_lost,
+        _the_hidden_toggle_stays_out_of_the_way_when_nothing_is_hidden,
+        _the_hidden_toggle_filters_rows_from_the_group_footer,
+    )

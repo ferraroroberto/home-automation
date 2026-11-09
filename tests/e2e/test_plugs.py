@@ -17,6 +17,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import LAYOUT_10_MAX_GROWTH_PX, hold_reads
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import (
     assert_no_horizontal_overflow,
     assert_unpainted,
@@ -44,7 +45,7 @@ def _boot_plugs(
 _DEVICE_ROWS = "#plugsList .action-row[data-device-id], #blindsList .action-row[data-device-id]"
 
 
-def test_plugs_tab_renders_all_devices(
+def _plugs_tab_renders_all_devices(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -73,21 +74,21 @@ class _FeedbackPanel(NamedTuple):
 
 # The Plugs panel and the Devices tab's UPS row (Home's UPS tile until #885)
 # render the same feedback contract, so the loading and unavailable states run
-# as one parametrized test each. The stale-on-refresh case stays per panel: the
+# as one step per panel. The stale-on-refresh case stays per panel: the
 # refresh trigger and the last-good content it must preserve differ between
 # them.
 _FEEDBACK_PANELS = [
-    pytest.param(_FeedbackPanel(
+    _FeedbackPanel(
         "/api/tuya", {"devices": []}, "#tabIot", "#plugsFeedback", ".empty-state-message",
         "Reading plugs and blinds…", "No Smart Life devices configured",
         "Plugs and blinds unavailable", "192.0.2.60",
-    ), id="plugs"),
-    pytest.param(_FeedbackPanel(
+    ),
+    _FeedbackPanel(
         "/api/ups", {"ups": {"available": False, "source": "none", "error": None}}, "#tabIot",
         "#upsRows .ups-row", ".action-row-meta-text",
         "Reading UPS status…", "No UPS detected",
         "Status unavailable", "192.0.2.70",
-    ), id="ups"),
+    ),
 ]
 
 def _open_panel(page: Page, base_url: str, panel: _FeedbackPanel) -> None:
@@ -96,8 +97,7 @@ def _open_panel(page: Page, base_url: str, panel: _FeedbackPanel) -> None:
     page.locator(panel.tab).click()
 
 
-@pytest.mark.parametrize("panel", _FEEDBACK_PANELS)
-def test_panel_distinguishes_loading_from_true_empty(
+def _panel_distinguishes_loading_from_true_empty(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
     panel: _FeedbackPanel,
@@ -124,8 +124,7 @@ def test_panel_distinguishes_loading_from_true_empty(
     surface(page, "iot.plugs-empty" if panel.endpoint == "/api/tuya" else "iot.ups-empty")
 
 
-@pytest.mark.parametrize("panel", _FEEDBACK_PANELS)
-def test_panel_shows_contextual_unavailable_state(
+def _panel_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
     panel: _FeedbackPanel,
@@ -148,7 +147,7 @@ def test_panel_shows_contextual_unavailable_state(
     surface(page, "iot.plugs-unavailable" if panel.endpoint == "/api/tuya" else "iot.ups-unavailable")
 
 
-def test_plug_refresh_failure_preserves_last_good_rows(
+def _plug_refresh_failure_preserves_last_good_rows(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -177,7 +176,7 @@ def test_plug_refresh_failure_preserves_last_good_rows(
     surface(page, "iot.plugs-stale")
 
 
-def test_ups_poll_failure_preserves_last_good_status(
+def _ups_poll_failure_preserves_last_good_status(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -232,7 +231,7 @@ def test_ups_poll_failure_preserves_last_good_status(
     surface(page, "iot.ups-sheet")
 
 
-def test_ups_snapshot_paints_before_live_refresh(
+def _ups_snapshot_paints_before_live_refresh(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -290,7 +289,7 @@ def test_ups_snapshot_paints_before_live_refresh(
     expect(status.locator(".ups-stale-note")).to_have_count(0)
 
 
-def test_metered_plug_shows_watts(
+def _metered_plug_shows_watts(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -303,7 +302,7 @@ def test_metered_plug_shows_watts(
     expect(watts).to_have_text("1,450 W")
 
 
-def test_plugs_stats_block_summarizes(
+def _plugs_stats_block_summarizes(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -318,7 +317,7 @@ def test_plugs_stats_block_summarizes(
     expect(page.locator('#paneIot .status[data-head="iot"]')).to_have_text("1 on · 1,450 W")
 
 
-def test_plug_rename_round_trips(
+def _plug_rename_round_trips(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -334,7 +333,7 @@ def test_plug_rename_round_trips(
     expect(page.locator('[data-device-id="plug-1"] .action-row-title')).to_have_text("Garage Heater")
 
 
-def test_switch_toggle_round_trips(
+def _switch_toggle_round_trips(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -349,7 +348,7 @@ def test_switch_toggle_round_trips(
     )
 
 
-def test_blind_has_labelled_controls(
+def _blind_has_labelled_controls(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -395,7 +394,7 @@ def _with_second_blind_and_light(sample_plugs: List[Dict]) -> List[Dict]:
     ]
 
 
-def test_blinds_group_buttons_move_every_listed_blind(
+def _blinds_group_buttons_move_every_listed_blind(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -448,7 +447,7 @@ def test_blinds_group_buttons_move_every_listed_blind(
 
 
 @pytest.mark.chromium_only
-def test_tuya_light_lists_under_lights_not_plugs(
+def _tuya_light_lists_under_lights_not_plugs(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -474,7 +473,7 @@ def test_tuya_light_lists_under_lights_not_plugs(
     )
 
 
-def test_offline_device_unavailable_without_blocking_others(
+def _offline_device_unavailable_without_blocking_others(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -502,7 +501,7 @@ def test_offline_device_unavailable_without_blocking_others(
     expect(page.locator('[data-device-id="plug-3"]')).to_be_visible()
 
 
-def test_no_ip_adapters_fold_with_the_offline_plugs(
+def _no_ip_adapters_fold_with_the_offline_plugs(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs_with_no_ip: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -522,7 +521,7 @@ def test_no_ip_adapters_fold_with_the_offline_plugs(
     expect(no_ip).not_to_contain_text("tinytuya")
 
 
-def test_add_device_is_gated_by_a_confirm(
+def _add_device_is_gated_by_a_confirm(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -547,7 +546,7 @@ def test_add_device_is_gated_by_a_confirm(
     assert len(calls) == 1
 
 
-def test_tuya_dimmer_brightness_slider_round_trips(
+def _tuya_dimmer_brightness_slider_round_trips(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -577,7 +576,7 @@ def test_tuya_dimmer_brightness_slider_round_trips(
     expect(row.locator(".action-row-meta-text")).to_have_text("Off")
 
 
-def test_power_card_keeps_its_height_when_the_plugs_land(
+def _power_card_keeps_its_height_when_the_plugs_land(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
 ) -> None:
@@ -593,3 +592,32 @@ def test_power_card_keeps_its_height_when_the_plugs_land(
     expect(page.locator("#powerTop")).to_have_text("Test Heater 1450")
     settled_px = card.evaluate("el => el.offsetHeight")
     assert settled_px - first_px <= LAYOUT_10_MAX_GROWTH_PX, (first_px, settled_px)
+
+
+def test_plugs_and_blinds(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Plugs, UPS and blinds: every device renders, loading/empty/unavailable per panel, last-good on failure, snapshot paint, offline fold, stable power card, then watts, stats, rename, switch, labelled blind controls, group buttons, Tuya light placement, confirmed add and dimmer."""
+    run_flow(
+        request, page, base_url,
+        _plugs_tab_renders_all_devices,
+        (_panel_distinguishes_loading_from_true_empty, {'panel': _FEEDBACK_PANELS[0]}),
+        (_panel_distinguishes_loading_from_true_empty, {'panel': _FEEDBACK_PANELS[1]}),
+        (_panel_shows_contextual_unavailable_state, {'panel': _FEEDBACK_PANELS[0]}),
+        (_panel_shows_contextual_unavailable_state, {'panel': _FEEDBACK_PANELS[1]}),
+        _plug_refresh_failure_preserves_last_good_rows,
+        _ups_poll_failure_preserves_last_good_status,
+        _ups_snapshot_paints_before_live_refresh,
+        _offline_device_unavailable_without_blocking_others,
+        _no_ip_adapters_fold_with_the_offline_plugs,
+        _power_card_keeps_its_height_when_the_plugs_land,
+        _metered_plug_shows_watts,
+        _plugs_stats_block_summarizes,
+        _plug_rename_round_trips,
+        _switch_toggle_round_trips,
+        _blind_has_labelled_controls,
+        _blinds_group_buttons_move_every_listed_blind,
+        _tuya_light_lists_under_lights_not_plugs,
+        _add_device_is_gated_by_a_confirm,
+        _tuya_dimmer_brightness_slider_round_trips,
+    )

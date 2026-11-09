@@ -15,6 +15,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 
 _BODY_SM_PX = 14.0
 _CHIP_PX = _BODY_SM_PX * 0.875  # 12.25px — not the 12px caption
@@ -41,8 +42,7 @@ def _open_legend(page: Page, base_url: str) -> None:
 
 
 @pytest.mark.chromium_only
-@pytest.mark.parametrize("theme", ["light", "dark"])
-def test_legend_code_is_the_code_inline_chip(
+def _legend_code_is_the_code_inline_chip(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
     mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
     theme: str,
@@ -81,3 +81,15 @@ def test_legend_code_is_the_code_inline_chip(
         assert style["fill"] == fill, (theme, i, style, fill)
         assert style["radius"] == "6px", (theme, i, style)
         assert style["padding"] == "1px 6px", (theme, i, style)
+
+
+@pytest.mark.chromium_only
+def test_legend_code_chip(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """The legend code is the code inline chip in both themes."""
+    run_flow(
+        request, page, base_url,
+        (_legend_code_is_the_code_inline_chip, {'theme': 'light'}),
+        (_legend_code_is_the_code_inline_chip, {'theme': 'dark'}),
+    )

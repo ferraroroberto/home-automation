@@ -16,6 +16,7 @@ import pytest
 from playwright.sync_api import Page
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 
 _TABS = ("home", "ac", "energy", "iot", "security")
 
@@ -53,7 +54,7 @@ def browser_context_args(browser_context_args: dict) -> dict:
     }
 
 
-def test_bar_sits_at_the_same_offset_on_every_tab(
+def _bar_sits_at_the_same_offset_on_every_tab(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -76,7 +77,7 @@ def test_bar_sits_at_the_same_offset_on_every_tab(
     assert set(offsets.values()) == {offsets["home"]}, offsets
 
 
-def test_scroll_edge_fades_top_and_bottom(
+def _scroll_edge_fades_top_and_bottom(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -103,7 +104,7 @@ def test_scroll_edge_fades_top_and_bottom(
 
 
 @pytest.mark.chromium_only
-def test_installed_app_anchors_the_bar_from_the_large_viewport_top(
+def _installed_app_anchors_the_bar_from_the_large_viewport_top(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -145,7 +146,7 @@ def test_installed_app_anchors_the_bar_from_the_large_viewport_top(
     assert m["topBefore"] == m["lvh"] - 82, m
 
 
-def test_document_stays_scrollable_under_an_open_dialog(
+def _document_stays_scrollable_under_an_open_dialog(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -163,3 +164,16 @@ def test_document_stays_scrollable_under_an_open_dialog(
         "() => document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight"
     )
     assert overflow >= 1, overflow
+
+
+def test_nav_offset(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Floating nav bar: same offset on every tab, scroll fades, installed-app anchor, scrollable under a dialog."""
+    run_flow(
+        request, page, base_url,
+        _bar_sits_at_the_same_offset_on_every_tab,
+        _scroll_edge_fades_top_and_bottom,
+        _installed_app_anchors_the_bar_from_the_large_viewport_top,
+        _document_stays_scrollable_under_an_open_dialog,
+    )

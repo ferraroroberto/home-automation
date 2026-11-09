@@ -113,9 +113,34 @@ modules below).
 Test modules are scoped **one per feature area** — `test_tabs.py` is pure nav
 and tab switching, while tab content lives in
 `test_home_tab.py`, `test_vm_tile.py`, `test_ac_tab.py`, `test_energy_tab.py`,
-`test_security_tab.py`, `test_cameras.py` and `test_presence.py`. Add a
-new case to the module named after what it exercises; `tests/e2e/_app.py` holds
-the shared `boot_home()` opener the feature modules use.
+`test_security_tab.py`, `test_cameras.py` and `test_presence.py`. `tests/e2e/_app.py`
+holds the shared `boot_home()` opener the feature modules use.
+
+**One test per flow.** The fleet budget is fewer than 15 browser tests per
+repo; this app has more distinct surfaces than that, so each module holds one
+test — a *flow* — and the scenarios it used to hold are its **steps**.
+`tests/e2e/_flow.py`'s `run_flow` runs a flow's steps in order on one page. A
+step is a plain `_name(page, base_url, <fixtures>)` function, written exactly
+as a test would be. Between steps the runner returns the page to what a new
+test sees: a blank page, this origin's storage and the cookies cleared, every
+route and init script added since removed, the always-on stubs
+(`fixtures/stubs.py`) reinstalled, and the starting viewport and media
+emulation restored. Data fixtures (`sample_*`) reach each step as a fresh copy.
+A failing step's name is on the error, and the flow stops there.
+
+A new scenario is a new step in its module's flow, not a new `test_` function.
+Steps run as follows:
+- A step marked `@pytest.mark.chromium_only` is skipped on WebKit, and a flow
+  whose steps are all marked carries the mark itself, so it is deselected there.
+- A step that takes an extra argument (a theme, a width) is passed
+  `(step, {"theme": "dark"})`.
+- `page.clock.install()` cannot be undone, so a step that installs the clock is
+  the **last** step of its flow, and a flow holds one.
+- A module-level fixture that installs routes runs once per test, so a flow
+  passes the same call as `run_flow(..., per_step=...)` to repeat it before
+  every step.
+- `tests/harness/test_e2e_flow.py` pins the reset, the fresh-fixture copies, the
+  WebKit skip and the step name on a failure.
 
 **Design inventory.** `tests/e2e/_surface.py` is the
 vendored `surface(page, "<tab>.<surface>")` call: inert in a normal run, but when
@@ -154,10 +179,9 @@ verification run leaves no rewritten PNG behind. Exit 3 is NOT CONFIRMED and fai
   review `git diff --stat -- tests/e2e/shots` and the moved images, then
   `git add tests/e2e/shots` and commit them with the change.
 
-A full run executes 220 nodes in ~3.1 min (3m06s, run-to-run spread 2m55s–3m20s):
-282 are collected and 62 WebKit nodes are deselected. `test_design_matrix.py` additionally fans one function across
-the viewport × theme matrix below. CLAUDE.md tracks this as a runtime budget,
-not a fixed test-count cap.
+A full run executes 82 nodes (110 collected, 28 WebKit nodes deselected) from 40 tests in 4m53s,
+measured on a box shared with other lanes. `test_design_matrix.py` runs the viewport × theme matrix below as
+steps of one test. CLAUDE.md tracks this as a runtime budget, not a fixed test-count cap.
 
 Modules named in `CHROMIUM_ONLY_MODULES` (`tests/e2e/conftest.py`) run on
 Chromium only: they assert DOM state, request wiring or copy, with no layout,

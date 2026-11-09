@@ -13,14 +13,16 @@ import json
 import re
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_no_overlap
 from tests.e2e._surface import surface
 
 
-def test_vm_tile_distinguishes_loading_from_not_found(
+def _vm_tile_distinguishes_loading_from_not_found(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -48,7 +50,7 @@ def test_vm_tile_distinguishes_loading_from_not_found(
     surface(page, "iot.vm-empty")
 
 
-def test_vm_tile_shows_contextual_unavailable_state(
+def _vm_tile_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -72,7 +74,7 @@ def test_vm_tile_shows_contextual_unavailable_state(
     surface(page, "iot.vm-unavailable")
 
 
-def test_vm_status_error_keeps_start_action_when_vm_is_identified(
+def _vm_status_error_keeps_start_action_when_vm_is_identified(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -133,7 +135,7 @@ def test_vm_status_error_keeps_start_action_when_vm_is_identified(
     expect(card).to_be_visible()
 
 
-def test_vm_command_failure_uses_concise_toast(
+def _vm_command_failure_uses_concise_toast(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -171,7 +173,7 @@ def test_vm_command_failure_uses_concise_toast(
     expect(page.locator("#toast")).not_to_contain_text("192.0.2.80")
 
 
-def test_vm_poll_failure_preserves_status_and_disables_power(
+def _vm_poll_failure_preserves_status_and_disables_power(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -222,7 +224,7 @@ def test_vm_poll_failure_preserves_status_and_disables_power(
     surface(page, "iot.vm-stale")
 
 
-def test_vm_switch_tap_zone_stays_inside_its_row(
+def _vm_switch_tap_zone_stays_inside_its_row(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -258,3 +260,18 @@ def test_vm_switch_tap_zone_stays_inside_its_row(
     assert toggle_box["y"] + toggle_box["height"] <= row_box["y"] + row_box["height"] + 0.5
 
     assert_no_overlap([toggle, page.locator("#haSatellitesOpen")])
+
+
+def test_vm_tile(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Home Assistant VM tile: loading/not-found, unavailable, status error, command failure, poll failure, tap zone."""
+    run_flow(
+        request, page, base_url,
+        _vm_tile_distinguishes_loading_from_not_found,
+        _vm_tile_shows_contextual_unavailable_state,
+        _vm_status_error_keeps_start_action_when_vm_is_identified,
+        _vm_command_failure_uses_concise_toast,
+        _vm_poll_failure_preserves_status_and_disables_power,
+        _vm_switch_tap_zone_stays_inside_its_row,
+    )

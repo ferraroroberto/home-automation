@@ -11,6 +11,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import hold_reads
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 
@@ -44,7 +45,7 @@ def _boot_lights(
     _open_lights(page)
 
 
-def test_lights_tab_renders_reachable_and_offline_lights(
+def _lights_tab_renders_reachable_and_offline_lights(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -77,7 +78,7 @@ def test_lights_tab_renders_reachable_and_offline_lights(
     expect(offline).not_to_contain_text("192.0.2.11")
 
 
-def test_lights_tab_distinguishes_loading_from_true_empty(
+def _lights_tab_distinguishes_loading_from_true_empty(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -109,7 +110,7 @@ def test_lights_tab_distinguishes_loading_from_true_empty(
     surface(page, "iot.lights-empty")
 
 
-def test_lights_tab_shows_contextual_unavailable_state(
+def _lights_tab_shows_contextual_unavailable_state(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -141,7 +142,7 @@ def test_lights_tab_shows_contextual_unavailable_state(
     surface(page, "iot.lights-unavailable")
 
 
-def test_lights_controls_round_trip(
+def _lights_controls_round_trip(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -186,7 +187,7 @@ def test_lights_controls_round_trip(
     expect(sheet).to_be_hidden()
 
 
-def test_lights_bulk_buttons_follow_reachable_state_and_show_progress(
+def _lights_bulk_buttons_follow_reachable_state_and_show_progress(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -235,7 +236,7 @@ def test_lights_bulk_buttons_follow_reachable_state_and_show_progress(
     assert store[1]["on"] is False
 
 
-def test_lights_bulk_controls_and_detail_rename(
+def _lights_bulk_controls_and_detail_rename(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -288,7 +289,7 @@ def test_lights_bulk_controls_and_detail_rename(
     surface(page, "iot.light-dialog")
 
 
-def test_lights_refresh_failure_keeps_partial_data_note(
+def _lights_refresh_failure_keeps_partial_data_note(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -316,3 +317,20 @@ def test_lights_refresh_failure_keeps_partial_data_note(
     expect(page.locator("#lightsNote")).to_contain_text("live data unavailable")
     expect(page.locator("#lightsNote")).not_to_contain_text("ELGATO_LIGHT_HOSTS")
     surface(page, "iot.lights-stale")
+
+
+def test_lights_tab(
+    page: Page, base_url: str, request: pytest.FixtureRequest, mock_tuya: Callable,
+) -> None:
+    """Lights tab: rows, loading/empty/unavailable states, controls, bulk buttons, rename, partial-data note."""
+    run_flow(
+        request, page, base_url,
+        _lights_tab_renders_reachable_and_offline_lights,
+        _lights_tab_distinguishes_loading_from_true_empty,
+        _lights_tab_shows_contextual_unavailable_state,
+        _lights_controls_round_trip,
+        _lights_bulk_buttons_follow_reachable_state_and_show_progress,
+        _lights_bulk_controls_and_detail_rename,
+        _lights_refresh_failure_keeps_partial_data_note,
+        per_step=lambda: mock_tuya([]),
+    )

@@ -10,15 +10,17 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 _LAZY_LIBRARIES = ("chart.umd.min.js", "leaflet.js", "leaflet.css")
 
 
-def test_home_cold_load_requests_no_chart_or_map_library(
+def _home_cold_load_requests_no_chart_or_map_library(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -34,7 +36,7 @@ def test_home_cold_load_requests_no_chart_or_map_library(
     assert page.evaluate("typeof window.L") == "undefined"
 
 
-def test_place_map_picker_loads_leaflet_on_first_open(
+def _place_map_picker_loads_leaflet_on_first_open(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -59,3 +61,14 @@ def test_place_map_picker_loads_leaflet_on_first_open(
     # The stylesheet came with the script: Leaflet's CSS makes the container positioned.
     assert page.locator("#presenceMapPicker").evaluate("el => getComputedStyle(el).position") == "relative"
     surface(page, "settings.presence-map-picker-dialog")
+
+
+def test_heavy_libraries_load_lazily(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Cold Home requests no chart or map library; the map picker loads Leaflet on first open."""
+    run_flow(
+        request, page, base_url,
+        _home_cold_load_requests_no_chart_or_map_library,
+        _place_map_picker_loads_leaflet_on_first_open,
+    )

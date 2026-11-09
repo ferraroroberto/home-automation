@@ -15,12 +15,13 @@ import pytest
 from playwright.sync_api import Page, Route, expect
 
 from tests.e2e._app import boot_home, hold_reads, open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import apply_matrix_leg
 from tests.e2e._surface import surface
 
 
 @pytest.mark.chromium_only
-def test_presence_distinguishes_loading_from_true_empty(
+def _presence_distinguishes_loading_from_true_empty(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -62,7 +63,7 @@ def test_presence_distinguishes_loading_from_true_empty(
 
 
 @pytest.mark.chromium_only
-def test_presence_shows_contextual_unavailable_state(
+def _presence_shows_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -91,7 +92,7 @@ def test_presence_shows_contextual_unavailable_state(
 
 
 @pytest.mark.chromium_only
-def test_presence_refresh_failure_preserves_last_good_rows(
+def _presence_refresh_failure_preserves_last_good_rows(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -127,7 +128,7 @@ def test_presence_refresh_failure_preserves_last_good_rows(
     surface(page, "security.presence-stale")
 
 
-def test_presence_settings_use_compact_right_aligned_controls(
+def _presence_settings_use_compact_right_aligned_controls(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -186,7 +187,7 @@ def test_presence_settings_use_compact_right_aligned_controls(
 
 
 @pytest.mark.chromium_only
-def test_security_tab_renders_presence_spike(
+def _security_tab_renders_presence_spike(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -208,7 +209,7 @@ def test_security_tab_renders_presence_spike(
 
 
 @pytest.mark.chromium_only
-def test_kids_home_is_a_switch_on_the_glance_card(
+def _kids_home_is_a_switch_on_the_glance_card(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -241,7 +242,7 @@ def test_kids_home_is_a_switch_on_the_glance_card(
 
 
 @pytest.mark.chromium_only
-def test_dont_arm_when_away_is_a_switch_below_kids_home(
+def _dont_arm_when_away_is_a_switch_below_kids_home(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -278,11 +279,7 @@ def test_dont_arm_when_away_is_a_switch_below_kids_home(
 
 
 @pytest.mark.chromium_only
-@pytest.mark.parametrize(
-    ("clear", "meta"),
-    [("ok", "clears on away/return"), ("not_confirmed", "not confirmed")],
-)
-def test_dont_arm_when_away_on_shows_when_it_clears(
+def _dont_arm_when_away_on_shows_when_it_clears(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable, clear: str, meta: str,
@@ -311,7 +308,7 @@ def test_dont_arm_when_away_on_shows_when_it_clears(
 
 
 @pytest.mark.chromium_only
-def test_this_device_presence_is_diagnostic_only(
+def _this_device_presence_is_diagnostic_only(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -341,7 +338,7 @@ def test_this_device_presence_is_diagnostic_only(
 
 
 @pytest.mark.chromium_only
-def test_presence_icloud_account_rows_offer_trust_renewal(
+def _presence_icloud_account_rows_offer_trust_renewal(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -427,7 +424,7 @@ def test_presence_icloud_account_rows_offer_trust_renewal(
 
 
 @pytest.mark.chromium_only
-def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
+def _presence_icloud_account_needing_terms_offers_no_trust_renewal(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -481,8 +478,7 @@ def test_presence_icloud_account_needing_terms_offers_no_trust_renewal(
     surface(page, "security.presence-accounts-broken")
 
 
-@pytest.mark.parametrize("theme", ["light", "dark"])
-def test_presence_open_map_pill_has_chip_horizontal_padding(
+def _presence_open_map_pill_has_chip_horizontal_padding(
     theme: str, page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -526,3 +522,26 @@ def test_presence_open_map_pill_has_chip_horizontal_padding(
     # the padding, never less.
     assert sides["insetLeft"] >= 8 and sides["insetRight"] >= 8, sides
     surface(page, "security.presence-dialog")
+
+
+def test_presence(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Presence: pane states, compact settings, glance-card switches, clear-state copy, diagnostics, iCloud trust renewal, map pill in both themes."""
+    run_flow(
+        request, page, base_url,
+        _presence_distinguishes_loading_from_true_empty,
+        _presence_shows_contextual_unavailable_state,
+        _presence_refresh_failure_preserves_last_good_rows,
+        _presence_settings_use_compact_right_aligned_controls,
+        _security_tab_renders_presence_spike,
+        _kids_home_is_a_switch_on_the_glance_card,
+        _dont_arm_when_away_is_a_switch_below_kids_home,
+        (_dont_arm_when_away_on_shows_when_it_clears, {'clear': 'ok', 'meta': 'clears on away/return'}),
+        (_dont_arm_when_away_on_shows_when_it_clears, {'clear': 'not_confirmed', 'meta': 'not confirmed'}),
+        _this_device_presence_is_diagnostic_only,
+        _presence_icloud_account_rows_offer_trust_renewal,
+        _presence_icloud_account_needing_terms_offers_no_trust_renewal,
+        (_presence_open_map_pill_has_chip_horizontal_padding, {'theme': 'light'}),
+        (_presence_open_map_pill_has_chip_horizontal_padding, {'theme': 'dark'}),
+    )

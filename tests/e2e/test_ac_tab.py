@@ -11,13 +11,15 @@ import copy
 import json
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 
-def test_ac_tab_distinguishes_loading_from_true_empty(
+def _ac_tab_distinguishes_loading_from_true_empty(
     page: Page, base_url: str, mock_energy: Callable,
 ) -> None:
     mock_energy()
@@ -44,7 +46,7 @@ def test_ac_tab_distinguishes_loading_from_true_empty(
     surface(page, "ac.empty")
 
 
-def test_ac_tab_shows_contextual_unavailable_state(
+def _ac_tab_shows_contextual_unavailable_state(
     page: Page, base_url: str, mock_energy: Callable,
 ) -> None:
     mock_energy()
@@ -67,7 +69,7 @@ def test_ac_tab_shows_contextual_unavailable_state(
     surface(page, "ac.unavailable")
 
 
-def test_ac_poll_failure_preserves_units_and_disables_actions(
+def _ac_poll_failure_preserves_units_and_disables_actions(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -100,7 +102,7 @@ def test_ac_poll_failure_preserves_units_and_disables_actions(
     surface(page, "ac.stale")
 
 
-def test_units_snapshot_paints_before_live_refresh(
+def _units_snapshot_paints_before_live_refresh(
     page: Page, base_url: str, sample_units: List[Dict], mock_energy: Callable,
 ) -> None:
     cached_units = copy.deepcopy(sample_units)
@@ -147,3 +149,16 @@ def test_units_snapshot_paints_before_live_refresh(
     expect(page.locator("#acSummary")).to_contain_text("Live Office", timeout=4000)
     expect(page.locator("#acSummary")).not_to_contain_text("Snapshot Office")
     expect(page.locator("#acFeedback")).not_to_contain_text("Last saved")
+
+
+def test_ac_pane_states(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """AC pane: loading, true-empty, unavailable, stale-on-poll-failure and the cached-snapshot paint."""
+    run_flow(
+        request, page, base_url,
+        _ac_tab_distinguishes_loading_from_true_empty,
+        _ac_tab_shows_contextual_unavailable_state,
+        _ac_poll_failure_preserves_units_and_disables_actions,
+        _units_snapshot_paints_before_live_refresh,
+    )

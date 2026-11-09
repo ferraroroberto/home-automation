@@ -11,8 +11,10 @@ from __future__ import annotations
 import json
 from typing import Dict, List
 
+import pytest
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 SHEET = "dialog.sign-in"
@@ -20,7 +22,7 @@ FIELD = f"{SHEET} input[type=password]"
 SUBMIT = f"{SHEET} .sign-in-submit"
 
 
-def test_401_shows_sign_in_sheet(page: Page, base_url: str) -> None:
+def _401_shows_sign_in_sheet(page: Page, base_url: str) -> None:
     page.route(
         "**/api/units",
         lambda route: route.fulfill(
@@ -34,7 +36,7 @@ def test_401_shows_sign_in_sheet(page: Page, base_url: str) -> None:
     surface(page, "shared.login")
 
 
-def test_password_login_loads_dashboard(
+def _password_login_loads_dashboard(
     page: Page, base_url: str, sample_units: List[Dict]
 ) -> None:
     state = {"authed": False}
@@ -68,7 +70,7 @@ def test_password_login_loads_dashboard(
     assert page.evaluate("localStorage.getItem('home-automation.token')") == "test-token"
 
 
-def test_bad_password_keeps_sheet(page: Page, base_url: str) -> None:
+def _bad_password_keeps_sheet(page: Page, base_url: str) -> None:
     page.route(
         "**/api/units",
         lambda route: route.fulfill(
@@ -93,7 +95,7 @@ def test_bad_password_keeps_sheet(page: Page, base_url: str) -> None:
     surface(page, "shared.login-error")
 
 
-def test_signed_in_device_sees_no_sheet(
+def _signed_in_device_sees_no_sheet(
     page: Page, base_url: str, sample_units: List[Dict]
 ) -> None:
     """A device that already holds a token boots straight to the dashboard."""
@@ -112,3 +114,16 @@ def test_signed_in_device_sees_no_sheet(
     expect(page.locator("#acUnits .ac-row")).to_have_count(len(sample_units))
     expect(page.locator(SHEET)).to_have_count(0)
     assert "Bearer existing-token" in seen
+
+
+def test_sign_in_gate(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """A 401 opens the sign-in sheet; a password login loads the dashboard; a bad one keeps the sheet; a signed-in device sees none."""
+    run_flow(
+        request, page, base_url,
+        _401_shows_sign_in_sheet,
+        _password_login_loads_dashboard,
+        _bad_password_keeps_sheet,
+        _signed_in_device_sees_no_sheet,
+    )

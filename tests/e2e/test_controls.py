@@ -13,6 +13,7 @@ from typing import Callable, Dict, List
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_no_horizontal_overflow, effective_rect
 from tests.e2e._surface import surface
 
@@ -47,7 +48,7 @@ def _unit_posts(page: Page, unit_id: str) -> List[Dict]:
     return posts
 
 
-def test_power_toggle_posts_and_rerenders(
+def _power_toggle_posts_and_rerenders(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -62,7 +63,7 @@ def test_power_toggle_posts_and_rerenders(
     expect(_row(page, "unit-2").locator(".row-avatar")).to_have_attribute("data-badge", "up")
 
 
-def test_setpoint_taps_settle_into_one_post(
+def _setpoint_taps_settle_into_one_post(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     """Decision 4 of #872: the setpoint lives in the sheet and is sent as it
@@ -84,7 +85,7 @@ def test_setpoint_taps_settle_into_one_post(
     assert posts == [{"set_temperature": 25.0}]
 
 
-def test_closing_the_sheet_sends_a_dialled_setpoint(
+def _closing_the_sheet_sends_a_dialled_setpoint(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -98,7 +99,7 @@ def test_closing_the_sheet_sends_a_dialled_setpoint(
     expect(page.locator("#detailDialog")).to_be_hidden()
 
 
-def test_setpoint_stops_at_the_mode_minimum(
+def _setpoint_stops_at_the_mode_minimum(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     """A unit at its Cool minimum (16) can't be dialled below it."""
@@ -114,7 +115,7 @@ def test_setpoint_stops_at_the_mode_minimum(
     assert posts == [], "the floor must not POST a sub-range value"
 
 
-def test_fan_segment_posts_fan_speed(
+def _fan_segment_posts_fan_speed(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -130,7 +131,7 @@ def test_fan_segment_posts_fan_speed(
     expect(fan.locator('[aria-pressed="true"]')).to_have_text("3")
 
 
-def test_offline_unit_row_is_marked_and_inert(
+def _offline_unit_row_is_marked_and_inert(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     """An unreachable unit says so and cannot be commanded (#520).
@@ -156,7 +157,7 @@ def test_offline_unit_row_is_marked_and_inert(
     surface(page, "ac.offline")
 
 
-def test_offline_unit_row_marked_on_home_summary(
+def _offline_unit_row_marked_on_home_summary(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
 ) -> None:
@@ -181,7 +182,7 @@ def test_offline_unit_row_marked_on_home_summary(
 
 
 @pytest.mark.chromium_only
-def test_row_meta_carries_the_rule_and_the_boost_chip(
+def _row_meta_carries_the_rule_and_the_boost_chip(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     """The rule's room target joins the meta line while it steers; a running
@@ -201,7 +202,7 @@ def test_row_meta_carries_the_rule_and_the_boost_chip(
     expect(boost).to_have_attribute("data-tone", "accent")
 
 
-def test_unit_row_target_is_44px_and_clear_of_its_switch(
+def _unit_row_target_is_44px_and_clear_of_its_switch(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     page.set_viewport_size({"width": 390, "height": 844})
@@ -217,8 +218,7 @@ def test_unit_row_target_is_44px_and_clear_of_its_switch(
 
 
 @pytest.mark.chromium_only
-@pytest.mark.parametrize("theme", ["light", "dark"])
-def test_on_switch_track_is_the_accent_not_green(
+def _on_switch_track_is_the_accent_not_green(
     theme: str, page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     """An on switch is the app's accent fill, never the success green (#818,
@@ -251,3 +251,23 @@ def test_on_switch_track_is_the_accent_not_green(
     )
     assert got == accent, f"{theme}: on switch track {got} is not accent-fill {accent}"
     assert got != green, f"{theme}: on switch track is still the success green {green}"
+
+
+def test_ac_row_controls(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """AC row: power, setpoint taps and floor, fan, offline marking, rule chip, 44px target, accent switch track."""
+    run_flow(
+        request, page, base_url,
+        _power_toggle_posts_and_rerenders,
+        _setpoint_taps_settle_into_one_post,
+        _closing_the_sheet_sends_a_dialled_setpoint,
+        _setpoint_stops_at_the_mode_minimum,
+        _fan_segment_posts_fan_speed,
+        _offline_unit_row_is_marked_and_inert,
+        _offline_unit_row_marked_on_home_summary,
+        _row_meta_carries_the_rule_and_the_boost_chip,
+        _unit_row_target_is_44px_and_clear_of_its_switch,
+        (_on_switch_track_is_the_accent_not_green, {'theme': 'light'}),
+        (_on_switch_track_is_the_accent_not_green, {'theme': 'dark'}),
+    )

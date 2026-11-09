@@ -6,9 +6,11 @@ import json
 import re
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import open_settings_sheet
+from tests.e2e._flow import run_flow
 from tests.e2e._surface import surface
 
 _HA_BODY = {
@@ -136,7 +138,7 @@ def _boot(
     page.wait_for_selector("#paneHome", state="visible")
 
 
-def test_group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
+def _group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -214,7 +216,7 @@ def test_group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
     assert len(reads) == settled
 
 
-def test_help_merged_into_the_voice_sheet(
+def _help_merged_into_the_voice_sheet(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -235,7 +237,7 @@ def test_help_merged_into_the_voice_sheet(
     expect(help_section).to_contain_text("Room and satellite names are owned in Home Assistant")
 
 
-def test_streamed_partial_finishes_and_announces_to_selected_room(
+def _streamed_partial_finishes_and_announces_to_selected_room(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -321,7 +323,7 @@ def test_streamed_partial_finishes_and_announces_to_selected_room(
     expect(mic.locator(".rec-wave")).to_have_count(0)
 
 
-def test_recent_interactions_is_hidden_until_there_is_one(
+def _recent_interactions_is_hidden_until_there_is_one(
     page: Page,
     base_url: str,
     sample_units: List[Dict],
@@ -343,3 +345,15 @@ def test_recent_interactions_is_hidden_until_there_is_one(
     expect(page.locator("#haInteractionsCard")).to_be_hidden()
     expect(page.locator("#haSatellitesOpen")).to_be_visible()
 
+
+def test_home_assistant_group(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Home Assistant group: help in the voice sheet, streamed push-to-talk, hidden empty interactions, then the clock-driven poll (last: the page clock stays installed)."""
+    run_flow(
+        request, page, base_url,
+        _help_merged_into_the_voice_sheet,
+        _streamed_partial_finishes_and_announces_to_selected_room,
+        _recent_interactions_is_hidden_until_there_is_one,
+        _group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open,
+    )

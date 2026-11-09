@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List
 
+import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import effective_rect
 from tests.e2e._surface import surface
 
@@ -27,7 +29,7 @@ def _open_page(page: Page, name: str) -> None:
     expect(page.locator(f'#detailDialog .unit-sheet-page[data-page="{name}"]')).to_be_visible()
 
 
-def test_sheet_shows_mode_as_the_selected_segment_and_both_vanes(
+def _sheet_shows_mode_as_the_selected_segment_and_both_vanes(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -50,7 +52,7 @@ def test_sheet_shows_mode_as_the_selected_segment_and_both_vanes(
     expect(page.locator("#detailBack")).to_be_hidden()
 
 
-def test_all_dialog_close_buttons_use_compact_44px_targets(
+def _all_dialog_close_buttons_use_compact_44px_targets(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -87,7 +89,7 @@ def test_all_dialog_close_buttons_use_compact_44px_targets(
     assert (target.effective.width, target.effective.height) == (44, 44)
 
 
-def test_offline_unit_disables_unit_commands_only(
+def _offline_unit_disables_unit_commands_only(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     """Offline (#520): every control that writes to the unit goes inert and the
@@ -116,7 +118,7 @@ def test_offline_unit_disables_unit_commands_only(
     expect(page.locator("#ruleEnabled")).to_be_enabled()
 
 
-def test_reachable_unit_hides_offline_banner(
+def _reachable_unit_hides_offline_banner(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -126,7 +128,7 @@ def test_reachable_unit_hides_offline_banner(
     expect(page.locator("#detailPower")).to_be_enabled()
 
 
-def test_vane_rows_gated_on_capability(
+def _vane_rows_gated_on_capability(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -137,7 +139,7 @@ def test_vane_rows_gated_on_capability(
     expect(page.locator("#detailVaneHorizontalRow")).to_be_hidden()
 
 
-def test_no_vane_unit_has_no_vanes_row(
+def _no_vane_unit_has_no_vanes_row(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -145,7 +147,7 @@ def test_no_vane_unit_has_no_vanes_row(
     expect(page.locator("#detailVanesLink")).to_be_hidden()
 
 
-def test_vane_change_posts_at_once(
+def _vane_change_posts_at_once(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -158,7 +160,7 @@ def test_vane_change_posts_at_once(
     assert info.value.post_data_json == {"vane_vertical_direction": "Swing"}
 
 
-def test_mode_segment_posts_at_once(
+def _mode_segment_posts_at_once(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -175,7 +177,7 @@ def test_mode_segment_posts_at_once(
     )
 
 
-def test_rule_switch_saves_at_once(
+def _rule_switch_saves_at_once(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -199,7 +201,7 @@ def test_rule_switch_saves_at_once(
     expect(page.locator("#detailRuleValue")).to_have_text("Cool 23°")
 
 
-def test_name_saves_on_enter(
+def _name_saves_on_enter(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -215,7 +217,7 @@ def test_name_saves_on_enter(
     expect(page.locator('#acUnits [data-unit-id="unit-1"] .action-row-title')).to_have_text("Fixture den")
 
 
-def test_schedules_add_through_the_staged_editor(
+def _schedules_add_through_the_staged_editor(
     page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
 ) -> None:
     mock_api(sample_units)
@@ -253,3 +255,23 @@ def test_schedules_add_through_the_staged_editor(
     expect(rows.nth(1)).to_contain_text("Off")
     page.locator("#detailBack").click()
     expect(page.locator("#detailSchedValue")).to_have_text("2 on")
+
+
+def test_ac_unit_sheet(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """AC unit sheet: mode and vanes, close targets, offline gating, instant saves, name and staged schedules."""
+    run_flow(
+        request, page, base_url,
+        _sheet_shows_mode_as_the_selected_segment_and_both_vanes,
+        _all_dialog_close_buttons_use_compact_44px_targets,
+        _offline_unit_disables_unit_commands_only,
+        _reachable_unit_hides_offline_banner,
+        _vane_rows_gated_on_capability,
+        _no_vane_unit_has_no_vanes_row,
+        _vane_change_posts_at_once,
+        _mode_segment_posts_at_once,
+        _rule_switch_saves_at_once,
+        _name_saves_on_enter,
+        _schedules_add_through_the_staged_editor,
+    )

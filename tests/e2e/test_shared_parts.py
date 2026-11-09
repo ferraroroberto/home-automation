@@ -17,6 +17,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home
+from tests.e2e._flow import run_flow
 from tests.e2e.test_contrast import _CONTRAST_JS
 
 _ZONE = {"type": 1, "status": "closed", "active": False, "bypass": False,
@@ -32,7 +33,7 @@ def _security(mode: str, troubled: int) -> Dict:
 
 
 @pytest.mark.chromium_only
-def test_header_lines_name_exceptions_else_a_plain_fact(
+def _header_lines_name_exceptions_else_a_plain_fact(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
     mock_security: Callable, mock_presence: Callable,
@@ -68,7 +69,7 @@ def test_header_lines_name_exceptions_else_a_plain_fact(
         "el => getComputedStyle(el).color")
 
 
-def test_security_badge_counts_trouble_and_turns_danger_when_triggered(
+def _security_badge_counts_trouble_and_turns_danger_when_triggered(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
     mock_security: Callable, mock_presence: Callable,
@@ -103,7 +104,7 @@ def test_security_badge_counts_trouble_and_turns_danger_when_triggered(
 
 
 @pytest.mark.chromium_only
-def test_sheets_follow_their_save_model(
+def _sheets_follow_their_save_model(
     page: Page, base_url: str, sample_units: List[Dict], sample_plugs: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_tuya: Callable,
     mock_network: Callable,
@@ -146,3 +147,15 @@ def test_sheets_follow_their_save_model(
     page.locator("#netWifiDone").click()
     expect(wifi).to_be_hidden()
     expect(page.locator("#netWifiList .net-wifi-row").filter(has_text="Neighbour AP")).to_have_count(1)
+
+
+def test_shared_parts(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Shared parts: header lines, security badge, sheet save models."""
+    run_flow(
+        request, page, base_url,
+        _header_lines_name_exceptions_else_a_plain_fact,
+        _security_badge_counts_trouble_and_turns_danger_when_triggered,
+        _sheets_follow_their_save_model,
+    )

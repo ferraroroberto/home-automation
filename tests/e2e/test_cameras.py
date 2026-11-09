@@ -14,6 +14,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e._app import boot_home, hold_reads
+from tests.e2e._flow import run_flow
 from tests.e2e._geometry import assert_min_target, assert_no_overlap, assert_unpainted
 from tests.e2e._surface import surface
 
@@ -98,7 +99,7 @@ _LIVE_LABELS = ["Step", "Hold", "Zoom out", "Zoom in", "Screenshot", "Record"]
 
 
 @pytest.mark.chromium_only
-def test_cameras_distinguish_loading_from_true_empty(
+def _cameras_distinguish_loading_from_true_empty(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -132,7 +133,7 @@ def test_cameras_distinguish_loading_from_true_empty(
 
 
 @pytest.mark.chromium_only
-def test_cameras_show_contextual_unavailable_state(
+def _cameras_show_contextual_unavailable_state(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -161,7 +162,7 @@ def test_cameras_show_contextual_unavailable_state(
 
 
 @pytest.mark.chromium_only
-def test_camera_refresh_failure_preserves_last_good_rows(
+def _camera_refresh_failure_preserves_last_good_rows(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -204,7 +205,7 @@ def test_camera_refresh_failure_preserves_last_good_rows(
 
 
 @pytest.mark.chromium_only
-def test_camera_buttons_carry_a_visible_label(
+def _camera_buttons_carry_a_visible_label(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -222,7 +223,7 @@ def test_camera_buttons_carry_a_visible_label(
 
 
 @pytest.mark.chromium_only
-def test_camera_thumbnail_opens_the_snapshot_zoom(
+def _camera_thumbnail_opens_the_snapshot_zoom(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -255,7 +256,7 @@ def test_camera_thumbnail_opens_the_snapshot_zoom(
 
 
 @pytest.mark.chromium_only
-def test_saving_a_ptz_preset_prompts_for_its_name(
+def _saving_a_ptz_preset_prompts_for_its_name(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable,
@@ -278,8 +279,7 @@ def test_saving_a_ptz_preset_prompts_for_its_name(
     expect(prompt).to_be_hidden()
 
 
-@pytest.mark.parametrize("width", [320, 390])
-def test_camera_live_controls_fit_a_phone(
+def _camera_live_controls_fit_a_phone(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable, mock_security: Callable,
     mock_presence: Callable, width: int,
@@ -324,3 +324,20 @@ def test_camera_live_controls_fit_a_phone(
     )
     assert abs(up[0] - down[0]) < 0.5, "tilt up and down are not on one vertical axis"
     assert abs(left[1] - right[1]) < 0.5, "pan left and right are not on one horizontal axis"
+
+
+def test_cameras(
+    page: Page, base_url: str, request: pytest.FixtureRequest,
+) -> None:
+    """Cameras list: loading/empty/unavailable/stale states, labels, snapshot zoom, preset naming, live controls at 320 and 390 px."""
+    run_flow(
+        request, page, base_url,
+        _cameras_distinguish_loading_from_true_empty,
+        _cameras_show_contextual_unavailable_state,
+        _camera_refresh_failure_preserves_last_good_rows,
+        _camera_buttons_carry_a_visible_label,
+        _camera_thumbnail_opens_the_snapshot_zoom,
+        _saving_a_ptz_preset_prompts_for_its_name,
+        (_camera_live_controls_fit_a_phone, {'width': 320}),
+        (_camera_live_controls_fit_a_phone, {'width': 390}),
+    )
