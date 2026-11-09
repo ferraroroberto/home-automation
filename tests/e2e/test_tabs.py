@@ -3,7 +3,7 @@
 Pure navigation: pane switching, the page header + Settings gear (#779), the
 retired-tab migrations, the saved-tab restore, and the nav-at-rest checks
 (#229/#232/#420). Per-feature tab
-content lives in its own module — `test_home_tab.py`, `test_vm_tile.py`,
+content lives in its own module — `test_home_tab.py`, `test_home_assistant.py`,
 `test_ac_tab.py`, `test_energy_tab.py`, `test_security_tab.py`,
 `test_cameras.py`, `test_presence.py`.
 """

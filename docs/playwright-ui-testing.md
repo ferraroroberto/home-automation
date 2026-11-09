@@ -29,6 +29,6 @@ Read that doc first; this file only adds what's specific to this repo.
   wedges return, the gate's `browser helpers newly wedged during this run`
   line and the `teardown watchdog fired` breadcrumb in
   `webapp/verify-progress.log` say so per run.
-- Mobile projection: the regression suite runs `test_design_matrix.py`'s
+- Mobile projection: the regression suite runs `test_design_conformance.py`'s
   geometry matrix (4 viewports × 2 themes) across Chromium + WebKit — see
   `tests/e2e/_geometry.py`.

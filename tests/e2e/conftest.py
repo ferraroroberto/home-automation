@@ -330,8 +330,7 @@ def _reap_orphaned_webkit_zombies() -> None:
 #: one did not (#796, from the #778 audit: ~46 nodes, a fifth of the suite's
 #: wall time). Add a module only when that holds for every test in it; **when in doubt it stays on
 #: both**. A module that carries even one layout/44px/390px test, or that
-#: pins per-projection behaviour (``test_driver_isolation``,
-#: ``test_helper_cwd_isolation``), does not belong here — and neither do the
+#: pins per-projection behaviour (``test_browser_isolation``), does not belong here — and neither do the
 #: boot canary (``test_smoke``) and the auth boundary (``test_login``), whose
 #: whole point is that every engine gets through them. Deselected, never
 #: deleted: ``--browser webkit`` still shows them as deselected, and removing
@@ -341,15 +340,10 @@ def _reap_orphaned_webkit_zombies() -> None:
 #: ones individually with ``@pytest.mark.chromium_only`` instead (#798) — the same
 #: deselection, same rule, applied per test.
 CHROMIUM_ONLY_MODULES = frozenset({
-    "test_ac_tab",            # pane states (loading/empty/unavailable/stale) + snapshot paint
-    "test_boost_coordinator", # settings form: persistence, range refusal, summary text
     "test_circuits",          # CT-clamp group: rows, rename dialog, hide state — text and class only
     "test_lazy_libraries",    # which scripts/styles the page requests, and when — network wiring
     "test_lights",            # light rows, bulk buttons, rename — POST round-trips and states
     "test_pc_fleet",          # roster chips, toggles, wake PUT/POST wiring
-    "test_pv_system",         # PV config rows, validation, forecast toast
-    "test_vm_tile",           # VM tile states and start/stop command errors
-    "test_voice_commands",    # language filter and bilingual card text
 })
 
 
@@ -733,7 +727,7 @@ def _neutral_driver_cwd() -> Iterator[str]:
     Only the driver's *spawn* needs the neutral cwd — the driver's own working
     directory is fixed at spawn and is what every later ``launch()`` inherits —
     so this restores the caller's cwd immediately, and pytest carries on from
-    the checkout as before. ``tests/e2e/test_helper_cwd_isolation.py`` pins it.
+    the checkout as before. ``tests/e2e/test_browser_isolation.py`` pins it.
     """
     original = os.getcwd()
     neutral = tempfile.gettempdir()
@@ -764,7 +758,7 @@ def playwright(browser_name: str) -> Iterator[Playwright]:
 
     Per-projection drivers keep #440's guarantee (a wedged teardown is still
     bounded and still force-killed) while confining the damage to the projection
-    that actually wedged. `tests/e2e/test_driver_isolation.py` pins this.
+    that actually wedged. `tests/e2e/test_browser_isolation.py` pins this.
 
     Started from a neutral cwd so nothing it spawns can pin this checkout —
     see `_neutral_driver_cwd` (#681).
