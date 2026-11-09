@@ -113,12 +113,12 @@ modules below).
 
 Test modules are scoped **one per feature area** — `test_tabs.py` is pure nav
 and tab switching, while tab content lives in
-`test_home_tab.py`, `test_vm_tile.py`, `test_ac_tab.py`, `test_energy_tab.py`,
+`test_home_tab.py`, `test_home_assistant.py`, `test_ac_tab.py`, `test_energy_tab.py`,
 `test_security_tab.py`, `test_cameras.py` and `test_presence.py`. `tests/e2e/_app.py`
 holds the shared `boot_home()` opener the feature modules use.
 
 **One test per flow.** The fleet budget is fewer than 15 browser tests per
-repo; this app has more distinct surfaces than that, so each module holds one
+repo; this app has more distinct surfaces than that, so each surface holds one
 test — a *flow* — and the scenarios it used to hold are its **steps**.
 `tests/e2e/_flow.py`'s `run_flow` runs a flow's steps in order on one page. A
 step is a plain `_name(page, base_url, <fixtures>)` function, written exactly
@@ -180,8 +180,8 @@ verification run leaves no rewritten PNG behind. Exit 3 is NOT CONFIRMED and fai
   review `git diff --stat -- tests/e2e/shots` and the moved images, then
   `git add tests/e2e/shots` and commit them with the change.
 
-A full run executes 82 nodes (110 collected, 28 WebKit nodes deselected) from 40 tests in 4m53s,
-measured on a box shared with other lanes. `test_design_matrix.py` runs the viewport × theme matrix below as
+A full run executes 62 nodes (84 collected, 22 WebKit nodes deselected) from 29 tests in 6m08s,
+measured on a box shared with other lanes. `test_design_conformance.py` runs the viewport × theme matrix below as
 steps of one test. CLAUDE.md tracks this as a runtime budget, not a fixed test-count cap.
 
 Modules named in `CHROMIUM_ONLY_MODULES` (`tests/e2e/conftest.py`) run on
@@ -208,7 +208,7 @@ horizontal overflow, live Chart.js tick/cue config) go through
 `project-scaffolding/tests/e2e/_geometry.py` (like `app/tray/single_instance.py`;
 never fork it, upstream changes first). It also ships `assert_unpainted` (a row verb
 draws no fill, border or shadow at rest, in both themes), which the row-verb tests call.
-`tests/e2e/test_design_matrix.py` runs
+`tests/e2e/test_design_conformance.py` runs
 the helper's 320/390/430/772px × light/dark matrix against the home view,
 driving the theme through the app's own `home-automation.theme` localStorage
 boot path with a per-leg check that the theme actually applied.
@@ -255,7 +255,7 @@ the sweep is defence in depth, not the protection:
   (`_neutral_driver_cwd` in `tests/e2e/conftest.py`). Every browser and helper
   inherits the driver's working directory, so none of them ever roots in this
   checkout and a wedged one pins a directory nobody wants to delete.
-  `tests/e2e/test_helper_cwd_isolation.py` pins that arrangement.
+  `tests/e2e/test_browser_isolation.py` pins that arrangement.
 - **The remedy**, if something pins a directory anyway, is
   `scripts/unpin_directory.py` — no reboot needed. It closes the wedged
   holder's cwd handle, and refuses outright when the holder is alive:

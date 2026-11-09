@@ -1,4 +1,14 @@
-"""Issues #239 / #884: the Home Assistant group on Devices + streamed room push-to-talk."""
+"""The Home Assistant group on Devices: the VM row, voice commands, voice sheet.
+
+The VM row (#homeAssistantCard's VM half): loading vs not-found, contextual
+unavailability, start kept usable for an identified-but-unreachable VM, concise
+command-failure toasts and stale-preserving poll failures. The voice cheat sheet's
+All/EN/ES toggle narrows the bilingual catalogue (read from the real
+GET /api/voice-commands) by the wake word each language leads with. Then the
+satellite half: help in the voice sheet, streamed room push-to-talk, the hidden
+empty interactions box, and last the clock-driven poll (the page clock stays
+installed once set).
+"""
 
 from __future__ import annotations
 
@@ -9,9 +19,337 @@ from typing import Callable, Dict, List
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e._app import open_settings_sheet
+from tests.e2e._app import boot_home, hold_reads, open_settings_sheet
 from tests.e2e._flow import run_flow
+from tests.e2e._geometry import assert_no_overlap
 from tests.e2e._surface import surface
+
+
+@pytest.mark.chromium_only
+def _vm_tile_distinguishes_loading_from_not_found(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"hyperv": {"available": False, "state": "not_found"}}),
+        ),
+    )
+    release = hold_reads(page, "/api/hyperv")
+    boot_home(page, base_url)
+    page.locator("#tabIot").click()
+
+    # #461/#884: status text in the VM row's meta line, switch as its trailing item.
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "loading")
+    expect(page.locator("#homeAssistantSummaryState")).to_have_text("Reading status…")
+    expect(page.locator("#homeVmToggle")).to_be_disabled()
+    surface(page, "iot.vm-loading")
+    release()
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "empty")
+    expect(page.locator("#homeAssistantSummaryState")).to_have_text("VM not found")
+    expect(page.locator("#homeVmToggle")).to_be_disabled()
+    surface(page, "iot.vm-empty")
+
+
+@pytest.mark.chromium_only
+def _vm_tile_shows_contextual_unavailable_state(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"Hyper-V host 192.0.2.80 timed out after 10 seconds"}',
+        ),
+    )
+    boot_home(page, base_url)
+    page.locator("#tabIot").click()
+
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "error")
+    expect(page.locator("#homeAssistantSummaryState")).to_have_text("Status unavailable")
+    expect(page.locator("#haVmAvatar")).to_have_attribute("data-badge", "down")
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.80")
+    surface(page, "iot.vm-unavailable")
+
+
+@pytest.mark.chromium_only
+def _vm_status_error_keeps_start_action_when_vm_is_identified(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "hyperv": {
+                    "available": False,
+                    "name": "Fixture HA",
+                    "state": "unknown",
+                    "error": "Get-VM status failed",
+                }
+            }),
+        ),
+    )
+    page.route(
+        "**/api/hyperv/start",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "hyperv": {
+                    "available": True,
+                    "name": "Fixture HA",
+                    "state": "running",
+                    "uptime_seconds": 0,
+                }
+            }),
+        ),
+    )
+    boot_home(page, base_url)
+    page.locator("#tabIot").click()
+
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "error")
+    # An unreachable-but-identified VM keeps the switch usable for start
+    # (#461: the switch replaced the old tile's "Start Home Assistant").
+    # #884: the group is always open - the switch is one tap away.
+    card = page.locator("#homeAssistantCard")
+    toggle = page.locator("#homeVmToggle")
+    expect(toggle).to_be_enabled()
+    expect(toggle).to_have_attribute("aria-checked", "false")
+    toggle.click()
+
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "ready")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("Online")
+    expect(page.locator("#haVmAvatar")).to_have_attribute("data-badge", "up")
+    expect(toggle).to_be_enabled()
+    expect(toggle).to_have_attribute("aria-checked", "true")
+    # LAYOUT-05 (#805, #884): the row's text block is read-only - the switch is
+    # its sibling, not nested inside it - and switching the VM leaves the group visible.
+    expect(card.locator(".ha-vm-row .action-row-main button, .ha-vm-row .action-row-main input")).to_have_count(0)
+    expect(card.locator(".ha-vm-row > #homeVmToggle")).to_have_count(1)
+    expect(card).to_be_visible()
+
+
+@pytest.mark.chromium_only
+def _vm_command_failure_uses_concise_toast(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "hyperv": {
+                    "available": False,
+                    "name": "Fixture HA",
+                    "state": "unknown",
+                }
+            }),
+        ),
+    )
+    page.route(
+        "**/api/hyperv/start",
+        lambda route: route.fulfill(
+            status=502,
+            content_type="application/json",
+            body='{"detail":"Start-VM host 192.0.2.80 Value cannot be null Parameter name: name"}',
+        ),
+    )
+    boot_home(page, base_url)
+    page.locator("#tabIot").click()
+    expect(page.locator("#homeVmToggle")).to_be_enabled()
+    page.locator("#homeVmToggle").click()
+
+    expect(page.locator("#toast")).to_have_text("Couldn't start Home Assistant")
+    expect(page.locator("#toast")).not_to_contain_text("Start-VM")
+    expect(page.locator("#toast")).not_to_contain_text("192.0.2.80")
+
+
+@pytest.mark.chromium_only
+def _vm_poll_failure_preserves_status_and_disables_power(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    failing = {"value": False}
+    vm = {
+        "available": True,
+        "state": "running",
+        "uptime_seconds": 3600,
+        "ip_address": "192.0.2.81",
+    }
+
+    def handle_vm(route) -> None:
+        if failing["value"]:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body='{"detail":"Hyper-V host 192.0.2.80 timed out after 10 seconds"}',
+            )
+            return
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"hyperv": vm}),
+        )
+
+    page.route("**/api/hyperv", handle_vm)
+    boot_home(page, base_url)
+    page.locator("#tabIot").click()
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "ready")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("Online")
+    expect(page.locator("#homeVmToggle")).to_be_enabled()
+
+    failing["value"] = True
+    page.locator("#tabAc").click()
+    page.locator("#tabIot").click()
+
+    expect(page.locator("#homeAssistantCard")).to_have_attribute("data-vm-state", "stale")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("Online")
+    expect(page.locator("#homeAssistantSummaryState")).to_contain_text("cached")
+    expect(page.locator("#homeVmToggle")).to_be_disabled()
+    # The stale detail moved into the status text's tooltip (#461).
+    expect(page.locator("#homeAssistantSummaryState")).to_have_attribute(
+        "title", re.compile("Last updated .+ · live data unavailable")
+    )
+    expect(page.locator("#homeAssistantSummaryState")).not_to_contain_text("192.0.2.80")
+    surface(page, "iot.vm-stale")
+
+
+@pytest.mark.chromium_only
+def _vm_switch_tap_zone_stays_inside_its_row(
+    page: Page, base_url: str, sample_units: List[Dict],
+    mock_api: Callable, mock_energy: Callable,
+) -> None:
+    """TOUCH-02 (#816, #884): the VM switch's tap zone stays in its own row.
+
+    The old assertion kept the switch out of the card summary; on the shared
+    row the neighbours are the group's tap targets, so the switch's effective
+    rectangle must not reach the satellites/interactions rows below it.
+    """
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"hyperv": {
+                "available": True, "name": "Fixture HA", "state": "running", "uptime_seconds": 60,
+            }}),
+        ),
+    )
+    boot_home(page, base_url)
+    page.locator("#tabIot").click()
+    toggle = page.locator("#homeVmToggle")
+    expect(toggle).to_be_enabled()
+
+    row_box = page.locator(".ha-vm-row").bounding_box()
+    toggle_box = toggle.bounding_box()
+    assert row_box is not None and toggle_box is not None
+    assert toggle_box["x"] >= row_box["x"]
+    assert toggle_box["x"] + toggle_box["width"] <= row_box["x"] + row_box["width"] + 0.5
+    assert toggle_box["y"] >= row_box["y"] - 0.5
+    assert toggle_box["y"] + toggle_box["height"] <= row_box["y"] + row_box["height"] + 0.5
+
+    assert_no_overlap([toggle, page.locator("#haSatellitesOpen")])
+
+
+_VOICE_HA_BODY = {"satellites": [], "interactions": [], "voice_transcriber": False}
+
+
+def _open_cheat_sheet(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    mock_api(sample_units)
+    mock_energy()
+    page.route(
+        "**/api/ha",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(_VOICE_HA_BODY)
+        ),
+    )
+    page.route(
+        "**/api/hyperv",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"hyperv": {"available": False}}),
+        ),
+    )
+    page.goto(base_url + "/", wait_until="domcontentloaded")
+    page.wait_for_selector("#paneHome", state="visible")
+    open_settings_sheet(page, "voiceSheet")  # Settings since #779, a sheet since #886
+    # The list is fetched on first open — the toggle only renders once the
+    # bilingual catalogue has loaded.
+    page.wait_for_selector('[data-testid="voice-lang-es"]')
+
+
+@pytest.mark.chromium_only
+def _language_toggle_filters_by_pipeline(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    _open_cheat_sheet(page, base_url, sample_units, mock_api, mock_energy)
+    lst = page.locator("#voiceCommandsList")
+
+    # Default "All": both pipelines' examples are present, All is pressed.
+    expect(page.locator('[data-testid="voice-lang-all"]')).to_have_attribute("aria-pressed", "true")
+    expect(lst).to_contain_text("Okay Nabu,")
+    expect(lst).to_contain_text("Hey Mycroft,")
+
+    # ES: only Spanish phrasings survive; the English-only built-ins group is gone.
+    page.locator('[data-testid="voice-lang-es"]').click()
+    expect(page.locator('[data-testid="voice-lang-es"]')).to_have_attribute("aria-pressed", "true")
+    expect(page.locator('[data-testid="voice-lang-all"]')).to_have_attribute("aria-pressed", "false")
+    expect(lst).to_contain_text("Hey Mycroft,")
+    expect(lst).not_to_contain_text("Okay Nabu,")
+
+    # EN: mirror — Spanish-only grocery group disappears.
+    page.locator('[data-testid="voice-lang-en"]').click()
+    expect(lst).to_contain_text("Okay Nabu,")
+    expect(lst).not_to_contain_text("Hey Mycroft,")
+    surface(page, "settings.voice-sheet")
+
+
+@pytest.mark.chromium_only
+def _alarm_group_is_bilingual_in_the_card(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+) -> None:
+    """The alarm group now answers on both pipelines (#466) — its Spanish arm
+    phrasing is reachable through the ES filter."""
+    _open_cheat_sheet(page, base_url, sample_units, mock_api, mock_energy)
+    page.locator('[data-testid="voice-lang-es"]').click()
+    alarm = page.locator('#voiceCommandsList .voice-group[data-group-id="alarm"]')
+    expect(alarm).to_contain_text("arma la alarma")
+
 
 _HA_BODY = {
     "satellites": [
@@ -47,6 +385,7 @@ _HA_BODY = {
     ],
     "voice_transcriber": True,
 }
+
 
 _MEDIA_RECORDER = """
 (() => {
@@ -349,9 +688,17 @@ def _recent_interactions_is_hidden_until_there_is_one(
 def test_home_assistant_group(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:
-    """Home Assistant group: help in the voice sheet, streamed push-to-talk, hidden empty interactions, then the clock-driven poll (last: the page clock stays installed)."""
+    """Home Assistant group: VM row states, voice-command language filter, help in the voice sheet, streamed push-to-talk, hidden empty interactions, then the clock-driven poll (last: the page clock stays installed)."""
     run_flow(
         request, page, base_url,
+        _vm_tile_distinguishes_loading_from_not_found,
+        _vm_tile_shows_contextual_unavailable_state,
+        _vm_status_error_keeps_start_action_when_vm_is_identified,
+        _vm_command_failure_uses_concise_toast,
+        _vm_poll_failure_preserves_status_and_disables_power,
+        _vm_switch_tap_zone_stays_inside_its_row,
+        _language_toggle_filters_by_pipeline,
+        _alarm_group_is_bilingual_in_the_card,
         _help_merged_into_the_voice_sheet,
         _streamed_partial_finishes_and_announces_to_selected_room,
         _recent_interactions_is_hidden_until_there_is_one,
