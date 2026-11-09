@@ -1,4 +1,10 @@
 {
   "version": 1,
-  "entries": []
+  "entries": [
+    {"key": "app/webapp/searxng_watchdog.py", "counts": {"state-literal": 2}},
+    {"key": "app/webapp/tesla_sampler.py", "counts": {"state-literal": 1}},
+    {"key": "src/devices/hyperv_client.py", "counts": {"state-literal": 1}},
+    {"key": "src/devices/tesla_client.py", "counts": {"state-literal": 2}},
+    {"key": "src/voice/searxng_client.py", "counts": {"state-literal": 3}}
+  ]
 }
