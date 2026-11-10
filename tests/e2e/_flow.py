@@ -56,7 +56,7 @@ def _reset_page(
     page.goto("about:blank")
     page.unroute_all(behavior="ignoreErrors")
     while init_scripts:
-        init_scripts.pop().dispose()
+        init_scripts.pop().close()  # dispose() is gone in 1.65; close() works on all
     page.context.clear_cookies()
     page.set_viewport_size(viewport)  # type: ignore[arg-type]
     page.emulate_media(color_scheme="null")  # type: ignore[arg-type]
