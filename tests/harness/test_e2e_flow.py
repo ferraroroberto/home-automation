@@ -22,8 +22,8 @@ class _Handle:
     def __init__(self, log: List[str], label: str) -> None:
         self._log, self._label = log, label
 
-    def dispose(self) -> None:
-        self._log.append(f"dispose {self._label}")
+    def close(self) -> None:
+        self._log.append(f"close {self._label}")
 
 
 class _Context:
@@ -96,7 +96,7 @@ def test_page_is_reset_between_steps_and_not_before_the_first() -> None:
     assert seen == ["first", "second"]
     reset = page.log[page.log.index("init hold") + 1 : page.log.index("second runs")]
     assert reset[:3] == ["clear_storage", "goto about:blank", "unroute_all"]
-    assert "dispose hold" in reset
+    assert "close hold" in reset
     assert "clear_cookies" in reset
     assert "viewport 390" in reset and "media null" in reset
     assert any(entry.startswith("route ") for entry in reset), "baseline stubs are reinstalled"
