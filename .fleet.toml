@@ -58,7 +58,7 @@ single_instance = { src = "app/tray/single_instance.py", sha = "fe8cc1bdbd038ed6
 tray_watchdog = { src = "app/tray/watchdog.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "app/tray/watchdog.py" }
 compression = { src = "src/compression.py", sha = "d930466848d17d47261261c490c4e9c1cce9399e", dest = "src/compression.py" }
 login_lockout = { src = "src/login_lockout.py", sha = "93208ab08bdc8591c678a08f55a0f46b3fc8a525", dest = "src/login_lockout.py" }
-webapp_serve = { src = "app/webapp/serve.py", sha = "41ca8abd5a2755a06bd8a620a72967211161d58e", dest = "app/webapp/serve.py" }
+webapp_serve = { src = "app/webapp/serve.py", sha = "6d779b94b028a898aa87200174a57c6573bdb7a5", dest = "app/webapp/serve.py" }
 instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_frontmatter.py" }
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
 
