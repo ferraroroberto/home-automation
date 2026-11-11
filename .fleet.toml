@@ -459,3 +459,26 @@ extensions = ["bat", "sh"]
 name   = "daily-fire-latch"
 module = "src/_schedule_store.py"
 type   = "DailyFireLatch"
+
+[[state_machines]]
+name   = "view-state"
+module = "app/webapp/static/view-state.js"
+type   = "ViewState"
+derive = "deriveViewState"
+
+[[state_machines]]
+name   = "searxng-phase"
+module = "src/voice/searxng_client.py"
+type   = "SearxngPhase"
+derive = "derive_searxng_phase"
+
+[[state_machines]]
+name   = "vm-phase"
+module = "src/devices/hyperv_client.py"
+type   = "VmPhase"
+derive = "derive_vm_phase"
+
+[[state_machines]]
+name   = "vehicle-state"
+module = "src/devices/tesla_client.py"
+type   = "VehicleState"

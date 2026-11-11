@@ -99,7 +99,7 @@ def note_reading(state: CadenceState, config: TeslaSamplerConfig, reading: tesla
         state.active, state.idle_since, state.quiet_until = True, None, 0.0
         return
     state.active = False
-    if reading.state != "online":
+    if not reading.awake:
         state.idle_since = None
         return
     if sample is None:

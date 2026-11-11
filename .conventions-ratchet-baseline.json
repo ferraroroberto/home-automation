@@ -1,22 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "app/webapp/searxng_watchdog.py", "counts": {"state-literal": 2}},
-    {"key": "app/webapp/static/devices/cameras.js", "counts": {"state-literal": 2}},
-    {"key": "app/webapp/static/devices/lights.js", "counts": {"state-literal": 2}},
-    {"key": "app/webapp/static/devices/plugs.js", "counts": {"state-literal": 3}},
-    {"key": "app/webapp/static/devices/tesla.js", "counts": {"state-literal": 4}},
-    {"key": "app/webapp/static/devices/units.js", "counts": {"state-literal": 2}},
-    {"key": "app/webapp/static/devices/vm.js", "counts": {"state-literal": 5}},
-    {"key": "app/webapp/static/energy/energy.js", "counts": {"state-literal": 1}},
-    {"key": "app/webapp/static/energy/ups.js", "counts": {"state-literal": 4}},
-    {"key": "app/webapp/static/presence/presence.js", "counts": {"state-literal": 3}},
-    {"key": "app/webapp/static/searxng.js", "counts": {"state-literal": 4}},
-    {"key": "app/webapp/static/security/security.js", "counts": {"state-literal": 1}},
-    {"key": "app/webapp/static/view-state.js", "counts": {"state-literal": 2}},
-    {"key": "app/webapp/tesla_sampler.py", "counts": {"state-literal": 1}},
-    {"key": "src/devices/hyperv_client.py", "counts": {"state-literal": 1}},
-    {"key": "src/devices/tesla_client.py", "counts": {"state-literal": 2}},
-    {"key": "src/voice/searxng_client.py", "counts": {"state-literal": 3}}
-  ]
+  "entries": []
 }

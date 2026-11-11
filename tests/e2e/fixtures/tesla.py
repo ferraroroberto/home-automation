@@ -31,8 +31,10 @@ def sample_tesla() -> Dict:
             "shift_state": None,
             "speed_kmh": None,
             "at_home": True,
+            "charging": True,
         },
         "state": "online",
+        "awake": True,
         "checked_at": now - 300,
     }
 

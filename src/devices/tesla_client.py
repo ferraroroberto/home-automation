@@ -29,6 +29,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass
 from datetime import date
+from enum import Enum
 from typing import Any, Dict, Optional
 
 import aiohttp
@@ -57,6 +58,21 @@ CHARGING_STATES = frozenset({"Charging", "Starting"})
 _backoff = BackoffTracker(base_s=60.0, max_s=1800.0)
 _lock = threading.Lock()
 _vehicle_id: Optional[str] = None
+
+
+class VehicleState(str, Enum):
+    """The connectivity state a read reports for the car.
+
+    ``ONLINE``, ``ASLEEP`` and ``OFFLINE`` are Tesla's own words; ``UNCONFIGURED``
+    means there is no app or login and ``ERROR`` that the read failed. A word
+    Tesla grows later passes through ``TeslaReading.state`` as plain text.
+    """
+
+    ONLINE = "online"
+    ASLEEP = "asleep"
+    OFFLINE = "offline"
+    UNCONFIGURED = "unconfigured"
+    ERROR = "error"
 
 
 @dataclass(frozen=True)
@@ -97,6 +113,11 @@ class TeslaReading:
     state: str
     sample: Optional[TeslaSample] = None
     error: Optional[str] = None
+
+    @property
+    def awake(self) -> bool:
+        """Whether the car answered awake: the only state a data read is worth making in."""
+        return self.state == VehicleState.ONLINE
 
 
 class _RequestCounter:
@@ -204,8 +225,9 @@ async def _read(config: TeslaAppConfig, with_data: bool, known_awake: bool) -> T
                     raise RuntimeError(f"vehicle state returned HTTP {resp.status}")
                 body = await resp.json(content_type=None)
                 state = str((body.get("response") or {}).get("state") or "unknown")
-            if state != "online" or not with_data:
-                return TeslaReading(state=state)
+            reading = TeslaReading(state=state)
+            if not reading.awake or not with_data:
+                return reading
         resp = await _get(
             session, config,
             f"/api/1/vehicles/{vehicle_id}/vehicle_data"
@@ -215,11 +237,11 @@ async def _read(config: TeslaAppConfig, with_data: bool, known_awake: bool) -> T
             # 408: the car is asleep (it fell asleep since the last read). A
             # sleeping car answers 408 without being woken, so this is a state.
             if resp.status == 408:
-                return TeslaReading(state="asleep")
+                return TeslaReading(state=VehicleState.ASLEEP.value)
             if resp.status != 200:
                 raise RuntimeError(f"vehicle data returned HTTP {resp.status}")
             payload = await resp.json(content_type=None)
-    return TeslaReading(state="online", sample=parse_vehicle_data(payload))
+    return TeslaReading(state=VehicleState.ONLINE.value, sample=parse_vehicle_data(payload))
 
 
 async def read_vehicle(*, with_data: bool = True, known_awake: bool = False) -> TeslaReading:
@@ -233,18 +255,18 @@ async def read_vehicle(*, with_data: bool = True, known_awake: bool = False) -> 
     """
     config = load_app_config()
     if not is_configured(config):
-        return TeslaReading(state="unconfigured")
+        return TeslaReading(state=VehicleState.UNCONFIGURED.value)
     with _lock:
         wait = _backoff.seconds_remaining()
     if wait is not None:
-        return TeslaReading(state="error", error=f"backing off ({int(wait)} s left)")
+        return TeslaReading(state=VehicleState.ERROR.value, error=f"backing off ({int(wait)} s left)")
     try:
         reading = await _read(config, with_data, known_awake)
     except Exception as exc:  # noqa: BLE001 — a read never raises to the sampler
         with _lock:
             delay = _backoff.record_failure()
         logger.warning("⚠️ Tesla read failed (%s); retry in %d s", exc, int(delay))
-        return TeslaReading(state="error", error=str(exc))
+        return TeslaReading(state=VehicleState.ERROR.value, error=str(exc))
     with _lock:
         _backoff.record_success()
     return reading

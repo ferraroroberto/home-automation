@@ -77,7 +77,7 @@ def stub_tesla_api(page: Page) -> None:
             status=200,
             content_type="application/json",
             body='{"configured":false,"sampler_enabled":false,"usable_kwh":60,'
-                 '"sample":null,"state":null,"checked_at":null}',
+                 '"sample":null,"state":null,"awake":false,"checked_at":null}',
         ),
     )
 

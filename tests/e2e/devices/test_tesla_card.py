@@ -96,8 +96,9 @@ def _car_card_asleep_then_stale_keeps_the_figures(
 ) -> None:
     mock_api(sample_units)
     mock_energy()
-    asleep = {**sample_tesla, "state": "asleep",
-              "sample": {**sample_tesla["sample"], "charging_state": "Complete", "charger_power_kw": 0}}
+    asleep = {**sample_tesla, "state": "asleep", "awake": False,
+              "sample": {**sample_tesla["sample"], "charging_state": "Complete", "charger_power_kw": 0,
+                         "charging": False}}
     mock_tesla(asleep)
     _open_devices(page, base_url)
 

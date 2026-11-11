@@ -19,14 +19,65 @@ import { saveSnapshot, restoreSnapshot, snapshotLabel } from './snapshots.js';
 import { isAuthRequired, jsonApi } from './api.js';
 import { createPoller } from './poll.js';
 
+/* The declared view states: the one closed set every tab's `data-state`, spinner,
+ * empty/error block and stale note read. `IDLE` is the initial state only —
+ * nothing returns to it — and `HIDDEN` is a card that is configured off. The
+ * string values are the `data-state` attribute values the stylesheets select
+ * on, so they are the wire contract with the CSS. */
+export const ViewState = Object.freeze({
+  IDLE: 'idle',
+  LOADING: 'loading',
+  READY: 'ready',
+  EMPTY: 'empty',
+  ERROR: 'error',
+  STALE: 'stale',
+  HIDDEN: 'hidden',
+});
+
+const VIEW_STATES = new Set(Object.values(ViewState));
+
+/* What happened to a tab's data, as `deriveViewState` takes it. */
+export const ViewOutcome = Object.freeze({
+  FETCHED: 'fetched',
+  RESTORED: 'restored',
+  FAILED: 'failed',
+});
+
+/* A legal move is to any declared state except IDLE (the starting state, never
+ * a destination). An unknown name is refused, never stored. */
+export function canTransition(from, to) {
+  return VIEW_STATES.has(to) && to !== ViewState.IDLE && VIEW_STATES.has(from);
+}
+
+/* The one place an outcome becomes a view state. `ready` is the tab's own "did
+ * the body hold anything" answer, `hasData` its "is there last-good data still
+ * on screen" answer: a live body is READY or EMPTY, a saved snapshot is STALE
+ * or EMPTY, and a failed fetch keeps STALE data on screen or falls to ERROR. */
+export function deriveViewState(outcome, facts) {
+  const { ready = false, hasData = false } = facts || {};
+  if (outcome === ViewOutcome.FETCHED) return ready ? ViewState.READY : ViewState.EMPTY;
+  if (outcome === ViewOutcome.RESTORED) return ready ? ViewState.STALE : ViewState.EMPTY;
+  if (outcome === ViewOutcome.FAILED) return hasData ? ViewState.STALE : ViewState.ERROR;
+  throw new Error('deriveViewState: unknown outcome ' + outcome);
+}
+
+/* True while a tab has not yet answered (nothing fetched, or a fetch in flight). */
+export function isReading(viewState) {
+  return viewState === ViewState.IDLE || viewState === ViewState.LOADING;
+}
+
 export function createViewState(snapshotKey) {
-  let current = 'idle';
+  let current = ViewState.IDLE;
   let updatedAt = null;
   let liveUnavailable = false;
   return {
     get state() { return current; },
     get liveUnavailable() { return liveUnavailable; },
     set(next, opts) {
+      if (!canTransition(current, next)) {
+        console.warn('view-state: refused ' + current + ' -> ' + next);
+        return;
+      }
       current = next;
       if (opts && opts.updatedAt) updatedAt = opts.updatedAt;
       if (opts && Object.prototype.hasOwnProperty.call(opts, 'liveUnavailable')) {
@@ -89,7 +140,7 @@ export function renderFeedback(view, hostEl, opts) {
   const stateEl = options.paneEl || hostEl;
   stateEl.dataset.state = view.state;
   if (options.ariaBusy) {
-    stateEl.setAttribute('aria-busy', view.state === 'loading' ? 'true' : 'false');
+    stateEl.setAttribute('aria-busy', view.state === ViewState.LOADING ? 'true' : 'false');
   }
   hostEl.innerHTML = '';
   hostEl.hidden = false;
@@ -97,19 +148,19 @@ export function renderFeedback(view, hostEl, opts) {
     ? { actionLabel: 'Retry', onAction: options.onRetry }
     : null;
 
-  if (view.state === 'loading') {
+  if (view.state === ViewState.LOADING) {
     hostEl.appendChild(emptyStateEl(options.loadingIcon || options.icon, options.loadingLabel));
     return;
   }
-  if (view.state === 'empty' && options.emptyLabel) {
+  if (view.state === ViewState.EMPTY && options.emptyLabel) {
     hostEl.appendChild(emptyStateEl(options.icon, options.emptyLabel, retry));
     return;
   }
-  if (view.state === 'error') {
+  if (view.state === ViewState.ERROR) {
     hostEl.appendChild(emptyStateEl(options.icon, options.errorLabel, retry));
     return;
   }
-  if (view.state === 'stale') {
+  if (view.state === ViewState.STALE) {
     hostEl.appendChild(staleNoteEl(staleText(view, options.snapshotKey), options.staleClass));
     return;
   }
@@ -124,7 +175,7 @@ export function renderFeedback(view, hostEl, opts) {
  * extra it needs (disabling stale actions, updating a meta line).
  */
 export function markTabFailure(view, opts) {
-  view.set(opts.hasData ? 'stale' : 'error', { liveUnavailable: true });
+  view.set(deriveViewState(ViewOutcome.FAILED, { hasData: opts.hasData }), { liveUnavailable: true });
   reportFetchFailure(opts.scope, { message: 'live data unavailable' }, opts.label);
   if (opts.render) opts.render();
 }
@@ -161,13 +212,13 @@ export function createTabLoader(opts) {
     reportFetchOk(scope);
     if (persistSnapshot) saveSnapshot(scope, body);
     const ready = apply(body);
-    view.set(ready ? 'ready' : 'empty', { updatedAt: new Date(), liveUnavailable: false });
+    view.set(deriveViewState(ViewOutcome.FETCHED, { ready }), { updatedAt: new Date(), liveUnavailable: false });
     render();
   }
 
   async function load() {
     if (!hasAnyData()) {
-      view.set('loading', { liveUnavailable: false });
+      view.set(ViewState.LOADING, { liveUnavailable: false });
       render();
     }
     try {
@@ -187,7 +238,7 @@ export function createTabLoader(opts) {
     const body = restoreSnapshot(scope);
     if (!body) return;
     const ready = apply(body);
-    view.set(ready ? 'stale' : 'empty', {
+    view.set(deriveViewState(ViewOutcome.RESTORED, { ready }), {
       updatedAt: state.snapshotUpdatedAt[scope],
       liveUnavailable: false,
     });

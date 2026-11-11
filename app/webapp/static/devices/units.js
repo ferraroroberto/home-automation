@@ -29,7 +29,7 @@ import { icon } from '../_vendored/icons/icons.js';
 import { chipEl } from '../chip.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { buildToggle, toggleMarkup, setToggleState, isToggleOn, wireToggle } from '../toggle.js';
-import { createTabLoader, createViewState, renderFeedback, staleText } from '../view-state.js';
+import { createTabLoader, createViewState, ViewState, renderFeedback, staleText } from '../view-state.js';
 import { createPoller } from '../poll.js';
 import { rowEl } from '../row.js';
 import { sheet } from '../sheet.js';
@@ -154,7 +154,7 @@ function isOffline(unit) {
 // Whether a command to the unit can be sent now: not while it is offline,
 // and not from a restored snapshot or a failed poll (the readings are old).
 function canCommand(unit) {
-  return !isOffline(unit) && acView.state !== 'stale';
+  return !isOffline(unit) && acView.state !== ViewState.STALE;
 }
 
 function displayLabel(unit) {
@@ -276,14 +276,14 @@ function renderAcSummary() {
   if (!state.units.length) {
     const empty = document.createElement('p');
     empty.className = 'muted small group-note ac-summary-empty';
-    if (acView.state === 'loading') empty.textContent = 'Reading AC units…';
-    else if (acView.state === 'error') empty.textContent = 'AC units unavailable.';
+    if (acView.state === ViewState.LOADING) empty.textContent = 'Reading AC units…';
+    else if (acView.state === ViewState.ERROR) empty.textContent = 'AC units unavailable.';
     else empty.textContent = 'No AC units configured.';
     list.appendChild(empty);
     return;
   }
   list.appendChild(unitList());
-  if (acView.state === 'stale') {
+  if (acView.state === ViewState.STALE) {
     const note = document.createElement('p');
     note.className = 'muted small snapshot-note ac-snapshot-note';
     note.textContent = staleText(acView, 'units');
@@ -295,7 +295,7 @@ function renderAcSummary() {
 // attention, else how many are running. Only from a live read: a restored
 // snapshot or a failed poll says nothing rather than an old count.
 function renderAcHead() {
-  if (acView.state !== 'ready' && acView.state !== 'empty') {
+  if (acView.state !== ViewState.READY && acView.state !== ViewState.EMPTY) {
     setHeadPart('ac', 'units', null);
     if (els.climateMeta) els.climateMeta.textContent = '';
     return;

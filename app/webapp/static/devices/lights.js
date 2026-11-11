@@ -17,7 +17,7 @@
 'use strict';
 
 import { state, els, toast, reportFetchOk } from '../state.js';
-import { createTabLoader, createTabPollGate, createViewState, markTabFailure } from '../view-state.js';
+import { createTabLoader, createTabPollGate, createViewState, ViewState, markTabFailure } from '../view-state.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { isSnapshotRestored, saveSnapshot, snapshotLabel } from '../snapshots.js';
 import { emptyStateEl } from '../empty-state.js';
@@ -482,17 +482,17 @@ function setLightsCount(onCount, total) {
 export function renderLights() {
   els.lightsList.innerHTML = '';
   els.lightsList.dataset.state = lightsView.state;
-  els.lightsList.setAttribute('aria-busy', lightsView.state === 'loading' ? 'true' : 'false');
+  els.lightsList.setAttribute('aria-busy', lightsView.state === ViewState.LOADING ? 'true' : 'false');
   const tuyaLights = state.tuyaLights;
   const onCount = state.lights.filter(function (l) { return l.reachable && l.on === true; }).length +
     tuyaLights.filter(function (d) { return d.reachable && d.switch_on === true; }).length;
   setLightsCount(onCount, state.lights.length + tuyaLights.length);
   if (!state.lights.length && !tuyaLights.length) {
     updateBulkControls();
-    if (lightsView.state === 'loading') {
+    if (lightsView.state === ViewState.LOADING) {
       showLightsState('refresh-cw', 'Reading lights…', false);
       els.lightsNote.hidden = true;
-    } else if (lightsView.state === 'error') {
+    } else if (lightsView.state === ViewState.ERROR) {
       showLightsState('lightbulb', 'Lights unavailable', true);
       els.lightsNote.hidden = false;
       els.lightsNote.textContent = LIGHTS_UNAVAILABLE_COPY;
@@ -508,9 +508,9 @@ export function renderLights() {
   if (!state.lights.length) {
     // Only Tuya lights to show: the Elgato side has nothing to list, so its
     // setup hint would be noise — but a failed Elgato read still says so.
-    els.lightsNote.hidden = lightsView.state !== 'error';
+    els.lightsNote.hidden = lightsView.state !== ViewState.ERROR;
     els.lightsNote.textContent = LIGHTS_UNAVAILABLE_COPY;
-  } else if (lightsView.state === 'stale' && lightsView.liveUnavailable) {
+  } else if (lightsView.state === ViewState.STALE && lightsView.liveUnavailable) {
     els.lightsNote.hidden = false;
     els.lightsNote.textContent = lightsView.lastUpdatedLabel() + ' · live data unavailable';
   } else if (state.lightsStaleNote) {
@@ -568,7 +568,7 @@ export function wireLightControls() {
         saveSnapshot('lights', body);
         state.lights = (body && body.lights) || [];
         state.lightsStaleNote = '';  // a forced refresh is a live read
-        lightsView.set(state.lights.length ? 'ready' : 'empty', {
+        lightsView.set(state.lights.length ? ViewState.READY : ViewState.EMPTY, {
           updatedAt: new Date(),
           liveUnavailable: false,
         });

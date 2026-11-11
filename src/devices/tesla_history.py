@@ -320,8 +320,9 @@ def latest(path: Optional[Path] = None) -> Dict[str, Any]:
     with _connect(path) as conn:
         sample = conn.execute("SELECT * FROM samples ORDER BY ts DESC LIMIT 1").fetchone()
         status = conn.execute("SELECT state, checked_at, error FROM status WHERE id = 1").fetchone()
+    latest_sample = _row_to_sample(sample) if sample else None
     return {
-        "sample": _row_to_sample(sample).to_dict() if sample else None,
+        "sample": {**latest_sample.to_dict(), "charging": latest_sample.charging} if latest_sample else None,
         "state": status["state"] if status else None,
         "checked_at": status["checked_at"] if status else None,
         "error": status["error"] if status else None,

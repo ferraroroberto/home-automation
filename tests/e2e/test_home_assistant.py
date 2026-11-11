@@ -35,7 +35,7 @@ def _vm_tile_distinguishes_loading_from_not_found(
     page.route(
         "**/api/hyperv",
         lambda route: route.fulfill(
-            status=200, content_type="application/json", body=json.dumps({"hyperv": {"available": False, "state": "not_found"}}),
+            status=200, content_type="application/json", body=json.dumps({"hyperv": {"available": False, "state": "not_found", "phase": "not_found"}}),
         ),
     )
     release = hold_reads(page, "/api/hyperv")
@@ -96,6 +96,7 @@ def _vm_status_error_keeps_start_action_when_vm_is_identified(
                     "available": False,
                     "name": "Fixture HA",
                     "state": "unknown",
+                    "phase": "unknown",
                     "error": "Get-VM status failed",
                 }
             }),
@@ -111,6 +112,7 @@ def _vm_status_error_keeps_start_action_when_vm_is_identified(
                     "available": True,
                     "name": "Fixture HA",
                     "state": "running",
+                    "phase": "running",
                     "uptime_seconds": 0,
                 }
             }),
@@ -158,6 +160,7 @@ def _vm_command_failure_uses_concise_toast(
                     "available": False,
                     "name": "Fixture HA",
                     "state": "unknown",
+                    "phase": "unknown",
                 }
             }),
         ),
@@ -191,6 +194,7 @@ def _vm_poll_failure_preserves_status_and_disables_power(
     vm = {
         "available": True,
         "state": "running",
+        "phase": "running",
         "uptime_seconds": 3600,
         "ip_address": "192.0.2.81",
     }
@@ -251,7 +255,7 @@ def _vm_switch_tap_zone_stays_inside_its_row(
             status=200,
             content_type="application/json",
             body=json.dumps({"hyperv": {
-                "available": True, "name": "Fixture HA", "state": "running", "uptime_seconds": 60,
+                "available": True, "name": "Fixture HA", "state": "running", "phase": "running", "uptime_seconds": 60,
             }}),
         ),
     )
@@ -453,6 +457,7 @@ def _stub_vm(page: Page) -> None:
                         "available": True,
                         "name": "Home Assistant",
                         "state": "running",
+                        "phase": "running",
                         "uptime_seconds": 7200,
                         "ip_address": "192.0.2.8",
                         "mac_address": "00:11:22:33:44:55",

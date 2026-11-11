@@ -38,7 +38,7 @@ import {
 } from '../snapshots.js';
 import { restyleWifiChannelChart } from '../energy/charts.js';
 import { createPoller } from '../poll.js';
-import { createViewState, markTabFailure, renderFeedback } from '../view-state.js';
+import { createViewState, ViewState, markTabFailure, renderFeedback } from '../view-state.js';
 import {
   renderStats,
   renderDevices,
@@ -232,7 +232,7 @@ function renderGroupRows(net) {
   const internet = net ? net.internet : null;
   const avatar = els.networkInternetAvatar;
   if (!internet) {
-    els.networkInternetMeta.textContent = networkView.state === 'error'
+    els.networkInternetMeta.textContent = networkView.state === ViewState.ERROR
       ? 'Unavailable'
       : (net ? 'No data' : 'Reading…');
     if (avatar) delete avatar.dataset.badge;
@@ -278,7 +278,7 @@ function renderNetwork() {
     : []);
   renderDevices(net ? net.devices : []);
   renderNetworkFeedback();
-  if (networkView.state === 'stale' && networkView.liveUnavailable) {
+  if (networkView.state === ViewState.STALE && networkView.liveUnavailable) {
     disableStaleNetworkActions();
   }
 }
@@ -317,7 +317,7 @@ async function loadNetwork(opts) {
   if (networkLoading) return false;
   networkLoading = true;
   if (!speedtest && !state.network) {
-    networkView.set('loading', { liveUnavailable: false });
+    networkView.set(ViewState.LOADING, { liveUnavailable: false });
     renderNetworkFeedback();
   }
   try {
@@ -331,10 +331,10 @@ async function loadNetwork(opts) {
     const snap = state.network.snapshot;
     if (snap && snap.stale) {
       state.snapshotUpdatedAt.network = snap.built_at || null;
-      networkView.set('stale', { liveUnavailable: false });
+      networkView.set(ViewState.STALE, { liveUnavailable: false });
       if (!(opts && opts.catchUp)) scheduleNetworkCatchUp();
     } else {
-      networkView.set('ready', {
+      networkView.set(ViewState.READY, {
         updatedAt: new Date(),
         liveUnavailable: false,
       });
@@ -372,7 +372,7 @@ export function restoreNetworkSnapshot() {
   const body = restoreSnapshot('network');
   if (!body) return;
   state.network = body;
-  networkView.set('stale', {
+  networkView.set(ViewState.STALE, {
     updatedAt: state.snapshotUpdatedAt.network,
     liveUnavailable: false,
   });

@@ -18,14 +18,14 @@
 
 import { jsonApi, isAuthRequired } from '../api.js';
 import { emptyStateEl } from '../empty-state.js';
-import { createTabPollGate, createViewState } from '../view-state.js';
+import { createTabPollGate, createViewState, ViewState } from '../view-state.js';
 
 // The store changes at most every 2 min (the sampler's active cadence), so a
 // minute keeps "last seen" fresh without busy polling.
 const POLL_MS = 60_000;
 
 const view = createViewState(null);
-view.set('hidden');
+view.set(ViewState.HIDDEN);
 let latest = null;
 
 const $ = (id) => document.getElementById(id);
@@ -54,7 +54,7 @@ function fmtAgo(tsSeconds) {
 function chargingText(sample) {
   const state = sample.charging_state;
   const title = CHARGING_TITLES[state] || state || 'Charging state unknown';
-  const charging = state === 'Charging' || state === 'Starting';
+  const charging = sample.charging === true;
   const parts = [];
   if (charging && sample.charger_power_kw != null) {
     parts.push(Number(sample.charger_power_kw).toFixed(1) + ' kW');
@@ -94,12 +94,12 @@ function renderFigures(body) {
   // The avatar badge means alive: the car answered awake at the last check.
   $('teslaSeen').textContent = seenText(body);
   const avatar = $('teslaSeenAvatar');
-  if (body.state === 'online') avatar.dataset.badge = 'up';
+  if (body.awake === true) avatar.dataset.badge = 'up';
   else delete avatar.dataset.badge;
 
   $('teslaEmpty').hidden = true;
   $('teslaRows').hidden = false;
-  $('teslaState').textContent = view.state === 'stale'
+  $('teslaState').textContent = view.state === ViewState.STALE
     ? view.lastUpdatedLabel() + ' · live data unavailable'
     : '';
 }
@@ -107,11 +107,11 @@ function renderFigures(body) {
 function render() {
   const card = $('teslaCard');
   if (!card) return;
-  card.hidden = view.state === 'hidden';
+  card.hidden = view.state === ViewState.HIDDEN;
   card.dataset.state = view.state;
-  if (view.state === 'empty') {
+  if (view.state === ViewState.EMPTY) {
     showEmpty(latest.sampler_enabled ? 'No car reading yet' : 'Car data collection is off');
-  } else if (view.state === 'ready' || view.state === 'stale') {
+  } else if (view.state === ViewState.READY || view.state === ViewState.STALE) {
     renderFigures(latest);
   }
 }
@@ -121,15 +121,15 @@ export async function loadTesla() {
     const body = await jsonApi('/api/tesla');
     if (!body || !body.configured) {
       latest = null;
-      view.set('hidden');
+      view.set(ViewState.HIDDEN);
     } else {
       latest = body;
-      view.set(body.sample ? 'ready' : 'empty', { updatedAt: new Date(), liveUnavailable: false });
+      view.set(body.sample ? ViewState.READY : ViewState.EMPTY, { updatedAt: new Date(), liveUnavailable: false });
     }
   } catch (exc) {
     if (isAuthRequired(exc)) return;
     // Keep what is showing: figures go stale, an empty or hidden card stays.
-    if (view.state === 'ready') view.set('stale', { liveUnavailable: true });
+    if (view.state === ViewState.READY) view.set(ViewState.STALE, { liveUnavailable: true });
   }
   render();
 }

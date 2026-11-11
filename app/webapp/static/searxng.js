@@ -10,7 +10,7 @@
 
 import { state, els, toast, reportFetchFailure, reportFetchOk } from './state.js';
 import { jsonApi, isAuthRequired } from './api.js';
-import { createTabPollGate, createViewState } from './view-state.js';
+import { createTabPollGate, createViewState, ViewState } from './view-state.js';
 import { friendlyError } from './format.js';
 
 const POLL_MS = 30_000;
@@ -32,17 +32,27 @@ function containerWord(status) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+// The `phase` /api/searxng derives from Docker's status and the /healthz probe
+// (SearxngPhase in src/voice/searxng_client.py); this view never reads
+// Docker's `container_status` word to decide anything, only to show it.
+const SearxngPhase = Object.freeze({
+  SERVING: 'serving',
+  UNREACHABLE: 'unreachable',
+  DOWN: 'down',
+  NOT_FOUND: 'not_found',
+});
+
 function statusBadge(sx) {
   if (sx && sx.available === true) return { mod: 'running', text: 'Running' };
-  if (sx && sx.container_status && sx.container_status !== 'not_found' && sx.container_status !== 'running') {
+  if (sx && sx.phase === SearxngPhase.DOWN && sx.container_status) {
     return { mod: 'transition', text: containerWord(sx.container_status) };
   }
-  if (sx && sx.container_status === 'running') return { mod: 'transition', text: 'Starting…' };
+  if (sx && sx.phase === SearxngPhase.UNREACHABLE) return { mod: 'transition', text: 'Starting…' };
   return { mod: 'unavailable', text: 'Not started' };
 }
 
 function render(sx) {
-  if (searxngView.state === 'loading') {
+  if (searxngView.state === ViewState.LOADING) {
     renderSummaryState('Reading…', 'transition');
     if (els.searxngStartBtn) els.searxngStartBtn.hidden = true;
     return;
@@ -55,7 +65,7 @@ function render(sx) {
       : friendlyError(sx && sx.error, 'Search engine is unavailable.');
   }
   if (els.searxngStartBtn) {
-    const canStart = !!(sx && sx.container_status !== 'running');
+    const canStart = !!(sx && sx.phase !== SearxngPhase.SERVING && sx.phase !== SearxngPhase.UNREACHABLE);
     els.searxngStartBtn.hidden = !canStart;
     els.searxngStartBtn.disabled = busy;
   }
@@ -70,7 +80,7 @@ async function onStart() {
     const body = await jsonApi('/api/searxng/start', { method: 'POST' });
     state.searxng = (body && body.searxng) || state.searxng;
     reportFetchOk('searxng');
-    searxngView.set(state.searxng && state.searxng.available ? 'ready' : 'error', { updatedAt: new Date() });
+    searxngView.set(state.searxng && state.searxng.available ? ViewState.READY : ViewState.ERROR, { updatedAt: new Date() });
     toast('Search engine starting', 'success');
   } catch (exc) {
     if (!isAuthRequired(exc)) {
@@ -99,18 +109,18 @@ export function renderSearxng() {
 
 export async function loadSearxng() {
   if (!state.searxng) {
-    searxngView.set('loading', {});
+    searxngView.set(ViewState.LOADING, {});
     renderSearxng();
   }
   try {
     const body = await jsonApi('/api/searxng');
     reportFetchOk('searxng');
     state.searxng = (body && body.searxng) || null;
-    searxngView.set(state.searxng && state.searxng.available ? 'ready' : 'error', { updatedAt: new Date() });
+    searxngView.set(state.searxng && state.searxng.available ? ViewState.READY : ViewState.ERROR, { updatedAt: new Date() });
     renderSearxng();
   } catch (exc) {
     if (isAuthRequired(exc)) return;
-    searxngView.set('error', {});
+    searxngView.set(ViewState.ERROR, {});
     reportFetchFailure('searxng', { message: 'live data unavailable' }, 'Search engine');
     renderSearxng();
   }
