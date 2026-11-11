@@ -1,4 +1,4 @@
-"""Home Assistant Hyper-V VM status + control (issue #240).
+"""Home Assistant Hyper-V VM status + control.
 
 ``GET /api/hyperv`` returns one flattened :class:`~src.devices.hyperv_client.HyperVState`
 (name, running/off, uptime, IP, MAC). Only a missing ``HA_VM_NAME`` is a 503;

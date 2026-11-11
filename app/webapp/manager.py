@@ -54,7 +54,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 class WebappStartupPending(RuntimeError):
     """``_wait_until_ready()`` gave up, but the spawned process is still
-    alive — distinct from a real failure (issue #687). On a boot-storm
+    alive — distinct from a real failure. On a boot-storm
     cold start this app has been observed taking ~20 minutes to bind its
     port even though ``startup_timeout_seconds`` (15s) is comfortably
     enough on a warm start. A caller catching this specifically (rather
@@ -116,8 +116,8 @@ def _renew_tailscale_cert() -> None:
     webapp from starting — but a renewal that *was* due and failed is logged at
     warning level (exit code + any ``[WARN]``/``[INFO]`` output) rather than
     silently discarded: under the ``pythonw`` tray this call's own stdout/
-    stderr never reaches a console, so a lost failure here previously had no
-    trace anywhere until the cert actually expired (#914).
+    stderr never reaches a console, so a lost failure here would leave no
+    trace anywhere until the cert actually expired.
     """
     script = PROJECT_ROOT / "scripts" / "gen_tailscale_cert.py"
     if not script.exists():
@@ -358,7 +358,7 @@ class WebappManager:
 
     def watch_until_resolved(self) -> bool:
         """Keep polling a still-starting webapp until it's genuinely ready
-        or genuinely dead — no second fixed timeout to guess at (#687).
+        or genuinely dead — no second fixed timeout to guess at.
 
         Call after ``start(wait=True)`` raises :class:`WebappStartupPending`.
         Blocks the calling thread (run it off the UI/tray thread). Returns

@@ -15,7 +15,7 @@ switch turns the whole thing off (e2e/dev runs).
 Cadence defaults to 5 minutes (``TELEMETRY_SAMPLE_INTERVAL_S``): temperature and
 load trends don't need 60 s resolution, and the gentler cadence keeps cloud/LAN
 polling light. Energy stays in :mod:`src.energy.energy_history`; presence is event-
-driven (#289) and has no reading collector here.
+driven and has no reading collector here.
 """
 
 from __future__ import annotations

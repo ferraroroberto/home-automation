@@ -1,4 +1,4 @@
-"""Spanish voice web search (issue #865, part of #842).
+"""Spanish voice web search.
 
 ``POST /api/voice/search`` takes ``{"query": "..."}`` from HA Assist (the Spanish
 pipeline's ``rest_command``) and returns ``{ok, speech, source}``. Follows the

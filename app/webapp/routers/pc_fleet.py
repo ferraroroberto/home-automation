@@ -1,4 +1,4 @@
-"""UPS-triggered PC-fleet shutdown preferences + hub proxy routes (#498).
+"""UPS-triggered PC-fleet shutdown preferences + hub proxy routes.
 
 ``GET/PUT /api/pc-fleet/prefs`` reads/writes :mod:`src.devices.pc_fleet_prefs`
 (enabled, threshold_minutes, excluded, tower_action) — the whole-object shape, merged

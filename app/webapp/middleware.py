@@ -10,7 +10,7 @@ Mirrors the sibling fleet apps (photo-ocr, app-launcher):
   ``?token=…``.
 - For camera stream/snapshot paths only: also accept ``?camera_token=…``
   (a short-lived HMAC-signed scoped token) so ``<img src>`` URLs never
-  carry the long-lived bearer token (issue #261).
+  carry the long-lived bearer token.
 """
 
 from __future__ import annotations

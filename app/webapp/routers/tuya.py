@@ -3,10 +3,10 @@
 ``GET /api/tuya`` lists every captured Tuya device with its live switch state
 and current wattage; ``POST /api/tuya/{id}/switch`` and
 ``POST /api/tuya/{id}/cover`` write on/off and blind controls, and
-``POST /api/tuya/covers`` moves a group of blinds at once (issue #181), and
-``POST /api/tuya/{id}/brightness`` dims a Tuya light (issue #870). Everything here
+``POST /api/tuya/covers`` moves a group of blinds at once, and
+``POST /api/tuya/{id}/brightness`` dims a Tuya light. Everything here
 is LAN-only through the gitignored ``devices.json`` — no Tuya Cloud at runtime.
-The one exception is ``POST /api/tuya/pair`` (issue #612), the explicit
+The one exception is ``POST /api/tuya/pair``, the explicit
 "Add device" action that captures a newly-paired device's identity and local
 key from the Tuya Cloud so no ``tinytuya wizard`` terminal run is needed.
 
@@ -231,8 +231,8 @@ def _pair_detail(added: List[str], recovered: List[str], found: int, scan_error:
 async def pair_tuya() -> Dict[str, Any]:
     """Capture newly-paired devices from the Tuya Cloud, rescan the LAN, read back.
 
-    The in-app replacement for a ``python -m tinytuya wizard`` terminal run
-    (issue #612): pair the plug in the Smart Life app, tap Add, and it lands on
+    The in-app replacement for a ``python -m tinytuya wizard`` terminal run:
+    pair the plug in the Smart Life app, tap Add, and it lands on
     the Plugs card. Two steps, because the cloud and the LAN each know half the
     story — the cloud has the identity, local key and DPS mapping, while only a
     broadcast scan knows the device's address here.
@@ -293,7 +293,7 @@ async def control_cover_group(payload: CoverGroupPayload) -> Dict[str, Any]:
 
     The commands go out in parallel (``src.devices.blind_automation``). A blind that
     fails is reported per device rather than failing the group, and retried
-    in the background (#899); only when *every* blind failed is the whole
+    in the background; only when *every* blind failed is the whole
     request a 502.
     """
     try:
@@ -388,7 +388,7 @@ class BrightnessPayload(BaseModel):
 
 @router.post("/api/tuya/{device_id}/brightness")
 async def control_brightness(device_id: str, payload: BrightnessPayload) -> Dict[str, Any]:
-    """Dim a Tuya light to 1–100 % of its own range (issue #870)."""
+    """Dim a Tuya light to 1–100 % of its own range."""
     try:
         await asyncio.to_thread(set_brightness, device_id, payload.brightness)
     except ValueError as exc:
@@ -406,7 +406,7 @@ async def control_brightness(device_id: str, payload: BrightnessPayload) -> Dict
 
 @router.post("/api/tuya/{device_id}/cover")
 async def control_cover(device_id: str, request: Request) -> Dict[str, Any]:
-    """Move one blind — the same send, supersede and retry path as the group (#899)."""
+    """Move one blind — the same send, supersede and retry path as the group."""
     action = await _str_field(request, "action")
     if action not in ("open", "close", "stop"):
         raise HTTPException(status_code=400, detail="action must be open/close/stop")

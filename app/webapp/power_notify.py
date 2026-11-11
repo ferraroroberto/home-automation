@@ -374,7 +374,7 @@ async def record_low_battery_shutdown(
     default ``tower_action`` of ``"shutdown"`` (an OS-scheduled, cancellable
     shutdown), or for ``"hibernate"`` an in-process timer that hibernates via
     ``hibernate_fn`` after ``grace_seconds`` unless
-    :func:`record_low_battery_shutdown_cancelled` cancels it first (#962). That
+    :func:`record_low_battery_shutdown_cancelled` cancels it first. That
     timer does not survive a webapp restart; the monitor re-fires the trigger
     on its next tick if the outage is still on, restarting the window.
     Returns ``True`` only when the tower action was actually scheduled.

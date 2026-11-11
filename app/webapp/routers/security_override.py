@@ -1,10 +1,10 @@
 """Auto-bypass-after-N-repeats detector rules CRUD over ``src.security.security_override``.
 
-Split out of ``routers/security.py`` (issue #346) — same rationale as
-``security_schedules.py``: the per-detector override rule list (issue #341)
+Split out of ``routers/security.py`` — same rationale as
+``security_schedules.py``: the per-detector override rule list
 is fully self-contained and shares no state with the live RISCO read/write
 path that stays in ``security.py``. The GET/PUT shape is the shared
-``make_list_crud_router`` factory (issue #571).
+``make_list_crud_router`` factory.
 """
 
 from __future__ import annotations

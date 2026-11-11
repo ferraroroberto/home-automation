@@ -1,17 +1,17 @@
 """Locate + traffic-aware ETA voice bridge over the presence diagnostics cache.
 
-Split out of ``routers/presence.py`` (issue #702) — the two voice-bridge
-endpoints (``…/locate`` #438, ``…/eta`` #470) share all their resolution and
+Split out of ``routers/presence.py`` — the two voice-bridge
+endpoints (``…/locate``, ``…/eta``) share all their resolution and
 staleness-handling machinery and touch none of the webhook/CRUD state the
 rest of the presence router owns. Both read the background diagnostics
 refresher's cache, same as ``GET /api/presence``, but refresh on demand when
-that cache is stale (#442); ``lang=es`` makes the ready-made ``speech``
-Spanish for the "Hey Mycroft" pipeline (#446), resolution itself is
+that cache is stale; ``lang=es`` makes the ready-made ``speech``
+Spanish for the "Hey Mycroft" pipeline, resolution itself is
 language-agnostic. Every failure mode (unknown person, already home, no live
 location, home not set, no key/route) degrades to a spoken fallback, never an
 error.
 
-Reverse-geocoding an unmatched "Away" location (#442) reuses
+Reverse-geocoding an unmatched "Away" location reuses
 ``routers.presence._reverse_geocode`` — the same Nominatim cache the
 ``/api/location/reverse`` endpoint serves, so a coordinate already looked up
 for the People card's place label costs nothing to reuse for speech. Kept
@@ -65,13 +65,13 @@ def _cache_is_stale(cache: PresenceDiagnosticsCache, *, now: datetime) -> bool:
 
 
 async def _cache_for_locate(*, now: datetime) -> PresenceDiagnosticsCache:
-    """Cached by default; a bounded on-demand refresh when the cache is stale (#442).
+    """Cached by default; a bounded on-demand refresh when the cache is stale.
 
     A locate query is user-initiated and rare, so one extra Apple round-trip per
     question is acceptable and doesn't change the background refresh cadence
     (``GET /api/presence`` still reads the cache as-is, no refresh triggered).
 
-    The timeout default was raised 5s -> 12s (#491): a real Find My locate,
+    The timeout default was raised 5s -> 12s: a real Find My locate,
     especially one that has to wake a device over the network for a live fix,
     routinely takes longer than 5 seconds, so the on-demand refresh was losing
     its race almost every time and silently falling back to the stale
@@ -94,7 +94,7 @@ async def _cache_for_locate(*, now: datetime) -> PresenceDiagnosticsCache:
 
 
 def _locate_lang(lang: str) -> str:
-    """Clamp the voice-bridge language hint to the two served pipelines (#446)."""
+    """Clamp the voice-bridge language hint to the two served pipelines."""
 
     return "es" if lang.strip().lower().startswith("es") else "en"
 
@@ -122,7 +122,7 @@ def _broken_source_speech(
 ) -> str:
     """Speech for a person known only via a role/display-name alias that isn't in
     either live source right now — normally an iCloud-only entity whose Find My
-    refresh is currently failing, not a person who is just "away" (#442)."""
+    refresh is currently failing, not a person who is just "away"."""
 
     if lang == "es":
         if cache.reason == "2fa_required":
@@ -149,7 +149,7 @@ def _broken_source_speech(
 
 async def _resolved_away_place(entity: PresenceEntity, place: str) -> str:
     """Reverse-geocode a located-but-unmatched-place entity instead of a bare
-    "Away" (#442) — e.g. "Gran Via, Barcelona", mirroring the reverse-geocoded
+    "Away" — e.g. "Gran Via, Barcelona", mirroring the reverse-geocoded
     label the People card already shows for the same coordinates. Only
     "Away" (real coordinates, no configured place matched) is eligible; a
     named-place match or a missing location passes through unchanged."""
@@ -166,7 +166,7 @@ def _resolve_presence_target(
 ) -> Tuple[Optional[str], Optional[str], Dict[str, PresenceEntity], Dict[str, Any]]:
     """Resolve a spoken name/role to ``(entity_id, display_name, icloud, people)``.
 
-    Shared by the locate (#438) and ETA (#470) voice bridges — both fold the
+    Shared by the locate and ETA voice bridges — both fold the
     spoken ``who`` through role aliases / display names / raw names identically.
     The two lookup maps ride along so the caller reads coordinates/state without
     rebuilding them; ``entity_id`` / ``display_name`` are ``None`` when unmatched.
@@ -195,12 +195,12 @@ def _resolve_presence_target(
 
 @router.get("/api/presence/locate")
 async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
-    """Resolve a spoken name/role to a current place — the voice-bridge endpoint (#438).
+    """Resolve a spoken name/role to a current place — the voice-bridge endpoint.
 
     Reads the background diagnostics refresher's cache, same as ``GET
-    /api/presence``, but refreshes on demand when that cache is stale (#442).
+    /api/presence``, but refreshes on demand when that cache is stale.
     ``lang=es`` makes the ready-made ``speech`` Spanish for the "Hey Mycroft"
-    pipeline (#446); resolution itself is language-agnostic.
+    pipeline; resolution itself is language-agnostic.
     """
 
     lang = _locate_lang(lang)
@@ -272,7 +272,7 @@ async def get_presence_locate(who: str, lang: str = "en") -> Dict[str, Any]:
 
 
 def _duration_phrase(minutes: int, *, lang: str) -> str:
-    """The spoken duration, complete for its language (#474).
+    """The spoken duration, complete for its language.
 
     Under an hour, bare minutes; an hour or more, "H hour(s) [M minute(s)]"
     dropping the minutes when zero. Spanish folds "about" into the leading unit's
@@ -302,7 +302,7 @@ def _duration_phrase(minutes: int, *, lang: str) -> str:
 
 def _recency_phrase(age_s: float, *, lang: str) -> str:
     """Relative "last seen" recency for the locator's speech + JSON payload
-    (#492) — reuses ``_duration_phrase``'s hour/minute conventions rather than
+    — reuses ``_duration_phrase``'s hour/minute conventions rather than
     inventing a new scale. Under a minute reads as "just now" instead of
     rounding up to a misleadingly precise "1 minute ago"."""
 
@@ -314,9 +314,9 @@ def _recency_phrase(age_s: float, *, lang: str) -> str:
 
 
 def _eta_speech(display_name: str, duration_s: int, *, lang: str = "en") -> str:
-    """Spoken traffic-aware ETA (#470) — the app owns the wording; minutes round
+    """Spoken traffic-aware ETA — the app owns the wording; minutes round
     up so a sub-minute hop still reads as "about 1 minute", and durations of an
-    hour or more are spoken as hours + minutes rather than raw minutes (#474)."""
+    hour or more are spoken as hours + minutes rather than raw minutes."""
 
     minutes = max(1, round(duration_s / 60))
     phrase = _duration_phrase(minutes, lang=lang)
@@ -344,7 +344,7 @@ def _eta_unavailable_speech(display_name: str, reason: str, *, lang: str = "en")
 
 @router.get("/api/presence/eta")
 async def get_presence_eta(who: str, lang: str = "en") -> Dict[str, Any]:
-    """Speak a traffic-aware ETA from a person's location to home (#470).
+    """Speak a traffic-aware ETA from a person's location to home.
 
     The follow-up to the locator: once "where's dad" has answered, the voice
     pipeline offers this. Reuses the same name/role resolution and Find My cache

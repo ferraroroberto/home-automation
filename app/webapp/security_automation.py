@@ -51,7 +51,7 @@ class SecurityScheduleConfig:
         """Only bounds the backward look-back for a very-late-previous-night
         fire time just after local midnight — see ``schedule_due()``. A
         schedule's forward retry window (today's own fire time onward) is not
-        gated by this value; it stays due for the rest of the day (#527)."""
+        gated by this value; it stays due for the rest of the day."""
         return max(120, self.poll_interval_s * 2)
 
 

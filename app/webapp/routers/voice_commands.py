@@ -1,4 +1,4 @@
-"""Voice-command cheat sheet API (issue #437).
+"""Voice-command cheat sheet API.
 
 ``GET /api/voice-commands`` serves the curated catalogue in ``src.voice.voice_commands``
 for the Home tab's "What can I say?" card. Static, read-only reference — no

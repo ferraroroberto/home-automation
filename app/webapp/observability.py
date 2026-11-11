@@ -1,4 +1,4 @@
-"""Over-budget request breadcrumbs for the webapp (#761).
+"""Over-budget request breadcrumbs for the webapp.
 
 The tray launches uvicorn with its output discarded and ``webapp.log`` carries
 app breadcrumbs, not request timings, so a speed regression on the paths the
@@ -9,8 +9,7 @@ leaves a line in ``webapp/slow-requests.log``:
   reads the phone polls (the set ``/perf-review`` scores);
 * one per request of any method slower than :data:`SLOW_REQUEST_S`.
 
-Ported from app-launcher's ``app/webapp/observability.py`` (fleet-config#1121
-playbook P10), minus its in-flight counter. Pure ASGI, not
+Mirrors app-launcher's ``app/webapp/observability.py``, minus its in-flight counter. Pure ASGI, not
 ``BaseHTTPMiddleware``: every message passes straight through, so nothing is
 buffered. Streams (dictation SSE, camera MJPEG) are never logged — how long
 one stays open is its lifetime, not its latency.

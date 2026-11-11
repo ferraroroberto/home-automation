@@ -9,11 +9,11 @@ ignore, session bypass) live here too since they read/write the same live
 zone objects this module already owns.
 
 The weekly-schedule, scene-pairings, auto-bypass-override, and notify-prefs
-concerns used to live in this file as well; they were split out into their own
+concerns live in their own
 router modules (``security_schedules.py`` / ``security_scene.py`` /
-``security_override.py`` / ``security_notify.py``, issue #346) — the same
+``security_override.py`` / ``security_notify.py``) — the same
 "split a grown router by self-contained concern" move ``dhcp_plan.py`` made
-out of ``network.py`` in #328. Each is fully self-contained (its own
+out of ``network.py``. Each is fully self-contained (its own
 persistence module, no shared state with the live RISCO read/write path here).
 """
 
@@ -81,7 +81,7 @@ def _event_ts(raw: Any) -> Optional[int]:
 
 
 def _persist_risco_events(events: List[object]) -> None:
-    """Persist RISCO events into the unified telemetry store, deduped (#289).
+    """Persist RISCO events into the unified telemetry store, deduped.
 
     The RISCO feed is otherwise ephemeral (live-pulled, aged out by the cloud).
     Dedupe against already-stored events by a ``(time, name, zone)`` signature so
@@ -123,7 +123,7 @@ def _state_payload(state: object) -> Dict[str, Any]:
 
     Detectors carry RISCO names like ``"1"``/``"2"``; the override map (keyed by
     the zone id as a string) is layered on as ``display_name`` per zone, mirroring
-    how the units/plugs routers surface custom labels (issue #84).
+    how the units/plugs routers surface custom labels.
     """
     payload = asdict(state)  # type: ignore[arg-type]
     overrides = load_security_display_names()

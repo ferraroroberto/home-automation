@@ -1,4 +1,4 @@
-"""Voice-created Google Calendar events (issue #313).
+"""Voice-created Google Calendar events.
 
 Create-only, voice-only: no ``GET``/``PUT`` CRUD like ``reminders.py`` or
 ``wake_alarms.py`` — Google Calendar itself is the only store, so there's no

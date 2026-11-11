@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PresenceAccountStatus:
-    """Per-account outcome of the last Find My refresh (issue #478)."""
+    """Per-account outcome of the last Find My refresh."""
 
     label: str
     available: bool
@@ -82,10 +82,10 @@ _CACHE = PresenceDiagnosticsCache(entities=[])
 def _aggregate_status(
     statuses: list[PresenceAccountStatus],
 ) -> tuple[str, str]:
-    """Roll per-account outcomes into a single ``(reason, detail)`` (issue #478).
+    """Roll per-account outcomes into a single ``(reason, detail)``.
 
     - all healthy → ``ok``
-    - single account → its own reason/detail verbatim (preserves the pre-#478
+    - single account → its own reason/detail verbatim (the
       single-account contract the router speech + PWA note key off)
     - some healthy, some broken → ``partial`` (the cache still carries the
       healthy accounts' entities, so the source is not "down")
@@ -210,7 +210,7 @@ def _episode_start(status: PresenceAccountStatus) -> Optional[datetime]:
 
 
 def _failing_for(status: PresenceAccountStatus, *, now: datetime) -> str:
-    """How long this account's current break has actually lasted (#678).
+    """How long this account's current break has actually lasted.
 
     Falls back to the streak count alone when the episode has no start stamp —
     an unestablished duration is not worth stating as one.
@@ -223,7 +223,7 @@ def _failing_for(status: PresenceAccountStatus, *, now: datetime) -> str:
 
 
 def _retried_this_episode(label: str, status: PresenceAccountStatus) -> bool:
-    """Whether a forced sign-in was actually attempted during this break (#678).
+    """Whether a forced sign-in was actually attempted during this break.
 
     Not the same question as "has this account been failing long enough" — the
     handshake is throttled to one per :func:`_retry_backoff_s` (4h), far longer
@@ -240,13 +240,13 @@ def _retried_this_episode(label: str, status: PresenceAccountStatus) -> bool:
 def _stuck_alert_text(
     config: PresenceConfig, status: PresenceAccountStatus, *, now: datetime
 ) -> str:
-    """Compose the one actionable message a genuinely stuck account earns (#678).
+    """Compose the one actionable message a genuinely stuck account earns.
 
-    Deliberately says nothing about approving a sign-in: since #658 the
+    Deliberately says nothing about approving a sign-in: the
     unattended refresher fetches with ``request_2fa_push=False``, so it can
     never make Apple push a prompt to the household's phones. What it names
-    instead is the remedy that does exist — the in-app trust renewal (#659) or
-    the credential the account is missing. ``terms_required`` (#736) gets its
+    instead is the remedy that does exist — the in-app trust renewal or
+    the credential the account is missing. ``terms_required`` gets its
     own remedy: neither a trust renewal nor a password change can clear it, and
     accepting Apple's terms is the account holder's consent to give.
     """
@@ -283,9 +283,9 @@ def _stuck_alert_text(
 
 def _account_display_name(config: PresenceConfig) -> str:
     """Name an account in a Telegram message — friendly name if set, else the
-    Apple ID email itself (issue #657: "account 1"/"account 2" gave no way to
-    tell which real account a reconnect message was actually about). Same rule
-    the diagnostics rows use (#659), so the message and the row agree."""
+    Apple ID email itself, so a reconnect message says which real account it is
+    about (not "account 1"/"account 2"). Same rule
+    the diagnostics rows use, so the message and the row agree."""
 
     return config.display_name
 
@@ -312,7 +312,7 @@ def _account_status(
     consecutive_failures: int = 0,
     failing_since: Optional[str] = None,
 ) -> PresenceAccountStatus:
-    """Build one account's status, stamped with its name + session trust (#659)."""
+    """Build one account's status, stamped with its name + session trust."""
 
     return PresenceAccountStatus(
         config.label,
@@ -498,14 +498,14 @@ async def refresh_once(
     """Fetch every configured account's Find My devices once into the cache.
 
     Each account authenticates independently and degrades independently: a
-    healthy account still populates the cache when another needs 2FA (#478).
-    Accounts are fetched concurrently, not sequentially (#491) — a caller
+    healthy account still populates the cache when another needs 2FA.
+    Accounts are fetched concurrently, not sequentially — a caller
     bounding this coroutine with a single overall timeout (the on-demand
     locate refresh in ``routers/presence.py``) would otherwise have that
     budget split serially across accounts, making a 2-account setup roughly
     twice as likely to lose the race as a 1-account one.
 
-    ``notifier_factory`` is an injection seam for tests (issue #655) — every
+    ``notifier_factory`` is an injection seam for tests — every
     real caller uses the default, which is hard-disabled under pytest anyway
     (see ``build_alarm_notifier``'s safety net).
     """

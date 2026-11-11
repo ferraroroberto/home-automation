@@ -1,6 +1,6 @@
 """``action_id`` -> existing device-control call, for the generic actions alias endpoint.
 
-Issue #641: a single stable ``POST /api/actions/{action_id}`` surface so an
+A single stable ``POST /api/actions/{action_id}`` surface so an
 external trigger (a Stream Deck button today, anything else later) doesn't
 need to know each device family's own path/id shape. Deliberately thin —
 every handler here is one call into an already-existing function

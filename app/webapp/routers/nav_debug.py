@@ -1,4 +1,4 @@
-"""Client-side nav-pin diagnostic sink (#300).
+"""Client-side nav-pin diagnostic sink.
 
 The nav-debug toggle in the PWA (``static/nav-debug.js``) posts each event
 here instead of rendering it on-screen — an always-visible overlay grew tall

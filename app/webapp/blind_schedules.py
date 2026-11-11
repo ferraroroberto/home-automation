@@ -1,4 +1,4 @@
-"""Background daily blind schedule evaluator (#871) and the alarm pairing (#875).
+"""Background daily blind schedule evaluator and the alarm pairing.
 
 Fires each enabled entry of ``config/blind_schedules.json`` once on its day at
 its time through :func:`src.devices.blind_automation.move_blinds`, the same parallel
@@ -19,11 +19,11 @@ disarm, and it lowers every blind on a full arm or raises them on a daytime
 disarm when the Blinds card's "Follow the automatic alarm" switch is on.
 
 Both automatic paths retry a blind that failed — offline when the move fired —
-in the background through :func:`src.devices.blind_automation.retry_failed_blinds`
-(#897), so a retry never delays the schedule tick or the alarm path. The event
+in the background through :func:`src.devices.blind_automation.retry_failed_blinds`,
+so a retry never delays the schedule tick or the alarm path. The event
 record is written once the move has settled, with its attempt count; a blind
 still failing after the last retry sends one Telegram message per move.
-A manual tap on the Blinds card gets the same retry (#899) through
+A manual tap on the Blinds card gets the same retry through
 :func:`settle_manual_move`: the card hears the first attempt at once, and the
 retries carry on in the background.
 """
@@ -107,7 +107,7 @@ def load_blind_schedule_config() -> BlindScheduleConfig:
 def _record_event(
     action: str, entity_id: str, source: str, outcome: str, payload: Dict[str, Any]
 ) -> None:
-    """Best-effort telemetry event, like the plug toggle's (#289)."""
+    """Best-effort telemetry event, like the plug toggle's."""
     try:
         from src import telemetry
 
@@ -232,7 +232,7 @@ async def _settle(
 
 
 async def settle_manual_move(action: str, outcomes: List[BlindOutcome]) -> None:
-    """Retry the blinds a manual Blinds-card tap failed to move (#899).
+    """Retry the blinds a manual Blinds-card tap failed to move.
 
     The same backoff, supersede rule and single final-failure Telegram as the
     automatic moves; only a failure is retried in the background, so the

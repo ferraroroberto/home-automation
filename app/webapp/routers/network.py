@@ -16,14 +16,14 @@ departing device is surfaced **on its own row** (the ``is_new`` badge, the
 dimmed offline row) rather than as a separate alert strip: the UI's alert strip
 was removed in ``cce000a`` and the response carries no ``alerts`` key.
 
-User-defined **display groups** (issue #513) ride along on the same snapshot:
+User-defined **display groups** ride along on the same snapshot:
 each device carries its ``group`` (null = the synthetic Unclassified bucket the
 UI renders last), assigned via ``PUT /api/network/devices/{mac}/group`` and
 maintained with ``PUT /api/network/groups/rename`` /
 ``POST /api/network/groups/delete``. Groups are display-only and deliberately
 independent of ``config/dhcp_plan.json``'s IP-range categories.
 
-The **Wi-Fi walk test** (issue #547) rides on the same device telemetry:
+The **Wi-Fi walk test** rides on the same device telemetry:
 ``POST /api/network/survey`` records one room-labelled coverage sample by asking
 the AP/router how well it currently hears a chosen client MAC, ``GET`` returns
 the per-room summary, and ``GET /api/network/survey/payload`` serves the bytes
@@ -35,20 +35,19 @@ failure of the whole read surfaces as a 502. The opt-in throughput test
 (``?speedtest=1``) takes ~13 s and saturates the link, so it is a deliberate,
 separate call the 15 s poll never triggers. Each real read also leaves one
 throttled internet sample (:mod:`src.network.network_history`), and
-``GET /api/network/internet-history`` serves them as the tile's sparklines (#840).
+``GET /api/network/internet-history`` serves them as the tile's sparklines.
 
-The snapshot is answered from memory (#926): the AP's SOAP read alone takes
+The snapshot is answered from memory: the AP's SOAP read alone takes
 ~8 s, so once a value exists ``GET /api/network`` serves it at once, aged, and
 one shared refresh runs behind it (see ``NETWORK_SNAPSHOT``). The device and
 internet history are recorded per *real* read, never per answer; the
 user-owned overlays (names, groups, hidden, the ``important`` flag) are merged
 per request, so an edit shows on the very next read.
 
-The DHCP reservation planner + staged reservation manager (issue #170/#176)
-used to live here too; it was split out to :mod:`app.webapp.routers.dhcp_plan`
-(issue #328) since it is a self-contained feature over ``src.network.dhcp_plan`` /
-``src.network.dhcp_overrides`` that only grew inside this router because the AP device
-inventory lived here. The shared helpers below (``_device_dict``,
+The DHCP reservation planner + staged reservation manager
+live in :mod:`app.webapp.routers.dhcp_plan`, a self-contained feature over
+``src.network.dhcp_plan`` / ``src.network.dhcp_overrides`` that does not belong in
+the AP device snapshot router. The shared helpers below (``_device_dict``,
 ``_offline_device_dict``) stay with this main snapshot
 endpoint; the DHCP module makes its own, separate ``fetch_network_state`` call
 for classification.
@@ -210,7 +209,7 @@ def _device_dict(
     ``last_seen`` / ``times_seen``, the ``important`` flag, and an ``is_new``
     badge. Randomised MACs are never recorded, so they carry no history.
 
-    ``group`` (issue #513) is the user's display group, or ``None`` for the
+    ``group`` is the user's display group, or ``None`` for the
     synthetic Unclassified bucket the UI renders last.
     """
     mac_key = normalize_mac(d.mac or "")
@@ -616,7 +615,7 @@ async def update_device_important(
 
 @router.put("/api/network/devices/{mac}/group")
 async def update_device_group(mac: str, payload: GroupPayload) -> Dict[str, Any]:
-    """Assign a device to a display group, or clear it (issue #513).
+    """Assign a device to a display group, or clear it.
 
     An empty ``group`` drops the assignment, which is how a device returns to the
     synthetic Unclassified bucket. A group with no members left simply stops
