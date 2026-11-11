@@ -1,4 +1,4 @@
-"""Stream-Deck quick-action device bindings (issue #641, redacted in #831).
+"""Stream-Deck quick-action device bindings.
 
 ``app.webapp.actions_registry`` used to hardcode the Tuya plug device id and
 the Home-Assistant climate entity bound to the ``plug_on``/``plug_off``/

@@ -83,7 +83,7 @@ def _ping(host: str, count: int = 4, timeout_s: int = 2) -> tuple[Optional[float
 def _ping_reachable(host: str, timeout_s: float = 1.0) -> bool:
     """One-shot reachability check: did *host* answer a single ping?
 
-    Thin wrapper over :func:`_ping` for the no-link device probe (issue #552) —
+    Thin wrapper over :func:`_ping` for the no-link device probe —
     a single fast ping is enough evidence of presence; the latency/loss detail
     :func:`_ping` returns for the internet-health tile isn't needed here.
     """

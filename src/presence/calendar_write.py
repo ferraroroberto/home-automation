@@ -1,9 +1,9 @@
-"""Google Calendar write client (issue #313).
+"""Google Calendar write client.
 
 The only file in this repo that imports Google libraries — keeps
 ``src/presence/calendar_events.py``'s parsing/shaping pure and unit-testable with no
 OAuth stack involved. Adapted from (not copied from) the OAuth pattern
-whatsapp-radar's #217 shipped for the same problem: an installed-app
+whatsapp-radar uses for the same problem: an installed-app
 authorization-code flow, a narrow write-only scope, and an atomically
 persisted token file independent of any other app's token — mirrored here
 rather than reinvented, per the fleet's "same problem, don't solve it twice"

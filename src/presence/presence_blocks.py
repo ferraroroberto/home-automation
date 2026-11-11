@@ -43,9 +43,9 @@ class ArmBlockObservation:
     the episode to have persisted for the configured dwell, not to have been
     confirmed notified already, and not to be cooling down from a recent
     attempt — which is what separates "someone is arriving" from "someone's
-    presence is stuck" (issue #599). ``notify=True`` means a notification is
+    presence is stuck". ``notify=True`` means a notification is
     *due*, not that one was sent — the caller must attempt the send itself and
-    report the outcome via :func:`mark_arm_block_notified` (issue #601).
+    report the outcome via :func:`mark_arm_block_notified`.
     """
 
     changed: bool
@@ -185,11 +185,10 @@ def load_arm_block() -> Dict[str, Any]:
 
 
 def mark_arm_block_notified(key: str) -> None:
-    """Record that the due arm-block notification for ``key`` was delivered (#601).
+    """Record that the due arm-block notification for ``key`` was delivered.
 
     Call only once the caller has confirmed the send actually went through.
-    Marking it eagerly — the pre-#601 behaviour, the same shape #527 fixed for
-    the per-day error de-dupe — meant a failed or unconfigured notifier
+    Marking it eagerly would mean a failed or unconfigured notifier
     silently burned the episode's one alert for good, since ``block.key``
     stays stable for as long as the presence itself stays stuck.
     """
@@ -198,7 +197,7 @@ def mark_arm_block_notified(key: str) -> None:
 
 
 def mark_arm_block_attempted(key: str, *, at: Optional[datetime] = None) -> None:
-    """Stamp the last arm-block notification attempt for ``key`` (#601).
+    """Stamp the last arm-block notification attempt for ``key``.
 
     Call on every attempt regardless of outcome — this is what backs the
     ``_ARM_BLOCK_RETRY_COOLDOWN_S`` floor in :func:`set_arm_block`, so a
@@ -223,9 +222,9 @@ def set_arm_block(
     to it would fire instantly the moment anyone else left, which is the very
     false alert this dwell exists to stop. A changed key restarts the clock.
 
-    ``dwell_s=0`` notifies on first observation — the pre-#599 behaviour.
+    ``dwell_s=0`` notifies on first observation.
 
-    Does **not** mark the episode notified itself (#601) — ``notify=True``
+    Does **not** mark the episode notified itself — ``notify=True``
     only reports that a send is due; the caller confirms delivery via
     :func:`mark_arm_block_notified`, and should stamp every attempt (sent or
     not) via :func:`mark_arm_block_attempted` so a failing send backs off
@@ -239,7 +238,7 @@ def mark_staleness_block_notified(key: str) -> None:
     """Record that the due stale-block notification for ``key`` was delivered.
 
     Same confirmed-delivery contract as :func:`mark_arm_block_notified`
-    (issue #601's fix, applied here from the start) — kept in an independent
+    — kept in an independent
     ``stale_blocked_*`` state namespace so it can never interact with the
     "someone fresh is home" diagnostic's own notify latch.
     """
@@ -266,7 +265,7 @@ def set_staleness_block(
 ) -> ArmBlockObservation:
     """Persist the current stale-block diagnostic; the companion to
     :func:`set_arm_block` for the "webhook stale, no iCloud corroboration"
-    case (issue #653) — same changed/notify/dwell/cooldown contract, kept in
+    case — same changed/notify/dwell/cooldown contract, kept in
     its own independent ``stale_blocked_*`` state namespace.
     """
 

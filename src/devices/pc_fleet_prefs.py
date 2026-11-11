@@ -1,4 +1,4 @@
-"""Preferences for the UPS-triggered PC-fleet shutdown orchestration (#498).
+"""Preferences for the UPS-triggered PC-fleet shutdown orchestration.
 
 Unlike the all-bool toggle sets handled by :mod:`src._toggle_prefs`, this
 config carries an int and a list, so it keeps its own load/save on top of
@@ -16,7 +16,7 @@ config carries an int and a list, so it keeps its own load/save on top of
   last via the local path, never via the hub).
 - ``tower_action``      — what the tower itself does last: ``"shutdown"``
   (default, today's behaviour) or ``"hibernate"`` (state written to disk, the
-  session resumes when power returns, #962). Satellites always shut down.
+  session resumes when power returns). Satellites always shut down.
 
 Persisted atomically to gitignored ``config/pc_fleet.json`` (committed
 ``…sample.json``).
@@ -84,7 +84,7 @@ def load_pc_fleet_prefs(path: Optional[Path] = None) -> PcFleetPrefs:
     seeded from the legacy auto-shutdown toggle (migration, see module doc).
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    exists but can't be read (issue #692) — ``update_pc_fleet_prefs`` mutates
+    exists but can't be read — ``update_pc_fleet_prefs`` mutates
     this return value and saves it whole, so a transient failure here would
     otherwise get saved back over a real ``threshold_minutes``/``excluded``.
     """

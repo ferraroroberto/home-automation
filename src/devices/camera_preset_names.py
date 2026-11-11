@@ -1,4 +1,4 @@
-"""Local display-name overrides for camera PTZ presets (issue #212).
+"""Local display-name overrides for camera PTZ presets.
 
 Maps ``"<camera_id>::<preset_token>"`` → ``display_name``. Lets a user rename a
 preset (e.g. "Position 1" → "Front door") without re-saving it on the camera,

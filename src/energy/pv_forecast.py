@@ -1,4 +1,4 @@
-"""Expected-generation forecast for the Energy tab (issue #39).
+"""Expected-generation forecast for the Energy tab.
 
 Turns Open-Meteo's hourly **global tilted irradiance** (GTI, W/m²) into a rough
 expected-generation curve for the home's PV array, for one of three days —
@@ -12,9 +12,9 @@ Source & model (deliberately self-contained, approximate):
   already uses), asking for ``global_tilted_irradiance`` at that sub-array's
   tilt + azimuth across ``past_days=1`` … ``forecast_days=2`` so all three days
   come back in a single request per sub-array. (:func:`fetch_pv_forecast_for_date`
-  widens ``past_days`` for the read-only sun-position diagnostic, issue #590 —
+  widens ``past_days`` for the read-only sun-position diagnostic —
   the three named days always resolve to ``past_days=1``.) Open-Meteo's tilt/azimuth params
-  don't support batching multiple orientations in one call (issue #555), so a
+  don't support batching multiple orientations in one call, so a
   multi-orientation array fires one request per sub-array, concurrently, over a
   shared session.
 * Per hour, per sub-array, ``expected_W = kwp · GTI/1000 · performance_ratio``
@@ -22,7 +22,7 @@ Source & model (deliberately self-contained, approximate):
   peak); GTI is a preceding-hour mean, so one hour of it integrates straight to
   ``expected_Wh``. The sub-array totals are summed per hour into the combined
   curve.
-* **Optionally** (issue #591, off by default) a PVWatts-style panel-temperature
+* **Optionally** (off by default) a PVWatts-style panel-temperature
   derate multiplies that: hot cells lose efficiency, a loss that swings from ~0%
   at 25 °C cell to ~13% at 62 °C and which a constant derate cannot track. The
   term is armed by ``thermal_model_enabled`` in ``config/pv_system.json``; with
@@ -31,7 +31,7 @@ Source & model (deliberately self-contained, approximate):
   ``performance_ratio`` to a system-loss-only factor — see
   :func:`src.energy.pv_system_config.thermal_migration_error`, which makes the
   half-migrated combination refuse to compute rather than under-report ~10%.
-* **Optionally** (issue #578 part b, off by default) a horizon/shading profile
+* **Optionally** (off by default) a horizon/shading profile
   attenuates the direct-beam share of an hour's GTI when the sun sits below a
   hand-entered obstruction elevation for its azimuth. Armed by
   ``horizon_profile_enabled``; with it off the upstream request and the numbers
@@ -181,7 +181,7 @@ def _cache_key(
 
     Deliberately excludes ``today``/``past_days``: for a fixed ``target_day``,
     Open-Meteo answers the same regardless of how far the request's lookback
-    window reaches, so the read-only sun-position diagnostic (#590) and the
+    window reaches, so the read-only sun-position diagnostic and the
     named-day card share a cache entry for the same date.
     """
     arrays = tuple((a.kwp, a.tilt_deg, a.azimuth_deg) for a in system.arrays)
@@ -243,7 +243,7 @@ def _get_session_lock() -> asyncio.Lock:
 async def _get_session() -> aiohttp.ClientSession:
     """Return the module's shared session, opening (or reopening) it as needed.
 
-    One session reused across calls (issue #597) rather than a fresh
+    One session reused across calls rather than a fresh
     connection pool per render — the same fix ``huawei_client`` already makes
     for FusionSolar. Guarded by a lock only around creation; concurrent
     requests against an already-open session are fine.
@@ -345,16 +345,16 @@ async def _fetch_array_gti(
     """One Open-Meteo hourly-GTI request for a single sub-array's orientation.
 
     ``past_days`` is widened only when a caller asks for a day older than
-    yesterday (the read-only sun-position diagnostic, issue #590). The three
+    yesterday (the read-only sun-position diagnostic). The three
     named days all resolve to ``past_days=1``, so the forecast card's request —
     and therefore its answer — is byte-for-byte what it was before that
     diagnostic existed.
 
-    ``with_temperature`` adds ``temperature_2m`` to the *same* request (issue
-    #591) — no second call, and no change at all to the request when the thermal
+    ``with_temperature`` adds ``temperature_2m`` to the *same* request
+    — no second call, and no change at all to the request when the thermal
     term is off, so the disabled path cannot drift on the back of a feature that
     is not running. ``with_horizon`` similarly adds ``direct_radiation`` +
-    ``diffuse_radiation`` (issue #578 part b) only when the shading term is
+    ``diffuse_radiation`` only when the shading term is
     armed.
     """
     hourly = "global_tilted_irradiance"
@@ -415,8 +415,8 @@ async def fetch_pv_forecast_for_date(
     """The same curve as :func:`fetch_pv_forecast`, for an arbitrary date.
 
     The named-day API above is the forecast card's entry point and stays the
-    canonical one; this is what the read-only sun-position diagnostic (issue
-    #590) calls to reach a day further back than "yesterday". The model is
+    canonical one; this is what the read-only sun-position diagnostic
+    calls to reach a day further back than "yesterday". The model is
     identical — only how far back the irradiance request reaches differs.
 
     ``label`` is what the result reports as its ``day`` (the ISO date by

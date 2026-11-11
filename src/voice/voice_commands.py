@@ -1,4 +1,4 @@
-"""Curated catalogue of every wired Voice PE command (issue #437).
+"""Curated catalogue of every wired Voice PE command.
 
 The spoken twin of ``docs/voice-pe-config/README.md``'s tables: the PWA's
 "What can I say?" card renders this via ``GET /api/voice-commands``, so
@@ -38,7 +38,7 @@ class Phrasing:
     """One language's trigger phrases for a command.
 
     A command carries one ``Phrasing`` per pipeline it answers on: the family
-    locator has both (#438 English, #446 Spanish), grocery is Spanish-only,
+    locator has both (English, Spanish), grocery is Spanish-only,
     the alarm is English-only.
     """
 

@@ -1,6 +1,6 @@
 """Server-side network-device history store (SQLite).
 
-A tiny per-MAC registry behind the Network tab's Phase-4 features (issue #129):
+A tiny per-MAC registry behind the Network tab's Phase-4 features:
 ``first_seen`` / ``last_seen`` / ``times_seen``, the user's ``important`` flag,
 and the online/offline + new-device derivations the tab and its alerts lean on.
 
@@ -18,7 +18,7 @@ a device never reappearing; the history is observational and self-prunes). The
 ``important`` flag lives here rather than the rename JSON precisely so that store
 stays a plain string map shared verbatim with the unit/plug/detector renames.
 
-**Internet samples (issue #840).** The same file also keeps a small
+**Internet samples.** The same file also keeps a small
 ``internet_samples`` series — external/gateway latency, loss and any speed-test
 result — that feeds the sparklines on the internet-health tile. It follows the
 same no-sampler rule: a sample is taken from each ``GET /api/network`` read
@@ -138,8 +138,7 @@ def load_snapshot(path: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
     """The whole registry, read-only — what a cached ``/api/network`` answer merges.
 
     Unlike :func:`record_and_snapshot` it observes nothing: an answer served from
-    memory is not a sighting, so it must not bump ``last_seen``/``times_seen``
-    (#926). It still reflects every write since, such as an ``important`` toggle.
+    memory is not a sighting, so it must not bump ``last_seen``/``times_seen``. It still reflects every write since, such as an ``important`` toggle.
     """
     init_db(path)
     with _connect(path) as conn:

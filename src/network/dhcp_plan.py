@@ -1,4 +1,4 @@
-"""Ordered DHCP reservation planner — categorised IP ranges (issue #170).
+"""Ordered DHCP reservation planner — categorised IP ranges.
 
 UI-free, network-free core for the "tidy the LAN" planner. Given the current
 attached-device inventory and a category-range config, it assigns **each known
@@ -339,7 +339,7 @@ def _assign_category(
 
     The stability anchor in pass 1 is the device's **existing router reservation**
     (``bindings``: normalised MAC → reserved IP) when known, else its current
-    observed IP — so once #176 supplies the real binding table the planner keeps
+    observed IP — so once the real binding table is supplied the planner keeps
     already-reserved devices exactly where the router has them.
     """
     ordered = sorted(devices, key=lambda d: normalize_mac(d.mac))

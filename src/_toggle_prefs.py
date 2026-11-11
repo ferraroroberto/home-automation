@@ -1,4 +1,4 @@
-"""Shared load/save shape for all-bool "notify prefs" dataclasses (issue #327).
+"""Shared load/save shape for all-bool "notify prefs" dataclasses.
 
 :class:`src.security.alarm_notify_prefs.AlarmNotifyPrefs` and
 :class:`src.energy.power_notify_prefs.PowerNotifyPrefs` are near-identical frozen
@@ -29,7 +29,7 @@ def load_toggle_prefs(cls: Type[T], path: Path) -> T:
     Every field of ``cls`` is coerced with ``bool(...)``, matching the
     per-field ``bool(raw.get(name, default))`` calls this replaces. Raises
     :class:`~src._schedule_store.StoreUnreadableError` when the file exists
-    but can't be read (issue #692) — every caller is a read-modify-save
+    but can't be read — every caller is a read-modify-save
     router that would otherwise save the defaults back over real prefs.
     """
 

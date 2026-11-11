@@ -1,4 +1,4 @@
-"""Hyper-V VM status + lifecycle control for the Home Assistant VM (issue #240).
+"""Hyper-V VM status + lifecycle control for the Home Assistant VM.
 
 UI-free core. Shells out to the Hyper-V PowerShell cmdlets (``Get-VM`` /
 ``Start-VM`` / ``Stop-VM``) for **exactly one** VM named by ``HA_VM_NAME`` and
@@ -8,8 +8,8 @@ flattens the result into a frozen :class:`HyperVState`. Mirrors
 (``src/_no_window.py``) so no console window pops on each Home-view poll.
 
 The VM is always addressed **by name** — this never enumerates or acts on any
-other VM (the host also runs WSL2's hidden utility VM, deliberately out of scope
-per issue #240). The VM name is passed to the child process via an environment
+other VM (the host also runs WSL2's hidden utility VM, deliberately out of scope).
+The VM name is passed to the child process via an environment
 variable, never string-interpolated into the script, so a name can't inject
 PowerShell.
 

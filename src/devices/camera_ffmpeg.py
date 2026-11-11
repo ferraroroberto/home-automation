@@ -1,7 +1,7 @@
 r"""
-Camera ffmpeg subsystem — snapshot / MJPEG stream / recording (issue #197 split).
+Camera ffmpeg subsystem — snapshot / MJPEG stream / recording.
 ================================================================================
-Peeled out of ``camera_client`` (issue #197): the RTSP-over-ffmpeg capture paths
+Peeled out of ``camera_client``: the RTSP-over-ffmpeg capture paths
 have nothing to do with the ONVIF/PTZ control surface that stays in
 ``camera_client``. This module owns the single-frame snapshot (+ last-known
 persistence), the on-demand MJPEG transcode for the live view, and the
@@ -168,7 +168,7 @@ async def snapshot(camera_id: str, path: Optional[Path] = None) -> bytes:
     """Grab a single fresh JPEG off the substream via ffmpeg, returned as bytes.
 
     The grabbed frame is also persisted as the camera's last-known snapshot so
-    the list can show it without re-hitting the camera (issue #190).
+    the list can show it without re-hitting the camera.
     """
     from src.devices.camera_client import (
         CameraCommandError,

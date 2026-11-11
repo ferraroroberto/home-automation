@@ -1,7 +1,7 @@
 r"""
 Show live RISCO alarm state + event log (CLI / probe)
 =====================================================
-Proof-of-concept and the gating probe for issue #43: confirm the RISCO Cloud
+Proof-of-concept and gating probe: confirm the RISCO Cloud
 integration logs in and returns usable data before building the Security tab on
 top. Read-only - it never arms or disarms.
 

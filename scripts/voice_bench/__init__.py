@@ -1,4 +1,4 @@
-"""Voice command-routing model benchmark (issue #234).
+"""Voice command-routing model benchmark.
 
 A thin HTTP client of the local-llm-hub that measures, per candidate model,
 how reliably and how fast it turns a spoken utterance into a schema-valid

@@ -1,4 +1,4 @@
-"""Persisted named-place list for the presence locator (issue #438).
+"""Persisted named-place list for the presence locator.
 
 The browser edits a single flat list of custom places (e.g. "Roberto's work",
 "the gym"), each with a radius. Modeled on :mod:`src.security.security_schedules` — the

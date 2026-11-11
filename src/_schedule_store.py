@@ -1,4 +1,4 @@
-"""Shared read/clean helpers for weekly schedule-entry JSON stores (issue #327).
+"""Shared read/clean helpers for weekly schedule-entry JSON stores.
 
 The ``_read_json`` / ``_save`` / ``_safe_id`` / ``_clean_time`` / ``_clean_days``
 helpers below were duplicated verbatim across :mod:`src.wake_alarms` and
@@ -7,7 +7,7 @@ helpers below were duplicated verbatim across :mod:`src.wake_alarms` and
 "cloned from security_schedules.py's atomic store"). Centralized here;
 callers keep their own dataclass shape and entry-cleaning logic — only the
 read/save mechanics, the list-of-entries load/save pair
-(:func:`load_entry_list` / :func:`save_entry_list`, issue #912) and the
+(:func:`load_entry_list` / :func:`save_entry_list`) and the
 id/time/days field cleaners are shared, plus the due-window check
 (:func:`daily_due`) and the persisted once-a-day fire latch
 (:class:`DailyFireLatch`) the schedule engines fire through.
@@ -59,8 +59,8 @@ _READ_RETRY_DELAY_S = 0.05
 class StoreUnreadableError(RuntimeError):
     """A store file exists but its contents could not be established.
 
-    Deliberately *not* interchangeable with "the file isn't there" (issue
-    #689). Every :func:`read_json` caller in this repo is a read-modify-save
+    Deliberately *not* interchangeable with "the file isn't there".
+    Every :func:`read_json` caller in this repo is a read-modify-save
     store, so handing back an empty default on a failed read means the next
     save persists that phantom empty over the real data. That is exactly how a
     transient sharing violation on ``config/presence_state.json`` erased the
@@ -212,7 +212,7 @@ def daily_due(
     """True when ``now`` falls in today's ``[HH:MM, HH:MM + grace)`` window.
 
     The HVAC schedule's narrow catch-up window, lifted out of
-    ``app.webapp.automation`` so the blind schedule shares it (issue #871): a
+    ``app.webapp.automation`` so the blind schedule shares it: a
     tick landing just past the minute still fires, but a restart hours later
     never replays a stale entry. ``days`` (``mon``..``sun``; ``None`` = every
     day) restricts which days it fires on. Deliberately no look-back past

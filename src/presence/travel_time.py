@@ -1,4 +1,4 @@
-"""Traffic-aware travel time to home via the Google Routes API (issue #470/#472).
+"""Traffic-aware travel time to home via the Google Routes API.
 
 The UI-free core behind the voice "how long to get home?" follow-up: given a
 person's current coordinates and the home coordinates, ask Google for the
@@ -7,7 +7,7 @@ turns into spoken text.
 
 Uses the modern **Routes API** (``directions/v2:computeRoutes``); the legacy
 Directions API this originally called is deprecated and no longer enabled for
-newer Cloud projects (#472). ``routingPreference: TRAFFIC_AWARE`` gives the
+newer Cloud projects. ``routingPreference: TRAFFIC_AWARE`` gives the
 in-traffic duration and defaults the departure to now, so no timestamp handling
 is needed.
 

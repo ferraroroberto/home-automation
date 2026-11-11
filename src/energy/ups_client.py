@@ -81,7 +81,7 @@ class UpsState:
 
 
 def _try_nut_source(backoff: BackoffTracker, label: str, read_fn) -> Optional[UpsState]:
-    """Attempt one NUT read path, gated by its own backoff (issue #537).
+    """Attempt one NUT read path, gated by its own backoff.
 
     Returns the state on success, or ``None`` to fall through — either because
     the attempt failed (backoff escalated) or because it's still within a

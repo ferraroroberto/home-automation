@@ -58,7 +58,7 @@ def _severity_for(record: Dict[str, Any]) -> str:
 
 
 def _mirror_to_telemetry(consumer: str, record: Dict[str, Any]) -> None:
-    """Also record the event into the unified telemetry store (#289).
+    """Also record the event into the unified telemetry store.
 
     The JSONL file stays the durable local trail; this adds the queryable,
     UI-surfaced copy. Gated on :func:`telemetry.default_db_ready` so it is a

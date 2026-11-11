@@ -1,14 +1,14 @@
 r"""
 Show the ordered DHCP reservation plan (CLI)
 =============================================
-Issue #170 — reads the live attached-device inventory, classifies each device
+Reads the live attached-device inventory, classifies each device
 into a category range from ``config/dhcp_plan.json``, folds in the router's
 existing static bindings, and prints a copy-ready ``MAC · device · category ·
 current IP → planned IP`` list grouped by category, with each row's apply status
 (``reserved`` / ``create`` / ``change``).
 
 Read-only by default. Pass ``--apply`` to **push the create/change rows to the
-router** (issue #176) — a deliberate, confirmed write to the live gateway: it
+router** — a deliberate, confirmed write to the live gateway: it
 prompts for ``yes`` first, then writes one binding at a time and reports a
 per-row result. Already-reserved rows are never re-written.
 

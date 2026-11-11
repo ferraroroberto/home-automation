@@ -1,4 +1,4 @@
-"""Local "ignore trouble" overrides for RISCO security zones (issue #225).
+"""Local "ignore trouble" overrides for RISCO security zones.
 
 Tracks which detectors the user has chosen to ignore the *trouble* flag for, so a
 known/accepted trouble (a detector that can't be serviced yet) renders muted and

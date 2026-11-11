@@ -2,7 +2,7 @@
 
 iCloud/Find My remains a cached diagnostic read path. Automation decisions come
 from explicit home/away webhooks keyed by stable person ids. The one exception
-(issue #653) is staleness corroboration: when a person's webhook data has gone
+is staleness corroboration: when a person's webhook data has gone
 stale, the caller may supply a per-person :class:`PresenceCorroboration` signal
 (built from the live iCloud diagnostics cache) to vouch for it — this module
 itself stays iCloud-free; it only ever reads whatever the caller hands it.
@@ -81,7 +81,7 @@ class PresenceAutomationConfig:
 
 @dataclass(frozen=True)
 class PresenceCorroboration:
-    """One person's iCloud/Find My corroboration signal (issue #653).
+    """One person's iCloud/Find My corroboration signal.
 
     Supplied per-tick by the caller (``app/webapp/presence_automation.py``,
     which already reads the iCloud diagnostics cache) — this module never
@@ -106,7 +106,7 @@ class PresenceDecision:
 @dataclass(frozen=True)
 class PresenceBlock:
     """Diagnostic: identifies who is keeping an otherwise-eligible auto-arm
-    from firing (issue #531). A tracked person's presence can get stuck
+    from firing. A tracked person's presence can get stuck
     ``home`` indefinitely (their device's "leave" webhook never fires, even
     while its "arrive" heartbeat keeps pinging) - from the engine's own
     perspective that is indistinguishable from them genuinely still being
@@ -366,7 +366,7 @@ def mark_decision_applied(decision: PresenceDecision, outcome: str) -> None:
 
 
 def mark_disarm_satisfied(key: str) -> None:
-    """Consume a disarm key that an already-disarmed panel made moot (#598).
+    """Consume a disarm key that an already-disarmed panel made moot.
 
     Recording it here is what stops it from sitting pending until the panel is
     next armed — see :func:`satisfied_disarm_key`.
@@ -431,7 +431,7 @@ def _corroborated(
     corroboration: Dict[str, PresenceCorroboration],
 ) -> bool:
     """True when a stale person's last known state is vouched for by a fresh,
-    agreeing iCloud/Find My signal (issue #653)."""
+    agreeing iCloud/Find My signal."""
 
     return (
         _corroboration_verdict(person, config=config, at=at, corroboration=corroboration)
@@ -447,7 +447,7 @@ def _contradicted(
     corroboration: Dict[str, PresenceCorroboration],
 ) -> bool:
     """True when a fresher iCloud/Find My read disagrees with ``person``'s
-    stored webhook state (issue #696) — the mirror image of
+    stored webhook state — the mirror image of
     :func:`_corroborated`: that function only ever *extends* trust to an
     already-stale record, it has no path to *revoke* trust from a record
     that is still fresh by the clock but simply wrong (the webhook's edge-
@@ -470,7 +470,7 @@ def _contradicted(
 def missing_people(
     people: Iterable[PersonPresence], known_person_ids: Iterable[str]
 ) -> tuple[str, ...]:
-    """Roster members with no record at all in the current presence state (#689).
+    """Roster members with no record at all in the current presence state.
 
     The freshness gate below can only reason about people it can *see*: a
     person whose record has vanished outright looks exactly like a household
@@ -520,17 +520,17 @@ def evaluate_alarm_decision(
 
     ``override_perimeter`` (the "kids home" toggle) arms perimeter instead of
     full on the everyone-away trigger; the disarm path is unaffected.
-    ``corroboration`` (issue #653) lets a stale person's last known state
+    ``corroboration`` lets a stale person's last known state
     stand in as fresh when a fresher, agreeing iCloud/Find My read vouches for
-    it — see :func:`_corroborated`. The reverse also holds (issue #696): a
+    it — see :func:`_corroborated`. The reverse also holds: a
     person's webhook state is excluded from "fresh" — regardless of its own
     raw age — when a strictly newer iCloud/Find My read disagrees with it,
     since a fresh-by-clock ping can still simply be wrong (a stuck Shortcut
     automation) — see :func:`_contradicted`.
-    ``known_person_ids`` (issue #689) is the roster this household is supposed
+    ``known_person_ids`` is the roster this household is supposed
     to be tracking; a member with no record at all refuses every decision, the
     same way a stale one does.
-    ``guardian_home_name`` (issue #693) is the display name of an untracked
+    ``guardian_home_name`` is the display name of an untracked
     household member (e.g. "Nonna") whose iCloud/Find My read currently shows
     them home and fresh (<24h by default) — set by the caller, which owns the
     staleness/matching logic since it isn't webhook-tracked "presence" at all.
@@ -690,7 +690,7 @@ def satisfied_disarm_key(
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: Iterable[str] = (),
 ) -> Optional[str]:
-    """The disarm key an already-disarmed panel has made moot (issue #598).
+    """The disarm key an already-disarmed panel has made moot.
 
     :func:`evaluate_alarm_decision` only records a disarm key when it *acts* on
     it. An arrival that lands while the panel is already disarmed therefore
@@ -737,7 +737,7 @@ def evaluate_arm_block(
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: Iterable[str] = (),
 ) -> Optional[PresenceBlock]:
-    """Diagnose why an otherwise-armable house hasn't auto-armed (issue #531).
+    """Diagnose why an otherwise-armable house hasn't auto-armed.
 
     Fires only on the specific shape "someone left, but the panel is still
     disarmed because at least one other fresh tracked person is still home" -
@@ -782,18 +782,18 @@ class StalePresenceBlock:
     gone dark:
 
     ``stale_person_ids`` — their webhook data aged out and no iCloud read
-    corroborates it (issue #653). The engine knows where they last were and
+    corroborates it. The engine knows where they last were and
     can't vouch for it.
 
     ``missing_person_ids`` — they have no record at all, though the roster says
-    they should (issue #689). The engine doesn't know they exist any more. This
+    they should. The engine doesn't know they exist any more. This
     is the strictly worse one: a stale person still blocks the freshness gate,
     while a vanished person would be invisible to every gate, which is how the
     house could arm itself on a household of two with one person asleep inside.
 
     ``contradicted_person_ids`` — their webhook data is still fresh by the
     clock, but a strictly newer iCloud/Find My read actively disagrees with
-    it (issue #696) — e.g. a Shortcut ping stuck "away" from a stale Arrive
+    it — e.g. a Shortcut ping stuck "away" from a stale Arrive
     automation while Find My has since seen them home. Reported separately
     from ``stale_person_ids`` because the cause (and the fix — check the
     phone's Shortcut, not "wait for it to age out") is different: this
@@ -830,7 +830,7 @@ def evaluate_staleness_block(
     known_person_ids: Iterable[str] = (),
 ) -> Optional[StalePresenceBlock]:
     """Diagnose whether presence data the engine can't establish is what's
-    blocking automation (issues #653, #689). Fires whenever a tracked person
+    blocking automation. Fires whenever a tracked person
     fails the freshness gate ``evaluate_alarm_decision``/``evaluate_arm_block``
     apply, **or** a roster member has no record at all — i.e. exactly the
     conditions that otherwise stop the household's automation, or silently

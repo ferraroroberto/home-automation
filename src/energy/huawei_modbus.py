@@ -27,7 +27,7 @@ Proven on the live system (2026-08-04 18:10-18:15), not inferred:
   the ~0.9 kW instantaneous reading) while ``37121`` stayed frozen. The counter
   that moves under a positive reading is therefore the export counter.
 
-The issue that specified this work (#618) proposed settling it after dark, when
+The issue that specified this work proposed settling it after dark, when
 zero PV forces an unambiguous import. The cross-check above is strictly
 stronger — it fixes the sign *and* the magnitude against a convention this repo
 had already proven — so it was used instead of waiting for nightfall.

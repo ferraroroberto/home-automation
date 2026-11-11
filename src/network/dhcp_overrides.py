@@ -1,4 +1,4 @@
-"""Persisted per-MAC DHCP category overrides (issue #176).
+"""Persisted per-MAC DHCP category overrides.
 
 Maps ``mac`` → category label: the user's manual "this device belongs in that
 group" choice for the DHCP reservation planner, made from the webapp instead of

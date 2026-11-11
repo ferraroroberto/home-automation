@@ -1,7 +1,7 @@
 """Local "hidden detector" overrides for RISCO security zones.
 
 Tracks which detectors the user has marked as unused so they drop out of the
-default Detectors list (issue #104). The on-disk shape is the same
+default Detectors list. The on-disk shape is the same
 ``{zone_id: value}`` map the display-name stores use, with a truthy marker as the
 value — so the atomic load/save/set logic is shared verbatim from
 ``src.devices.display_names`` (only the file path differs), keeping it in lock-step with

@@ -1,4 +1,4 @@
-"""Persisted wake-alarm entries (issue #304).
+"""Persisted wake-alarm entries.
 
 The browser edits a single list of entries. The webapp-owned background task
 (``app.webapp.wake_alarm_automation``) loads that same list, fires due

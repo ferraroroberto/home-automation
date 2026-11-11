@@ -54,7 +54,7 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
     """Load the webapp config, falling back to defaults if the file is missing.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    exists but can't be read (issue #692) — `scripts/gen_token.py` and
+    exists but can't be read — `scripts/gen_token.py` and
     `scripts/set_password.py` both patch and save this return value whole,
     so a transient failure here would otherwise get saved back over a real
     ``auth_token``/``auth_password``.

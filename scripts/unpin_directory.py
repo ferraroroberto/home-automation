@@ -1,4 +1,4 @@
-"""Free a directory pinned by a process wedged inside termination (#681).
+"""Free a directory pinned by a process wedged inside termination.
 
 Windows will not delete a directory that is some live process's current
 working directory. Normally that resolves itself — the process exits, the cwd
@@ -17,8 +17,7 @@ read `RTL_USER_PROCESS_PARAMETERS.CurrentDirectory.Handle` from its PEB and
 close it remotely with `NtDuplicateObject(..., DUPLICATE_CLOSE_SOURCE)`.
 Verified 2026-08-22 against six pinned worktrees on the fleet host — every
 close returned `STATUS_SUCCESS`, every directory deleted immediately, no
-reboot. That supersedes home-automation#581, whose only prescribed remedy was
-rebooting the host.
+reboot. That makes rebooting the host unnecessary.
 
 **A live holder is never touched.** Yanking the cwd handle out of a healthy
 process is the kind of thing that corrupts a running browser or a running

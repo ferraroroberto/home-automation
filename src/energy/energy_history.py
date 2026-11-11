@@ -18,7 +18,7 @@ Two layers, both in one SQLite file under the gitignored runtime area
 0). Rollups track how many samples actually had PV, so a bucket with no PV data
 is reported ``pv_missing = true`` rather than a misleading 0 Wh.
 
-**Missing is not low** (issue #579). ``pv_missing`` is all-or-nothing, and an
+**Missing is not low**. ``pv_missing`` is all-or-nothing, and an
 hour that only *partly* had data is neither: its Wh is an integral over the
 minutes that arrived, so the minutes that did not contribute nothing rather
 than their true energy. Rollups therefore also record ``pv_seconds`` — how much
@@ -234,7 +234,7 @@ def _integrate_hour(rows: List[sqlite3.Row], hour_start: int) -> Optional[Dict[s
 
     ``pv_seconds`` is the width of the intervals the PV integral actually rests
     on — the same ``dt`` values, summed only where the left sample had a PV
-    reading (#579). It is what separates "the hour was dim" from "two thirds of
+    reading. It is what separates "the hour was dim" from "two thirds of
     the hour never arrived": both give a low ``pv_wh``, only the second gives a
     low ``pv_seconds``. Deliberately measured in *seconds of coverage* rather
     than a sample count, so a stretch where the sampler itself was down counts
@@ -411,7 +411,7 @@ def _empty_bucket(key: str, label: str) -> Dict[str, Any]:
 def _pv_seconds(hour: Dict[str, Any]) -> float:
     """Seconds of an hourly rollup that its PV integral actually rests on.
 
-    Rollups written before #579 have no ``pv_seconds`` value, and the raw
+    Older rollups have no ``pv_seconds`` value, and the raw
     samples they were folded from are long pruned, so fall back to the coarser
     sample-count ratio the issue itself proposed (``pv_n / n`` over the hour).
     That is enough to stop already-stored history from reading as a collapse,
@@ -464,7 +464,7 @@ def _mark_hourly_partial(
 def _mark_hourly_coverage(
     buckets: List[Dict[str, Any]], current: int
 ) -> List[Dict[str, Any]]:
-    """Add ``pv_coverage`` (0–1) and ``pv_gap`` to one-hour-wide buckets (#579).
+    """Add ``pv_coverage`` (0–1) and ``pv_gap`` to one-hour-wide buckets.
 
     ``pv_coverage`` is the share of the hour whose PV integral rests on real
     data. The in-progress hour is measured against the part of it that has
@@ -550,7 +550,7 @@ def aggregate(
 
     Each bucket carries energy (Wh) for PV / house / grid import / export, plus
     ``pv_missing`` (no PV sample landed in the bucket — asleep, not a real 0).
-    ``hourly`` buckets additionally carry ``pv_coverage`` / ``pv_gap`` (#579).
+    ``hourly`` buckets additionally carry ``pv_coverage`` / ``pv_gap``.
     Buckets are local-time, oldest first.
     """
     current = int(now if now is not None else time.time())
@@ -695,14 +695,14 @@ def hourly_day(
     """Padded hourly buckets for a single local day (``offset_days`` from today).
 
     ``0`` is today, ``-1`` yesterday, ``+1`` tomorrow. Like the ``day`` branch of
-    :func:`framed_buckets` but for any day, so the solar-forecast view (issue #39)
+    :func:`framed_buckets` but for any day, so the solar-forecast view
     can overlay a past day's *actual* generation against the forecast. Hours with
     no sample (a future day, or before the app first ran) come back as empty 0-Wh
     buckets so the result is always a continuous frame.
 
     The frame runs from local midnight to the next local midnight, so it has 24
     slots on an ordinary day, 23 on a spring-forward day and 25 on a fall-back
-    day (audit #916). Each slot is labelled with its own local clock hour
+    day. Each slot is labelled with its own local clock hour
     (``"02"``, ``"03"``, … — ``"02"`` twice on a 25-hour day), not its index.
     ``tz`` defaults to the host's local zone; tests pass an explicit one.
     """

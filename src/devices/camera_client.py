@@ -1,8 +1,8 @@
 """
 Camera LAN client (async, UI-free)
 ==================================
-Product core for the open RTSP/ONVIF cameras (issue #161), built on the path
-proven by the #89 spike. Mirrors the other domain cores (``elgato_client`` /
+Product core for the open RTSP/ONVIF cameras, built on the path
+proven by the camera spike. Mirrors the other domain cores (``elgato_client`` /
 ``melcloud_client`` / ``risco_client``): no Streamlit, no FastAPI — config in →
 flattened :class:`CameraInfo` out, plus snapshot / MJPEG-stream / PTZ / record.
 
@@ -360,7 +360,7 @@ async def _connect(cfg: CameraConfig) -> _CameraConn:
 async def _get_conn(cfg: CameraConfig) -> _CameraConn:
     """Return the cached ONVIF connection for a camera, connecting on first use.
 
-    If the configured host is unreachable, try a one-shot MAC rediscovery (#190)
+    If the configured host is unreachable, try a one-shot MAC rediscovery
     and reconnect at the recovered address before giving up.
     """
     async with _lock_for(cfg.id):
@@ -520,7 +520,7 @@ async def ptz_step(
 
     A short low-speed ``ContinuousMove`` that self-stops — one call = one
     increment, no overshoot. Works on any camera that drives the d-pad, so it
-    is the universal precise-control path (issue #190).
+    is the universal precise-control path.
     """
     cfg = get_camera_config(camera_id, path)
     conn = await _get_conn(cfg)

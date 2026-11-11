@@ -1,5 +1,5 @@
 r"""
-Shared types + leaf helpers for the home-network core (issue #197 split).
+Shared types + leaf helpers for the home-network core.
 ========================================================================
 Extracted from ``network_client`` so the three device/probe modules
 (``network_host`` / ``network_ap`` / ``network_router``) and the
@@ -43,8 +43,7 @@ class DhcpBindingTableFull(NetworkCommandError):
 class DhcpReservationLost(NetworkCommandError):
     """A replace's re-create failed *after* the prior binding was already deleted.
 
-    The router's static-binding "replace" is delete-then-create, non-atomically
-    (issue #347): if the create POST fails for any reason once the old row is
+    The router's static-binding "replace" is delete-then-create, non-atomically: if the create POST fails for any reason once the old row is
     gone, the device is left with **no** static reservation at all — worse than
     an ordinary failed write, which leaves the prior binding untouched. A
     subclass so callers can distinguish "the row is now unreserved, re-apply
@@ -104,7 +103,7 @@ class RouterHealth:
     """Vodafone ZXHN F6600P reachability, login state, and WAN/internet status.
 
     The headless login (`RouterClient.login`) and the authenticated WAN-status
-    read (issue #129 Phase 3) are both wired. The WAN fields stay ``None`` when
+    read are both wired. The WAN fields stay ``None`` when
     the router is unreachable, login fails, or the read is rejected — only a
     successful authenticated read populates them.
     """

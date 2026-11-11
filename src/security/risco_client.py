@@ -1,7 +1,7 @@
 """
 RISCO Cloud security client
 ===========================
-Async, UI-free core for the Security tab (issue #43): read the alarm state,
+Async, UI-free core for the Security tab: read the alarm state,
 arm/disarm the system, bypass detectors, and pull the event log. Wraps
 ``pyrisco`` (the same library Home Assistant's ``risco`` integration uses) over
 its **Cloud** path - username + password + panel PIN, no browser, no local
@@ -22,7 +22,7 @@ Home Assistant's user-agent in April 2026). When that happens login fails; the
 fix is a ``pyrisco`` upgrade. See the README.
 
 The native RISCO WebUI HTML/JSON scraper (site login, arm/disarm command, raw
-state-flags read) lives in :mod:`src.security.risco_webui` — extracted in issue #328 to
+state-flags read) lives in :mod:`src.security.risco_webui` — kept in its own module to
 keep that brittle, screen-scraped path visually separate from this typed cloud
 fetcher. This module imports its error types and the two entry points it needs
 (``_webui_arm_disarm`` for writes, ``_webui_state_flags`` for the extra state
@@ -564,7 +564,7 @@ async def fetch_security_state() -> SecurityState:
     cloud-cached snapshot rather than failing the whole tab - the cache still
     carries the zones and the system battery/trouble flags, and the WebUI flags
     below still supply the authoritative arm state. Mirrors the solar stale-cloud
-    fallback (#94/#95). Only a failure of *both* reads surfaces as an error.
+    fallback. Only a failure of *both* reads surfaces as an error.
     """
     async with _connect() as risco:
         try:

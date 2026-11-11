@@ -2,13 +2,10 @@
 
 Thin caller onto ``project-scaffolding``'s ``brand_gen.render_set()`` — the
 master art is home-automation's vendored Lucide ``house.svg``, not a
-bespoke Pillow-drawn silhouette (app-launcher#65: a coherent icon family
-across the fleet). Supersedes issue #309's "no SVG-rasterization dependency"
-constraint: the fleet-wide decision that landed in app-launcher#65 is to
-render the vendored master via resvg-py rather than hand-derive proportions
-in Pillow, so every project's icon is provably the same vocabulary as the
-in-app Lucide nav icons. Drops the previous accent-coloured door for the
-fleet's monochrome look.
+bespoke Pillow-drawn silhouette (a coherent icon family across the fleet).
+The vendored master is rendered via resvg-py rather than hand-derived
+proportions in Pillow, so every project's icon is provably the same
+vocabulary as the in-app Lucide nav icons, in the fleet's monochrome look.
 
 Writes into ``app/webapp/static/``: ``icon-512.png``, ``icon-512-maskable.png``,
 ``icon-180.png``, ``icon-192.png``, ``favicon.ico``. Into ``assets/tray/``:

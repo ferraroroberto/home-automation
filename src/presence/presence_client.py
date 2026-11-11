@@ -5,7 +5,7 @@ Read-only client for Apple Find My device locations, plus the attended
 browser-trust renewal flow the PWA drives. It is load-bearing for automation,
 not a spike: ``fetch_presence()`` produces the ``PresenceCorroboration`` signal
 ``src/presence/presence_engine.py`` uses to let a *stale* webhook person still count as
-fresh (issue #653), which is what permits an automatic arm or disarm of the
+fresh, which is what permits an automatic arm or disarm of the
 house alarm. It drives no HVAC action.
 
 Config (from ``.env``):
@@ -15,7 +15,7 @@ Config (from ``.env``):
   ``webapp/icloud_session`` and must remain gitignored because it contains live
   Apple session material.
 * ``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2`` / ``ICLOUD_SESSION_DIR_2`` -
-  optional **second** Apple Account (issue #478). Family Sharing only exposes
+  optional **second** Apple Account. Family Sharing only exposes
   one account's own devices plus family members sharing location with *that*
   account's group, so a phone on a different Apple ID never appears in the
   first account's read. Configuring a second account authenticates it the same
@@ -30,14 +30,14 @@ Config (from ``.env``):
 created, and again when Apple expires the trusted session. 2FA is per Apple ID,
 so each configured account trips it — and is trusted — independently.
 
-Health model (issue #658): a session is healthy when the Find My fetch
+Health model: a session is healthy when the Find My fetch
 succeeds — never because of pyicloud's in-memory ``requires_2fa`` flag.
 pyicloud's Find My sub-service re-authenticates on its own when Apple answers
 450, and when the browser-trust token isn't honoured that internal re-auth
 leaves ``requires_2fa`` true even though the very same fetch then serves every
 device. Gating on the flag marked perfectly working sessions broken.
 
-Browser-trust renewal (issue #659): Apple's ~30-day browser trust makes a fresh
+Browser-trust renewal: Apple's ~30-day browser trust makes a fresh
 session build a silent token login; once it lapses every fresh build costs a
 password (SRP) sign-in Apple throttles. Renewing it is a two-step, attended
 flow that must run inside ONE live ``PyiCloudService`` — the 2FA push and the
@@ -90,7 +90,7 @@ class PresenceAuthError(RuntimeError):
 
 
 class PresenceTermsError(RuntimeError):
-    """Raised when Apple requires the account holder to accept updated terms (#736).
+    """Raised when Apple requires the account holder to accept updated terms.
 
     Not an auth failure: the credentials and trust are fine, and neither a
     fresh sign-in nor a trust renewal can clear it. Only the account holder
@@ -127,7 +127,7 @@ class PresenceConfig:
     @property
     def display_name(self) -> str:
         """Name this account for a human — friendly name if set, else the Apple
-        ID email (issue #657: a bare "account 1"/"account 2" gave no way to tell
+        ID email (a bare "account 1"/"account 2" gives no way to tell
         which real account a message or row was about)."""
 
         return self.friendly_name or self.email
@@ -167,7 +167,7 @@ def _session_dir_from_env(name: str, default: Path) -> Path:
 def load_presence_configs(
     primary_session_dir: Optional[Path] = None,
 ) -> list[PresenceConfig]:
-    """Read every configured iCloud account from ``.env`` (issue #478).
+    """Read every configured iCloud account from ``.env``.
 
     Account 1 (``ICLOUD_EMAIL`` / ``ICLOUD_PASSWORD``) is required and always
     first. Account 2 (``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2``) is optional and
@@ -377,7 +377,7 @@ def _is_auth_failure(exc: BaseException) -> bool:
 
 
 def _is_terms_failure(exc: BaseException) -> bool:
-    """Whether Apple refused the sign-in until updated terms are accepted (#736).
+    """Whether Apple refused the sign-in until updated terms are accepted.
 
     Lazy import for the same reason as :func:`_is_auth_failure`.
     """
@@ -429,7 +429,7 @@ def _build_service(config: PresenceConfig) -> Any:
 def _service_class(*, request_2fa_push: bool) -> Any:
     """Return the ``PyiCloudService`` class to build sessions with.
 
-    ``request_2fa_push=False`` (issue #658) returns a subclass whose
+    ``request_2fa_push=False`` returns a subclass whose
     ``_request_2fa_code`` hook is a no-op: pyicloud calls that hook right after
     an SRP password login that Apple answers with "2FA required", and it asks
     Apple to push a code to every trusted device (plus an SMS attempt). In an
@@ -490,7 +490,7 @@ def _connect(config: PresenceConfig) -> Any:
 def invalidate_session(config: PresenceConfig) -> None:
     """Evict a cached session so the next :func:`_connect` rebuilds it from scratch.
 
-    Public (issue #655): the presence refresher calls this to force a fresh
+    Public: the presence refresher calls this to force a fresh
     Apple sign-in handshake when retrying a session stuck in a failed state —
     see :mod:`app.webapp.presence_refresher`'s backoff-gated retry.
     """
@@ -525,12 +525,12 @@ MAX_CODE_ATTEMPTS = 2  # rejected codes tolerated per push before a new begin is
 
 @dataclass(frozen=True)
 class TrustRenewalState:
-    """Outcome of one step of the attended browser-trust renewal (issue #659).
+    """Outcome of one step of the attended browser-trust renewal.
 
     ``status`` after :func:`begin_trust_renewal`: ``code_sent`` /
     ``already_trusted`` / ``terms_required`` / ``failed``; after
     :func:`complete_trust_renewal`: ``trusted`` / ``invalid_code`` /
-    ``expired`` / ``terms_required`` / ``failed``. ``terms_required`` (#736)
+    ``expired`` / ``terms_required`` / ``failed``. ``terms_required``
     means Apple wants updated terms accepted first — renewal cannot proceed
     until the account holder does that themselves. ``detail`` is a
     human-readable line for the UI/CLI (Apple's own message on a failure).
@@ -803,8 +803,8 @@ def _quiet_adopted_service(api: Any) -> None:
     push is wanted *then*. Once adopted it lives in the unattended tray for
     the rest of the process — if browser trust lapses again (~30 days) with
     no restart in between, pyicloud's internal Find My re-auth on this very
-    object would otherwise push a code from the tray, the exact spam #658
-    removed. Only real pyicloud services are re-classed; test doubles are
+    object would otherwise push a code from the tray, the spam this
+    prevents. Only real pyicloud services are re-classed; test doubles are
     left alone.
     """
 
@@ -835,7 +835,7 @@ def _stop_background_refresh(api: Any) -> None:
 
 
 def readable_detail(text: str) -> str:
-    """The human-readable part of an exception text, markup dropped (#963, #966).
+    """The human-readable part of an exception text, markup dropped.
 
     pyicloud appends Apple's raw response body to its message
     (``"<reason> (<code>): <body>"``), and for a 409 that body is a whole HTML
@@ -862,7 +862,7 @@ def _complete_2fa(
 ) -> None:
     """Validate a supplied 2FA code if Apple currently requires one.
 
-    Only reached with an explicit ``verification_code`` (issue #658) — the
+    Only reached with an explicit ``verification_code`` — the
     absence of a code is never a reason to refuse a fetch, so the "no code
     given" branch below is only hit by direct callers/tests.
     """

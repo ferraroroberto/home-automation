@@ -1,7 +1,7 @@
 r"""
 Show configured cameras (CLI / probe)
 ======================================
-Read-only probe for the camera fleet (issue #161): confirm each camera in
+Read-only probe for the camera fleet: confirm each camera in
 ``config/cameras.json`` is reachable over ONVIF and report its model + PTZ
 capability, mirroring ``list_devices.py`` / ``list_elgato_lights.py``.
 

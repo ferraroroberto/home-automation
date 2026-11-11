@@ -1,4 +1,4 @@
-"""Spoken-phrase parsing + Google Calendar event shaping (issue #313).
+"""Spoken-phrase parsing + Google Calendar event shaping.
 
 Google Calendar is the only store — this repo persists nothing locally, so
 there's no dataclass/atomic-store pair here the way ``wake_alarms.py`` and

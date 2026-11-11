@@ -4,7 +4,7 @@ Maps ``mac`` (uppercased, colon-separated) → ``display_name``, the network-sid
 parallel to ``src.devices.display_names`` (the MELCloud unit equivalent),
 ``src.devices.tuya_display_names`` (plugs) and ``src.security.security_display_names`` (RISCO
 detectors). Most attached clients report an ``n/a`` hostname, so a custom label
-is the only way to tell them apart at a glance (issue #129 Phase 2). The atomic
+is the only way to tell them apart at a glance. The atomic
 load/save/set logic is shared from ``src.devices.display_names`` — only the on-disk path
 differs, so the four stores stay in lock-step. The real file is gitignored (it
 would expose a device inventory in a public repo); a missing file is not an

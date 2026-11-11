@@ -1,4 +1,4 @@
-"""Shared SQLite connection helper (issue #452).
+"""Shared SQLite connection helper.
 
 Single canonical implementation of the WAL-mode connect context manager that
 ``src/energy/energy_history.py``, ``src/network/network_history.py`` and

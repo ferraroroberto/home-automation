@@ -12,7 +12,7 @@ network dependency.
 
 Local Modbus first, this cloud path as the fallback
 ---------------------------------------------------
-Since an **SDongleA-05** smart dongle was fitted and wired to the LAN (#618),
+Since an **SDongleA-05** smart dongle was fitted and wired to the LAN,
 :mod:`src.energy.huawei_modbus` reads the same flow off the inverter directly, about
 a second old instead of the portal's 5-minute grid.
 :func:`fetch_energy_state` tries that first and falls back here on any failure.
@@ -257,7 +257,7 @@ def _is_stale(payload_time: object, max_staleness_s: int) -> bool:
     missing or unparseable timestamp is treated as fresh — staleness cannot be
     proven, so an otherwise-good read is not discarded.
 
-    **Ruled out, #579:** a run of identical samples ahead of a feed outage
+    **Ruled out:** a run of identical samples ahead of a feed outage
     (2026-07-30 read ``427`` W at 08:50, 09:00 and 09:10, then ``NULL`` from
     09:20) is not a hole in this check — it is the check working. The sampler
     persists once a minute, the portal keeps returning its last bucket, so the
@@ -319,7 +319,7 @@ def _is_settled(point: Dict[str, float]) -> bool:
     Unverifiable (no meter, or no consumption series) counts as settled — the
     check cannot prove the bucket bad, so a usable read is not thrown away.
 
-    **Known residual hole, NOT fixed here (#579).** The identity cannot catch a
+    **Known residual hole, NOT fixed here.** The identity cannot catch a
     placeholder in ``productPower`` specifically: ``0 + meter == use`` holds
     whenever the house is running entirely off the grid, which is precisely
     what a not-yet-written PV field looks like. So a daylight ``0`` can reach
@@ -331,8 +331,8 @@ def _is_settled(point: Dict[str, float]) -> bool:
     ``0`` is to decide it is implausible for the time of day, and a genuinely
     zero bucket (heavy cloud, an inverter that just woke) is a real state this
     client must still report. That is its own change with its own risk to the
-    live tile, so it does not ride along with #579. Note the coverage machinery
-    added there does **not** paper over it: a stray ``0`` is a *present*
+    live tile, so it is not part of the coverage work. Note the coverage machinery
+    does **not** paper over it: a stray ``0`` is a *present*
     sample, so it depresses the hour's Wh at full ``pv_seconds`` coverage and
     is not flagged ``pv_gap``.
     """
@@ -605,7 +605,7 @@ def _derive(state: EnergyState) -> None:
 
 
 async def _cloud_cumulative(state: EnergyState, config: EnergyConfig) -> None:
-    """Fill today's kWh counters from the cloud, best-effort (issue #618).
+    """Fill today's kWh counters from the cloud, best-effort.
 
     The Modbus path cannot supply these. The power sensor's own cumulative
     registers are **lifetime** totals, and these two fields are today's — the
@@ -628,7 +628,7 @@ async def _cloud_cumulative(state: EnergyState, config: EnergyConfig) -> None:
 async def fetch_energy_state() -> EnergyState:
     """Read the live energy flow and return a flattened snapshot.
 
-    **Local Modbus first, cloud on any failure** (issue #618). The dongle
+    **Local Modbus first, cloud on any failure**. The dongle
     answers about a second old where the portal publishes every 5 minutes and
     lags several more; :mod:`src.energy.huawei_modbus` reports an unreadable dongle as
     ``None``, and everything below is the unchanged cloud path that then serves.
