@@ -1,13 +1,13 @@
 """Weekly alarm-schedule CRUD over ``src.security.security_schedules``.
 
-Split out of ``routers/security.py`` (issue #346) — the same "split a grown
+Split out of ``routers/security.py`` — the same "split a grown
 router by self-contained concern" move ``dhcp_plan.py`` made out of
-``network.py`` in #328. The weekly schedule list is fully self-contained
+``network.py``. The weekly schedule list is fully self-contained
 (schema + persistence in :mod:`src.security.security_schedules`) and shares no state
 with the live RISCO read/write path that stays in ``security.py``.
 
 The GET/PUT shape itself is the shared ``make_list_crud_router`` factory
-(issue #571) — byte-identical here, in ``security_scene.py`` and in
+— byte-identical here, in ``security_scene.py`` and in
 ``security_override.py`` apart from the store and the nouns.
 """
 

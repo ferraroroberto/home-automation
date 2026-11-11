@@ -1,7 +1,7 @@
-"""Blind schedule CRUD (#871) and the alarm-pairing switch (#875).
+"""Blind schedule CRUD and the alarm-pairing switch.
 
 ``/api/blinds/schedules`` has the same GET/PUT list shape as the alarm
-schedules (the shared ``make_list_crud_router`` factory, issue #571): the
+schedules (the shared ``make_list_crud_router`` factory): the
 browser edits one list and the background engine in
 ``app.webapp.blind_schedules`` fires it. ``/api/blinds/alarm-pairing`` is the
 one on/off switch for the blinds following the automatic alarm.

@@ -4,7 +4,7 @@
 /api/units/{id}`` writes the changed controls and returns the read-back
 snapshot so the client can re-render just that card.
 
-The device list is served from :data:`UNITS_SNAPSHOT` (#758): a MELCloud
+The device list is served from :data:`UNITS_SNAPSHOT`: a MELCloud
 fetch is a full login (~1.6 s), so it runs off the request path. Only the raw
 device list is cached; display names, rules, schedules and boost state are
 still layered on per request.
@@ -175,7 +175,7 @@ def _decoration(load, label: str, empty):
 
     These reads are display enrichment layered onto the live MELCloud device
     list, and they are never written back — so a momentarily unreadable file
-    (issue #689) degrades to "no rules/schedules shown this poll" with a logged
+    degrades to "no rules/schedules shown this poll" with a logged
     warning, instead of 500-ing `GET /api/units` and taking the PWA home grid
     and the Home Assistant `climate` platform down over a file that has nothing
     to do with the device list. Decision paths deliberately do the opposite and
@@ -441,11 +441,11 @@ def _boost_coordinator_payload(config: BoostCoordinatorConfig) -> Dict[str, Any]
 
 @router.get("/api/hvac/boost-coordinator")
 async def get_boost_coordinator() -> Dict[str, Any]:
-    """The fleet solar-boost sequencing knobs (issue #562).
+    """The fleet solar-boost sequencing knobs.
 
     Always 200: an absent or malformed file means "defaults", never a 500 — the
     engine has to keep running off a hand-broken config. That promise now has to
-    be kept explicitly (issue #689), since the underlying store raises on an
+    be kept explicitly, since the underlying store raises on an
     unreadable read rather than quietly returning empty.
     """
     return _boost_coordinator_payload(

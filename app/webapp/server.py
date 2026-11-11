@@ -4,7 +4,7 @@ Routes are split across ``app/webapp/routers/`` — one module per mount,
 listed below in the same order they're mounted in ``create_app()``. Each
 module's own docstring documents its exact endpoints; kept as one line per
 module here (not a per-endpoint table) so this list can't drift out of sync
-with the router set the way the old exhaustive table did (#453).
+with the router set, as an exhaustive per-endpoint table would.
 
     misc               → /, /healthz, /api/version
     (static mount)     → /static/*                        (StaticFiles, mounted in create_app — not a router)
@@ -35,13 +35,13 @@ with the router set the way the old exhaustive table did (#453).
     activity           → /api/activity*                    (unified event log)
     nav_debug          → /api/nav-debug                    (client nav-pin diagnostics)
     wake_alarms        → /api/wake-alarms*, /api/wake-timers*
-    reminders          → /api/reminders*                    (bidirectional voice/app reminders, issue #314)
-    calendar_events    → /api/calendar/voice                 (voice-only Google Calendar event creation, issue #313)
-    voice_commands     → /api/voice-commands                 (read-only voice cheat-sheet catalogue, issue #437)
-    web_search         → /api/voice/search                   (Spanish voice web search: SearXNG es + hub summary, issue #865)
+    reminders          → /api/reminders*                    (bidirectional voice/app reminders)
+    calendar_events    → /api/calendar/voice                 (voice-only Google Calendar event creation)
+    voice_commands     → /api/voice-commands                 (read-only voice cheat-sheet catalogue)
+    web_search         → /api/voice/search                   (Spanish voice web search: SearXNG es + hub summary)
     pc_fleet           → /api/pc-fleet*                     (UPS-triggered fleet-shutdown prefs + hub proxy)
-    actions            → /api/actions/{action_id}           (generalized action alias, issue #641)
-    usage_log          → /api/usage/events, /api/usage/summary  (vendored local-only view/tap log, #906)
+    actions            → /api/actions/{action_id}           (generalized action alias)
+    usage_log          → /api/usage/events, /api/usage/summary  (vendored local-only view/tap log)
 
 Run with::
 

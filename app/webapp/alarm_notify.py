@@ -15,7 +15,7 @@ the command itself. :func:`record_alarm_action` does two things:
    delivery failure is logged and swallowed so it can never break an automation
    loop. Manual actions never notify (the user is already at the app).
    ``OUTCOME_BLOCKED`` is the one exception — it never notifies regardless of
-   the ``error`` toggle (issue #626): a stuck-presence block is expected,
+   the ``error`` toggle: a stuck-presence block is expected,
    frequent noise, not an event worth a phone alert.
 
 Persistent failures (an offline panel retried every poll) would otherwise spam:
@@ -150,7 +150,7 @@ def action_took_effect(action: str, state: SecurityState) -> bool:
 
 def alarm_action_already_satisfied(action: str, state: SecurityState) -> bool:
     """Whether the panel's *current* mode already satisfies ``action`` without
-    issuing any command (issue #676) - used to skip a schedule fire that would
+    issuing any command - used to skip a schedule fire that would
     just re-arm an already-armed panel, or re-disarm an already-disarmed one.
 
     Broader than :func:`action_took_effect` for arm-family actions only: a
@@ -166,7 +166,7 @@ def alarm_action_already_satisfied(action: str, state: SecurityState) -> bool:
 
 
 async def _send(action: str) -> SecurityState:
-    """``control_system``, then mark the ``/api/security`` snapshot dirty (#759).
+    """``control_system``, then mark the ``/api/security`` snapshot dirty.
 
     Marked even when it raises: the panel may have taken the command.
     """
@@ -194,8 +194,7 @@ async def confirm_alarm_action(action: str) -> SecurityState:
     ``RISCO_PASSWORD`` / ``RISCO_PIN``) is not retried at all - it means the
     panel was never even reachable, so waiting and resending can't change the
     outcome. It propagates immediately instead of being absorbed into the
-    generic backoff loop and relabelled as a ``RiscoCommandError`` ~210s later
-    (issue #610).
+    generic backoff loop and relabelled as a ``RiscoCommandError`` ~210s later.
     """
 
     error = "unknown error"
@@ -359,9 +358,9 @@ async def record_alarm_action(
         source: one of ``manual`` / ``schedule`` / ``presence``.
         action: the RISCO action (``arm`` / ``disarm`` / ``partial`` / ``perimeter``).
         outcome: ``ok``, ``error`` (a command was sent and the panel rejected
-            it), ``blocked`` (#599 — a condition stopped the action being
+            it), ``blocked`` (a condition stopped the action being
             attempted at all; worded like a block, not a failure, and never
-            notified over Telegram — #626), or ``already`` (#676 — the panel
+            notified over Telegram), or ``already`` (the panel
             already reported the desired end state, so no command was sent;
             an arm-family action never notifies, a disarm reads as a
             reminder rather than a failure).
@@ -369,7 +368,7 @@ async def record_alarm_action(
         detail: short human context (schedule time, presence reason) for the message.
         reason: stored in the activity log (not the message) for audit.
         actor: for ``source=manual`` only, which caller issued the command —
-            ``webapp`` / ``ha`` / ``voice-pe`` (issue #405). Omitted for
+            ``webapp`` / ``ha`` / ``voice-pe``. Omitted for
             schedule/presence sources, which are already unambiguous.
         dedupe_key: when set, an ``error`` notifies at most once per local day per key.
         now / prefs_loader / notifier_factory: injection seams for tests.
@@ -377,8 +376,8 @@ async def record_alarm_action(
     Returns:
         ``True`` only when a Telegram message was actually delivered this
         call — ``False`` for a manual source, a toggled-off preference, a
-        same-day dedupe hit, a missing notifier, or a delivery failure
-        (#601). Callers that mark their own "already notified" bookkeeping
+        same-day dedupe hit, a missing notifier, or a delivery failure.
+        Callers that mark their own "already notified" bookkeeping
         must gate that marker on this return value, not on having merely
         reached the send attempt — see :func:`src.presence.presence_blocks.set_arm_block`.
     """
@@ -482,7 +481,7 @@ async def record_security_event(
     """Log a panel event (``intrusion`` / ``ac_lost``) and notify per its toggle.
 
     ``log_detail`` is persisted to the activity log only, never the Telegram
-    copy — for the raw ``ongoing_alarm``/``memory_alarm`` flags (issue #307),
+    copy — for the raw ``ongoing_alarm``/``memory_alarm`` flags,
     which are diagnosable-from-logs breadcrumbs, not something the owner needs
     on their phone at 🚨 time. ``detail`` (rare, e.g. a manual test note) goes
     to both, as before.
@@ -531,7 +530,7 @@ async def check_security_transitions(
     loss and restore. First observation of each flag just sets the baseline.
 
     ``intrusion`` is ``None`` when the panel's ``ongoing_alarm``/``memory_alarm``
-    WebUI scrape came back unreadable this poll (issue #307) — a transient
+    WebUI scrape came back unreadable this poll — a transient
     scrape hiccup must not be read as "the alarm cleared", or the *next*
     successful poll re-observing a still-latched, days-old ``memory_alarm``
     manufactures a bogus false→true onset. An unreadable poll is skipped

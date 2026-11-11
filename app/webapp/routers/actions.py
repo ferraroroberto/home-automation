@@ -1,4 +1,4 @@
-"""Generalized action alias — ``POST /api/actions/{action_id}`` (issue #641).
+"""Generalized action alias — ``POST /api/actions/{action_id}``.
 
 One stable surface over the existing per-device-family endpoints so an
 external trigger (a Stream Deck button today, anything else later) needs to

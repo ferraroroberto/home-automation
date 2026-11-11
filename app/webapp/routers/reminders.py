@@ -1,4 +1,4 @@
-"""Reminders API — bidirectional voice/app sync (issue #314).
+"""Reminders API — bidirectional voice/app sync.
 
 ``GET``/``PUT /api/reminders`` manage the persisted reminder list for the
 PWA; the voice endpoints mirror ``app/webapp/routers/wake_alarms.py``'s

@@ -1,4 +1,4 @@
-"""Unified activity / event log API over :mod:`src.telemetry` (#289).
+"""Unified activity / event log API over :mod:`src.telemetry`.
 
 ``GET /api/activity`` reads back the unified ``events`` store — the queryable,
 UI-surfaced successor to the write-only ``logs/*.jsonl`` trail and the otherwise
@@ -119,7 +119,7 @@ async def get_readings(
 ) -> Dict[str, Any]:
     """Return recent device readings, newest first, filtered by the supplied facets.
 
-    Powers the Activity log's readings view (#290). ``value_num`` passes through
+    Powers the Activity log's readings view. ``value_num`` passes through
     unchanged — ``None`` (asleep) stays ``None``, never 0.
     """
     safe_limit = max(1, min(int(limit or 200), _MAX_LIMIT))

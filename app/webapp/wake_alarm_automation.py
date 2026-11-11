@@ -1,4 +1,4 @@
-"""Background wake-alarm + timer evaluator (issue #304).
+"""Background wake-alarm + timer evaluator.
 
 Polls the persisted wake-alarm list and the in-memory timer store, marks due
 entries "ringing", and fires a best-effort Telegram notify. One-shot alarms

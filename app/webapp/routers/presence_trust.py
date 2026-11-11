@@ -1,7 +1,7 @@
 """iCloud browser-trust renewal flow over ``src.presence.presence_client``.
 
-Split out of ``routers/presence.py`` (issue #702) — the two-step, attended
-2FA renewal (issue #659) is fully self-contained and shares no state with the
+Split out of ``routers/presence.py`` — the two-step, attended
+2FA renewal is fully self-contained and shares no state with the
 rest of the presence router beyond triggering a diagnostics refresh on
 success. Two-step: begin makes Apple push a 2FA code to the account's trusted
 devices; complete verifies it on the SAME live pyicloud session (see
@@ -63,7 +63,7 @@ def _trust_payload(config: PresenceConfig, state: TrustRenewalState) -> Dict[str
 async def post_icloud_trust_begin(account: str) -> Dict[str, Any]:
     """Ask Apple to push a 2FA code for this account (``code_sent`` /
     ``already_trusted`` / ``terms_required`` / ``failed``); the code is entered
-    via ``…/complete``. ``terms_required`` (#736) is Apple refusing the sign-in
+    via ``…/complete``. ``terms_required`` is Apple refusing the sign-in
     until the account holder accepts updated terms — renewal can't fix that."""
 
     config = _icloud_account(account)

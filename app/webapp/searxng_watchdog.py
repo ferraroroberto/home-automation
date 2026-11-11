@@ -1,11 +1,11 @@
-"""SearXNG backend supervision for the voice assistant's Tier-3 web search (issue #716).
+"""SearXNG backend supervision for the voice assistant's Tier-3 web search.
 
 The `web_search` function behind "Okay Nabu" is only as live as the SearXNG
 container backing it, and when that container is down the failure is *silent
 and confidently wrong*: the `qwen3.5-4b-nothink` brain falls back to its
-training cutoff and answers anyway. #716 caught it answering "GPT-4.0" for
-"what's the latest model from OpenAI" — the container had exited cleanly eight
-days earlier and nothing had noticed. Docker's own `restart: unless-stopped`
+training cutoff and answers anyway, e.g. "GPT-4.0" for
+"what's the latest model from OpenAI" after the container had exited cleanly
+eight days earlier with nothing noticing. Docker's own `restart: unless-stopped`
 could not help (it deliberately honours a graceful stop forever), and no
 restart policy of any kind catches the other shape: running but wedged,
 not answering `/healthz`.

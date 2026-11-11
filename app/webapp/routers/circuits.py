@@ -1,4 +1,4 @@
-"""Per-circuit energy API over the Athom CT-clamp meters (issue #25).
+"""Per-circuit energy API over the Athom CT-clamp meters.
 
 ``GET /api/circuits`` returns every discovered meter with **all** of its
 channels — clamp fitted or not. ``PUT /api/circuits/{key}/display_name`` labels
@@ -16,7 +16,7 @@ every other meter stays live. ``null`` is never collapsed into ``0`` — 0 W is 
 real answer here (an idle circuit, or a channel with no clamp yet) and has to
 stay distinguishable from "not measured".
 
-The read is answered from memory (#926): a meter's SSE snapshot takes 2-4 s and
+The read is answered from memory: a meter's SSE snapshot takes 2-4 s and
 a lapsed mDNS discovery adds seconds more, which every Devices-tab load used to
 wait out. See ``CIRCUITS_SNAPSHOT``.
 """
@@ -167,7 +167,7 @@ async def refresh_circuits() -> Dict[str, Any]:
     per-meter read cache is dropped (for a fresh live reading); the discovery
     cache is deliberately left alone — wiping it would throw away the previous
     sweep a forced, possibly-partial mDNS browse relies on to avoid dropping a
-    meter it simply missed this time (issue #615).
+    meter it simply missed this time.
     """
     clear_read_cache()
     CIRCUITS_SNAPSHOT.invalidate()  # the next GET shows what this sweep found

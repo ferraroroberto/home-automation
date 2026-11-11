@@ -14,7 +14,7 @@ live state once and, per unit:
   unit's setpoint one step toward the rule's desired *room* target, but no more
   often than ``adjust_interval_s`` (the room responds slowly; over-nudging would
   overshoot). The rule never touches power — see :mod:`src.devices.hvac_automation`.
-* **Solar-boost coordinator** (#562) — one fleet-wide decision per tick between
+* **Solar-boost coordinator** — one fleet-wide decision per tick between
   the two per-unit passes above: at most one unit is admitted to (or shed from)
   boost per settle interval, measuring real surplus in between, and the
   admission/shed transition commands the unit's setpoint immediately instead of
@@ -64,7 +64,7 @@ _DEFAULT_RANGE = (16.0, 31.0)
 
 
 async def _write_unit(unit_id: str, **kwargs: Any) -> DeviceInfo:
-    """Write one unit, then mark the ``/api/units`` snapshot dirty (#758).
+    """Write one unit, then mark the ``/api/units`` snapshot dirty.
 
     Marked even when the write raises, since it may have half-applied; the
     next read refetches rather than serving the pre-write state.
@@ -164,7 +164,7 @@ def _set_boost(
     """Update one unit's boost flag; logs to the activity feed on transitions only.
 
     The single place ``boost_order`` (admission order, for LIFO shedding) and the
-    settle-timer stamps are maintained — #562. **Any** change to the boosted set
+    settle-timer stamps are maintained. **Any** change to the boosted set
     restarts the settle timer, including an involuntary clear (a unit powered off
     or its rule disabled): the fleet's draw just changed, so the next surplus
     reading has to be given time to reflect that before anything else moves.
@@ -215,7 +215,7 @@ def _log_boost_hold(
     surplus_w: Optional[float],
     by_uid: Dict[str, _Steerable],
 ) -> None:
-    """Record a ``held_margin`` episode once, not once per tick (#562).
+    """Record a ``held_margin`` episode once, not once per tick.
 
     A hold is not a state transition, and the engine re-evaluates every
     ``poll_interval_s`` — logging it per evaluation would bury the activity feed
@@ -250,7 +250,7 @@ async def _write_transition_setpoint(
     boosted: bool,
     monotonic: float,
 ) -> None:
-    """Command the unit's setpoint *now*, on a boost admission/shed (#562).
+    """Command the unit's setpoint *now*, on a boost admission/shed.
 
     Bypasses the ``adjust_interval_s`` throttle for this one write and computes
     the setpoint straight from the (un)boosted target instead of one step from

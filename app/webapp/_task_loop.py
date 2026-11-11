@@ -1,4 +1,4 @@
-"""Shared background-loop shell for the webapp's ``start_*`` tasks (issue #452).
+"""Shared background-loop shell for the webapp's ``start_*`` tasks.
 
 ``automation`` / ``presence_automation`` / ``presence_refresher`` /
 ``power_monitor`` / ``security_automation`` / ``wake_alarm_automation`` /
@@ -9,9 +9,9 @@ re-raises so the task actually stops. Centralizing it here means the
 shell (and its cancellation semantics) can't drift between loops; each
 caller keeps its own tick logic, interval, and log message text.
 
-:func:`spawn_background_task` is the matching home for fire-and-forget work
-(issue #912): the alarm-scene and alarm-override event scans and the blind
-retries each carried their own copy of it.
+:func:`spawn_background_task` is the matching home for fire-and-forget work:
+the alarm-scene and alarm-override event scans and the blind
+retries all use it.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Opt-in nightly speed test — owned by the webapp (uvicorn) lifecycle (#840).
+"""Opt-in nightly speed test — owned by the webapp (uvicorn) lifecycle.
 
 One asyncio task started in the FastAPI lifespan by the automation owner, like
 the other write-side loops (no separate daemon). Every minute it asks one

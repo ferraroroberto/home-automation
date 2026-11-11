@@ -68,7 +68,7 @@ def _keys_unchanged(keys: List[_FileKey]) -> bool:
 
 
 def _stamped_index(app: Any) -> Tuple[str, str]:
-    """The stamped index.html and its ETag, re-rendered only on change (#757).
+    """The stamped index.html and its ETag, re-rendered only on change.
 
     The body is cached on the app, keyed on the path, mtime and size of
     index.html and of every view partial it includes, so an edit on disk is

@@ -1,10 +1,10 @@
-"""One RISCO event-log scanner for the alarm engines (issue #912).
+"""One RISCO event-log scanner for the alarm engines.
 
-``alarm_scene_automation`` (#325) and ``security_override_automation`` (#341)
+``alarm_scene_automation`` and ``security_override_automation``
 both act on RISCO's event log rather than its live alarm flags: diff
 ``fetch_events()`` against a disk-persisted cursor, re-check that cursor
 immediately before claiming each new event so two concurrent scans (an
-orphaned process after a tray restart) can't both act on one (#339), throttle
+orphaned process after a tray restart) can't both act on one, throttle
 how often the log is read and never let two scans overlap in one process.
 This module holds that workflow once; each engine supplies its cursor store,
 which events it wants and what to do with each.

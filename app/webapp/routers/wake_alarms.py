@@ -1,4 +1,4 @@
-"""Wake-alarm + app-native timer API (issue #304).
+"""Wake-alarm + app-native timer API.
 
 ``GET``/``PUT /api/wake-alarms`` manage the persisted recurring/one-shot
 alarm list; ``POST /api/wake-alarms/{id}/test`` and ``.../dismiss`` drive the
@@ -100,7 +100,7 @@ async def voice_set_wake_alarm(
     The HA ``intent_script`` speaks ``speech`` back to the user. A phrase with
     no recognisable time returns ``ok: false`` and a clarifying line rather than
     a 4xx, so the voice assistant always has something to say. ``lang=es`` parses
-    Spanish times and speaks Spanish (the "Asistente (es)" pipeline, #466).
+    Spanish times and speaks Spanish (the "Asistente (es)" pipeline).
     """
 
     lang = _norm_lang(lang)

@@ -1,10 +1,10 @@
 """Alarm scene-capture pairings CRUD over ``src.security.alarm_scene_config``.
 
-Split out of ``routers/security.py`` (issue #346) — same rationale as
-``security_schedules.py``: the detector→camera+preset pairing list (issue
-#162) is fully self-contained and shares no state with the live RISCO
+Split out of ``routers/security.py`` — same rationale as
+``security_schedules.py``: the detector→camera+preset pairing list
+is fully self-contained and shares no state with the live RISCO
 read/write path that stays in ``security.py``. The GET/PUT shape is the
-shared ``make_list_crud_router`` factory (issue #571).
+shared ``make_list_crud_router`` factory.
 """
 
 from __future__ import annotations

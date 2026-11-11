@@ -2,12 +2,12 @@
 
 Presence/person CRUD + webhooks, named-places CRUD, automation-config CRUD,
 and home-location config with Nominatim reverse-geocoding. Two feature panels
-that used to live here now live in their own router modules (issue #702),
-following the same split ``security.py`` (#346) and ``network.py`` (#328)
+that used to live here now live in their own router modules,
+following the same split ``security.py`` and ``network.py``
 already use:
 
-    ./presence_locate.py — the locate/ETA voice bridge (#438, #470)
-    ./presence_trust.py  — the iCloud browser-trust renewal flow (#659)
+    ./presence_locate.py — the locate/ETA voice bridge
+    ./presence_trust.py  — the iCloud browser-trust renewal flow
 """
 
 from __future__ import annotations
@@ -98,7 +98,7 @@ _ICLOUD_STALE_AFTER_S_DEFAULT = 300
 
 def _icloud_entity_stale(entity: PresenceEntity, *, now: datetime) -> bool:
     """An iCloud/Find My fix is stale once it's older than the threshold — a
-    missing ``last_seen`` (no fix at all) is stale by definition (#483)."""
+    missing ``last_seen`` (no fix at all) is stale by definition."""
 
     if entity.last_seen is None:
         return True
@@ -307,7 +307,7 @@ class PresenceRolePayload(BaseModel):
 
 @router.put("/api/presence/role")
 async def update_presence_role(payload: PresenceRolePayload) -> Dict[str, Any]:
-    """Set or clear a household-role alias (e.g. "dad"/"mom") for voice lookup (#438)."""
+    """Set or clear a household-role alias (e.g. "dad"/"mom") for voice lookup."""
 
     entity_id = payload.entity_id.strip()
     if not entity_id:
@@ -323,7 +323,7 @@ def _places_payload(places: list[PresencePlace]) -> Dict[str, Any]:
 
 @router.get("/api/presence/places")
 async def get_presence_places() -> Dict[str, Any]:
-    """Return the configured named places for the locator (#438)."""
+    """Return the configured named places for the locator."""
 
     return _places_payload(load_presence_places())
 
@@ -459,7 +459,7 @@ async def _reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
     """Look up (and cache) a short place label for coordinates via Nominatim.
 
     Shared by the browser-facing ``/api/location/reverse`` endpoint and the
-    voice-bridge locate resolution (#442) — same cache, so a coordinate already
+    voice-bridge locate resolution — same cache, so a coordinate already
     looked up for the People card's place label costs nothing to reuse for
     speech.
     """

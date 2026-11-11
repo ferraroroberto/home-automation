@@ -1,6 +1,6 @@
 """DHCP reservation planner + staged reservation manager over ``src.network.dhcp_plan``.
 
-Split out of ``routers/network.py`` (issue #328) — the DHCP-plan feature is
+Split out of ``routers/network.py`` — the DHCP-plan feature is
 self-contained (schema in :mod:`src.network.dhcp_plan`, per-MAC UI overrides in
 :mod:`src.network.dhcp_overrides`) and grew inside the network router only because
 that's where the AP device inventory lived. It still reads the live inventory
@@ -20,8 +20,8 @@ router is opt-in, confirm-gated in the UI, and never runs on a poll:
   override that the planner folds over ``config/dhcp_plan.json`` (no router
   write).
 
-See README "DHCP reservation plan" (#170) and "Managing the ten slots from the
-app" (#176) for the full user-facing behavior and the slot-budget rationale.
+See README "DHCP reservation plan" and "Managing the ten slots from the
+app" for the full user-facing behavior and the slot-budget rationale.
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ def _existing_binding_dict(
     plan_macs: Set[str],
     overrides: Mapping[str, str],
 ) -> Dict[str, Any]:
-    """Serialise one router static-binding row for the "on the router now" list (#176).
+    """Serialise one router static-binding row for the "on the router now" list.
 
     ``online`` = the MAC is in the current inventory; ``in_plan`` = the planner
     saw/placed it. A reservation held by an offline or retired device reads
@@ -125,7 +125,7 @@ def _dhcp_plan_dict(
     devices that aren't in the plan too (e.g. the gateway's own reservation), which
     a status-derived count would miss. The rows are also surfaced as ``existing`` so
     the UI can list (and offer to delete) reservations even for offline devices —
-    the user's lever against the fixed 10-slot cap (issue #176 step 1).
+    the user's lever against the fixed 10-slot cap.
     """
     overrides = load_network_display_names()
     statuses = [a.status for c in plan.categories for a in c.assignments]
@@ -196,7 +196,7 @@ async def _compute_dhcp_plan() -> tuple[DhcpPlan, Optional[List[dict]], Set[str]
     failure yields a binding-less plan (every placed row reads as ``create``)
     rather than failing the whole plan. The webapp's per-MAC group overrides
     (:mod:`src.network.dhcp_overrides`) are folded **over** the committed config so a UI
-    choice wins without editing ``config/dhcp_plan.json`` (issue #176 step 3).
+    choice wins without editing ``config/dhcp_plan.json``.
 
     Returns ``(plan, existing_rows, online_macs)``: ``existing_rows`` is the actual
     binding table (``None`` when the read failed) — the authoritative slot occupancy
@@ -229,7 +229,7 @@ async def _compute_dhcp_plan() -> tuple[DhcpPlan, Optional[List[dict]], Set[str]
 
 @router.get("/api/network/dhcp-plan")
 async def get_dhcp_plan() -> Dict[str, Any]:
-    """Compute the ordered DHCP reservation plan (issue #170) — **read-only**.
+    """Compute the ordered DHCP reservation plan — **read-only**.
 
     Reads the live inventory, classifies each device into a category range from
     ``config/dhcp_plan.json``, folds in the router's existing static bindings, and
@@ -257,7 +257,7 @@ class DhcpOverridePayload(BaseModel):
 
 @router.put("/api/network/dhcp-overrides/{mac}")
 async def update_dhcp_override(mac: str, payload: DhcpOverridePayload) -> Dict[str, Any]:
-    """Set or clear a device's DHCP category override, persisted (issue #176 step 3).
+    """Set or clear a device's DHCP category override, persisted.
 
     Lets the user place an unmatched / generic-hostname device into a category from
     the webapp; the choice survives refreshes (gitignored ``dhcp_overrides.json``)
@@ -297,7 +297,7 @@ class DhcpReservationsApplyPayload(BaseModel):
 
 @router.post("/api/network/dhcp-reservations/apply")
 async def apply_dhcp_reservations(payload: DhcpReservationsApplyPayload) -> Dict[str, Any]:
-    """Apply a staged batch of reservation changes at once (issue #176 redesign).
+    """Apply a staged batch of reservation changes at once.
 
     The card lets the user mark router rows to **remove**, plan/unassigned rows to
     **add**, and **manual** rows to add, then applies them all together: deletes

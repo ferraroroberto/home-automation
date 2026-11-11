@@ -1,27 +1,25 @@
-"""Alarm-triggered scene capture + AI verdict orchestrator (issue #162).
+"""Alarm-triggered scene capture + AI verdict orchestrator.
 
 This is the glue between the RISCO alarm and the camera/vision core
 (:mod:`src.security.alarm_scene`). It does **not** poll RISCO itself — the presence loop
 (:mod:`app.webapp.presence_automation`) is the only unconditional interval
-reader of the alarm state (the watched ``/api/security`` snapshot also refetches,
-#759; any further poller would risk the cloud's third-party rate limit), so
+reader of the alarm state (the watched ``/api/security`` snapshot also refetches;
+any further poller would risk the cloud's third-party rate limit), so
 it hands its one ``SecurityState`` read to :func:`consider_security_read` every
 tick. We do the cheap work inline (checking whether a scan is due) and fire the
 expensive work (event-log read + camera capture + vision call) as a detached
 task so the presence poll never blocks.
 
-**Onset detection reads RISCO's event log, not the live per-zone/system flags**
-(issue #325). The live ``ongoing_alarm``/``memory_alarm`` system flags latch
-``True`` until a full disarm+dismiss cycle, so a *second* real alarm on the
-same detector within one still-armed session never produced a fresh
-false->true transition under the old edge-detection design — every alarm after
-the first in a session was silently invisible to this automation. The live
+**Onset detection reads RISCO's event log, not the live per-zone/system flags.**
+The live ``ongoing_alarm``/``memory_alarm`` system flags latch ``True`` until a
+full disarm+dismiss cycle, so a *second* real alarm on the same detector within
+one still-armed session would never produce a fresh false->true transition —
+every alarm after the first in a session would be silently invisible. The live
 per-zone ``triggered`` boolean is worse still: it comes from a different API
 call than the system flags inside :func:`src.security.risco_client.fetch_security_state`
 and can already be stale/cleared by the time a poll observes it, so even the
-one edge that *did* fire could resolve to zero triggered zones and skip the
-capture. Both failure modes were confirmed live against production logs before
-this fix (see issue #325).
+one edge that did fire could resolve to zero triggered zones and skip the
+capture.
 
 Instead, while the system reports an active intrusion, we periodically diff
 :func:`src.security.risco_client.fetch_events` against a cursor — the timestamp of the
@@ -48,7 +46,7 @@ firing must not photograph the house. While no alarm is active, the same entry
 point opportunistically refreshes each camera's calm baseline.
 
 Logging goes through :func:`src.activity_log.append_activity` — the same JSONL
-substrate the telemetry-unification work (issue #283) catalogs and intends to
+substrate the telemetry-unification work catalogs and intends to
 unify — rather than a bespoke writer, so this stays a registered producer rather
 than a fourth divergent mechanism.
 """
@@ -334,7 +332,7 @@ async def _run_onset(zones: List[Tuple[int, str]], config: AlarmSceneConfig) -> 
 async def _run_event_scan(security: object, config: AlarmSceneConfig) -> None:
     """Diff RISCO's event log against the persisted cursor; fire one onset per new alarm.
 
-    Reads the event log (issue #325) instead of the live per-zone ``triggered``
+    Reads the event log instead of the live per-zone ``triggered``
     flag, which can already be stale by the time a poll observes it, and
     instead of the system-wide ``ongoing_alarm``/``memory_alarm`` latch, which
     only ever transitions once per still-armed session even when RISCO reports
@@ -342,7 +340,7 @@ async def _run_event_scan(security: object, config: AlarmSceneConfig) -> None:
     since a slow capture+vision call can outlast one throttle window. The
     in-process guard only protects one process; the cursor is claimed
     per-event right before delivery (not after) so two concurrently-running
-    scans (e.g. two processes) can't both deliver the same alarm (issue #339).
+    scans (e.g. two processes) can't both deliver the same alarm.
     """
 
     async def onset(event: Any) -> None:

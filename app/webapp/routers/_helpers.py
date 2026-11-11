@@ -193,7 +193,7 @@ def make_bool_prefs_router(
     """Build a GET/PUT router for one frozen all-boolean preferences dataclass.
 
     Collapses the shape shared by the alarm notify-prefs and UPS power
-    notify-prefs routers (issue #664): a GET that loads the prefs and wraps
+    notify-prefs routers: a GET that loads the prefs and wraps
     them in ``{prefs, telegram_configured}`` (500 + warning on failure), and a
     PUT that merges whatever boolean fields the body carries over the
     currently-saved values, persists the reconstructed dataclass, and echoes

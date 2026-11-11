@@ -134,7 +134,7 @@ async def get_energy_today() -> Dict[str, Any]:
     ``import_wh`` / ``export_wh`` / ``pv_missing`` for the current local day, or
     ``{"bucket": null}`` before any sample has landed today.
 
-    ``gap_hours`` rides alongside (#579): the totals are exactly as measured, so
+    ``gap_hours`` rides alongside: the totals are exactly as measured, so
     a morning the feed spent offline drags them down by real kWh that were in
     fact generated. Reporting the gap is what stops that from being *silent* —
     without it a user reads a dead upstream feed as a dead inverter.
@@ -196,7 +196,7 @@ def _window_days(range_: str, buckets: List[Dict[str, Any]]) -> float:
 async def get_energy_cost(
     range: str = Query("month", pattern="^(day|week|month|year|total)$"),
 ) -> Dict[str, Any]:
-    """Tiered cost & savings breakdown for a window (issue #46).
+    """Tiered cost & savings breakdown for a window.
 
     Splits the window's hourly energy into time-of-use periods (P1/P2/P3 for a
     Spanish 2.0TD tariff), prices grid import at each period's all-in rate, and
@@ -290,11 +290,11 @@ _MIN_PROJECTION_ELAPSED_S = 600
 
 
 def _slot_hour(bucket: Dict[str, Any], tz: Optional[tzinfo] = None) -> int:
-    """The local clock hour (0–23) a day-frame slot starts at (#934).
+    """The local clock hour (0–23) a day-frame slot starts at.
 
     Read from the slot's own epoch ``key``, never from its position: on Spain's
     spring-forward day the frame has 23 slots and on the fall-back day 25, so an
-    index is an hour off after the change (``hourly_day``, #932). ``tz`` defaults
+    index is an hour off after the change (``hourly_day``). ``tz`` defaults
     to the host's local zone, like ``hourly_day``; tests pass an explicit one.
     """
     return datetime.fromtimestamp(int(bucket["key"]), tz).hour
@@ -315,8 +315,8 @@ def _actual_curve(
     Two kinds of hour are *not* comparable to a full hour of expected generation
     and would read as a production collapse if plotted raw:
 
-    * The hour containing *now* is only partly done (issue #557).
-    * A settled hour the feed only partly covered (issue #579): its Wh is an
+    * The hour containing *now* is only partly done.
+    * A settled hour the feed only partly covered: its Wh is an
       integral over the minutes that arrived, so a two-thirds outage on a
       cloudless morning plots as near-zero output. Nothing collapsed — the hour
       is **under-measured, not low**, and ``pv_gap`` is how the store says so.
@@ -375,7 +375,7 @@ def _actual_curve(
 
 
 def _feed_gap_hours(buckets: List[Dict[str, Any]]) -> float:
-    """How much of a day the PV feed dropped out mid-hour, in hours (#579).
+    """How much of a day the PV feed dropped out mid-hour, in hours.
 
     Sums the uncovered part of every hour that had *some* PV data but not
     enough — the unambiguous outage signature, since data that starts or stops
@@ -398,7 +398,7 @@ def _feed_gap_hours(buckets: List[Dict[str, Any]]) -> float:
 async def get_energy_forecast(
     day: str = Query("today", pattern="^(yesterday|today|tomorrow)$"),
 ) -> Dict[str, Any]:
-    """Expected-generation forecast curve for a day, with the actual overlay (issue #39).
+    """Expected-generation forecast curve for a day, with the actual overlay.
 
     Returns the hourly expected-generation curve (Wh) from Open-Meteo's tilted
     irradiance scaled by the configured PV array, the day's expected total (kWh),
@@ -483,7 +483,7 @@ def _sun_overlay_points(
     * **Short coverage** (:data:`~src.energy.energy_history.MIN_TRUSTED_COVERAGE`) —
       the hour's Wh is an integral over the minutes that arrived, so an hour the
       feed spent half offline plots as half the performance. That is precisely
-      the artefact this overlay would otherwise launder into "shading" (#579),
+      the artefact this overlay would otherwise launder into "shading",
       which is why the coverage signal is consumed here rather than re-derived.
     * **No PV data at all** in a daylight hour — same failure, total rather than
       partial.
@@ -562,7 +562,7 @@ def _parse_overlay_date(raw: Optional[str], today: date) -> date:
 
 @router.get("/api/energy/sun-overlay")
 async def get_sun_overlay(date_: Optional[str] = Query(None, alias="date")) -> Dict[str, Any]:
-    """Measured-vs-modelled performance ratio by sun position, for one day (#590).
+    """Measured-vs-modelled performance ratio by sun position, for one day.
 
     A sibling of ``/api/energy/forecast``, deliberately **not** an extension of
     it: the forecast payload stays byte-identical to what it was, so nothing
@@ -649,7 +649,7 @@ class PvArrayPayload(BaseModel):
 
 
 class PvHorizonPointPayload(BaseModel):
-    """One horizon/shading point (issue #578 part b) as the editor sends it.
+    """One horizon/shading point as the editor sends it.
 
     ``azimuth_deg`` is compass, clockwise from true north — see
     :mod:`src.energy.pv_system_config`'s module docstring; deliberately not the same
@@ -696,11 +696,11 @@ def _pv_system_payload(config: Optional[PvSystemConfig]) -> Dict[str, Any]:
 
 @router.get("/api/energy/pv-system")
 async def get_pv_system() -> Dict[str, Any]:
-    """The configured PV array, for the Energy tab's editor (issue #561).
+    """The configured PV array, for the Energy tab's editor.
 
     Always 200: an absent or malformed file is "not configured" — an empty row
     list the editor renders as its empty state — never a 500. A store that
-    exists but is transiently unreadable (issue #692) degrades the same way
+    exists but is transiently unreadable degrades the same way
     here — this is a read-only display, so there is no save to corrupt, unlike
     ``update_pv_system`` below which lets the same failure propagate as a 500.
     """
@@ -720,20 +720,20 @@ async def update_pv_system(payload: PvSystemPayload) -> Dict[str, Any]:
     field, never a silently dropped or clamped value (see
     :func:`src.energy.pv_system_config.validate_pv_system`).
 
-    The editor has no control for the panel-temperature switch (issue #591), but
+    The editor has no control for the panel-temperature switch, but
     it does edit the ratio the switch reinterprets — so the stored switch is
     carried into the validated config. Lowering the ratio back to a combined
     ~0.80 while the term is armed is therefore a 400 explaining the conflict,
     not a saved file that double-counts the thermal loss.
 
     Three independent editors share this one endpoint (panel rows, performance
-    ratio, and the horizon/shading points, issue #578 part b) — each PUTs only
+    ratio, and the horizon/shading points) — each PUTs only
     the field it actually edited; every field omitted-keeps-stored, not just
     ``performance_ratio``, so one editor's save can never wipe another's data.
     The horizon-profile *switch* has no editor control either, same as the
     thermal one — only the points are editable.
 
-    A store that exists but is transiently unreadable (issue #692) is
+    A store that exists but is transiently unreadable is
     deliberately *not* caught here, unlike the GET endpoint above — this is
     "field omitted keeps stored" only because ``stored`` genuinely reflects
     what's on disk. Folding an unreadable read into ``stored=None`` would

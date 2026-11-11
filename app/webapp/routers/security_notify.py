@@ -1,10 +1,10 @@
 """Automatic-alarm notification toggles CRUD over ``src.security.alarm_notify_prefs``.
 
-Split out of ``routers/security.py`` (issue #346) — same rationale as
+Split out of ``routers/security.py`` — same rationale as
 ``security_schedules.py``: the seven per-event Telegram toggles are fully
 self-contained and share no state with the live RISCO read/write path that
 stays in ``security.py``. The GET/PUT pair itself is the shared
-``make_bool_prefs_router`` factory (issue #664), which it splits with
+``make_bool_prefs_router`` factory, which it splits with
 ``ups.py``'s power notify-prefs route.
 """
 

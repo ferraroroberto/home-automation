@@ -74,7 +74,7 @@ _GUARDIAN_HOME_STALE_AFTER_S_DEFAULT = 24 * 60 * 60
 
 @dataclass(frozen=True)
 class GuardianHomeConfig:
-    """Which untracked household member(s) can hold the arm when home (#693).
+    """Which untracked household member(s) can hold the arm when home.
 
     Config-driven rather than a hardcoded name in source — the repo is public.
     ``names`` are matched against each iCloud entity's *effective* display
@@ -109,7 +109,7 @@ def _entities_by_effective_label(cache: PresenceDiagnosticsCache) -> Dict[str, l
     "Effective" = the ``presence_display_names`` override, falling back to the
     raw Find My device name — shared by :func:`_build_icloud_corroboration`
     (matches webhook person ids) and :func:`_resolve_guardian_home` (matches
-    configured guardian names, issue #693) so the two never drift apart on
+    configured guardian names) so the two never drift apart on
     what "the same name" means.
     """
 
@@ -125,7 +125,7 @@ def _entities_by_effective_label(cache: PresenceDiagnosticsCache) -> Dict[str, l
 def _build_icloud_corroboration(
     cache: PresenceDiagnosticsCache,
 ) -> Dict[str, PresenceCorroboration]:
-    """Map webhook ``person_id`` -> iCloud corroboration signal (issue #653).
+    """Map webhook ``person_id`` -> iCloud corroboration signal.
 
     Matches by case-insensitive equality between the webhook person id and the
     iCloud entity's effective display name (the ``presence_display_names``
@@ -158,7 +158,7 @@ def _resolve_guardian_home(
     *,
     at: datetime,
 ) -> Optional[str]:
-    """Name of the first configured guardian whose iCloud read is home+fresh (#693).
+    """Name of the first configured guardian whose iCloud read is home+fresh.
 
     Unlike :func:`_build_icloud_corroboration`, this is not keyed off a
     webhook person id — a guardian like "Nonna" has no webhook Shortcut at
@@ -236,15 +236,15 @@ async def _sync_arm_block_diagnostic(
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: tuple[str, ...] = (),
 ) -> None:
-    """Update the persisted "why hasn't auto-arm fired" diagnostic (#531).
+    """Update the persisted "why hasn't auto-arm fired" diagnostic.
 
     Runs every tick regardless of whether a decision fired this round - it
     only reads local config/state, never RISCO, so it's cheap. Logs once per
     distinct blocking episode (new blocker(s), or the block clearing), not on
     every poll.
 
-    The Telegram alert (#533) is gated separately, on ``notify`` rather than
-    ``changed`` (#599): a block must also have *persisted* for
+    The Telegram alert is gated separately, on ``notify`` rather than
+    ``changed``: a block must also have *persisted* for
     ``arm_block_notify_after_s`` before it is worth paging about, so a block
     that lasts hours pings exactly once and one that evaporates in 32 seconds
     - two people walking in together - never pings at all.
@@ -294,7 +294,7 @@ async def _sync_arm_block_diagnostic(
 
 
 def _unaccounted_for_reason(block) -> str:
-    """One human sentence naming who went dark and how (issues #653, #689, #696)."""
+    """One human sentence naming who went dark and how."""
 
     parts = []
     if block.stale_person_ids:
@@ -320,7 +320,7 @@ async def _sync_staleness_block_diagnostic(
     known_person_ids: tuple[str, ...] = (),
 ) -> None:
     """Alert when presence data the engine can't establish is what's blocking
-    automation (issues #653, #689) — the companion to
+    automation — the companion to
     :func:`_sync_arm_block_diagnostic`, which only alerts on "someone fresh is
     still home". Without this, a person whose Shortcut simply hasn't crossed
     their geofence in a while — or whose record has disappeared from the state
@@ -362,7 +362,7 @@ def _consume_satisfied_disarm(
     corroboration: Optional[Dict[str, PresenceCorroboration]] = None,
     known_person_ids: tuple[str, ...] = (),
 ) -> None:
-    """Retire an arrival that the panel being already disarmed made moot (#598).
+    """Retire an arrival that the panel being already disarmed made moot.
 
     Cheap and local — reads config/presence state only, never RISCO — so it
     rides the same tick as everything else. Without it the arrival sits pending
@@ -414,12 +414,12 @@ def _clear_skip_away_arm_on_arrival() -> None:
 
 
 async def _notify_guardian_hold(guardian_name: str) -> None:
-    """Best-effort Telegram message for a guardian-home arm hold (issue #693).
+    """Best-effort Telegram message for a guardian-home arm hold.
 
     Bypasses ``record_alarm_action``'s composer on purpose: this isn't an
     alarm-command outcome (no command was ever attempted), and unlike
     ``OUTCOME_BLOCKED`` it must always reach Telegram — the stuck-presence
-    block's "never notify, it's frequent noise" rule (#626) doesn't apply
+    block's "never notify, it's frequent noise" rule doesn't apply
     here, this is a one-off-per-departure explanation the household asked
     for.
     """

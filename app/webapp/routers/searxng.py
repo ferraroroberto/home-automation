@@ -1,4 +1,4 @@
-"""SearXNG status + start control (issue #321).
+"""SearXNG status + start control.
 
 ``GET /api/searxng`` returns one flattened :class:`~src.voice.searxng_client.SearxngState`
 (container status, ``/healthz`` reachability, url). Any read problem (container

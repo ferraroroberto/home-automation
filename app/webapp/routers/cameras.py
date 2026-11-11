@@ -1,4 +1,4 @@
-"""Camera API over ``src.devices.camera_client`` (issue #161).
+"""Camera API over ``src.devices.camera_client``.
 
 Read + control for the open RTSP/ONVIF cameras: list, fresh JPEG snapshot, live
 MJPEG stream, PTZ, server-side recording, and the display-name override. Auth is
@@ -66,7 +66,7 @@ async def camera_stream_token(request: Request) -> Dict[str, Any]:
     The caller must already be authenticated (bearer header or loopback).  The
     returned token is valid for 60 s and accepted by the middleware only on the
     ``/stream`` and ``/last_snapshot`` paths — the long-lived bearer never needs
-    to appear in a URL (issue #261).
+    to appear in a URL.
     """
     cfg = getattr(request.app.state, "webapp_config", None)
     bearer = ((cfg.auth_token if cfg else "") or "").strip()

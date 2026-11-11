@@ -1,4 +1,4 @@
-"""In-memory snapshot of a slow read, served off the request path (#758).
+"""In-memory snapshot of a slow read, served off the request path.
 
 A read that goes to the cloud on every request (MELCloud's ``/api/units``
 logs in from scratch each time, ~1.6 s) is answered from memory instead.
@@ -12,7 +12,7 @@ answering: old state is never served as current. Every answer carries its age
 (:meth:`ReadSnapshot.describe`), stamped from the moment the fetch *started*,
 so the age is that of the oldest data in it.
 
-**Serve-stale mode** (``stale_after_s``, #771) is for a read whose upstream is
+**Serve-stale mode** (``stale_after_s``) is for a read whose upstream is
 too slow or too fragile to ever sit in a request (the Modbus dongle: a cold
 rediscovery is seconds). Once a value exists a read never fetches inline: it
 answers with the last value, honestly aged, and one shared background task
@@ -22,7 +22,7 @@ refreshes it. The age alone isn't left to say "upstream is down": past
 source not refreshing" is its own state. A write's dirty mark still refetches
 inline, and so does the very first read (nothing to serve yet).
 
-**No tick** (``demand_window_s=0``, #926) is for a source this app must never
+**No tick** (``demand_window_s=0``) is for a source this app must never
 poll on its own (the LAN's access point and router, the CT-clamp meters): the
 snapshot only ever refreshes behind a read, so the device sees at most the
 reads it saw before the snapshot existed. ``tick_s`` then only spaces retries
@@ -33,8 +33,8 @@ of a failing serve-stale refresh.
 (:meth:`ReadSnapshot.invalidate`) so the next read refetches. Both are
 sequence-numbered: a fetch already in flight when a write lands returns data
 from before it, so on install the patches newer than the fetch's start are
-re-applied on top, and a dirty mark newer than it survives. That is the
-lost-update case app-launcher#1345 hit between overlapping reads and marks.
+re-applied on top, and a dirty mark newer than it survives. That prevents a
+lost update between overlapping reads and marks.
 
 Every snapshot registers under its name, so a writer outside the endpoint's
 router (an automation loop) marks it dirty with :func:`invalidate` without

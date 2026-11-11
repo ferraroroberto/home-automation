@@ -1,17 +1,17 @@
-"""Auto-bypass a detector after repeated same-session alarms (issue #341).
+"""Auto-bypass a detector after repeated same-session alarms.
 
 RISCO's panel already auto-omits a repeatedly-triggered zone, but only after an
-uncontrolled, undocumented number of repeats — confirmed live in issue #325
-(a perimeter zone auto-bypassed itself after 5 alarms in one session).
+uncontrolled, undocumented number of repeats (observed live: a perimeter zone
+auto-bypassed itself after 5 alarms in one session).
 This module makes that behavior configurable per detector (1-3 repeats,
 ``src/security/security_override.py``) and proactive, so a windy garden or a roaming
-animal stops re-triggering the scene-capture/notify pipeline (issue #162) well
+animal stops re-triggering the scene-capture/notify pipeline well
 before the panel's own limit — while leaving the rest of the system armed.
 
-Reuses the event-log-diff architecture issue #325 introduced in
+Reuses the event-log-diff architecture of
 ``alarm_scene_automation.py`` (read ``fetch_events()``, diff against a
 persisted cursor) rather than the live ``ongoing_alarm``/``memory_alarm``/
-per-zone ``triggered`` flags, which that issue documented as unreliable for
+per-zone ``triggered`` flags, which are unreliable for
 repeated same-session alarms. Unlike the scene automation, this must also
 observe *arm* events (not just alarms) so a new armed session can restore any
 zone it bypassed — so :func:`consider_security_read` runs every tick, not only
@@ -20,7 +20,7 @@ while an alarm is active.
 Hooked into ``app/webapp/presence_automation.py``'s tick alongside
 ``alarm_scene_automation.consider_security_read`` — that loop is documented as
 the only *unconditional* interval reader of RISCO state (the watched
-``/api/security`` snapshot also refetches, #759), kept that way to avoid more
+``/api/security`` snapshot also refetches), kept that way to avoid more
 pollers tripping the cloud's third-party rate limit, so this rides the same
 read rather than starting a competing poll loop.
 """
@@ -99,7 +99,7 @@ def _save_cursor(event_time: str) -> None:
 
 
 async def _set_bypass(zone_id: int, bypass: bool) -> SecurityState:
-    """``set_zone_bypass``, then mark the ``/api/security`` snapshot dirty (#759).
+    """``set_zone_bypass``, then mark the ``/api/security`` snapshot dirty.
 
     Marked even when it raises: the panel may have taken the command.
     """
@@ -145,7 +145,7 @@ async def _restore_after_rearm() -> None:
     A zone whose un-bypass call fails (e.g. a transient RISCO Cloud error at
     the arm event) stays in ``auto_bypassed_zones`` so the next arm event
     retries it — clearing it unconditionally would forget it forever and
-    leave it bypassed through every later armed session (issue #745).
+    leave it bypassed through every later armed session.
     """
 
     session = load_override_session()
@@ -194,8 +194,7 @@ async def _run_event_scan(config: OverrideAutomationConfig) -> None:
     Never raises. The shared :class:`EventLogScanner` guards against
     overlapping runs and re-checks the on-disk cursor immediately before each
     event is handled, claiming it right after, so two concurrently-running
-    scans can't both act on the same event (the cross-process fix in issue
-    #339).
+    scans can't both act on the same event (across processes too).
     """
 
     await _scanner.guarded(_scan_once)
