@@ -135,7 +135,7 @@ def _check_and_renew() -> bool:
     Never raises — a renewal hiccup must not block webapp startup — but the
     return value tells the caller whether renewal was actually needed and
     succeeded, so a boot path that runs this via ``--check`` can log a failed
-    *due* renewal instead of silently discarding it (#914). ``True`` covers
+    *due* renewal instead of silently discarding it. ``True`` covers
     both "nothing was due" and "renewed OK"; ``False`` means renewal was due
     and did not happen.
     """

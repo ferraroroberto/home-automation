@@ -1,4 +1,4 @@
-"""In-memory, app-native countdown timers (issue #304).
+"""In-memory, app-native countdown timers.
 
 Deliberately not persisted — mirrors Home Assistant's own ephemeral,
 voice-set timers (no official poll API exists for those; see the issue).

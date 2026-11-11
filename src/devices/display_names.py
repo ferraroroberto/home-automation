@@ -24,7 +24,7 @@ def load_display_names(path: Optional[Path] = None) -> Dict[str, str]:
     """Return {unit_id: display_name} from the config file, or {} if absent.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    exists but can't be read (issue #692) — ``set_display_name`` mutates this
+    exists but can't be read — ``set_display_name`` mutates this
     return value and saves it whole, so a transient failure here would
     otherwise get saved back over every other unit's display name.
     """

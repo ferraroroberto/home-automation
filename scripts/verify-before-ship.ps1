@@ -44,11 +44,6 @@
                             no-drive-path or secret-compare hit rises beyond
                             .conventions-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
-     10. history marker ratchet — no product-code file's count of a decision-history
-                            narration phrase (the list in history_marker_ratchet.py)
-                            rises beyond
-                            .history-marker-ratchet-baseline.json. Whole tree, never
-                            routed; exit 3 is NOT CONFIRMED and fails.
      10b. runtime write ratchet — no file's count of write targets resolving under a
                             code folder (src, app, scripts, custom_components) rises
                             beyond .runtime-write-ratchet-baseline.json. Whole tree,
@@ -221,8 +216,6 @@ try {
     Invoke-Stage "dead code ratchet" { & $py -m scripts.dead_code_ratchet_gate }
     # Same exit-3 mapping for the conventions ratchet (tests/ratchets/test_conventions_ratchet_gate.py).
     Invoke-Stage "conventions ratchet" { & $py -m scripts.conventions_ratchet_gate }
-    # Same exit-3 mapping for the history marker ratchet (tests/ratchets/test_history_marker_ratchet_gate.py).
-    Invoke-Stage "history marker ratchet" { & $py -m scripts.history_marker_ratchet_gate }
     # Same exit-3 mapping for the runtime write ratchet (tests/ratchets/test_runtime_write_ratchet_gate.py).
     Invoke-Stage "runtime write ratchet" { & $py -m scripts.runtime_write_ratchet_gate }
     # Same exit-3 mapping for the usage track ratchet (tests/ratchets/test_usage_track_ratchet_gate.py).

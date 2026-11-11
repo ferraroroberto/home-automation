@@ -1,4 +1,4 @@
-"""User-defined display groups for attached network devices (issue #513).
+"""User-defined display groups for attached network devices.
 
 Maps normalised ``mac`` → group name — the fifth store built on the atomic
 ``{key: value}`` JSON helper shared from :mod:`src.devices.display_names`, alongside the

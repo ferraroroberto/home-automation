@@ -1,4 +1,4 @@
-"""Local household-role aliases for presence people/entities (issue #438).
+"""Local household-role aliases for presence people/entities.
 
 Maps a stable webhook person id or Find My entity id to a household role
 (e.g. "dad", "mom") so "where's dad" and "where's Roberto" resolve to the same
@@ -23,7 +23,7 @@ def _normalize(text: str) -> str:
 
     Whisper legitimately transcribes the same spoken word many ways ("Anna" for
     "Ana", "mamá" with or without the accent), so exact matching rejected
-    correctly-heard queries (#446). Collapsing consecutive repeats makes
+    correctly-heard queries. Collapsing consecutive repeats makes
     "Anna" == "Ana"; the household scale (<10 people) makes collisions moot.
     """
 
@@ -81,7 +81,7 @@ def resolve_person(
     transcription variants (see :func:`_normalize`), and role matching also
     folds common kinship synonyms ("mum"/"mamá" → "mom", "daddy"/"papá" →
     "dad") so the deterministic variant table — not fuzzy matching — absorbs
-    how Whisper actually spells what it heard (#446).
+    how Whisper actually spells what it heard.
     """
 
     needle = _normalize(who)

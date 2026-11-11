@@ -24,7 +24,7 @@ to a gitignored ``config/*.json``, missing file → empty, committed
   *whether/how* the unit runs; the rule thereafter only steers the setpoint
   while the unit is on.
 
-* **Boost coordinator** — the fleet-level knobs (issue #562) deciding how the
+* **Boost coordinator** — the fleet-level knobs deciding how the
   per-unit solar boost below is *sequenced* across units: at most one admission
   or shed per settle interval, so five units never enter boost in the same tick
   and swamp the surplus they are all reacting to.
@@ -183,7 +183,7 @@ def transition_setpoint(
     tmin: float,
     tmax: float,
 ) -> Optional[float]:
-    """The setpoint to command *immediately* on a boost admission/shed (#562).
+    """The setpoint to command *immediately* on a boost admission/shed.
 
     :func:`next_setpoint`'s law with one branch changed: the drive-harder side
     jumps straight to ``target`` instead of moving one ``step``. Everything else
@@ -244,7 +244,7 @@ def next_boost_state(
 ) -> bool:
     """Hysteresis + min-duration decision: does this unit *want* to boost now?
 
-    Since #562 this is a **candidacy** signal, not the final answer: it says
+    This is a **candidacy** signal, not the final answer: it says
     whether this unit, on its own, wants boost given the fleet-wide surplus.
     :func:`next_boost_admission` then decides whether it gets it *this tick* —
     at most one unit enters or leaves boost per settle interval.
@@ -307,7 +307,7 @@ MAX_SETTLE_INTERVAL_S = 3600
 
 @dataclass
 class BoostCoordinatorConfig:
-    """Fleet-level knobs for the solar-boost sequencer (issue #562).
+    """Fleet-level knobs for the solar-boost sequencer.
 
     Global on purpose — these describe the *fleet*, not a room. The per-unit
     opt-in (``boost_enabled`` / ``boost_offset_c`` on :class:`TempRule`) stays

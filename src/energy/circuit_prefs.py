@@ -1,4 +1,4 @@
-"""Per-channel preferences for the Athom CT-clamp meters (issue #25).
+"""Per-channel preferences for the Athom CT-clamp meters.
 
 Maps ``"<meter_id>:<channel>"`` →
 ``{"display_name": str, "invert": bool, "hidden": bool}``, and is the reason a
@@ -26,7 +26,7 @@ offers the flip instead. It is applied in exactly one place
 (:func:`src.energy.athom_client._build_state`), which keeps both the raw and the
 corrected value on the wire.
 
-``hidden`` (issue #619) exists because a 6-channel meter in a consumer unit
+``hidden`` exists because a 6-channel meter in a consumer unit
 with four breakers still reports six channels, and the two spare terminals are
 noise on a card read at a glance. It is deliberately a **user** decision and
 never inferred from a reading: the card's founding invariant is that a channel
@@ -61,7 +61,7 @@ def load_circuit_prefs(path: Optional[Path] = None) -> Dict[str, Dict[str, objec
     an older build simply has no ``hidden`` key and reads back as ``False``.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    exists but can't be read (issue #692) — ``_set_field`` mutates this
+    exists but can't be read — ``_set_field`` mutates this
     return value and saves it whole, so a transient failure here would
     otherwise get saved back over every other channel's prefs.
     """

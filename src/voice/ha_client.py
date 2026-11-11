@@ -165,7 +165,7 @@ class HomeAssistantClient:
         """Call an arbitrary HA service against one entity (e.g. ``climate.turn_on``).
 
         Generalizes what ``announce`` already does for ``assist_satellite`` —
-        added for the actions-alias endpoint (issue #641) so other domains
+        added for the actions-alias endpoint so other domains
         (starting with ``climate``) don't need their own bespoke method.
         """
 

@@ -1,12 +1,12 @@
 r"""
 Home-network read + control orchestrator (async, UI-free)
 =========================================================
-Domain core for the Network view (issue #125). Mirrors the other domain cores
+Domain core for the Network view. Mirrors the other domain cores
 (``melcloud_client`` / ``huawei_client`` / ``risco_client``): no Streamlit, no
 FastAPI, just credentials in → a flattened :class:`NetworkState` out, plus the
 reboot + DHCP-reservation controls.
 
-As of issue #197 the three independent device/probe surfaces this module used to
+The three independent device/probe surfaces this module used to
 inline live in their own files; this module is now the **orchestrator** that
 imports them and exposes the unchanged public surface so callers don't move:
 
@@ -120,13 +120,13 @@ _PING_PROBE_CACHE_TTL_S = 30.0
 async def resolve_ip_by_mac(mac: str) -> Optional[str]:
     """Best-effort current IP for a device MAC, from the live device inventory.
 
-    Lets other domains (e.g. cameras, issue #190; MAC-pinned config, issue #504)
+    Lets other domains (e.g. cameras; MAC-pinned config)
     self-heal a stale configured IP the way the AP and Tuya plugs already do.
     Returns None when every source fails or the MAC isn't present — callers treat
     that as "no recovery available" and leave the device flagged unreachable.
 
     Both sources are consulted, because neither is complete on its own: clients
-    on the *router's* own radios are invisible to the AP (issue #502), so an AP
+    on the *router's* own radios are invisible to the AP, so an AP
     miss is not a miss overall. The AP is tried first as the cheaper read.
     """
     target = _normalise_mac(mac)
@@ -164,7 +164,7 @@ async def resolve_ip_by_mac(mac: str) -> Optional[str]:
 async def resolve_wireless_client_by_mac(mac: str) -> tuple[Optional[NetDevice], int]:
     """Live telemetry for one client MAC, plus how many sources actually answered.
 
-    Backs the Wi-Fi walk test (issue #547): the phone is the probe, the AP/router
+    Backs the Wi-Fi walk test: the phone is the probe, the AP/router
     is the meter, so a sample is whatever the infrastructure currently measures
     for that MAC. Returns ``(device, sources_read)`` — the merged
     :class:`NetDevice` (``signal`` %, ``link_rate``, ``conn_type`` for the band,
@@ -319,7 +319,7 @@ async def apply_dhcp_changes(
 
     Deletes ``remove_inst_ids`` first (freeing slots), then writes ``add_rows``
     (``{name, mac, ip}``) cap-aware — so the whole "remove these, add those" plan
-    goes in one sequence rather than the user juggling per-row writes (issue #176).
+    goes in one sequence rather than the user juggling per-row writes.
     Returns a combined per-op result list (each row tagged ``op`` = ``remove`` /
     ``add``); a single failure is recorded, not raised. **Only ever called from an
     explicit, confirm-gated user action** — never on a poll.

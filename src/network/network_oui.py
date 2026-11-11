@@ -1,4 +1,4 @@
-"""Offline device identification for the Network view (issue #129 Phase 2).
+"""Offline device identification for the Network view.
 
 Two cheap, render-time helpers — no network call, no persistence — that turn a
 bare MAC + hostname into something a human recognises:
@@ -7,7 +7,7 @@ bare MAC + hostname into something a human recognises:
   small **bundled, trimmed** prefix table. The full IEEE registry is ~35 k
   entries; bundling all of it just to label a home LAN is overkill, so this is a
   curated subset of the consumer vendors that actually show up here (the
-  maintainer's call in #129 constraint 6: "bundled-trimmed is the low-maintenance
+  maintainer's call: "bundled-trimmed is the low-maintenance
   default"). An unknown prefix returns ``None`` — the UI then falls back to the
   hostname, then the MAC, so a miss is harmless, just less friendly.
 * :func:`category_for_device` — a keyword heuristic (hostname + vendor) mapping a
@@ -15,8 +15,8 @@ bare MAC + hostname into something a human recognises:
   / ``printer`` / ``router``), which the UI renders as a Lucide glyph. Best-effort
   only; ``unknown`` when nothing matches.
 
-Modern phones rotate a **locally-administered** (randomised) MAC per SSID
-(#129 constraint 3); :func:`is_randomized_mac` flags those so the UI can say so
+Modern phones rotate a **locally-administered** (randomised) MAC per SSID;
+:func:`is_randomized_mac` flags those so the UI can say so
 and not pretend the OUI means anything (it doesn't — the vendor bits are random).
 """
 

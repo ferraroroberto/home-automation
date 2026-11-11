@@ -1,6 +1,6 @@
 """Electricity tariff model — turns energy-history buckets into cost & savings.
 
-UI-free core for the Energy-tab cost breakdown (issue #46). Given the hourly
+UI-free core for the Energy-tab cost breakdown. Given the hourly
 import/consumption/PV buckets from :mod:`src.energy.energy_history`, it assigns each
 hour to its time-of-use period, prices the grid energy, and values the
 self-consumed PV (the savings).

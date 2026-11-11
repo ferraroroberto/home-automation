@@ -2,7 +2,7 @@
 Athom per-circuit energy client
 ===============================
 Non-UI core: read the **per-circuit** power draw measured by Athom BL0906
-energy monitors clamped onto individual breakers (issue #25).
+energy monitors clamped onto individual breakers.
 
 Where ``src/energy/huawei_client.py`` answers *how much* the house is importing or
 exporting as a single whole-home figure, this answers *where the consumption is

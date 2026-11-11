@@ -2,7 +2,7 @@
 Tuya Cloud bootstrap
 ====================
 Non-UI core for the *one* thing the LAN-only ``src.devices.tuya_client`` cannot do:
-capture a newly-paired device's identity and local key (issue #612).
+capture a newly-paired device's identity and local key.
 
 Kept in its own module deliberately — ``tuya_client.py`` documents itself as
 LAN-only ("no Tuya Cloud at runtime") and that contract stays true: nothing

@@ -135,13 +135,13 @@ class TuyaCommandError(RuntimeError):
 
 class TuyaCoverTypeUnknown(TuyaCommandError):
     """Raised by :func:`set_cover` when a blind's status shows no known cover
-    value set at its control DPS (#901) — distinct from a LAN failure: the
+    value set at its control DPS — distinct from a LAN failure: the
     blind answered, but writing a guessed value would be acked and ignored."""
 
 
 class TuyaBackoffActive(TuyaCommandError):
     """Raised by :func:`read_device_state` when a device is skipped because
-    it's still within its post-failure backoff window (issue #537) — distinct
+    it's still within its post-failure backoff window — distinct
     from a genuine live failure so callers can log/report the two differently
     ("backing off" vs "offline right now")."""
 
@@ -600,7 +600,7 @@ def read_device_state(device_id: str) -> dict[str, Any]:
     :class:`TuyaCommandError` so the caller can mark just that card unavailable
     without failing the whole listing.
 
-    This is the *passive polling* path (issue #537): a device with escalating
+    This is the *passive polling* path: a device with escalating
     consecutive failures is skipped here — raising :class:`TuyaBackoffActive`
     without opening a socket at all — rather than reconnected on every poll
     tick. ``set_switch``/``set_cover`` never call this backoff check; a
@@ -657,8 +657,8 @@ def read_device_state(device_id: str) -> dict[str, Any]:
 def set_switch(device_id: str, on: bool) -> dict[str, Any]:
     """Turn a Tuya plug/light switch on or off via local LAN control.
 
-    Deliberately never checks the passive-poll backoff (issue #537's
-    constraint): a user tapping a switch must go out immediately even if the
+    Deliberately never checks the passive-poll backoff:
+    a user tapping a switch must go out immediately even if the
     device is currently backed off. The outcome still updates the shared
     backoff state either way, so the next background poll benefits from it.
     """
@@ -690,7 +690,7 @@ def set_brightness(device_id: str, pct: int) -> dict[str, Any]:
     """Set a dimmable Tuya light's brightness (1–100 %) via local LAN control.
 
     The percentage is mapped onto the device's own raw range from its DPS
-    mapping (issue #870). Only the brightness DPS is written — an off light
+    mapping. Only the brightness DPS is written — an off light
     stays off. Raises :class:`ValueError` for an out-of-range percentage or a
     device with no brightness DPS (a caller error, not a LAN failure); same
     backoff-bypass contract as :func:`set_switch`.
@@ -758,10 +758,10 @@ def _load_cover_types() -> dict[str, int]:
 
 
 def _remember_cover_type(device_id: str, type_id: int, reading: Any) -> None:
-    """Cache this blind's cover type and persist it so a restart keeps it (#965).
+    """Cache this blind's cover type and persist it so a restart keeps it.
 
     A blind can read ``'3'`` — in no TinyTuya detect set — when a fresh process
-    looks at it, leaving a detection read nothing to match (#965). The type is a
+    looks at it, leaving a detection read nothing to match. The type is a
     fixed property of the hardware: learn it from any status that does show a
     known value (the passive poll reads one anyway), and keep it across restarts.
 
@@ -797,7 +797,7 @@ def _remember_cover_type(device_id: str, type_id: int, reading: Any) -> None:
 
 def _cover_type(device_id: str, device: tinytuya.Device, dps: str) -> int:
     """This blind's TinyTuya cover type: cached, else persisted from an earlier
-    process (#965), else detected from one ``status()`` read (#901).
+    process, else detected from one ``status()`` read.
 
     Raises :class:`TuyaCoverTypeUnknown` (logged) when the control DPS holds
     no value from any known set — never a guess — and leaves the cache empty
@@ -832,10 +832,10 @@ def set_cover(device_id: str, action: Literal["open", "close", "stop"]) -> dict[
     """Open, close, or stop a Tuya blind via local LAN control.
 
     Writes the mapped control DPS directly rather than through TinyTuya's
-    ``CoverDevice`` (#899): its ``open_cover``/``close_cover``/``stop_cover``
+    ``CoverDevice``: its ``open_cover``/``close_cover``/``stop_cover``
     return ``None``, so a blind that never answered was logged as sent and
     never retried. The value written is the one the blind's own cover type
-    uses (#901, see :func:`_cover_type`) — one ``status()`` read per device
+    uses (see :func:`_cover_type`) — one ``status()`` read per device
     per process, then a single control frame per command.
 
     Same backoff-bypass contract as :func:`set_switch` — never gated by the

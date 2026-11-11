@@ -1,4 +1,4 @@
-"""Deploy this repo's Home Assistant config to the HA VM over SSH (issue #243).
+"""Deploy this repo's Home Assistant config to the HA VM over SSH.
 
 The code-driven replacement for the browser / File-editor workflow: keep the
 source-of-truth voice-PE config in this repo, push it into the HA VM's
@@ -175,8 +175,8 @@ def replace_or_append_block(existing_text: str, block: str) -> str:
 
     Precedence: (1) if the markers are present, the marked region (inclusive) is
     replaced; (2) else if the legacy ``# --- Voice PE …`` header is present, the
-    region from that header to EOF is replaced (one-time migration off the
-    pre-markers #88 install); (3) else the block is appended at EOF after a
+    region from that header to EOF is replaced (one-time migration off an
+    install that predates the markers); (3) else the block is appended at EOF after a
     blank-line separator. Content outside the replaced region is preserved.
     """
     block = block if block.endswith("\n") else block + "\n"
@@ -221,7 +221,7 @@ def backup_key(remote_path: str) -> str:
 
     Keyed on the whole relative path, not the basename: ``custom_sentences/en/``
     and ``custom_sentences/es/`` share ``alarm.yaml`` & co., and a basename key
-    made their backups overwrite each other (audit #916).
+    made their backups overwrite each other.
     """
     rel = remote_path.removeprefix("/config/").lstrip("/")
     return rel.replace("/", "__")

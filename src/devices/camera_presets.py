@@ -1,4 +1,4 @@
-"""Local PTZ-preset store for cameras without native ONVIF presets (issue #190).
+"""Local PTZ-preset store for cameras without native ONVIF presets.
 
 When a camera supports absolute moves but rejects ``GetPresets``/``SetPreset``,
 saved positions are kept here as absolute coordinates and recalled via
@@ -30,7 +30,7 @@ def _load(path: Optional[Path] = None) -> Dict[str, List[Preset]]:
     """Return the saved presets, or ``{}`` if absent.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    exists but can't be read (issue #692) — ``add_local_preset``/
+    exists but can't be read — ``add_local_preset``/
     ``remove_local_preset`` mutate this return value and save it whole, so a
     transient failure here would otherwise get saved back over every other
     camera's presets.

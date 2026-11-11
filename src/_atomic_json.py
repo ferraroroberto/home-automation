@@ -1,4 +1,4 @@
-"""Shared atomic write helper (issue #327).
+"""Shared atomic write helper.
 
 Single canonical implementation of the write-tmp + ``os.replace`` pattern
 that the ``src/`` modules persisting JSON share — plain dict/list

@@ -1,4 +1,4 @@
-"""One-time interactive OAuth bootstrap for Google Calendar write access (issue #313).
+"""One-time interactive OAuth bootstrap for Google Calendar write access.
 
 Why this exists
 ----------------

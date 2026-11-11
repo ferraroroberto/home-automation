@@ -1,4 +1,4 @@
-"""Spanish voice web search (issue #865, part of #842).
+"""Spanish voice web search.
 
 UI-free core behind ``POST /api/voice/search``. The Spanish voice pipeline
 ("Hey Mycroft") is deterministic by design, so a search-shaped phrasing calls
@@ -8,8 +8,8 @@ Home Assistant speaks back.
 
 The model only ever *summarises* what SearXNG returned. When there is nothing to
 summarise — SearXNG down, no usable results, hub failing — the reply is a fixed
-sentence, never an answer from the model's training cutoff (the gap #716 left
-open on the English agent). Each cause has its own ``source`` and log line.
+sentence, never an answer from the model's training cutoff (a gap the English
+agent must also avoid). Each cause has its own ``source`` and log line.
 
 Both network edges (:func:`_fetch_results`, :func:`_summarise`) are single seams
 so tests monkeypatch them and never touch SearXNG or the hub.

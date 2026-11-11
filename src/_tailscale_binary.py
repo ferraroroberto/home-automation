@@ -6,9 +6,9 @@ the ``--check`` hook both boot paths run before uvicorn binds). The GUI
 installer drops ``tailscale.exe`` under Program Files but doesn't always add
 it to PATH, and both callers can run with a minimal environment — the tray at
 login, the webapp boot path under a service-like launch — so PATH alone isn't
-enough (#914: before this module the tray had the Program Files fallback and
-the cert script didn't, so a renewal could silently fail where "Copy
-Tailscale URL" still worked).
+enough: if only the tray knew the Program Files fallback, a cert renewal
+could silently fail where "Copy Tailscale URL" still worked, so both callers
+share this lookup.
 """
 
 from __future__ import annotations

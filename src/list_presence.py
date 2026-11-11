@@ -13,9 +13,9 @@ Reads ICLOUD_EMAIL / ICLOUD_PASSWORD from ``.env`` and caches the trusted
 session under ``webapp/icloud_session`` by default.
 
 A second account (``ICLOUD_EMAIL_2`` / ``ICLOUD_PASSWORD_2``) is listed too when
-configured (issue #478). 2FA is per Apple ID, so target one account at a time.
+configured. 2FA is per Apple ID, so target one account at a time.
 
-Renewing Apple's ~30-day browser trust (issue #659) — the attended CLI fallback
+Renewing Apple's ~30-day browser trust — the attended CLI fallback
 to the app's Security → People → Accounts → **Renew trust** button::
 
     & .\.venv\Scripts\python.exe -m src.list_presence --account 1 --renew-trust
@@ -149,7 +149,7 @@ def _print_entities(entities: list[PresenceEntity]) -> None:
 
 
 def _renew_trust(config: PresenceConfig) -> None:
-    """Attended one-run browser-trust renewal for one account (issue #659).
+    """Attended one-run browser-trust renewal for one account.
 
     The only place in the presence stack that reads from stdin — the library
     never prompts. Refuses to run without a terminal, since the code has to be

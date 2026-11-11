@@ -1,4 +1,4 @@
-"""Alarm-triggered scene capture + vision-LLM verdict (issue #162), UI-free core.
+"""Alarm-triggered scene capture + vision-LLM verdict, UI-free core.
 
 When the RISCO alarm trips, the orchestrator
 (``app/webapp/alarm_scene_automation.py``) resolves the detector that fired to

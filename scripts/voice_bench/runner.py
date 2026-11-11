@@ -1,4 +1,4 @@
-"""Benchmark orchestrator (#234).
+"""Benchmark orchestrator.
 
 Drives the hub to benchmark each candidate model on the Tier-2 voice-intent
 task, in two decoding modes (free vs grammar-constrained), measuring

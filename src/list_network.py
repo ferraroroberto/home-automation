@@ -1,7 +1,7 @@
 r"""
 Show live home-network state (CLI / probe)
 ==========================================
-Gating probe for issue #125 - confirm we can read internet/WiFi/LAN health and
+Gating probe: confirm we can read internet/WiFi/LAN health and
 the attached-device inventory, named by MAC, before building the Network tab.
 Read-only by default; pass ``--reboot-ap`` to actually reboot the access point.
 

@@ -11,7 +11,7 @@ the whole value, then dispatches on decoded length — 32 bytes means "raw
 scalar", anything else is parsed as DER. A full PEM string (with
 ``-----BEGIN/END-----`` markers) fails that path: the header/footer text gets
 base64url-"decoded" along with the key material, corrupting the DER bytes and
-producing a "ASN.1 parsing error: invalid length" at send time (see #284).
+producing a "ASN.1 parsing error: invalid length" at send time.
 """
 
 from __future__ import annotations

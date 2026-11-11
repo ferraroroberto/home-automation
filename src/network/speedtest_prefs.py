@@ -1,4 +1,4 @@
-"""Opt-in switch for the nightly internet speed test (#840).
+"""Opt-in switch for the nightly internet speed test.
 
 One boolean, **off by default**: a speed test saturates the link and spends
 real bandwidth, which is why the Network tile's test has always been

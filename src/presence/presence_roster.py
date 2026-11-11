@@ -1,4 +1,4 @@
-"""The set of people presence automation knows it is supposed to be tracking (issue #689).
+"""The set of people presence automation knows it is supposed to be tracking.
 
 ``config/presence_state.json`` holds each person's *current* state. It does not
 record who is *expected* to have one, so a roster that silently shrank from two

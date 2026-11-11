@@ -1,4 +1,4 @@
-"""Where the sun was, for the PV diagnostic overlay (issue #590).
+"""Where the sun was, for the PV diagnostic overlay.
 
 Turns an instant + the home's coordinates into the sun's **azimuth** and
 **elevation**. That is the only thing this module does: it is the missing

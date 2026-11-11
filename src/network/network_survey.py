@@ -1,4 +1,4 @@
-r"""Wi-Fi walk-test (site-survey) sample store — SQLite (issue #547).
+r"""Wi-Fi walk-test (site-survey) sample store — SQLite.
 
 Backs the Network tab's **Walk test** card: you stand somewhere with the phone,
 tap *Record here*, and one sample lands in this table — what the AP/router

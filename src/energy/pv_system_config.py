@@ -1,10 +1,10 @@
-"""PV-array config store for the Energy-tab solar-forecast section (issue #39).
+"""PV-array config store for the Energy-tab solar-forecast section.
 
 Holds the installed array parameters — one or more sub-arrays, each with its own
 peak power (kWp), panel tilt and azimuth, plus a single shared derate /
 performance ratio — used by :mod:`src.energy.pv_forecast` to turn Open-Meteo's global
 tilted irradiance into an expected-generation curve. Multiple sub-arrays exist
-because a real roof is rarely one uniform orientation (issue #555): each gets
+because a real roof is rarely one uniform orientation: each gets
 its own Open-Meteo request and the weighted results are summed. Kept out of
 ``webapp_config.py`` for the same reason ``location_config.py`` is: this is
 *user-authored system data*, not operational webapp settings.
@@ -20,7 +20,7 @@ opposite-facing orientation captured by azimuth alone (e.g. a panel mounted the
 opposite way from a 15°-tilt south array is ``tilt_deg: 15, azimuth_deg: 180``,
 never a negative tilt). See ``docs/pv-forecast.md``.
 
-The optional ``thermal_model_enabled`` switch (issue #591) selects which of two
+The optional ``thermal_model_enabled`` switch selects which of two
 meanings ``performance_ratio`` carries, so the two can never be mixed up:
 
 * **off** (the default, and what every existing file gets) — no temperature term
@@ -35,7 +35,7 @@ loss, so that combination is refused rather than computed:
 from the editor) and the forecast reports it as unavailable rather than emitting
 numbers that are quietly ~10% low.
 
-The optional ``horizon_profile`` (issue #578 part b) is a hand-entered
+The optional ``horizon_profile`` is a hand-entered
 obstruction-elevation-by-azimuth profile, editable from the PV system card in
 the same staged-dialog style as the panel rows. Its azimuth is **compass,
 clockwise from true north** (0/90/180/270 = N/E/S/W) — :mod:`src.energy.sun_position`'s
@@ -47,8 +47,8 @@ owner arms it by hand once the geometry has been entered. The list of points is
 editable (and saved) regardless of the switch, so the profile can be built
 before it is armed.
 
-**Read and write are deliberately different contracts** (issue #561, which made
-the config editable from the Energy tab). :func:`load_pv_system_config` is
+**Read and write are deliberately different contracts** (the config is
+editable from the Energy tab). :func:`load_pv_system_config` is
 *lenient* — a hand-edited file with one malformed sub-array degrades (skip +
 clamp + log) rather than failing, because a broken file must never 500 the
 forecast. :func:`save_pv_system_config` is *strict* — it validates and raises,
@@ -86,8 +86,8 @@ class PvArray:
 
 @dataclass
 class PvHorizonPoint:
-    """One obstruction-elevation sample of the horizon/shading profile (issue
-    #578 part b). ``azimuth_deg`` is compass, clockwise from true north — see
+    """One obstruction-elevation sample of the horizon/shading profile.
+    ``azimuth_deg`` is compass, clockwise from true north — see
     the module docstring; ``elevation_deg`` is how high the obstruction stands
     above the horizontal at that azimuth."""
 
@@ -131,7 +131,7 @@ def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfi
     never as an error.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    *exists* but can't be read (issue #692) — ``update_pv_system`` mutates
+    *exists* but can't be read — ``update_pv_system`` mutates
     this return value and saves it whole, so a transient failure here would
     otherwise get saved back over a real array/horizon-profile config.
     Callers for whom "not configured" is an acceptable, non-destructive
@@ -140,11 +140,11 @@ def load_pv_system_config(path: Optional[Path] = None) -> Optional[PvSystemConfi
 
     Accepts two shapes: the current ``{"arrays": [...], "performance_ratio": ...}``
     list form, and the legacy single-orientation flat form (``kwp``/``tilt_deg``/
-    ``azimuth_deg``/``performance_ratio`` at the top level, pre-#555), which loads
+    ``azimuth_deg``/``performance_ratio`` at the top level), which loads
     as a single-element ``arrays`` list — existing configs keep working unmigrated.
 
-    ``thermal_model_enabled`` (issue #591) and ``horizon_profile_enabled``
-    (issue #578 part b) are both absent from every existing file, and absent
+    ``thermal_model_enabled`` and ``horizon_profile_enabled``
+    are both absent from every existing file, and absent
     means off for both, so nothing here changes what the forecast predicts
     until one is added by hand.
     """
@@ -214,7 +214,7 @@ def _parse_array(entry: object, target: Path, index: int) -> Optional[PvArray]:
 
 
 def _parse_horizon_profile(raw: object, target: Path) -> List[PvHorizonPoint]:
-    """Lenient parse of the horizon/shading profile (issue #578 part b).
+    """Lenient parse of the horizon/shading profile.
 
     A malformed point is skipped and logged, same as a malformed sub-array —
     never a reason to disable the whole forecast.
@@ -287,7 +287,7 @@ def thermal_migration_error(config: PvSystemConfig) -> Optional[str]:
     ``performance_ratio`` that still folds a constant thermal allowance in.
     Both halves of the codebase route through this one function — the strict
     writer raises it, the forecast refuses to compute on it — so the inconsistent
-    state cannot silently produce numbers (issue #591).
+    state cannot silently produce numbers.
     """
     if not config.thermal_model_enabled:
         return None
@@ -361,7 +361,7 @@ def save_pv_system_config(
     Always writes the current ``arrays`` shape, and always preserves any
     top-level key this module doesn't own — an existing file's ``_doc`` note
     is why the write merges instead of replacing. Raises
-    :class:`~src._schedule_store.StoreUnreadableError` (issue #692) when an
+    :class:`~src._schedule_store.StoreUnreadableError` when an
     existing file can't be read for that merge — writing anyway would drop
     the unowned keys (notably ``thermal_model_enabled``/
     ``horizon_profile_enabled``) it exists to preserve.

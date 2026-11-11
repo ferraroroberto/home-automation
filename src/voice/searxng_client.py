@@ -1,5 +1,4 @@
-"""SearXNG (voice assistant Tier-3 web-search backend) status + start control
-(issue #321).
+"""SearXNG (voice assistant Tier-3 web-search backend) status + start control.
 
 UI-free core. Shells out to ``docker`` for the single ``searxng`` container
 (the compose stack lives in the sister ``local-llm-hub`` repo, path given by
@@ -153,7 +152,7 @@ def restart_searxng() -> SearxngState:
 
     ``up -d`` is a no-op against a container Docker already considers running,
     so it cannot recover the one failure shape no restart policy catches
-    either: up but wedged, not answering ``/healthz`` (issue #716). Only the
+    either: up but wedged, not answering ``/healthz``. Only the
     watchdog calls this, and only after the unreachable state has persisted
     past its grace window — a freshly-booting container must never be
     recreated out from under itself.

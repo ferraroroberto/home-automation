@@ -1,7 +1,7 @@
 """Unified telemetry store (SQLite) — the standard event + reading substrate.
 
-This module is the recorder/reader core for the home-automation telemetry model
-(design: issue #283). It owns a single WAL-mode SQLite file in the fleet
+This module is the recorder/reader core for the home-automation telemetry model.
+It owns a single WAL-mode SQLite file in the fleet
 runtime-data root (``<root>/home-automation/telemetry.sqlite3`` — see
 :mod:`src.runtime_data`) holding two narrow, append-mostly tables:
 
@@ -15,8 +15,7 @@ runtime-data root (``<root>/home-automation/telemetry.sqlite3`` — see
   ``logs/*.jsonl`` trail and the otherwise-ephemeral RISCO event feed.
 * ``rollup_hourly`` — one row per completed ``(hour, domain, entity, metric)``,
   folded out of ``readings`` before the short raw window prunes them and kept
-  long (default ~400 days). Raw stays the live view; rollups are the history
-  (issue #739, discharging the rollup deferral #290 booked on purpose).
+  long (default ~400 days). Raw stays the live view; rollups are the history.
 
 **Asleep is not zero.** A metric with no real numeric reading stores
 ``value_num = NULL`` (never 0), mirroring the convention in
@@ -24,15 +23,15 @@ runtime-data root (``<root>/home-automation/telemetry.sqlite3`` — see
 the same line: an hour whose series had no numeric reading at all stores
 ``avg_num``/``min_num``/``max_num`` as ``NULL``, never 0.
 
-**Missing is not low** (the lesson :mod:`src.energy.energy_history` learned in #579).
+**Missing is not low** (as in :mod:`src.energy.energy_history`).
 An hour that was only *partly* sampled is neither present nor missing: its
 average is honest about the minutes that arrived and silent about the ones that
 did not. Rollups therefore record ``covered_s`` — how much of the hour the
 aggregate actually rests on — for a future reader to turn into a coverage
 ratio, so a dead sampler is distinguishable from a genuinely idle device.
 
-Coverage is measured in *seconds*, not in sample counts, for the same reason
-#579 chose seconds: a count needs a denominator ("how many samples should this
+Coverage is measured in *seconds*, not in sample counts, for the same reason as in
+:mod:`src.energy.energy_history`: a count needs a denominator ("how many samples should this
 hour have had?"), which is only knowable from the sampler cadence — so a
 cadence change would silently re-label every hour of stored history. Seconds
 are self-describing. The accrual rule differs from
@@ -395,7 +394,7 @@ def read_events(
 ) -> List[Dict[str, Any]]:
     """Return events matching the (optional) filters, newest first.
 
-    This is what the ``GET /api/activity`` endpoint (issue #289) calls.
+    This is what the ``GET /api/activity`` endpoint calls.
     """
     query, params = _filtered_select(
         "events",
@@ -529,7 +528,7 @@ def compact_and_prune(
 ) -> None:
     """Fold completed hours of ``readings`` into ``rollup_hourly``, then prune.
 
-    Ordering is the whole point (issue #739): every completed hour is
+    Ordering is the whole point: every completed hour is
     aggregated **before** any raw row is deleted, so the short raw window stops
     being the limit of what the house remembers. Raw ``readings`` are then
     pruned on their short window, ``events`` on their long one, and the

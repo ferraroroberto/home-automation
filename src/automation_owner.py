@@ -1,5 +1,5 @@
 """Cross-process, stale-safe lock deciding which webapp process owns the
-write-side automation loops (#690).
+write-side automation loops.
 
 Two webapp instances can end up pointed at the same ``config/``, ``logs/``
 and physical devices at once — a dev process on a spare port next to the
@@ -14,7 +14,7 @@ life of the owning process. Both platforms release such a lock when the
 holder's file handle table is torn down — on a clean exit *or* an unclean
 kill — so there is no PID-liveness bookkeeping to get wrong: empirically
 verified by force-killing a holder process and observing the lock become
-acquirable immediately (issue #690). This mirrors the same "OS auto-releases
+acquirable immediately. This mirrors the same "OS auto-releases
 on process death" guarantee ``app/tray/single_instance.py`` documents for its
 named mutex, applied here to a webapp-level, cross-port concern instead of a
 tray-level, single-process one.
@@ -22,7 +22,7 @@ tray-level, single-process one.
 Fails open (``held=True``) on any locking-primitive glitch — a busted lock
 must never silently disable automation everywhere.
 
-The lock alone is not enough (#876): it lives in each checkout's own
+The lock alone is not enough: it lives in each checkout's own
 ``config/``, so a sibling worktree's instance — booted with the live ``.env``
 and a copy of ``config/`` but no ``logs/`` — won its own lock and ran every
 engine against the real alarm, AC units and blinds. So the lock is only ever

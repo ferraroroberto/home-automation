@@ -1,4 +1,4 @@
-"""Persisted reminder entries — bidirectional voice/app sync (issue #314).
+"""Persisted reminder entries — bidirectional voice/app sync.
 
 Mirrors :mod:`src.wake_alarms`' architecture: the browser edits a single list
 of entries, and the voice surface writes into the same list, so a reminder

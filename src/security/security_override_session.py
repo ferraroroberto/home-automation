@@ -1,8 +1,8 @@
-"""Persisted runtime state for the alarm-override automation (issue #341).
+"""Persisted runtime state for the alarm-override automation.
 
 Tracks, across process/tray restarts, how far the RISCO event log has been
 scanned and per-zone trigger counts for the *current* armed session — mirrors
-``src/security/alarm_scene_cursor.py``'s cursor shape (issue #325) but carries the extra
+``src/security/alarm_scene_cursor.py``'s cursor shape but carries the extra
 per-zone counters and the set of zones this automation has itself bypassed, so
 a restart mid-session doesn't lose count or forget to restore a zone at the
 next arm. Same atomic load/save shape as the rest of ``src/*_config.py``.
@@ -34,7 +34,7 @@ def load_override_session(path: Optional[Path] = None) -> OverrideSession:
     """Return the persisted session state, or a fresh one if absent.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the store
-    *exists* but can't be read (issue #692) — this is a read-modify-save
+    *exists* but can't be read — this is a read-modify-save
     store (``_run_event_scan`` mutates the returned session and saves it
     back), so degrading an unreadable read to a fresh default would erase
     ``auto_bypassed_zones`` and silently leave a detector bypassed forever.

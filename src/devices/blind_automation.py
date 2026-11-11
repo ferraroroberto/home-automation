@@ -1,4 +1,4 @@
-"""Blind group control (#181), daily blind schedules (#871) and the alarm pairing (#875).
+"""Blind group control, daily blind schedules and the alarm pairing.
 
 UI-free core for moving several Tuya blinds at once — the house-wide
 all-up / all-stop / all-down the Blinds card offers — and for the persisted
@@ -18,8 +18,8 @@ rippling across the house one LAN round trip at a time.
 One blind failing never stops the others: the result reports each device's
 outcome so the caller can say exactly which blind did not move.
 
-Every move — automatic (schedules, follow-the-alarm, #897) or a manual tap
-(#899) — then hands the failed blinds to :func:`retry_failed_blinds`, which
+Every move — automatic (schedules, follow-the-alarm) or a manual tap
+— then hands the failed blinds to :func:`retry_failed_blinds`, which
 retries only those on a backoff: 30/60/120/240 s for up/down, a few seconds
 for a Stop, which only helps while the blind is still travelling. Every
 command a blind receives is numbered, so a newer command — another schedule,

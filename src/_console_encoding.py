@@ -27,7 +27,7 @@ A function, not a module-level constant, deliberately -- tests monkeypatch
 the Windows and POSIX branches, which only works if the platform is read at
 call time.
 
-Extracted from ``src/network/network_host.py``'s ``_console_encoding()`` (issue #701)
+Extracted from ``src/network/network_host.py``'s ``_console_encoding()``
 after ``src/devices/hyperv_client.py`` and ``src/energy/ups_client.py`` were found shelling
 out to ``powershell.exe`` with the same shape but no decoding pin — same "one
 home so it can't drift" role as ``src/_no_window.py`` and ``src/_atomic_json.py``.

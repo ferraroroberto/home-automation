@@ -30,7 +30,7 @@ def test_run_exits_nonzero_for_every_script_failure(
 
 def test_the_pre_ship_gate_calls_the_wrapper_not_the_script() -> None:
     helpers.assert_gate_stage_calls_the_wrapper(
-        "runtime_write_ratchet", "runtime write ratchet", "history marker ratchet"
+        "runtime_write_ratchet", "runtime write ratchet", "conventions ratchet"
     )
 
 

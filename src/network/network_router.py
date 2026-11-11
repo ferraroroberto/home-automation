@@ -212,7 +212,7 @@ class RouterClient:
         row until the lease expires, long after the client left. Presence must
         come from the association/accessdev tables
         (:meth:`read_accessdev_table` / :meth:`read_wlan_clients`), never from
-        this table; this read is for IP/hostname enrichment only (issue #507).
+        this table; this read is for IP/hostname enrichment only.
         """
         instances = self._read_feed(
             self._DHCP_HOSTS_FEED, self._DHCP_HOSTS_PAGE, "DHCP", timeout
@@ -237,7 +237,7 @@ class RouterClient:
         a percentage, link rate in Mbps) so the merge needs no further conversion.
         There is deliberately **no** ``ip`` field: the feed's ``IPAddress`` is
         ``0.0.0.0``/empty for every client, and emitting that as ``ip=None`` read
-        as data and misled a live debugging session (issue #507). IPs come from
+        as data and misled a live debugging session. IPs come from
         :meth:`read_dhcp_leases`, whose feed covers wireless clients too.
         Requires an authenticated session; page-gated behind ``localNetStatus``.
         Raises :class:`NetworkCommandError` if the read itself is rejected.
@@ -357,7 +357,7 @@ class RouterClient:
         A replace's create can still fail *after* ``prior`` is already deleted —
         the router's static-binding table has no transaction/rollback primitive,
         so there is no way to undo the delete once it's accepted. That failure is
-        re-raised as :class:`DhcpReservationLost` (issue #347) instead of the
+        re-raised as :class:`DhcpReservationLost` instead of the
         plain error it wraps, so the caller can tell "this write never took" apart
         from "the device now has no reservation at all and needs one re-applied".
         """
@@ -668,7 +668,7 @@ def _extract_pubkey(html_text: str) -> Optional[str]:
 
 
 def _asy_encode(pem: str, src: str) -> str:
-    """``asyEncode``: RSA PKCS#1 v1.5 encrypt of *src* under *pem*, base64 (JSEncrypt)."""
+    """``asyEncode``: RSA PKCS1 v1.5 encrypt of *src* under *pem*, base64 (JSEncrypt)."""
     from cryptography.hazmat.primitives.asymmetric import padding
     from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
@@ -782,7 +782,7 @@ def _add_bindings_on_client(
     Reads the table ONCE, up front (reused to find a MAC's existing row so a replace
     is delete+add, and to know free slots), then writes cap-aware: a create that
     can't fit is skipped rather than hammered. Shared by the single-batch apply and
-    the combined remove+add apply (issue #176) — the latter calls this *after* its
+    the combined remove+add apply — the latter calls this *after* its
     deletes, so the freed slots are already reflected in this fresh table read.
     """
     existing = client.read_dhcp_bindings()

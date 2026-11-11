@@ -1,4 +1,4 @@
-"""Single home for spoken date/time cue parsing (issue #571).
+"""Single home for spoken date/time cue parsing.
 
 ``src/reminders.py`` and ``src/presence/calendar_events.py`` both turn a spoken phrase
 ("take out the trash at 6pm", "dentist tomorrow at 3pm") into a text remainder

@@ -1,4 +1,4 @@
-"""Persisted detector→camera+preset pairings for alarm scene capture (issue #162).
+"""Persisted detector→camera+preset pairings for alarm scene capture.
 
 When the RISCO alarm trips, only the cameras *paired* to the detector that
 fired are snapshotted and sent for AI analysis — a random detector firing must

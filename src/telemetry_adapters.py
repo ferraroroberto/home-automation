@@ -1,4 +1,4 @@
-"""Per-domain reading adapters for the unified telemetry store (#290).
+"""Per-domain reading adapters for the unified telemetry store.
 
 Each function maps one domain's live reading object(s) into a flat list of
 :class:`src.telemetry.Reading` rows — the narrow ``(entity, metric, value)``
@@ -94,7 +94,7 @@ def light_readings(lights: Iterable[Any]) -> List[Reading]:
 
 
 def circuit_readings(meters: Iterable[Any]) -> List[Reading]:
-    """Map Athom ``MeterState`` objects → per-CT-clamp circuit readings (#740).
+    """Map Athom ``MeterState`` objects → per-CT-clamp circuit readings.
 
     The BL0906 clamps are the only per-load truth in the house — MELCloud Home
     exposes no watts and the Tuya plugs cover a handful of appliances — so
