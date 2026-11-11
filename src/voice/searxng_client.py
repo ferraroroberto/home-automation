@@ -26,6 +26,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -53,6 +54,35 @@ class SearxngCommandError(RuntimeError):
     """``docker compose up -d`` failed for some reason."""
 
 
+class SearxngPhase(str, Enum):
+    """Where the SearXNG container stands, as every reader sees it.
+
+    ``SERVING``: running and answering ``/healthz``. ``UNREACHABLE``: running
+    but not answering (booting, or wedged). ``DOWN``: the container exists and
+    is not running (exited, created, paused, dead, ...). ``NOT_FOUND``: no such
+    container. Docker's own status word stays on the state as
+    ``container_status`` for display; nothing else compares it.
+    """
+
+    SERVING = "serving"
+    UNREACHABLE = "unreachable"
+    DOWN = "down"
+    NOT_FOUND = "not_found"
+
+
+_DOCKER_RUNNING = "running"
+_DOCKER_NOT_FOUND = "not_found"
+
+
+def derive_searxng_phase(container_status: Optional[str], reachable: bool) -> SearxngPhase:
+    """The one mapping from Docker's status word and the ``/healthz`` probe to a phase."""
+    if container_status == _DOCKER_RUNNING:
+        return SearxngPhase.SERVING if reachable else SearxngPhase.UNREACHABLE
+    if container_status in (None, _DOCKER_NOT_FOUND):
+        return SearxngPhase.NOT_FOUND
+    return SearxngPhase.DOWN
+
+
 @dataclass(frozen=True)
 class SearxngState:
     """Flattened SearXNG container status for the Home Assistant card."""
@@ -64,8 +94,12 @@ class SearxngState:
     error: Optional[str] = None
     updated_at: Optional[str] = None
 
+    @property
+    def phase(self) -> SearxngPhase:
+        return derive_searxng_phase(self.container_status, self.reachable)
+
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return {**asdict(self), "phase": self.phase.value}
 
 
 def searxng_url() -> str:
@@ -87,15 +121,16 @@ def fetch_searxng_state() -> SearxngState:
     """Read the container's live status. Never raises — degrades to ``available=False``."""
     url = searxng_url()
     status = _container_status()
-    reachable = _probe_healthz(url) if status == "running" else False
-    available = status == "running" and reachable
+    reachable = _probe_healthz(url) if status == _DOCKER_RUNNING else False
+    phase = derive_searxng_phase(status, reachable)
+    available = phase is SearxngPhase.SERVING
 
     error = None
-    if status == "not_found":
+    if phase is SearxngPhase.NOT_FOUND:
         error = "SearXNG container not found — start it from this card or `start_searxng.bat`."
-    elif status != "running":
+    elif phase is SearxngPhase.DOWN:
         error = f"SearXNG container is {status}."
-    elif not reachable:
+    elif phase is SearxngPhase.UNREACHABLE:
         error = "Container is running but not answering /healthz yet."
 
     return SearxngState(
@@ -154,7 +189,7 @@ def _container_status() -> str:
         creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
-        return "not_found"
+        return _DOCKER_NOT_FOUND
     return (result.stdout or "").strip() or "unknown"
 
 

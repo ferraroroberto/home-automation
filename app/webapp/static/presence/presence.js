@@ -27,7 +27,7 @@ import { persistedFlag } from '../persisted-pref.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { emptyStateEl } from '../empty-state.js';
 import { setToggleState } from '../toggle.js';
-import { createViewState } from '../view-state.js';
+import { createViewState, ViewState } from '../view-state.js';
 import { hydrateThisDeviceLocation, refreshThisDeviceLocation, wirePresenceLocationControls } from './presence-location.js';
 import { renderGlanceOverrides, renderPresenceAutomationNote, wirePresenceAutomationControls } from './presence-automation.js';
 import { wirePresencePushControls } from './presence-push.js';
@@ -214,7 +214,7 @@ function renderHousePeople() {
     if (diag.available === false && BROKEN_SOURCE_REASONS.indexOf(diag.reason) !== -1) {
       chip = chipEl(diag.reason === '2fa_required' ? 'Sign in' : 'Find My down', 'attention', 'house-people-chip');
       chip.title = brokenSourceText(diag.reason);
-    } else if (presenceView.state === 'stale') {
+    } else if (presenceView.state === ViewState.STALE) {
       chip = chipEl('Stale', null, 'house-people-chip');
     }
   }
@@ -233,26 +233,26 @@ function renderHousePeople() {
 
 export function renderPresence() {
   renderHousePeople();
-  renderGlanceOverrides(presenceView.state === 'ready');
+  renderGlanceOverrides(presenceView.state === ViewState.READY);
   if (!els.presenceSummary || !els.presenceList || !els.presenceNote) return;
   els.presenceList.innerHTML = '';
   els.presenceList.dataset.state = presenceView.state;
   els.presenceList.setAttribute(
     'aria-busy',
-    presenceView.state === 'loading' ? 'true' : 'false'
+    presenceView.state === ViewState.LOADING ? 'true' : 'false'
   );
   const presence = state.presence;
   // The per-account iCloud rows live on the diagnostics, which survive
   // a stale poll — render them from whatever snapshot is held.
   renderPresenceAccounts(presence);
-  if (presenceView.state === 'loading') {
+  if (presenceView.state === ViewState.LOADING) {
     els.presenceSummary.textContent = 'Loading';
     showPresenceState('Reading presence…', false);
     els.presenceNote.hidden = true;
     hidePresenceRefreshNote();
     return;
   }
-  if (presenceView.state === 'error' && presenceView.liveUnavailable) {
+  if (presenceView.state === ViewState.ERROR && presenceView.liveUnavailable) {
     els.presenceSummary.textContent = 'Unavailable';
     showPresenceState('Presence unavailable', true);
     els.presenceNote.hidden = false;
@@ -310,7 +310,7 @@ export function renderPresence() {
     return;
   }
 
-  if (presenceView.state === 'stale') {
+  if (presenceView.state === ViewState.STALE) {
     els.presenceNote.hidden = false;
     els.presenceNote.textContent = presenceView.lastUpdatedLabel() + ' · live data unavailable';
   } else {
@@ -606,7 +606,7 @@ function wirePresenceTrustDialog() {
 
 export async function loadPresence() {
   if (!state.presence) {
-    presenceView.set('loading', { liveUnavailable: false });
+    presenceView.set(ViewState.LOADING, { liveUnavailable: false });
     renderPresence();
   }
   try {

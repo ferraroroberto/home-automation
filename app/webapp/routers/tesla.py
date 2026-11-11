@@ -26,6 +26,7 @@ from fastapi import APIRouter, Query
 
 from app.webapp.tesla_sampler import load_sampler_config
 from src.devices import tesla_auth, tesla_history
+from src.devices.tesla_client import VehicleState
 
 router = APIRouter()
 
@@ -45,11 +46,13 @@ def _status() -> Dict[str, Any]:
         "usable_kwh": tesla_history.load_history_config().usable_kwh,
         "sample": None,
         "state": None,
+        "awake": False,
         "checked_at": None,
     }
     if out["configured"]:
         latest = tesla_history.latest()
-        out.update(sample=latest["sample"], state=latest["state"], checked_at=latest["checked_at"])
+        out.update(sample=latest["sample"], state=latest["state"], checked_at=latest["checked_at"],
+                   awake=latest["state"] == VehicleState.ONLINE)
     return out
 
 

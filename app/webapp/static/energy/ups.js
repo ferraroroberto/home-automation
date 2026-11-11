@@ -18,7 +18,7 @@ import { setHeadPart } from '../head-status.js';
 import { isSnapshotRestored } from '../snapshots.js';
 import { loadPowerNotifyPrefs } from './ups-notify.js';
 import { createPoller } from '../poll.js';
-import { createTabLoader, createViewState, staleNoteEl, staleText } from '../view-state.js';
+import { createTabLoader, createViewState, ViewState, staleNoteEl, staleText } from '../view-state.js';
 import { rowEl } from '../row.js';
 import { sheet } from '../sheet.js';
 import { setHousePart } from '../home.js';
@@ -53,9 +53,9 @@ function statusChip(ups) {
 // an exception chip, and the sheet one tap away. The row is there in every
 // state, so the PC-fleet shutdown in its sheet is always reachable.
 function upsRowMeta() {
-  if (upsView.state === 'loading') return { text: 'Reading UPS status…', badge: null, chip: null };
-  if (upsView.state === 'empty') return { text: 'No UPS detected', badge: null, chip: null };
-  if (upsView.state === 'error') {
+  if (upsView.state === ViewState.LOADING) return { text: 'Reading UPS status…', badge: null, chip: null };
+  if (upsView.state === ViewState.EMPTY) return { text: 'No UPS detected', badge: null, chip: null };
+  if (upsView.state === ViewState.ERROR) {
     return { text: 'Status unavailable', badge: 'down', chip: chipEl('Unavailable', 'attention', 'ups-status') };
   }
   const ups = state.ups;
@@ -105,11 +105,11 @@ function renderUpsSheet() {
   const box = els.upsSheetStatus;
   if (!box) return;
   box.innerHTML = '';
-  if (upsView.state === 'loading' || upsView.state === 'empty' || upsView.state === 'error') {
-    const empty = upsView.state === 'loading'
+  if (upsView.state === ViewState.LOADING || upsView.state === ViewState.EMPTY || upsView.state === ViewState.ERROR) {
+    const empty = upsView.state === ViewState.LOADING
       ? emptyStateEl('refresh-cw', 'Reading UPS status…')
       : emptyStateEl('battery-charging',
-        upsView.state === 'empty' ? 'No UPS detected' : 'UPS status unavailable',
+        upsView.state === ViewState.EMPTY ? 'No UPS detected' : 'UPS status unavailable',
         { actionLabel: 'Retry', onAction: function () { loadUps(); } });
     box.appendChild(empty);
     return;
@@ -121,7 +121,7 @@ function renderUpsSheet() {
   box.appendChild(kvRow('Status', status));
   box.appendChild(kvRow('Charge', fmtPct(ups && ups.battery_charge_pct)));
   box.appendChild(kvRow('Runtime', fmtRuntime(ups && ups.runtime_seconds)));
-  if (upsView.state === 'stale' || isSnapshotRestored('ups')) {
+  if (upsView.state === ViewState.STALE || isSnapshotRestored('ups')) {
     box.appendChild(staleNoteEl(staleText(upsView, 'ups'), 'ups-stale-note'));
   }
 }
@@ -153,7 +153,7 @@ function renderUpsHead() {
   const ups = state.ups;
   const status = (ups && ups.status) || '';
   let exception = null;
-  if (upsView.state === 'ready' && ups && ups.available === true) {
+  if (upsView.state === ViewState.READY && ups && ups.available === true) {
     if (status.indexOf('critical') >= 0) exception = { text: 'UPS critical', tone: 'danger' };
     else if (status.indexOf('low_battery') >= 0) exception = { text: 'UPS battery low', tone: 'danger' };
     else if (ups.mains_online === false) exception = { text: 'On battery', tone: 'attention' };

@@ -44,6 +44,7 @@ from src._backoff import BackoffTracker
 from src.voice.searxng_client import (
     SearxngCommandError,
     SearxngConfigError,
+    SearxngPhase,
     SearxngState,
     compose_path,
     fetch_searxng_state,
@@ -67,9 +68,6 @@ UNREACHABLE_GRACE_TICKS = 3
 # hammering the daemon.
 BACKOFF_BASE_S = 120.0
 BACKOFF_MAX_S = 1800.0
-
-# Container states that a plain `up -d` can genuinely recover.
-_STARTABLE = frozenset({"exited", "created", "paused", "dead", "not_found"})
 
 
 @dataclass
@@ -98,14 +96,13 @@ def _plan(state: SearxngState, wd: _WatchdogState) -> Optional[str]:
     its grace window — the honest "not confirmed either way" answer, not a
     reason to act.
     """
-    if state.container_status in _STARTABLE:
-        return "start"
-    if state.container_status == "running" and not state.reachable:
+    if state.phase is SearxngPhase.UNREACHABLE:
         # Strictly greater: the constant counts polls *tolerated*, so the
         # action lands on the poll after the window, not on its last tick.
         return "restart" if wd.unreachable_ticks > UNREACHABLE_GRACE_TICKS else None
-    # `unknown`, or any status Docker grows later: `up -d` is the safe,
-    # idempotent guess, and the backoff bounds how often we guess.
+    # Down or not found (a plain `up -d` recovers both), or any status Docker
+    # grows later: `up -d` is the safe, idempotent guess, and the backoff
+    # bounds how often we guess.
     return "start"
 
 
@@ -128,7 +125,7 @@ async def _tick(wd: _WatchdogState) -> None:
     # observation, so it advances even while the backoff is suppressing
     # attempts — otherwise a backed-off container could never age out of its
     # grace window.
-    if state.container_status == "running" and not state.reachable:
+    if state.phase is SearxngPhase.UNREACHABLE:
         wd.unreachable_ticks += 1
     else:
         wd.unreachable_ticks = 0

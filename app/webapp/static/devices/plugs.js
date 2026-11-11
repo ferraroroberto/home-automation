@@ -21,7 +21,7 @@ import {
 import { persistedFlag } from '../persisted-pref.js';
 import { jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { fmtW, friendlyError } from '../format.js';
-import { createTabLoader, createTabPollGate, createViewState, markTabFailure, renderFeedback } from '../view-state.js';
+import { createTabLoader, createTabPollGate, createViewState, ViewState, markTabFailure, renderFeedback, isReading } from '../view-state.js';
 import { toggleMarkup, setToggleState } from '../toggle.js';
 import { confirmAction } from '../confirm.js';
 import { detailModal } from '../detail-modal.js';
@@ -418,7 +418,7 @@ function renderStats() {
   if (!devices.length) {
     // Still reading: keep the dashes index.html draws, so the card does not
     // grow when the plugs land (LAYOUT-10). Only a settled "none" hides it.
-    const reading = plugsView.state === 'idle' || plugsView.state === 'loading';
+    const reading = isReading(plugsView.state);
     if (!reading && els.powerNow) els.powerNow.hidden = true;
     if (els.powerOnCount) els.powerOnCount.textContent = '';
     setHeadPart('iot', 'plugs', null);
@@ -449,7 +449,7 @@ function renderStats() {
 
   // The Devices header's plain fact (head-status.js): what is on and
   // drawing power, from a live read only.
-  setHeadPart('iot', 'plugs', plugsView.state === 'ready'
+  setHeadPart('iot', 'plugs', plugsView.state === ViewState.READY
     ? { fact: on + ' on · ' + wattStr }
     : null);
 }

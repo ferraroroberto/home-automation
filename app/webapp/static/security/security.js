@@ -18,7 +18,7 @@
 
 import { state, els, reportFetchOk } from '../state.js';
 import { jsonApi, isAuthRequired } from '../api.js';
-import { createViewState, markTabFailure, renderFeedback } from '../view-state.js';
+import { createViewState, ViewState, markTabFailure, renderFeedback } from '../view-state.js';
 import { renderState, renderActions, renderEvents, renderZones } from './security-alarm.js';
 import { renderSchedules, loadSecuritySchedules } from './security-schedules.js';
 import { renderScenePairings, loadScenePairings } from './security-scene.js';
@@ -80,13 +80,13 @@ function renderSecurityFeedback() {
   });
 
   if (!els.homeSecurityFeedback) return;
-  if (securityView.state === 'loading') {
+  if (securityView.state === ViewState.LOADING) {
     els.homeSecurityFeedback.textContent = 'Reading security status…';
     els.homeSecurityFeedback.hidden = false;
-  } else if (securityView.state === 'error') {
+  } else if (securityView.state === ViewState.ERROR) {
     els.homeSecurityFeedback.textContent = 'Security unavailable';
     els.homeSecurityFeedback.hidden = false;
-  } else if (securityView.state === 'stale') {
+  } else if (securityView.state === ViewState.STALE) {
     els.homeSecurityFeedback.textContent = securityView.lastUpdatedLabel() + ' · live data unavailable';
     els.homeSecurityFeedback.hidden = false;
   } else {
@@ -127,14 +127,14 @@ export function renderSecurity() {
   renderPresence();
   renderPresencePlaces();
   renderSecurityFeedback();
-  if (securityView.state === 'stale') disableSecurityActions();
+  if (securityView.state === ViewState.STALE) disableSecurityActions();
 }
 
 async function loadSecurityState() {
   try {
     state.security = await jsonApi('/api/security');
     reportFetchOk('security');
-    securityView.set('ready', { updatedAt: new Date() });
+    securityView.set(ViewState.READY, { updatedAt: new Date() });
     renderSecurity();
     // Presence also polls on Home (the House card's who-is-home row) —
     // same precedent as the arm control being actionable on Home too.
@@ -147,7 +147,7 @@ async function loadSecurityState() {
 
 export async function loadSecurity() {
   if (!state.security) {
-    securityView.set('loading');
+    securityView.set(ViewState.LOADING);
     renderSecurityFeedback();
   }
   try {
@@ -160,7 +160,7 @@ export async function loadSecurity() {
     state.securityEvents = (results[1] && results[1].events) || [];
     if (results[2]) state.securitySchedules = results[2].entries || [];
     reportFetchOk('security');
-    securityView.set('ready', { updatedAt: new Date() });
+    securityView.set(ViewState.READY, { updatedAt: new Date() });
     renderSecurity();
   } catch (exc) {
     if (isAuthRequired(exc)) return;

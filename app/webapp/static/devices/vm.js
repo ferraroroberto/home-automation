@@ -21,7 +21,7 @@ import { state, els, toast, reportFetchFailure, reportFetchOk } from '../state.j
 import { jsonApi, isAuthRequired } from '../api.js';
 import { restoreSnapshot, saveSnapshot, snapshotLabel } from '../snapshots.js';
 import { confirmAction } from '../confirm.js';
-import { createTabPollGate, createViewState } from '../view-state.js';
+import { createTabPollGate, createViewState, ViewState } from '../view-state.js';
 import { setToggleState } from '../toggle.js';
 
 const POLL_MS = 30_000;
@@ -30,9 +30,18 @@ let busy = false;       // a start/stop is in flight — disable the toggle, ski
 let pending = null;     // 'start' | 'stop' while that action is in flight
 const vmView = createViewState('hyperv');
 
+// The `phase` /api/hyperv derives from Hyper-V's State word (VmPhase in
+// src/devices/hyperv_client.py). `vm.state` is only the word shown for a
+// transitional phase; nothing here decides anything from it.
+const VmPhase = Object.freeze({
+  RUNNING: 'running',
+  OFF: 'off',
+  NOT_FOUND: 'not_found',
+});
+
 function viewStateFor(vm) {
-  if (!vm || vm.state === 'not_found') return 'empty';
-  return vm.available === true ? 'ready' : 'error';
+  if (!vm || vm.phase === VmPhase.NOT_FOUND) return ViewState.EMPTY;
+  return vm.available === true ? ViewState.READY : ViewState.ERROR;
 }
 
 // The meta line in words, and the avatar badge (design.md avatar: alive and
@@ -76,42 +85,42 @@ function statusBadge(vm) {
     return { mod: 'transition', text: pending === 'start' ? 'starting…' : 'stopping…' };
   }
   if (!vm || vm.available !== true) {
-    return { mod: 'unavailable', text: vm && vm.state === 'not_found' ? 'not found' : 'unavailable' };
+    return { mod: 'unavailable', text: vm && vm.phase === VmPhase.NOT_FOUND ? 'not found' : 'unavailable' };
   }
-  if (vm.state === 'running') {
+  if (vm.phase === VmPhase.RUNNING) {
     const up = fmtUptime(vm.uptime_seconds);
     return { mod: 'running', text: up ? 'online · up ' + up : 'online' };
   }
-  if (vm.state === 'off') return { mod: 'off', text: 'off' };
+  if (vm.phase === VmPhase.OFF) return { mod: 'off', text: 'off' };
   // Transient Hyper-V states (saved/paused/starting/stopping).
   return { mod: 'transition', text: vm.state };
 }
 
 function render(vm) {
   if (els.homeAssistantCard) els.homeAssistantCard.dataset.vmState = vmView.state;
-  if (vmView.state === 'loading') {
+  if (vmView.state === ViewState.LOADING) {
     renderSummaryState('Reading status…', 'transition');
     renderToggle(false, true);
     return;
   }
-  if (vmView.state === 'empty') {
+  if (vmView.state === ViewState.EMPTY) {
     renderSummaryState('VM not found', 'unavailable');
     renderToggle(false, true);
     return;
   }
-  if (vmView.state === 'error') {
+  if (vmView.state === ViewState.ERROR) {
     renderSummaryState('status unavailable', 'unavailable');
     // An unreachable-but-identified VM can still be started — keep the switch
     // usable for that (the old tile's "Start Home Assistant" action).
-    const canStart = !!(vm && vm.name && vm.state !== 'not_found');
+    const canStart = !!(vm && vm.name && vm.phase !== VmPhase.NOT_FOUND);
     renderToggle(pending === 'start', busy || !canStart);
     return;
   }
 
   const available = !!(vm && vm.available === true);
-  const running = !!(vm && vm.state === 'running');
+  const running = !!(vm && vm.phase === VmPhase.RUNNING);
   const badge = statusBadge(vm);
-  const stale = vmView.state === 'stale';
+  const stale = vmView.state === ViewState.STALE;
 
   // IP·MAC are hidden per design but kept one hover away; a stale snapshot
   // says so in the text and carries its age in the same tooltip.
@@ -129,13 +138,13 @@ function render(vm) {
   // (off→on) or stops (on→off, confirm-gated). Disabled while a change is in
   // flight, or when the VM isn't in a settled, actionable state. While
   // pending it slides to the target.
-  const actionable = available && (vm.state === 'running' || vm.state === 'off');
+  const actionable = available && (vm.phase === VmPhase.RUNNING || vm.phase === VmPhase.OFF);
   renderToggle(pending ? pending === 'start' : running, busy || !actionable || stale);
 }
 
 async function onToggle() {
   if (busy) return;
-  const running = !!(state.vm && state.vm.state === 'running');
+  const running = !!(state.vm && state.vm.phase === VmPhase.RUNNING);
   const action = running ? 'stop' : 'start';
   if (action === 'stop') {
     const ok = await confirmAction({
@@ -189,7 +198,7 @@ export function renderVm() {
 
 export async function loadVm() {
   if (!state.vm) {
-    vmView.set('loading', { liveUnavailable: false });
+    vmView.set(ViewState.LOADING, { liveUnavailable: false });
     renderVm();
   }
   try {
@@ -204,7 +213,7 @@ export async function loadVm() {
     renderVm();
   } catch (exc) {
     if (isAuthRequired(exc)) return;
-    vmView.set(state.vm && state.vm.available === true ? 'stale' : 'error', {
+    vmView.set(state.vm && state.vm.available === true ? ViewState.STALE : ViewState.ERROR, {
       liveUnavailable: true,
     });
     reportFetchFailure(
@@ -220,7 +229,7 @@ export function restoreVmSnapshot() {
   const body = restoreSnapshot('hyperv');
   if (!body) return;
   state.vm = (body && body.hyperv) || null;
-  vmView.set(state.vm && state.vm.available === true ? 'stale' : viewStateFor(state.vm), {
+  vmView.set(state.vm && state.vm.available === true ? ViewState.STALE : viewStateFor(state.vm), {
     updatedAt: state.snapshotUpdatedAt.hyperv,
     liveUnavailable: false,
   });

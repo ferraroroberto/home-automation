@@ -30,7 +30,7 @@ import {
   restyleSunOverlay, loadChartJs,
 } from './charts.js';
 import { createPoller } from '../poll.js';
-import { createViewState, markTabFailure, renderFeedback } from '../view-state.js';
+import { createViewState, ViewState, markTabFailure, renderFeedback } from '../view-state.js';
 import { setHeadPart } from '../head-status.js';
 import { rowEl } from '../row.js';
 import { sheet } from '../sheet.js';
@@ -195,7 +195,7 @@ function renderFlowCard(r, e, solar) {
 // with the grid right now, or why that isn't known. A restored snapshot says
 // nothing: it is not live.
 function renderEnergyHead(e) {
-  if (energyView.state !== 'ready') {
+  if (energyView.state !== ViewState.READY) {
     setHeadPart('energy', 'flow', null);
     return;
   }
@@ -277,7 +277,7 @@ function gridFlowW(e) {
 
 export async function loadEnergy() {
   if (!energyLastGood) {
-    energyView.set('loading', { liveUnavailable: false });
+    energyView.set(ViewState.LOADING, { liveUnavailable: false });
     renderEnergyFeedback();
   }
   try {
@@ -289,7 +289,7 @@ export async function loadEnergy() {
     reportFetchOk('energy');
     saveSnapshot('energyLive', body);
     energyLastGood = body;
-    energyView.set('ready', {
+    energyView.set(ViewState.READY, {
       updatedAt: new Date(),
       liveUnavailable: false,
     });
@@ -383,7 +383,7 @@ export function restoreEnergySnapshots() {
   const live = restoreSnapshot('energyLive');
   if (live) {
     energyLastGood = live;
-    energyView.set('stale', {
+    energyView.set(ViewState.STALE, {
       updatedAt: state.snapshotUpdatedAt.energyLive,
       liveUnavailable: false,
     });

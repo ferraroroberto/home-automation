@@ -29,6 +29,7 @@ import shutil
 import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
@@ -64,6 +65,36 @@ class HyperVCommandError(RuntimeError):
     """A Hyper-V cmdlet failed for some other reason."""
 
 
+class VmPhase(str, Enum):
+    """Where the VM stands, as every reader sees it.
+
+    ``RUNNING`` and ``OFF`` are the two settled states a power toggle acts on;
+    ``TRANSITIONING`` is any other Hyper-V state (saved, paused, starting,
+    stopping, ...); ``NOT_FOUND`` is no VM by that name; ``UNKNOWN`` is a read
+    that returned no state. Hyper-V's own lower-cased word stays on the state as
+    ``state`` for display; nothing else compares it.
+    """
+
+    RUNNING = "running"
+    OFF = "off"
+    TRANSITIONING = "transitioning"
+    NOT_FOUND = "not_found"
+    UNKNOWN = "unknown"
+
+
+def derive_vm_phase(state: str) -> VmPhase:
+    """The one mapping from Hyper-V's lower-cased ``State`` word to a phase."""
+    if state == "running":
+        return VmPhase.RUNNING
+    if state == "off":
+        return VmPhase.OFF
+    if state == "not_found":
+        return VmPhase.NOT_FOUND
+    if state == "unknown":
+        return VmPhase.UNKNOWN
+    return VmPhase.TRANSITIONING
+
+
 @dataclass(frozen=True)
 class HyperVState:
     """Flattened Hyper-V VM status for the dashboard."""
@@ -77,8 +108,12 @@ class HyperVState:
     error: Optional[str] = None
     updated_at: Optional[str] = None
 
+    @property
+    def phase(self) -> VmPhase:
+        return derive_vm_phase(self.state)
+
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return {**asdict(self), "phase": self.phase.value}
 
 
 # --------------------------------------------------------------------------- #
@@ -175,12 +210,12 @@ def _set_power(*, start: bool) -> HyperVState:
     # authoritative (e.g. permission) error, which is classified below.
     current = fetch_hyperv_state()
     if current.available:
-        running = current.state == "running"
+        running = current.phase is VmPhase.RUNNING
         if start and running:
             raise HyperVStateError(f"VM '{name}' is already running.")
         if not start and not running:
             raise HyperVStateError(f"VM '{name}' is already stopped.")
-    elif current.state == "not_found":
+    elif current.phase is VmPhase.NOT_FOUND:
         raise HyperVNotFoundError(f"VM '{name}' was not found on this host.")
 
     script = _START_SCRIPT if start else _STOP_SCRIPT

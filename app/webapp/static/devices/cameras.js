@@ -22,7 +22,7 @@ import { confirmAction } from '../confirm.js';
 import { emptyStateEl } from '../empty-state.js';
 import { icon } from '../_vendored/icons/icons.js';
 import { chipEl } from '../chip.js';
-import { createTabLoader, createViewState } from '../view-state.js';
+import { createTabLoader, createViewState, ViewState } from '../view-state.js';
 import { sheet } from '../sheet.js';
 import { detailModal } from '../detail-modal.js';
 import { rowEl } from '../row.js';
@@ -138,14 +138,14 @@ function renderCameras() {
   els.camerasList.dataset.state = camerasView.state;
   els.camerasList.setAttribute(
     'aria-busy',
-    camerasView.state === 'loading' ? 'true' : 'false'
+    camerasView.state === ViewState.LOADING ? 'true' : 'false'
   );
   const cameras = state.cameras || [];
   if (!cameras.length) {
-    if (camerasView.state === 'loading') {
+    if (camerasView.state === ViewState.LOADING) {
       showCamerasState('Reading cameras…', false);
       els.camerasNote.hidden = true;
-    } else if (camerasView.state === 'error') {
+    } else if (camerasView.state === ViewState.ERROR) {
       showCamerasState('Cameras unavailable', true);
       els.camerasNote.hidden = false;
       els.camerasNote.textContent =
@@ -156,7 +156,7 @@ function renderCameras() {
     }
     return;
   }
-  if (camerasView.state === 'stale') {
+  if (camerasView.state === ViewState.STALE) {
     els.camerasNote.hidden = false;
     els.camerasNote.textContent = camerasView.lastUpdatedLabel() + ' · live data unavailable';
   } else {

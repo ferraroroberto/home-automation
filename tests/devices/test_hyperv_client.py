@@ -58,9 +58,10 @@ def test_to_dict_is_json_serialisable_shape() -> None:
     d = s.to_dict()
     assert set(d) == {
         "available", "name", "state", "uptime_seconds",
-        "ip_address", "mac_address", "error", "updated_at",
+        "ip_address", "mac_address", "error", "updated_at", "phase",
     }
     assert d["state"] == "running"
+    assert d["phase"] == "running"
 
 
 # ---------------------------------------------------------- error classifier
