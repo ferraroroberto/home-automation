@@ -21,6 +21,7 @@
 
 import { state, els, toast } from '../state.js';
 import { jsonApi, isAuthRequired } from '../api.js';
+import { trimNum } from '../format.js';
 
 const ENDPOINT = '/api/hvac/boost-coordinator';
 const SECONDS_PER_MIN = 60;
@@ -37,11 +38,6 @@ const DEFAULTS = {
 
 function coord() {
   return state.boostCoord || DEFAULTS;
-}
-
-// Trim a trailing ".0" so 1.5 → "1.5" but 300 → "300".
-function trimNum(n) {
-  return String(Number(n)).replace(/\.0$/, '');
 }
 
 // ------------------------------------------------------------------ render

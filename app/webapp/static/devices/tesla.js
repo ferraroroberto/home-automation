@@ -18,6 +18,7 @@
 
 import { jsonApi, isAuthRequired } from '../api.js';
 import { emptyStateEl } from '../empty-state.js';
+import { fmtAgo } from '../format.js';
 import { createTabPollGate, createViewState, ViewState } from '../view-state.js';
 
 // The store changes at most every 2 min (the sampler's active cadence), so a
@@ -41,16 +42,6 @@ const CHARGING_TITLES = {
 
 const STATE_WORDS = { online: 'Online', asleep: 'Asleep', offline: 'Offline', error: 'Unreachable' };
 
-function fmtAgo(tsSeconds) {
-  if (tsSeconds == null) return null;
-  const mins = Math.max(0, Math.round((Date.now() - tsSeconds * 1000) / 60_000));
-  if (mins < 1) return 'just now';
-  if (mins < 60) return mins + ' min ago';
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return hours + ' h ago';
-  return Math.floor(hours / 24) + ' d ago';
-}
-
 function chargingText(sample) {
   const state = sample.charging_state;
   const title = CHARGING_TITLES[state] || state || 'Charging state unknown';
@@ -66,7 +57,8 @@ function chargingText(sample) {
 }
 
 function seenText(body) {
-  const ago = fmtAgo(body.sample && body.sample.ts);
+  const ts = body.sample && body.sample.ts;
+  const ago = ts == null ? null : fmtAgo(ts);
   return [STATE_WORDS[body.state], ago ? 'data from ' + ago : null].filter(Boolean).join(' · ');
 }
 
