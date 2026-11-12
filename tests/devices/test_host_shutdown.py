@@ -62,3 +62,24 @@ def test_initiate_hibernate_never_raises_on_oserror(monkeypatch, _unblock) -> No
 
     monkeypatch.setattr(host_shutdown.subprocess, "run", run)
     assert host_shutdown.initiate_hibernate() is False
+
+
+@pytest.mark.parametrize(
+    ("call", "flag"),
+    [
+        (lambda: host_shutdown.initiate_shutdown(), "/s"),
+        (lambda: host_shutdown.initiate_hibernate(), "/h"),
+        (lambda: host_shutdown.cancel_shutdown(), "/a"),
+    ],
+    ids=["shutdown", "hibernate", "cancel"],
+)
+def test_a_timed_out_shutdown_call_returns_false_and_names_the_timeout(
+    monkeypatch, _unblock, caplog, call, flag
+) -> None:
+    def run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr(host_shutdown.subprocess, "run", run)
+    with caplog.at_level("WARNING", logger="host_shutdown"):
+        assert call() is False
+    assert f"shutdown {flag} did not return within" in caplog.text

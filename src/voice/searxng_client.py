@@ -9,10 +9,12 @@ answering queries" — mirrors the ``src/devices/hyperv_client.py`` / ``ups_clie
 shared ``NO_WINDOW`` guard (``src/_no_window.py``) so no console window pops on
 each Home-view poll.
 
-Status reads never raise — a missing container, a stopped one, or an
+Status reads degrade — a missing container, a stopped one, or an
 unreachable ``/healthz`` all come back as an ``available=False``
-:class:`SearxngState` with a distinct ``error``. ``start_searxng`` raises
-:class:`SearxngConfigError` / :class:`SearxngCommandError` instead, so the
+:class:`SearxngState` with a distinct ``error``. A ``docker inspect`` that
+times out is a fact not established, not a state: it raises
+:class:`SearxngCommandError`, never folds into "not found". ``start_searxng``
+raises :class:`SearxngConfigError` / :class:`SearxngCommandError`, so the
 router can map each cause to its own HTTP status.
 """
 
@@ -43,6 +45,9 @@ _URL_ENV = "SEARXNG_URL"
 # SEARXNG_URL now probes nothing reachable instead of a specific household
 # host; set the env var (see .env.example) to point at the real container.
 _DEFAULT_URL = "http://127.0.0.1:8085"
+# ``up -d`` may pull an image; ``inspect`` only reads local daemon state.
+_COMPOSE_TIMEOUT_S = 60
+_INSPECT_TIMEOUT_S = 10
 
 
 class SearxngConfigError(RuntimeError):
@@ -50,7 +55,7 @@ class SearxngConfigError(RuntimeError):
 
 
 class SearxngCommandError(RuntimeError):
-    """``docker compose up -d`` failed for some reason."""
+    """A ``docker`` call failed or did not return within its timeout."""
 
 
 class SearxngPhase(str, Enum):
@@ -117,7 +122,10 @@ def compose_path() -> str:
 
 
 def fetch_searxng_state() -> SearxngState:
-    """Read the container's live status. Never raises — degrades to ``available=False``."""
+    """Read the container's live status, degrading to ``available=False``.
+
+    Raises :class:`SearxngCommandError` only when ``docker inspect`` times out.
+    """
     url = searxng_url()
     status = _container_status()
     reachable = _probe_healthz(url) if status == _DOCKER_RUNNING else False
@@ -163,14 +171,19 @@ def restart_searxng() -> SearxngState:
 def _compose(args: List[str], fallback_err: str, label: str) -> SearxngState:
     """Run one ``docker compose`` subcommand against the stack, then read state back."""
     path = compose_path()  # SearxngConfigError propagates → router maps to 503
-    result = subprocess.run(
-        ["docker", "compose", "-f", path, *args],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        creationflags=NO_WINDOW,
-    )
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "-f", path, *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_COMPOSE_TIMEOUT_S,
+            creationflags=NO_WINDOW,
+        )
+    except subprocess.TimeoutExpired:
+        err = f"docker compose {label} timed out after {_COMPOSE_TIMEOUT_S} s"
+        logger.warning("⚠️  SearXNG %s", err)
+        raise SearxngCommandError(err) from None
     if result.returncode != 0:
         err = (result.stderr or result.stdout or fallback_err).strip()
         logger.warning("⚠️  SearXNG %s failed: %s", label, err)
@@ -179,14 +192,19 @@ def _compose(args: List[str], fallback_err: str, label: str) -> SearxngState:
 
 
 def _container_status() -> str:
-    result = subprocess.run(
-        ["docker", "inspect", _CONTAINER_NAME, "--format", "{{.State.Status}}"],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-        creationflags=NO_WINDOW,
-    )
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", _CONTAINER_NAME, "--format", "{{.State.Status}}"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_INSPECT_TIMEOUT_S,
+            creationflags=NO_WINDOW,
+        )
+    except subprocess.TimeoutExpired:
+        raise SearxngCommandError(
+            f"docker inspect timed out after {_INSPECT_TIMEOUT_S} s"
+        ) from None
     if result.returncode != 0:
         return _DOCKER_NOT_FOUND
     return (result.stdout or "").strip() or "unknown"

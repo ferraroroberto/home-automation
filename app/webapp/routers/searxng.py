@@ -33,7 +33,11 @@ router = APIRouter()
 @router.get("/api/searxng")
 async def get_searxng() -> Dict[str, Any]:
     """Return the SearXNG container's live status."""
-    state = await asyncio.to_thread(fetch_searxng_state)
+    try:
+        state = await asyncio.to_thread(fetch_searxng_state)
+    except SearxngCommandError as exc:
+        logger.warning("⚠️  SearXNG status read failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc))
     return {"searxng": state.to_dict()}
 
 

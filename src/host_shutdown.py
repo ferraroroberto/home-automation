@@ -24,6 +24,11 @@ logger = logging.getLogger("host_shutdown")
 # the alert text, the hibernate timer and the shutdown call all share.
 LOW_BATTERY_GRACE_S = 180
 
+# ``shutdown.exe`` only queues or aborts the action and returns at once; ten
+# seconds is far past a healthy call, so an expiry means the OS call itself
+# wedged and the outcome is unknown.
+_SHUTDOWN_CALL_TIMEOUT_S = 10
+
 
 def initiate_shutdown(*, grace_seconds: int = LOW_BATTERY_GRACE_S, message: str = "") -> bool:
     """Schedule a graceful Windows shutdown after ``grace_seconds``.
@@ -53,11 +58,17 @@ def initiate_shutdown(*, grace_seconds: int = LOW_BATTERY_GRACE_S, message: str 
             text=True,
             encoding=console_encoding(),
             errors="replace",
-            timeout=10,
+            timeout=_SHUTDOWN_CALL_TIMEOUT_S,
             creationflags=NO_WINDOW,
         )
     except OSError as exc:
         logger.warning("⚠️ Failed to invoke shutdown /s: %s", exc)
+        return False
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "⚠️ shutdown /s did not return within %d s — outcome unconfirmed",
+            _SHUTDOWN_CALL_TIMEOUT_S,
+        )
         return False
     if result.returncode != 0:
         logger.warning(
@@ -91,11 +102,17 @@ def initiate_hibernate() -> bool:
             text=True,
             encoding=console_encoding(),
             errors="replace",
-            timeout=10,
+            timeout=_SHUTDOWN_CALL_TIMEOUT_S,
             creationflags=NO_WINDOW,
         )
     except OSError as exc:
         logger.warning("⚠️ Failed to invoke shutdown /h: %s", exc)
+        return False
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "⚠️ shutdown /h did not return within %d s — outcome unconfirmed",
+            _SHUTDOWN_CALL_TIMEOUT_S,
+        )
         return False
     if result.returncode != 0:
         logger.warning(
@@ -125,11 +142,17 @@ def cancel_shutdown() -> bool:
             text=True,
             encoding=console_encoding(),
             errors="replace",
-            timeout=10,
+            timeout=_SHUTDOWN_CALL_TIMEOUT_S,
             creationflags=NO_WINDOW,
         )
     except OSError as exc:
         logger.warning("⚠️ Failed to invoke shutdown /a: %s", exc)
+        return False
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "⚠️ shutdown /a did not return within %d s — outcome unconfirmed",
+            _SHUTDOWN_CALL_TIMEOUT_S,
+        )
         return False
     if result.returncode == 0:
         logger.info("✅ Pending host shutdown cancelled (mains power restored)")

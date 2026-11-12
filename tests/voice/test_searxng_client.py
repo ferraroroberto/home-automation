@@ -67,3 +67,20 @@ def test_an_unconfigured_stack_path_raises_config_error(monkeypatch) -> None:
     monkeypatch.setattr(client.os, "getenv", lambda name, default=None: None)
     with pytest.raises(SearxngConfigError):
         client.compose_path()
+
+
+def _expire(cmd, **kwargs):
+    raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+
+def test_a_timed_out_compose_command_raises_a_distinct_command_error(monkeypatch) -> None:
+    monkeypatch.setattr(client, "compose_path", lambda: "C:/stack/docker-compose.yml")
+    monkeypatch.setattr(client.subprocess, "run", _expire)
+    with pytest.raises(SearxngCommandError, match="docker compose start timed out after 60 s"):
+        client.start_searxng()
+
+
+def test_a_timed_out_inspect_is_unknown_not_a_missing_container(monkeypatch) -> None:
+    monkeypatch.setattr(client.subprocess, "run", _expire)
+    with pytest.raises(SearxngCommandError, match="docker inspect timed out after 10 s"):
+        client.fetch_searxng_state()
