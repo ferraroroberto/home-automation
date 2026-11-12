@@ -67,6 +67,7 @@ from dotenv import load_dotenv
 
 from src._backoff import BackoffTracker
 from src._env import _env_int
+from src._numbers import optional_float
 
 logger = logging.getLogger("huawei")
 
@@ -279,21 +280,11 @@ def _is_stale(payload_time: object, max_staleness_s: int) -> bool:
     return age > max_staleness_s
 
 
-def _as_float(value: object) -> Optional[float]:
-    """Convert API numbers to float while preserving missing values."""
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def _series_float(raw: object) -> Optional[float]:
     """Convert one series sample, treating FusionSolar's ``--`` filler as missing."""
     if raw is None or (isinstance(raw, str) and raw.strip() in {"", "--"}):
         return None
-    return _as_float(raw)
+    return optional_float(raw)
 
 
 def _is_settled(point: Dict[str, float]) -> bool:
@@ -578,8 +569,8 @@ def _apply(state: EnergyState, stats: Dict[str, Any]) -> Optional[str]:
     state.pv_surplus_w = latest.pv_surplus_w
 
     # Cumulative counters are today's totals, not lifetime ones.
-    state.grid_import_kwh = _as_float(stats.get("totalBuyPower"))
-    state.grid_export_kwh = _as_float(stats.get("totalOnGridPower"))
+    state.grid_import_kwh = optional_float(stats.get("totalBuyPower"))
+    state.grid_export_kwh = optional_float(stats.get("totalOnGridPower"))
 
     state.meter_reachable = bool(stats.get("existMeter")) and latest.meter_reachable
     state.inverter_reachable = (
@@ -621,8 +612,8 @@ async def _cloud_cumulative(state: EnergyState, config: EnergyConfig) -> None:
     stats = await _fetch_stats(config)
     if stats is None:
         return
-    state.grid_import_kwh = _as_float(stats.get("totalBuyPower"))
-    state.grid_export_kwh = _as_float(stats.get("totalOnGridPower"))
+    state.grid_import_kwh = optional_float(stats.get("totalBuyPower"))
+    state.grid_export_kwh = optional_float(stats.get("totalOnGridPower"))
 
 
 async def fetch_energy_state() -> EnergyState:

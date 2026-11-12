@@ -73,3 +73,19 @@ def test_no_hand_wired_backdrop_close() -> None:
     assert not offenders, (
         "hand-wired dialog backdrop close; sheet() owns it: " + ", ".join(offenders)
     )
+
+
+# Formatters that format.js owns: a second `function <name>` elsewhere drifts
+# (the Car card and the network list once printed "5 min ago" and "5m ago").
+SHARED_FORMATTERS = ("trimNum", "fmtAgo")
+
+
+def test_shared_formatters_have_one_home() -> None:
+    offenders = [
+        f"{path.relative_to(STATIC)}: {name}"
+        for path in _modules()
+        if path.name != "format.js"
+        for name in SHARED_FORMATTERS
+        if re.search(rf"\bfunction\s+{name}\b", path.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, "formatter re-typed outside format.js; import it: " + ", ".join(offenders)

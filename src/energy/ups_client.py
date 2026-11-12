@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterable, Optional, Tuple
 from src._backoff import BackoffTracker
 from src._console_encoding import console_encoding
 from src._no_window import NO_WINDOW
+from src._numbers import optional_float
 
 logger = logging.getLogger("ups")
 
@@ -131,18 +132,8 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _to_float(value: object) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        n = float(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-    return n
-
-
 def _to_int(value: object) -> Optional[int]:
-    n = _to_float(value)
+    n = optional_float(value)
     if n is None:
         return None
     return int(round(n))
@@ -205,7 +196,7 @@ def _read_nut() -> UpsState:
         key, raw = line.split(":", 1)
         values[key.strip()] = raw.strip()
 
-    charge = _to_float(values.get("battery.charge"))
+    charge = optional_float(values.get("battery.charge"))
     runtime = _to_int(values.get("battery.runtime"))
     return _state_from_nut_values(
         source="nut",
@@ -265,7 +256,7 @@ def _read_nut_direct() -> UpsState:
         values[key.strip()] = raw.strip()
     if not values:
         raise RuntimeError("usbhid-ups returned no UPS variables")
-    charge = _to_float(values.get("battery.charge"))
+    charge = optional_float(values.get("battery.charge"))
     runtime = _to_int(values.get("battery.runtime"))
     return _state_from_nut_values(
         source="nut_direct",
@@ -307,13 +298,13 @@ def _state_from_nut_values(
         mains_online=mains_online,
         battery_charge_pct=charge,
         runtime_seconds=runtime,
-        load_pct=_to_float(values.get("ups.load")),
+        load_pct=optional_float(values.get("ups.load")),
         load_w=_load_w(values),
-        input_voltage_v=_to_float(values.get("input.voltage")),
-        output_voltage_v=_to_float(values.get("output.voltage")),
-        battery_voltage_v=_to_float(values.get("battery.voltage")),
-        nominal_power_w=_to_float(values.get("ups.realpower.nominal")),
-        nominal_va=_to_float(values.get("ups.power.nominal")),
+        input_voltage_v=optional_float(values.get("input.voltage")),
+        output_voltage_v=optional_float(values.get("output.voltage")),
+        battery_voltage_v=optional_float(values.get("battery.voltage")),
+        nominal_power_w=optional_float(values.get("ups.realpower.nominal")),
+        nominal_va=optional_float(values.get("ups.power.nominal")),
         replace_battery=replace_battery,
         alarms=alarms,
         updated_at=_now(),
@@ -352,11 +343,11 @@ def _status_from_nut(flags: Iterable[str], mains_online: Optional[bool]) -> str:
 
 
 def _load_w(values: Dict[str, str]) -> Optional[float]:
-    direct = _to_float(values.get("ups.realpower"))
+    direct = optional_float(values.get("ups.realpower"))
     if direct is not None:
         return direct
-    pct = _to_float(values.get("ups.load"))
-    nominal = _to_float(values.get("ups.realpower.nominal"))
+    pct = optional_float(values.get("ups.load"))
+    nominal = optional_float(values.get("ups.realpower.nominal"))
     if pct is None or nominal is None:
         return None
     return round(nominal * pct / 100.0, 1)
@@ -442,9 +433,9 @@ def _read_windows_battery() -> UpsState:
         )
     info = _choose_windows_battery(batteries)
     status_code = _to_int(info.get("BatteryStatus"))
-    charge = _to_float(info.get("EstimatedChargeRemaining"))
+    charge = optional_float(info.get("EstimatedChargeRemaining"))
     runtime = _runtime_seconds(info.get("EstimatedRunTime"))
-    voltage = _to_float(info.get("DesignVoltage"))
+    voltage = optional_float(info.get("DesignVoltage"))
     if voltage is not None and voltage > 1000:
         voltage = round(voltage / 1000.0, 2)
     mains_online = _mains_from_windows_status(status_code)

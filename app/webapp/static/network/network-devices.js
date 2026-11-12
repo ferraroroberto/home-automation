@@ -42,7 +42,7 @@ import {
 } from '../state.js';
 import { persistedFlag, persistedPref } from '../persisted-pref.js';
 import { jsonApi, reportActionFailure } from '../api.js';
-import { renderSignalBar } from '../format.js';
+import { fmtAgo, renderSignalBar } from '../format.js';
 import { chipEl } from '../chip.js';
 import { isSnapshotRestored, snapshotLabel } from '../snapshots.js';
 import { renderNetwork } from './network.js';
@@ -90,18 +90,10 @@ function categoryIcon(category) {
 }
 
 // --------------------------------------------------------------- formatting
-// "last seen Xh ago" from an epoch-seconds timestamp (Phase 4). Coarse on
-// purpose — the registry updates only while the tab is open, so minute-level
-// precision would be misleading.
-function fmtAgo(epochSeconds) {
-  if (epochSeconds == null) return 'unknown';
-  const secs = Math.max(0, Math.floor(Date.now() / 1000) - Number(epochSeconds));
-  if (secs < 90) return 'just now';
-  const mins = Math.round(secs / 60);
-  if (mins < 60) return mins + 'm ago';
-  const hours = Math.round(mins / 60);
-  if (hours < 48) return hours + 'h ago';
-  return Math.round(hours / 24) + 'd ago';
+// "last seen 2 h ago" from an epoch-seconds timestamp; "unknown" when the
+// registry has never seen the device.
+function lastSeenAgo(epochSeconds) {
+  return epochSeconds == null ? 'unknown' : fmtAgo(epochSeconds);
 }
 // Absolute-ish date for the detail modal's first-seen line.
 function fmtDate(epochSeconds) {
@@ -292,7 +284,7 @@ function buildDeviceRow(d, grouped) {
   if (offline) {
     // No live signal for an absent device — show how long ago it was last seen.
     signal.classList.add('net-device-lastseen');
-    signal.textContent = fmtAgo(d.last_seen);
+    signal.textContent = lastSeenAgo(d.last_seen);
   } else if (d.signal != null) {
     signal.appendChild(renderSignalBar(d.signal));
   } else if (d.conn_type === 'wired') {
@@ -620,7 +612,7 @@ const netDeviceModal = detailModal({
     // fact the read never established.
     const live = hasLiveLink(d);
     if (d.online === false) {
-      els.netDeviceStatus.textContent = 'Offline · last seen ' + fmtAgo(d.last_seen);
+      els.netDeviceStatus.textContent = 'Offline · last seen ' + lastSeenAgo(d.last_seen);
     } else if (!live) {
       els.netDeviceStatus.textContent = 'No live link · leased, but not seen on any radio';
     } else {

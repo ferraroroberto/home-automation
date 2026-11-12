@@ -26,7 +26,7 @@ import { state, els, toast, NETWORK_SURVEY_MAC_KEY } from '../state.js';
 import { persistedPref } from '../persisted-pref.js';
 import { api, jsonApi, isAuthRequired, reportActionFailure } from '../api.js';
 import { emptyStateEl } from '../empty-state.js';
-import { renderSignalBar } from '../format.js';
+import { fmtAgo, renderSignalBar } from '../format.js';
 import { icon } from '../_vendored/icons/icons.js';
 // Same identity precedence the device list uses (custom label → vendor →
 // hostname → MAC), imported rather than restated so a rename shows up here too.
@@ -69,14 +69,7 @@ function round1(v) {
 }
 
 function agoLabel(ts) {
-  if (!ts) return '—';
-  const secs = Math.max(0, Math.floor(Date.now() / 1000 - ts));
-  if (secs < 60) return 'just now';
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return mins + ' min ago';
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return hours + ' h ago';
-  return Math.floor(hours / 24) + ' d ago';
+  return ts ? fmtAgo(ts) : '—';
 }
 
 function signalClass(signal) {

@@ -36,6 +36,24 @@ export function fmtW(v) {
   return v == null ? '—' : group(Math.round(Number(v))) + ' W';
 }
 
+/** A number without a trailing ".0": 1.5 → "1.5", 300 → "300". */
+export function trimNum(n) {
+  return String(Number(n)).replace(/\.0$/, '');
+}
+
+/** "just now" / "5 min ago" / "2 h ago" / "3 d ago" from an epoch-seconds
+ *  timestamp. Minutes and hours floor, and under a minute reads "just now".
+ *  Callers handle a missing timestamp, since what to show for it differs. */
+export function fmtAgo(epochSeconds) {
+  const secs = Math.max(0, Math.floor(Date.now() / 1000 - Number(epochSeconds)));
+  if (secs < 60) return 'just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return mins + ' min ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + ' h ago';
+  return Math.floor(hours / 24) + ' d ago';
+}
+
 /** Percent, 0–100 in — "42%", no space (the network/ups dominant form; the
  *  energy tab used to print "42 %"). Callers holding a 0–1 fraction convert
  *  at the call site. */

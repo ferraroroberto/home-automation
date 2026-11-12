@@ -36,6 +36,7 @@ import aiohttp
 
 from src._backoff import BackoffTracker
 from src._env import _env_float
+from src._numbers import optional_float
 from src.devices.tesla_auth import (
     TeslaAppConfig,
     access_token,
@@ -147,18 +148,9 @@ def _miles_to_km(value: Any) -> Optional[float]:
         return None
 
 
-def _num(value: Any) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def _at_home(lat: Any, lon: Any) -> Optional[bool]:
     """Home/away from a position, or ``None`` when either side is unknown."""
-    lat_f, lon_f = _num(lat), _num(lon)
+    lat_f, lon_f = optional_float(lat), optional_float(lon)
     home = load_location_config()
     if lat_f is None or lon_f is None or home is None:
         return None
@@ -172,14 +164,14 @@ def parse_vehicle_data(payload: Dict[str, Any], ts: Optional[int] = None) -> Tes
     charge = data.get("charge_state") or {}
     drive = data.get("drive_state") or {}
     vehicle = data.get("vehicle_state") or {}
-    speed_mph = _num(drive.get("speed"))
+    speed_mph = optional_float(drive.get("speed"))
     return TeslaSample(
         ts=int(ts if ts is not None else time.time()),
-        battery_pct=_num(charge.get("battery_level")),
+        battery_pct=optional_float(charge.get("battery_level")),
         range_km=_miles_to_km(charge.get("battery_range")),
         charging_state=charge.get("charging_state"),
-        charger_power_kw=_num(charge.get("charger_power")),
-        charge_energy_added_kwh=_num(charge.get("charge_energy_added")),
+        charger_power_kw=optional_float(charge.get("charger_power")),
+        charge_energy_added_kwh=optional_float(charge.get("charge_energy_added")),
         odometer_km=_miles_to_km(vehicle.get("odometer")),
         shift_state=drive.get("shift_state"),
         speed_kmh=round(speed_mph * _KM_PER_MILE, 1) if speed_mph is not None else None,

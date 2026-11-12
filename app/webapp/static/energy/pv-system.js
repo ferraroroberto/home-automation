@@ -28,6 +28,7 @@ import { state, els, toast } from '../state.js';
 import { jsonApi, isAuthRequired } from '../api.js';
 import { denseListEditor } from '../dense-editor.js';
 import { emptyStateEl } from '../empty-state.js';
+import { trimNum } from '../format.js';
 import { rowEl } from '../row.js';
 import { putLocation } from '../presence/presence-location.js';
 
@@ -84,11 +85,6 @@ export function azimuthCompass(deg) {
 export function compassFromNorth(deg) {
   const n = Math.round((((Number(deg) % 360) + 360) % 360) / 45) % 8;
   return COMPASS[n];
-}
-
-// Trim a trailing ".0" so 1.5 → "1.5" but 8 → "8".
-export function trimNum(n) {
-  return String(Number(n)).replace(/\.0$/, '');
 }
 
 // One sub-array's "1.5 kWp · 35° · S".

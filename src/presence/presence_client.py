@@ -62,6 +62,7 @@ from typing import Any, Iterable, Optional
 from dotenv import load_dotenv
 
 from src._env import _env_float
+from src._numbers import optional_float
 from src.location_config import LocationConfig, load_location_config
 from src.runtime_files import make_dirs
 
@@ -904,8 +905,8 @@ def _entity_from_device(
 
     data = _device_data(device)
     location = _coerce_mapping(_device_value(device, data, "location"))
-    lat = _as_float(location.get("latitude") if location else None)
-    lon = _as_float(location.get("longitude") if location else None)
+    lat = optional_float(location.get("latitude") if location else None)
+    lon = optional_float(location.get("longitude") if location else None)
     last_seen = _as_datetime(location.get("timeStamp") if location else None)
     distance = (
         distance_m(home.lat, home.lon, lat, lon)
@@ -924,7 +925,7 @@ def _entity_from_device(
         device_class=_as_str(_device_value(device, data, "deviceClass")),
         latitude=lat,
         longitude=lon,
-        horizontal_accuracy_m=_as_float(location.get("horizontalAccuracy") if location else None),
+        horizontal_accuracy_m=optional_float(location.get("horizontalAccuracy") if location else None),
         last_seen=last_seen,
         battery_level_pct=battery_level,
         battery_status=battery_status,
@@ -953,15 +954,6 @@ def _coerce_mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _as_float(value: Any) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def _as_str(value: Any) -> Optional[str]:
     if value is None:
         return None
@@ -970,7 +962,7 @@ def _as_str(value: Any) -> Optional[str]:
 
 
 def _battery_pct(value: Any) -> Optional[int]:
-    level = _as_float(value)
+    level = optional_float(value)
     if level is None:
         return None
     if 0 <= level <= 1:
