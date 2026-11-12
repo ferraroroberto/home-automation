@@ -35,7 +35,7 @@ _FADE_JS = """pseudo => {
   const bar = getComputedStyle(document.querySelector('.tabs'));
   return {
     position: s.position, top: s.top, bottom: s.bottom, height: parseFloat(s.height),
-    image: s.backgroundImage, pointerEvents: s.pointerEvents,
+    image: s.backgroundImage, mask: s.maskImage || s.webkitMaskImage, pointerEvents: s.pointerEvents,
     z: Number(s.zIndex), barZ: Number(bar.zIndex),
   };
 }"""
@@ -94,11 +94,15 @@ def _scroll_edge_fades_top_and_bottom(
     top = page.evaluate(_FADE_JS, "::after")
     assert top["position"] == "fixed", top
     assert top["top"] == "0px", top
-    # One thin band from the viewport top (safe area 0 here).
-    assert top["height"] == 12, top
+    # One thin band from the viewport top (safe area 0 here): the nav's
+    # --nav-fade-band, 16px in the owner-validated top-bar recipe.
+    assert top["height"] == 16, top
 
+    # The bottom fade paints a gradient; the top glass is the page colour
+    # under a blur whose band is faded out by a gradient mask.
+    assert "linear-gradient" in bottom["image"], bottom
+    assert "linear-gradient" in top["mask"], top
     for fade in (bottom, top):
-        assert "linear-gradient" in fade["image"], fade
         assert fade["pointerEvents"] == "none", fade
         assert fade["z"] < fade["barZ"], fade
 
