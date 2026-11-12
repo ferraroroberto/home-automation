@@ -236,6 +236,13 @@ async def resolve_wireless_client_by_mac(mac: str) -> tuple[Optional[NetDevice],
 # --------------------------------------------------------------------------- #
 # DHCP reservation control — confirm-gated, never on a poll                    #
 # --------------------------------------------------------------------------- #
+# Pause before the second DHCP-binding login. An estimate, not a measurement: long
+# enough for the router to release the session slot the colliding poll login held,
+# short enough that the Network tab does not stall; raise it only if the retry
+# still loses the race.
+_DHCP_RETRY_PAUSE_S = 1.5
+
+
 def _fetch_dhcp_bindings_sync() -> list[dict]:
     host, user, pwd = _router_creds()
     # Retry once on failure: the F6600P tolerates only so many concurrent logins,
@@ -254,7 +261,7 @@ def _fetch_dhcp_bindings_sync() -> list[dict]:
             last_exc = exc
             logger.warning("⚠️ DHCP-binding read attempt %d/2 failed: %s", attempt + 1, exc)
             if attempt == 0:
-                time.sleep(1.5)
+                time.sleep(_DHCP_RETRY_PAUSE_S)
     raise last_exc if last_exc else NetworkCommandError("DHCP-binding read failed")
 
 

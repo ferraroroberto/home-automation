@@ -148,6 +148,12 @@ _START_SCRIPT = "$ErrorActionPreference='Stop'; Start-VM -ComputerName localhost
 _STOP_SCRIPT = "$ErrorActionPreference='Stop'; Stop-VM -ComputerName localhost -Name $env:HA_VM_NAME -Force"
 
 
+# ``Get-VM`` is a local read of the Hyper-V WMI provider; 15 s covers a busy host
+# without holding the Home card's poll for long. A graceful ``Stop-VM`` waits for
+# the guest OS, so it has its own, longer budget at its call site.
+_STATUS_TIMEOUT_S = 15
+
+
 def fetch_hyperv_state() -> HyperVState:
     """Read the configured VM's live status. Raises only :class:`HyperVConfigError`.
 
@@ -158,7 +164,7 @@ def fetch_hyperv_state() -> HyperVState:
     """
     name = vm_name()  # HyperVConfigError propagates → router maps to 503
     try:
-        result = _run(_STATUS_SCRIPT, name, timeout=15)
+        result = _run(_STATUS_SCRIPT, name, timeout=_STATUS_TIMEOUT_S)
     except HyperVCommandError as exc:
         logger.warning("⚠️  Hyper-V status read failed: %s", exc)
         return HyperVState(available=False, name=name, error=str(exc), updated_at=_now())
@@ -339,7 +345,7 @@ def _powershell() -> str:
     )
 
 
-def _run(script: str, name: str, timeout: int = 15) -> "subprocess.CompletedProcess[str]":
+def _run(script: str, name: str, timeout: int = _STATUS_TIMEOUT_S) -> "subprocess.CompletedProcess[str]":
     """Run one PowerShell script against the VM.
 
     Raises :class:`HyperVCommandError` — distinct from a cmdlet-reported

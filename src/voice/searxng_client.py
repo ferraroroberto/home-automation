@@ -45,7 +45,10 @@ _URL_ENV = "SEARXNG_URL"
 # SEARXNG_URL now probes nothing reachable instead of a specific household
 # host; set the env var (see .env.example) to point at the real container.
 _DEFAULT_URL = "http://127.0.0.1:8085"
-# ``up -d`` may pull an image; ``inspect`` only reads local daemon state.
+# ``up -d`` may pull an image, and the 60 s budget is a guess sized for a cached
+# image: a cold pull on a slow link can exceed it and then reports a timeout, not a
+# failure of the stack. ``inspect`` only reads local daemon state, so 10 s is a
+# guess that is ample for a healthy daemon.
 _COMPOSE_TIMEOUT_S = 60
 _INSPECT_TIMEOUT_S = 10
 
