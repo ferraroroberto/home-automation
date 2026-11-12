@@ -50,16 +50,11 @@ function migrateStoredTab() {
 // reopens the last real tab.
 function openSettings(onTab) {
   const settings = document.getElementById('paneSettings');
-  const nav = document.querySelector('nav.tabs');
-  if (!settings || !nav) return;
+  if (!settings) return;
   document.querySelectorAll('main.app > section.pane').forEach(function (pane) {
     pane.hidden = pane !== settings;
   });
-  nav.querySelectorAll('.tab[data-tab]').forEach(function (btn) {
-    btn.classList.remove('active');
-    btn.setAttribute('aria-selected', 'false');
-  });
-  nav.dataset.activeTab = 'settings';
+  if (nav) nav.setTab(null);
   state.tab = 'settings';
   const scroller = document.querySelector('.app');
   if (scroller) scroller.scrollTop = 0;
