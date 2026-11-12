@@ -137,3 +137,64 @@ def test_energy_counter_restart_splits_back_to_back_sessions() -> None:
     second[1] = replace(second[1], ts=second[0].ts + 600)
     _, charges = th.build_sessions(first + second, usable_kwh=60.0)
     assert [c.kwh_added for c in charges] == [pytest.approx(1.8), pytest.approx(9.1)]
+
+
+def _store_refreshing_after_each(samples, db) -> None:
+    """The live sampler's cadence: a refresh after every stored sample."""
+    th.init_db(db)
+    config = th.TeslaHistoryConfig(usable_kwh=60.0)
+    for sample in samples:
+        th.record_sample(sample, db)
+        th.refresh_sessions(config, db)
+
+
+def _charging_rows(db):
+    rows = th.recent_sessions(path=db)["charging"]
+    return sorted((c["start_ts"], c["end_ts"], c["kwh_added"]) for c in rows)
+
+
+def test_incremental_refresh_matches_a_single_build(tmp_path) -> None:
+    """Structural check: however a session closes, refreshing per sample stores what one pass builds."""
+    restarted = replace(SEQUENCE[5], ts=SEQUENCE[6].ts + 120, charge_energy_added_kwh=0.2)
+    after_gap = replace(SEQUENCE[8], ts=restarted.ts + th._SESSION_GAP_S + 60,
+                        charging_state="Disconnected", charge_energy_added_kwh=0.0)
+    parked_later = replace(after_gap, ts=after_gap.ts + 300)
+    streams = {
+        "normal close": SEQUENCE,
+        "gap close": [SEQUENCE[5], SEQUENCE[6], after_gap, parked_later],
+        "counter restart then gap": [SEQUENCE[5], SEQUENCE[6], restarted, after_gap, parked_later],
+    }
+    for name, stream in streams.items():
+        db = tmp_path / f"{name.replace(' ', '_')}.sqlite3"
+        _store_refreshing_after_each(stream, db)
+        drives, charges = th.build_sessions(stream, usable_kwh=60.0)
+        assert _charging_rows(db) == sorted(
+            (c.start_ts, c.end_ts, pytest.approx(c.kwh_added)) for c in charges
+        ), name
+        assert len(th.recent_sessions(path=db)["drives"]) == len(drives), name
+
+
+def test_gap_closed_session_is_stored_once(tmp_path) -> None:
+    """A run closed at its last charging read must not be re-read as a new one-sample session."""
+    db = tmp_path / "tesla.sqlite3"
+    after_gap = replace(SEQUENCE[8], ts=SEQUENCE[6].ts + th._SESSION_GAP_S + 60,
+                        charging_state="Disconnected", charge_energy_added_kwh=0.0)
+    parked_later = replace(after_gap, ts=after_gap.ts + 300)
+    _store_refreshing_after_each([SEQUENCE[5], SEQUENCE[6], after_gap, parked_later], db)
+
+    assert _charging_rows(db) == [(SEQUENCE[5].ts, SEQUENCE[6].ts, pytest.approx(1.8))]
+    assert sum(b["charged_kwh"] for b in th.history("month", db)) == pytest.approx(1.8)
+
+
+def test_counter_restart_closed_session_is_stored_once(tmp_path) -> None:
+    """Back-to-back sessions split by the energy counter restarting are each stored exactly once."""
+    db = tmp_path / "tesla.sqlite3"
+    restarted = replace(SEQUENCE[5], ts=SEQUENCE[6].ts + 120, charge_energy_added_kwh=0.2)
+    done = replace(SEQUENCE[8], ts=restarted.ts + 600)
+    _store_refreshing_after_each([SEQUENCE[5], SEQUENCE[6], restarted, done], db)
+
+    assert _charging_rows(db) == [
+        (SEQUENCE[5].ts, SEQUENCE[6].ts, pytest.approx(1.8)),
+        (restarted.ts, done.ts, pytest.approx(9.1)),
+    ]
+    assert sum(b["charged_kwh"] for b in th.history("month", db)) == pytest.approx(10.9)
