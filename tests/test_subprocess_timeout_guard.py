@@ -11,8 +11,7 @@ never invalidated. This AST-scans every ``subprocess.run`` call carrying a
 ``subprocess.TimeoutExpired`` (directly, via ``SubprocessError``, or a bare
 ``Exception``/``BaseException``) somewhere lexically around it — catching
 only ``OSError`` does not count, since ``TimeoutExpired`` is not an
-``OSError`` and that specific near-miss is what ``host_shutdown.py`` has
-today (baselined below, pre-existing and out of scope for #990).
+``OSError`` and that near-miss is the shape ``host_shutdown.py`` guards against.
 
 Pre-existing call sites outside this issue's fix are baselined by
 ``(file, function)`` — same shrink-only convention as
@@ -40,12 +39,7 @@ _SAFE_EXCEPT_NAMES = {"TimeoutExpired", "SubprocessError", "Exception", "BaseExc
 # scoped cleanup rather than bundled into this issue's fix.
 _BASELINE: FrozenSet[Tuple[str, str]] = frozenset(
     {
-        ("src/host_shutdown.py", "initiate_shutdown"),
-        ("src/host_shutdown.py", "initiate_hibernate"),
-        ("src/host_shutdown.py", "cancel_shutdown"),
         ("src/network/network_host.py", "_run_quiet"),
-        ("src/voice/searxng_client.py", "_compose"),
-        ("src/voice/searxng_client.py", "_container_status"),
         ("src/energy/ups_client.py", "_read_nut"),
         ("src/energy/ups_client.py", "_read_nut_direct"),
         ("src/energy/ups_client.py", "_read_windows_battery"),
