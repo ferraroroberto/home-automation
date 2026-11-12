@@ -281,18 +281,22 @@ def build_sessions(samples: Iterable[TeslaSample], usable_kwh: float) -> Tuple[L
 def refresh_sessions(config: TeslaHistoryConfig, path: Optional[Path] = None) -> None:
     """Store the sessions completed since the last stored one (idempotent).
 
-    Each kind is scanned from the end of its latest stored row, so the read
-    that closed it anchors the next one and a pruned stretch is never rescanned
-    into a truncated duplicate.
+    Each kind is scanned from the end of its latest stored row, so a pruned
+    stretch is never rescanned into a truncated duplicate. A drive is anchored
+    by the parked read that closed it, so its scan includes that read. A
+    charging session may instead be closed at its own last charging read (a
+    silence or a counter restart), so its scan starts strictly after the end:
+    re-reading that sample would store it again as a one-sample session.
     """
     with _connect(path) as conn:
-        def samples_since(table: str) -> List[TeslaSample]:
+        def samples_since(table: str, *, inclusive: bool) -> List[TeslaSample]:
             since = conn.execute(f"SELECT COALESCE(MAX(end_ts), 0) FROM {table}").fetchone()[0]  # noqa: S608 — fixed table names
-            rows = conn.execute("SELECT * FROM samples WHERE ts >= ? ORDER BY ts", (since,)).fetchall()
+            bound = ">=" if inclusive else ">"
+            rows = conn.execute(f"SELECT * FROM samples WHERE ts {bound} ? ORDER BY ts", (since,)).fetchall()  # noqa: S608 — fixed operator
             return [_row_to_sample(r) for r in rows]
 
-        drives, _ = build_sessions(samples_since("drives"), config.usable_kwh)
-        _, sessions = build_sessions(samples_since("charging_sessions"), config.usable_kwh)
+        drives, _ = build_sessions(samples_since("drives", inclusive=True), config.usable_kwh)
+        _, sessions = build_sessions(samples_since("charging_sessions", inclusive=False), config.usable_kwh)
         conn.executemany(
             "INSERT OR REPLACE INTO drives VALUES (:start_ts, :end_ts, :km, :start_pct, :end_pct, :energy_kwh)",
             [asdict(d) for d in drives],
