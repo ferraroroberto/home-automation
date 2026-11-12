@@ -33,6 +33,15 @@ _nut_backoff = BackoffTracker()
 _nut_direct_backoff = BackoffTracker()
 
 _UNKNOWN_RUNTIME_MINUTES = {71582788, 4294967295}
+# Subprocess budgets for the UPS reads, which feed the unattended low-battery
+# shutdown trigger. Estimates, not measurements: ``upsc`` only talks to a NUT
+# server on loopback, so 5 s is generous for a healthy one while a wedged one
+# still frees the poll thread quickly. ``usbhid-ups -d 1`` and the WMI
+# ``Win32_Battery`` query enumerate USB/WMI, which can stall on first touch,
+# hence 8 s. Raising any of them delays the next poll tick by the same amount.
+_UPSC_TIMEOUT_S = 5
+_USBHID_TIMEOUT_S = 8
+_WIN32_BATTERY_TIMEOUT_S = 8
 # Charge at or below this raises the "Charge below N%" alarm and is handed to
 # the NUT driver as ``lowbatt``; above it a battery alarm contradicting a
 # healthy charge + live runtime is dropped. One number so they cannot disagree.
@@ -166,7 +175,7 @@ def _read_nut() -> UpsState:
             text=True,
             encoding=console_encoding(),
             errors="replace",
-            timeout=5,
+            timeout=_UPSC_TIMEOUT_S,
             creationflags=NO_WINDOW,
         )
         if listed.returncode == 0:
@@ -183,7 +192,7 @@ def _read_nut() -> UpsState:
         text=True,
         encoding=console_encoding(),
         errors="replace",
-        timeout=5,
+        timeout=_UPSC_TIMEOUT_S,
         creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
@@ -242,7 +251,7 @@ def _read_nut_direct() -> UpsState:
         text=True,
         encoding=console_encoding(),
         errors="replace",
-        timeout=8,
+        timeout=_USBHID_TIMEOUT_S,
         env=env,
         creationflags=NO_WINDOW,
     )
@@ -407,7 +416,7 @@ def _read_windows_battery() -> UpsState:
         text=True,
         encoding=console_encoding(),
         errors="replace",
-        timeout=8,
+        timeout=_WIN32_BATTERY_TIMEOUT_S,
         creationflags=NO_WINDOW,
     )
     if result.returncode != 0:
