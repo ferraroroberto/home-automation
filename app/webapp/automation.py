@@ -20,6 +20,9 @@ live state once and, per unit:
   admission/shed transition commands the unit's setpoint immediately instead of
   waiting out the throttle. Without it every eligible unit reacted to the same
   surplus reading in the same tick, which oscillates rather than controls.
+* **Schedule verification** — after each schedule fire, a background task
+  watches the unit's own fan readback, power-cycles a unit that did not
+  follow, and alerts once at the retry cap (:mod:`src.devices.hvac_verify`).
 
 The pure decision lives in :mod:`src.devices.hvac_automation`; this module only owns the
 loop, the timing/edge state, and the MELCloud reads/writes. Gated by
@@ -40,7 +43,7 @@ from dotenv import load_dotenv
 
 from app.webapp import read_snapshot
 from app.webapp._env import _env_bool, _env_float, _env_int
-from app.webapp._task_loop import run_loop
+from app.webapp._task_loop import run_loop, spawn_background_task
 from src import telemetry
 from src._schedule_store import DailyFireLatch, FireLatchPolicy, daily_due
 from src.devices.hvac_automation import (
@@ -55,8 +58,15 @@ from src.devices.hvac_automation import (
     target_for_mode,
     transition_setpoint,
 )
+from src.devices.hvac_verify import (
+    Request,
+    VerifyConfig,
+    load_verify_config,
+    verify_schedule_fire,
+)
 from src.devices.melcloud_client import DeviceInfo, fetch_devices, set_device_state
 from src.energy.huawei_client import fetch_energy_state
+from src.notify_config import build_alarm_notifier, notify_best_effort
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +98,7 @@ class AutomationConfig:
     boost_surplus_on_w: float = 1500.0
     boost_surplus_off_w: float = 500.0
     boost_min_duration_s: int = 1800  # 30 min
+    verify: VerifyConfig = field(default_factory=VerifyConfig)
 
     @property
     def fire_grace_s(self) -> int:
@@ -111,6 +122,7 @@ def load_automation_config() -> AutomationConfig:
         boost_surplus_on_w=max(0.0, _env_float("HVAC_BOOST_SURPLUS_ON_W", 1500.0)),
         boost_surplus_off_w=max(0.0, _env_float("HVAC_BOOST_SURPLUS_OFF_W", 500.0)),
         boost_min_duration_s=max(0, _env_int("HVAC_BOOST_MIN_DURATION_S", 1800)),
+        verify=load_verify_config(),
     )
 
 
@@ -122,20 +134,66 @@ def _mode_range(unit: DeviceInfo) -> tuple[float, float]:
     return _DEFAULT_RANGE
 
 
+def _schedule_profile(sched) -> Dict[str, Any]:
+    """The ``set_device_state`` kwargs one schedule entry writes."""
+    if sched.power is False:
+        return {"power": False}
+    return {
+        "power": True,
+        "operation_mode": sched.operation_mode,
+        "set_temperature": sched.set_temperature,
+        "fan_speed": sched.fan_speed,
+        "vane_vertical_direction": sched.vane_vertical_direction,
+        "vane_horizontal_direction": sched.vane_horizontal_direction,
+    }
+
+
 async def _apply_schedule(unit: DeviceInfo, sched) -> None:
     """Write one schedule entry to one unit."""
     logger.info("⏰ Applying schedule to '%s' (%s, %s)", unit.name, sched.time, sched.id)
-    if sched.power is False:
-        await _write_unit(unit.unit_id, power=False)
+    await _write_unit(unit.unit_id, **_schedule_profile(sched))
+
+
+async def _notify_verify_failure(text: str) -> None:
+    await notify_best_effort(
+        text, label="HVAC schedule verify", notifier_factory=build_alarm_notifier
+    )
+
+
+def _start_verification(
+    config: AutomationConfig, state: "_EngineState", unit: DeviceInfo, sched
+) -> None:
+    """Watch a just-fired schedule in the background, so the tick never waits.
+
+    A newer fire on the same unit replaces any check still running for it:
+    the older request is no longer what the unit is meant to be doing.
+    """
+    if not config.verify.enabled:
         return
-    await _write_unit(
-        unit.unit_id,
-        power=True,
-        operation_mode=sched.operation_mode,
-        set_temperature=sched.set_temperature,
-        fan_speed=sched.fan_speed,
-        vane_vertical_direction=sched.vane_vertical_direction,
-        vane_horizontal_direction=sched.vane_horizontal_direction,
+    previous = state.verify_tasks.pop(unit.unit_id, None)
+    if previous is not None and not previous.done():
+        previous.cancel()
+    try:
+        request = Request(
+            unit_id=unit.unit_id,
+            unit_name=unit.name,
+            sched_time=sched.time,
+            profile=_schedule_profile(sched),
+        )
+    except Exception as exc:  # noqa: BLE001 — a verify setup error never costs the tick
+        logger.warning("⚠️ HVAC verify not started for %s: %s", unit.unit_id, exc)
+        return
+    state.verify_tasks[unit.unit_id] = spawn_background_task(
+        verify_schedule_fire(
+            request,
+            config.verify,
+            fetch=fetch_devices,
+            write=_write_unit,
+            sleep=asyncio.sleep,
+            notify=_notify_verify_failure,
+            record=telemetry.record_event,
+        ),
+        name=f"hvac-verify-{unit.unit_id}",
     )
 
 
@@ -425,6 +483,8 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
                 applied_schedule = True
             except Exception as exc:  # noqa: BLE001 — never kill the loop
                 logger.warning("⚠️ Schedule apply failed for %s/%s: %s", uid, sched.id, exc)
+                continue
+            _start_verification(config, state, unit, sched)
         if applied_schedule:
             continue  # a schedule just changed power/profile; skip a same-tick nudge
 
@@ -525,6 +585,8 @@ class _EngineState:
     last_boost_as_of: Optional[str] = None  # solar bucket that change was made against
     boost_hold_logged: Optional[str] = None  # unit whose hold episode is already logged
     boost_settle_logged: Optional[int] = None  # settle interval already announced
+    # unit id -> the background check watching that unit's latest schedule fire
+    verify_tasks: Dict[str, asyncio.Task] = field(default_factory=dict)
 
 
 # The running engine's state, for the API layer to read live "is this unit

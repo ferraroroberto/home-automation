@@ -79,6 +79,10 @@ class DeviceInfo:
     # ``isConnected`` flag (see ``_connectivity_map``).  Defaults to ``True``
     # so an unknown/absent flag never locks the UI out of a working unit.
     reachable: bool = True
+    # Fan speed the unit itself reports (``ActualFanSpeed``), unlike ``power``
+    # and ``fan_speed``, which echo the cloud-side request; ``Off`` on a unit
+    # that reads ``power=True`` means it is not actually running.
+    actual_fan_speed: Optional[str] = None
     operation_modes: List[str] = field(default_factory=list)
     fan_speeds: List[str] = field(default_factory=list)
     temp_step: float = 0.5
@@ -235,6 +239,7 @@ def _snapshot(unit: ATAUnit, building: str, reachable: bool = True) -> DeviceInf
         set_temperature=unit.set_temperature,
         fan_speed=unit.set_fan_speed.value if unit.set_fan_speed else None,
         reachable=reachable,
+        actual_fan_speed=unit.actual_fan_speed.value if unit.actual_fan_speed else None,
         operation_modes=_available_modes(unit),
         fan_speeds=_available_fan_speeds(unit),
         temp_step=step,

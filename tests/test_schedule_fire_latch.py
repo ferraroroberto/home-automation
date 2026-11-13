@@ -33,6 +33,7 @@ import app.webapp.blind_schedules as blinds
 import app.webapp.security_automation as alarm
 import app.webapp.wake_alarm_automation as wake
 from src.devices import blind_automation as B
+from src.devices.hvac_verify import VerifyConfig
 from src.security.security_schedules import SecurityScheduleEntry
 from src.wake_alarms import WakeAlarmEntry
 
@@ -87,7 +88,9 @@ def hvac_world(monkeypatch: pytest.MonkeyPatch):
 
 def _hvac_tick(state: Any, now: datetime) -> None:
     _Clock.current = now
-    asyncio.run(hvac._tick(hvac.AutomationConfig(), state))
+    # Verification is its own suite (tests/devices/test_hvac_verify.py); off here.
+    config = hvac.AutomationConfig(verify=VerifyConfig(enabled=False))
+    asyncio.run(hvac._tick(config, state))
 
 
 def test_hvac_window_opens_at_time_and_closes_after_grace(hvac_world) -> None:

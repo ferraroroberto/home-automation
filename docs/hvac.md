@@ -70,6 +70,11 @@ the shape. Existing single-schedule config files are loaded as one-entry lists. 
 | `HVAC_BOOST_SURPLUS_ON_W` | `1500` | PV surplus (watts) that starts a solar boost on eligible units. |
 | `HVAC_BOOST_SURPLUS_OFF_W` | `500` | PV surplus (watts) below which a boost is eligible to end — the lower half of the hysteresis band. |
 | `HVAC_BOOST_MIN_DURATION_S` | `1800` | Minimum time a boost holds once started, regardless of surplus, to avoid thrashing. |
+| `HVAC_VERIFY_ENABLED` | `true` | Verify each schedule fire against the unit's readback (see below). |
+| `HVAC_VERIFY_READS_S` | `180,300,480` | Seconds after a write at which the unit is read back. |
+| `HVAC_VERIFY_RETRIES` | `2` | Retries after a window in which the unit did not follow. |
+| `HVAC_VERIFY_BACKOFF_S` | `60,120` | Wait before each retry (the last value repeats). |
+| `HVAC_VERIFY_CYCLE_PAUSE_S` | `10` | Off-to-on gap of a power-on retry's power cycle. |
 
 Solar-surplus boost: a per-unit opt-in (`boost_enabled` + `boost_offset_c`, in the unit sheet's Temperature rule page) that shifts the rule's own steered target further toward comfort while PV surplus is high, then lets it relax back via the same gradual steering law once surplus drops — pre-cooling/heating to bank thermal inertia ahead of a PV drop. Inert unless the unit's temperature rule is also enabled (boost shifts that rule's target). Start/stop transitions are logged to the Activity log (`domain=hvac`, `boost_start`/`boost_stop`); a unit currently boosted shows an accent chip on its row with the signed offset actually applied — e.g. `Boost -2` while cooling, `Boost +2` while heating.
 
@@ -86,3 +91,15 @@ The coordinator knobs are **fleet-wide** and edited from **Settings › Energy �
 | `hard_deficit_w` | `1000` | Sustained import (positive watts) at which every boosted unit is shed at once. |
 
 API: `GET`/`PUT /api/hvac/boost-coordinator`.
+
+### Schedule verification
+
+MELCloud's `Power` readback echoes the cloud-side request, so a unit that never received a scheduled power-on still reads as on. The unit's own `ActualFanSpeed` does not echo: it reads `Off` on a stopped unit and can differ from the requested `SetFanSpeed` on a running one. After every schedule fire a background task (the tick never waits on it) reads the unit at each `HVAC_VERIFY_READS_S` offset and judges that field:
+
+- **confirmed** — asked on and the fan turns, or asked off and the fan has stopped. Nothing else happens.
+- **superseded** — power or mode no longer match the request: someone changed it since, so the check stops rather than undo it. The unit is also read once more before every retry for the same reason.
+- **unconfirmed** — asked on, the fan is stopped, but the room is already at the setpoint (heat ≥, cool/dry ≤, auto within 1 °C), where idling is normal. Logged to the Activity log only.
+- **not running / still running** — the unit disobeyed for the whole window. A power-on retries as a power cycle (off, `HVAC_VERIFY_CYCLE_PAUSE_S`, then the schedule's full profile), because a plain re-send leaves a unit already marked on untouched; a power-off retries as a plain re-send. After `HVAC_VERIFY_RETRIES` retries, one Telegram alert names the unit, the schedule time, what was asked and what was read.
+- **read failed** — no usable readback (MELCloud error, unit missing). Nothing is re-sent on an unknown state; if it lasts to the cap the alert says *could not verify*, never that the unit is stuck.
+
+The fan stops for a few minutes after a heat start and during defrost, so the window spans eight minutes and the first decisive read ends it. Every read is an info log line and every step an Activity-log event (`domain=hvac`, `schedule_verify`, outcome `confirmed` / `superseded` / `unconfirmed` / `retry` / `failed` / `unverified`). The daily fire latch is unchanged: verification never re-fires the schedule.
