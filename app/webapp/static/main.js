@@ -63,32 +63,15 @@ import { installDialogScrollLock } from './scroll-lock.js';
 import { wireConfirmDialog } from './confirm.js';
 
 // --------------------------------------------------- build identity
-const ASSET_HASH_KEY = 'home-automation.assetHash';
-const ASSET_RELOAD_KEY = 'home-automation.assetReloadedFor';
 
 async function fetchVersion() {
   // Visible proof of which build the PWA is running — confirms a tray
   // restart actually picked up new code. Uses jsonApi so the bearer token
   // is attached (/api/version is auth-gated like the rest of the API).
+  // Nothing here reloads the page: an unsent input must survive a deploy.
   try {
     const body = await jsonApi('/api/version');
-    const sha = body.git_sha || 'unknown';
-    const assetHash = body.asset_hash || '';
-    const previousHash = localStorage.getItem(ASSET_HASH_KEY) || '';
-    if (
-      assetHash && previousHash && previousHash !== assetHash &&
-      sessionStorage.getItem(ASSET_RELOAD_KEY) !== assetHash
-    ) {
-      // iOS standalone PWAs can cling to an old shell even with stamped asset
-      // URLs. Once a freshly-loaded JS has this guard, future deploys get one
-      // automatic reload instead of needing a home-screen reinstall.
-      localStorage.setItem(ASSET_HASH_KEY, assetHash);
-      sessionStorage.setItem(ASSET_RELOAD_KEY, assetHash);
-      window.location.reload();
-      return;
-    }
-    if (assetHash) localStorage.setItem(ASSET_HASH_KEY, assetHash);
-    els.buildReadout.textContent = buildReadoutText(sha, body.built_at || '');
+    els.buildReadout.textContent = buildReadoutText(body.git_sha || 'unknown', body.built_at || '');
   } catch (_) {
     els.buildReadout.textContent = '';
   }
