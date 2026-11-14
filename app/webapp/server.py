@@ -100,6 +100,7 @@ from app.webapp.routers import (
     presence_trust,
     push,
     reminders,
+    scenes,
     searxng,
     security,
     security_notify,
@@ -372,7 +373,7 @@ def create_app() -> FastAPI:
         security_override, security_notify, network, dhcp_plan, presence,
         presence_locate, presence_trust, push, hyperv, searxng, ha, activity, nav_debug,
         wake_alarms, reminders, calendar_events, voice_commands, web_search, pc_fleet,
-        actions,
+        actions, scenes,
     ):
         app.include_router(module.router)
     # Which views and controls get used, and on which device class, so a design

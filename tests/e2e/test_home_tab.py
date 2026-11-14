@@ -1,9 +1,10 @@
 """Home tab: a pure dashboard (#885, Step 7/8 of #872).
 
-The page header with the weather as its live line, then three cards: the
+The page header with the weather as its live line, then four cards: the
 House glance card (the arm control, the compact energy flow, who is home and
-any exception chip), the Climate group (the AC rows) and Next up (wake alarms,
-timers and reminders as time-led rows with their editors). Everything Home
+any exception chip), the Scenes rows (leave, arrive, night), the Climate
+group (the AC rows) and Next up (wake alarms, timers and reminders as
+time-led rows with their editors). Everything Home
 used to show that has another home (the plug totals, the UPS tile, the
 family locator, Home Assistant and voice) is checked gone from Home here and
 covered where it lives now.
@@ -170,11 +171,11 @@ def _home_is_a_dashboard_of_house_climate_and_next_up(
     _stub_next_up(page)
     _boot(page, base_url, sample_units, mock_api, mock_energy, mock_security, mock_presence)
 
-    # Three cards under the header, and nothing that has a home elsewhere.
+    # Four cards under the header, and nothing that has a home elsewhere.
     cards = page.locator("#paneHome > .card")
-    expect(cards).to_have_count(4)
+    expect(cards).to_have_count(5)
     assert cards.evaluate_all("els => els.map(el => el.id || el.className.split(' ')[1])") == [
-        "home-head", "houseCard", "acSummary", "nextUpCard",
+        "home-head", "houseCard", "scenesCard", "acSummary", "nextUpCard",
     ]
 
     house = page.locator("#houseCard")
@@ -262,6 +263,53 @@ def _home_shows_ac_summary_line_per_unit(
     expect(page.locator("#detailDialog")).to_have_attribute("open", "")
     page.keyboard.press("Escape")
     expect(page.locator("#detailDialog")).not_to_have_attribute("open", "")
+
+
+def _scene_row_asks_once_then_runs_and_reports(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable,
+    mock_energy: Callable, mock_security: Callable, mock_presence: Callable,
+) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    runs: List[str] = []
+
+    def run(route: Route) -> None:
+        scene = route.request.url.rsplit("/", 1)[-1]
+        runs.append(scene)
+        steps = [{"kind": "blinds", "action": "close", "ok": True},
+                 {"kind": "ac", "action": "off", "ok": True},
+                 {"kind": "alarm", "action": "arm", "ok": False, "error": "panel unreachable"}]
+        if scene == "night":
+            steps = [{"kind": "blinds", "action": "close", "ok": True},
+                     {"kind": "alarm", "action": "perimeter", "ok": True}]
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(
+            {"scene": scene, "ok": all("error" not in s for s in steps), "steps": steps}))
+
+    _boot(page, base_url, sample_units, mock_api, mock_energy, mock_security, mock_presence)
+    page.route("**/api/scenes/*", lambda route: run(route) if route.request.method == "POST" else route.fallback())
+
+    rows = page.locator("#scenesCard .scene-run")
+    expect(rows.locator(".scene-label")).to_have_text(["Leave", "Arrive", "Night"])
+    expect(rows.first.locator(".scene-steps")).to_have_text("Blinds down · AC off · Alarm full")
+    assert_min_target(rows)
+
+    # A tap asks once, naming every step; cancelling runs nothing.
+    rows.first.click()
+    expect(page.locator("#confirmDialog")).to_have_attribute("open", "")
+    expect(page.locator("#confirmTitle")).to_have_text("Run Leave?")
+    expect(page.locator("#confirmMessage")).to_have_text("Blinds down · AC off · Alarm full")
+    page.keyboard.press("Escape")
+    expect(page.locator("#confirmDialog")).not_to_have_attribute("open", "")
+    assert runs == []
+
+    # Confirmed, it runs; a step that did not take is named in the toast.
+    rows.first.click()
+    page.locator("#confirmOk").click()
+    expect(page.locator("#toast")).to_have_text("Leave done, except alarm — check them")
+    rows.nth(2).click()
+    page.locator("#confirmOk").click()
+    expect(page.locator("#toast")).to_have_text("Night done")
+    assert runs == ["leave", "night"]
+    assert_no_horizontal_overflow(page)
 
 
 def _wake_alarm_row_keeps_its_card_inset(
@@ -432,13 +480,14 @@ def _house_card_keeps_its_height_while_its_reads_land(
 def test_home_dashboard(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:
-    """Home: header targets, dashboard cards, house chips, AC summary, wake alarm, next-up rows, stable card heights."""
+    """Home: header targets, dashboard cards, house chips, AC summary, scenes, wake alarm, next-up rows, stable card heights."""
     run_flow(
         request, page, base_url,
         _home_header_controls_have_non_overlapping_44px_targets,
         _home_is_a_dashboard_of_house_climate_and_next_up,
         _house_chips_open_the_tab_that_owns_the_exception,
         _home_shows_ac_summary_line_per_unit,
+        _scene_row_asks_once_then_runs_and_reports,
         _wake_alarm_row_keeps_its_card_inset,
         _wake_alarm_editor_is_staged,
         _timers_and_reminders_are_next_up_rows,

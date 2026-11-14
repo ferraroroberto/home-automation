@@ -82,12 +82,41 @@ def stub_tesla_api(page: Page) -> None:
     )
 
 
+SCENES_BODY = (
+    '{"scenes":['
+    '{"id":"leave","label":"Leave","steps":["Blinds down","AC off","Alarm full"]},'
+    '{"id":"arrive","label":"Arrive","steps":["Blinds up","Alarm off"]},'
+    '{"id":"night","label":"Night","steps":["Blinds down","Alarm perimeter"]}]}'
+)
+
+
+def stub_scenes_api(page: Page) -> None:
+    """Fixed Home scenes, and a run that never reaches the server.
+
+    ``POST /api/scenes/{id}`` really moves the blinds, the AC and the alarm, so
+    no browser test may let one through; and the list follows the checkout's
+    ``config/home_scenes.json``, which a fixed answer keeps out of the shots.
+    Tests that run a scene install their own route over this one.
+    """
+
+    def handle(route: Route) -> None:
+        if route.request.method != "GET":
+            route.fulfill(status=503, content_type="application/json",
+                          body='{"detail":"scenes not stubbed"}')
+            return
+        route.fulfill(status=200, content_type="application/json", body=SCENES_BODY)
+
+    page.route("**/api/scenes", handle)
+    page.route("**/api/scenes/*", handle)
+
+
 def install_baseline_stubs(page: Page) -> None:
     """Install every always-on stub on ``page`` (again, after a flow reset)."""
     stub_home_assistant_api(page)
     stub_circuits_api(page)
     stub_network_api(page)
     stub_tesla_api(page)
+    stub_scenes_api(page)
 
 
 @pytest.fixture(autouse=True)

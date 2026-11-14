@@ -61,6 +61,7 @@ import { startWeatherPolling } from './energy/weather.js';
 import { wireActivity } from './activity.js';
 import { installDialogScrollLock } from './scroll-lock.js';
 import { wireConfirmDialog } from './confirm.js';
+import { wireHomeScenes } from './home-scenes.js';
 
 // --------------------------------------------------- build identity
 
@@ -145,6 +146,7 @@ setSignInHandler(loadUnits);
   wireConfirmDialog();
   wireSettings();
   wireUnitsControls();
+  wireHomeScenes();
   wireEnergyControls();
   wirePlugsToggle();
   wirePlugsPair();
