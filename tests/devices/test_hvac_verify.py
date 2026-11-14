@@ -322,3 +322,85 @@ def test_verification_off_spawns_nothing(monkeypatch) -> None:
     config = hvac.AutomationConfig(verify=VerifyConfig(enabled=False))
     hvac._start_verification(config, state, _unit(), SimpleNamespace(time="08:00", power=False))
     assert state.verify_tasks == {}
+
+
+# ------------------------------------------------------------ restart mid-check
+# Captured at import: the fixtures patch ``asyncio.sleep`` module-wide.
+_real_sleep = asyncio.sleep
+_SCHED = SimpleNamespace(id="s1", time="08:00", enabled=True, power=True,
+                         operation_mode="Heat", set_temperature=23.0, fan_speed=None,
+                         vane_vertical_direction=None, vane_horizontal_direction=None)
+
+
+@pytest.fixture
+def restart_world(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """The engine's real verify wiring over a stuck unit; sleeps block until released."""
+    world = SimpleNamespace(writes=[], alerts=[], gate=asyncio.Event(), wall=1_000_000.0)
+
+    async def fake_fetch() -> List[DeviceInfo]:
+        return [STUCK]
+
+    async def fake_set_device_state(unit_id: str, **kw: Any) -> None:
+        world.writes.append(kw)
+
+    async def gated_sleep(_s: float) -> None:
+        await world.gate.wait()
+
+    async def fake_notify(text: str) -> None:
+        world.alerts.append(text)
+
+    monkeypatch.setattr(hvac, "fetch_devices", fake_fetch)
+    monkeypatch.setattr(hvac, "set_device_state", fake_set_device_state)
+    monkeypatch.setattr(hvac.asyncio, "sleep", gated_sleep)
+    monkeypatch.setattr(hvac, "_notify_verify_failure", fake_notify)
+    monkeypatch.setattr(hvac.read_snapshot, "invalidate", lambda _k: None)
+    monkeypatch.setattr(hvac.time, "time", lambda: world.wall)
+    return world
+
+
+async def _restart_mid_check(world: SimpleNamespace) -> None:
+    """Fire, let the check start waiting, then kill it the way a tray restart does."""
+    before = hvac._EngineState()
+    hvac._start_verification(hvac.AutomationConfig(), before, STUCK, _SCHED)
+    task = before.verify_tasks[UID]
+    await _real_sleep(0)  # the check is now parked on its first read
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+def test_a_restart_mid_check_resumes_it_and_still_cycles_then_alerts(restart_world) -> None:
+    """A tray restart inside the check window must not drop the retry and the alert."""
+    world = restart_world
+
+    async def scenario() -> None:
+        await _restart_mid_check(world)
+        assert world.writes == [] and world.alerts == []
+
+        world.wall += 8 * 60  # the new process starts eight minutes after the fire
+        world.gate.set()
+        after = hvac._EngineState()
+        hvac._resume_verifications(hvac.AutomationConfig(), after)
+        await asyncio.wait_for(after.verify_tasks[UID], timeout=2)
+
+    asyncio.run(scenario())
+    assert [w.get("power") for w in world.writes] == [False, True, False, True]
+    assert world.writes[1]["operation_mode"] == "Heat"
+    assert len(world.alerts) == 1 and "08:00" in world.alerts[0]
+    assert hvac._EngineState().pending.entries() == {}  # concluded, so nothing left to resume
+
+
+def test_a_check_too_old_to_resume_is_dropped(restart_world) -> None:
+    world = restart_world
+
+    async def scenario() -> None:
+        await _restart_mid_check(world)
+        world.wall += 3 * 3600
+        world.gate.set()
+        after = hvac._EngineState()
+        hvac._resume_verifications(hvac.AutomationConfig(), after)
+        assert after.verify_tasks == {}
+        assert after.pending.entries() == {}
+
+    asyncio.run(scenario())
+    assert world.writes == [] and world.alerts == []

@@ -59,6 +59,7 @@ from src.devices.hvac_automation import (
     transition_setpoint,
 )
 from src.devices.hvac_verify import (
+    PendingVerifications,
     Request,
     VerifyConfig,
     load_verify_config,
@@ -170,9 +171,6 @@ def _start_verification(
     """
     if not config.verify.enabled:
         return
-    previous = state.verify_tasks.pop(unit.unit_id, None)
-    if previous is not None and not previous.done():
-        previous.cancel()
     try:
         request = Request(
             unit_id=unit.unit_id,
@@ -183,8 +181,34 @@ def _start_verification(
     except Exception as exc:  # noqa: BLE001 — a verify setup error never costs the tick
         logger.warning("⚠️ HVAC verify not started for %s: %s", unit.unit_id, exc)
         return
-    state.verify_tasks[unit.unit_id] = spawn_background_task(
-        verify_schedule_fire(
+    fired_at = time.time()
+    state.pending.add(request, fired_at)
+    _spawn_verification(config, state, request, fired_at)
+
+
+def _spawn_verification(
+    config: AutomationConfig, state: "_EngineState", request: Request, fired_at: float
+) -> None:
+    """Run one fire's check in the background, replacing any older one on the unit."""
+    previous = state.verify_tasks.pop(request.unit_id, None)
+    if previous is not None and not previous.done():
+        previous.cancel()
+    state.verify_tasks[request.unit_id] = spawn_background_task(
+        _verify_then_clear(config, state, request, fired_at),
+        name=f"hvac-verify-{request.unit_id}",
+    )
+
+
+async def _verify_then_clear(
+    config: AutomationConfig, state: "_EngineState", request: Request, fired_at: float
+) -> None:
+    """Verify, then drop the persisted entry.
+
+    A cancelled check (shutdown, or a newer fire) skips the drop on purpose:
+    its entry is what lets the next engine start resume it.
+    """
+    try:
+        await verify_schedule_fire(
             request,
             config.verify,
             fetch=fetch_devices,
@@ -192,9 +216,27 @@ def _start_verification(
             sleep=asyncio.sleep,
             notify=_notify_verify_failure,
             record=telemetry.record_event,
-        ),
-        name=f"hvac-verify-{unit.unit_id}",
-    )
+        )
+    except Exception as exc:  # noqa: BLE001 — a crashed check must not be resumed forever
+        logger.warning("⚠️ HVAC verify for '%s' crashed: %s", request.unit_name, exc)
+    state.pending.done(request.unit_id, fired_at)
+
+
+def _resume_verifications(config: AutomationConfig, state: "_EngineState") -> None:
+    """Restart the checks a previous process left open, so a restart costs no alert."""
+    if not config.verify.enabled:
+        return
+    try:
+        open_checks = state.pending.resumable(time.time(), config.verify.resume_max_age_s)
+    except Exception as exc:  # noqa: BLE001 — a bad record never blocks the engine start
+        logger.warning("⚠️ HVAC pending verifications not resumed: %s", exc)
+        return
+    for request, fired_at in open_checks:
+        logger.info(
+            "🔁 Resuming HVAC verify for '%s' (%s schedule, fired %.0f min ago) after a restart",
+            request.unit_name, request.sched_time, (time.time() - fired_at) / 60,
+        )
+        _spawn_verification(config, state, request, fired_at)
 
 
 # A failed apply retries on the next poll inside the grace window; only a
@@ -570,7 +612,7 @@ async def _nudge_setpoint(
 
 @dataclass
 class _EngineState:
-    """Timing/edge state keyed by unit id; only the schedule latch is persisted."""
+    """Timing/edge state keyed by unit id; the schedule latch and open checks are persisted."""
 
     last_adjust: Dict[str, float] = field(default_factory=dict)  # monotonic ts of last setpoint write
     boost_active: Dict[str, bool] = field(default_factory=dict)  # is this unit currently solar-boosted
@@ -587,6 +629,8 @@ class _EngineState:
     boost_settle_logged: Optional[int] = None  # settle interval already announced
     # unit id -> the background check watching that unit's latest schedule fire
     verify_tasks: Dict[str, asyncio.Task] = field(default_factory=dict)
+    # Schedule fires whose check has not concluded, resumed after a restart.
+    pending: PendingVerifications = field(default_factory=PendingVerifications)
 
 
 # The running engine's state, for the API layer to read live "is this unit
@@ -605,6 +649,7 @@ async def _run(config: AutomationConfig) -> None:
     global _ENGINE_STATE
     state = _EngineState()
     _ENGINE_STATE = state
+    _resume_verifications(config, state)
     await run_loop(
         lambda: _tick(config, state),
         config.poll_interval_s,
