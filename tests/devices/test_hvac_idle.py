@@ -29,6 +29,8 @@ from src.devices.melcloud_client import DeviceInfo
 UID = "u1"
 CFG = IdleConfig()  # 20 min window, 1 °C gap, 0.5 °C progress, 1 h cooldown
 _real_sleep = asyncio.sleep
+_real_monotonic = time.monotonic
+_UPTIME_S = 86_400.0  # far past the 15 min adjust interval
 
 
 def _unit(**kw: Any) -> DeviceInfo:
@@ -215,6 +217,12 @@ def engine(monkeypatch: pytest.MonkeyPatch) -> Dict[str, Any]:
     monkeypatch.setattr(hvac, "_coordinate_boost", no_boost)
     monkeypatch.setattr(hvac, "_notify_idle_unit", fake_notify)
     monkeypatch.setattr(hvac.asyncio, "sleep", instant_sleep)
+    # `last_adjust` defaults to 0.0, so the nudge throttle reads "adjusted
+    # `monotonic()` seconds ago". On Windows that is host uptime: a freshly
+    # booted runner sits inside the adjust interval and never nudges. Shift the
+    # clock (still monotonic, so asyncio timers are unaffected) to read as a
+    # host that has been up a day, identical on every machine.
+    monkeypatch.setattr(time, "monotonic", lambda: _real_monotonic() + _UPTIME_S)
     monkeypatch.setattr(hvac.telemetry, "record_event", lambda *a, **k: None)
     monkeypatch.setattr(hvac.read_snapshot, "invalidate", lambda _k: None)
     return world
