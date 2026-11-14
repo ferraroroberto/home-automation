@@ -30,8 +30,8 @@ from app.webapp.blind_schedules import settle_manual_move
 from app.webapp.routers.units import UNITS_SNAPSHOT
 from src import telemetry
 from src.devices.blind_automation import move_blinds
-from src.devices.melcloud_client import set_device_state
 from src.devices.home_scenes import Scene, get_scene, load_scenes
+from src.devices.melcloud_client import set_device_state
 
 logger = logging.getLogger(__name__)
 
