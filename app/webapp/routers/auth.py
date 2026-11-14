@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -11,8 +10,9 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.webapp.middleware import is_pc_itself
 from src import password
+from src.login_alert import build_login_alert
 from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
-from src.notify import Notifier, NotifierError
+from src.notify import Notifier
 from src.notify_config import build_attention_notifier
 from src.webapp_config import WebappConfig
 
@@ -48,32 +48,8 @@ def ensure_auth_log_handler() -> None:
 def make_login_alert(
     notifier_factory: Callable[[], Optional[Notifier]] = build_attention_notifier,
 ) -> Callable[[LockoutAlert], None]:
-    """The lock-out's ``on_alert``: one message to the ``coding alerts`` chat.
-
-    The text names the app, the client address and the failure count, never a
-    password or token. The send runs in a thread so the login never waits on Telegram.
-    """
-
-    def alert_owner(alert: LockoutAlert) -> None:
-        held = f" (+{alert.suppressed} more held back)" if alert.suppressed else ""
-        text = (
-            f"🚨 home-automation: {alert.failures} wrong passwords in a row "
-            f"from {alert.key}{held}"
-        )
-
-        def send() -> None:
-            notifier = notifier_factory()
-            if notifier is None:
-                logger.info("ℹ️ login alert not sent: notifier not configured")
-                return
-            try:
-                notifier.send_text(text)
-            except NotifierError as exc:
-                logger.warning("⚠️ login alert not delivered: %s", type(exc).__name__)
-
-        threading.Thread(target=send, daemon=True).start()
-
-    return alert_owner
+    """The lock-out's ``on_alert``: one message to the ``coding alerts`` chat, sent by the vendored login alert."""
+    return build_login_alert("home-automation", notifier_factory)
 
 
 def build_login_lockout() -> LoginLockout:

@@ -6,6 +6,7 @@ proves the wiring in ``app/webapp/routers/auth.py`` without waiting or sending.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable, Iterator, List
 
 import pytest
@@ -40,7 +41,7 @@ class _InlineThread:
 
     started = 0
 
-    def __init__(self, target: Callable[[], Any], daemon: bool = False) -> None:
+    def __init__(self, target: Callable[[], Any], **_kwargs: Any) -> None:
         self._target = target
 
     def start(self) -> None:
@@ -65,7 +66,7 @@ def lockout(
     from app.webapp.server import app as _app
 
     _InlineThread.started = 0
-    monkeypatch.setattr("app.webapp.routers.auth.threading.Thread", _InlineThread)
+    monkeypatch.setattr("src.login_alert.threading.Thread", _InlineThread)
 
     cfg = _app.state.webapp_config
     monkeypatch.setattr(cfg, "auth_token", _TOKEN)
@@ -144,3 +145,16 @@ def test_the_pc_itself_is_never_locked_out_or_alerted(
         assert _login(pc, _WRONG).status_code == 401
     assert _login(pc, _PASSWORD).status_code == 200
     assert notifier.sent == []
+
+
+def test_no_alert_channel_is_reported_unconfigured(
+    lockout: LoginLockout, clock: _Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.webapp.server import app as _app
+
+    _app.state.login_lockout = LoginLockout(clock=clock, on_alert=make_login_alert(lambda: None))
+    remote = _client("192.0.2.8")
+    with caplog.at_level(logging.WARNING, logger="src.login_alert"):
+        for _ in range(3):
+            _login(remote, _WRONG)
+    assert "unconfigured" in caplog.text and "3 wrong passwords" in caplog.text
