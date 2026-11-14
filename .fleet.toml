@@ -45,7 +45,7 @@ structure_layout = { src = "scripts/structure_layout.py", sha = "dae6225912362ec
 structure_band = { src = "scripts/structure_band.py", sha = "3b708fd3c54ab7b93b08d489406c405762c83c41", dest = "scripts/structure_band.py" }
 box_lock_gate = { src = "scripts/box_lock_gate.ps1", sha = "de5b351ecbc58f0908bc1cbdcdf76fd41f36005d", dest = "scripts/box_lock_gate.ps1" }
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "scripts/instruction_ratchet.py" }
-doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/doc_refs_ratchet.py" }
+doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "a68f6e49393f0ef0b94ab3c79f4338a50d89fa49", dest = "scripts/doc_refs_ratchet.py" }
 shot_capture = { src = "tests/e2e/_shot.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "tests/e2e/_shot.py" }
 shot_baseline = { src = "scripts/shot_baseline.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/shot_baseline.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "4d0b0ff30e23eb95c73c4b0b1517ec6a43d3a836", dest = "scripts/dead_code_ratchet.py" }
@@ -139,6 +139,7 @@ repeated_text_words = 12
 # Procedure + limits: project-scaffolding docs/doc-refs-ratchet.md.
 [doc_refs_ratchet]
 enabled    = true
+trees    = true
 baseline   = ".doc-refs-ratchet-baseline.json"
 # Other services the docs name on purpose: the local LLM hub, its llama-server
 # backend, the whisper server, the voice transcriber, the sibling grocery app and
