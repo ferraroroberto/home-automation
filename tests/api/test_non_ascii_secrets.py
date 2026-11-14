@@ -8,6 +8,7 @@ token or webhook secret 500'd instead of 401'ing.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -42,6 +43,17 @@ def test_login_with_non_ascii_password(remote: TestClient) -> None:
 
     bad = remote.post("/api/login", json={"password": "contraseña-x"})
     assert bad.status_code == 401
+
+
+def test_stored_hash_replaces_the_legacy_password(
+    remote: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from src import password
+
+    monkeypatch.setenv(password.ENV_VAR, str(tmp_path / "app_password.json"))
+    password.set_password("4321")
+    assert remote.post("/api/login", json={"password": "4321"}).json() == {"token": "test-bearer-xyz"}
+    assert remote.post("/api/login", json={"password": _PASSWORD}).status_code == 401
 
 
 def test_non_ascii_bearer_query_token_is_401(remote: TestClient) -> None:

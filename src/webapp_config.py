@@ -1,8 +1,9 @@
 """Webapp configuration + secrets loader.
 
 Holds the FastAPI webapp's bind host/port and the optional auth gate
-(`auth_token` / `auth_password`). Authored by the helper scripts
-(`scripts/gen_token.py`, `scripts/set_password.py`) and read by the
+(`auth_token`, and the legacy plaintext `auth_password` that `src/password.py`
+checks until its own hash is stored). Authored by `scripts/gen_token.py`
+and read by the
 server at boot. Kept out of `melcloud_client.py` because that module is
 the UI-free MELCloud core and must not grow webapp concerns.
 
@@ -54,8 +55,8 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
     """Load the webapp config, falling back to defaults if the file is missing.
 
     Raises :class:`~src._schedule_store.StoreUnreadableError` when the file
-    exists but can't be read — `scripts/gen_token.py` and
-    `scripts/set_password.py` both patch and save this return value whole,
+    exists but can't be read — `scripts/gen_token.py` patches and saves
+    this return value whole,
     so a transient failure here would otherwise get saved back over a real
     ``auth_token``/``auth_password``.
     """

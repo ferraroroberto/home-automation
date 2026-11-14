@@ -18,7 +18,7 @@ How the phone gets the token
 ----------------------------
 Open the webapp once with ``?token=<token>`` appended to the URL. The
 page extracts the token, stashes it in localStorage, and strips it from
-the visible URL. Or set a login password (``scripts/set_password.py``)
+the visible URL. Or set a login password (``python -m src.password set``)
 and type it into the overlay instead.
 
 Rotation = re-run with --force, then re-open the new tokenised URL once

@@ -10,10 +10,10 @@ from typing import Any, Callable, Dict, Optional
 from fastapi import APIRouter, HTTPException, Request
 
 from app.webapp.middleware import is_pc_itself
+from src import password
 from src.login_lockout import LockoutAlert, LoginLockout, retry_after_header
 from src.notify import Notifier, NotifierError
 from src.notify_config import build_attention_notifier
-from src.secret_compare import secrets_match
 from src.webapp_config import WebappConfig
 
 logger = logging.getLogger(__name__)
@@ -103,9 +103,9 @@ async def login(request: Request) -> Dict[str, Any]:
         raise HTTPException(
             status_code=429, detail="too many attempts", headers=retry_after_header(wait)
         )
-    if not cfg.auth_password:
+    if not password.is_configured(legacy=cfg.auth_password):
         auth_logger.info(
-            "⚠️  Login attempt from %s but no auth_password configured", client_host
+            "⚠️  Login attempt from %s but no password configured", client_host
         )
         raise HTTPException(status_code=503, detail="password auth not configured")
     if not cfg.auth_token:
@@ -115,7 +115,7 @@ async def login(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="bearer token not configured")
     body = await _maybe_json(request)
     presented = str(body.get("password") or "")
-    if not presented or not secrets_match(presented, cfg.auth_password):
+    if not password.check_password(presented, legacy=cfg.auth_password):
         auth_logger.warning(
             "🚨 Failed password attempt from %s (presented %d chars)",
             client_host, len(presented),
