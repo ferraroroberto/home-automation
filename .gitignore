@@ -55,3 +55,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .proof/
+
+# The app password hash (src/password.py)
+config/app_password.json
