@@ -385,6 +385,40 @@ async def verify_schedule_fire(
     return result
 
 
+async def _no_notify(_text: str) -> None:
+    return None
+
+
+def _no_record(*_args: Any, **_kwargs: Any) -> None:
+    return None
+
+
+async def cycle_and_watch(
+    request: Request,
+    config: VerifyConfig,
+    *,
+    fetch: FetchFn,
+    write: WriteFn,
+    sleep: SleepFn,
+) -> Tuple[Verdict, Optional[DeviceInfo]]:
+    """Re-apply ``request`` once (a power cycle when it asks for on), then watch it.
+
+    The same re-send and read window a schedule retry uses, for callers that
+    concluded on their own that a unit is stuck. A failed write is logged and
+    still watched, so the window reports what the unit actually does.
+    """
+    v = _Verifier(
+        request, config, fetch=fetch, write=write, sleep=sleep,
+        notify=_no_notify, record=_no_record,
+    )
+    try:
+        await v.resend()
+    except Exception as exc:  # noqa: BLE001 — the watch below still reads the unit
+        logger.warning("⚠️ HVAC re-send failed for '%s': %s", request.unit_name, exc)
+    verdict = await v.watch()
+    return verdict, v.last_unit
+
+
 async def _conclude(v: _Verifier, result: VerifyResult) -> None:
     """Log and record the outcome; alert once when the unit never followed."""
     req, verdict = v.request, result.verdict

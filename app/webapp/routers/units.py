@@ -167,6 +167,9 @@ def _unit_dict(
             "boost_delta_c": boost_delta_c,
         },
         "schedule": _schedule_summary(schedule_entries),
+        # Live — the engine reads this unit as on but not running; the PWA
+        # shows it idle instead of heating/cooling.
+        "idle": automation.get_idle_flagged(d.unit_id),
     }
 
 

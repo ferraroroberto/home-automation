@@ -227,7 +227,11 @@ function acRow(u) {
     // so it is a chip on the row; the signed delta makes the rule →
     // set-to maths legible. While it runs, the chip carries the rule's story.
     const ruleTarget = activeRuleTarget(u);
-    if (rule.boost_active) {
+    // Flagged by the engine as on but not running: the most actionable
+    // state, and the rule is not steering it meanwhile.
+    if (u.idle === true) {
+      chip = chipEl('Idle', 'attention', 'ac-line-idle');
+    } else if (rule.boost_active) {
       chip = chipEl(rule.boost_delta_c == null ? 'Boost' : 'Boost ' + fmtBoostDelta(rule.boost_delta_c),
         'accent', 'ac-line-boost');
     } else if (ruleTarget != null) {
@@ -428,6 +432,7 @@ function renderSetpoint(unit) {
   let line;
   if (isOffline(unit)) line = 'Last read ' + room;
   else if (unit.power !== true) line = 'Room ' + room + ' · off';
+  else if (unit.idle === true) line = 'Room ' + room + ' · idle';
   else line = 'Room ' + room + ' · ' + (MODE_STATES[unit.operation_mode] || modeLabel(unit.operation_mode).toLowerCase());
   els.detailRoomLine.textContent = line;
 }
