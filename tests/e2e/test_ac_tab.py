@@ -635,6 +635,58 @@ def _schedules_add_through_the_staged_editor(
     expect(page.locator("#detailSchedValue")).to_have_text("2 on")
 
 
+def _pinned_units_filter_home_and_carry_a_setpoint_stepper(
+    page: Page, base_url: str, sample_units: List[Dict], mock_api: Callable
+) -> None:
+    """Pinning a unit from its sheet narrows Home's Climate group to the pinned
+    units, each with a 44px setpoint stepper that writes like the sheet's; the
+    pin outlives a reload and unpinning restores every unit."""
+    mock_api(sample_units)
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    rows = page.locator("#acSummary .ac-row")
+    expect(rows).to_have_count(3)
+    # Nothing pinned: every unit, no stepper, no way-out button.
+    expect(page.locator("#acSummary .ac-quick")).to_have_count(0)
+    expect(page.locator("#acAllUnits")).to_be_hidden()
+
+    rows.filter(has_text="Studio").locator(".action-row-main").click()
+    expect(page.locator("#detailPin")).to_have_attribute("aria-checked", "false")
+    page.locator("#detailPin").click()
+    expect(page.locator("#detailPin")).to_have_attribute("aria-checked", "true")
+    page.keyboard.press("Escape")
+
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("Studio")
+    expect(page.locator("#climateMeta")).to_have_text("0 running")
+    quick = page.locator('#acSummary .ac-quick[data-unit-id="unit-2"]')
+    expect(quick.locator(".ac-quick-value")).to_have_text("21.0°")
+    for button in quick.locator(".ac-quick-step").all():
+        box = button.bounding_box()
+        assert box and box["width"] >= 44 and box["height"] >= 44, box
+    with page.expect_request(
+        lambda r: r.url.endswith("/api/units/unit-2") and r.method == "POST"
+    ) as info:
+        quick.locator('[data-dir="1"]').click()
+        expect(quick.locator(".ac-quick-value")).to_have_text("21.5°")
+    assert info.value.post_data_json == {"set_temperature": 21.5}
+
+    # The pin is this browser's: it survives a reload.
+    page.reload(wait_until="domcontentloaded")
+    expect(rows).to_have_count(1)
+    expect(page.locator("#acAllUnits")).to_have_text("All 3 AC units")
+
+    page.locator("#acAllUnits").click()
+    expect(page.locator("#paneAc")).to_be_visible()
+    expect(page.locator("#acUnits .ac-row")).to_have_count(3)
+
+    page.locator("#tabHome").click()
+    rows.filter(has_text="Studio").locator(".action-row-main").click()
+    page.locator("#detailPin").click()
+    page.keyboard.press("Escape")
+    expect(rows).to_have_count(3)
+    expect(page.locator("#acSummary .ac-quick")).to_have_count(0)
+
+
 def test_ac_tab(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:
@@ -667,4 +719,5 @@ def test_ac_tab(
         _rule_switch_saves_at_once,
         _name_saves_on_enter,
         _schedules_add_through_the_staged_editor,
+        _pinned_units_filter_home_and_carry_a_setpoint_stepper,
     )

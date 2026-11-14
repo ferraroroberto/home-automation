@@ -35,7 +35,12 @@ reports a live read, never a restored snapshot. The **Security** tab carries a
 count badge seen from every tab: amber with the detector-trouble count, red
 with "1" while the alarm is triggered; it updates whenever the alarm is polled
 (on Home and Security). Home AC rows are the shared row: tap the row to open
-the unit's sheet, tap the switch for power. Every detail sheet closes the same
+the unit's sheet, tap the switch for power. **Pin to Home** in a unit's sheet
+narrows the Climate group to the pinned units (kept in this browser's storage,
+so a phone and a desktop pin independently) and gives each online pinned row a
+− / + setpoint stepper that writes like the sheet's; **All AC units** under the
+group opens the AC tab, and with nothing pinned Home lists every unit as before.
+Every detail sheet closes the same
 way (×, Esc, tapping outside) and hands focus back to what opened it; an editor
 saves only on **Save**, a device sheet such as Wi-Fi saves as you change it and
 closes on **Done**.

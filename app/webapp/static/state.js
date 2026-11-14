@@ -182,6 +182,7 @@ export const state = {
 // ----------------------------------------------------------------- DOM
 export const THEME_KEY = 'home-automation.theme';
 export const TAB_KEY = 'home-automation.tab';
+export const HOME_PINNED_UNITS_KEY = 'home-automation.homePinnedUnits';
 export const PLUGS_SHOW_OFFLINE_KEY = 'home-automation.plugsShowOffline';
 export const PLUGS_SHOW_HIDDEN_KEY = 'home-automation.plugsShowHidden';
 export const CIRCUITS_SHOW_HIDDEN_KEY = 'home-automation.circuitsShowHidden';
@@ -681,6 +682,7 @@ export const els = {
   acSummary: document.getElementById('acSummary'),
   acSummaryList: document.getElementById('acSummaryList'),
   climateMeta: document.getElementById('climateMeta'),
+  acAllUnits: document.getElementById('acAllUnits'),
   // Voice cheat sheet (Settings)
   voiceLangToggle: document.getElementById('voiceLangToggle'),
   voiceCommandsList: document.getElementById('voiceCommandsList'),
@@ -866,6 +868,7 @@ export const els = {
   detailSetTemp: document.getElementById('detailSetTemp'),
   detailRoomLine: document.getElementById('detailRoomLine'),
   detailPower: document.getElementById('detailPower'),
+  detailPin: document.getElementById('detailPin'),
   detailMode: document.getElementById('detailMode'),
   detailFanSpeed: document.getElementById('detailFanSpeed'),
   detailFanSpeedRow: document.getElementById('detailFanSpeedRow'),

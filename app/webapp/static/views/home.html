@@ -86,6 +86,11 @@
           <span id="climateMeta" class="group-meta"></span>
         </div>
         <div id="acSummaryList"></div>
+        <!-- With units pinned, Home lists only those (each with its setpoint
+             stepper); this opens the AC tab, which lists them all. -->
+        <div class="group-foot">
+          <button id="acAllUnits" data-track="home.all-units" type="button" class="group-foot-btn" hidden>All AC units</button>
+        </div>
       </section>
 
       <!-- Next up (#885): wake alarms (#304), running timers and reminders
