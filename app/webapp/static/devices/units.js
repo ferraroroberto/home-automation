@@ -24,6 +24,7 @@ import {
   els,
   toast,
   modeIcon,
+  HOME_PINNED_UNITS_KEY,
 } from '../state.js';
 import { icon } from '../_vendored/icons/icons.js';
 import { chipEl } from '../chip.js';
@@ -35,16 +36,32 @@ import { rowEl } from '../row.js';
 import { sheet } from '../sheet.js';
 import { denseListEditor } from '../dense-editor.js';
 import { setHeadPart } from '../head-status.js';
+import { persistedPref } from '../persisted-pref.js';
+import {
+  tempRange,
+  fmtTemp,
+  fmtTempShort,
+  fmtBoostDelta,
+  optionLabel,
+  modeLabel,
+  ruleTargetForMode,
+  activeRuleTarget,
+  scheduleCount,
+  isOffline,
+  displayLabel,
+} from './unit-format.js';
+import { showTab } from '../tabs.js';
 
-const DEFAULT_RANGE = [16, 31];
 // A burst of − / + taps sends one setpoint, this long after the last tap, so
 // three taps are one cloud write rather than three racing ones.
 const SETPOINT_SETTLE_MS = 600;
-const MODE_LABELS = { Heat: 'Heat', Cool: 'Cool', Automatic: 'Auto', Dry: 'Dry', Fan: 'Fan' };
 const MODE_STATES = { Heat: 'heating', Cool: 'cooling', Automatic: 'auto', Dry: 'drying', Fan: 'fan only' };
-const NUMBER_WORDS = { One: '1', Two: '2', Three: '3', Four: '4', Five: '5' };
 
 const acView = createViewState('units');
+
+// The units pinned to Home: ids in this browser's storage, a viewing
+// preference like the "show hidden" flags rather than a house setting.
+const pinnedPref = persistedPref(HOME_PINNED_UNITS_KEY);
 
 // The open sheet's server-side settings, read on open (GET …/rule and
 // …/schedule): null / not loaded until they land, so a summary never claims a
@@ -80,85 +97,37 @@ function unitById(id) {
   return state.units.find(function (u) { return u.unit_id === id; });
 }
 
-function tempRange(unit) {
-  let rng = unit.temp_ranges && unit.temp_ranges[unit.operation_mode];
-  if (!rng && unit.temp_ranges) {
-    const vals = Object.values(unit.temp_ranges);
-    if (vals.length) rng = vals[0];
-  }
-  return rng && rng.length === 2 ? rng : DEFAULT_RANGE;
-}
-
-function fmtTemp(v) {
-  return v == null ? '—' : Number(v).toFixed(1) + '°';
-}
-
-// A summary's temperature: "24°", or "24.5°" when it has a half.
-function fmtTempShort(v) {
-  if (v == null) return '—';
-  const n = Math.round(Number(v) * 10) / 10;
-  return (Number.isInteger(n) ? String(n) : n.toFixed(1)) + '°';
-}
-
-// Signed boost offset for the chip — e.g. "-2" while cooling, "+1.5"
-// while heating. Trims a whole-number offset to "-2" rather than "-2.0" to
-// stay compact; the sign itself always comes from the server's boost_delta_c,
-// never re-derived from operation_mode here.
-function fmtBoostDelta(v) {
-  const rounded = Math.round(v * 10) / 10;
-  const abs = Math.abs(rounded);
-  const magnitude = Number.isInteger(abs) ? String(abs) : abs.toFixed(1);
-  return (rounded < 0 ? '-' : '+') + magnitude;
-}
-
-// A fan speed or vane position as words: "One" → "1", "LeftCentre" → "Left
-// centre". The API value stays the value; only the label changes.
-function optionLabel(v) {
-  if (v == null || v === '') return '—';
-  if (NUMBER_WORDS[v]) return NUMBER_WORDS[v];
-  const words = String(v).replace(/([a-z])([A-Z])/g, '$1 $2');
-  return words.charAt(0) + words.slice(1).toLowerCase();
-}
-
-function modeLabel(mode) {
-  return MODE_LABELS[mode] || mode || '—';
-}
-
-function ruleTargetForMode(rule, mode) {
-  if (!rule || rule.enabled !== true) return null;
-  if (mode === 'Cool' || mode === 'Dry') return rule.cool_target == null ? null : rule.cool_target;
-  if (mode === 'Heat') return rule.heat_target == null ? null : rule.heat_target;
-  return null;
-}
-
-function activeRuleTarget(unit) {
-  const rule = unit.temperature_rule || {};
-  return rule.enabled && rule.active_target != null ? rule.active_target : null;
-}
-
-function scheduleCount(unit) {
-  const sched = unit.schedule || {};
-  if (Number.isFinite(Number(sched.count))) return Number(sched.count);
-  return sched.enabled === true ? 1 : 0;
-}
-
-// A unit whose WiFi adapter has lost its cloud connection (`reachable: false`
-// from /api/units). Commands sent to it are silently swallowed by
-// the cloud, so its controls are inerted rather than left looking live. Only an
-// explicit `false` counts — an absent field (older payload, restored snapshot)
-// means "unknown", and unknown must never lock a working unit out.
-function isOffline(unit) {
-  return unit.reachable === false;
-}
-
 // Whether a command to the unit can be sent now: not while it is offline,
 // and not from a restored snapshot or a failed poll (the readings are old).
 function canCommand(unit) {
   return !isOffline(unit) && acView.state !== ViewState.STALE;
 }
 
-function displayLabel(unit) {
-  return unit.display_name || unit.name || '';
+function pinnedIds() {
+  try {
+    const ids = JSON.parse(pinnedPref.read() || '[]');
+    return Array.isArray(ids) ? ids.filter(function (id) { return typeof id === 'string'; }) : [];
+  } catch (_e) {
+    return [];
+  }
+}
+
+function isPinned(unitId) {
+  return pinnedIds().indexOf(unitId) !== -1;
+}
+
+function setPinned(unitId, on) {
+  const rest = pinnedIds().filter(function (id) { return id !== unitId; });
+  if (on) rest.push(unitId);
+  pinnedPref.write(rest.length ? JSON.stringify(rest) : null);
+}
+
+// What Home lists: the pinned units that still exist, or every unit while
+// none are pinned (a stale pin never leaves Home without its AC rows).
+function homeUnits() {
+  const ids = pinnedIds();
+  const pinned = sortedUnits().filter(function (u) { return ids.indexOf(u.unit_id) !== -1; });
+  return pinned.length ? pinned : sortedUnits();
 }
 
 function sortedUnits() {
@@ -253,10 +222,46 @@ function acRow(u) {
   return row;
 }
 
-function unitList() {
+// A pinned unit's setpoint on Home: − / value / + under its row, the sheet's
+// stepper (same settle timer, same write) without the trip into the sheet.
+// An offline unit has nothing to set, so it gets no stepper.
+function quickSetpointEl(u) {
+  const li = document.createElement('li');
+  li.className = 'ac-quick';
+  li.dataset.unitId = u.unit_id;
+  const label = displayLabel(u) || 'Unit';
+  li.innerHTML =
+    '<button data-track="home.temp-down" type="button" class="icon-button ac-quick-step" data-dir="-1">' +
+    '<svg class="icon" aria-hidden="true"><use href="#i-minus"></use></svg></button>' +
+    '<output class="ac-quick-value" aria-live="polite"></output>' +
+    '<button data-track="home.temp-up" type="button" class="icon-button ac-quick-step" data-dir="1">' +
+    '<svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>';
+  li.querySelector('[data-dir="-1"]').setAttribute('aria-label', 'Lower the set temperature of ' + label);
+  li.querySelector('[data-dir="1"]').setAttribute('aria-label', 'Raise the set temperature of ' + label);
+  li.querySelectorAll('.ac-quick-step').forEach(function (btn) {
+    btn.addEventListener('click', function () { nudgeSetpoint(u.unit_id, Number(btn.dataset.dir)); });
+  });
+  renderQuickSetpoint(li, u);
+  return li;
+}
+
+function renderQuickSetpoint(li, unit) {
+  const [tmin, tmax] = tempRange(unit).map(Number);
+  const shown = shownSetpoint(unit);
+  const live = canCommand(unit);
+  li.querySelector('.ac-quick-value').textContent = fmtTemp(shown);
+  li.querySelector('[data-dir="-1"]').disabled = !live || (shown != null && shown <= tmin);
+  li.querySelector('[data-dir="1"]').disabled = !live || (shown != null && shown >= tmax);
+}
+
+// `quick`: Home with pinned units, where each online row carries its stepper.
+function unitList(units, quick) {
   const list = document.createElement('ul');
   list.className = 'action-rows';
-  sortedUnits().forEach(function (u) { list.appendChild(acRow(u)); });
+  units.forEach(function (u) {
+    list.appendChild(acRow(u));
+    if (quick && !isOffline(u)) list.appendChild(quickSetpointEl(u));
+  });
   return list;
 }
 
@@ -267,7 +272,7 @@ function renderAll() {
   if (!els.acUnits) return;
   els.acUnits.innerHTML = '';
   els.acUnits.hidden = !state.units.length;
-  if (state.units.length) els.acUnits.appendChild(unitList());
+  if (state.units.length) els.acUnits.appendChild(unitList(sortedUnits(), false));
 }
 
 // ------------------------------------- Home's Climate group
@@ -276,6 +281,7 @@ function renderAll() {
 function renderAcSummary() {
   const list = els.acSummaryList;
   list.innerHTML = '';
+  if (els.acAllUnits) els.acAllUnits.hidden = true;
   renderAcHead();
   if (!state.units.length) {
     const empty = document.createElement('p');
@@ -286,7 +292,13 @@ function renderAcSummary() {
     list.appendChild(empty);
     return;
   }
-  list.appendChild(unitList());
+  const shown = homeUnits();
+  const filtered = shown.length < state.units.length;
+  list.appendChild(unitList(shown, filtered));
+  if (els.acAllUnits) {
+    els.acAllUnits.hidden = !filtered;
+    els.acAllUnits.textContent = 'All ' + state.units.length + ' AC units';
+  }
   if (acView.state === ViewState.STALE) {
     const note = document.createElement('p');
     note.className = 'muted small snapshot-note ac-snapshot-note';
@@ -313,8 +325,14 @@ function renderAcHead() {
     exceptions: offline ? [{ text: offline + ' offline', tone: 'attention' }] : [],
     fact: fact,
   });
-  // Offline units carry their own chip on their row.
-  if (els.climateMeta) els.climateMeta.textContent = fact;
+  // Offline units carry their own chip on their row. The group counts what it
+  // lists, so a pinned subset never reads as the whole house.
+  const listedRunning = homeUnits().filter(function (u) {
+    return u.power === true && !isOffline(u);
+  }).length;
+  if (els.climateMeta) {
+    els.climateMeta.textContent = state.units.length ? listedRunning + ' running' : fact;
+  }
 }
 
 // ------------------------------------------------------------ the sheet
@@ -488,6 +506,7 @@ function renderSheet(unit) {
 
   setToggleState(els.detailPower, unit.power === true);
   els.detailPower.disabled = !live;
+  setToggleState(els.detailPin, isPinned(unit.unit_id));
 
   renderSegmented(els.detailMode, unit.operation_modes || [], unit.operation_mode, {
     label: modeLabel,
@@ -539,9 +558,20 @@ function openDetail(unitId, trigger) {
 }
 
 // --------------------------------------------------------- the setpoint
-function nudgeSetpoint(direction) {
-  const unit = state.selectedId ? unitById(state.selectedId) : null;
+// Both places that dial a setpoint (the sheet and Home's pinned rows) show the
+// pending value until the unit's read-back replaces it.
+function refreshSetpoint(unit) {
+  if (state.selectedId === unit.unit_id) renderSetpoint(unit);
+  document.querySelectorAll('.ac-quick[data-unit-id="' + CSS.escape(unit.unit_id) + '"]').forEach(function (li) {
+    renderQuickSetpoint(li, unit);
+  });
+}
+
+function nudgeSetpoint(unitId, direction) {
+  const unit = unitId ? unitById(unitId) : null;
   if (!unit || !canCommand(unit)) return;
+  // One pending dial at a time: another unit's is sent before this one starts.
+  if (pendingSetpoint && pendingSetpoint.unitId !== unitId) flushSetpoint();
   const [tmin, tmax] = tempRange(unit).map(Number);
   const step = Number(unit.temp_step) || 0.5;
   const shown = shownSetpoint(unit);
@@ -549,7 +579,7 @@ function nudgeSetpoint(direction) {
   const next = Math.min(Math.max(Math.round((base + direction * step) * 10) / 10, tmin), tmax);
   if (next === base) return;
   pendingSetpoint = { unitId: unit.unit_id, value: next };
-  renderSetpoint(unit);
+  refreshSetpoint(unit);
   clearTimeout(setpointTimer);
   setpointTimer = setTimeout(flushSetpoint, SETPOINT_SETTLE_MS);
 }
@@ -564,7 +594,7 @@ function flushSetpoint() {
   const unit = unitById(pending.unitId);
   if (!unit || pending.value === Number(unit.set_temperature)) {
     pendingSetpoint = null;
-    if (unit && state.selectedId === unit.unit_id) renderSetpoint(unit);
+    if (unit) refreshSetpoint(unit);
     return;
   }
   pending.sent = true;
@@ -572,7 +602,7 @@ function flushSetpoint() {
     if (pendingSetpoint !== pending) return;
     pendingSetpoint = null;
     const now = unitById(pending.unitId);
-    if (now && state.selectedId === now.unit_id) renderSetpoint(now);
+    if (now) refreshSetpoint(now);
   });
 }
 
@@ -895,8 +925,16 @@ export function wireUnitsControls() {
     link.addEventListener('click', function () { openPage(link.dataset.pageTo); });
   });
 
-  els.detailTempDown.addEventListener('click', function () { nudgeSetpoint(-1); });
-  els.detailTempUp.addEventListener('click', function () { nudgeSetpoint(1); });
+  els.detailTempDown.addEventListener('click', function () { nudgeSetpoint(state.selectedId, -1); });
+  els.detailTempUp.addEventListener('click', function () { nudgeSetpoint(state.selectedId, 1); });
+  els.acAllUnits.addEventListener('click', function () { showTab('ac'); });
+  els.detailPin.addEventListener('click', function () {
+    if (!state.selectedId) return;
+    const on = !isToggleOn(els.detailPin);
+    setToggleState(els.detailPin, on);
+    setPinned(state.selectedId, on);
+    renderAcSummary();
+  });
   els.detailPower.addEventListener('click', function () {
     const unit = state.selectedId ? unitById(state.selectedId) : null;
     if (unit && canCommand(unit)) applyControl(unit.unit_id, { power: unit.power !== true });
