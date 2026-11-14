@@ -28,6 +28,12 @@ import pytest
 USAGE_TEST_DB = Path(tempfile.mkdtemp(prefix="ha_usage_")) / "usage.sqlite3"
 os.environ["USAGE_LOG_DB_PATH"] = str(USAGE_TEST_DB)
 
+# The login password hash (src/password.py) is read on every login, so a run
+# must never see the live config/app_password.json: point it at a file that
+# does not exist. Assigned, not defaulted, so no outer value reaches the live
+# file; servers the suite spawns inherit it.
+os.environ["APP_PASSWORD_FILE"] = str(Path(tempfile.mkdtemp(prefix="home-automation-password-")) / "app_password.json")
+
 
 @pytest.fixture(autouse=True)
 def _isolate_activity_stores(tmp_path, monkeypatch) -> None:
