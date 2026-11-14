@@ -23,6 +23,10 @@ live state once and, per unit:
 * **Schedule verification** — after each schedule fire, a background task
   watches the unit's own fan readback, power-cycles a unit that did not
   follow, and alerts once at the retry cap (:mod:`src.devices.hvac_verify`).
+* **Idle detection** — outside those checks, a unit that reads on but whose
+  own fan stays off while the room does not close in on the setpoint is
+  flagged, power-cycled once and alerted on if still idle; the rule stops
+  steering it while flagged (:mod:`src.devices.hvac_idle`).
 
 The pure decision lives in :mod:`src.devices.hvac_automation`; this module only owns the
 loop, the timing/edge state, and the MELCloud reads/writes. Gated by
@@ -57,6 +61,12 @@ from src.devices.hvac_automation import (
     next_setpoint,
     target_for_mode,
     transition_setpoint,
+)
+from src.devices.hvac_idle import (
+    IdleConfig,
+    IdleTracker,
+    load_idle_config,
+    recover_idle_unit,
 )
 from src.devices.hvac_verify import (
     PendingVerifications,
@@ -100,6 +110,7 @@ class AutomationConfig:
     boost_surplus_off_w: float = 500.0
     boost_min_duration_s: int = 1800  # 30 min
     verify: VerifyConfig = field(default_factory=VerifyConfig)
+    idle: IdleConfig = field(default_factory=IdleConfig)
 
     @property
     def fire_grace_s(self) -> int:
@@ -124,6 +135,7 @@ def load_automation_config() -> AutomationConfig:
         boost_surplus_off_w=max(0.0, _env_float("HVAC_BOOST_SURPLUS_OFF_W", 500.0)),
         boost_min_duration_s=max(0, _env_int("HVAC_BOOST_MIN_DURATION_S", 1800)),
         verify=load_verify_config(),
+        idle=load_idle_config(),
     )
 
 
@@ -220,6 +232,56 @@ async def _verify_then_clear(
     except Exception as exc:  # noqa: BLE001 — a crashed check must not be resumed forever
         logger.warning("⚠️ HVAC verify for '%s' crashed: %s", request.unit_name, exc)
     state.pending.done(request.unit_id, fired_at)
+
+
+async def _notify_idle_unit(text: str) -> None:
+    await notify_best_effort(text, label="HVAC idle", notifier_factory=build_alarm_notifier)
+
+
+def _verify_running(state: "_EngineState", uid: str) -> bool:
+    task = state.verify_tasks.get(uid)
+    return task is not None and not task.done()
+
+
+def _watch_idle(
+    config: AutomationConfig, state: "_EngineState", unit: DeviceInfo, monotonic: float
+) -> None:
+    """Feed this tick's read to the idle detector; act in the background on a new flag.
+
+    A unit whose schedule check is still running is that check's to judge, so
+    its idle episode starts only once the check is over.
+    """
+    uid = unit.unit_id
+    if not config.idle.enabled:
+        return
+    if _verify_running(state, uid):
+        state.idle.reset(uid)
+        return
+    recovery = state.idle_tasks.get(uid)
+    if recovery is not None and not recovery.done():
+        # Its own power cycle reads as off for a moment; judging that read
+        # would drop the flag and let the same stuck unit be cycled again.
+        return
+    if not state.idle.observe(unit, monotonic, config.idle):
+        return
+    state.idle_tasks[uid] = spawn_background_task(
+        _recover_idle(config, unit), name=f"hvac-idle-{uid}"
+    )
+
+
+async def _recover_idle(config: AutomationConfig, unit: DeviceInfo) -> None:
+    try:
+        await recover_idle_unit(
+            unit,
+            config.verify,
+            fetch=fetch_devices,
+            write=_write_unit,
+            sleep=asyncio.sleep,
+            notify=_notify_idle_unit,
+            record=telemetry.record_event,
+        )
+    except Exception as exc:  # noqa: BLE001 — a crashed recovery never costs the engine
+        logger.warning("⚠️ HVAC idle recovery for '%s' crashed: %s", unit.name, exc)
 
 
 def _resume_verifications(config: AutomationConfig, state: "_EngineState") -> None:
@@ -477,6 +539,42 @@ async def _coordinate_boost(
     _log_boost_hold(state, decision, surplus_w, by_uid)
 
 
+async def _fire_due_schedules(
+    config: AutomationConfig,
+    state: "_EngineState",
+    unit: DeviceInfo,
+    entries: List[Any],
+    now: datetime,
+    monotonic: float,
+) -> bool:
+    """Apply the unit's entries that just came due, once per local day each.
+
+    True when at least one was applied, so the caller skips a same-tick nudge.
+    """
+    uid = unit.unit_id
+    today = now.strftime("%Y-%m-%d")
+    applied = False
+    for sched in entries:
+        if not sched.enabled:
+            continue
+        fire_key = f"{uid}:{sched.id}"
+        due = _schedule_due(sched, now, config.fire_grace_s)
+        state.latch.note_window(fire_key, today, due)
+        if not due or state.latch.fired(fire_key, today):
+            continue
+        try:
+            await state.latch.fire_once(
+                fire_key, today, lambda u=unit, s=sched: _apply_schedule(u, s)
+            )
+            state.last_adjust[uid] = monotonic
+            applied = True
+        except Exception as exc:  # noqa: BLE001 — never kill the loop
+            logger.warning("⚠️ Schedule apply failed for %s/%s: %s", uid, sched.id, exc)
+            continue
+        _start_verification(config, state, unit, sched)
+    return applied
+
+
 async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     """One evaluation pass: schedules, then the fleet boost sequencer, then nudges."""
     rules = load_rules()
@@ -491,7 +589,6 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
 
     devices = await fetch_devices()
     now = datetime.now()
-    today = now.strftime("%Y-%m-%d")
     monotonic = time.monotonic()
 
     # One shared FusionSolar read per tick (already 60s-cached upstream), only
@@ -507,28 +604,13 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
     for unit in devices:
         uid = unit.unit_id
 
-        # --- Schedules: edge-triggered, once per local day per entry. ---
-        applied_schedule = False
-        for sched in schedules.get(uid, []):
-            if not sched.enabled:
-                continue
-            fire_key = f"{uid}:{sched.id}"
-            due = _schedule_due(sched, now, config.fire_grace_s)
-            state.latch.note_window(fire_key, today, due)
-            if not due or state.latch.fired(fire_key, today):
-                continue
-            try:
-                await state.latch.fire_once(
-                    fire_key, today, lambda u=unit, s=sched: _apply_schedule(u, s)
-                )
-                state.last_adjust[uid] = monotonic
-                applied_schedule = True
-            except Exception as exc:  # noqa: BLE001 — never kill the loop
-                logger.warning("⚠️ Schedule apply failed for %s/%s: %s", uid, sched.id, exc)
-                continue
-            _start_verification(config, state, unit, sched)
-        if applied_schedule:
+        if await _fire_due_schedules(
+            config, state, unit, schedules.get(uid, []), now, monotonic
+        ):
+            state.idle.reset(uid)
             continue  # a schedule just changed power/profile; skip a same-tick nudge
+
+        _watch_idle(config, state, unit, monotonic)
 
         rule = rules.get(uid)
         if rule is None or not rule.enabled or unit.power is not True:
@@ -536,6 +618,15 @@ async def _tick(config: AutomationConfig, state: "_EngineState") -> None:
                 _set_boost(
                     state, uid, unit.name, False, monotonic,
                     surplus_w=surplus, reason="rule_inactive", as_of=as_of,
+                )
+            continue
+        if state.idle.is_flagged(uid):
+            # Raising the setpoint of a unit that is not running only widens
+            # the jump once it starts; it is left alone until it runs again.
+            if state.boost_active.get(uid):
+                _set_boost(
+                    state, uid, unit.name, False, monotonic,
+                    surplus_w=surplus, reason="idle", as_of=as_of,
                 )
             continue
         target = target_for_mode(rule, unit.operation_mode)
@@ -631,6 +722,9 @@ class _EngineState:
     verify_tasks: Dict[str, asyncio.Task] = field(default_factory=dict)
     # Schedule fires whose check has not concluded, resumed after a restart.
     pending: PendingVerifications = field(default_factory=PendingVerifications)
+    # Units reading on while not running, and the one recovery running per unit.
+    idle: IdleTracker = field(default_factory=IdleTracker)
+    idle_tasks: Dict[str, asyncio.Task] = field(default_factory=dict)
 
 
 # The running engine's state, for the API layer to read live "is this unit
@@ -642,6 +736,11 @@ _ENGINE_STATE: Optional[_EngineState] = None
 def get_boost_active(unit_id: str) -> bool:
     """True if the running engine currently has this unit solar-boosted."""
     return bool(_ENGINE_STATE and _ENGINE_STATE.boost_active.get(unit_id, False))
+
+
+def get_idle_flagged(unit_id: str) -> bool:
+    """True if the running engine has flagged this unit as on but not running."""
+    return bool(_ENGINE_STATE and _ENGINE_STATE.idle.is_flagged(unit_id))
 
 
 async def _run(config: AutomationConfig) -> None:

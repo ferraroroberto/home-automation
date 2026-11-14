@@ -137,6 +137,25 @@ def test_units_route_reports_signed_boost_delta(
     rule = resp.json()["units"][0]["temperature_rule"]
     assert rule["boost_active"] is True
     assert rule["boost_delta_c"] == expected_delta
+    assert resp.json()["units"][0]["idle"] is False
+
+
+def test_units_carry_the_engines_idle_flag(client: TestClient, monkeypatch) -> None:
+    """A unit the engine reads as on but not running is marked ``idle`` for the PWA."""
+    fake = DeviceInfo(unit_id="unit-idle", name="Unit", building="Home", power=True,
+                      operation_mode="Heat", room_temperature=18.0, set_temperature=23.0,
+                      fan_speed="Auto", actual_fan_speed="Off")
+
+    async def fake_fetch_devices() -> List[DeviceInfo]:
+        return [fake]
+
+    monkeypatch.setattr("app.webapp.routers.units.fetch_devices", fake_fetch_devices)
+    monkeypatch.setattr(
+        "app.webapp.routers.units.automation.get_idle_flagged", lambda uid: uid == "unit-idle"
+    )
+    resp = client.get("/api/units")
+    assert resp.status_code == 200
+    assert resp.json()["units"][0]["idle"] is True
 
 
 # ── Issue #247: control-unit input validation + temperature clamping ───
