@@ -21,6 +21,7 @@ import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { buildReadoutText } from './_vendored/page-foot/page-foot.js';
 import { initUsageLog } from './_vendored/usage-log/usage-log.js';
+import { initBuildWatch } from './_vendored/build-watch/build-watch.js';
 import { jsonApi, setSignInHandler } from './api.js';
 import { wireTabs } from './tabs.js';
 import { wireSettings } from './settings.js';
@@ -208,3 +209,7 @@ setSignInHandler(loadUnits);
   fetchVersion();
   setInterval(fetchVersion, 300_000);
 })();
+
+// "New version available · Reload" when a deploy lands under an open page;
+// /api/version is auth-gated, so it reads through the bearer-token jsonApi.
+initBuildWatch({ fetchJson: jsonApi });

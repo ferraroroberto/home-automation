@@ -108,34 +108,3 @@
    the dialog body as .schedule-editor-delete (the device-group
    delete included; every other editor modal here has that shape). */
 
-/* ----------------------------------------------------------- toast */
-/* Neutral frosted toast — the same glass treatment as the floating bottom nav
-   (not a solid block). Sits above the nav so it's never hidden behind it. Only
-   real errors tint red. */
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: calc(
-    var(--bottom-tabs-height) + var(--bottom-tabs-margin) * 2 +
-    env(safe-area-inset-bottom, 0px) + 8px
-  );
-  transform: translateX(-50%);
-  background: var(--tabbar-bg);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
-  backdrop-filter: blur(20px) saturate(1.25);
-  border: 1px solid var(--tabbar-border);
-  color: var(--ink);
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  font-size: var(--font-label);
-  font-weight: 700;
-  box-shadow: var(--shadow);
-  z-index: 130;
-  max-width: 90vw;
-}
-.toast.error {
-  background: color-mix(in srgb, var(--deficit) 75%, transparent);
-  border-color: var(--deficit);
-  color: var(--accent-fg);
-}
-
