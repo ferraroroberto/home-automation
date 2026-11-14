@@ -77,6 +77,49 @@
         </ul>
       </section>
 
+      <!-- Scenes: the repeated multi-device chores, one row each. A tap asks
+           once (it moves the blinds, the AC and the alarm together), then runs
+           POST /api/scenes/{id}. The rows are drawn at first paint; each meta
+           line is filled from GET /api/scenes, which reads the scene config. -->
+      <section id="scenesCard" class="card action-list home-scenes" aria-labelledby="scenesTitle">
+        <div class="group-head">
+          <svg class="icon group-icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+          <h3 id="scenesTitle" class="group-title">Scenes</h3>
+        </div>
+        <ul class="action-rows group-links" aria-label="Scenes">
+          <li class="action-row">
+            <button data-track="scenes.leave" data-scene="leave" data-testid="scene-leave" type="button" class="action-row-main has-avatar group-link scene-run">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title scene-label">Leave</span>
+                <span class="action-row-meta"><span class="action-row-meta-text scene-steps">—</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button data-track="scenes.arrive" data-scene="arrive" data-testid="scene-arrive" type="button" class="action-row-main has-avatar group-link scene-run">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-house"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title scene-label">Arrive</span>
+                <span class="action-row-meta"><span class="action-row-meta-text scene-steps">—</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+          <li class="action-row">
+            <button data-track="scenes.night" data-scene="night" data-testid="scene-night" type="button" class="action-row-main has-avatar group-link scene-run">
+              <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></span>
+              <span class="action-row-text">
+                <span class="action-row-title scene-label">Night</span>
+                <span class="action-row-meta"><span class="action-row-meta-text scene-steps">—</span></span>
+              </span>
+              <svg class="icon group-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+            </button>
+          </li>
+        </ul>
+      </section>
+
       <!-- Climate: the AC units on the shared row (row.js, #881), power on the
            row and the unit sheet one tap away — the AC tab's rows. -->
       <section id="acSummary" class="card action-list ac-summary" aria-labelledby="climateTitle">

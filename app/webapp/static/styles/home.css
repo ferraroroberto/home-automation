@@ -1,7 +1,8 @@
 /* ------------------------------------------- Home tab
-   A pure dashboard: the House glance card (is the house OK?), the Climate
-   group and Next up, each an open group on the shared head. */
+   A pure dashboard: the House glance card (is the house OK?), the Scenes
+   rows, the Climate group and Next up, each an open group on the shared head. */
 .house-glance,
+.home-scenes,
 .next-up { margin-bottom: var(--gap); }
 .house-body { padding: 0 12px 12px; }
 /* The compact flow under the arm control, the Energy tab's flow-row. */

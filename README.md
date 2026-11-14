@@ -163,6 +163,7 @@ One line per feature; the reference for each (behaviour, config, endpoints, inva
 | Search engine (SearXNG) — voice web-search backend | [`docs/search-engine.md`](docs/search-engine.md) |
 | Activity log and usage log | [`docs/activity-usage-logs.md`](docs/activity-usage-logs.md) |
 | HTTPS (Tailscale cert), PWA install, token + password auth | [`docs/webapp-access.md`](docs/webapp-access.md) |
+| Home scenes: one-tap Leave / Arrive / Night (blinds, AC, alarm) | [`docs/home-scenes.md`](docs/home-scenes.md) |
 | Generalized action alias (Stream Deck and similar callers) | [`docs/action-alias.md`](docs/action-alias.md) |
 | Tests: backend suite, browser e2e, runtime budgets | [`docs/testing.md`](docs/testing.md) · [`docs/playwright-ui-testing.md`](docs/playwright-ui-testing.md) |
 | Module-by-module inventory and the structure diagram | [`docs/architecture.md`](docs/architecture.md) · [`docs/architecture.mmd`](docs/architecture.mmd) |

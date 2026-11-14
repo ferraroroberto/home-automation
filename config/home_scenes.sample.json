@@ -1,0 +1,5 @@
+{
+  "leave": { "label": "Leave", "blinds": "close", "ac_off": true, "alarm": "arm" },
+  "arrive": { "label": "Arrive", "blinds": "open", "ac_off": false, "alarm": "disarm" },
+  "night": { "label": "Night", "blinds": "close", "ac_off": false, "alarm": "perimeter" }
+}
