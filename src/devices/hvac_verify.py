@@ -17,12 +17,16 @@ recorder are all injected, so tests drive every path with fakes.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
+from src import activity_log
+from src._atomic_json import write_json_atomic
 from src._env import _env_bool, _env_float, _env_int
 from src.devices.melcloud_client import DeviceInfo
 
@@ -48,6 +52,9 @@ class VerifyConfig:
     # Off-to-on gap of a retry's power cycle; a few seconds is what cleared a
     # stuck unit by hand.
     cycle_pause_s: float = 10.0
+    # A check still open at a restart is resumed only this long after its fire;
+    # older, the unit's state has moved on and a power cycle would be a surprise.
+    resume_max_age_s: float = 3600.0
 
 
 def _env_seconds_list(name: str, default: Tuple[float, ...]) -> Tuple[float, ...]:
@@ -75,6 +82,9 @@ def load_verify_config() -> VerifyConfig:
         retries=_env_int("HVAC_VERIFY_RETRIES", VerifyConfig.retries, non_negative=True),
         backoff_s=_env_seconds_list("HVAC_VERIFY_BACKOFF_S", VerifyConfig.backoff_s),
         cycle_pause_s=max(0.0, _env_float("HVAC_VERIFY_CYCLE_PAUSE_S", VerifyConfig.cycle_pause_s)),
+        resume_max_age_s=max(
+            0.0, _env_float("HVAC_VERIFY_RESUME_MAX_S", VerifyConfig.resume_max_age_s)
+        ),
     )
 
 
@@ -105,6 +115,97 @@ class Request:
     @property
     def operation_mode(self) -> Optional[str]:
         return self.profile.get("operation_mode")
+
+
+PENDING_FILE_NAME = "hvac_verify_pending.json"
+
+
+class PendingVerifications:
+    """Schedule fires whose check has not concluded, persisted under ``logs/``.
+
+    A check runs in the background for up to ~27 min after its fire, and every
+    merge restarts the tray; without this record a restart inside that span
+    drops the check with no retry and no alert. One entry per unit (a newer
+    fire replaces the older request), keyed by the fire's wall-clock time so a
+    replaced check concluding late never removes its successor's entry.
+    """
+
+    def __init__(self) -> None:
+        self._entries: Dict[str, Dict[str, Any]] = self._load()
+
+    @property
+    def path(self) -> Path:
+        # Read at call time so a redirected logs directory (tests) is honoured.
+        return activity_log.LOGS_DIR / PENDING_FILE_NAME
+
+    def entries(self) -> Dict[str, Dict[str, Any]]:
+        """A copy of the open checks, keyed by unit id."""
+        return {k: dict(v) for k, v in self._entries.items()}
+
+    def _load(self) -> Dict[str, Dict[str, Any]]:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("⚠️ HVAC pending verifications unreadable, starting empty: %s", exc)
+            return {}
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(uid): entry for uid, entry in raw.items()
+            if isinstance(entry, dict) and isinstance(entry.get("fired_at"), (int, float))
+            and isinstance(entry.get("profile"), dict)
+        }
+
+    def _save(self) -> None:
+        try:
+            write_json_atomic(self.path, self._entries, indent=None)
+        except OSError as exc:
+            logger.warning("⚠️ Could not persist HVAC pending verifications: %s", exc)
+
+    def add(self, request: Request, fired_at: float) -> None:
+        self._entries[request.unit_id] = {
+            "unit_name": request.unit_name,
+            "sched_time": request.sched_time,
+            "profile": dict(request.profile),
+            "fired_at": fired_at,
+        }
+        self._save()
+
+    def done(self, unit_id: str, fired_at: float) -> None:
+        """Forget a concluded check, unless a newer fire already replaced it."""
+        entry = self._entries.get(unit_id)
+        if entry is not None and entry.get("fired_at") == fired_at:
+            del self._entries[unit_id]
+            self._save()
+
+    def resumable(self, now: float, max_age_s: float) -> List[Tuple[Request, float]]:
+        """The open checks young enough to resume; older ones are dropped and logged."""
+        keep: List[Tuple[Request, float]] = []
+        stale = False
+        for uid, entry in list(self._entries.items()):
+            fired_at = float(entry["fired_at"])
+            request = Request(
+                unit_id=uid,
+                unit_name=str(entry.get("unit_name") or uid),
+                sched_time=str(entry.get("sched_time") or "?"),
+                profile=entry["profile"],
+            )
+            age = now - fired_at
+            if 0 <= age <= max_age_s:
+                keep.append((request, fired_at))
+                continue
+            logger.warning(
+                "⚠️ HVAC schedule %s for '%s' was never verified: its check was cut "
+                "by a restart %.0f min after the fire, too long ago to resume",
+                request.sched_time, request.unit_name, age / 60,
+            )
+            del self._entries[uid]
+            stale = True
+        if stale:
+            self._save()
+        return keep
 
 
 def _thermo_satisfied(unit: DeviceInfo) -> bool:

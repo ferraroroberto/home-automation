@@ -75,6 +75,7 @@ the shape. Existing single-schedule config files are loaded as one-entry lists. 
 | `HVAC_VERIFY_RETRIES` | `2` | Retries after a window in which the unit did not follow. |
 | `HVAC_VERIFY_BACKOFF_S` | `60,120` | Wait before each retry (the last value repeats). |
 | `HVAC_VERIFY_CYCLE_PAUSE_S` | `10` | Off-to-on gap of a power-on retry's power cycle. |
+| `HVAC_VERIFY_RESUME_MAX_S` | `3600` | How long after a fire a check cut by a restart is still resumed. |
 
 Solar-surplus boost: a per-unit opt-in (`boost_enabled` + `boost_offset_c`, in the unit sheet's Temperature rule page) that shifts the rule's own steered target further toward comfort while PV surplus is high, then lets it relax back via the same gradual steering law once surplus drops — pre-cooling/heating to bank thermal inertia ahead of a PV drop. Inert unless the unit's temperature rule is also enabled (boost shifts that rule's target). Start/stop transitions are logged to the Activity log (`domain=hvac`, `boost_start`/`boost_stop`); a unit currently boosted shows an accent chip on its row with the signed offset actually applied — e.g. `Boost -2` while cooling, `Boost +2` while heating.
 
@@ -103,3 +104,5 @@ MELCloud's `Power` readback echoes the cloud-side request, so a unit that never 
 - **read failed** — no usable readback (MELCloud error, unit missing). Nothing is re-sent on an unknown state; if it lasts to the cap the alert says *could not verify*, never that the unit is stuck.
 
 The fan stops for a few minutes after a heat start and during defrost, so the window spans eight minutes and the first decisive read ends it. Every read is an info log line and every step an Activity-log event (`domain=hvac`, `schedule_verify`, outcome `confirmed` / `superseded` / `unconfirmed` / `retry` / `failed` / `unverified`). The daily fire latch is unchanged: verification never re-fires the schedule.
+
+A check runs for up to ~27 minutes, and a tray restart (every merge does one) inside that span would otherwise drop it with no retry and no alert. Each open check is therefore recorded in `logs/hvac_verify_pending.json` when its schedule fires and removed when it concludes; on engine start, any check whose fire is under `HVAC_VERIFY_RESUME_MAX_S` old is resumed with a fresh read window, and an older one is dropped with a warning log line.
