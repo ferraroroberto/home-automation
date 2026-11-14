@@ -13,6 +13,7 @@
 'use strict';
 
 import { friendlyError } from './format.js';
+import { showToast } from './_vendored/toast/toast.js';
 
 export const TOKEN_KEY = 'home-automation.token';
 
@@ -205,7 +206,6 @@ export const els = {
   paneAc: document.getElementById('paneAc'),
   acFeedback: document.getElementById('acFeedback'),
   acUnits: document.getElementById('acUnits'),
-  toast: document.getElementById('toast'),
   buildReadout: document.getElementById('buildReadout'),
   // Security (RISCO alarm) tab
   paneSecurity: document.getElementById('paneSecurity'),
@@ -955,22 +955,11 @@ export function reportFetchOk(scope) {
 }
 
 // ----------------------------------------------------------- toasts
-let toastTimer = null;
+// The fleet's vendored toast; only 'error' tints, every other kind renders
+// neutral. 'pending' (e.g. "Sending…") stays up until a follow-up toast
+// replaces it with the result: it has no fixed lifetime.
 export function toast(msg, kind) {
-  els.toast.textContent = msg;
-  els.toast.className = 'toast ' + (kind || '');
-  // Errors interrupt (aria-live="assertive"); everything else stays polite so
-  // routine save/toggle confirmations don't cut off other screen-reader
-  // speech.
-  els.toast.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
-  els.toast.hidden = false;
-  if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
-  // 'pending' (e.g. "Sending…") stays up until a follow-up toast replaces it
-  // with the result — it has no fixed lifetime.
-  if (kind === 'pending') return;
-  toastTimer = setTimeout(function () {
-    els.toast.hidden = true;
-  }, kind === 'error' ? 4500 : 2000);
+  showToast(msg, kind, kind === 'pending' ? { ms: 0 } : undefined);
 }
 
 // ------------------------------------------------------ mode presentation
