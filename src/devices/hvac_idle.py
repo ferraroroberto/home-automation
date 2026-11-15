@@ -11,7 +11,7 @@ in heat or cool whose fan stays off for ``window_s`` while the room is at least
 ``min_gap_c`` short of the setpoint and gains less than ``min_progress_c`` on
 it is *flagged*. A flagged unit gets one power cycle and one read window
 (:func:`src.devices.hvac_verify.cycle_and_watch`, the schedule retry's path),
-then one home alert if it still has not started. The flag holds until a read
+and the owner is told when the cycle starts and how it ended. The flag holds until a read
 shows the unit running, satisfied, off or in another mode, so a unit that never
 recovers is acted on once, never in a loop; ``cooldown_s`` also spaces actions
 on a unit that keeps relapsing.
@@ -37,6 +37,7 @@ from src.devices.hvac_verify import (
     Verdict,
     VerifyConfig,
     WriteFn,
+    alert_owner,
     cycle_and_watch,
 )
 from src.devices.melcloud_client import DeviceInfo
@@ -131,12 +132,20 @@ class IdleTracker:
         episode = self._episodes.get(uid)
         if episode is None or episode.mode != mode:
             self._episodes[uid] = _Episode(since=now, mode=mode, baseline_room=room)
+            logger.info(
+                "ℹ️ HVAC '%s' looks idle, watching for %.0f min: %s",
+                unit.name, config.window_s / 60, _brief(unit),
+            )
             return False
         if episode.flagged:
             return False
         gained = room - episode.baseline_room if mode == "Heat" else episode.baseline_room - room
         if gained >= config.min_progress_c:
             # The room is closing in: whatever the fan field says, it is working.
+            logger.info(
+                "ℹ️ HVAC '%s' fan reads off but the room gained %.1f°C — window restarted",
+                unit.name, gained,
+            )
             self._episodes[uid] = _Episode(since=now, mode=mode, baseline_room=room)
             return False
         if now - episode.since < config.window_s:
@@ -176,7 +185,7 @@ async def recover_idle_unit(
     notify: NotifyFn,
     record: RecordFn,
 ) -> IdleResult:
-    """Power-cycle an idle-flagged unit once, watch it, alert once if it stays idle.
+    """Power-cycle an idle-flagged unit once, watch it, and tell the owner both ends.
 
     The cycle re-applies the unit's own reported mode and setpoint, so it asks
     for nothing the unit was not already set to. Never raises.
@@ -192,15 +201,28 @@ async def recover_idle_unit(
         },
     )
     _record(record, unit, "cycle", "warning", unit)
+    await alert_owner(
+        notify,
+        f"⚠️ HVAC '{unit.name}' reports on but is not running — power-cycling it now. "
+        f"Read: {_brief(unit)}.",
+    )
     verdict, last = await cycle_and_watch(request, verify, fetch=fetch, write=write, sleep=sleep)
     result = IdleResult(verdict=verdict, last_unit=last)
     if verdict in (Verdict.CONFIRMED, Verdict.SATISFIED):
         logger.info("✅ HVAC '%s' running again after one power cycle", unit.name)
         _record(record, unit, "recovered", "info", last)
+        result.alerted = await alert_owner(
+            notify, f"✅ HVAC '{unit.name}' is running now, after one power cycle. "
+            f"Read: {_brief(last)}.",
+        )
         return result
     if verdict is Verdict.SUPERSEDED:
         logger.info("ℹ️ HVAC '%s' changed by someone else during the idle check", unit.name)
         _record(record, unit, "superseded", "info", last)
+        result.alerted = await alert_owner(
+            notify, f"ℹ️ HVAC '{unit.name}' was changed by someone else since the power cycle. "
+            f"Read: {_brief(last)}.",
+        )
         return result
     if verdict is Verdict.READ_FAILED:
         text = (
@@ -216,11 +238,7 @@ async def recover_idle_unit(
         outcome = "failed"
     logger.warning(text)
     _record(record, unit, outcome, "warning", last)
-    try:
-        await notify(text)
-        result.alerted = True
-    except Exception as exc:  # noqa: BLE001 — delivery must never break the engine
-        logger.warning("⚠️ HVAC idle alert failed: %s", exc)
+    result.alerted = await alert_owner(notify, text)
     return result
 
 

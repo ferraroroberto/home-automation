@@ -11,6 +11,11 @@ warm-up), during defrost, and once the room has reached the setpoint, so a
 fire is judged over a window of several reads rather than one, and a stopped
 fan in a satisfied room is "unconfirmed", never a failure.
 
+The owner hears about every power cycle: once when the first retry starts and
+once when the check concludes, recovered or not. A cycle that silently fixes
+the unit still leaves the owner looking at a cold room with no word from the
+app until it does.
+
 UI-free: the fetch, the write, the clock, the notifier and the activity-feed
 recorder are all injected, so tests drive every path with fakes.
 """
@@ -319,7 +324,13 @@ class _Verifier:
                 return verdict
             if verdict is not Verdict.READ_FAILED:
                 last_usable = verdict
-        return last_usable or Verdict.READ_FAILED
+        final = last_usable or Verdict.READ_FAILED
+        logger.info(
+            "ℹ️ HVAC verify '%s' (%s schedule): window of %d read(s) ended %s",
+            self.request.unit_name, self.request.sched_time,
+            len(self.config.read_offsets_s), final.value,
+        )
+        return final
 
     async def resend(self) -> None:
         """Re-apply the request: a power cycle to start a unit, a plain re-send to stop it."""
@@ -343,7 +354,11 @@ async def verify_schedule_fire(
     notify: NotifyFn,
     record: RecordFn,
 ) -> VerifyResult:
-    """Watch a schedule fire; retry a unit that did not follow; alert once at the cap.
+    """Watch a schedule fire; retry a unit that did not follow; tell the owner.
+
+    The owner gets one message when the first retry starts and one when the
+    check concludes after a retry (recovered or failed), or at the cap with no
+    retry at all.
 
     A retry only follows a window that saw the unit *disobey* — after a window
     of failed reads the state is unknown, so nothing is re-sent and the next
@@ -361,6 +376,10 @@ async def verify_schedule_fire(
         if verdict in _FAILED:
             fresh = await v.read()
             if fresh not in _FAILED:
+                logger.info(
+                    "ℹ️ HVAC verify '%s': pre-retry read is %s — no power cycle",
+                    request.unit_name, fresh.value,
+                )
                 verdict = fresh
                 if fresh is not Verdict.READ_FAILED:
                     break
@@ -371,6 +390,8 @@ async def verify_schedule_fire(
                     request.sched_time, request.unit_name, verdict.value,
                     "power-cycling" if request.power else "re-sending off", attempts + 1,
                 )
+                if attempts == 1:
+                    await alert_owner(v.notify, _retry_text(request, v.last_unit))
                 try:
                     await v.resend()
                 except Exception as exc:  # noqa: BLE001 — a failed re-send still counts
@@ -420,7 +441,7 @@ async def cycle_and_watch(
 
 
 async def _conclude(v: _Verifier, result: VerifyResult) -> None:
-    """Log and record the outcome; alert once when the unit never followed."""
+    """Log and record the outcome; tell the owner when a retry ran or the unit never followed."""
     req, verdict = v.request, result.verdict
     if verdict is Verdict.CONFIRMED:
         logger.info(
@@ -428,6 +449,15 @@ async def _conclude(v: _Verifier, result: VerifyResult) -> None:
             req.sched_time, req.unit_name, result.attempts,
         )
         _record(v, "confirmed", "info", attempts=result.attempts)
+        if result.attempts > 1:
+            # The owner was told a cycle started; close the loop either way.
+            done = "running" if req.power else "off"
+            result.alerted = await alert_owner(
+                v.notify,
+                f"✅ HVAC '{req.unit_name}' is {done} now, after "
+                f"{result.attempts - 1} {'power cycle' if req.power else 're-send'}(s) "
+                f"({req.sched_time} schedule). Read: {_describe(result.last_unit)}.",
+            )
         return
     if verdict is Verdict.SUPERSEDED:
         logger.info(
@@ -435,6 +465,7 @@ async def _conclude(v: _Verifier, result: VerifyResult) -> None:
             req.sched_time, req.unit_name,
         )
         _record(v, "superseded", "info", attempts=result.attempts)
+        await _close_retry_loop(v, result, "was changed by someone else since")
         return
     if verdict is Verdict.SATISFIED:
         logger.info(
@@ -442,6 +473,7 @@ async def _conclude(v: _Verifier, result: VerifyResult) -> None:
             req.sched_time, req.unit_name,
         )
         _record(v, "unconfirmed", "info", attempts=result.attempts)
+        await _close_retry_loop(v, result, "has its room at the setpoint")
         return
     if verdict is Verdict.READ_FAILED:
         text = (
@@ -459,11 +491,40 @@ async def _conclude(v: _Verifier, result: VerifyResult) -> None:
         outcome = "failed"
     logger.warning(text)
     _record(v, outcome, "warning", attempts=result.attempts)
+    result.alerted = await alert_owner(v.notify, text)
+
+
+async def _close_retry_loop(v: _Verifier, result: VerifyResult, ending: str) -> None:
+    """After a retry notice, say how a check ended that is neither fixed nor failed."""
+    if result.attempts > 1:
+        result.alerted = await alert_owner(
+            v.notify,
+            f"ℹ️ HVAC '{v.request.unit_name}' {ending} the power cycle "
+            f"({v.request.sched_time} schedule). Read: {_describe(result.last_unit)}.",
+        )
+
+
+async def alert_owner(notify: NotifyFn, text: str) -> bool:
+    """Send one owner message; True when the notifier accepted it. Never raises."""
     try:
-        await v.notify(text)
-        result.alerted = True
+        await notify(text)
     except Exception as exc:  # noqa: BLE001 — delivery must never break the engine
-        logger.warning("⚠️ HVAC verify alert failed: %s", exc)
+        logger.warning("⚠️ HVAC alert failed: %s", exc)
+        return False
+    logger.info("📣 HVAC alert handed to the notifier: %s", text)
+    return True
+
+
+def _retry_text(req: Request, unit: Optional[DeviceInfo]) -> str:
+    if req.power:
+        return (
+            f"⚠️ HVAC '{req.unit_name}' did not start after its {req.sched_time} schedule "
+            f"— power-cycling it now. Asked: {_describe_request(req)}. Read: {_describe(unit)}."
+        )
+    return (
+        f"⚠️ HVAC '{req.unit_name}' did not stop after its {req.sched_time} schedule "
+        f"— re-sending off now. Read: {_describe(unit)}."
+    )
 
 
 def _record(v: _Verifier, outcome: str, severity: str, **extra: Any) -> None:

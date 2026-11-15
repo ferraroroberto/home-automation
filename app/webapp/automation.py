@@ -22,10 +22,11 @@ live state once and, per unit:
   surplus reading in the same tick, which oscillates rather than controls.
 * **Schedule verification** — after each schedule fire, a background task
   watches the unit's own fan readback, power-cycles a unit that did not
-  follow, and alerts once at the retry cap (:mod:`src.devices.hvac_verify`).
+  follow, and tells the owner when a cycle starts and how the check ended
+  (:mod:`src.devices.hvac_verify`).
 * **Idle detection** — outside those checks, a unit that reads on but whose
   own fan stays off while the room does not close in on the setpoint is
-  flagged, power-cycled once and alerted on if still idle; the rule stops
+  flagged and power-cycled once, with the owner told both ends; the rule stops
   steering it while flagged (:mod:`src.devices.hvac_idle`).
 
 The pure decision lives in :mod:`src.devices.hvac_automation`; this module only owns the
@@ -39,7 +40,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -50,6 +51,7 @@ from app.webapp._env import _env_bool, _env_float, _env_int
 from app.webapp._task_loop import run_loop, spawn_background_task
 from src import telemetry
 from src._schedule_store import DailyFireLatch, FireLatchPolicy, daily_due
+from src.devices.display_names import load_display_names
 from src.devices.hvac_automation import (
     TempRule,
     boosted_target,
@@ -167,7 +169,16 @@ async def _apply_schedule(unit: DeviceInfo, sched) -> None:
     await _write_unit(unit.unit_id, **_schedule_profile(sched))
 
 
-async def _notify_verify_failure(text: str) -> None:
+def _owner_name(unit: DeviceInfo) -> str:
+    """The unit's name as the app shows it, so an alert names the room the owner knows."""
+    try:
+        return load_display_names().get(unit.unit_id) or unit.name
+    except Exception as exc:  # noqa: BLE001 — a bad names file never costs the check
+        logger.warning("⚠️ HVAC display names unreadable, alerting with '%s': %s", unit.name, exc)
+        return unit.name
+
+
+async def _notify_verify(text: str) -> None:
     await notify_best_effort(
         text, label="HVAC schedule verify", notifier_factory=build_alarm_notifier
     )
@@ -186,7 +197,7 @@ def _start_verification(
     try:
         request = Request(
             unit_id=unit.unit_id,
-            unit_name=unit.name,
+            unit_name=_owner_name(unit),
             sched_time=sched.time,
             profile=_schedule_profile(sched),
         )
@@ -226,7 +237,7 @@ async def _verify_then_clear(
             fetch=fetch_devices,
             write=_write_unit,
             sleep=asyncio.sleep,
-            notify=_notify_verify_failure,
+            notify=_notify_verify,
             record=telemetry.record_event,
         )
     except Exception as exc:  # noqa: BLE001 — a crashed check must not be resumed forever
@@ -265,7 +276,7 @@ def _watch_idle(
     if not state.idle.observe(unit, monotonic, config.idle):
         return
     state.idle_tasks[uid] = spawn_background_task(
-        _recover_idle(config, unit), name=f"hvac-idle-{uid}"
+        _recover_idle(config, replace(unit, name=_owner_name(unit))), name=f"hvac-idle-{uid}"
     )
 
 
