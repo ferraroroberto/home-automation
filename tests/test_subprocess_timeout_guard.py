@@ -44,6 +44,10 @@ _BASELINE: FrozenSet[Tuple[str, str]] = frozenset(
         ("src/energy/ups_client.py", "_read_nut_direct"),
         ("src/energy/ups_client.py", "_read_windows_battery"),
         ("app/tray/tray.py", "_run_tailscale"),
+        # Vendored byte-for-byte from the scaffold, so it cannot be edited here;
+        # the vendored RespawnGuard.respawn() lets the timeout propagate to its
+        # caller, and nothing in this tray calls it.
+        ("app/tray/watchdog.py", "stop_process_tree"),
     }
 )
 
