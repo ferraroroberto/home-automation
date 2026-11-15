@@ -165,15 +165,17 @@ def test_a_stuck_unit_is_cycled_once_then_alerted() -> None:
         {"unit_id": UID, "power": False},
         {"unit_id": UID, "power": True, "operation_mode": "Heat", "set_temperature": 23.0},
     ]
-    assert len(world.alerts) == 1 and "Unit A" in world.alerts[0]
+    assert len(world.alerts) == 2 and "power-cycling it now" in world.alerts[0]
+    assert "Unit A" in world.alerts[1] and "still idle" in world.alerts[1]
     assert world.events == ["cycle", "failed"]
 
 
-def test_a_cycle_that_starts_the_unit_ends_without_an_alert() -> None:
+def test_a_cycle_that_starts_the_unit_tells_the_owner_it_recovered() -> None:
     world = World(RUNNING)
     result = world.run()
-    assert result.verdict is Verdict.CONFIRMED and not result.alerted
-    assert len(world.writes) == 2 and world.alerts == []
+    assert result.verdict is Verdict.CONFIRMED and result.alerted
+    assert len(world.writes) == 2 and len(world.alerts) == 2
+    assert "running now, after one power cycle" in world.alerts[1]
     assert world.events == ["cycle", "recovered"]
 
 
@@ -186,7 +188,7 @@ def test_no_readback_alerts_as_could_not_confirm() -> None:
     world.fetch = no_units  # type: ignore[method-assign]
     result = world.run()
     assert result.verdict is Verdict.READ_FAILED
-    assert len(world.alerts) == 1 and "could not confirm" in world.alerts[0]
+    assert len(world.alerts) == 2 and "could not confirm" in world.alerts[1]
 
 
 # --------------------------------------------------------------- engine wiring
@@ -257,7 +259,7 @@ def test_the_engine_cycles_a_stuck_unit_once_alerts_and_the_rule_skips_it(engine
     asyncio.run(scenario())
     assert [w.get("power") for w in engine["writes"]] == [False, True]
     assert not any("set_temperature" in w and "power" not in w for w in engine["writes"])
-    assert len(engine["alerts"]) == 1
+    assert len(engine["alerts"]) == 2  # cycle started, then still idle
     assert hvac.get_idle_flagged(UID) is False  # no running engine in a test
 
 

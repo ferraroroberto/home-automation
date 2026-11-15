@@ -153,7 +153,7 @@ def test_a_late_heat_start_inside_the_window_is_confirmed() -> None:
     assert world.slept == [180.0, 120.0, 180.0]  # reads at +3, +5 and +8 min
 
 
-def test_a_stuck_unit_is_power_cycled_with_backoff_then_alerted_once() -> None:
+def test_a_stuck_unit_is_power_cycled_with_backoff_then_alerted_at_start_and_cap() -> None:
     world = World([STUCK])
     result = world.run(ON_REQ)
 
@@ -168,8 +168,10 @@ def test_a_stuck_unit_is_power_cycled_with_backoff_then_alerted_once() -> None:
         180.0, 120.0, 180.0, 60.0, 10.0, 180.0, 120.0, 180.0,
         120.0, 10.0, 180.0, 120.0, 180.0,
     ]
-    assert len(world.alerts) == 1
-    alert = world.alerts[0]
+    # One notice when the first cycle starts, one at the cap — not one per retry.
+    assert len(world.alerts) == 2
+    assert "power-cycling it now" in world.alerts[0]
+    alert = world.alerts[1]
     assert "Lounge" in alert and "08:00" in alert
     assert "on Heat 23.0°C" in alert and "fan Off" in alert and "room 18.5°C" in alert
     assert world.outcomes() == ["retry", "retry", "failed"]
@@ -184,13 +186,15 @@ def test_retries_stop_at_the_configured_cap() -> None:
     assert len(world.alerts) == 1
 
 
-def test_a_cycle_that_works_ends_the_run_without_an_alert() -> None:
+def test_a_cycle_that_works_tells_the_owner_it_started_and_that_it_recovered() -> None:
     # first window stuck (3 reads), pre-retry read stuck, then running after the cycle
     world = World([STUCK, STUCK, STUCK, STUCK, RUNNING])
     result = world.run(ON_REQ)
     assert result.verdict is Verdict.CONFIRMED
     assert result.attempts == 2
-    assert world.alerts == []
+    assert len(world.alerts) == 2
+    assert "power-cycling it now" in world.alerts[0]
+    assert "running now, after 1 power cycle" in world.alerts[1]
     assert world.outcomes() == ["retry", "confirmed"]
 
 
@@ -234,7 +238,8 @@ def test_power_off_still_running_is_resent_plainly_then_alerted() -> None:
     assert result.verdict is Verdict.STILL_RUNNING
     assert [w["power"] for w in world.writes] == [False, False]  # no on-cycle for an off
     assert 10.0 not in world.slept
-    assert len(world.alerts) == 1 and "23:00" in world.alerts[0]
+    assert len(world.alerts) == 2 and "re-sending off now" in world.alerts[0]
+    assert "23:00" in world.alerts[1] and "did not take effect" in world.alerts[1]
 
 
 def test_power_off_that_stops_is_confirmed() -> None:
@@ -352,7 +357,7 @@ def restart_world(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     monkeypatch.setattr(hvac, "fetch_devices", fake_fetch)
     monkeypatch.setattr(hvac, "set_device_state", fake_set_device_state)
     monkeypatch.setattr(hvac.asyncio, "sleep", gated_sleep)
-    monkeypatch.setattr(hvac, "_notify_verify_failure", fake_notify)
+    monkeypatch.setattr(hvac, "_notify_verify", fake_notify)
     monkeypatch.setattr(hvac.read_snapshot, "invalidate", lambda _k: None)
     monkeypatch.setattr(hvac.time, "time", lambda: world.wall)
     return world
@@ -386,7 +391,7 @@ def test_a_restart_mid_check_resumes_it_and_still_cycles_then_alerts(restart_wor
     asyncio.run(scenario())
     assert [w.get("power") for w in world.writes] == [False, True, False, True]
     assert world.writes[1]["operation_mode"] == "Heat"
-    assert len(world.alerts) == 1 and "08:00" in world.alerts[0]
+    assert len(world.alerts) == 2 and "08:00" in world.alerts[1]
     assert hvac._EngineState().pending.entries() == {}  # concluded, so nothing left to resume
 
 
@@ -404,3 +409,56 @@ def test_a_check_too_old_to_resume_is_dropped(restart_world) -> None:
 
     asyncio.run(scenario())
     assert world.writes == [] and world.alerts == []
+
+
+# ------------------------------------------------------------ recorded 08:00 fire
+def test_recorded_morning_fire_tells_the_owner_about_the_cycle_and_the_recovery() -> None:
+    """The reads one schedule fire produced: stuck for the window and the
+    pre-retry read, still warming up 3 min after the power cycle, then running.
+    The check recovered the unit; the owner must hear about it, not only about a
+    unit that never recovers."""
+    stuck = _unit(room_temperature=18.0, set_temperature=23.0, actual_fan_speed="Off")
+    started = _unit(room_temperature=18.5, set_temperature=23.0, actual_fan_speed="Two")
+    world = World([stuck, stuck, stuck, stuck, stuck, started])
+    alerts_at: List[float] = []
+
+    async def notify(text: str) -> None:
+        alerts_at.append(world.clock)
+        world.alerts.append(text)
+
+    world.notify = notify  # type: ignore[method-assign]
+    result = world.run(ON_REQ)
+
+    assert result.verdict is Verdict.CONFIRMED and result.attempts == 2
+    assert [w.get("power") for w in world.writes] == [False, True]
+    assert len(world.alerts) == 2
+    cycling, recovered = world.alerts
+    # Sent when the cycle starts, before the unit is written.
+    assert alerts_at[0] <= world.writes[0]["at"]
+    assert "Lounge" in cycling and "power-cycling" in cycling and "fan Off" in cycling
+    assert "Lounge" in recovered and "running" in recovered and "fan Two" in recovered
+    assert result.alerted
+
+
+def test_alerts_name_the_unit_as_the_app_shows_it(restart_world, monkeypatch) -> None:
+    """The cloud name and the app's display name differ; the owner knows the latter."""
+    world = restart_world
+    monkeypatch.setattr(hvac, "load_display_names", lambda: {UID: "Lower lounge"})
+
+    async def scenario() -> None:
+        state = hvac._EngineState()
+        hvac._start_verification(hvac.AutomationConfig(), state, STUCK, _SCHED)
+        world.gate.set()
+        await asyncio.wait_for(state.verify_tasks[UID], timeout=2)
+
+    asyncio.run(scenario())
+    assert world.alerts and all("'Lower lounge'" in a for a in world.alerts)
+    assert not any("'Lounge'" in a for a in world.alerts)
+
+
+def test_a_cycle_followed_by_a_manual_change_still_closes_the_loop() -> None:
+    switched_off = _unit(power=False, actual_fan_speed="Off")
+    world = World([STUCK, STUCK, STUCK, STUCK, switched_off])
+    result = world.run(ON_REQ)
+    assert result.verdict is Verdict.SUPERSEDED and result.attempts == 2
+    assert len(world.alerts) == 2 and "changed by someone else" in world.alerts[1]
