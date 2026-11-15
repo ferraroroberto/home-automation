@@ -415,8 +415,8 @@ function figureRow(label, value) {
 }
 
 function rangeLabel(range) {
-  const btn = els.rangeBtns.find(function (b) { return b.dataset.range === range; });
-  return btn ? btn.textContent : range;
+  const opt = Array.from(els.historyRange.options).find(function (o) { return o.value === range; });
+  return opt ? opt.textContent : range;
 }
 
 // The Money view (one row per tariff period) and the All figures sheet: every
@@ -546,17 +546,17 @@ function markSegments(btns, key, value) {
 // ------------------------------------------------- History card
 // One period for both views. Live is the last hour of the flow and has no
 // money view, so while it is selected Money is unavailable, and while Money is
-// shown Live is; the other segment always says why in its title.
+// shown Live is; the other option always says why in its title.
 function syncHistory() {
   const live = state.range === 'live';
   const money = !live && state.historyView === 'money';
-  markSegments(els.rangeBtns, 'range', state.range);
+  els.historyRange.value = state.range;
   markSegments(els.historyViewBtns, 'view', live ? 'energy' : state.historyView);
-  els.rangeBtns.forEach(function (btn) {
-    const off = btn.dataset.range === 'live' && money;
-    btn.disabled = off;
-    if (off) btn.title = 'Live shows energy only';
-    else btn.removeAttribute('title');
+  Array.from(els.historyRange.options).forEach(function (opt) {
+    const off = opt.value === 'live' && money;
+    opt.disabled = off;
+    if (off) opt.title = 'Live shows energy only';
+    else opt.removeAttribute('title');
   });
   els.historyViewBtns.forEach(function (btn) {
     const off = btn.dataset.view === 'money' && live;
@@ -708,9 +708,7 @@ async function loadAggregate(range) {
 }
 
 export function wireEnergyControls() {
-  els.rangeBtns.forEach(function (btn) {
-    btn.addEventListener('click', function () { setRange(btn.dataset.range); });
-  });
+  els.historyRange.addEventListener('change', function () { setRange(els.historyRange.value); });
   els.historyViewBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setHistoryView(btn.dataset.view); });
   });

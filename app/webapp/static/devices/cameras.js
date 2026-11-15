@@ -105,12 +105,12 @@ async function bumpSnapshot(cameraId) {
   renderCameras();
 }
 
-const CAMERA_GLYPH = '<svg class="icon camera-thumb-glyph" aria-hidden="true"><use href="#i-camera"></use></svg>';
+const CAMERA_GLYPH = '<svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg>';
 
 function buildThumb(cam) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'camera-thumb';
+  btn.className = 'icon-button camera-thumb';
   btn.dataset.track = 'camera.thumb';
   btn.setAttribute('aria-label', 'Zoom last snapshot ' + cameraLabel(cam));
   if (cam.reachable) {

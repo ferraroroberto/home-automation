@@ -20,6 +20,9 @@
 .energy-history-body,
 .forecast-body { padding: var(--gap) 14px; }
 .group-note:empty { display: none; }
+/* The History period select fills the card body, spaced like the segmented
+   Energy / Money switch under it. */
+.history-range { width: 100%; margin-bottom: 12px; }
 /* A Settings card a tab links to (showSettings) lands below the
    floating nav, never under it. */
 #paneSettings > .card { scroll-margin-top: 80px; }

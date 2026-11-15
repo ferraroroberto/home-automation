@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from typing import Callable, Dict, List
 
 import pytest
@@ -248,7 +249,11 @@ def _camera_thumbnail_opens_the_snapshot_zoom(
     )
     boot_home(page, base_url)
     page.locator("#tabSecurity").click()
-    page.locator("#camerasList .camera-thumb").click()
+    thumb = page.locator("#camerasList .camera-thumb")
+    # The thumbnail is the vendored icon-button (the design-review inventory
+    # counts a bespoke glyph-only button as drift).
+    expect(thumb).to_have_class(re.compile(r"\bicon-button\b"))
+    thumb.click()
 
     expect(page.locator("#cameraZoomDialog")).to_be_visible()
     expect(page.locator("#cameraZoomName")).to_have_text("Front door")
