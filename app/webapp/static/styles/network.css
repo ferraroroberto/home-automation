@@ -564,8 +564,9 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 #netDeviceStatus.is-offline { color: var(--muted); }
 
 /* Reusable confirm modal — same shell as the detail dialogs. The header
-   close is the dismiss; the one footer button is the vendored .button-primary,
-   or the outlined .button-tint.danger for a destructive confirm (confirm.js). */
+   close and the footer .button-ghost Cancel both back out; the commit beside
+   it is the vendored .button-primary, or the outlined .button-tint.danger for
+   a destructive confirm (confirm.js). */
 .confirm-message { margin: var(--space-xs) 0 var(--space-md); }
-.confirm-actions { display: grid; grid-template-columns: 1fr; }
+.confirm-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--gap); align-items: center; }
 

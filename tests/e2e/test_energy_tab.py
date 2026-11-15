@@ -7,6 +7,7 @@ sun-position overlay (#590).
 
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List
 
 import pytest
@@ -120,6 +121,9 @@ def _edit_export_rates_from_money_view(page: Page) -> None:
     expect(page.locator("#exportRateSheet")).to_be_visible()
     expect(page.locator("#exportRateCurrent")).to_have_text("€0.05000 / kWh")
     surface(page, "energy.export-rate-sheet")
+    # One primary per view: Add rate is the commit, Done is the secondary.
+    expect(page.locator("#exportRateSheet .button-primary")).to_have_count(1)
+    expect(page.locator("#exportRateAdd")).to_have_class(re.compile(r"\bbutton-primary\b"))
     page.locator("#exportRateDate").fill("2026-09-05")
     page.locator("#exportRateAdd").click()
     expect(page.locator("#exportRateError")).to_have_text("Enter an export rate.")
