@@ -81,23 +81,9 @@
 .sheet-rows .action-row-trail { margin-right: 0; }
 .detail-hint { margin: 8px 0 2px; }
 .schedule-empty { margin: var(--space-xs) 0 0; }
-.schedule-add-btn {
-  position: relative;
-  width: 100%;
-  margin-top: 10px;
-  min-height: var(--control-h);
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-md);
-  background: var(--input-bg);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-/* Full width already clears 44px horizontally; only the 36px height (#wakeAlarmAdd
-   among others) needs the vertical extension. */
-.schedule-add-btn::before { content: ""; position: absolute; inset: -4px 0; }
-.schedule-add-btn:disabled { color: var(--muted); cursor: default; }
+/* Layout only: the full-width "+ Add ..." opener under a sheet's list. Its
+   look is the vendored .button-tint. */
+.sheet-add { width: 100%; margin-top: 10px; }
 
 /* Detail-modal Save footer: settings stage locally and commit only in
    the vendored modal's sticky .detail-actions, whose one full-width

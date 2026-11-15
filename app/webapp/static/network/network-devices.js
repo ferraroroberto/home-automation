@@ -239,7 +239,7 @@ function buildDeviceRow(d, grouped) {
   name.type = 'button';
   name.className = 'net-device-name';
   name.dataset.track = 'network.device-open';
-  name.title = 'Device details · rename';
+  name.title = 'Device details';
   let inner = '<svg class="icon net-device-icon" aria-hidden="true"><use href="#i-' +
     categoryIcon(d.category) + '"></use></svg>';
   // A star marks a "mark important" device; appears on both online + offline rows.

@@ -154,10 +154,8 @@
 }
 .camera-preset-go::before { content: ""; position: absolute; inset: calc((var(--icon-btn-box) - var(--hit-min)) / 2) 0; }
 .camera-preset-go:hover { background: var(--accent-soft); }
-/* One add-button affordance app-wide: dashed border, matching
-   the dominant .schedule-add-btn idiom used by every other "+ Add" control,
-   rather than the solid button outline this used to share with its
-   sibling icon buttons. */
+/* A dashed border marks the staged-add affordance among its sibling icon
+   buttons. */
 .camera-preset-save { flex: none; font-weight: 600; border-style: dashed; }
 .camera-coord {
   display: inline-flex; align-items: center; gap: 6px;

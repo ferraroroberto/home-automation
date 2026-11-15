@@ -28,7 +28,11 @@ export function confirmAction(opts) {
   els.confirmTitle.textContent = (opts && opts.title) || 'Confirm';
   els.confirmMessage.textContent = (opts && opts.message) || '';
   els.confirmOk.textContent = (opts && opts.okLabel) || 'Confirm';
-  els.confirmOk.classList.toggle('danger', !!(opts && opts.danger));
+  // The commit is the one primary; a destructive confirm is the outlined tint.
+  const danger = !!(opts && opts.danger);
+  els.confirmOk.classList.toggle('button-primary', !danger);
+  els.confirmOk.classList.toggle('button-tint', danger);
+  els.confirmOk.classList.toggle('danger', danger);
   return new Promise(function (resolve) {
     confirmResolver = resolve;
     openDialog(els.confirmDialog);
@@ -38,7 +42,6 @@ export function confirmAction(opts) {
 export function wireConfirmDialog() {
   if (!els.confirmDialog) return;
   els.confirmClose.addEventListener('click', function () { closeConfirm(false); });
-  els.confirmCancel.addEventListener('click', function () { closeConfirm(false); });
   els.confirmOk.addEventListener('click', function () { closeConfirm(true); });
   els.confirmDialog.addEventListener('click', function (ev) {
     if (ev.target === els.confirmDialog) closeConfirm(false);  // backdrop click
