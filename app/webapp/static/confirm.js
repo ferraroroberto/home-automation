@@ -42,6 +42,7 @@ export function confirmAction(opts) {
 export function wireConfirmDialog() {
   if (!els.confirmDialog) return;
   els.confirmClose.addEventListener('click', function () { closeConfirm(false); });
+  els.confirmCancel.addEventListener('click', function () { closeConfirm(false); });
   els.confirmOk.addEventListener('click', function () { closeConfirm(true); });
   els.confirmDialog.addEventListener('click', function (ev) {
     if (ev.target === els.confirmDialog) closeConfirm(false);  // backdrop click

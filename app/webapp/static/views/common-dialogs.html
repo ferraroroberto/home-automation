@@ -1,6 +1,6 @@
   <!-- Reusable confirm modal (issue #129): a styled <dialog> for deliberate,
        destructive-ish actions — currently the AP reboot, reused by the Phase-3
-       router reboot. Title + message + Cancel/confirm are set per-open in JS. -->
+       router reboot. Title + message + commit are set per-open in JS. -->
   <dialog data-track-view="confirm-dialog" id="confirmDialog" class="detail-dialog confirm-dialog">
     <div class="detail-card">
       <div class="detail-header">
@@ -9,6 +9,7 @@
       </div>
       <p id="confirmMessage" class="muted confirm-message">— no data</p>
       <div class="confirm-actions">
+        <button data-track="common.confirm-cancel" id="confirmCancel" type="button" class="button-ghost">Cancel</button>
         <button data-track="common.confirm-ok" id="confirmOk" type="button" class="button-primary" data-testid="confirm-ok">Confirm</button>
       </div>
     </div>

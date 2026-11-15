@@ -536,6 +536,12 @@ def _add_device_is_gated_by_a_confirm(
 
     page.get_by_test_id("plugs-pair").click()
     expect(page.locator("#confirmDialog")).to_be_visible()
+    expect(page.locator("#confirmCancel")).to_have_class(re.compile(r"\bbutton-ghost\b"))
+    page.locator("#confirmCancel").click()
+    expect(page.locator("#confirmDialog")).to_be_hidden()
+    assert calls == []
+
+    page.get_by_test_id("plugs-pair").click()
     page.locator("#confirmClose").click()
     expect(page.locator("#confirmDialog")).to_be_hidden()
     assert calls == []
