@@ -409,7 +409,7 @@ def _presence_icloud_account_rows_offer_trust_renewal(
     expect(page.locator("#confirmDialog")).to_be_visible()
     expect(page.locator("#confirmMessage")).to_contain_text("two@example.com")
     surface(page, "shared.confirm-dialog")
-    page.locator("#confirmCancel").click()
+    page.locator("#confirmClose").click()
     expect(page.locator("#confirmDialog")).to_be_hidden()
     assert begins == []
 

@@ -105,6 +105,10 @@
   cursor: pointer;
 }
 .group-foot-btn:last-child { margin-left: auto; }
+/* A foot holding vendored tier buttons (48px tint, 36px surface) pads them off
+   the hairline and shares the row between them. */
+.group-foot:has(> .button-tint, > .button-surface) { align-items: center; padding: var(--space-sm) 14px; }
+.group-foot > .button-tint, .group-foot > .button-surface { flex: 1 1 0; }
 .group-links { border-top: 1px solid var(--line-muted); }
 .group-head + .group-links { border-top: 0; }
 .group-link .action-row-text { flex: 1; }

@@ -563,10 +563,9 @@ button.net-device-name:hover .net-device-new { text-decoration: none; }
 /* Offline status line in the detail modal. */
 #netDeviceStatus.is-offline { color: var(--muted); }
 
-/* Reusable confirm modal — same shell as the detail dialogs, with
-   a side-by-side Cancel / confirm action row. A destructive confirm is the
-   vendored outlined .button-tint.danger (confirm.js sets `danger`). */
+/* Reusable confirm modal — same shell as the detail dialogs. The header
+   close is the dismiss; the one footer button is the vendored .button-primary,
+   or the outlined .button-tint.danger for a destructive confirm (confirm.js). */
 .confirm-message { margin: var(--space-xs) 0 var(--space-md); }
-.confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.confirm-cancel { background: var(--card-off); color: var(--ink); }
+.confirm-actions { display: grid; grid-template-columns: 1fr; }
 

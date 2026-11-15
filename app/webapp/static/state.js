@@ -676,7 +676,6 @@ export const els = {
   confirmTitle: document.getElementById('confirmTitle'),
   confirmMessage: document.getElementById('confirmMessage'),
   confirmClose: document.getElementById('confirmClose'),
-  confirmCancel: document.getElementById('confirmCancel'),
   confirmOk: document.getElementById('confirmOk'),
   // Home tab: the Climate group's AC rows
   acSummary: document.getElementById('acSummary'),

@@ -30,7 +30,7 @@
       <div class="pv-system-body">
         <p class="muted small settings-sheet-note">One panel row per orientation. The forecast is computed from these.</p>
         <ul id="pvArrayList" class="action-rows sheet-rows" aria-label="Panel rows"></ul>
-        <button data-track="energy.pv-array-add" id="pvArrayAdd" type="button" class="schedule-add-btn">+ Add panel row</button>
+        <button data-track="energy.pv-array-add" id="pvArrayAdd" type="button" class="button-tint sheet-add" aria-haspopup="dialog">+ Add panel row</button>
 
         <label class="row">
           <span>Performance ratio</span>
@@ -53,7 +53,7 @@
         <h3 class="net-group-head">Horizon and shading</h3>
         <p class="muted small settings-sheet-note">Obstruction height by compass direction. Not applied to the forecast yet.</p>
         <ul id="pvHorizonList" class="action-rows sheet-rows" aria-label="Horizon points"></ul>
-        <button data-track="energy.pv-horizon-add" id="pvHorizonAdd" type="button" class="schedule-add-btn">+ Add horizon point</button>
+        <button data-track="energy.pv-horizon-add" id="pvHorizonAdd" type="button" class="button-tint sheet-add" aria-haspopup="dialog">+ Add horizon point</button>
       </div>
       <div class="detail-actions">
         <button data-track="energy.pv-system-sheet-done" type="button" class="button-primary detail-save-btn" data-sheet-done>Done</button>
@@ -157,7 +157,7 @@
           <label><span>Hourly overrides (optional)</span><textarea id="exportRateHourly" class="input-native export-rate-hourly" rows="3" placeholder="24 comma-separated rates for 00:00–23:00"></textarea></label>
           <div class="export-rate-actions">
             <button data-track="energy.export-rate-delete" id="exportRateDelete" type="button" class="button-tint danger" hidden>Delete</button>
-            <button data-track="energy.export-rate-add" id="exportRateAdd" type="button" class="schedule-add-btn">Add rate</button>
+            <button data-track="energy.export-rate-add" id="exportRateAdd" type="button" class="button-primary">Add rate</button>
           </div>
         </div>
         <p id="exportRateError" class="field-error" role="alert" hidden></p>
