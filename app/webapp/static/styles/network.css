@@ -60,7 +60,7 @@
   font-weight: 700; font-size: var(--font-label); color: var(--ink);
 }
 .net-trend-key { display: inline-flex; gap: 2px; color: var(--muted); }
-.net-trend-key .icon { width: 0.9em; height: 0.9em; }
+.net-trend-key .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .net-trend-value { font-variant-numeric: tabular-nums; }
 .net-trend-chart { min-width: 0; display: flex; align-items: center; }
 .net-trend-empty { display: block; }

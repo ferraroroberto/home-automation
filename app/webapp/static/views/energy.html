@@ -95,9 +95,9 @@
         <p class="muted small group-note" id="genGap" hidden></p>
       </section>
 
-      <!-- History (decision 9 of #872): one period picker and an Energy /
-           Money switch over one chart, instead of three cards with two
-           pickers. Live is the last hour of the flow (energy only); Money is
+      <!-- History: one period select (six options, so not a segmented
+           control) and an Energy / Money switch over one chart, instead of
+           three cards with two pickers. Live is the last hour of the flow (energy only); Money is
            the tariff estimate, its tariff periods as rows, and every figure
            one tap away in the All figures sheet. -->
       <section class="card action-list energy-history" aria-labelledby="energyHistoryTitle">
@@ -106,14 +106,14 @@
           <h3 id="energyHistoryTitle" class="group-title">History</h3>
         </div>
         <div class="energy-history-body">
-          <div class="segmented" id="historyRange" role="group" aria-label="History period" data-track="energy.history-range">
-            <button type="button" class="segmented-item" aria-pressed="false" data-range="live">Live</button>
-            <button type="button" class="segmented-item" aria-pressed="true" data-range="day">Day</button>
-            <button type="button" class="segmented-item" aria-pressed="false" data-range="week">Week</button>
-            <button type="button" class="segmented-item" aria-pressed="false" data-range="month">Month</button>
-            <button type="button" class="segmented-item" aria-pressed="false" data-range="year">Year</button>
-            <button type="button" class="segmented-item" aria-pressed="false" data-range="total">All</button>
-          </div>
+          <select id="historyRange" class="select-native history-range" aria-label="History period" data-track="energy.history-range">
+            <option value="live">Live</option>
+            <option value="day" selected>Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="year">Year</option>
+            <option value="total">All</option>
+          </select>
           <div class="segmented" id="historyView" role="group" aria-label="History shows" data-track="energy.history-view">
             <button type="button" class="segmented-item" aria-pressed="true" data-view="energy">Energy</button>
             <button type="button" class="segmented-item" aria-pressed="false" data-view="money">Money</button>

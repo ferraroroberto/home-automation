@@ -300,6 +300,24 @@ button, input, select, textarea {
 .select-native:focus-visible,
 .net-dhcp-input:focus-visible { outline-offset: calc(2px - var(--control-inset)); }
 
+/* WebKit draws a native-appearance <select> itself and drops its box-shadow,
+   which is the 1px boundary above, leaving only the 1.06:1 fill on iPhone. With
+   appearance off the shadow draws in every engine; the chevron is two
+   --muted gradient triangles in place of the native arrow. */
+select.input-native,
+select.select-native,
+select.net-dhcp-input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 30px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
 /* Text-styled row buttons (tap the name to rename/open) render 19-24px tall;
    the rows they sit in are rows.sm, so a vertical-only expansion centred on
    the button reaches exactly 44px inside its own row and never meets a
@@ -582,5 +600,5 @@ button.net-wifi-row-name:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 .action-row-trail { flex: none; margin-right: 10px; }
-.row-meta-arrow { width: 14px; height: 14px; margin: 0 2px; vertical-align: -2px; }
+.row-meta-arrow { width: var(--icon-inline); height: var(--icon-inline); margin: 0 2px; vertical-align: -3px; }
 

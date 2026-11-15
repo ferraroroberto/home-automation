@@ -84,7 +84,7 @@ def _energy_tab_renders_flow_and_charts(
     expect(page.locator("#costPeriods .action-row")).to_have_count(3)
     expect(page.locator("#costPeriods .action-row").first).to_contain_text("Off-peak")
     # Live has no money view, so it is unavailable while Money shows.
-    expect(page.locator('#historyRange [data-range="live"]')).to_be_disabled()
+    expect(page.locator('#historyRange option[value="live"]')).to_be_disabled()
 
     # All figures: every figure the old table and stat strip carried.
     page.locator("#energyFiguresOpen").click()
@@ -100,10 +100,10 @@ def _energy_tab_renders_flow_and_charts(
 
     # Live: the last hour of the flow; Money is unavailable while it shows.
     page.locator('#historyView [data-view="energy"]').click()
-    page.locator('#historyRange [data-range="live"]').click()
+    page.locator("#historyRange").select_option("live")
     expect(page.locator("#liveChart")).to_be_visible()
     expect(page.locator('#historyView [data-view="money"]')).to_be_disabled()
-    page.locator('#historyRange [data-range="day"]').click()
+    page.locator("#historyRange").select_option("day")
     expect(page.locator('#historyView [data-view="money"]')).to_be_enabled()
 
     _edit_export_rates_from_money_view(page)
@@ -256,7 +256,7 @@ def _energy_chart_tick_budget_updates_with_viewport(
     boot_home(page, base_url)
     page.locator("#tabEnergy").click()
     # The live chart sits behind History › Live (#883).
-    page.locator('#historyRange [data-range="live"]').click()
+    page.locator("#historyRange").select_option("live")
 
     page.wait_for_function(
         "() => window.Chart?.getChart(document.querySelector('#liveChart'))?.data.labels.length >= 24"

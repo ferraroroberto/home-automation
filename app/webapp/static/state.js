@@ -770,9 +770,9 @@ export const els = {
   savCo2: document.getElementById('savCo2'),
   savTrees: document.getElementById('savTrees'),
   savExport: document.getElementById('savExport'),
-  // Energy tab: the History card — one period picker (Live / Day … All,
-  // driven by data-range) and the Energy / Money switch (data-view).
-  rangeBtns: Array.from(document.querySelectorAll('#historyRange .segmented-item')),
+  // Energy tab: the History card — one period select (Live / Day … All)
+  // and the Energy / Money switch (data-view).
+  historyRange: document.getElementById('historyRange'),
   historyViewBtns: Array.from(document.querySelectorAll('#historyView .segmented-item')),
   historyLive: document.getElementById('historyLive'),
   historyEnergy: document.getElementById('historyEnergy'),

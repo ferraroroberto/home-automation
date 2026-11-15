@@ -4,20 +4,19 @@
    is a transparent 56x44 target, already past the 44px floor with real
    geometry; the image carries its own rounded corners. With no frame yet the
    camera glyph sits in the same box, an icon button at rest. It leads the
-   shared row outside the row's tap target, since it zooms on its own. */
-.camera-thumb {
-  display: inline-flex; align-items: center; justify-content: center;
-  flex: none;
-  width: 56px; height: 44px; padding: 0; margin-left: 10px;
-  border: 0; border-radius: var(--radius-md);
-  background: transparent; cursor: zoom-in;
+   shared row outside the row's tap target, since it zooms on its own. It is
+   the vendored icon-button, widened to the picture's 56x44 box. */
+.icon-button.camera-thumb {
+  --icon-btn-box: var(--hit-min);
+  width: 56px; height: 44px; margin-left: 10px;
+  border-radius: var(--radius-md);
+  cursor: zoom-in;
 }
 .camera-thumb-img {
   width: 100%; height: 100%; object-fit: cover; display: block;
   border-radius: var(--radius-md);
 }
-.camera-thumb.is-empty { cursor: default; }
-.camera-thumb-glyph { width: 18px; height: 18px; color: var(--muted); }
+.icon-button.camera-thumb.is-empty { cursor: default; }
 /* Snapshot zoom: the persisted last frame at full size. */
 .camera-zoom-dialog { width: min(96vw, 880px); }
 .camera-zoom-img {
