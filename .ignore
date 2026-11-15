@@ -3,6 +3,7 @@
 /app/tray/watchdog.py
 /app/webapp/serve.py
 /app/webapp/static/_vendored/action-row
+/app/webapp/static/_vendored/build-watch
 /app/webapp/static/_vendored/button
 /app/webapp/static/_vendored/home-head
 /app/webapp/static/_vendored/icon-button
@@ -14,6 +15,7 @@
 /app/webapp/static/_vendored/segmented
 /app/webapp/static/_vendored/sign-in
 /app/webapp/static/_vendored/text-size
+/app/webapp/static/_vendored/toast
 /app/webapp/static/_vendored/usage-log
 /scripts/box_lock_gate.ps1
 /scripts/classify_e2e.py
