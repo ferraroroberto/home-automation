@@ -137,7 +137,6 @@
 .export-rate-form label { display: grid; gap: 6px; color: var(--muted); font-size: .78rem; font-weight: 600; }
 .export-rate-hourly { height: auto; min-height: 76px; resize: vertical; padding: 10px 12px; }
 .export-rate-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
-.export-rate-actions > button { min-height: 44px; }
 /* Azimuth convention reminder + the live compass reading of what was typed —
    a hint only: the stored value stays degrees in the one Open-Meteo convention. */
 .pv-field-hint {
