@@ -26,6 +26,9 @@
  *   title            the row's name
  *   meta             optional muted line: text, or a node when it carries a
  *                    glyph (an arrow is a Lucide icon, never a character)
+ *   tail             optional figure (a count, status or duration), a string
+ *                    or node, in the non-shrinking `.action-row-meta-tail`
+ *                    after the words, so an ellipsis never cuts it
  *   chip             optional exception chip element closing the meta line
  *   openLabel        optional aria-label for the tap target (default: its
  *                    own text, title then meta)
@@ -85,15 +88,23 @@ export function rowEl(opts) {
   title.className = 'action-row-title';
   title.textContent = opts.title;
   text.appendChild(title);
-  if (opts.meta || opts.chip) {
+  if (opts.meta || opts.tail || opts.chip) {
     const meta = document.createElement('span');
     meta.className = 'action-row-meta';
-    if (opts.meta) {
+    if (opts.meta || opts.tail) {
+      // An empty words span still switches the meta to the split layout.
       const words = document.createElement('span');
       words.className = 'action-row-meta-text';
       if (typeof opts.meta === 'string') words.textContent = opts.meta;
-      else words.appendChild(opts.meta);
+      else if (opts.meta) words.appendChild(opts.meta);
       meta.appendChild(words);
+    }
+    if (opts.tail) {
+      const tail = document.createElement('span');
+      tail.className = 'action-row-meta-tail';
+      if (typeof opts.tail === 'string') tail.textContent = opts.tail;
+      else tail.appendChild(opts.tail);
+      meta.appendChild(tail);
     }
     // Outside the truncating span, so an ellipsis never cuts the exception.
     if (opts.chip) meta.appendChild(opts.chip);

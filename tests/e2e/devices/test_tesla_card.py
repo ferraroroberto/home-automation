@@ -52,7 +52,8 @@ def _car_card_shows_battery_range_charging_and_last_seen(
     expect(page.locator("#teslaMeter")).to_have_attribute("aria-valuenow", "72")
     expect(page.get_by_test_id("tesla-charging")).to_have_text("Charging")
     expect(page.locator("#teslaChargingMeta")).to_have_text("7.2 kW · +12.4 kWh added")
-    expect(page.get_by_test_id("tesla-seen")).to_have_text(re.compile(r"^Online · data from \d+ min ago$"))
+    expect(page.get_by_test_id("tesla-seen")).to_have_text("Online")
+    expect(page.get_by_test_id("tesla-seen-ago")).to_have_text(re.compile(r"^data from \d+ min ago$"))
     expect(page.locator("#teslaSeenAvatar")).to_have_attribute("data-badge", "up")
     # Read-only: no control, only the link that opens the history sheet.
     expect(card.locator("input, [role=switch]")).to_have_count(0)
@@ -104,7 +105,8 @@ def _car_card_asleep_then_stale_keeps_the_figures(
 
     expect(page.get_by_test_id("tesla-charging")).to_have_text("Charge complete")
     expect(page.locator("#teslaChargingMeta")).to_have_text("+12.4 kWh added")
-    expect(page.get_by_test_id("tesla-seen")).to_have_text(re.compile(r"^Asleep · "))
+    expect(page.get_by_test_id("tesla-seen")).to_have_text("Asleep")
+    expect(page.get_by_test_id("tesla-seen-ago")).to_have_text(re.compile(r"^data from "))
     expect(page.locator("#teslaSeenAvatar")).not_to_have_attribute("data-badge", re.compile(".*"))
 
     page.route("**/api/tesla", lambda route: route.fulfill(status=503, body='{"detail":"down"}'))

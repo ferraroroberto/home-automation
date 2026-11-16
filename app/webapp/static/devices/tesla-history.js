@@ -146,11 +146,11 @@ function sessionRow(title, metaParts, avatar) {
     '  <span class="row-avatar" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-' + avatar + '"></use></svg></span>' +
     '  <span class="action-row-text">' +
     '    <span class="action-row-title"></span>' +
-    '    <span class="action-row-meta"><span class="action-row-meta-text"></span></span>' +
+    '    <span class="action-row-meta"><span class="action-row-meta-text"></span><span class="action-row-meta-tail"></span></span>' +
     '  </span>' +
     '</div>';
   li.querySelector('.action-row-title').textContent = title;
-  li.querySelector('.action-row-meta-text').textContent = metaParts.filter(Boolean).join(' · ');
+  li.querySelector('.action-row-meta-tail').textContent = metaParts.filter(Boolean).join(' · ');
   return li;
 }
 

@@ -514,7 +514,7 @@ def _group_is_on_devices_and_polls_ha_only_while_a_sheet_is_open(
     expect(page.locator("#haVmAvatar")).to_have_attribute("data-badge", "up")
     expect(page.locator("#homeVmToggle")).to_have_attribute("aria-checked", "true")
     # One read on entry fills the rows' meta lines; both sheets are still closed.
-    expect(page.locator("#haSatellitesMeta")).to_have_text("1 of 2 online")
+    expect(page.locator("#haSatellitesTail")).to_have_text("1 of 2 online")
     expect(page.locator("#haInteractionsMeta")).to_have_text(re.compile(r"^1 · last \d{1,2}:\d\d"))
     expect(page.locator("#haSatellitesSheet")).to_be_hidden()
     expect(page.locator("#haInteractionsSheet")).to_be_hidden()
@@ -685,7 +685,7 @@ def _recent_interactions_is_hidden_until_there_is_one(
     page.locator("#tabIot").click()
     # The satellites row's meta fills once the HA read has landed - the empty
     # interactions row is still not offered.
-    expect(page.locator("#haSatellitesMeta")).to_have_text("1 of 2 online")
+    expect(page.locator("#haSatellitesTail")).to_have_text("1 of 2 online")
     expect(page.locator("#haInteractionsCard")).to_be_hidden()
     expect(page.locator("#haSatellitesOpen")).to_be_visible()
 

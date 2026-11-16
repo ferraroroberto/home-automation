@@ -88,7 +88,7 @@ def _blind_schedule_lists_and_adds_an_entry(
     # says what is inside its sheet.
     expect(page.locator("#blindsAllUp")).to_be_visible()
     expect(page.locator('[data-device-id="blind-a"] .blind-btn')).to_have_count(3)
-    expect(page.locator("#blindSchedulesMeta")).to_have_text("1 on")
+    expect(page.locator("#blindSchedulesTail")).to_have_text("1 on")
     assert_no_horizontal_overflow(page)
 
     # The existing entry renders as a summary row in the schedule sheet.
@@ -127,7 +127,7 @@ def _blind_schedule_lists_and_adds_an_entry(
     expect(rows.first.locator(".action-row-meta")).to_have_text(
         "Up · Weekends · Someone home · Test Blind B"
     )
-    expect(page.locator("#blindSchedulesMeta")).to_have_text("2 on")
+    expect(page.locator("#blindSchedulesTail")).to_have_text("2 on")
     page.locator("#blindSchedulesSheetDone").click()
     expect(page.locator("#blindSchedulesSheet")).to_be_hidden()
 
@@ -185,7 +185,8 @@ def _blinds_follow_alarm_switch_saves(
     expect(switch).to_have_attribute("aria-checked", "true")
     # The group's schedule row reflects it once the sheet is closed.
     page.locator("#blindSchedulesSheetDone").click()
-    expect(page.locator("#blindSchedulesMeta")).to_have_text("None · follows alarm")
+    expect(page.locator("#blindSchedulesMeta")).to_have_text("Follows alarm")
+    expect(page.locator("#blindSchedulesTail")).to_have_text("None")
 
 
 def _schedule_row_text_is_flush_with_the_sheet_content_edge(
