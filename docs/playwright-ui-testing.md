@@ -29,6 +29,10 @@ Read that doc first; this file only adds what's specific to this repo.
   wedges return, the gate's `browser helpers newly wedged during this run`
   line and the `teardown watchdog fired` breadcrumb in
   `webapp/verify-progress.log` say so per run.
+- Loopback port pool: a context outlives its test and a drained pool is
+  reported as `PORT POOL EXHAUSTED`; `docs/testing.md` "Loopback sockets" has the
+  contract, the measuring recipe and the one marker (`own_context`) a test needs
+  when it sets context-level state.
 - Mobile projection: the regression suite runs `test_design_conformance.py`'s
   geometry matrix (4 viewports × 2 themes) across Chromium + WebKit — see
   `tests/e2e/_geometry.py`.

@@ -376,8 +376,8 @@ def _on_switch_track_is_the_accent_not_green(
 
     track = page.locator('#acUnits [data-unit-id="unit-1"] .ac-line-toggle[aria-checked="true"]')
     expect(track).to_be_visible()
-    got, accent, green = page.evaluate(
-        """el => {
+    accent, green = page.evaluate(
+        """() => {
             const resolve = token => {
                 const probe = document.createElement('i');
                 probe.style.background = 'var(' + token + ')';
@@ -386,12 +386,13 @@ def _on_switch_track_is_the_accent_not_green(
                 probe.remove();
                 return c;
             };
-            return [getComputedStyle(el).backgroundColor, resolve('--accent-fill'), resolve('--on')];
+            return [resolve('--accent-fill'), resolve('--on')];
         }""",
-        track.element_handle(),
     )
-    assert got == accent, f"{theme}: on switch track {got} is not accent-fill {accent}"
-    assert got != green, f"{theme}: on switch track is still the success green {green}"
+    assert accent != green, f"{theme}: the accent fill and the success green resolve to the same colour {accent}"
+    # Retried against the live element: the row re-renders once more as the page's
+    # reads settle, and a one-shot read of a handle can land on the detached copy.
+    expect(track).to_have_css("background-color", accent)
 
 
 def _open_detail(page: Page, base_url: str, unit_id: str) -> None:
