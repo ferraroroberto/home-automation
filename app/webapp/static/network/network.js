@@ -228,9 +228,10 @@ function renderHealth(ap, router) {
 // The Devices tab's Network group: the internet in one line with the
 // connected badge, and the attached devices as a count with the weak ones.
 function renderGroupRows(net) {
-  if (!els.networkInternetMeta) return;
+  if (!els.networkInternetMeta || !els.networkInternetTail) return;
   const internet = net ? net.internet : null;
   const avatar = els.networkInternetAvatar;
+  els.networkInternetTail.textContent = '';
   if (!internet) {
     els.networkInternetMeta.textContent = networkView.state === ViewState.ERROR
       ? 'Unavailable'
@@ -248,7 +249,8 @@ function renderGroupRows(net) {
         icon('arrow-up', 'row-meta-arrow') + '<span class="visually-hidden">Upload </span>' +
         esc(fmtMbps(lastSpeed.up)));
     }
-    els.networkInternetMeta.innerHTML = parts.length ? parts.join(' · ') : 'Online';
+    els.networkInternetMeta.textContent = parts.length ? '' : 'Online';
+    els.networkInternetTail.innerHTML = parts.join(' · ');
     if (avatar) avatar.dataset.badge = 'up';
   }
   const devices = net ? (net.devices || []).filter(function (d) { return !d.hidden; }) : [];

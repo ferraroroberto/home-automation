@@ -59,7 +59,7 @@ function chargingText(sample) {
 function seenText(body) {
   const ts = body.sample && body.sample.ts;
   const ago = ts == null ? null : fmtAgo(ts);
-  return [STATE_WORDS[body.state], ago ? 'data from ' + ago : null].filter(Boolean).join(' · ');
+  return { state: STATE_WORDS[body.state] || '', ago: ago ? 'data from ' + ago : '' };
 }
 
 function showEmpty(message) {
@@ -84,7 +84,9 @@ function renderFigures(body) {
   $('teslaChargingMeta').textContent = charging.meta;
 
   // The avatar badge means alive: the car answered awake at the last check.
-  $('teslaSeen').textContent = seenText(body);
+  const seen = seenText(body);
+  $('teslaSeen').textContent = seen.state;
+  $('teslaSeenAgo').textContent = seen.ago;
   const avatar = $('teslaSeenAvatar');
   if (body.awake === true) avatar.dataset.badge = 'up';
   else delete avatar.dataset.badge;

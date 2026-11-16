@@ -42,7 +42,7 @@ def _network_group_rows_summarise_and_open_the_sheet(
     boot_home(page, base_url)
     page.locator("#tabIot").click()
 
-    expect(page.locator("#networkInternetMeta")).to_have_text("14 ms")
+    expect(page.locator("#networkInternetTail")).to_have_text("14 ms")
     expect(page.locator("#networkInternetAvatar")).to_have_attribute("data-badge", "up")
     expect(page.locator("#networkDevicesMeta")).to_have_text("4 online · 1 weak")
     expect(page.locator("#networkSheet")).to_be_hidden()
@@ -87,7 +87,7 @@ def _network_is_read_once_on_entering_devices_and_polled_only_with_the_sheet_ope
     assert reads == []
 
     page.locator("#tabIot").click()
-    expect(page.locator("#networkInternetMeta")).to_have_text("14 ms")
+    expect(page.locator("#networkInternetTail")).to_have_text("14 ms")
     assert len(reads) == 1
 
     # Sheet closed: time passing reads nothing.

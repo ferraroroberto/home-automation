@@ -180,15 +180,15 @@ let schedulesRead = false;
 let followAlarm = null;
 
 function renderScheduleMeta() {
-  if (!els.blindSchedulesMeta) return;
+  if (!els.blindSchedulesMeta || !els.blindSchedulesTail) return;
   if (!schedulesRead) {
     els.blindSchedulesMeta.textContent = '';
+    els.blindSchedulesTail.textContent = '';
     return;
   }
   const on = state.blindSchedules.filter(function (e) { return e.enabled; }).length;
-  const parts = [state.blindSchedules.length ? on + ' on' : 'None'];
-  if (followAlarm === true) parts.push('follows alarm');
-  els.blindSchedulesMeta.textContent = parts.join(' · ');
+  els.blindSchedulesMeta.textContent = followAlarm === true ? 'Follows alarm' : '';
+  els.blindSchedulesTail.textContent = state.blindSchedules.length ? on + ' on' : 'None';
 }
 
 export function renderBlindSchedules() {

@@ -117,17 +117,21 @@ function satelliteChipHtml(satellite) {
 
 // The Voice satellites row's meta: how many are online, in words.
 function renderSatellitesMeta(rows) {
-  if (!els.haSatellitesMeta) return;
-  if (haViewState === 'loading') els.haSatellitesMeta.textContent = 'Reading…';
-  else if (haViewState === 'error') els.haSatellitesMeta.textContent = 'Unavailable';
-  else if (!rows.length) els.haSatellitesMeta.textContent = 'None found';
+  if (!els.haSatellitesMeta || !els.haSatellitesTail) return;
+  let words = '';
+  let tail = '';
+  if (haViewState === 'loading') words = 'Reading…';
+  else if (haViewState === 'error') words = 'Unavailable';
+  else if (!rows.length) words = 'None found';
   else {
     const online = rows.filter(function (s) { return s.online; }).length;
-    els.haSatellitesMeta.textContent = online === rows.length
+    tail = online === rows.length
       ? online + ' online'
       : online + ' of ' + rows.length + ' online';
-    if (state.haStaleNote) els.haSatellitesMeta.textContent += ' · older reading';
+    if (state.haStaleNote) words = 'Older reading';
   }
+  els.haSatellitesMeta.textContent = words;
+  els.haSatellitesTail.textContent = tail;
 }
 
 function renderSatellites(rows) {
