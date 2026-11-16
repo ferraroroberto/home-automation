@@ -731,6 +731,7 @@ def _network_walk_test_picks_a_device_and_records_a_room(
     expect(row).to_have_class(re.compile("is-weak"))
 
 
+@pytest.mark.own_context  # installs the page clock, which a shared context would keep
 def test_network_devices(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:

@@ -690,6 +690,7 @@ def _recent_interactions_is_hidden_until_there_is_one(
     expect(page.locator("#haSatellitesOpen")).to_be_visible()
 
 
+@pytest.mark.own_context  # installs the page clock, which a shared context would keep
 def test_home_assistant_group(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:

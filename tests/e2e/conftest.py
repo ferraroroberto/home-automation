@@ -44,6 +44,11 @@ on Windows. A test marked ``desktop_only`` opts out of the WebKit run, and
 so does every module listed in ``CHROMIUM_ONLY_MODULES`` (#796) and every test
 marked ``chromium_only`` (#798) — see there.
 
+Loopback sockets: a context outlives the test that asked for it (``_shared_context``),
+and a failure carrying ``ERR_ADDRESS_IN_USE`` is reported as a drained port pool, not a
+page defect (``_port_pool``) — every closed connection to the app leaves a TIME_WAIT
+pair, and Windows fails a connect that lands on one.
+
 ``pytest_sessionfinish`` runs the vendor-verbatim leaked-browser-helper
 sweep (``tests/e2e/_browser_sweep.py``, project-scaffolding #203/#204)
 once the whole session — fixtures included — has torn down, so a run that
@@ -71,7 +76,7 @@ import urllib.request
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import IO, Callable, Dict, Iterator, List, Optional
+from typing import IO, Any, Callable, Dict, Iterator, List, Optional
 
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Playwright, sync_playwright
@@ -87,6 +92,10 @@ from tests.e2e._browser_sweep import (
     sweep_browser_helpers,
 )
 from tests.e2e._e2e_live_guard import require_disposable_instance
+from tests.e2e._port_pool import pytest_runtest_makereport  # noqa: F401 — relabel hook
+from tests.e2e._port_pool import write_summary as port_pool_summary
+from tests.e2e._shared_context import SharedContexts
+from tests.e2e._shared_context import write_summary as shared_context_summary
 from tests.e2e._shot import CHROMIUM_CAPTURE_ARGS
 from tests.e2e._surface import pytest_collection_modifyitems as _deselect_non_capturing
 
@@ -365,6 +374,12 @@ def pytest_configure(config: pytest.Config) -> None:
         "chromium_only: deselect the WebKit projection of this one test (#798) — the "
         "per-test form of CHROMIUM_ONLY_MODULES, for a DOM-state test that lives in a "
         "module that also holds a layout test",
+    )
+    config.addinivalue_line(
+        "markers",
+        "own_context: build this test's browser context fresh instead of sharing the "
+        "projection's (_shared_context) — for context-level state the reset does not "
+        "undo, such as page.clock.install()",
     )
     selected: List[str] = config.option.browser
     if not selected:
@@ -798,6 +813,45 @@ def browser_context_args(browser_context_args: dict, browser_name: str, playwrig
     if browser_name == "webkit":
         args = {**args, **playwright.devices[_IPHONE_DEVICE]}
     return args
+
+
+@pytest.fixture(scope="session")
+def _shared_contexts(browser: Browser) -> SharedContexts:
+    # Rebuilt per projection with `browser`; the contexts close with the browser.
+    return SharedContexts(browser)
+
+
+@pytest.fixture
+def context(
+    request: pytest.FixtureRequest,
+    browser: Browser,
+    _shared_contexts: SharedContexts,
+    browser_context_args: dict,
+    _artifacts_recorder: Any,
+    base_url: str,
+) -> Iterator[BrowserContext]:
+    """The projection's shared context for this test's context arguments (``_shared_context``).
+
+    Replaces pytest-playwright's per-test context. The recorder calls keep
+    ``--tracing`` and ``--screenshot`` working per test on a context that outlives it.
+    A test marked ``own_context`` gets a context of its own, closed afterwards.
+    """
+    marker = next(request.node.iter_markers("browser_context_args"), None)
+    args = {**browser_context_args, **(marker.kwargs if marker else {})}
+    own = request.node.get_closest_marker("own_context") is not None
+    ctx = browser.new_context(**args) if own else _shared_contexts.acquire(args)
+    _artifacts_recorder.on_did_create_browser_context(ctx)
+    yield ctx
+    _artifacts_recorder.on_will_close_browser_context(ctx)
+    if own:
+        ctx.close()
+    else:
+        _shared_contexts.release(ctx, args, base_url)
+
+
+def pytest_terminal_summary(terminalreporter: Any) -> None:
+    shared_context_summary(terminalreporter)
+    port_pool_summary(terminalreporter)
 
 
 @pytest.fixture(autouse=True)

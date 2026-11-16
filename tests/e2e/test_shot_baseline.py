@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Callable, Dict, Iterator, List
+from typing import Callable, Dict, Iterator, List, cast
 
 import pytest
 from playwright.sync_api import Browser, Page, Route, expect
 
+from tests.e2e._shared_context import LeasingBrowser, SharedContexts
 from tests.e2e._shot import Variant, shot, variant_page, variants
 
 pytestmark = pytest.mark.chromium_only
@@ -88,8 +89,10 @@ def variant(request: pytest.FixtureRequest) -> Variant:
 
 
 @pytest.fixture
-def page(browser: Browser, variant: Variant) -> Iterator[Page]:
-    with variant_page(browser, variant) as pinned:
+def page(_shared_contexts: SharedContexts, base_url: str, variant: Variant) -> Iterator[Page]:
+    # Each variant's pinned context is leased, so the four screens captured in it reuse its sockets.
+    leasing = cast(Browser, LeasingBrowser(_shared_contexts, base_url))
+    with variant_page(leasing, variant) as pinned:
         pinned.add_init_script(
             f"try {{ localStorage.setItem({_THEME_KEY!r}, {variant.theme!r}); }} catch (e) {{}}"
         )

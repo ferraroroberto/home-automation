@@ -143,6 +143,39 @@ Steps run as follows:
 - `tests/harness/test_e2e_flow.py` pins the reset, the fresh-fixture copies, the
   WebKit skip and the step name on a failure.
 
+**Loopback sockets.** Every closed TCP connection to the app leaves an (ephemeral
+port, app port) pair in TIME_WAIT for minutes, and Windows fails a `connect()`
+that lands on one with `net::ERR_ADDRESS_IN_USE` instead of trying another port, so
+a run that opens many connections (or a second gate on the same host) fails a
+page that is fine. The harness keeps its share small:
+- **A context outlives its test** (`tests/e2e/_shared_context.py`). `context`
+  (which `page` builds on) is one context per distinct context arguments per
+  projection, reset after every test: pages closed, routes, cookies and
+  permissions cleared, the app origin's local storage and service workers
+  cleared (through a routed scratch page, so the reset opens no socket). A test
+  with its own `browser_context_args` (a phone viewport) gets its own context by
+  that key. The reset cannot undo **context-level** state, so a test that
+  installs the page clock carries `@pytest.mark.own_context` (a fresh context,
+  closed afterwards); `tests/harness/test_e2e_shared_context.py` fails a test
+  file that installs the clock without it. A reset that raises discards the
+  context. `test_shot_baseline.py` leases its pinned variant contexts from the
+  same pool (`LeasingBrowser`), so the four screens of one variant reuse its sockets.
+- **The server already speaks keep-alive**, and the harness's own client is one
+  `/healthz` readiness poll per boot, so there is no per-request client to pool.
+  The serve-from-disk route of the scaffold's `_loopback.py` does not apply: the
+  suite tests its own server.
+- **A drained pool is named** (`tests/e2e/_port_pool.py`). A failure carrying
+  `ERR_ADDRESS_IN_USE` (or Playwright's Node-side `connect ENOBUFS`) leads with
+  `PORT POOL EXHAUSTED`, and the run ends with a section of that name listing the
+  tests: wait a few minutes and re-run, don't debug the page.
+  `tests/harness/test_e2e_port_pool.py` pins both in a child pytest.
+- **Measure before cutting more.** Sample `netstat -ano -p tcp` once a second
+  through a full run and count the distinct loopback `TIME_WAIT` pairs whose
+  server end is a port that began listening during the run (the host's other apps
+  add their own pairs on their own ports). The run summary's `shared contexts:`
+  line says how many contexts were created for how many tests. Never touch the
+  dynamic port range or `TcpTimedWaitDelay` to make room.
+
 **Design inventory.** `tests/e2e/_surface.py` is the
 vendored `surface(page, "<tab>.<surface>")` call: inert in a normal run, but when
 `/design-review home-automation --e2e` (or `measure --e2e`) sets

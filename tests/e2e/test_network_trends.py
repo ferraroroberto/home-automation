@@ -250,6 +250,7 @@ def _nightly_speedtest_switch_is_off_by_default_persists_and_fits_the_phone(
             assert_no_horizontal_overflow(page)
 
 
+@pytest.mark.own_context  # installs the page clock, which a shared context would keep
 def test_network_trends(
     page: Page, base_url: str, request: pytest.FixtureRequest,
 ) -> None:
