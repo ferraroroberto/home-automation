@@ -60,10 +60,10 @@ Walked 2026-11-17 against build `0635828`, at widths 390, 1280, themes light, da
 | [App shell](#app-shell) | 11 |
 | [Home](#home) | 5 |
 | [AC](#ac) | 13 |
-| [Energy](#energy) | 8 |
+| [Energy](#energy) | 9 |
 | [Devices](#devices) | 25 |
 | [Network](#network) | 13 |
-| [Security](#security) | 11 |
+| [Security](#security) | 12 |
 | [Cameras](#cameras) | 8 |
 | [People and presence](#people-and-presence) | 11 |
 | [Settings](#settings) | 13 |
@@ -84,24 +84,24 @@ flowchart LR
   s7["Build readout"]
   s8["Installed app"]
   s9["Push notification"]
-  s115["Sign-in error"]
+  s117["Sign-in error"]
   s10(["Home · Home"])
   s15(["AC · AC"])
   s22(["Energy · Energy"])
-  s25(["Devices · Devices"])
-  s45(["Security · Security"])
-  s65(["Settings · Settings"])
-  s64(["Presence automation sheet · People and presence"])
-  s36(["Network sheet · Network"])
+  s26(["Devices · Devices"])
+  s46(["Security · Security"])
+  s67(["Settings · Settings"])
+  s66(["Presence automation sheet · People and presence"])
+  s37(["Network sheet · Network"])
   s0 -->|"Home"| s10
   s0 -->|"AC"| s15
   s0 -->|"Energy"| s22
-  s0 -->|"Devices"| s25
-  s0 -->|"Security"| s45
-  s1 -->|"gear"| s65
-  s9 -->|"Enable notifications"| s64
+  s0 -->|"Devices"| s26
+  s0 -->|"Security"| s46
+  s1 -->|"gear"| s67
+  s9 -->|"Enable notifications"| s66
   s10 -->|"a scene row"| s3
-  s36 -->|"Reboot"| s3
+  s37 -->|"Reboot"| s3
 ```
 
 ### `app.nav` Section nav
@@ -230,12 +230,12 @@ flowchart LR
   s3(["Confirm dialog · App shell"])
   s16(["Unit sheet · AC"])
   s15(["AC · AC"])
-  s45(["Security · Security"])
+  s46(["Security · Security"])
   s0 -->|"Home"| s10
   s10 -->|"a scene row"| s3
   s10 -->|"a Climate row"| s16
   s10 -->|"All AC units"| s15
-  s10 -->|"an alarm chip"| s45
+  s10 -->|"an alarm chip"| s46
   s10 -->|"Add alarm"| s12
   s10 -->|"Start timer"| s13
   s10 -->|"Add reminder"| s14
@@ -332,12 +332,12 @@ flowchart LR
   s19["Schedules page"]
   s20["Name page"]
   s21["AC schedule editor"]
-  s78["AC loading"]
-  s79["AC empty"]
-  s80["AC unavailable"]
-  s81["AC stale"]
-  s82["Offline unit row"]
-  s83["Offline unit sheet"]
+  s80["AC loading"]
+  s81["AC empty"]
+  s82["AC unavailable"]
+  s83["AC stale"]
+  s84["Offline unit row"]
+  s85["Offline unit sheet"]
   s0(["Section nav · App shell"])
   s10(["Home · Home"])
   s0 -->|"AC"| s15
@@ -495,17 +495,19 @@ flowchart LR
 flowchart LR
   s22["Energy"]
   s23["Chart tooltip"]
-  s24["All figures sheet"]
-  s84["Energy loading"]
-  s85["Energy stale"]
-  s86["Energy unavailable"]
-  s87["PV system empty"]
-  s88["Sun-position check empty"]
+  s24["History filters sheet"]
+  s25["All figures sheet"]
+  s86["Energy loading"]
+  s87["Energy stale"]
+  s88["Energy unavailable"]
+  s89["PV system empty"]
+  s90["Sun-position check empty"]
   s0(["Section nav · App shell"])
-  s72(["Export compensation sheet · Settings"])
+  s74(["Export compensation sheet · Settings"])
   s0 -->|"Energy"| s22
-  s22 -->|"All figures"| s24
-  s22 -->|"Export rate"| s72
+  s22 -->|"Filters & sort"| s24
+  s22 -->|"All figures"| s25
+  s22 -->|"Export rate"| s74
 ```
 
 ### `energy.overview` Energy
@@ -516,10 +518,11 @@ flowchart LR
   - the head with the energy status as its live line
   - an Energy now card, Solar to Home to Grid in one row, then self-sufficiency and self-consumption
   - Today, two meters for what the array made and what the house used, then Saved, CO2 avoided and Export
-  - History, a period select (Live, Day, Week, Month, Year, All) and an Energy or Money switch over one chart
+  - History, one chart with a Filters & sort button (a count of what differs from Day and Energy) and a line naming the period and view
   - Solar forecast, with a Yesterday, Today or Tomorrow switch over a curve and the measured generation
 - **Does:**
   - Money shows the tariff periods, the All figures row and the Export rate row
+  - Filters & sort opens the History filters sheet
   - All figures opens the figures sheet
   - Export rate opens Settings and then the export compensation sheet
 - **States:**
@@ -528,6 +531,7 @@ flowchart LR
   - no history shows an empty line; no PV panel rows shows a line pointing to Settings
 - **Why:** the glance answers whether the house runs on the sun, and the detail sits under it in the order a person asks the questions
 - **Leads to:**
+  - [History filters sheet](#energyhistory-filters-sheet-history-filters-sheet) (Filters & sort)
   - [All figures sheet](#energyenergy-figures-sheet-all-figures-sheet) (All figures)
   - [Export compensation sheet](#energyexport-rate-sheet-export-compensation-sheet) (Export rate)
 
@@ -537,6 +541,18 @@ flowchart LR
 - **Reach:** hovering or tapping a point on the Live, History, forecast or sun-position chart
 - **Holds:** the value at that point, with its time
 - **Does:** follows the pointer and disappears when it leaves
+
+### `energy.history-filters-sheet` History filters sheet
+
+- **Root:** `data-surface`
+- **Reach:** Filters & sort in Energy › History
+- **Holds:**
+  - Period, Live, Day, Week, Month, Year, All
+  - Show, Energy or Money
+  - Clear and Done
+- **Does:** each change redraws the chart as it is made; Clear returns to Day and Energy; Done closes
+- **States:** Money is unavailable while Live is chosen, and Live while Money is
+- **Why:** the period and the view are both filters of one chart, so they share one sheet and one count instead of a second row above it
 
 ### `energy.energy-figures-sheet` All figures sheet
 
@@ -588,46 +604,46 @@ Every local device on one tab: Power, Lights, Blinds, Plugs, Circuits, the Car, 
 
 ```mermaid
 flowchart LR
-  s25["Devices"]
-  s26["UPS sheet"]
-  s27["Light sheet"]
-  s28["Light editor"]
-  s29["Plug editor"]
-  s30["Circuit editor"]
-  s31["Blind schedule sheet"]
-  s32["Blind schedule editor"]
-  s33["Car history sheet"]
-  s34["Voice satellites sheet"]
-  s35["Recent interactions sheet"]
-  s89["Lights empty"]
-  s90["Lights stale"]
-  s91["Lights unavailable"]
-  s92["Plugs stale"]
-  s93["Circuits offline"]
-  s94["Circuit sheet for a meter"]
-  s99["PC fleet machines"]
-  s100["PC fleet unreachable"]
-  s101["Home Assistant VM not found"]
-  s102["Home Assistant VM loading"]
-  s103["Home Assistant VM stale"]
-  s104["Home Assistant VM unavailable"]
-  s116["Plugs empty"]
-  s117["Plugs unavailable"]
+  s26["Devices"]
+  s27["UPS sheet"]
+  s28["Light sheet"]
+  s29["Light editor"]
+  s30["Plug editor"]
+  s31["Circuit editor"]
+  s32["Blind schedule sheet"]
+  s33["Blind schedule editor"]
+  s34["Car history sheet"]
+  s35["Voice satellites sheet"]
+  s36["Recent interactions sheet"]
+  s91["Lights empty"]
+  s92["Lights stale"]
+  s93["Lights unavailable"]
+  s94["Plugs stale"]
+  s95["Circuits offline"]
+  s96["Circuit sheet for a meter"]
+  s101["PC fleet machines"]
+  s102["PC fleet unreachable"]
+  s103["Home Assistant VM not found"]
+  s104["Home Assistant VM loading"]
+  s105["Home Assistant VM stale"]
+  s106["Home Assistant VM unavailable"]
+  s118["Plugs empty"]
+  s119["Plugs unavailable"]
   s0(["Section nav · App shell"])
-  s36(["Network sheet · Network"])
-  s0 -->|"Devices"| s25
-  s25 -->|"the UPS row"| s26
-  s25 -->|"a light row"| s27
-  s25 -->|"a plug row"| s29
-  s25 -->|"a circuit row"| s30
-  s25 -->|"Schedule"| s31
-  s25 -->|"History"| s33
-  s25 -->|"Voice satellites"| s34
-  s25 -->|"Recent interactions"| s35
-  s25 -->|"Internet or Attached devices"| s36
-  s27 -->|"Name and details"| s28
-  s27 -->|"Name and details (a Tuya light)"| s29
-  s31 -->|"a schedule row or Add schedule"| s32
+  s37(["Network sheet · Network"])
+  s0 -->|"Devices"| s26
+  s26 -->|"the UPS row"| s27
+  s26 -->|"a light row"| s28
+  s26 -->|"a plug row"| s30
+  s26 -->|"a circuit row"| s31
+  s26 -->|"Schedule"| s32
+  s26 -->|"History"| s34
+  s26 -->|"Voice satellites"| s35
+  s26 -->|"Recent interactions"| s36
+  s26 -->|"Internet or Attached devices"| s37
+  s28 -->|"Name and details"| s29
+  s28 -->|"Name and details (a Tuya light)"| s30
+  s32 -->|"a schedule row or Add schedule"| s33
 ```
 
 ### `iot.devices` Devices
@@ -874,31 +890,31 @@ One sheet holds the router and access point health, the Wi-Fi diagnostics, the w
 
 ```mermaid
 flowchart LR
-  s36["Network sheet"]
-  s37["Wi-Fi diagnostics card"]
-  s38["Walk test card"]
-  s39["Attached devices card"]
-  s40["DHCP reservation plan card"]
-  s41["Network device editor"]
-  s42["Network group editor"]
-  s43["Wi-Fi radio sheet"]
-  s44["Which device is this"]
-  s95["Network stale"]
-  s96["Network unavailable"]
-  s97["Wi-Fi diagnostics unavailable"]
-  s98["Device with no live link"]
-  s25(["Devices · Devices"])
+  s37["Network sheet"]
+  s38["Wi-Fi diagnostics card"]
+  s39["Walk test card"]
+  s40["Attached devices card"]
+  s41["DHCP reservation plan card"]
+  s42["Network device editor"]
+  s43["Network group editor"]
+  s44["Wi-Fi radio sheet"]
+  s45["Which device is this"]
+  s97["Network stale"]
+  s98["Network unavailable"]
+  s99["Wi-Fi diagnostics unavailable"]
+  s100["Device with no live link"]
+  s26(["Devices · Devices"])
   s3(["Confirm dialog · App shell"])
-  s25 -->|"Internet or Attached devices"| s36
-  s36 -->|"Wi-Fi diagnostics"| s37
-  s36 -->|"Walk test"| s38
-  s36 -->|"Attached devices"| s39
-  s36 -->|"DHCP reservation plan"| s40
-  s36 -->|"Reboot"| s3
-  s37 -->|"a radio row"| s43
-  s38 -->|"Pick device"| s44
-  s39 -->|"a device row"| s41
-  s39 -->|"My groups"| s42
+  s26 -->|"Internet or Attached devices"| s37
+  s37 -->|"Wi-Fi diagnostics"| s38
+  s37 -->|"Walk test"| s39
+  s37 -->|"Attached devices"| s40
+  s37 -->|"DHCP reservation plan"| s41
+  s37 -->|"Reboot"| s3
+  s38 -->|"a radio row"| s44
+  s39 -->|"Pick device"| s45
+  s40 -->|"a device row"| s42
+  s40 -->|"My groups"| s43
 ```
 
 ### `iot.network-sheet` Network sheet
@@ -1040,40 +1056,42 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  s45["Security"]
-  s46["Detector sheet"]
-  s47["Alarm schedules sheet"]
-  s48["Alarm schedule editor"]
-  s49["Scene capture sheet"]
-  s50["Scene pairing editor"]
-  s51["Override sheet"]
-  s52["Override editor"]
-  s105["Security stale"]
-  s106["Security unavailable"]
-  s107["No detector matches"]
+  s46["Security"]
+  s47["Detectors filters sheet"]
+  s48["Detector sheet"]
+  s49["Alarm schedules sheet"]
+  s50["Alarm schedule editor"]
+  s51["Scene capture sheet"]
+  s52["Scene pairing editor"]
+  s53["Override sheet"]
+  s54["Override editor"]
+  s107["Security stale"]
+  s108["Security unavailable"]
+  s109["No detector matches"]
   s0(["Section nav · App shell"])
   s10(["Home · Home"])
-  s53(["Camera sheet · Cameras"])
-  s55(["Camera zoom view · Cameras"])
-  s54(["Live view · Cameras"])
-  s58(["Person sheet · People and presence"])
-  s59(["Accounts sheet · People and presence"])
-  s77(["Activity log · Settings"])
-  s0 -->|"Security"| s45
-  s10 -->|"an alarm chip"| s45
-  s45 -->|"a detector row"| s46
-  s45 -->|"a camera row"| s53
-  s45 -->|"a camera thumbnail"| s55
-  s45 -->|"a camera row's video button"| s54
-  s45 -->|"a person row"| s58
-  s45 -->|"Accounts"| s59
-  s45 -->|"All events"| s77
-  s45 -->|"Schedules"| s47
-  s45 -->|"Scene capture"| s49
-  s45 -->|"Override"| s51
-  s47 -->|"a schedule row or Add schedule"| s48
-  s49 -->|"a pairing row or Add pairing"| s50
-  s51 -->|"an override row or Add override"| s52
+  s55(["Camera sheet · Cameras"])
+  s57(["Camera zoom view · Cameras"])
+  s56(["Live view · Cameras"])
+  s60(["Person sheet · People and presence"])
+  s61(["Accounts sheet · People and presence"])
+  s79(["Activity log · Settings"])
+  s0 -->|"Security"| s46
+  s10 -->|"an alarm chip"| s46
+  s46 -->|"a detector row"| s48
+  s46 -->|"Filters & sort"| s47
+  s46 -->|"a camera row"| s55
+  s46 -->|"a camera thumbnail"| s57
+  s46 -->|"a camera row's video button"| s56
+  s46 -->|"a person row"| s60
+  s46 -->|"Accounts"| s61
+  s46 -->|"All events"| s79
+  s46 -->|"Schedules"| s49
+  s46 -->|"Scene capture"| s51
+  s46 -->|"Override"| s53
+  s49 -->|"a schedule row or Add schedule"| s50
+  s51 -->|"a pairing row or Add pairing"| s52
+  s53 -->|"an override row or Add override"| s54
 ```
 
 ### `security.pane` Security
@@ -1087,7 +1105,7 @@ flowchart LR
   - the alarm card, titled with the state (Not armed, Armed, Arming) and the next scheduled action
   - the arm control, Off, Partial, Perimeter, Full
   - Kids home and Don't arm when away, two switches
-  - Detectors, with a filter, Show all and Show hidden
+  - Detectors, with a filter, a Filters & sort button and Show all
   - Cameras
   - People, with an Accounts row and Show hidden
   - Recent events, the last three, with All events
@@ -1095,6 +1113,7 @@ flowchart LR
 - **Does:**
   - a mode button sets the alarm and the page redraws from the returned state
   - a detector row opens the detector sheet; a camera row opens the camera sheet, its thumbnail zooms the last frame and its trailing video button opens the live view; a person row opens the person sheet
+  - Filters & sort opens the Detectors filters sheet
   - All events opens the activity log
   - each Automations row opens its sheet
 - **States:**
@@ -1103,6 +1122,7 @@ flowchart LR
 - **Why:** the arm control is the same component as Home's, so the alarm is set the same way from both places
 - **Leads to:**
   - [Detector sheet](#securityzone-dialog-detector-sheet) (a detector row)
+  - [Detectors filters sheet](#securityfilters-sheet-detectors-filters-sheet) (Filters & sort)
   - [Camera sheet](#securitycamera-dialog-camera-sheet) (a camera row)
   - [Camera zoom view](#securitycamera-zoom-dialog-camera-zoom-view) (a camera thumbnail)
   - [Live view](#securitycamera-live-dialog-live-view) (a camera row's video button)
@@ -1112,6 +1132,17 @@ flowchart LR
   - [Alarm schedules sheet](#securityschedules-sheet-alarm-schedules-sheet) (Schedules)
   - [Scene capture sheet](#securityscene-pairings-sheet-scene-capture-sheet) (Scene capture)
   - [Override sheet](#securityoverrides-sheet-override-sheet) (Override)
+
+### `security.filters-sheet` Detectors filters sheet
+
+- **Root:** `data-surface`
+- **Reach:** Filters & sort beside the detector filter in Security › Detectors
+- **Holds:**
+  - Show hidden detectors, a switch, with how many are hidden
+  - Clear and Done
+- **Does:** the switch shows or hides the hidden detectors as it is flipped and is remembered on the device; Clear turns it off; Done closes
+- **States:** the button appears only while a detector is hidden, and shows 1 while hidden ones are listed
+- **Why:** showing hidden detectors is a filter of the list, so it sits in the sheet with a count rather than as a second control under the list
 
 ### `security.zone-dialog` Detector sheet
 
@@ -1204,21 +1235,21 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  s53["Camera sheet"]
-  s54["Live view"]
-  s55["Camera zoom view"]
-  s56["Preset name"]
-  s57["Hold to move the camera"]
-  s108["Cameras empty"]
-  s109["Cameras stale"]
-  s110["Cameras unavailable"]
-  s45(["Security · Security"])
-  s45 -->|"a camera row"| s53
-  s45 -->|"a camera thumbnail"| s55
-  s45 -->|"a camera row's video button"| s54
-  s53 -->|"Open live view"| s54
-  s54 -->|"Save a preset"| s56
-  s54 -->|"the pad"| s57
+  s55["Camera sheet"]
+  s56["Live view"]
+  s57["Camera zoom view"]
+  s58["Preset name"]
+  s59["Hold to move the camera"]
+  s110["Cameras empty"]
+  s111["Cameras stale"]
+  s112["Cameras unavailable"]
+  s46(["Security · Security"])
+  s46 -->|"a camera row"| s55
+  s46 -->|"a camera thumbnail"| s57
+  s46 -->|"a camera row's video button"| s56
+  s55 -->|"Open live view"| s56
+  s56 -->|"Save a preset"| s58
+  s56 -->|"the pad"| s59
 ```
 
 ### `security.camera-dialog` Camera sheet
@@ -1305,28 +1336,28 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  s58["Person sheet"]
-  s59["Accounts sheet"]
-  s60["Renew iCloud trust"]
-  s61["Places sheet"]
-  s62["Place editor"]
-  s63["Map picker"]
-  s64["Presence automation sheet"]
-  s111["People empty"]
-  s112["People stale"]
-  s113["People unavailable"]
-  s114["Accounts sheet with a broken account"]
+  s60["Person sheet"]
+  s61["Accounts sheet"]
+  s62["Renew iCloud trust"]
+  s63["Places sheet"]
+  s64["Place editor"]
+  s65["Map picker"]
+  s66["Presence automation sheet"]
+  s113["People empty"]
+  s114["People stale"]
+  s115["People unavailable"]
+  s116["Accounts sheet with a broken account"]
   s9(["Push notification · App shell"])
-  s45(["Security · Security"])
-  s65(["Settings · Settings"])
-  s9 -->|"Enable notifications"| s64
-  s45 -->|"a person row"| s58
-  s45 -->|"Accounts"| s59
-  s59 -->|"Renew trust"| s60
-  s61 -->|"a place row or Add place"| s62
-  s62 -->|"Pick on map"| s63
-  s65 -->|"Places"| s61
-  s65 -->|"Presence automation"| s64
+  s46(["Security · Security"])
+  s67(["Settings · Settings"])
+  s9 -->|"Enable notifications"| s66
+  s46 -->|"a person row"| s60
+  s46 -->|"Accounts"| s61
+  s61 -->|"Renew trust"| s62
+  s63 -->|"a place row or Add place"| s64
+  s64 -->|"Pick on map"| s65
+  s67 -->|"Places"| s63
+  s67 -->|"Presence automation"| s66
 ```
 
 ### `security.presence-dialog` Person sheet
@@ -1450,41 +1481,41 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  s65["Settings"]
-  s66["Alarm notifications"]
-  s67["UPS notifications"]
-  s68["Home location"]
-  s69["PV system sheet"]
-  s70["Panel row editor"]
-  s71["Horizon point editor"]
-  s72["Export compensation sheet"]
-  s73["Solar boost sheet"]
-  s74["Sun-position check"]
-  s75["Search engine sheet"]
-  s76["What can I say"]
-  s77["Activity log"]
+  s67["Settings"]
+  s68["Alarm notifications"]
+  s69["UPS notifications"]
+  s70["Home location"]
+  s71["PV system sheet"]
+  s72["Panel row editor"]
+  s73["Horizon point editor"]
+  s74["Export compensation sheet"]
+  s75["Solar boost sheet"]
+  s76["Sun-position check"]
+  s77["Search engine sheet"]
+  s78["What can I say"]
+  s79["Activity log"]
   s1(["Page head · App shell"])
   s22(["Energy · Energy"])
-  s45(["Security · Security"])
-  s61(["Places sheet · People and presence"])
-  s64(["Presence automation sheet · People and presence"])
-  s1 -->|"gear"| s65
-  s22 -->|"Export rate"| s72
-  s45 -->|"All events"| s77
-  s65 -->|"Alarm"| s66
-  s65 -->|"UPS power"| s67
-  s65 -->|"Home location"| s68
-  s65 -->|"Places"| s61
-  s65 -->|"Presence automation"| s64
-  s65 -->|"PV system"| s69
-  s65 -->|"Export compensation"| s72
-  s65 -->|"Solar boost"| s73
-  s65 -->|"Sun-position check"| s74
-  s65 -->|"Search engine"| s75
-  s65 -->|"What can I say?"| s76
-  s65 -->|"Activity log"| s77
-  s69 -->|"a panel row or Add panel row"| s70
-  s69 -->|"a horizon row or Add horizon point"| s71
+  s46(["Security · Security"])
+  s63(["Places sheet · People and presence"])
+  s66(["Presence automation sheet · People and presence"])
+  s1 -->|"gear"| s67
+  s22 -->|"Export rate"| s74
+  s46 -->|"All events"| s79
+  s67 -->|"Alarm"| s68
+  s67 -->|"UPS power"| s69
+  s67 -->|"Home location"| s70
+  s67 -->|"Places"| s63
+  s67 -->|"Presence automation"| s66
+  s67 -->|"PV system"| s71
+  s67 -->|"Export compensation"| s74
+  s67 -->|"Solar boost"| s75
+  s67 -->|"Sun-position check"| s76
+  s67 -->|"Search engine"| s77
+  s67 -->|"What can I say?"| s78
+  s67 -->|"Activity log"| s79
+  s71 -->|"a panel row or Add panel row"| s72
+  s71 -->|"a horizon row or Add horizon point"| s73
 ```
 
 ### `settings.root` Settings
@@ -1674,6 +1705,7 @@ flowchart LR
 | [Unit sheet](#acunit-sheet-unit-sheet) | Schedules | [Schedules page](#acunit-sheet-schedules-schedules-page) |
 | [Unit sheet](#acunit-sheet-unit-sheet) | Name | [Name page](#acunit-sheet-name-name-page) |
 | [Schedules page](#acunit-sheet-schedules-schedules-page) | a schedule row or Add schedule | [AC schedule editor](#acac-schedule-dialog-ac-schedule-editor) |
+| [Energy](#energyoverview-energy) | Filters & sort | [History filters sheet](#energyhistory-filters-sheet-history-filters-sheet) |
 | [Energy](#energyoverview-energy) | All figures | [All figures sheet](#energyenergy-figures-sheet-all-figures-sheet) |
 | [Energy](#energyoverview-energy) | Export rate | [Export compensation sheet](#energyexport-rate-sheet-export-compensation-sheet) |
 | [Devices](#iotdevices-devices) | the UPS row | [UPS sheet](#iotups-sheet-ups-sheet) |
@@ -1698,6 +1730,7 @@ flowchart LR
 | [Attached devices card](#iotnetwork-attached-devices-attached-devices-card) | a device row | [Network device editor](#iotnet-device-dialog-network-device-editor) |
 | [Attached devices card](#iotnetwork-attached-devices-attached-devices-card) | My groups | [Network group editor](#iotnet-group-dialog-network-group-editor) |
 | [Security](#securitypane-security) | a detector row | [Detector sheet](#securityzone-dialog-detector-sheet) |
+| [Security](#securitypane-security) | Filters & sort | [Detectors filters sheet](#securityfilters-sheet-detectors-filters-sheet) |
 | [Security](#securitypane-security) | a camera row | [Camera sheet](#securitycamera-dialog-camera-sheet) |
 | [Security](#securitypane-security) | a camera thumbnail | [Camera zoom view](#securitycamera-zoom-dialog-camera-zoom-view) |
 | [Security](#securitypane-security) | a camera row's video button | [Live view](#securitycamera-live-dialog-live-view) |

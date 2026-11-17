@@ -18,6 +18,8 @@ import { jsonApi, reportActionFailure } from '../api.js';
 import { renderSecurity } from './security.js';
 import { openActivity } from '../activity.js';
 import { rowEl } from '../row.js';
+import { sheet } from '../sheet.js';
+import { renderFilterTrigger } from '../filter-trigger.js';
 import { toggleMarkup, setToggleState } from '../toggle.js';
 import { icon } from '../_vendored/icons/icons.js';
 import { detailModal } from '../detail-modal.js';
@@ -510,17 +512,28 @@ function renderZonesMeta(listed) {
     : '';
 }
 
+// The Detectors' Filters & sort trigger and its sheet. The one non-default
+// filter is "show hidden" on; with nothing hidden there is nothing to filter,
+// so the trigger (and the count) stay away.
+function renderZoneFilters(hiddenCount) {
+  const showing = state.securityShowHidden && hiddenCount > 0;
+  if (els.securityFiltersOpen) els.securityFiltersOpen.hidden = hiddenCount === 0;
+  renderFilterTrigger(els.securityFiltersOpen, els.securityFiltersBadge,
+    showing ? ['showing ' + hiddenCount + ' hidden'] : []);
+  setToggleState(els.securityHiddenToggle, state.securityShowHidden);
+  if (els.securityFiltersClear) els.securityFiltersClear.disabled = !showing;
+  if (els.securityHiddenHint) {
+    els.securityHiddenHint.textContent = hiddenCount
+      ? hiddenCount + (hiddenCount === 1 ? ' detector is' : ' detectors are') + ' hidden from the list.'
+      : 'No detectors are hidden.';
+  }
+}
+
 export function renderZones() {
   els.securityZones.innerHTML = '';
   const zones = (state.security && state.security.zones) || [];
   const hiddenCount = zones.filter(function (z) { return z.hidden; }).length;
-  if (els.securityHiddenToggle) {
-    els.securityHiddenToggle.hidden = hiddenCount === 0;
-    els.securityHiddenToggle.textContent = state.securityShowHidden
-      ? 'Hide ' + hiddenCount + ' hidden'
-      : 'Show ' + hiddenCount + ' hidden';
-    els.securityHiddenToggle.setAttribute('aria-pressed', state.securityShowHidden ? 'true' : 'false');
-  }
+  renderZoneFilters(hiddenCount);
   if (!zones.length) {
     els.securityZonesNote.hidden = false;
     els.securityZonesNote.textContent = 'No detectors.';
@@ -721,12 +734,24 @@ export function wireZoneDetail() {
 export function wireSecurityHiddenToggle() {
   state.securityShowHidden = showHiddenPref.read();
 
+  function setShowHidden(on) {
+    state.securityShowHidden = on;
+    showHiddenPref.write(on);
+    renderZones();
+  }
+  const filters = sheet(els.securityFiltersSheet, {
+    model: 'instant',
+    closeButton: els.securityFiltersClose,
+    doneButton: els.securityFiltersDone,
+  });
+  if (els.securityFiltersOpen) {
+    els.securityFiltersOpen.addEventListener('click', function () { filters.open(els.securityFiltersOpen); });
+  }
   if (els.securityHiddenToggle) {
-    els.securityHiddenToggle.addEventListener('click', function () {
-      state.securityShowHidden = !state.securityShowHidden;
-      showHiddenPref.write(state.securityShowHidden);
-      renderZones();
-    });
+    els.securityHiddenToggle.addEventListener('click', function () { setShowHidden(!state.securityShowHidden); });
+  }
+  if (els.securityFiltersClear) {
+    els.securityFiltersClear.addEventListener('click', function () { setShowHidden(false); });
   }
   if (els.securityZoneFilter) els.securityZoneFilter.addEventListener('input', renderZones);
   if (els.securityZonesMore) {

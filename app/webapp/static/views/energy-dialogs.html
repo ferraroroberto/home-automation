@@ -1,3 +1,40 @@
+  <!-- Energy › History › Filters & sort: the period and the Energy / Money
+       switch for the one History chart. Instant (each control applies as it
+       changes); Clear returns to Day + Energy, Done closes. The controls keep
+       the ids energy.js reads (historyRange, historyView). -->
+  <dialog data-track-view="energy-history-filters-sheet" data-surface="energy.history-filters-sheet" id="energyHistoryFiltersSheet" class="detail-dialog filter-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Filters &amp; sort</h2>
+        <button data-track="energy.history-filters-sheet-close" id="energyHistoryFiltersClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="filter-sheet-body">
+        <label class="row">
+          <span>Period</span>
+          <select id="historyRange" class="select-native" data-track="energy.history-range">
+            <option value="live">Live</option>
+            <option value="day" selected>Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="year">Year</option>
+            <option value="total">All</option>
+          </select>
+        </label>
+        <div class="row">
+          <span id="historyViewLabel">Show</span>
+          <div class="segmented" id="historyView" role="group" aria-labelledby="historyViewLabel" data-track="energy.history-view">
+            <button type="button" class="segmented-item" aria-pressed="true" data-view="energy">Energy</button>
+            <button type="button" class="segmented-item" aria-pressed="false" data-view="money">Money</button>
+          </div>
+        </div>
+      </div>
+      <div class="detail-actions filter-sheet-actions">
+        <button data-track="energy.history-filters-clear" id="energyHistoryFiltersClear" type="button" class="button-tint">Clear</button>
+        <button data-track="energy.history-filters-done" id="energyHistoryFiltersDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Energy › History › All figures (#883): every figure the Money view
        summarises, for the selected period: the bill estimate and savings, then
        each tariff period's rate, kWh and euros. Read-only, so it only has Done.

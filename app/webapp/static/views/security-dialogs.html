@@ -1,3 +1,29 @@
+  <!-- Security › Detectors › Filters & sort: the one filter beyond the text
+       field, Show hidden. Instant (the list follows the switch); Clear turns
+       it off, Done closes. The switch persists per device, as it did on the
+       old footer button. -->
+  <dialog data-track-view="security-filters-sheet" data-surface="security.filters-sheet" id="securityFiltersSheet" class="detail-dialog filter-sheet">
+    <div class="detail-card">
+      <div class="detail-header">
+        <h2 tabindex="-1" autofocus>Filters &amp; sort</h2>
+        <button data-track="security.filters-sheet-close" id="securityFiltersClose" type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="filter-sheet-body">
+        <div class="row">
+          <span>Show hidden detectors</span>
+          <button data-track="security.show-hidden" id="securityHiddenToggle" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Show hidden detectors" data-testid="detectors-show-hidden-toggle">
+            <span class="knob"></span><span class="toggle-label">OFF</span>
+          </button>
+        </div>
+        <p id="securityHiddenHint" class="muted small detail-hint"></p>
+      </div>
+      <div class="detail-actions filter-sheet-actions">
+        <button data-track="security.filters-clear" id="securityFiltersClear" type="button" class="button-tint">Clear</button>
+        <button data-track="security.filters-done" id="securityFiltersDone" type="button" class="button-primary detail-save-btn">Done</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- The Security tab's Automations (#882): each saved collection is a sheet
        (sheet.js, instant) holding its dense rows; a row's switch saves as it
        changes, and Add / Edit open the staged editor on top. Done closes. -->

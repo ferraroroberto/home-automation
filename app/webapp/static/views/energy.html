@@ -95,30 +95,24 @@
         <p class="muted small group-note" id="genGap" hidden></p>
       </section>
 
-      <!-- History: one period select (six options, so not a segmented
-           control) and an Energy / Money switch over one chart, instead of
-           three cards with two pickers. Live is the last hour of the flow (energy only); Money is
+      <!-- History: one chart and one Filters & sort trigger. The period (six
+           options) and the Energy / Money switch live in the sheet
+           (energy-dialogs.html); the trigger counts what differs from Day +
+           Energy and the head names it, so a narrowed chart never reads as the
+           default. Live is the last hour of the flow (energy only); Money is
            the tariff estimate, its tariff periods as rows, and every figure
            one tap away in the All figures sheet. -->
       <section class="card action-list energy-history" aria-labelledby="energyHistoryTitle">
         <div class="group-head">
           <svg class="icon group-icon" aria-hidden="true"><use href="#i-chart-line"></use></svg>
           <h3 id="energyHistoryTitle" class="group-title">History</h3>
+          <span id="historyMeta" class="group-meta"></span>
+          <button data-track="energy.history-filters" id="historyFiltersOpen" type="button" class="icon-button filter-trigger" aria-haspopup="dialog" aria-label="Filters &amp; sort" title="Filters &amp; sort">
+            <svg class="icon" aria-hidden="true"><use href="#i-sliders-horizontal"></use></svg>
+            <span id="historyFiltersBadge" class="filter-badge" aria-hidden="true" hidden></span>
+          </button>
         </div>
         <div class="energy-history-body">
-          <select id="historyRange" class="select-native history-range" aria-label="History period" data-track="energy.history-range">
-            <option value="live">Live</option>
-            <option value="day" selected>Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-            <option value="year">Year</option>
-            <option value="total">All</option>
-          </select>
-          <div class="segmented" id="historyView" role="group" aria-label="History shows" data-track="energy.history-view">
-            <button type="button" class="segmented-item" aria-pressed="true" data-view="energy">Energy</button>
-            <button type="button" class="segmented-item" aria-pressed="false" data-view="money">Money</button>
-          </div>
-
           <div id="historyLive" class="history-view" hidden>
             <div class="chart-wrap chart-wrap-live"><canvas id="liveChart"></canvas></div>
             <p id="liveMeta" class="muted small history-note"></p>

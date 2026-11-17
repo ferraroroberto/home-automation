@@ -85,6 +85,49 @@
    look is the vendored .button-tint. */
 .sheet-add { width: 100%; margin-top: 10px; }
 
+/* Filters & sort sheet (design.md "one sheet, named Filters & sort"): the
+   title and the footer stay put while the body scrolls, so the footer's Done
+   is reachable at 390x664 whatever the sheet holds. The dialog already caps its
+   height to the viewport (modal.css); the card fills that cap as a column and
+   only the body scrolls. */
+.filter-sheet { overflow: hidden; }
+.filter-sheet .detail-card {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+  min-height: 0;
+}
+.filter-sheet .detail-header { flex: none; }
+.filter-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.filter-sheet .detail-actions { flex: none; }
+/* Clear beside Done: Clear keeps its natural width, Done takes the rest. */
+.filter-sheet-actions { display: flex; align-items: center; gap: var(--space-sm); }
+.filter-sheet-actions .detail-save-btn { width: auto; flex: 1 1 auto; }
+.filter-sheet-actions .button-tint { flex: none; }
+.filter-sheet .row .segmented { flex: none; }
+
+/* The trigger of a Filters & sort sheet: the vendored icon-button plus a count
+   of the active non-default filters pinned to its corner. Nothing is drawn
+   while none is active. */
+.filter-trigger { position: relative; flex: none; }
+.filter-badge {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--accent-fg);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+.filter-badge[hidden] { display: none; }
+
 /* Detail-modal Save footer: settings stage locally and commit only in
    the vendored modal's sticky .detail-actions, whose one full-width
    .button-primary is disabled until something changes (button.css owns the

@@ -465,10 +465,11 @@ surfaces:
       - the head with the energy status as its live line
       - an Energy now card, Solar to Home to Grid in one row, then self-sufficiency and self-consumption
       - Today, two meters for what the array made and what the house used, then Saved, CO2 avoided and Export
-      - History, a period select (Live, Day, Week, Month, Year, All) and an Energy or Money switch over one chart
+      - History, one chart with a Filters & sort button (a count of what differs from Day and Energy) and a line naming the period and view
       - Solar forecast, with a Yesterday, Today or Tomorrow switch over a curve and the measured generation
     does:
       - Money shows the tariff periods, the All figures row and the Export rate row
+      - Filters & sort opens the History filters sheet
       - All figures opens the figures sheet
       - Export rate opens Settings and then the export compensation sheet
     states:
@@ -477,6 +478,8 @@ surfaces:
       - no history shows an empty line; no PV panel rows shows a line pointing to Settings
     why: the glance answers whether the house runs on the sun, and the detail sits under it in the order a person asks the questions
     links:
+      - to: energy.history-filters-sheet
+        via: Filters & sort
       - to: energy.energy-figures-sheet
         via: All figures
       - to: energy.export-rate-sheet
@@ -492,6 +495,21 @@ surfaces:
       - the value at that point, with its time
     does:
       - follows the pointer and disappears when it leaves
+  - id: energy.history-filters-sheet
+    area: energy
+    title: History filters sheet
+    root: data-surface
+    reach:
+      - Filters & sort in Energy › History
+    holds:
+      - Period, Live, Day, Week, Month, Year, All
+      - Show, Energy or Money
+      - Clear and Done
+    does:
+      - each change redraws the chart as it is made; Clear returns to Day and Energy; Done closes
+    states:
+      - Money is unavailable while Live is chosen, and Live while Money is
+    why: the period and the view are both filters of one chart, so they share one sheet and one count instead of a second row above it
   - id: energy.energy-figures-sheet
     area: energy
     title: All figures sheet
@@ -836,7 +854,7 @@ surfaces:
       - the alarm card, titled with the state (Not armed, Armed, Arming) and the next scheduled action
       - the arm control, Off, Partial, Perimeter, Full
       - Kids home and Don't arm when away, two switches
-      - Detectors, with a filter, Show all and Show hidden
+      - Detectors, with a filter, a Filters & sort button and Show all
       - Cameras
       - People, with an Accounts row and Show hidden
       - Recent events, the last three, with All events
@@ -844,6 +862,7 @@ surfaces:
     does:
       - a mode button sets the alarm and the page redraws from the returned state
       - a detector row opens the detector sheet; a camera row opens the camera sheet, its thumbnail zooms the last frame and its trailing video button opens the live view; a person row opens the person sheet
+      - Filters & sort opens the Detectors filters sheet
       - All events opens the activity log
       - each Automations row opens its sheet
     states:
@@ -853,6 +872,8 @@ surfaces:
     links:
       - to: security.zone-dialog
         via: a detector row
+      - to: security.filters-sheet
+        via: Filters & sort
       - to: security.camera-dialog
         via: a camera row
       - to: security.camera-zoom-dialog
@@ -871,6 +892,20 @@ surfaces:
         via: Scene capture
       - to: security.overrides-sheet
         via: Override
+  - id: security.filters-sheet
+    area: security
+    title: Detectors filters sheet
+    root: data-surface
+    reach:
+      - Filters & sort beside the detector filter in Security › Detectors
+    holds:
+      - Show hidden detectors, a switch, with how many are hidden
+      - Clear and Done
+    does:
+      - the switch shows or hides the hidden detectors as it is flipped and is remembered on the device; Clear turns it off; Done closes
+    states:
+      - the button appears only while a detector is hidden, and shows 1 while hidden ones are listed
+    why: showing hidden detectors is a filter of the list, so it sits in the sheet with a count rather than as a second control under the list
   - id: security.zone-dialog
     area: security
     title: Detector sheet
