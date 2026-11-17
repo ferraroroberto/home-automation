@@ -1,5 +1,5 @@
     <!-- ============================== HOME =============================== -->
-    <section id="paneHome" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
+    <section id="paneHome" data-surface="home.cards" class="pane" role="tabpanel" aria-labelledby="tabHome" aria-label="Home">
       <!-- Page header (#779): every pane opens with the vendored home-head —
            the tab's title, the theme toggle and the Settings gear. Home's live
            line is the weather (#885, decision 2 of #872): a dashboard tab's
@@ -146,7 +146,7 @@
           <svg class="icon group-icon" aria-hidden="true"><use href="#i-clock"></use></svg>
           <h3 id="nextUpTitle" class="group-title">Next up</h3>
         </div>
-        <div id="wakeRingingBanner" class="wake-ringing-banner" role="alert" hidden></div>
+        <div id="wakeRingingBanner" data-surface="home.wake-ringing" class="wake-ringing-banner" role="alert" hidden></div>
         <ul id="wakeAlarmsList" class="action-rows" aria-label="Wake alarms"></ul>
         <ul id="wakeTimersList" class="action-rows" aria-label="Timers"></ul>
         <ul id="remindersList" class="action-rows" aria-label="Reminders"></ul>

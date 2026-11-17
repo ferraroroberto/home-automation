@@ -4,7 +4,7 @@
        walk test, the attached devices and the address reservation plan.
        #networkBody carries its own data-state, so a read in flight or
        failed hides only these cards. -->
-  <dialog data-track-view="network-sheet" id="networkSheet" class="detail-dialog network-sheet">
+  <dialog data-track-view="network-sheet" data-surface="iot.network-sheet" id="networkSheet" class="detail-dialog network-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Network</h2>
@@ -62,7 +62,7 @@
           </section>
         </section>
 
-        <details class="card card--collapsible net-wifi-card">
+        <details class="card card--collapsible net-wifi-card" data-surface="iot.network-wifi-diagnostics">
           <summary data-track="network.wifi-diagnostics" class="collapse-summary">
             <span class="collapse-main">
               <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-wifi"></use></svg>
@@ -101,7 +101,7 @@
              coverage where *you* are: no browser on any platform exposes Wi-Fi
              telemetry, so the phone is the probe and the AP/router is the meter —
              you pick this device once, then record a sample per room. -->
-        <details class="card card--collapsible net-survey-card" id="netSurveyCard">
+        <details class="card card--collapsible net-survey-card" id="netSurveyCard" data-surface="iot.network-walk-test">
           <summary data-track="network.walk-test" class="collapse-summary">
             <span class="collapse-main">
               <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
@@ -140,7 +140,7 @@
           </div>
         </details>
 
-        <details class="card card--collapsible net-devices-card">
+        <details class="card card--collapsible net-devices-card" data-surface="iot.network-attached-devices">
           <summary data-track="network.attached-devices" class="collapse-summary">
             <span class="collapse-main">
               <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-monitor-smartphone"></use></svg>
@@ -185,7 +185,7 @@
              by category, marking each row reserved / create / change against the
              router's bindings. Lazy-loads on open. "Apply plan" is a confirm-gated
              write of the create/change rows to the router (never automatic). -->
-        <details class="card card--collapsible net-dhcp-card" id="netDhcpCard">
+        <details class="card card--collapsible net-dhcp-card" id="netDhcpCard" data-surface="iot.network-dhcp-plan">
           <summary data-track="network.dhcp-plan" class="collapse-summary">
             <span class="collapse-main">
               <svg class="icon collapse-icon" aria-hidden="true"><use href="#i-router"></use></svg>
@@ -255,7 +255,7 @@
        detector/plug rename dialogs; surfaces the read-only identity the AP
        reports (vendor, IP, band, signal, link rate, SSID) plus the MAC, so a
        custom label can be matched back to the physical device. -->
-  <dialog data-track-view="net-device-dialog" id="netDeviceDialog" class="detail-dialog">
+  <dialog data-track-view="net-device-dialog" data-surface="iot.net-device-dialog" id="netDeviceDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="netDeviceDetailName">Device</h2>
@@ -324,7 +324,7 @@
        group header in the "My groups" view; never shown for Unclassified, which
        is synthetic. Deleting only drops the assignments — its devices fall back
        to Unclassified, none are lost. -->
-  <dialog data-track-view="net-group-dialog" id="netGroupDialog" class="detail-dialog">
+  <dialog data-track-view="net-group-dialog" data-surface="iot.net-group-dialog" id="netGroupDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="netGroupDialogTitle">Group</h2>
@@ -352,7 +352,7 @@
 
   <!-- Wi-Fi radio detail + rename/hide modal. BSSID is the stable key when
        present; SSID fallback is shown only for scan rows without a BSSID. -->
-  <dialog data-track-view="net-wifi-dialog" id="netWifiDialog" class="detail-dialog">
+  <dialog data-track-view="net-wifi-dialog" data-surface="iot.net-wifi-dialog" id="netWifiDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="netWifiDetailName">Wi-Fi</h2>
@@ -390,7 +390,7 @@
        browsing device on its own: over Tailscale every client arrives from a
        100.x address, so there is nothing to map back to a LAN MAC. You pick
        yourself once and the choice is remembered in this browser. -->
-  <dialog data-track-view="net-survey-dialog" id="netSurveyDialog" class="detail-dialog">
+  <dialog data-track-view="net-survey-dialog" data-surface="iot.net-survey-dialog" id="netSurveyDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Which device is this?</h2>

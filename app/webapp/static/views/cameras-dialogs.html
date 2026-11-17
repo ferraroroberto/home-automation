@@ -1,5 +1,5 @@
   <!-- Camera detail: last snapshot (taken on open) + rename + open live view. -->
-  <dialog data-track-view="camera-dialog" id="cameraDialog" class="detail-dialog">
+  <dialog data-track-view="camera-dialog" data-surface="security.camera-dialog" id="cameraDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="cameraDetailName">Camera</h2>
@@ -27,7 +27,7 @@
   </dialog>
 
   <!-- Full-screen live view: MJPEG stream + PTZ d-pad + snapshot + record. -->
-  <dialog data-track-view="camera-live-dialog" id="cameraLiveDialog" class="detail-dialog camera-live-dialog">
+  <dialog data-track-view="camera-live-dialog" data-surface="security.camera-live-dialog" id="cameraLiveDialog" class="detail-dialog camera-live-dialog">
     <div class="detail-card camera-live-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="cameraLiveName">Camera</h2>
@@ -81,7 +81,7 @@
   </dialog>
 
   <!-- Snapshot zoom: the persisted last frame at full size (issue #190). -->
-  <dialog data-track-view="camera-zoom-dialog" id="cameraZoomDialog" class="detail-dialog camera-zoom-dialog">
+  <dialog data-track-view="camera-zoom-dialog" data-surface="security.camera-zoom-dialog" id="cameraZoomDialog" class="detail-dialog camera-zoom-dialog">
     <div class="detail-card camera-zoom-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="cameraZoomName">Camera</h2>
@@ -95,7 +95,7 @@
        dialog instead of a native window.prompt() — every other rename/create
        flow in the PWA already goes through a styled <dialog>, this was the
        one holdout. Title + initial value are set per-open in JS. -->
-  <dialog data-track-view="camera-preset-name-dialog" id="cameraPresetNameDialog" class="detail-dialog">
+  <dialog data-track-view="camera-preset-name-dialog" data-surface="security.camera-preset-name-dialog" id="cameraPresetNameDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="cameraPresetNameTitle">Preset name</h2>

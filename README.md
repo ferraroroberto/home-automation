@@ -166,6 +166,7 @@ One line per feature; the reference for each (behaviour, config, endpoints, inva
 | Home scenes: one-tap Leave / Arrive / Night (blinds, AC, alarm) | [`docs/home-scenes.md`](docs/home-scenes.md) |
 | Generalized action alias (Stream Deck and similar callers) | [`docs/action-alias.md`](docs/action-alias.md) |
 | Tests: backend suite, browser e2e, runtime budgets | [`docs/testing.md`](docs/testing.md) · [`docs/playwright-ui-testing.md`](docs/playwright-ui-testing.md) |
+| Every screen, sheet, dialog and state, with its `data-surface` id (map source `docs/ux-surfaces.yaml`, generated page) | [`docs/ux-surface-map.md`](docs/ux-surface-map.md) |
 | Module-by-module inventory and the structure diagram | [`docs/architecture.md`](docs/architecture.md) · [`docs/architecture.mmd`](docs/architecture.mmd) |
 
 ## CLI

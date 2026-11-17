@@ -2,7 +2,7 @@
        alarm rows, the same denseListEditor shell as reminderDialog: Save is the
        only persistence boundary. Replaces the inline cards that saved on every
        keystroke (#304). -->
-  <dialog data-track-view="wake-alarm-dialog" id="wakeAlarmDialog" class="detail-dialog">
+  <dialog data-track-view="wake-alarm-dialog" data-surface="home.wake-alarm-dialog" id="wakeAlarmDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="wakeAlarmEditorTitle">Wake alarm</h2>
@@ -50,7 +50,7 @@
   <!-- Timer sheet (#885) — Next up's Start timer: a preset or a number of
        minutes starts one at once (instant), and the sheet closes onto the
        running row. Timers are ephemeral, never saved. -->
-  <dialog data-track-view="wake-timer-sheet" id="wakeTimerSheet" class="detail-dialog">
+  <dialog data-track-view="wake-timer-sheet" data-surface="home.wake-timer-sheet" id="wakeTimerSheet" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Timer</h2>
@@ -75,7 +75,7 @@
 
   <!-- Reminder add/edit dialog (issue #314) — staged editor for the Home tab's
        Next up reminder rows, same denseListEditor shell as securityScheduleDialog. -->
-  <dialog data-track-view="reminder-dialog" id="reminderDialog" class="detail-dialog">
+  <dialog data-track-view="reminder-dialog" data-surface="home.reminder-dialog" id="reminderDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="reminderEditorTitle">Reminder</h2>

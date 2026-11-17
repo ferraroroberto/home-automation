@@ -1,7 +1,7 @@
   <!-- Reusable confirm modal (issue #129): a styled <dialog> for deliberate,
        destructive-ish actions — currently the AP reboot, reused by the Phase-3
        router reboot. Title + message + commit are set per-open in JS. -->
-  <dialog data-track-view="confirm-dialog" id="confirmDialog" class="detail-dialog confirm-dialog">
+  <dialog data-track-view="confirm-dialog" data-surface="shared.confirm-dialog" id="confirmDialog" class="detail-dialog confirm-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="confirmTitle">Confirm</h2>
@@ -18,7 +18,7 @@
   <!-- Activity / telemetry overlay (#289): the unified, filterable event history,
        opened from the Home "Activity log" button. Read-only; rows come from
        GET /api/activity filtered server-side by the domain/type selectors. -->
-  <dialog data-track-view="activity-dialog" id="activityDialog" class="detail-dialog activity-dialog">
+  <dialog data-track-view="activity-dialog" data-surface="shared.activity-dialog" id="activityDialog" class="detail-dialog activity-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus><svg class="icon title-icon" aria-hidden="true"><use href="#i-scroll-text"></use></svg>Activity log</h2>

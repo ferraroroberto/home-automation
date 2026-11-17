@@ -1,7 +1,7 @@
   <!-- The Security tab's Automations (#882): each saved collection is a sheet
        (sheet.js, instant) holding its dense rows; a row's switch saves as it
        changes, and Add / Edit open the staged editor on top. Done closes. -->
-  <dialog data-track-view="security-schedules-sheet" id="securitySchedulesSheet" class="detail-dialog security-automation-sheet">
+  <dialog data-track-view="security-schedules-sheet" data-surface="security.schedules-sheet" id="securitySchedulesSheet" class="detail-dialog security-automation-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Schedules</h2>
@@ -17,7 +17,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="scene-pairings-sheet" id="scenePairingsSheet" class="detail-dialog security-automation-sheet">
+  <dialog data-track-view="scene-pairings-sheet" data-surface="security.scene-pairings-sheet" id="scenePairingsSheet" class="detail-dialog security-automation-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Scene capture</h2>
@@ -33,7 +33,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="security-overrides-sheet" id="securityOverridesSheet" class="detail-dialog security-automation-sheet">
+  <dialog data-track-view="security-overrides-sheet" data-surface="security.overrides-sheet" id="securityOverridesSheet" class="detail-dialog security-automation-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Override</h2>
@@ -49,7 +49,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="security-override-dialog" id="securityOverrideDialog" class="detail-dialog">
+  <dialog data-track-view="security-override-dialog" data-surface="security.override-dialog" id="securityOverrideDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="securityOverrideEditorTitle">Override</h2>
@@ -79,7 +79,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="scene-pairing-dialog" id="scenePairingDialog" class="detail-dialog">
+  <dialog data-track-view="scene-pairing-dialog" data-surface="security.scene-pairing-dialog" id="scenePairingDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="scenePairingEditorTitle">Scene pairing</h2>
@@ -113,7 +113,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="security-schedule-dialog" id="securityScheduleDialog" class="detail-dialog">
+  <dialog data-track-view="security-schedule-dialog" data-surface="security.schedule-dialog" id="securityScheduleDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="securityScheduleEditorTitle">Schedule</h2>
@@ -150,7 +150,7 @@
   <!-- Detector (RISCO zone) detail + rename modal (issue #84). Mirrors the
        plug rename dialog; also surfaces the read-only per-detector data the
        cloud exposes (type, status, generic trouble flag). -->
-  <dialog data-track-view="zone-dialog" id="zoneDialog" class="detail-dialog">
+  <dialog data-track-view="zone-dialog" data-surface="security.zone-dialog" id="zoneDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="zoneDetailName">Detector</h2>

@@ -3,7 +3,7 @@
        the one primary is Done. The main page holds what is used daily (the
        setpoint, power, mode, fan); the rarer settings are rows that open a
        page of this same sheet, with a back button in the header. -->
-  <dialog data-track-view="ac-detail" id="detailDialog" class="detail-dialog unit-sheet">
+  <dialog data-track-view="ac-detail" data-surface="ac.unit-sheet" id="detailDialog" class="detail-dialog unit-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <button data-track="ac.detail-back" id="detailBack" type="button" class="icon-button detail-close unit-sheet-back" aria-label="Back" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
@@ -89,7 +89,7 @@
         </ul>
       </div>
 
-      <div class="unit-sheet-page" data-page="vanes" data-title="Vanes" hidden>
+      <div class="unit-sheet-page" data-surface="ac.unit-sheet-vanes" data-page="vanes" data-title="Vanes" hidden>
         <label class="row" id="detailVaneVerticalRow" hidden>
           <span>Vertical</span>
           <select data-track="ac.detail-vane-vertical" id="detailVaneVertical" class="select-native"></select>
@@ -103,7 +103,7 @@
       <!-- Dynamic-setpoint rule: hold a desired ROOM temperature by nudging
            the unit's own (unreliable) setpoint each interval. Never powers the
            unit on/off. Cool/heat targets; the active one follows current mode. -->
-      <div class="unit-sheet-page" data-page="rule" data-title="Temperature rule" hidden>
+      <div class="unit-sheet-page" data-surface="ac.unit-sheet-rule" data-page="rule" data-title="Temperature rule" hidden>
         <div class="row">
           <span>Enabled</span>
           <button data-track="ac.rule-enabled" id="ruleEnabled" type="button" class="toggle" role="switch" aria-checked="false" aria-label="Enable temperature rule">
@@ -136,14 +136,14 @@
 
       <!-- Schedules: a dense collection (design.md): one summary row per
            entry with its switch, and Add / Edit open the staged editor. -->
-      <div class="unit-sheet-page" data-page="schedules" data-title="Schedules" hidden>
+      <div class="unit-sheet-page" data-surface="ac.unit-sheet-schedules" data-page="schedules" data-title="Schedules" hidden>
         <ul id="schedList" class="action-rows sheet-rows" aria-label="Schedules"></ul>
         <p id="schedNote" class="muted small schedule-empty" hidden>No schedules yet.</p>
         <button data-track="ac.sched-add" id="schedAdd" type="button" class="button-tint sheet-add" aria-haspopup="dialog">+ Add schedule</button>
         <p class="muted small detail-hint">Each runs once a day. An Off entry only turns the unit off.</p>
       </div>
 
-      <div class="unit-sheet-page" data-page="name" data-title="Name" hidden>
+      <div class="unit-sheet-page" data-surface="ac.unit-sheet-name" data-page="name" data-title="Name" hidden>
         <label class="row">
           <span>Display name</span>
           <input id="detailDisplayName" type="text" class="input-native" placeholder="Custom label…">
@@ -160,7 +160,7 @@
   <!-- AC schedule add/edit dialog (#881): the staged dense-collection editor
        (dense-editor.js) every schedule in the app uses. Save is the only
        persistence boundary; ×, Esc and the backdrop discard. -->
-  <dialog data-track-view="ac-schedule-dialog" id="acScheduleDialog" class="detail-dialog">
+  <dialog data-track-view="ac-schedule-dialog" data-surface="ac.ac-schedule-dialog" id="acScheduleDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="acScheduleEditorTitle">Schedule</h2>
