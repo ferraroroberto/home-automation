@@ -1,0 +1,1715 @@
+# UX surface map: the single source for docs/ux-surface-map.md.
+#
+# Every screen, drill-in, menu, sheet, dialog, popover, Settings row, state, gesture and key a person can
+# reach in the Home Automation webapp, one entry per surface. The convention is project-scaffolding's
+# docs/ux-surface-map.md. Edit this file, never the generated page; then run `python scripts/ux_surface_map.py`.
+#
+# A change that adds, removes, renames or reshapes a user-visible surface updates its entry here in the same
+# change, adds or removes the matching `data-surface` attribute in the code, and regenerates the page.
+
+app: home-automation
+
+notes: |
+  The checklist of everything a person can see and do in the Home Automation webapp: every tab, sheet, editor, dialog and Settings row, with how it is reached, what is on it, what each control does and the decision behind it where one exists. It is a single-page app served at `/`: six panes in `main.app` and about fifty `<dialog>` sheets appended to the page. This page is the exhaustive index, so a layout change can check every surface and not only the ones a reviewer happens to open. The behaviour a surface only links to lives in its own doc under `docs/`.
+
+  **Keeping it true.** A change that adds, removes, renames or reshapes a user-visible surface updates its entry in `docs/ux-surfaces.yaml` in the same change, with the entry's *why* when the choice was deliberate, and regenerates this page with `python scripts/ux_surface_map.py`; this page is never edited by hand. The rule is in `CLAUDE.md`.
+
+  **Ids.** `<area>.<surface>`, lowercase words joined by `.` or `-`, the same form the e2e `surface(page, "<id>")` hook takes. An id never changes when a title is reworded, and one id names one surface. The surface's root element carries the same id as `data-surface`; `scripts/ux_surface_ratchet.py` fails a surface root without an id, an id without an entry, an entry no element carries, an id on two roots, a link to an id with no entry and a page that is not what the map generates. It reads markup and JS, so the entries marked `none` and every state with no root of its own are held by this map and the e2e walk alone.
+
+  ## Ground rules
+
+  **Five tabs, one gear.** The nav is Home · AC · Energy · Devices · Security. Settings is not a tab: the gear in every page head opens its pane, and choosing any tab leaves it. The stored tab is never Settings, so a reload from Settings reopens the last real tab. Older stored tab names (Plugs, Lights, Network) fold into Devices.
+
+  **Layout bands.** One markup, two placements. On a phone and in an installed PWA the nav is a floating bottom pill; on a desktop window it is a segmented bar pinned to the top. Every pane opens with the same head (title, one live line, theme toggle, Settings gear) and then a column of cards.
+
+  **Two sheet models.** Every sheet is a native `<dialog>`. An *instant* sheet (a device or a settings sheet) applies each change as it is made, with a toast, and its one footer primary is **Done**, which only closes. A *staged* sheet (an editor of one saved item: a schedule, a name, a place) saves only on **Save**; × , Esc and a tap on the backdrop discard it. Closing any sheet returns focus to the control that opened it.
+
+  **Row anatomy.** Every device, unit, detector and person is one shared row: a leading avatar, a one-line title, at most one muted meta line, and one trailing item (a switch, a value or a verb group). The row's main area opens the item's sheet; the trailing item acts without opening it.
+
+  **Gating.** A group appears only when it has something to show: Blinds, Plugs and the Car card stay hidden until the devices exist (Car: until the vehicle service is configured), Home Assistant's Interactions row hides when nothing was collected, Cameras and People show their own empty line. A group that cannot read shows its last good figures marked stale, or an unreachable line, never a blank card.
+
+  **View states.** Every group that reads from a device follows one model, stamped as `data-state` on its pane or list: loading, ready, empty (nothing configured), error (the read failed and nothing earlier exists, shown as a message with a Retry button) and stale (the read failed but a saved copy exists, shown with a *Last updated … · live data unavailable* note and its writes disabled). Those renderings are the `… loading`, `… empty`, `… unavailable` and `… stale` entries below.
+
+  **Where state lives.** Per-device choices live in `localStorage`: theme, text size, the last tab, the show-hidden switches. Everything else is read from `/api/*`. The token for a remote device lives in the browser after sign-in.
+
+  **Reading the diagrams.** Every row-level surface is reached from a tab; a sheet reached from a Settings row can also be reached from the tab it concerns (the Energy tab's Export rate row opens Settings and then that row's sheet).
+
+  ## Keyboard
+
+  | Key | Does |
+  | --- | --- |
+  | Esc | closes the open sheet; a staged sheet discards |
+  | Enter | in a name field, saves the staged sheet |
+  | Tab / Shift+Tab | moves between controls; the nav tabs use the arrow keys |
+
+  ## Empty, error and loading states
+
+  | Where | State | What shows |
+  | --- | --- | --- |
+  | Any tab | server unreachable or a read failing | the page head's live line and the group's own note say so; last good figures stay, marked stale |
+  | Any tab | not signed in (remote device) | the sign-in sheet over the page |
+  | AC, Devices | no devices | the group states it has none |
+  | Energy | no history yet | *No history yet — samples accrue while the app runs.* |
+  | Energy | no PV panel rows | the forecast is empty with a line pointing to Settings › PV system |
+  | Security | panel unreachable | a *Panel unreachable* chip on Home and the state line on Security |
+
+  ## Where this map was checked
+
+  Walked on a disposable instance started by the repo's own synthetic boot (`scripts/design_review_synthetic.py`: every automation engine off, every runtime database in a temp directory, every credential blank, a sample-config-only copy of the checkout) in one paced browser at 390 by 844 in light and dark: all five tabs, Settings and twelve sheets were opened, and the running page carried every stamped id but the update banner, which only a newer build raises. That instance reaches no device, so it shows the error states; the populated views were checked against the e2e suite's stubbed fixture shots (`tests/e2e/shots`) and the entries' `states` against `tests/e2e` names, so nothing here comes from the household's real devices. Not driven live, only read from the code: a real camera pan, the iCloud trust code round trip, a real router reboot and the push-notification permission prompt (each needs a device or an account this instance never reaches).
+
+walk:
+  date: 2026-11-17
+  build: 0635828
+  widths: [390, 1280]
+  themes: [light, dark]
+
+areas:
+  - id: app
+    title: App shell
+    notes: |
+      What every tab shares: the nav, the page head, the toast, the confirm dialog, the update banner and the sign-in sheet.
+  - id: home
+    title: Home
+    notes: |
+      The default tab. A glance at whether the house is fine, the three scenes, the climate rows and the time-led list of alarms, timers and reminders.
+  - id: ac
+    title: AC
+  - id: energy
+    title: Energy
+  - id: devices
+    title: Devices
+    notes: |
+      Every local device on one tab: Power, Lights, Blinds, Plugs, Circuits, the Car, Home Assistant and Network.
+  - id: network
+    title: Network
+    notes: |
+      One sheet holds the router and access point health, the Wi-Fi diagnostics, the walk test, the attached devices and the DHCP plan; each is a collapsible card, and the editors open over it.
+  - id: security
+    title: Security
+  - id: cameras
+    title: Cameras
+  - id: presence
+    title: People and presence
+  - id: settings
+    title: Settings
+    notes: |
+      | Group | Row | Opens |
+      | --- | --- | --- |
+      | Display | **Text size** | in place: Small, Default, Large (this device only) |
+      | Notifications | **Alarm** · **UPS power** | the notification switches |
+      | Home & people | **Home location** · **Places** · **Presence automation** | the home position editor, the places sheet, the presence automation sheet |
+      | Energy | **PV system** · **Export compensation** · **Solar boost** · **Sun-position check** | the panel rows and horizon, the export rates, the boost coordinator, the sun check |
+      | Voice | **Search engine** · **What can I say?** | the search engine sheet, the voice commands sheet |
+      | Diagnostics | **Activity log** · **Record navigation log** | the activity log; the navigation log switch is in place |
+
+surfaces:
+  # ---------------------------------------------------------------- app
+  - id: app.nav
+    area: app
+    title: Section nav
+    root: data-surface
+    reach:
+      - always on screen except under an open sheet
+    holds:
+      - five tabs in order, Home, AC, Energy, Devices, Security, each with an icon and a label
+      - a count badge on a tab that needs attention (a tab with a danger count paints it in the danger fill)
+    does:
+      - a tap switches tab and remembers it for the next visit
+      - the arrow keys move between tabs
+    phone: a floating bottom pill with a sliding active capsule
+    desktop: a segmented bar pinned to the top of the page
+    why: six destinations would not fit a bottom bar, so Settings is the gear in every head instead of a sixth tab
+    links:
+      - to: home.cards
+        via: Home
+      - to: ac.units
+        via: AC
+      - to: energy.overview
+        via: Energy
+      - to: iot.devices
+        via: Devices
+      - to: security.pane
+        via: Security
+  - id: app.page-head
+    area: app
+    title: Page head
+    root:
+      none: "drawn inside each tab's pane, not an element of its own"
+    reach:
+      - the top card of every pane
+    holds:
+      - the tab's title
+      - one live line (Home shows the weather; the others show their own status)
+      - the theme toggle
+      - the Settings gear (not on Settings itself)
+    does:
+      - the theme toggle flips light and dark and remembers it for this device
+      - the gear opens Settings over the current tab
+    links:
+      - to: settings.root
+        via: gear
+  - id: app.toast
+    area: app
+    title: Toast
+    root: data-surface
+    reach:
+      - "appears after an action: saved, failed, enabled, copied"
+    holds:
+      - one line of feedback, in the success or error tone
+    does:
+      - clears itself
+    states:
+      - an error toast names what failed
+  - id: shared.confirm-dialog
+    area: app
+    title: Confirm dialog
+    root: data-surface
+    reach:
+      - "a deliberate action asks once: running a scene, deleting an item from its editor or a camera preset, a router or access point reboot, applying the DHCP plan, shutting the Home Assistant VM down, pairing Tuya devices, removing an export rate or a network group"
+    holds:
+      - a title and one line saying what will happen
+      - Cancel and Confirm
+    does:
+      - Confirm runs the action; Cancel, Esc and the backdrop abandon it
+    why: one reusable styled dialog replaces the browser's confirm box, which an installed PWA renders badly
+  - id: app.update-banner
+    area: app
+    title: Update banner
+    root: data-surface
+    reach:
+      - appears when the served build differs from the running one
+    holds:
+      - a "New version available" line with a Reload button
+    does:
+      - Reload fetches the new build
+    why: a long-lived PWA otherwise keeps running a stale build indefinitely
+  - id: shared.login
+    area: app
+    title: Sign-in sheet
+    root:
+      none: "built inside the vendored sign-in component, which stamps no id"
+    reach:
+      - any request that answers 401 on a remote device
+    holds:
+      - a password field and a Sign in button
+    does:
+      - signing in stores the token and reloads the page
+    states:
+      - a wrong password shows its message in the sheet and keeps it open
+    why: the app cannot be used signed out, so the sheet has no close button and Esc does nothing
+  - id: app.sheet-dismiss
+    area: app
+    title: Closing a sheet
+    root:
+      none: "a behaviour of every sheet, not an element"
+    reach:
+      - the × in a sheet's head, Esc, a tap on the backdrop
+    does:
+      - an instant sheet closes with its changes already applied
+      - a staged sheet discards its draft
+      - focus returns to the control that opened it
+    why: one shell owns the close paths so no sheet closes differently or reopens on a stale focus target
+  - id: app.build-readout
+    area: app
+    title: Build readout
+    root: data-surface
+    reach:
+      - the foot of every pane
+    holds:
+      - the running build, as the short commit id and its build time
+    why: a long-lived PWA can run a stale build, so the readout is how a person (or a restart check) confirms which one is live
+  - id: app.install-shell
+    area: app
+    title: Installed app
+    root:
+      none: "the manifest, icons and standalone display, with no element of their own"
+    reach:
+      - Add to Home Screen on a phone
+      - a token in the address (`?token=`) signs a remote browser in once, then is removed from the address
+    holds:
+      - the app name, the icons and a standalone window
+    why: the app is a PWA reached over the tailnet, so it installs like an app and opens without browser chrome
+  - id: app.push-notification
+    area: app
+    title: Push notification
+    root:
+      none: "an operating-system notification shown by the service worker, not an element"
+    reach:
+      - Enable notifications in Presence automation, then a presence event
+    holds:
+      - a title and a line of text
+    does:
+      - tapping it opens the app at the address it carries
+    links:
+      - to: settings.presence-automation-sheet
+        via: Enable notifications
+  # ---------------------------------------------------------------- home
+  - id: home.cards
+    area: home
+    title: Home
+    root: data-surface
+    reach:
+      - the Home tab
+      - the first visit
+    holds:
+      - the head with the weather as its live line
+      - House, the glance card with alarm mode, the energy flow and who is home
+      - Scenes, three one-tap rows
+      - Climate, the AC unit rows
+      - Next up, the wake alarms, timers and reminders in time order
+    does:
+      - an exception chip in the House head opens the tab that owns it (Security for the alarm)
+      - the alarm segmented control sets Off, Partial, Perimeter or Full
+      - a scene row asks once, then runs the scene across the blinds, the AC and the alarm together
+      - a Climate row's switch powers a unit; the row opens the unit sheet
+      - All AC units opens the AC tab
+      - Add alarm, Start timer and Add reminder open their sheets
+    states:
+      - a normal house shows no chips
+      - panel unreachable shows a chip and disables the alarm control
+      - with units pinned, Climate lists only those, each with a setpoint stepper
+    why: the first screen answers whether the house is fine, so exceptions surface as chips and nothing else competes for attention
+    links:
+      - to: shared.confirm-dialog
+        via: a scene row
+      - to: ac.unit-sheet
+        via: a Climate row
+      - to: ac.units
+        via: All AC units
+      - to: security.pane
+        via: an alarm chip
+      - to: home.wake-alarm-dialog
+        via: Add alarm
+      - to: home.wake-timer-sheet
+        via: Start timer
+      - to: home.reminder-dialog
+        via: Add reminder
+      - to: home.wake-ringing
+        via: a ringing alarm
+  - id: home.wake-ringing
+    area: home
+    title: Ringing banner
+    root: data-surface
+    reach:
+      - a wake alarm is ringing or a timer finished
+    holds:
+      - the alarm or timer that needs attention, first in Next up
+    does:
+      - dismisses the alarm or timer
+    why: an alarm that rings must be the first thing in the list, ahead of the ones that are merely scheduled
+  - id: home.wake-alarm-dialog
+    area: home
+    title: Wake alarm editor
+    root: data-surface
+    reach:
+      - Add alarm
+      - a wake alarm row
+    holds:
+      - Enabled, Time, Label, Just once with a Date, the weekday chips
+      - a hint on how to set the same alarm by voice
+    does:
+      - Save stores it; Delete wake alarm removes it
+    states:
+      - a new alarm has no Delete
+    why: a wake alarm only rings at a time; it never arms or disarms the alarm system
+  - id: home.wake-timer-sheet
+    area: home
+    title: Timer sheet
+    root: data-surface
+    reach:
+      - Start timer
+    holds:
+      - quick starts of 5, 10, 15 and 30 minutes
+      - a Minutes field with Start timer
+      - a hint on how to start one by voice
+    does:
+      - a quick start or Start timer begins a countdown that shows in Next up
+      - a running timer is cancelled with its × in Next up
+  - id: home.reminder-dialog
+    area: home
+    title: Reminder editor
+    root: data-surface
+    reach:
+      - Add reminder
+      - a reminder row
+    holds:
+      - Text, a Due date switch with Date and Time
+      - a hint on how to add one by voice
+    does:
+      - Save stores it; Delete reminder removes it
+    states:
+      - a new reminder has no Delete
+  # ---------------------------------------------------------------- ac
+  - id: ac.units
+    area: ac
+    title: AC
+    root: data-surface
+    reach:
+      - the AC tab
+      - All AC units on Home
+    holds:
+      - the head with the AC status as its live line
+      - one row per air conditioner with its power switch
+      - a feedback line for a failed write
+    does:
+      - a row's switch powers the unit
+      - a row opens the unit sheet
+    states:
+      - an offline unit's row says so and its changes cannot be sent
+    why: power is on the row and everything else is one tap away, so the common action never needs the sheet
+    links:
+      - to: ac.unit-sheet
+        via: a unit row
+  - id: ac.unit-sheet
+    area: ac
+    title: Unit sheet
+    root: data-surface
+    reach:
+      - a unit row on AC or Home
+    holds:
+      - the setpoint with minus and plus steppers
+      - Power, Pin to Home
+      - Mode and Fan
+      - "four settings rows: Vanes, Temperature rule, Schedules, Name"
+      - Done
+    does:
+      - each change is sent as it is made; Done only closes
+      - a settings row opens its page of the same sheet
+    states:
+      - an offline unit shows a line saying changes cannot be sent until it reconnects
+      - Fan and Vanes appear only for a unit whose capabilities have them
+    why: the main page holds the daily controls and the rarer settings sit one row deeper, so the sheet stays short on a phone
+    links:
+      - to: ac.unit-sheet-vanes
+        via: Vanes
+      - to: ac.unit-sheet-rule
+        via: Temperature rule
+      - to: ac.unit-sheet-schedules
+        via: Schedules
+      - to: ac.unit-sheet-name
+        via: Name
+  - id: ac.unit-sheet-vanes
+    area: ac
+    title: Vanes page
+    root: data-surface
+    reach:
+      - Vanes in the unit sheet
+    holds:
+      - a Vertical and a Horizontal selector, each shown only when the unit has that vane
+    does:
+      - a choice is sent as it is made
+      - Back returns to the main page
+  - id: ac.unit-sheet-rule
+    area: ac
+    title: Temperature rule page
+    root: data-surface
+    reach:
+      - Temperature rule in the unit sheet
+    holds:
+      - Enabled, a Cool target and a Heat target for the room
+      - Solar boost with a Boost offset
+      - a line saying the rule steers the setpoint until the room reaches the target, and boost goes further while there is surplus
+    does:
+      - each field is applied as it is made
+    why: the rule keeps the unit's setpoint working toward a room temperature instead of the unit's own sensor
+  - id: ac.unit-sheet-schedules
+    area: ac
+    title: Schedules page
+    root: data-surface
+    reach:
+      - Schedules in the unit sheet
+    holds:
+      - one row per schedule
+      - Add schedule
+      - a line saying each runs once a day and an Off entry only turns the unit off
+    does:
+      - a row and Add schedule open the schedule editor
+    states:
+      - no schedules shows *No schedules yet.*
+    links:
+      - to: ac.ac-schedule-dialog
+        via: a schedule row or Add schedule
+  - id: ac.unit-sheet-name
+    area: ac
+    title: Name page
+    root: data-surface
+    reach:
+      - Name in the unit sheet
+    holds:
+      - a Display name field
+    does:
+      - Enter or leaving the field saves the name
+  - id: ac.ac-schedule-dialog
+    area: ac
+    title: AC schedule editor
+    root: data-surface
+    reach:
+      - Add schedule
+      - a schedule row
+    holds:
+      - Enabled, Time, Power On or Off
+      - Mode, Set temp now, Target temp, Fan, Vane vertical, Vane horizontal
+    does:
+      - Save stores it; Delete schedule removes it
+    states:
+      - an Off entry only turns the unit off, as the Schedules page says
+      - the two vane fields appear only for a unit that has that vane
+  # ---------------------------------------------------------------- energy
+  - id: energy.overview
+    area: energy
+    title: Energy
+    root: data-surface
+    reach:
+      - the Energy tab
+    holds:
+      - the head with the energy status as its live line
+      - an Energy now card, Solar to Home to Grid in one row, then self-sufficiency and self-consumption
+      - Today, two meters for what the array made and what the house used, then Saved, CO2 avoided and Export
+      - History, a period select (Live, Day, Week, Month, Year, All) and an Energy or Money switch over one chart
+      - Solar forecast, with a Yesterday, Today or Tomorrow switch over a curve and the measured generation
+    does:
+      - Money shows the tariff periods, the All figures row and the Export rate row
+      - All figures opens the figures sheet
+      - Export rate opens Settings and then the export compensation sheet
+    states:
+      - an asleep inverter dims the Solar node
+      - a gap in today's feed adds a note saying the totals read low for that reason
+      - no history shows an empty line; no PV panel rows shows a line pointing to Settings
+    why: the glance answers whether the house runs on the sun, and the detail sits under it in the order a person asks the questions
+    links:
+      - to: energy.energy-figures-sheet
+        via: All figures
+      - to: energy.export-rate-sheet
+        via: Export rate
+  - id: energy.chart-tooltip
+    area: energy
+    title: Chart tooltip
+    root:
+      none: "drawn by the charting library on its canvas, not an element"
+    reach:
+      - hovering or tapping a point on the Live, History, forecast or sun-position chart
+    holds:
+      - the value at that point, with its time
+    does:
+      - follows the pointer and disappears when it leaves
+  - id: energy.energy-figures-sheet
+    area: energy
+    title: All figures sheet
+    root: data-surface
+    reach:
+      - All figures in Energy › History › Money
+    holds:
+      - the bill, the savings and each tariff period as figures
+      - Done
+    does:
+      - only reads; Done closes
+  # ---------------------------------------------------------------- devices
+  - id: iot.devices
+    area: devices
+    title: Devices
+    root: data-surface
+    reach:
+      - the Devices tab
+      - an exception chip on Home
+    holds:
+      - the head with the devices status as its live line
+      - Power, the live plug total, the biggest draws and the UPS row
+      - Lights, one row each, with All on, All off and Refresh
+      - Blinds, an All blinds row, one row per cover with Up, Stop and Down, and a Schedule row
+      - Plugs, with Show hidden and Pair
+      - Circuits, a row per CT clamp channel, with Show hidden
+      - Car, battery and last seen, with a History row
+      - Home Assistant, the virtual machine row, Voice satellites and Recent interactions
+      - Network, an Internet row and an Attached devices row
+    does:
+      - a light, plug or circuit row opens its sheet; a row's switch or verbs act without opening it
+      - the group rows open their own sheets
+    states:
+      - Blinds, Plugs and Car stay hidden until they have devices
+      - the Car card shows no reading, collection off or stale figures as their own lines
+      - Recent interactions hides when nothing was collected
+    why: every local device is on one tab so a person looks in one place, cloud-free
+    links:
+      - to: iot.ups-sheet
+        via: the UPS row
+      - to: iot.light-sheet
+        via: a light row
+      - to: iot.plug-dialog
+        via: a plug row
+      - to: iot.circuit-dialog
+        via: a circuit row
+      - to: iot.blind-schedules-sheet
+        via: Schedule
+      - to: iot.tesla-history-sheet
+        via: History
+      - to: iot.ha-satellites-sheet
+        via: Voice satellites
+      - to: iot.ha-interactions-sheet
+        via: Recent interactions
+      - to: iot.network-sheet
+        via: Internet or Attached devices
+  - id: iot.ups-sheet
+    area: devices
+    title: UPS sheet
+    root: data-surface
+    reach:
+      - the UPS row in Devices › Power
+    holds:
+      - Shut down PCs on low runtime, with a Threshold in minutes
+      - This PC, last, as Shut down or Hibernate
+      - a note that hibernate keeps open work and that the hub host shuts down last
+    does:
+      - each change applies as it is made; Done closes
+  - id: iot.light-sheet
+    area: devices
+    title: Light sheet
+    root: data-surface
+    reach:
+      - a light row
+    holds:
+      - Power, brightness and warmth where the light has them
+      - Name and details
+      - Done
+    does:
+      - each change is sent as it is made
+      - Name and details opens the editor
+    states:
+      - a light that cannot be reached says so at the top
+    links:
+      - to: iot.light-dialog
+        via: Name and details
+      - to: iot.plug-dialog
+        via: Name and details (a Tuya light)
+  - id: iot.light-dialog
+    area: devices
+    title: Light editor
+    root: data-surface
+    reach:
+      - Name and details in the light sheet
+    holds:
+      - Display name
+      - "read-only: original name, product, network address, port, hardware address, firmware, colour temperature"
+    does:
+      - Save stores the name
+  - id: iot.plug-dialog
+    area: devices
+    title: Plug editor
+    root: data-surface
+    reach:
+      - a plug row
+      - Name and details for a Tuya light
+    holds:
+      - Display name
+      - Hidden
+    does:
+      - Save stores the name and whether the device is hidden
+    states:
+      - a hidden device leaves the list until Show hidden is on
+  - id: iot.circuit-dialog
+    area: devices
+    title: Circuit editor
+    root: data-surface
+    reach:
+      - a circuit row
+    holds:
+      - "read-only: power, current, energy, voltage, total power, Wi-Fi signal, hardware address"
+      - Display name
+      - Clamp fitted backwards
+      - Hidden
+    does:
+      - Save stores the name, the sign flip and the hidden flag
+    why: the figures a person looks up on purpose live here, so each row carries exactly one number
+  - id: iot.blind-schedules-sheet
+    area: devices
+    title: Blind schedule sheet
+    root: data-surface
+    reach:
+      - Schedule in Devices › Blinds
+    holds:
+      - one row per schedule, Add schedule
+      - Follow the automatic alarm, with a line on when all blinds go down and up
+    does:
+      - a row and Add schedule open the schedule editor
+      - Follow the automatic alarm applies as it is toggled
+    links:
+      - to: iot.blind-schedule-dialog
+        via: a schedule row or Add schedule
+  - id: iot.blind-schedule-dialog
+    area: devices
+    title: Blind schedule editor
+    root: data-surface
+    reach:
+      - Add schedule
+      - a schedule row
+    holds:
+      - Enabled, Time, Action Up or Down
+      - Only when Always, Someone is home or Nobody is home
+      - Days and Blinds
+    does:
+      - Save stores it; Delete schedule removes it
+  - id: iot.tesla-history-sheet
+    area: devices
+    title: Car history sheet
+    root: data-surface
+    reach:
+      - History in Devices › Car
+    holds:
+      - a Week or Month switch
+      - Distance, Charged and Efficiency
+      - Distance and Charged energy charts, Recent charging, Recent drives
+      - a note that home-charging energy is the car's own figure and drive energy is estimated from the battery drop
+    does:
+      - the switch changes the period
+  - id: iot.ha-satellites-sheet
+    area: devices
+    title: Voice satellites sheet
+    root: data-surface
+    reach:
+      - Voice satellites in Devices › Home Assistant
+    holds:
+      - one row per Home Assistant room with whether its satellite is online, its state and its speaker volume
+      - a Talk microphone per room
+    does:
+      - Talk records, Stop sends the transcript to be announced in that room
+      - one microphone records at a time
+    states:
+      - reading shows *Reading Home Assistant rooms…*
+  - id: iot.ha-interactions-sheet
+    area: devices
+    title: Recent interactions sheet
+    root: data-surface
+    reach:
+      - Recent interactions in Devices › Home Assistant
+    holds:
+      - what Home Assistant heard, the intent that handled it, the action that ran and the spoken response
+      - a note that they are collected only while this app runs
+    does:
+      - only reads
+  # ---------------------------------------------------------------- network
+  - id: iot.network-sheet
+    area: network
+    title: Network sheet
+    root: data-surface
+    reach:
+      - Internet in Devices › Network
+      - Attached devices in Devices › Network, opened at that card
+    holds:
+      - the Internet block, a speed test result, Run speed test, a nightly speed test switch and trend sparklines
+      - an Access point card and a Router card, each with a reboot button
+      - the Wi-Fi diagnostics, Walk test, Attached devices and DHCP reservation plan cards
+      - Done
+    does:
+      - Run speed test measures; the nightly switch runs it once around 03:00
+      - Reboot AP and Reboot ask for confirmation
+    states:
+      - a card whose read fails says no data
+    why: the nightly speed test is opt-in because it spends real bandwidth
+    links:
+      - to: iot.network-wifi-diagnostics
+        via: Wi-Fi diagnostics
+      - to: iot.network-walk-test
+        via: Walk test
+      - to: iot.network-attached-devices
+        via: Attached devices
+      - to: iot.network-dhcp-plan
+        via: DHCP reservation plan
+      - to: shared.confirm-dialog
+        via: Reboot
+  - id: iot.network-wifi-diagnostics
+    area: network
+    title: Wi-Fi diagnostics card
+    root: data-surface
+    reach:
+      - the Wi-Fi diagnostics card in the network sheet
+    holds:
+      - the radios on 2.4 GHz and 5 GHz, with recommendations
+      - Show hidden, with a count of the hidden radios
+    does:
+      - a radio opens its editor
+    links:
+      - to: iot.net-wifi-dialog
+        via: a radio row
+  - id: iot.network-walk-test
+    area: network
+    title: Walk test card
+    root: data-surface
+    reach:
+      - the Walk test card in the network sheet
+    holds:
+      - an explanation that the phone is the probe and the access point is the meter
+      - Pick device, Record here, a room field and the samples so far
+    does:
+      - Pick device chooses which device this is; Record here stores a sample for the room
+    states:
+      - no device picked says so and disables recording
+    why: no browser exposes Wi-Fi scanning, so the access point measures a phone that walks the house
+    links:
+      - to: iot.net-survey-dialog
+        via: Pick device
+  - id: iot.network-attached-devices
+    area: network
+    title: Attached devices card
+    root: data-surface
+    reach:
+      - the Attached devices card in the network sheet
+      - Attached devices in Devices › Network
+    holds:
+      - device counts, an order switch (A-Z, Signal), Offline hidden, Show hidden, a group filter, My groups and a band filter
+      - one row per device
+    does:
+      - a device row opens the device editor
+      - My groups opens the group editor
+    links:
+      - to: iot.net-device-dialog
+        via: a device row
+      - to: iot.net-group-dialog
+        via: My groups
+  - id: iot.network-dhcp-plan
+    area: network
+    title: DHCP reservation plan card
+    root: data-surface
+    reach:
+      - the DHCP reservation plan card in the network sheet
+    holds:
+      - a line on how many reservations the router holds
+      - Refresh, warnings, the reservations on the router now, a Manual reservation form with Stage and Clear
+      - Apply changes
+    does:
+      - opening computes the plan; ticks mark reservations to remove or add
+      - Apply changes sends everything at once
+    states:
+      - before it opens it says *Open to compute the plan.*
+    why: reservations are staged and applied together because a router changes its address table on every write
+  - id: iot.net-device-dialog
+    area: network
+    title: Network device editor
+    root: data-surface
+    reach:
+      - a device row in the Attached devices card
+    holds:
+      - "read-only: status, vendor, network address, connection, signal, Wi-Fi network, seen by, hostname, last seen"
+      - Display name, Group with a New group field, Important, Hidden
+    does:
+      - Save stores the name, group and flags
+  - id: iot.net-group-dialog
+    area: network
+    title: Network group editor
+    root: data-surface
+    reach:
+      - My groups in the Attached devices card
+    holds:
+      - the devices in the group, a Name field
+    does:
+      - Save stores the group; Delete group removes it
+  - id: iot.net-wifi-dialog
+    area: network
+    title: Wi-Fi radio sheet
+    root: data-surface
+    reach:
+      - a radio row in the Wi-Fi diagnostics card
+    holds:
+      - "read-only: status, band, channel, signal, security"
+      - Display name, Hidden
+    does:
+      - each change is applied as it is made; Done closes
+  - id: iot.net-survey-dialog
+    area: network
+    title: Which device is this
+    root: data-surface
+    reach:
+      - Pick device in the Walk test card
+    holds:
+      - the attached devices to choose from
+      - how to read the Wi-Fi address on an iPhone and why it may change
+    does:
+      - choosing a device sets the probe and closes the sheet
+  # ---------------------------------------------------------------- security
+  - id: security.pane
+    area: security
+    title: Security
+    root: data-surface
+    reach:
+      - the Security tab
+      - an alarm chip on Home
+    holds:
+      - the head with a count of detectors as its live line
+      - the alarm card, titled with the state (Not armed, Armed, Arming) and the next scheduled action
+      - the arm control, Off, Partial, Perimeter, Full
+      - Kids home and Don't arm when away, two switches
+      - Detectors, with a filter, Show all and Show hidden
+      - Cameras
+      - People, with an Accounts row and Show hidden
+      - Recent events, the last three, with All events
+      - Automations, the Schedules, Scene capture and Override rows
+    does:
+      - a mode button sets the alarm and the page redraws from the returned state
+      - a detector row opens the detector sheet; a camera row opens the camera sheet, its thumbnail zooms the last frame and its trailing video button opens the live view; a person row opens the person sheet
+      - All events opens the activity log
+      - each Automations row opens its sheet
+    states:
+      - the panel unreachable shows its own line instead of a stale mode
+      - a group with nothing to list says so
+    why: the arm control is the same component as Home's, so the alarm is set the same way from both places
+    links:
+      - to: security.zone-dialog
+        via: a detector row
+      - to: security.camera-dialog
+        via: a camera row
+      - to: security.camera-zoom-dialog
+        via: a camera thumbnail
+      - to: security.camera-live-dialog
+        via: a camera row's video button
+      - to: security.presence-dialog
+        via: a person row
+      - to: security.presence-accounts-sheet
+        via: Accounts
+      - to: shared.activity-dialog
+        via: All events
+      - to: security.schedules-sheet
+        via: Schedules
+      - to: security.scene-pairings-sheet
+        via: Scene capture
+      - to: security.overrides-sheet
+        via: Override
+  - id: security.zone-dialog
+    area: security
+    title: Detector sheet
+    root: data-surface
+    reach:
+      - a detector row
+    holds:
+      - "read-only: type, status, trouble"
+      - Ignore trouble
+      - Display name
+      - Hidden
+    does:
+      - Save stores the name and the two flags
+    why: the cloud API reports only a generic trouble flag per zone, so Ignore trouble silences a known-faulty one
+  - id: security.schedules-sheet
+    area: security
+    title: Alarm schedules sheet
+    root: data-surface
+    reach:
+      - Schedules in Security › Automations
+    holds:
+      - one row per schedule, Add schedule
+      - a line saying it arms or disarms at the set time on the chosen days
+    does:
+      - a row and Add schedule open the schedule editor
+    links:
+      - to: security.schedule-dialog
+        via: a schedule row or Add schedule
+  - id: security.schedule-dialog
+    area: security
+    title: Alarm schedule editor
+    root: data-surface
+    reach:
+      - Add schedule
+      - a schedule row
+    holds:
+      - Enabled, Time, Action, Days
+    does:
+      - Save stores it; Delete schedule removes it
+  - id: security.scene-pairings-sheet
+    area: security
+    title: Scene capture sheet
+    root: data-surface
+    reach:
+      - Scene capture in Security › Automations
+    holds:
+      - one row per pairing, Add pairing
+      - a line saying a paired detector that trips makes its camera take a picture for the AI to judge
+    does:
+      - a row and Add pairing open the pairing editor
+    links:
+      - to: security.scene-pairing-dialog
+        via: a pairing row or Add pairing
+  - id: security.scene-pairing-dialog
+    area: security
+    title: Scene pairing editor
+    root: data-surface
+    reach:
+      - Add pairing
+      - a pairing row
+    holds:
+      - Enabled, Detector, Camera, Position
+    does:
+      - Save stores it; Delete pairing removes it
+  - id: security.overrides-sheet
+    area: security
+    title: Override sheet
+    root: data-surface
+    reach:
+      - Override in Security › Automations
+    holds:
+      - one row per override, Add override
+      - a line saying that after N triggers in one armed session the detector is bypassed until the next arm
+    does:
+      - a row and Add override open the override editor
+    links:
+      - to: security.override-dialog
+        via: an override row or Add override
+  - id: security.override-dialog
+    area: security
+    title: Override editor
+    root: data-surface
+    reach:
+      - Add override
+      - an override row
+    holds:
+      - Enabled, Detector, Bypass after
+    does:
+      - Save stores it; Delete override removes it
+  # ---------------------------------------------------------------- cameras
+  - id: security.camera-dialog
+    area: cameras
+    title: Camera sheet
+    root: data-surface
+    reach:
+      - a camera row in Security › Cameras
+    holds:
+      - the last snapshot
+      - read-only model
+      - Display name
+      - Open live view
+    does:
+      - Save stores the name
+      - Open live view opens the live sheet
+    states:
+      - no snapshot shows *Snapshot unavailable*
+    links:
+      - to: security.camera-live-dialog
+        via: Open live view
+  - id: security.camera-live-dialog
+    area: cameras
+    title: Live view
+    root: data-surface
+    reach:
+      - Open live view in the camera sheet
+      - the video button on a camera row
+    holds:
+      - the live picture
+      - a Step or Hold mode switch and a pan and tilt pad
+      - Zoom out and Zoom in
+      - Screenshot and Record
+      - Presets, each with Go, rename and delete, and a Save button
+      - Position, with Pan, Tilt and Zoom fields and Go
+    does:
+      - "the pad moves the camera: one fixed nudge in Step, held movement in Hold"
+      - Save under Presets asks for a name
+      - Go moves to a preset, rename opens the name sheet, delete asks before removing it
+    states:
+      - presets and Position appear only for a camera that supports them
+    links:
+      - to: security.camera-preset-name-dialog
+        via: Save a preset
+      - to: security.camera-hold-to-move
+        via: the pad
+  - id: security.camera-zoom-dialog
+    area: cameras
+    title: Camera zoom view
+    root: data-surface
+    reach:
+      - the thumbnail on a camera row in Security › Cameras
+    holds:
+      - the camera's name and its last saved frame full size
+    does:
+      - closes with ×, Esc or the backdrop
+    states:
+      - a camera with no saved frame closes at once with a toast saying to open the camera to capture one
+  - id: security.camera-preset-name-dialog
+    area: cameras
+    title: Preset name
+    root: data-surface
+    reach:
+      - Save under Presets in the live view
+      - rename on a preset
+    holds:
+      - a Name field
+    does:
+      - Save stores the current position under the name
+    why: a styled sheet replaces the browser's prompt box, which an installed PWA renders badly
+  - id: security.camera-hold-to-move
+    area: cameras
+    title: Hold to move the camera
+    root:
+      none: "a gesture on the live view's pad, not an element"
+    reach:
+      - pointer down on a pad arrow in Hold mode
+    does:
+      - the camera moves while the pointer is down and stops when it is released
+    why: a held move is how a person aims a camera, and a fixed nudge is the safer mode when the connection lags
+  # ---------------------------------------------------------------- presence
+  - id: security.presence-dialog
+    area: presence
+    title: Person sheet
+    root: data-surface
+    reach:
+      - a person row in Security › People
+    holds:
+      - "read-only: status, source, last seen, distance, place, Open map"
+      - Display name, Role
+      - Hidden
+    does:
+      - Save stores the name, role and hidden flag
+    why: the role lets the voice locator answer for a role as well as a name
+  - id: security.presence-accounts-sheet
+    area: presence
+    title: Accounts sheet
+    root: data-surface
+    reach:
+      - Accounts in Security › People
+    holds:
+      - "one row per tracked Apple account with its state: trusted, untrusted, broken, trust unknown, or Apple's terms to accept"
+      - a Renew trust button on an account that needs it
+    does:
+      - Renew trust asks Apple to push a code and opens the code sheet
+    states:
+      - the Accounts row in People shows the account count and a chip when one needs attention
+    links:
+      - to: security.presence-trust-dialog
+        via: Renew trust
+  - id: security.presence-trust-dialog
+    area: presence
+    title: Renew iCloud trust
+    root: data-surface
+    reach:
+      - Renew trust in the Accounts sheet
+    holds:
+      - a note that a six-digit code was pushed to the account's trusted devices
+      - a Code field with Verify
+    does:
+      - Verify renews the trust
+      - Enter in the field verifies
+    why: the app never asks Apple for a code on its own; a person starts it
+  - id: settings.presence-places-sheet
+    area: presence
+    title: Places sheet
+    root: data-surface
+    reach:
+      - Places in Settings › Home & people
+    holds:
+      - one row per place the voice locator names instead of a distance from home
+      - Add place
+    does:
+      - a row and Add place open the place editor
+    links:
+      - to: settings.presence-place-dialog
+        via: a place row or Add place
+  - id: settings.presence-place-dialog
+    area: presence
+    title: Place editor
+    root: data-surface
+    reach:
+      - Add place
+      - a place row
+    holds:
+      - Label, Latitude, Longitude, Radius in metres
+      - Use my current location, Pick on map
+    does:
+      - Save stores it; Delete place removes it
+      - Use my current location asks the browser for its position
+    links:
+      - to: settings.presence-map-picker-dialog
+        via: Pick on map
+  - id: settings.presence-map-picker-dialog
+    area: presence
+    title: Map picker
+    root: data-surface
+    reach:
+      - Pick on map in the place editor
+    holds:
+      - a map with a pin, and the chosen coordinates
+      - Use this location
+    does:
+      - a tap or dragging the pin moves it
+      - Use this location returns the coordinates to the place editor
+    states:
+      - the map library loads on first use
+  - id: settings.presence-automation-sheet
+    area: presence
+    title: Presence automation sheet
+    root: data-surface
+    reach:
+      - Presence automation in Settings › Home & people
+    holds:
+      - Auto arm on departure, with Away minutes before arm and Stale after minutes
+      - Auto disarm on arrival
+      - Enable notifications
+    does:
+      - each change applies as it is made
+      - Enable notifications asks the browser for push permission
+  # ---------------------------------------------------------------- settings
+  - id: settings.root
+    area: settings
+    title: Settings
+    root: data-surface
+    reach:
+      - the gear in any page head
+      - Export rate on the Energy tab
+    holds:
+      - Display, a Text size control
+      - Notifications, Alarm and UPS power
+      - Home & people, Home location, Places, Presence automation
+      - Energy, PV system, Export compensation, Solar boost, Sun-position check
+      - Voice, Search engine, What can I say?
+      - Diagnostics, Activity log, a Record navigation log switch
+    does:
+      - Text size changes the type scale for this device only
+      - a row opens its sheet
+      - Record navigation log posts each navigation event to the server's log, for diagnosing a phone-only layout bug; it persists across launches
+    why: Settings is a pane, not a tab, so the five tabs fit a bottom bar and the gear is one tap from everywhere
+    links:
+      - to: settings.notify-alarm-sheet
+        via: Alarm
+      - to: settings.notify-ups-sheet
+        via: UPS power
+      - to: settings.home-location-sheet
+        via: Home location
+      - to: settings.presence-places-sheet
+        via: Places
+      - to: settings.presence-automation-sheet
+        via: Presence automation
+      - to: energy.pv-system-sheet
+        via: PV system
+      - to: energy.export-rate-sheet
+        via: Export compensation
+      - to: energy.boost-coord-sheet
+        via: Solar boost
+      - to: energy.sun-overlay-sheet
+        via: Sun-position check
+      - to: settings.searxng-sheet
+        via: Search engine
+      - to: settings.voice-sheet
+        via: What can I say?
+      - to: shared.activity-dialog
+        via: Activity log
+  - id: settings.notify-alarm-sheet
+    area: settings
+    title: Alarm notifications
+    root: data-surface
+    reach:
+      - Alarm in Settings › Notifications
+    holds:
+      - "seven Telegram switches: automatic arm, automatic disarm, arm on everyone away, disarm on arrival, an error on any automatic arm or disarm, an intrusion, panel mains power lost or restored"
+      - a line saying arming from this app is never notified
+    does:
+      - each switch applies as it is made; Done closes
+  - id: settings.notify-ups-sheet
+    area: settings
+    title: UPS notifications
+    root: data-surface
+    reach:
+      - UPS power in Settings › Notifications
+    holds:
+      - "two Telegram switches: mains power lost and power restored"
+      - a line saying the low-battery shutdown is in Devices › UPS
+    does:
+      - each switch applies as it is made; Done closes
+  - id: settings.home-location-sheet
+    area: settings
+    title: Home location
+    root: data-surface
+    reach:
+      - Home location in Settings › Home & people
+    holds:
+      - Home label, Latitude, Longitude
+      - Use this device location
+    does:
+      - fields apply as they are changed; Use this device location asks the browser for its position
+  - id: energy.pv-system-sheet
+    area: settings
+    title: PV system sheet
+    root: data-surface
+    reach:
+      - PV system in Settings › Energy
+    holds:
+      - one row per panel orientation, Add panel row
+      - Performance ratio, Latitude, Longitude
+      - Horizon and shading, one row per obstruction, Add horizon point
+    does:
+      - a panel row and Add panel row open the panel editor; a horizon row and Add horizon point open the horizon editor
+      - the forecast is computed from these figures
+    states:
+      - no panel rows leaves the Energy forecast empty
+    links:
+      - to: energy.pv-array-dialog
+        via: a panel row or Add panel row
+      - to: energy.pv-horizon-dialog
+        via: a horizon row or Add horizon point
+  - id: energy.pv-array-dialog
+    area: settings
+    title: Panel row editor
+    root: data-surface
+    reach:
+      - Add panel row
+      - a panel row
+    holds:
+      - Peak power in kWp, Tilt, Azimuth
+      - a note on the azimuth convention
+    does:
+      - Save stores it; Delete panel row removes it
+  - id: energy.pv-horizon-dialog
+    area: settings
+    title: Horizon point editor
+    root: data-surface
+    reach:
+      - Add horizon point
+      - a horizon row
+    holds:
+      - Azimuth, Obstruction elevation
+      - a note on the azimuth convention
+    does:
+      - Save stores it; Delete horizon point removes it
+  - id: energy.export-rate-sheet
+    area: settings
+    title: Export compensation sheet
+    root: data-surface
+    reach:
+      - Export compensation in Settings › Energy
+      - Export rate on the Energy tab
+    holds:
+      - one row per rate with the date it takes effect, EUR per kWh and optional hourly overrides
+      - Add rate
+    does:
+      - Add rate adds a rate from its effective date; Delete removes one
+    why: an earlier rate stays in the history so past savings keep their original price
+  - id: energy.boost-coord-sheet
+    area: settings
+    title: Solar boost sheet
+    root: data-surface
+    reach:
+      - Solar boost in Settings › Energy
+    holds:
+      - Settle interval, Admission margin, Fast-shed import
+      - a note on how units enter and leave boost one at a time
+    does:
+      - each value applies as it is changed
+  - id: energy.sun-overlay-sheet
+    area: settings
+    title: Sun-position check
+    root: data-surface
+    reach:
+      - Sun-position check in Settings › Energy
+    holds:
+      - a Day field
+      - measured performance by hour against the sun's direction, as a chart
+    states:
+      - a day with no measured hours says so
+    why: a dip at the same direction every day is shading; one that moves with the clock is weather
+  - id: settings.searxng-sheet
+    area: settings
+    title: Search engine sheet
+    root: data-surface
+    reach:
+      - Search engine in Settings › Voice
+    holds:
+      - what it answers (web-search questions to the voice assistant, self-hosted)
+      - Start
+    does:
+      - Start brings the local search engine up, with no confirmation because it is not destructive
+    states:
+      - the row shows *Reading…* until the state is known
+  - id: settings.voice-sheet
+    area: settings
+    title: What can I say
+    root: data-surface
+    reach:
+      - What can I say? in Settings › Voice
+    holds:
+      - the voice commands the app understands, in groups
+      - how to see the voice layer, talk to a room and review recent interactions
+      - notes on room names and recording
+    does:
+      - only reads; Done closes
+    states:
+      - loading shows *Loading the voice commands…*
+  - id: shared.activity-dialog
+    area: settings
+    title: Activity log
+    root: data-surface
+    reach:
+      - Activity log in Settings › Diagnostics
+      - All events in Security › Recent events
+    holds:
+      - an Events or Readings switch
+      - a Domain filter and a Type or Metric filter
+      - the entries, and a *What do these mean?* explanation of each event type
+    does:
+      - the switch and filters change what is listed
+    states:
+      - from All events the log opens on the security domain
+  # ---------------------------------------------------------------- states
+  - id: ac.loading
+    area: ac
+    title: AC loading
+    root:
+      none: "a state drawn inside the AC pane, with no root of its own"
+    reach:
+      - "the AC tab before its first read lands"
+    holds:
+      - "a spinner with the unit rows not yet drawn"
+  - id: ac.empty
+    area: ac
+    title: AC empty
+    root:
+      none: "a state drawn inside the AC pane, with no root of its own"
+    reach:
+      - "the account has no air conditioners"
+    holds:
+      - "an empty-state message instead of rows"
+  - id: ac.unavailable
+    area: ac
+    title: AC unavailable
+    root:
+      none: "a state drawn inside the AC pane, with no root of its own"
+    reach:
+      - "the read failed and no earlier figures exist"
+    holds:
+      - "an empty-state message reading AC units unavailable"
+      - "the cloud error is shown without its host name"
+  - id: ac.stale
+    area: ac
+    title: AC stale
+    root:
+      none: "a state drawn inside the AC pane, with no root of its own"
+    reach:
+      - "the read failed but a saved copy exists"
+    holds:
+      - "the saved unit rows with their switches disabled"
+      - "a line reading Last updated and live data unavailable"
+  - id: ac.offline
+    area: ac
+    title: Offline unit row
+    root:
+      none: "a state drawn inside a unit row, with no root of its own"
+    reach:
+      - "a unit the cloud reports as not connected"
+    holds:
+      - "the row meta reading Last read instead of live figures"
+      - "a disabled power switch"
+  - id: ac.unit-sheet-offline
+    area: ac
+    title: Offline unit sheet
+    root:
+      none: "a state drawn inside the unit sheet, with no root of its own"
+    reach:
+      - "the sheet opened on an offline unit"
+    holds:
+      - "the offline line at the top"
+      - "the last read room temperature"
+      - "the power switch, setpoint steppers, Mode and Fan all disabled"
+  - id: energy.loading
+    area: energy
+    title: Energy loading
+    root:
+      none: "a state drawn inside the Energy pane, with no root of its own"
+    reach:
+      - "the Energy tab before its first read lands"
+    holds:
+      - "placeholders in the flow row and the meters"
+  - id: energy.stale
+    area: energy
+    title: Energy stale
+    root:
+      none: "a state drawn inside the Energy pane, with no root of its own"
+    reach:
+      - "the live read failed but a saved copy exists"
+    holds:
+      - "the saved figures with a live data unavailable note on the Live chart"
+  - id: energy.unavailable
+    area: energy
+    title: Energy unavailable
+    root:
+      none: "a state drawn inside the Energy pane, with no root of its own"
+    reach:
+      - "the live read failed and no earlier figures exist"
+    holds:
+      - "a Live unavailable chip in the head"
+      - "the flow row without values"
+  - id: energy.pv-system-empty
+    area: energy
+    title: PV system empty
+    root:
+      none: "a state drawn inside the PV system sheet, with no root of its own"
+    reach:
+      - "the PV system sheet before any panel row exists"
+    holds:
+      - "no panel rows"
+      - "the performance ratio and coordinates fields"
+      - "Add panel row"
+  - id: energy.sun-overlay-empty
+    area: energy
+    title: Sun-position check empty
+    root:
+      none: "a state drawn inside the sun-position sheet, with no root of its own"
+    reach:
+      - "a day with no measured hours"
+    holds:
+      - "a line saying there are no measured hours for this day instead of the chart"
+  - id: iot.lights-empty
+    area: devices
+    title: Lights empty
+    root:
+      none: "a state drawn inside the Lights group, with no root of its own"
+    reach:
+      - "no light is configured"
+    holds:
+      - "the group note saying there are none"
+  - id: iot.lights-stale
+    area: devices
+    title: Lights stale
+    root:
+      none: "a state drawn inside the Lights group, with no root of its own"
+    reach:
+      - "the light read failed but a saved copy exists"
+    holds:
+      - "the saved rows with a last-updated note reading live data unavailable"
+  - id: iot.lights-unavailable
+    area: devices
+    title: Lights unavailable
+    root:
+      none: "a state drawn inside the Lights group, with no root of its own"
+    reach:
+      - "the light read failed and no earlier figures exist"
+    holds:
+      - "Lights unavailable with a line to check the light connection and retry"
+  - id: iot.plugs-stale
+    area: devices
+    title: Plugs stale
+    root:
+      none: "a state drawn inside the Plugs group, with no root of its own"
+    reach:
+      - "the Tuya read failed but a saved copy exists"
+    holds:
+      - "the saved rows with their switches marked unavailable"
+  - id: iot.circuits-offline
+    area: devices
+    title: Circuits offline
+    root:
+      none: "a state drawn inside the Circuits group, with no root of its own"
+    reach:
+      - "the circuits read failed"
+    holds:
+      - "a line reading Circuits unavailable with the cause"
+  - id: iot.circuit-meter-dialog
+    area: devices
+    title: Circuit sheet for a meter
+    root:
+      none: "a state drawn inside the circuit sheet, with no root of its own"
+    reach:
+      - "a meter row in Devices › Circuits"
+    holds:
+      - "the meter figures: voltage, total power, Wi-Fi signal and hardware address"
+      - "Display name"
+  - id: iot.network-stale
+    area: network
+    title: Network stale
+    root:
+      none: "a state drawn inside the Network group and sheet, with no root of its own"
+    reach:
+      - "the network read failed but a saved copy exists"
+    holds:
+      - "the saved figures with a last-updated note"
+  - id: iot.network-unavailable
+    area: network
+    title: Network unavailable
+    root:
+      none: "a state drawn inside the Network group and sheet, with no root of its own"
+    reach:
+      - "the network read failed and no earlier figures exist"
+    holds:
+      - "Network unavailable in the group and no data in the sheet cards"
+  - id: iot.network-wifi-unavailable
+    area: network
+    title: Wi-Fi diagnostics unavailable
+    root:
+      none: "a state drawn inside the Wi-Fi diagnostics card, with no root of its own"
+    reach:
+      - "the access point cannot report its radios"
+    holds:
+      - "a note in place of the radio list"
+  - id: iot.net-device-dialog-no-link
+    area: network
+    title: Device with no live link
+    root:
+      none: "a state drawn inside the network device editor, with no root of its own"
+    reach:
+      - "a device leased by the router but not seen on any radio"
+    holds:
+      - "a status reading No live link, leased but not seen on any radio"
+      - "the signal reading No link"
+  - id: iot.pc-fleet-machines
+    area: devices
+    title: PC fleet machines
+    root:
+      none: "a state drawn inside the UPS sheet, with no root of its own"
+    reach:
+      - "the fleet hub answers"
+    holds:
+      - "one row per machine in the shutdown list"
+  - id: iot.pc-fleet-unreachable
+    area: devices
+    title: PC fleet unreachable
+    root:
+      none: "a state drawn inside the UPS sheet, with no root of its own"
+    reach:
+      - "the fleet hub does not answer"
+    holds:
+      - "a line reading Machine list unavailable because the fleet hub is not reachable"
+      - "the shutdown settings, which stay editable"
+  - id: iot.vm-empty
+    area: devices
+    title: Home Assistant VM not found
+    root:
+      none: "a state drawn inside the Home Assistant group, with no root of its own"
+    reach:
+      - "the virtual machine is not found"
+    holds:
+      - "a VM not found state on the row"
+  - id: iot.vm-loading
+    area: devices
+    title: Home Assistant VM loading
+    root:
+      none: "a state drawn inside the Home Assistant group, with no root of its own"
+    reach:
+      - "before the first VM status lands"
+    holds:
+      - "a placeholder on the VM row"
+  - id: iot.vm-stale
+    area: devices
+    title: Home Assistant VM stale
+    root:
+      none: "a state drawn inside the Home Assistant group, with no root of its own"
+    reach:
+      - "the VM read failed but a saved copy exists"
+    holds:
+      - "the saved state with a live data unavailable note"
+  - id: iot.vm-unavailable
+    area: devices
+    title: Home Assistant VM unavailable
+    root:
+      none: "a state drawn inside the Home Assistant group, with no root of its own"
+    reach:
+      - "the VM read failed and no earlier state exists"
+    holds:
+      - "a status unavailable state on the row"
+  - id: security.stale
+    area: security
+    title: Security stale
+    root:
+      none: "a state drawn inside the Security pane, with no root of its own"
+    reach:
+      - "the panel read failed but a saved copy exists"
+    holds:
+      - "the saved alarm state and lists marked as stale"
+  - id: security.unavailable
+    area: security
+    title: Security unavailable
+    root:
+      none: "a state drawn inside the Security pane, with no root of its own"
+    reach:
+      - "the panel read failed and no earlier state exists"
+    holds:
+      - "Security unavailable in place of the alarm state, with a Retry button"
+  - id: security.zones-no-match
+    area: security
+    title: No detector matches
+    root:
+      none: "a state drawn inside the Detectors group, with no root of its own"
+    reach:
+      - "the detector filter matches nothing"
+    holds:
+      - "a note reading No detector matches."
+  - id: security.cameras-empty
+    area: cameras
+    title: Cameras empty
+    root:
+      none: "a state drawn inside the Cameras group, with no root of its own"
+    reach:
+      - "no camera is configured"
+    holds:
+      - "a note reading No cameras configured"
+  - id: security.cameras-stale
+    area: cameras
+    title: Cameras stale
+    root:
+      none: "a state drawn inside the Cameras group, with no root of its own"
+    reach:
+      - "the camera read failed but a saved copy exists"
+    holds:
+      - "the saved rows with a note reading live data unavailable"
+  - id: security.cameras-unavailable
+    area: cameras
+    title: Cameras unavailable
+    root:
+      none: "a state drawn inside the Cameras group, with no root of its own"
+    reach:
+      - "the camera read failed and no earlier list exists"
+    holds:
+      - "Cameras unavailable with a line to check the camera connection and retry"
+  - id: security.presence-empty
+    area: presence
+    title: People empty
+    root:
+      none: "a state drawn inside the People group, with no root of its own"
+    reach:
+      - "no tracked person is configured"
+    holds:
+      - "the empty line in place of person rows"
+  - id: security.presence-stale
+    area: presence
+    title: People stale
+    root:
+      none: "a state drawn inside the People group, with no root of its own"
+    reach:
+      - "the presence read failed but a saved copy exists"
+    holds:
+      - "the saved rows with a stale note"
+  - id: security.presence-unavailable
+    area: presence
+    title: People unavailable
+    root:
+      none: "a state drawn inside the People group, with no root of its own"
+    reach:
+      - "the presence read failed and no earlier list exists"
+    holds:
+      - "an unavailable line in place of person rows"
+  - id: security.presence-accounts-broken
+    area: presence
+    title: Accounts sheet with a broken account
+    root:
+      none: "a state drawn inside the Accounts sheet, with no root of its own"
+    reach:
+      - "an Apple account whose sign-in is failing"
+    holds:
+      - "the account marked broken with the reason"
+      - "the Accounts row in People carrying a chip in the danger tone"
+  - id: shared.login-error
+    area: app
+    title: Sign-in error
+    root:
+      none: "a state drawn inside the sign-in sheet, with no root of its own"
+    reach:
+      - "a wrong password in the sign-in sheet"
+    holds:
+      - "the message Wrong password"
+      - "the sheet stays open and the field stays editable"
+  - id: iot.plugs-empty
+    area: devices
+    title: Plugs empty
+    root:
+      none: "a state drawn inside the Plugs group, with no root of its own"
+    reach:
+      - "no Smart Life device is configured"
+    holds:
+      - "the group's empty line reading No Smart Life devices configured"
+  - id: iot.plugs-unavailable
+    area: devices
+    title: Plugs unavailable
+    root:
+      none: "a state drawn inside the Plugs group, with no root of its own"
+    reach:
+      - "the Tuya read failed and no earlier figures exist"
+    holds:
+      - "Plugs and blinds unavailable in place of the rows"

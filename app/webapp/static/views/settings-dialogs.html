@@ -5,7 +5,7 @@
        change, text and numbers on change or blur, each with a toast; a saved
        item (a place, a panel row, a horizon point) keeps its staged editor on
        top. Done only closes. -->
-  <dialog data-track-view="notify-alarm-sheet" id="notifyAlarmSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="notify-alarm-sheet" data-surface="settings.notify-alarm-sheet" id="notifyAlarmSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Alarm notifications</h2>
@@ -63,7 +63,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="notify-ups-sheet" id="notifyUpsSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="notify-ups-sheet" data-surface="settings.notify-ups-sheet" id="notifyUpsSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>UPS notifications</h2>
@@ -91,7 +91,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="home-location-sheet" id="homeLocationSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="home-location-sheet" data-surface="settings.home-location-sheet" id="homeLocationSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Home location</h2>
@@ -121,7 +121,7 @@
   <!-- Search engine for the voice assistant's web-search answers (issue
        #321): SearXNG in a Docker container on the hub PC (GET /api/searxng),
        with Start while it is down. Read on entering Settings, then slowly. -->
-  <dialog data-track-view="searxng-sheet" id="searxngSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="searxng-sheet" data-surface="settings.searxng-sheet" id="searxngSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Search engine</h2>
@@ -140,7 +140,7 @@
        src/voice/voice_commands.py), fetched the first time the sheet opens and
        never polled. "In this app" below it is what used to be the separate
        "What can I do?" card (#239): what this app does with Home Assistant. -->
-  <dialog data-track-view="voice-sheet" id="voiceSheet" class="detail-dialog settings-sheet voice-sheet">
+  <dialog data-track-view="voice-sheet" data-surface="settings.voice-sheet" id="voiceSheet" class="detail-dialog settings-sheet voice-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>What can I say?</h2>

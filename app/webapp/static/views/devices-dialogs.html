@@ -5,7 +5,7 @@
 
   <!-- UPS: the reading, then the PC-fleet shutdown it drives (#498, moved
        here from its own Devices card). -->
-  <dialog data-track-view="ups-sheet" id="upsSheet" class="detail-dialog ups-sheet">
+  <dialog data-track-view="ups-sheet" data-surface="iot.ups-sheet" id="upsSheet" class="detail-dialog ups-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>UPS</h2>
@@ -43,7 +43,7 @@
 
   <!-- A light (decision 5 of #872): power, brightness and warmth as they
        change; the name and the device details open the staged dialog. -->
-  <dialog data-track-view="light-sheet" id="lightSheet" class="detail-dialog light-sheet">
+  <dialog data-track-view="light-sheet" data-surface="iot.light-sheet" id="lightSheet" class="detail-dialog light-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="lightSheetName">Light</h2>
@@ -75,7 +75,7 @@
 
   <!-- Blinds › Schedule: the daily up/down entries (#871, dense rows + the
        staged editor on top) and the alarm pairing switch (#875). -->
-  <dialog data-track-view="blind-schedules-sheet" id="blindSchedulesSheet" class="detail-dialog security-automation-sheet">
+  <dialog data-track-view="blind-schedules-sheet" data-surface="iot.blind-schedules-sheet" id="blindSchedulesSheet" class="detail-dialog security-automation-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Blind schedule</h2>
@@ -100,7 +100,7 @@
   <!-- Blind schedule add/edit dialog (issue #871) — the same denseListEditor
        shell and fields as securityScheduleDialog, plus which blinds move and
        the presence condition. -->
-  <dialog data-track-view="blind-schedule-dialog" id="blindScheduleDialog" class="detail-dialog">
+  <dialog data-track-view="blind-schedule-dialog" data-surface="iot.blind-schedule-dialog" id="blindScheduleDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="blindScheduleEditorTitle">Schedule</h2>
@@ -151,7 +151,7 @@
 
   <!-- Home Assistant › Voice satellites: each room's satellite with its
        push-to-talk (#239). Read from Home Assistant while it is open. -->
-  <dialog data-track-view="ha-satellites-sheet" id="haSatellitesSheet" class="detail-dialog ha-sheet">
+  <dialog data-track-view="ha-satellites-sheet" data-surface="iot.ha-satellites-sheet" id="haSatellitesSheet" class="detail-dialog ha-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Voice satellites</h2>
@@ -166,7 +166,7 @@
     </div>
   </dialog>
 
-  <dialog data-track-view="ha-interactions-sheet" id="haInteractionsSheet" class="detail-dialog ha-sheet">
+  <dialog data-track-view="ha-interactions-sheet" data-surface="iot.ha-interactions-sheet" id="haInteractionsSheet" class="detail-dialog ha-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Recent interactions</h2>
@@ -184,7 +184,7 @@
        the latest charging sessions and drives, all from the local store
        (GET /api/tesla/history and /sessions). Read-only: the period toggle is
        the sheet's only control. -->
-  <dialog data-track-view="tesla-history-sheet" id="teslaHistorySheet" class="detail-dialog tesla-history-sheet" data-testid="tesla-history-sheet">
+  <dialog data-track-view="tesla-history-sheet" data-surface="iot.tesla-history-sheet" id="teslaHistorySheet" class="detail-dialog tesla-history-sheet" data-testid="tesla-history-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Car history</h2>
@@ -222,7 +222,7 @@
 
   <!-- Elgato light detail + rename modal. Mirrors the plug rename flow while
        surfacing the read-only LAN identity needed to map physical lights. -->
-  <dialog data-track-view="light-dialog" id="lightDialog" class="detail-dialog">
+  <dialog data-track-view="light-dialog" data-surface="iot.light-dialog" id="lightDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="lightDetailName">Light</h2>
@@ -250,7 +250,7 @@
 
   <!-- Plug rename modal — mirrors the AC detail modal, name-only. Opened by
        tapping a plug card's name; saves via PUT /api/tuya/{id}/display_name. -->
-  <dialog data-track-view="plug-dialog" id="plugDialog" class="detail-dialog">
+  <dialog data-track-view="plug-dialog" data-surface="iot.plug-dialog" id="plugDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="plugDetailName">Device</h2>
@@ -288,7 +288,7 @@
        card itself shows one number per row (watts), because that is the one
        worth reading at a glance — amps, cumulative kWh, mains voltage, signal
        and the meter's MAC are all things you go looking for deliberately. -->
-  <dialog data-track-view="circuit-dialog" id="circuitDialog" class="detail-dialog">
+  <dialog data-track-view="circuit-dialog" data-surface="iot.circuit-dialog" id="circuitDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="circuitDetailName">Circuit</h2>

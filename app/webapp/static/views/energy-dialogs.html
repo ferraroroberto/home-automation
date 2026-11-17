@@ -2,7 +2,7 @@
        summarises, for the selected period: the bill estimate and savings, then
        each tariff period's rate, kWh and euros. Read-only, so it only has Done.
        Filled by energy.js renderCost(). -->
-  <dialog data-track-view="energy-figures-sheet" id="energyFiguresSheet" class="detail-dialog energy-figures-sheet">
+  <dialog data-track-view="energy-figures-sheet" data-surface="energy.energy-figures-sheet" id="energyFiguresSheet" class="detail-dialog energy-figures-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>All figures</h2>
@@ -21,7 +21,7 @@
        a staged dialog; the system-level fields (shared derate + the home
        coordinates) save on blur. Writes config/pv_system.json, which stays
        hand-editable. -->
-  <dialog data-track-view="pv-system-sheet" id="pvSystemSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="pv-system-sheet" data-surface="energy.pv-system-sheet" id="pvSystemSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>PV system</h2>
@@ -65,7 +65,7 @@
        only persistence boundary; Escape / backdrop / × discard. Tilt stays
        non-negative — an opposite-facing row is expressed via azimuth, which is
        why that field carries the convention hint and a live compass echo. -->
-  <dialog data-track-view="pv-array-dialog" id="pvArrayDialog" class="detail-dialog">
+  <dialog data-track-view="pv-array-dialog" data-surface="energy.pv-array-dialog" id="pvArrayDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="pvArrayEditorTitle">Panel row</h2>
@@ -107,7 +107,7 @@
        compass, clockwise from true north — a different convention from the
        panel row's Open-Meteo south-relative one, because this is compared
        against a computed sun position, not a panel orientation. -->
-  <dialog data-track-view="pv-horizon-dialog" id="pvHorizonDialog" class="detail-dialog">
+  <dialog data-track-view="pv-horizon-dialog" data-surface="energy.pv-horizon-dialog" id="pvHorizonDialog" class="detail-dialog">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus id="pvHorizonEditorTitle">Horizon point</h2>
@@ -141,7 +141,7 @@
   <!-- Export compensation (moved to Settings from the Energy tab by #883):
        the export-rate history and its form. The Energy tab's Money view
        opens this sheet from its Export rate row. -->
-  <dialog data-track-view="export-rate-sheet" id="exportRateSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="export-rate-sheet" data-surface="energy.export-rate-sheet" id="exportRateSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Export compensation</h2>
@@ -172,7 +172,7 @@
        how A/C units enter and leave solar boost: one at a time, measuring
        real surplus between steps. Global by design; the per-unit opt-in stays
        in each unit's sheet. Fields save on blur. -->
-  <dialog data-track-view="boost-coord-sheet" id="boostCoordSheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="boost-coord-sheet" data-surface="energy.boost-coord-sheet" id="boostCoordSheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Solar boost</h2>
@@ -206,7 +206,7 @@
        plotted against where the sun actually was, beside the modelled ratio.
        Read only when the sheet opens (energy.js), so it costs nothing until
        someone asks whether the afternoon drop-off is shading or weather. -->
-  <dialog data-track-view="sun-overlay-sheet" id="sunOverlaySheet" class="detail-dialog settings-sheet">
+  <dialog data-track-view="sun-overlay-sheet" data-surface="energy.sun-overlay-sheet" id="sunOverlaySheet" class="detail-dialog settings-sheet">
     <div class="detail-card">
       <div class="detail-header">
         <h2 tabindex="-1" autofocus>Sun-position check</h2>

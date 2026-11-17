@@ -497,7 +497,7 @@
        toggle with [hidden]; the chosen tab is remembered in localStorage.
        Five tabs (#779): Settings is no tab — every page header's gear opens
        its pane, the design.md five-destination ceiling. -->
-  <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="home">
+  <nav class="tabs" data-surface="app.nav" role="tablist" aria-label="Sections" data-active-tab="home">
     <button id="tabHome" type="button" class="tab active" data-tab="home"
             role="tab" aria-selected="true" aria-controls="paneHome">
       <svg class="icon tab-icon" aria-hidden="true"><use href="#i-house"></use></svg>
@@ -544,12 +544,12 @@
     <!-- @include views/security.html -->
 
     <!-- Build identity: which build the PWA is running. Filled by main.js. -->
-    <footer class="page-foot">
+    <footer class="page-foot" data-surface="app.build-readout">
       <p id="buildReadout"></p>
     </footer>
   </main>
 
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="toast" data-surface="app.toast" class="toast" role="status" aria-live="polite" hidden></div>
   <!-- @include views/home-dialogs.html -->
 
   <!-- @include views/ac-dialogs.html -->
