@@ -62,15 +62,23 @@
           <h3 id="securityZonesTitle" class="group-title">Detectors</h3>
           <span id="securityZonesMeta" class="group-meta"></span>
         </div>
-        <label id="securityZoneFilterField" class="action-row-filter" hidden>
-          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
-          <input id="securityZoneFilter" type="search" placeholder="Filter detectors" aria-label="Filter detectors" autocomplete="off" enterkeyhint="search">
-        </label>
+        <!-- One filter row: the field (once the list is long) and the Filters &
+             sort trigger (once something is hidden to show), the sheet in
+             security-dialogs.html. -->
+        <div id="securityZoneFilterBar" class="filter-bar">
+          <label id="securityZoneFilterField" class="action-row-filter" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+            <input id="securityZoneFilter" type="search" placeholder="Filter detectors" aria-label="Filter detectors" autocomplete="off" enterkeyhint="search">
+          </label>
+          <button id="securityFiltersOpen" data-track="security.zones-filters" type="button" class="icon-button filter-trigger" aria-haspopup="dialog" aria-label="Filters &amp; sort" title="Filters &amp; sort" data-testid="detectors-filters-open" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-sliders-horizontal"></use></svg>
+            <span id="securityFiltersBadge" class="filter-badge" aria-hidden="true" hidden></span>
+          </button>
+        </div>
         <div id="securityZones" class="security-zones"></div>
         <p id="securityZonesNote" class="muted small group-note" hidden></p>
         <div class="group-foot">
           <button id="securityZonesMore" data-track="security.zones-more" type="button" class="group-foot-btn" aria-controls="securityZones" hidden>Show all</button>
-          <button id="securityHiddenToggle" data-track="security.show-hidden" type="button" class="group-foot-btn" data-testid="detectors-show-hidden-toggle" aria-controls="securityZones" hidden>Show hidden</button>
         </div>
       </section>
 

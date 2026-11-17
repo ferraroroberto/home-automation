@@ -77,7 +77,12 @@
    dimmed. */
 .security-zone.is-hidden .action-row-main,
 .presence-row.is-hidden .action-row-main { opacity: 0.55; }
-.security-zones-card .action-row-filter { margin: var(--gap) 12px 0; }
+/* The Detectors' one filter row: the field takes the width, the Filters & sort
+   trigger sits beside it, and the row disappears while both are hidden. */
+.filter-bar { display: flex; align-items: center; gap: var(--space-sm); margin: var(--gap) 12px 0; }
+.filter-bar:not(:has(> :not([hidden]))) { display: none; }
+.filter-bar .action-row-filter { flex: 1 1 auto; min-width: 0; margin: 0; }
+.filter-bar .filter-trigger { --icon-btn-box: var(--row-sm); }
 /* A collapsible card's summary count and tools (other tabs' cards share these
    since the Detectors card was their first user). */
 .security-hidden-count { line-height: 1; white-space: nowrap; }

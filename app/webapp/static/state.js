@@ -266,8 +266,17 @@ export const els = {
   securityEventsAll: document.getElementById('securityEventsAll'),
   presenceAccountsMeta: document.getElementById('presenceAccountsMeta'),
   securityZonesNote: document.getElementById('securityZonesNote'),
+  // Detectors' Filters & sort: the filter bar (field + trigger), the trigger
+  // with its count badge, and the sheet's one switch.
+  securityZoneFilterBar: document.getElementById('securityZoneFilterBar'),
+  securityFiltersOpen: document.getElementById('securityFiltersOpen'),
+  securityFiltersBadge: document.getElementById('securityFiltersBadge'),
+  securityFiltersSheet: document.getElementById('securityFiltersSheet'),
+  securityFiltersClose: document.getElementById('securityFiltersClose'),
+  securityFiltersDone: document.getElementById('securityFiltersDone'),
+  securityFiltersClear: document.getElementById('securityFiltersClear'),
   securityHiddenToggle: document.getElementById('securityHiddenToggle'),
-  notifyScheduleArm: document.getElementById('notifyScheduleArm'),
+  securityHiddenHint: document.getElementById('securityHiddenHint'),  notifyScheduleArm: document.getElementById('notifyScheduleArm'),
   notifyScheduleDisarm: document.getElementById('notifyScheduleDisarm'),
   notifyPresenceArm: document.getElementById('notifyPresenceArm'),
   notifyPresenceDisarm: document.getElementById('notifyPresenceDisarm'),
@@ -773,8 +782,16 @@ export const els = {
   savCo2: document.getElementById('savCo2'),
   savTrees: document.getElementById('savTrees'),
   savExport: document.getElementById('savExport'),
-  // Energy tab: the History card — one period select (Live / Day … All)
-  // and the Energy / Money switch (data-view).
+  // Energy tab: the History card — its Filters & sort trigger, the head's
+  // summary of what the chart shows, and the sheet holding the one period
+  // select (Live / Day … All) and the Energy / Money switch (data-view).
+  historyMeta: document.getElementById('historyMeta'),
+  historyFiltersOpen: document.getElementById('historyFiltersOpen'),
+  historyFiltersBadge: document.getElementById('historyFiltersBadge'),
+  historyFiltersSheet: document.getElementById('energyHistoryFiltersSheet'),
+  historyFiltersClose: document.getElementById('energyHistoryFiltersClose'),
+  historyFiltersDone: document.getElementById('energyHistoryFiltersDone'),
+  historyFiltersClear: document.getElementById('energyHistoryFiltersClear'),
   historyRange: document.getElementById('historyRange'),
   historyViewBtns: Array.from(document.querySelectorAll('#historyView .segmented-item')),
   historyLive: document.getElementById('historyLive'),

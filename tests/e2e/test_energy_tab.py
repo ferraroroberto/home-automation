@@ -26,6 +26,59 @@ _RAW_503_DETAIL = "FusionSolar portal timed out after 10 seconds"
 _RAW_503_BODY = '{"detail":"%s"}' % _RAW_503_DETAIL
 
 
+def _set_history(page: Page, *, period: str | None = None, view: str | None = None) -> None:
+    """Change the History chart through its Filters & sort sheet, then close it."""
+    page.locator("#historyFiltersOpen").click()
+    expect(page.locator("#energyHistoryFiltersSheet")).to_be_visible()
+    if period is not None:
+        page.locator("#historyRange").select_option(period)
+    if view is not None:
+        page.locator(f'#historyView [data-view="{view}"]').click()
+    page.locator("#energyHistoryFiltersDone").click()
+    expect(page.locator("#energyHistoryFiltersSheet")).to_be_hidden()
+
+
+def _history_filters_sheet_is_the_one_control_row_and_counts_what_is_active(page: Page) -> None:
+    """The period and the Energy / Money switch live in one sheet; the trigger counts what differs from the defaults."""
+    trigger = page.locator("#historyFiltersOpen")
+    badge = page.locator("#historyFiltersBadge")
+    # No second control row on the card: neither control is outside the sheet.
+    expect(page.locator(".energy-history-body #historyRange")).to_have_count(0)
+    expect(page.locator(".energy-history-body #historyView")).to_have_count(0)
+    expect(badge).to_be_hidden()
+    expect(trigger).to_have_attribute("aria-label", "Filters & sort")
+    # The glyph is in the inline sprite (a missing symbol draws nothing).
+    expect(page.locator("#i-sliders-horizontal")).to_have_count(1)
+    expect(page.locator("#historyMeta")).to_have_text("Day · Energy")
+
+    _set_history(page, period="week")
+    expect(badge).to_have_text("1")
+    expect(trigger).to_have_attribute("aria-label", "Filters & sort, 1 active: period Week")
+    expect(page.locator("#historyMeta")).to_have_text("Week · Energy")
+
+    _set_history(page, view="money")
+    expect(badge).to_have_text("2")
+    expect(trigger).to_have_attribute(
+        "aria-label", "Filters & sort, 2 active: period Week, showing money"
+    )
+
+    # The sheet fits a short phone with its footer reachable, and Clear resets.
+    page.set_viewport_size({"width": 390, "height": 664})
+    trigger.click()
+    sheet = page.locator("#energyHistoryFiltersSheet")
+    expect(sheet).to_be_visible()
+    box = sheet.bounding_box()
+    assert box is not None and box["y"] >= 0 and box["y"] + box["height"] <= 664, box
+    expect(page.locator("#energyHistoryFiltersDone")).to_be_in_viewport()
+    surface(page, "energy.history-filters-sheet")
+    page.locator("#energyHistoryFiltersClear").click()
+    expect(badge).to_be_hidden()
+    expect(page.locator("#historyMeta")).to_have_text("Day · Energy")
+    expect(page.locator("#aggChart")).to_be_visible()
+    page.locator("#energyHistoryFiltersDone").click()
+    page.set_viewport_size({"width": 390, "height": 844})
+
+
 def _energy_tab_renders_flow_and_charts(
     page: Page, base_url: str, sample_units: List[Dict],
     mock_api: Callable, mock_energy: Callable,
@@ -76,16 +129,19 @@ def _energy_tab_renders_flow_and_charts(
         "canvas => Chart.getChart(canvas).data.datasets.map(dataset => dataset.label)"
     ) == ["Grid cost", "Avoided cost", "Export income"]
     surface(page, "energy.overview")
+    _history_filters_sheet_is_the_one_control_row_and_counts_what_is_active(page)
 
     # Money: the same period, the tariff estimate, a row per tariff period.
-    page.locator('#historyView [data-view="money"]').click()
+    _set_history(page, view="money")
     expect(page.locator("#exportCreditChart")).to_be_visible()
     expect(page.locator("#aggChart")).to_be_hidden()
     expect(page.locator("#costSummary")).to_contain_text("Bill estimate")
     expect(page.locator("#costPeriods .action-row")).to_have_count(3)
     expect(page.locator("#costPeriods .action-row").first).to_contain_text("Off-peak")
     # Live has no money view, so it is unavailable while Money shows.
+    page.locator("#historyFiltersOpen").click()
     expect(page.locator('#historyRange option[value="live"]')).to_be_disabled()
+    page.locator("#energyHistoryFiltersDone").click()
 
     # All figures: every figure the old table and stat strip carried.
     page.locator("#energyFiguresOpen").click()
@@ -100,12 +156,14 @@ def _energy_tab_renders_flow_and_charts(
     expect(sheet).to_be_hidden()
 
     # Live: the last hour of the flow; Money is unavailable while it shows.
-    page.locator('#historyView [data-view="energy"]').click()
-    page.locator("#historyRange").select_option("live")
+    _set_history(page, view="energy")
+    _set_history(page, period="live")
     expect(page.locator("#liveChart")).to_be_visible()
+    page.locator("#historyFiltersOpen").click()
     expect(page.locator('#historyView [data-view="money"]')).to_be_disabled()
     page.locator("#historyRange").select_option("day")
     expect(page.locator('#historyView [data-view="money"]')).to_be_enabled()
+    page.locator("#energyHistoryFiltersDone").click()
 
     _edit_export_rates_from_money_view(page)
 
@@ -114,7 +172,7 @@ def _edit_export_rates_from_money_view(page: Page) -> None:
     """Add, edit and delete an export rate through Money's Export rate row."""
     # Export compensation moved to Settings (#883); Money's Export rate row
     # shows the current rate and opens its sheet there (#886).
-    page.locator('#historyView [data-view="money"]').click()
+    _set_history(page, view="money")
     expect(page.locator("#exportRateRowMeta")).to_have_text("€0.05000 / kWh")
     page.locator("#exportRateOpen").click()
     expect(page.locator("#paneSettings")).to_be_visible()
@@ -260,7 +318,7 @@ def _energy_chart_tick_budget_updates_with_viewport(
     boot_home(page, base_url)
     page.locator("#tabEnergy").click()
     # The live chart sits behind History › Live (#883).
-    page.locator("#historyRange").select_option("live")
+    _set_history(page, period="live")
 
     page.wait_for_function(
         "() => window.Chart?.getChart(document.querySelector('#liveChart'))?.data.labels.length >= 24"

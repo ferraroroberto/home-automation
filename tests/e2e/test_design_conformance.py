@@ -260,11 +260,11 @@ def _card_toolbar_and_light_controls_keep_their_own_tap_zones(
     boot_home(page, base_url)
 
     page.locator("#tabSecurity").click()
-    # The footer toggle only renders once a detector is hidden; show it directly.
-    page.evaluate("() => { document.getElementById('securityHiddenToggle').hidden = false; }")
+    # The Filters & sort button only renders once a detector is hidden; show it directly.
+    page.evaluate("() => { document.getElementById('securityFiltersOpen').hidden = false; }")
     first_switch = page.locator("#securityZones .security-zone .toggle").first
     expect(first_switch).to_be_visible()
-    assert_no_overlap([page.locator("#securityHiddenToggle"), first_switch])
+    assert_no_overlap([page.locator("#securityFiltersOpen"), first_switch])
 
     # The sliders and number fields live in the light sheet since #884.
     page.locator("#tabIot").click()

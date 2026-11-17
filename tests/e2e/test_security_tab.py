@@ -464,9 +464,11 @@ def _detectors_fold_behind_show_all_and_filter_when_long(
     mock_presence()
     zone = {"type": 1, "status": "closed", "active": False, "triggered": False,
             "display_name": None, "hidden": False, "trouble_ignored": False}
+    # Zone 15 is hidden: it only lists once the filters sheet shows hidden ones.
     zones = [
-        {**zone, "id": n, "name": f"Zone {n:02d}", "bypassed": n == 3, "trouble": n == 9}
-        for n in range(1, 15)
+        {**zone, "id": n, "name": f"Zone {n:02d}", "bypassed": n == 3, "trouble": n == 9,
+         "hidden": n == 15}
+        for n in range(1, 16)
     ]
     mock_security({
         "reachable": True, "label": "Disarmed", "mode": "disarmed",
@@ -496,6 +498,45 @@ def _detectors_fold_behind_show_all_and_filter_when_long(
     expect(page.locator("#securityZonesNote")).to_have_text("No detector matches.")
     assert_no_horizontal_overflow(page)
     surface(page, "security.zones-no-match")
+    page.locator("#securityZoneFilter").fill("")
+    _detector_filters_sheet_holds_show_hidden_and_counts_it(page, rows)
+
+
+def _detector_filters_sheet_holds_show_hidden_and_counts_it(page: Page, rows: Locator) -> None:
+    """One filter row (the field and the Filters & sort button), Show hidden
+    inside the sheet, a count on the button, and a sheet that fits 390x664."""
+    trigger = page.locator("#securityFiltersOpen")
+    badge = page.locator("#securityFiltersBadge")
+    switch = page.locator("#securityHiddenToggle")
+    expect(page.locator("#securityZonesCard .filter-bar")).to_have_count(1)
+    expect(page.locator("#securityZonesCard #securityHiddenToggle")).to_have_count(0)
+    expect(trigger).to_be_visible()
+    expect(badge).to_be_hidden()
+    expect(trigger).to_have_attribute("aria-label", "Filters & sort")
+    expect(rows).to_have_count(14)
+
+    page.set_viewport_size({"width": 390, "height": 664})
+    trigger.click()
+    sheet = page.locator("#securityFiltersSheet")
+    expect(sheet).to_be_visible()
+    box = sheet.bounding_box()
+    assert box is not None and box["y"] >= 0 and box["y"] + box["height"] <= 664, box
+    expect(page.locator("#securityFiltersDone")).to_be_in_viewport()
+    expect(page.locator("#securityFiltersClear")).to_be_disabled()
+    surface(page, "security.filters-sheet")
+
+    switch.click()
+    expect(switch).to_have_attribute("aria-checked", "true")
+    expect(rows).to_have_count(15)
+    expect(badge).to_have_text("1")
+    expect(trigger).to_have_attribute("aria-label", "Filters & sort, 1 active: showing 1 hidden")
+    page.locator("#securityFiltersClear").click()
+    expect(switch).to_have_attribute("aria-checked", "false")
+    expect(rows).to_have_count(14)
+    expect(badge).to_be_hidden()
+    page.locator("#securityFiltersDone").click()
+    expect(sheet).to_be_hidden()
+    page.set_viewport_size({"width": 390, "height": 844})
 
 
 @pytest.mark.chromium_only

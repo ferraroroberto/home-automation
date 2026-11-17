@@ -34,6 +34,7 @@ import { createViewState, ViewState, markTabFailure, renderFeedback } from '../v
 import { setHeadPart } from '../head-status.js';
 import { rowEl } from '../row.js';
 import { sheet } from '../sheet.js';
+import { renderFilterTrigger } from '../filter-trigger.js';
 import { showSettings } from '../tabs.js';
 import { openSettingsSheet } from '../settings.js';
 import { loadExportRates, wireExportRates } from './export-rates.js';
@@ -48,6 +49,7 @@ const SLOW_MS = 30_000;
 const TODAY_MS = 60_000;      // today's kWh totals move slowly — refresh gently
 const LIVE_WINDOW_MIN = 60;   // minutes of recent history seeded into the live chart
 const LIVE_MAX_POINTS = 400;  // ring-buffer cap on the live chart
+const DEFAULT_RANGE = 'day';  // the History period state.range starts at
 
 // Rough, clearly-labelled estimates for the savings card. The € figure is no
 // longer a flat rate — it comes from the tiered tariff via /api/energy/cost
@@ -544,6 +546,26 @@ function markSegments(btns, key, value) {
 }
 
 // ------------------------------------------------- History card
+// The head names what the chart shows ("Week · Money") and the Filters & sort
+// trigger counts what differs from the defaults (Day, Energy), so a narrowed
+// chart never passes for the default one.
+function syncHistoryFilters(live, money) {
+  const active = [];
+  if (state.range !== DEFAULT_RANGE) active.push('period ' + rangeLabel(state.range));
+  if (money) active.push('showing money');
+  els.historyMeta.textContent = rangeLabel(state.range) + ' · ' + (live ? 'Energy' : money ? 'Money' : 'Energy');
+  renderFilterTrigger(els.historyFiltersOpen, els.historyFiltersBadge, active);
+  els.historyFiltersClear.disabled = active.length === 0;
+}
+
+// Back to the defaults in one step, one read.
+function clearHistoryFilters() {
+  state.range = DEFAULT_RANGE;
+  state.historyView = 'energy';
+  syncHistory();
+  loadHistory();
+}
+
 // One period for both views. Live is the last hour of the flow and has no
 // money view, so while it is selected Money is unavailable, and while Money is
 // shown Live is; the other option always says why in its title.
@@ -568,6 +590,7 @@ function syncHistory() {
   els.historyEnergy.hidden = live || money;
   els.historyMoney.hidden = !money;
   els.historyMoneyRows.hidden = !money;
+  syncHistoryFilters(live, money);
   // A chart created while its view was hidden has no size yet.
   const shown = live ? state.liveChart : money ? state.exportCreditChart : state.aggChart;
   if (shown) shown.resize();
@@ -712,6 +735,13 @@ export function wireEnergyControls() {
   els.historyViewBtns.forEach(function (btn) {
     btn.addEventListener('click', function () { setHistoryView(btn.dataset.view); });
   });
+  const historyFilters = sheet(els.historyFiltersSheet, {
+    model: 'instant',
+    closeButton: els.historyFiltersClose,
+    doneButton: els.historyFiltersDone,
+  });
+  els.historyFiltersOpen.addEventListener('click', function () { historyFilters.open(els.historyFiltersOpen); });
+  els.historyFiltersClear.addEventListener('click', clearHistoryFilters);
   syncHistory();
   // History › Money: All figures is read-only (Done only); Export rate opens
   // its editor where it lives now, Settings › Energy (a sheet).
