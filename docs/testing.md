@@ -48,15 +48,15 @@ path-routed. Exit 3 (git or a doc unreadable, a fence that never closes) is
 NOT CONFIRMED and fails, never a pass; the gate calls it through
 `python -m scripts.docs_ratchet_gate`.
 
-CI (`.github/workflows/ci.yml`) runs this same gate on a clean Windows runner
-for every PR and every push to `main`: a fresh `.venv` from the requirements
-files, only committed files, and each `config/*.sample.json` copied to its live
-name. It is advisory (no branch protection); the local gate is the contract.
-CI needs no secret, and no test or workflow step reaches a real device, camera,
-calendar or push service. It runs Chromium only: the WebKit/iPhone projection runs nightly on
-the real Mac (`project-scaffolding` nightly-mac). A failing run uploads its Playwright traces and
-screenshots as an artifact. To reproduce a clean-runner red locally, run the
-suite from a checkout that has only the sample config files.
+There is no hosted CI. The Mac Mini nightly (`project-scaffolding` nightly-mac)
+is the repo's one CI: it builds a fresh `.venv` from the requirements files on
+the real Mac, checks out only committed files with each `config/*.sample.json`
+copied to its live name, and runs the WebKit/iPhone e2e projection plus an iOS
+Simulator smoke whenever `main` moved since the last green night and every
+Sunday. It needs no secret, and no test reaches a real device, camera, calendar
+or push service. The local gate is the per-change contract; a red nightly files
+a `ci-red-main` issue. To reproduce a clean-machine red locally, run the suite
+from a checkout that has only the sample config files.
 
 Every gate run writes a per-test progress log: phase markers from the script,
 plus a `START`/`DONE (<s>)` line per browser test and a traceback excerpt under
