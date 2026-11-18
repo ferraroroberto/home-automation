@@ -73,25 +73,3 @@
 .flow-arrow.is-active,
 .flow-arrow.is-import,
 .flow-arrow.is-export { color: var(--ink); }
-
-
-/* A pinned unit's setpoint stepper under its row on Home: the sheet's stepper
-at a row's scale, the ± icon buttons at the real 44px. The row that follows
-keeps its divider, which the vendored `.action-row + .action-row` rule no
-longer reaches across this item. */
-.ac-quick {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: 0 14px 6px;
-  --icon-btn-box: var(--hit-min);
-}
-.ac-quick + .action-row { border-top: 1px solid var(--line-muted); }
-.ac-quick-step .icon { width: 20px; height: 20px; }
-.ac-quick-value {
-  min-width: 5ch;
-  text-align: center;
-  font-size: var(--font-body);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
