@@ -92,7 +92,7 @@ flowchart TB
   end
   TRAY -->|starts/stops uvicorn| SERVER
 
-  subgraph ha["custom_components/home_automation_app/ — HA integration (#235)"]
+  subgraph ha["assets/home_assistant/home_automation_app/ — HA integration (#235)"]
     HAINT["thin adapter: climate · switch · alarm_control_panel ·\nbinary_sensor · sensor"]
   end
   HAINT -->|HTTP /api/*| ROUTERS

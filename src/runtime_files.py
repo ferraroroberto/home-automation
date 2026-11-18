@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 #: The ``code_folders`` of ``.fleet.toml`` ``[runtime_write_ratchet]``; a test keeps the two equal.
-CODE_FOLDERS = ("src", "app", "scripts", "custom_components")
+CODE_FOLDERS = ("src", "app", "scripts", "assets")
 
 PathLike = Union[str, Path]
 

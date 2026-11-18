@@ -9,9 +9,7 @@ description = "Home automation: AC, solar, per-circuit energy, alarm, network he
 chips       = ["FastAPI", "PWA", "MELCloud", "Modbus", "FusionSolar", "Athom", "Tuya", "HA", "Tesla", "Telegram"]
 depends_on  = ["local-llm-hub", "project-scaffolding", "voice-transcriber"]
 shape       = "webapp-tray"
-# Root folder the webapp-tray preset does not list: Home Assistant loads the integration
-# from custom_components/ by name. docs/layout.md gives the reason.
-extra_roots = ["custom_components"]
+extra_roots = []
 
 [vendored]
 ux_surface_ratchet = { src = "scripts/ux_surface_ratchet.py", sha = "adf0375e08a186330196b8d6be7b8b51078a73ae", dest = "scripts/ux_surface_ratchet.py" }
@@ -173,7 +171,7 @@ baseline = ".dead-code-ratchet-baseline.json"
 # Home Assistant calls the integration's setup hooks by name, from outside this tree.
 # tests/e2e/_geometry.py is a verbatim copy of the fleet helper, so its unused chart-tick
 # assertion stays in the file rather than forking it.
-allow    = ["custom_components/**/*.py:async_setup*", "tests/e2e/_geometry.py:assert_chart_ticks"]
+allow    = ["assets/home_assistant/**/*.py:async_setup*", "tests/e2e/_geometry.py:assert_chart_ticks"]
 
 # [conventions_ratchet] -- the scaffold's baseline-and-ratchet stage over fleet
 # conventions held as stdlib ast rules. The gate (scripts/verify-before-ship.ps1) runs
@@ -224,8 +222,8 @@ why    = "src/_atomic_json.py is the one atomic-write helper (write-tmp + replac
 [runtime_write_ratchet]
 enabled  = true
 baseline = ".runtime-write-ratchet-baseline.json"
-# custom_components/ (the declared extra root) is code too, beside the default folders.
-code_folders = ["src", "app", "scripts", "custom_components"]
+# assets/ holds the Home Assistant integration's Python, so the runtime-write guard covers it.
+code_folders = ["src", "app", "scripts", "assets"]
 
 # [usage_track_ratchet] -- scripts/usage_track_ratchet.py (with its reader
 # scripts/usage_track_scan.py) fails when the web app's HTML or JS gains a control with no
@@ -372,11 +370,6 @@ tier       = "none"
 prefix     = "src/"
 extensions = ["py"]
 
-# The Home Assistant integration is a thin API adapter with no browser UI.
-[[e2e.rule]]
-tier   = "none"
-prefix = "custom_components/"
-
 [[e2e.rule]]
 tier   = "none"
 prefix = "scripts/"
@@ -395,7 +388,7 @@ prefix = "docs/"
 tier = "none"
 path = "app/streamlit_spike.py"
 
-# Static icon/image assets (tray icon, Stream Deck art) -- not served by the
+# Static assets (tray icon, Stream Deck art, the Home Assistant integration) -- not served by the
 # webapp's PWA static tree, no browser impact.
 [[e2e.rule]]
 tier   = "none"

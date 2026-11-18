@@ -475,7 +475,7 @@ def test_no_code_path_accepts_apple_terms_on_the_account_holders_behalf() -> Non
 
     root = Path(__file__).resolve().parents[2]
     offenders = []
-    for folder in ("src", "app", "scripts", "custom_components"):
+    for folder in ("src", "app", "scripts", "assets"):
         for path in (root / folder).rglob("*.py"):
             text = path.read_text(encoding="utf-8")
             if re.search(r"accept_terms\s*=\s*True|--accept-terms", text):

@@ -8,7 +8,7 @@ Voice control should use Home Assistant's deterministic built-in intents over na
 
 ## Installed integration
 
-Copy `custom_components/home_automation_app/` into the HA VM's `/config/custom_components/home_automation_app/`, then add this to `/config/configuration.yaml`:
+Copy this repo's `assets/home_assistant/home_automation_app/` into the HA VM's `/config/custom_components/home_automation_app/` (Home Assistant loads an integration only from a folder of that name under its own `custom_components/`; the leaf folder keeps the name `home_automation_app`), then add this to `/config/configuration.yaml`:
 
 ```yaml
 home_automation_app:
@@ -36,7 +36,7 @@ Do not commit the token, LAN host names, room names, unit IDs, or HA's live `/co
 
 The alarm mapping intentionally preserves the old deterministic voice behavior: the previous custom `rest_command.alarm_perimeter` and `rest_command.alarm_partial` actions become native HA service calls on `alarm_control_panel.home_alarm`.
 
-`control_security()` (`custom_components/home_automation_app/api.py`) sends `X-Automation-Source: ha` on every alarm POST, so `logs/alarm.jsonl`'s `manual` entries tag this integration's commands with `actor: "ha"` — distinct from the webapp PWA (`actor: "webapp"`, the default) and the voice-PE `rest_command`s (`actor: "voice-pe"`). Useful when debugging an unexpected arm/disarm: check `logs/alarm.jsonl` for which caller issued it before assuming a person did.
+`control_security()` (`assets/home_assistant/home_automation_app/api.py`) sends `X-Automation-Source: ha` on every alarm POST, so `logs/alarm.jsonl`'s `manual` entries tag this integration's commands with `actor: "ha"` — distinct from the webapp PWA (`actor: "webapp"`, the default) and the voice-PE `rest_command`s (`actor: "voice-pe"`). Useful when debugging an unexpected arm/disarm: check `logs/alarm.jsonl` for which caller issued it before assuming a person did.
 
 ## Voice usage
 
@@ -59,7 +59,7 @@ From the HA Terminal & SSH add-on:
 
 ```sh
 mkdir -p /config/custom_components/home_automation_app
-# Copy the repo directory contents there by scp or the HA file path you use.
+# Copy the contents of the repo's assets/home_assistant/home_automation_app/ there by scp or the HA file path you use.
 ha core check
 ha core restart
 ```
@@ -73,7 +73,7 @@ Then verify in HA:
 
 ## Maintenance contract
 
-- Keep entity code under `custom_components/home_automation_app/` and shared REST behavior in `api.py`.
+- Keep entity code under `assets/home_assistant/home_automation_app/` and shared REST behavior in `api.py`.
 - Do not import `src.*` from the HA integration; HA is a remote client of the app API.
 - If an endpoint shape changes, update the PWA/API tests and this integration in the same PR.
 - If more domains are added, add a platform file that reuses `HomeAutomationApi` rather than a new HTTP client.

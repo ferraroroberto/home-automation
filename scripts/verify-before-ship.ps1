@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Runs, fail-fast:
-      1. byte-compile     — every .py under app/ src/ tests/ scripts/ custom_components/ parses
+      1. byte-compile     — every .py under app/ src/ tests/ scripts/ assets/ parses
       2. static ratchet   — no new duplicate block (jscpd via npx), unused
                             import/variable (ruff F401,F841) or ruff bug (B) /
                             security (S) finding (S113 strict) beyond
@@ -45,7 +45,7 @@
                             .conventions-ratchet-baseline.json. Whole tree, never
                             routed; exit 3 is NOT CONFIRMED and fails.
      10b. runtime write ratchet — no file's count of write targets resolving under a
-                            code folder (src, app, scripts, custom_components) rises
+                            code folder (src, app, scripts, assets) rises
                             beyond .runtime-write-ratchet-baseline.json. Whole tree,
                             never routed; exit 3 is NOT CONFIRMED and fails.
      10c. usage track ratchet — no file's count of untracked controls, untracked
@@ -205,7 +205,7 @@ function Publish-ProgressLog {
 
 $gateResult = "FAIL"
 try {
-    Invoke-Stage "byte-compile" { & $py -m compileall -q app src tests scripts custom_components }
+    Invoke-Stage "byte-compile" { & $py -m compileall -q app src tests scripts assets }
     # The wrapper maps the script's exit 3 to NOT CONFIRMED (tests/ratchets/test_static_ratchet_gate.py
     # pins it); call it, never scripts/static_ratchet.py directly.
     Invoke-Stage "static ratchet" { & $py -m scripts.static_ratchet_gate }
