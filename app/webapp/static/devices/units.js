@@ -222,46 +222,10 @@ function acRow(u) {
   return row;
 }
 
-// A pinned unit's setpoint on Home: − / value / + under its row, the sheet's
-// stepper (same settle timer, same write) without the trip into the sheet.
-// An offline unit has nothing to set, so it gets no stepper.
-function quickSetpointEl(u) {
-  const li = document.createElement('li');
-  li.className = 'ac-quick';
-  li.dataset.unitId = u.unit_id;
-  const label = displayLabel(u) || 'Unit';
-  li.innerHTML =
-    '<button data-track="home.temp-down" type="button" class="icon-button ac-quick-step" data-dir="-1">' +
-    '<svg class="icon" aria-hidden="true"><use href="#i-minus"></use></svg></button>' +
-    '<output class="ac-quick-value" aria-live="polite"></output>' +
-    '<button data-track="home.temp-up" type="button" class="icon-button ac-quick-step" data-dir="1">' +
-    '<svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg></button>';
-  li.querySelector('[data-dir="-1"]').setAttribute('aria-label', 'Lower the set temperature of ' + label);
-  li.querySelector('[data-dir="1"]').setAttribute('aria-label', 'Raise the set temperature of ' + label);
-  li.querySelectorAll('.ac-quick-step').forEach(function (btn) {
-    btn.addEventListener('click', function () { nudgeSetpoint(u.unit_id, Number(btn.dataset.dir)); });
-  });
-  renderQuickSetpoint(li, u);
-  return li;
-}
-
-function renderQuickSetpoint(li, unit) {
-  const [tmin, tmax] = tempRange(unit).map(Number);
-  const shown = shownSetpoint(unit);
-  const live = canCommand(unit);
-  li.querySelector('.ac-quick-value').textContent = fmtTemp(shown);
-  li.querySelector('[data-dir="-1"]').disabled = !live || (shown != null && shown <= tmin);
-  li.querySelector('[data-dir="1"]').disabled = !live || (shown != null && shown >= tmax);
-}
-
-// `quick`: Home with pinned units, where each online row carries its stepper.
-function unitList(units, quick) {
+function unitList(units) {
   const list = document.createElement('ul');
   list.className = 'action-rows';
-  units.forEach(function (u) {
-    list.appendChild(acRow(u));
-    if (quick && !isOffline(u)) list.appendChild(quickSetpointEl(u));
-  });
+  units.forEach(function (u) { list.appendChild(acRow(u)); });
   return list;
 }
 
@@ -272,7 +236,7 @@ function renderAll() {
   if (!els.acUnits) return;
   els.acUnits.innerHTML = '';
   els.acUnits.hidden = !state.units.length;
-  if (state.units.length) els.acUnits.appendChild(unitList(sortedUnits(), false));
+  if (state.units.length) els.acUnits.appendChild(unitList(sortedUnits()));
 }
 
 // ------------------------------------- Home's Climate group
@@ -294,7 +258,7 @@ function renderAcSummary() {
   }
   const shown = homeUnits();
   const filtered = shown.length < state.units.length;
-  list.appendChild(unitList(shown, filtered));
+  list.appendChild(unitList(shown));
   if (els.acAllUnits) {
     els.acAllUnits.hidden = !filtered;
     els.acAllUnits.textContent = 'All ' + state.units.length + ' AC units';
@@ -558,13 +522,10 @@ function openDetail(unitId, trigger) {
 }
 
 // --------------------------------------------------------- the setpoint
-// Both places that dial a setpoint (the sheet and Home's pinned rows) show the
-// pending value until the unit's read-back replaces it.
+// The sheet's stepper shows the pending value until the unit's read-back
+// replaces it.
 function refreshSetpoint(unit) {
   if (state.selectedId === unit.unit_id) renderSetpoint(unit);
-  document.querySelectorAll('.ac-quick[data-unit-id="' + CSS.escape(unit.unit_id) + '"]').forEach(function (li) {
-    renderQuickSetpoint(li, unit);
-  });
 }
 
 function nudgeSetpoint(unitId, direction) {

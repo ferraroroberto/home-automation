@@ -264,7 +264,7 @@ flowchart LR
 - **States:**
   - a normal house shows no chips
   - panel unreachable shows a chip and disables the alarm control
-  - with units pinned, Climate lists only those, each with a setpoint stepper
+  - with units pinned, Climate lists only those, each one row with its power switch
 - **Why:** the first screen answers whether the house is fine, so exceptions surface as chips and nothing else competes for attention
 - **Leads to:**
   - [Confirm dialog](#sharedconfirm-dialog-confirm-dialog) (a scene row)
