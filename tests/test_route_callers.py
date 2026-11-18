@@ -39,7 +39,7 @@ _CALLER_SOURCES = (
     ("app/webapp/static", ("*.js", "*.html")),
     ("app/webapp", ("*.py",)),
     ("app/tray", ("*.py",)),
-    ("custom_components", ("*.py",)),
+    ("assets/home_assistant", ("*.py",)),
     ("scripts", ("*.py", "*.ps1")),
     ("src", ("*.py",)),
     ("docs/voice-pe-config", ("*.yaml",)),

@@ -173,7 +173,7 @@ def test_real_rules_route_representative_paths() -> None:
     # Backend / tooling / docs / meta -> skip (no browser impact of their own).
     assert tier("src/energy/pv_forecast.py") == "skip"
     assert tier("src/devices/melcloud_client.py") == "skip"
-    assert tier("custom_components/home_automation_app/climate.py") == "skip"
+    assert tier("assets/home_assistant/home_automation_app/climate.py") == "skip"
     assert tier("scripts/gen_icons.py") == "skip"
     assert tier("config/tariff.sample.json") == "skip"
     assert tier("docs/pv-forecast.md") == "skip"

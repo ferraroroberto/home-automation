@@ -77,7 +77,7 @@ Device control reaches the app through its existing **API-first** backend — `P
 …:8447/api/units/{id}` etc., behind `BearerTokenMiddleware` (loopback bypasses; remote uses a
 bearer token). The app's logic lives in `src/` and the PWA is just another `/api/*` client, so
 HA can call exactly what the PWA calls. The durable form is the native HA integration under
-[`custom_components/home_automation_app/`](../custom_components/home_automation_app/),
+[`assets/home_assistant/home_automation_app/`](../assets/home_assistant/home_automation_app/),
 documented in [`home-assistant-integration/`](home-assistant-integration/README.md): it exposes climate/switch/alarm/binary-sensor/energy-sensor entities while reusing the app API as the single source of truth.
 
 ## Native entity bridge

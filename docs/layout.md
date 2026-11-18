@@ -40,8 +40,7 @@ home-automation/
 ├── docs/                      # durable reference, one topic per file
 ├── scripts/                   # gate, ratchets, cert and auth helpers, ops tools, launch_app.sh (POSIX Streamlit spike launcher)
 ├── config/                    # committed *.sample.json templates; the live stores are gitignored
-├── assets/                    # tray icon and Stream Deck art — not served by the PWA
-└── custom_components/         # Home Assistant integration (declared exception)
+└── assets/                    # tray icon, Stream Deck art and the Home Assistant integration (home_assistant/) — not served by the PWA
 ```
 
 ## Where new code goes
@@ -61,9 +60,9 @@ home-automation/
 
 ## Declared exceptions
 
-The `webapp-tray` preset lists `app`, `src`, `tests`, `docs` as required and `scripts`, `data`, `brand`, `assets`, `config` as allowed. One tracked root folder is outside it and is listed in `extra_roots`:
+The `webapp-tray` preset lists `app`, `src`, `tests`, `docs` as required and `scripts`, `data`, `brand`, `assets`, `config` as allowed. No tracked root folder is outside it, and `extra_roots` is empty.
 
-- **`custom_components/`** — Home Assistant loads a custom integration from a folder of this exact name under its config directory, so it cannot live under `app/` or `src/`. It is a thin API client and imports nothing from `src`.
+- **`assets/home_assistant/home_automation_app/`** is the Home Assistant integration. Home Assistant needs the folder name `custom_components/home_automation_app/` on the HA machine only, which the documented copy produces, so the source folder lives under the untyped `assets/` root with that leaf name unchanged. It is a thin API client and imports nothing from `src`; `assets` is a runtime-write code folder, so the Python in it stays under the same guard as `src/`.
 
 ## The structure ratchet
 
