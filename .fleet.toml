@@ -466,7 +466,8 @@ extensions = ["bat", "sh"]
 [[state_machines]]
 name   = "daily-fire-latch"
 module = "src/_schedule_store.py"
-type   = "DailyFireLatch"
+type   = "FireDayState"
+derive = "derive_fire_day_state"
 
 [[state_machines]]
 name   = "view-state"
