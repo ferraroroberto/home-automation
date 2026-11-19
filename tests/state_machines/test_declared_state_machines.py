@@ -9,10 +9,13 @@ monkeypatched so it fails loudly if it is ever reached.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from app.webapp import searxng_watchdog as wd
 from app.webapp import tesla_sampler as sampler
+from src._schedule_store import DailyFireLatch, FireLatchPolicy, derive_fire_day_state
 from src.devices import hyperv_client as H
 from src.devices import tesla_client as T
 from src.voice import searxng_client as S
@@ -134,3 +137,45 @@ def test_a_non_awake_reading_never_advances_the_idle_clock() -> None:
         sampler.note_reading(cadence, config, T.TeslaReading(state=word.value), now=500.0)
         assert cadence.idle_since is None
         assert cadence.quiet_until == 0.0
+
+
+# ------------------------------------------------------- daily fire latch
+@pytest.mark.parametrize(
+    ("spent", "asked", "state"),
+    [
+        ({}, "2026-06-22", "unfired"),
+        ({"k": "2026-06-22"}, "2026-06-22", "fired"),
+        # Yesterday's spent day never blocks today's fire.
+        ({"k": "2026-06-21"}, "2026-06-22", "unfired"),
+        # Another entry's spent day says nothing about this one.
+        ({"other": "2026-06-22"}, "2026-06-22", "unfired"),
+    ],
+)
+def test_fire_day_state_table(spent: dict[str, str], asked: str, state: str) -> None:
+    latch = DailyFireLatch(FireLatchPolicy(name="t", file_name="t.json", window="grace"))
+    latch._days = dict(spent)
+    assert derive_fire_day_state(spent.get("k"), asked) == state
+    assert latch.fired("k", asked) is (state == "fired")
+
+
+def test_a_spent_day_survives_a_restart_and_never_blocks_the_next_day() -> None:
+    """state-machine-proof: daily-fire-latch
+
+    A day spent by one latch reads ``fired`` on a fresh latch over the same
+    file (a restarted process), so the entry is refused a second fire that day;
+    the next date reads ``unfired`` again, and spending a new day drops the old
+    one rather than accumulating it.
+    """
+    policy = FireLatchPolicy(name="t", file_name="t_last_fire.json", window="grace")
+    first = DailyFireLatch(policy)
+    asyncio.run(first.fire_once("k", "2026-06-22", _acted))
+    restarted = DailyFireLatch(policy)
+    assert restarted.fired("k", "2026-06-22")
+    assert not restarted.fired("k", "2026-06-23")
+    restarted.mark("k", "2026-06-23")
+    assert restarted.days == {"k": "2026-06-23"}
+    assert not restarted.fired("k", "2026-06-22")
+
+
+async def _acted() -> None:
+    return None

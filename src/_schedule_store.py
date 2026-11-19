@@ -254,6 +254,17 @@ class FireLatchPolicy:
     skip_consumes_day: bool = False
 
 
+FireDayState = Literal["unfired", "fired"]
+"""One entry's once-a-day fire on one local date: ``fired`` once that date is
+spent, ``unfired`` for any other date or a key never spent. The only mapping
+from the persisted key -> day facts to a state is :func:`derive_fire_day_state`."""
+
+
+def derive_fire_day_state(spent_day: Optional[str], day: str) -> FireDayState:
+    """``fired`` when the entry's last spent date is ``day``, else ``unfired``."""
+    return "fired" if spent_day == day else "unfired"
+
+
 class DailyFireLatch:
     """Entry key -> the local date it last fired, persisted under ``logs/``.
 
@@ -299,7 +310,7 @@ class DailyFireLatch:
 
     def fired(self, key: str, day: str) -> bool:
         """True when ``key`` already fired on ``day``."""
-        return self._days.get(key) == day
+        return derive_fire_day_state(self._days.get(key), day) == "fired"
 
     def mark(self, key: str, day: str) -> None:
         """Spend ``day`` for ``key`` and persist. Entries for other days are
