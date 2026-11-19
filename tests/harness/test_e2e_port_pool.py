@@ -61,7 +61,9 @@ def _run_child(tmp_path: Path) -> str:
     env = {**os.environ, "PYTHONPATH": str(_REPO_ROOT), "PYTHONUTF8": "1"}
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-q", str(tmp_path)],
-        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=120,
+        # The child is pinned to UTF-8 above, so decode its output as UTF-8 too:
+        # text=True alone uses the locale code page and garbles the headline's em dash.
+        cwd=tmp_path, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120,
         creationflags=NO_WINDOW,
     )
     return result.stdout
