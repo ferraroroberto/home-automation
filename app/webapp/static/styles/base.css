@@ -148,7 +148,7 @@
   --tile-purple: #8957e5;
   --tile-orange: #bd561d;
   --tile-yellow: #9e6a03;
-  --input-bg: var(--bg);
+  --input-bg: var(--line-muted); /* control fill: border-muted, a step above the card, never the darker canvas */
   --toggle-track: var(--control-border);
   --toggle-knob: var(--ink);
   --toggle-label: var(--muted);

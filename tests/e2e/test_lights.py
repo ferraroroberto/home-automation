@@ -319,6 +319,46 @@ def _lights_refresh_failure_keeps_partial_data_note(
     surface(page, "iot.lights-stale")
 
 
+def _lights_footer_verbs_share_one_quiet_style(
+    page: Page,
+    base_url: str,
+    sample_units: List[Dict],
+    sample_lights: List[Dict],
+    mock_api: Callable,
+    mock_energy: Callable,
+    mock_lights: Callable,
+) -> None:
+    """Every footer verb is the same unfilled text button, and a surface button
+    on the card is a step above it in dark rather than a darker well."""
+    _boot_lights(page, base_url, sample_units, sample_lights, mock_api, mock_energy, mock_lights)
+
+    verbs = page.locator("#lightsCard .group-foot > button")
+    expect(verbs).to_have_count(3)
+    for i in range(3):
+        expect(verbs.nth(i)).to_have_class("group-foot-btn")
+    for theme in ("light", "dark"):
+        page.evaluate("t => { document.documentElement.dataset.theme = t; }", theme)
+        fills = page.evaluate(
+            """() => {
+                const bg = (el) => getComputedStyle(el).backgroundColor;
+                const probe = document.createElement('button');
+                probe.className = 'button-surface';
+                const card = document.getElementById('lightsCard');
+                card.appendChild(probe);
+                const out = {
+                    verbs: [...card.querySelectorAll('.group-foot > button')].map(bg),
+                    surface: bg(probe), card: bg(card),
+                };
+                probe.remove();
+                return out;
+            }"""
+        )
+        assert set(fills["verbs"]) == {"rgba(0, 0, 0, 0)"}, (theme, fills)
+        if theme == "dark":
+            # border-muted over the #161b22 card; the canvas (#0d1117) is darker than the card.
+            assert fills["surface"] == "rgb(33, 38, 45)", (theme, fills)
+
+
 def test_lights_tab(
     page: Page, base_url: str, request: pytest.FixtureRequest, mock_tuya: Callable,
 ) -> None:
@@ -332,5 +372,6 @@ def test_lights_tab(
         _lights_bulk_buttons_follow_reachable_state_and_show_progress,
         _lights_bulk_controls_and_detail_rename,
         _lights_refresh_failure_keeps_partial_data_note,
+        _lights_footer_verbs_share_one_quiet_style,
         per_step=lambda: mock_tuya([]),
     )
