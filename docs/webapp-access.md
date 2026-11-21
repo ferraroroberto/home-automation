@@ -59,3 +59,11 @@ The login password is stored only as a salted hash in `config/app_password.json`
 - Remote (LAN / Tailscale) callers must present `Authorization: Bearer <token>` or `?token=…`.
 - Open the webapp once with `?token=…`; the page stashes it in localStorage and strips it from the URL.
 - A login **password** lets a fresh device (e.g. an iOS PWA whose storage is partitioned) type a secret into the overlay instead — the server hands the token back. Failed attempts log to `webapp/auth.log`.
+
+## Restart from the build readout
+
+Tapping the build readout in the page foot opens a sheet that restarts the app, from any client that can already use it, the phone over the tailnet included. It posts `POST /api/restart`, which runs this repo's own `tray.bat --restart` from the path spelling the tray was launched from, through a runner detached from the tray's process tree so the restart cannot kill itself. Only the declared `app` target runs; the client sends that id and nothing else.
+
+- **Auth is the bearer gate every other `/api` route uses.** The route also depends on `require_authenticated` (`app/webapp/middleware.py`), which refuses a request the middleware did not admit, so it can never answer on an exempt path. Loopback bypasses the token like every other call. A `POST` whose `Origin` is not this host is refused with 403.
+- **Every ending is recorded and shown.** `ok`, `failed`, `timeout`, `error`, and `unknown` (the runner stopped reporting) are written to `restart/last.json` and `restart/last.log` under the app's runtime-data directory, and the sheet shows each as its own message; a restart is confirmed only when `/api/version` reports a new process and the record says `ok`.
+- **The component is vendored.** `src/self_restart.py` and `page-foot/restart-sheet.{js,css}` come verbatim from `project-scaffolding`; the app's part is the router mount in `app/webapp/server.py` and the two calls in `app/webapp/static/main.js`.

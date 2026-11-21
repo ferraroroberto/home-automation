@@ -218,6 +218,18 @@ surfaces:
     holds:
       - the running build, as the short commit id and its build time
     why: a long-lived PWA can run a stale build, so the readout is how a person (or a restart check) confirms which one is live
+  - id: app.restart-sheet
+    area: app
+    title: Restart sheet
+    root: data-surface
+    reach:
+      - tap the build readout (shown only when the app offers a restart)
+    does:
+      - asks to confirm, then restarts the app through the repo's own tray recipe
+      - polls until the new build answers and reloads
+    states:
+      - failed, timed out, not confirmed, or refused, each shown as its own message and never as a success
+    why: restarting from the phone needs no terminal, and an unknown result must never read as a restart that worked
   - id: app.install-shell
     area: app
     title: Installed app

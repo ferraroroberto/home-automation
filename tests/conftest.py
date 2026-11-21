@@ -35,6 +35,11 @@ os.environ["USAGE_LOG_DB_PATH"] = str(USAGE_TEST_DB)
 os.environ["APP_PASSWORD_FILE"] = str(Path(tempfile.mkdtemp(prefix="home-automation-password-")) / "app_password.json")
 
 
+# The restart record (src/self_restart.py) lives under this app's runtime-data
+# directory; a run must never read or write the real one.
+os.environ["HOME_AUTOMATION_DATA_DIR"] = tempfile.mkdtemp(prefix="home-automation-data-")
+
+
 @pytest.fixture(autouse=True)
 def _isolate_activity_stores(tmp_path, monkeypatch) -> None:
     """Point telemetry + JSONL activity logs at per-test temp paths."""

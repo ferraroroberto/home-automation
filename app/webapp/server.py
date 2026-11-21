@@ -74,7 +74,7 @@ from app.webapp.actions_registry import warn_unconfigured_quick_actions
 from app.webapp.automation import start_automation
 from app.webapp.blind_schedules import start_blind_schedules
 from app.webapp.ha_trace_collector import start_ha_trace_collector
-from app.webapp.middleware import BearerTokenMiddleware
+from app.webapp.middleware import BearerTokenMiddleware, require_authenticated
 from app.webapp.observability import SlowRequestLogMiddleware, ensure_slow_log_handler
 from app.webapp.power_monitor import start_power_monitor
 from app.webapp.presence_automation import start_presence_automation
@@ -131,7 +131,8 @@ from src.automation_owner import AutomationOwnership, automation_engines_opt_in
 from src.compression import StreamSafeGZipMiddleware
 from src.devices.camera_token import verify as _verify_camera_token
 from src.push_notifications import validate_push_config
-from src.runtime_data import runtime_db_path
+from src.runtime_data import runtime_data_dir, runtime_db_path
+from src.self_restart import TRAY_RESTART, RestartTarget, restart_router
 from src.usage_log import usage_router
 from src.webapp_config import load_webapp_config
 
@@ -384,6 +385,14 @@ def create_app() -> FastAPI:
     # USAGE_LOG_DB_PATH keeps test and e2e boots off the real file.
     app.include_router(usage_router(
         runtime_db_path("home-automation", "usage.sqlite3", env_var="USAGE_LOG_DB_PATH")
+    ))
+
+    # The build readout's restart sheet: runs this repo's own `tray.bat --restart`.
+    # Same bearer gate as every other /api write; loopback bypasses it like the rest.
+    app.include_router(restart_router(
+        targets=[RestartTarget("app", "Restart app", TRAY_RESTART)],
+        status_dir=runtime_data_dir("home-automation") / "restart",
+        guard=require_authenticated,
     ))
 
     logger.info(

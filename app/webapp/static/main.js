@@ -20,9 +20,10 @@ import {
 import { icon } from './_vendored/icons/icons.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { buildReadoutText } from './_vendored/page-foot/page-foot.js';
+import { initRestartSheet } from './_vendored/page-foot/restart-sheet.js';
 import { initUsageLog } from './_vendored/usage-log/usage-log.js';
 import { initBuildWatch } from './_vendored/build-watch/build-watch.js';
-import { jsonApi, setSignInHandler } from './api.js';
+import { api, jsonApi, setSignInHandler } from './api.js';
 import { wireTabs } from './tabs.js';
 import { wireSettings } from './settings.js';
 import { installNavDebug, isNavDebugEnabled, setNavDebugEnabled } from './nav-debug.js';
@@ -77,6 +78,25 @@ async function fetchVersion() {
   } catch (_) {
     els.buildReadout.textContent = '';
   }
+}
+
+// The sheet's POST reads the status itself (a refusal is an answer, not an
+// error), and carries the bearer through `api` like every other call.
+async function postRestart(url, body) {
+  let res;
+  try {
+    res = await api(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (exc) {
+    if (exc && exc.message === 'auth required') return { status: 401, body: null };
+    throw exc;
+  }
+  let data = null;
+  try { data = await res.json(); } catch (_) { data = null; }
+  return { status: res.status, body: data };
 }
 
 // --------------------------------------------------------------- theme toggle
@@ -208,6 +228,7 @@ setSignInHandler(loadUnits);
   startWeatherPolling();
   fetchVersion();
   setInterval(fetchVersion, 300_000);
+  initRestartSheet({ fetchJson: jsonApi, postJson: postRestart });
 })();
 
 // "New version available · Reload" when a deploy lands under an open page;

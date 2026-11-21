@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -33,6 +33,19 @@ def is_pc_itself(request: Request) -> bool:
     front), so a loopback socket address is the PC itself and never a public caller.
     """
     return (request.client.host if request.client else "") in _LOOPBACK_HOSTS
+
+
+def require_authenticated(request: Request) -> None:
+    """Route dependency: refuse unless :class:`BearerTokenMiddleware` let this call in.
+
+    The middleware marks a request it admitted by auth (no token configured,
+    loopback, or a matching token); the exempt paths (``/``, ``/static/*``,
+    login) are admitted without that mark. A route that must never be reachable
+    on an exempt path, such as the restart, depends on this so it cannot be
+    mounted open, and an app built without the middleware refuses it too.
+    """
+    if not getattr(request.state, "auth_passed", False):
+        raise HTTPException(status_code=401, detail="missing or invalid bearer token")
 
 
 _AUTH_EXEMPT_PREFIXES = (
@@ -67,10 +80,8 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         token = (self._get_token() or "").strip()
-        if not token:
-            return await call_next(request)
-
-        if is_pc_itself(request):
+        if not token or is_pc_itself(request):
+            request.state.auth_passed = True
             return await call_next(request)
 
         path = request.url.path
@@ -93,6 +104,7 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
             presented = request.query_params.get("token", "").strip()
 
         if presented and secrets_match(presented, token):
+            request.state.auth_passed = True
             return await call_next(request)
 
         return JSONResponse(
