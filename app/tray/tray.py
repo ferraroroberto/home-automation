@@ -114,6 +114,11 @@ def _ts_debug(msg: str) -> None:
         pass
 
 
+# The tailscale CLI answers from the local daemon at once; a hang means a wedged
+# daemon, and the callers are tray menu handlers that must not stall.
+TAILSCALE_TIMEOUT_S = 12
+
+
 def _run_tailscale(binary: str, args: List[str]) -> subprocess.CompletedProcess:
     """Run the tailscale CLI windowless, with stdin detached.
 
@@ -127,7 +132,7 @@ def _run_tailscale(binary: str, args: List[str]) -> subprocess.CompletedProcess:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        timeout=12,
+        timeout=TAILSCALE_TIMEOUT_S,
         check=False,
         creationflags=NO_WINDOW,
     )
