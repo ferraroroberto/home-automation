@@ -29,7 +29,6 @@ from src.quick_action_config import QuickActionConfigError
 from src.security.risco_client import RiscoCommandError, RiscoConfigError
 from src.voice.ha_client import HaClientError
 
-
 router = APIRouter()
 
 # Any external caller identifies itself via this header (same convention
