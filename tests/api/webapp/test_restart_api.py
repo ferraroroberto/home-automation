@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.webapp.middleware import BearerTokenMiddleware, require_authenticated
-from app.webapp.server import app
+from app.webapp.server import RESTART_COMMAND, app
 from src.self_restart import TRAY_RESTART, RestartTarget, restart_router
 
 TOKEN = "t" * 32
@@ -37,6 +37,15 @@ def _guarded_app(tmp_path: Path, spawned: List[Path], token: str = TOKEN) -> Fas
         spawn=lambda spec, root: spawned.append(spec),
     ))
     return guarded
+
+
+def test_restart_recipe_names_the_repos_tray_bat_with_a_path() -> None:
+    # A bare name is not found by `cmd /c` when the working directory is off the
+    # executable search path (NoDefaultCurrentDirectoryInExePath), which is how
+    # the fleet host runs; the runner starts the recipe from the checkout root.
+    assert RESTART_COMMAND[:2] == ("cmd.exe", "/c")
+    assert RESTART_COMMAND[2] == ".\\tray.bat"
+    assert (Path(__file__).resolve().parents[3] / "tray.bat").is_file()
 
 
 def test_real_app_declares_the_tray_recipe_as_its_only_target(client: TestClient) -> None:
