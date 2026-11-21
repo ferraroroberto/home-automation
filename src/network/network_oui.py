@@ -148,9 +148,7 @@ _VENDOR_CATEGORY: dict[str, str] = {
 }
 
 
-def category_for_device(
-    name: Optional[str], vendor: Optional[str], conn_type: Optional[str] = None
-) -> str:
+def category_for_device(name: Optional[str], vendor: Optional[str]) -> str:
     """Coarse device class for the row glyph; ``unknown`` when nothing matches."""
     text = " ".join(filter(None, [name, vendor])).lower()
     for needle, category in _KEYWORDS:

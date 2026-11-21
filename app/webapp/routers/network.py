@@ -227,7 +227,7 @@ def _device_dict(
         "is_wireless": d.is_wireless,
         "display_name": overrides.get(mac_key) or None,
         "vendor": vendor,
-        "category": category_for_device(d.name, vendor, d.conn_type),
+        "category": category_for_device(d.name, vendor),
         "randomized": is_randomized_mac(d.mac or ""),
         "group": groups.get(mac_key) or None,
         # Last-known band/SSID: null while online (the live fields carry it) and
@@ -281,7 +281,7 @@ def _offline_device_dict(
         "is_wireless": False,
         "display_name": overrides.get(mac) or None,
         "vendor": vendor,
-        "category": category_for_device(rec.get("last_name"), vendor, None),
+        "category": category_for_device(rec.get("last_name"), vendor),
         "randomized": False,
         "group": groups.get(mac) or None,
         "last_conn_type": rec.get("last_conn_type"),

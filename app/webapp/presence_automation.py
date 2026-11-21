@@ -526,7 +526,7 @@ async def _alert_on_panel_events(security: SecurityState) -> None:
     # ...and the configurable per-detector auto-bypass-after-N-repeats override
     # — runs every tick (not just while an alarm is active) so it
     # also catches the arm event that restores a previously bypassed zone.
-    consider_security_override(security)
+    consider_security_override()
 
 
 def _append_decision_trigger_log(decision, outcome: str) -> None:

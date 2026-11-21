@@ -188,7 +188,7 @@ async def _handle_event(event: object, overrides_by_zone: Dict[int, object]) -> 
         await _restore_after_rearm()
 
 
-async def _run_event_scan(config: OverrideAutomationConfig) -> None:
+async def _run_event_scan() -> None:
     """Diff RISCO's event log against the persisted cursor; act on each new event.
 
     Never raises. The shared :class:`EventLogScanner` guards against
@@ -226,17 +226,16 @@ async def _scan_once() -> None:
         logger.warning("⚠️ Security override event scan failed: %s", exc)
 
 
-def consider_security_read(security: object) -> None:
-    """Entry point called from the presence loop with its one RISCO read.
+def consider_security_read() -> None:
+    """Entry point called from the presence loop on each tick that reads RISCO.
 
-    Unlike ``alarm_scene_automation.consider_security_read``, this runs every
+    Takes no read: the event log carries everything the scan needs. Unlike ``alarm_scene_automation.consider_security_read``, this runs every
     tick regardless of whether an alarm is currently active — it also needs to
     observe arm events to restore a previously auto-bypassed zone.
     """
 
-    del security  # not needed directly; the event log carries everything
     config = load_override_automation_config()
     if not config.enabled:
         return
     if _scanner.due(config.event_scan_interval_s):
-        spawn_background_task(_run_event_scan(config), name="security-override-event-scan")
+        spawn_background_task(_run_event_scan(), name="security-override-event-scan")

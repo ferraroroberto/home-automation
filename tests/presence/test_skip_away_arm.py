@@ -175,7 +175,7 @@ def house(monkeypatch, state):
     monkeypatch.setattr(PA, "fetch_security_state", fetch_security_state)
     monkeypatch.setattr(PA, "check_security_transitions", noop)
     monkeypatch.setattr(PA, "consider_security_read", lambda s: None)
-    monkeypatch.setattr(PA, "consider_security_override", lambda s: None)
+    monkeypatch.setattr(PA, "consider_security_override", lambda: None)
     monkeypatch.setattr(PA, "_build_icloud_corroboration", lambda cache: {})
     monkeypatch.setattr(PA, "_resolve_guardian_home", lambda cache, cfg, at: None)
     monkeypatch.setattr(PA, "remember_known_people", lambda ids: tuple(ids))
