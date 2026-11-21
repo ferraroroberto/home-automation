@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+from typing import Optional
 
 from src._console_encoding import console_encoding
 from src._no_window import NO_WINDOW
@@ -30,6 +31,57 @@ LOW_BATTERY_GRACE_S = 180
 _SHUTDOWN_CALL_TIMEOUT_S = 10
 
 
+def _run_shutdown(flag: str, *extra: str) -> Optional[subprocess.CompletedProcess[str]]:
+    """Run ``shutdown <flag> [extra...]``; ``None`` when it did not complete.
+
+    One place for the pytest hard-block, the spawn kwargs and the two failure
+    shapes (cannot launch, or no return within the timeout), each logged with its
+    own message. A completed call — whatever its exit code — is returned for the
+    caller to judge.
+    """
+
+    label = f"shutdown {flag}"
+    if "pytest" in sys.modules:
+        logger.info("🧪 %s suppressed under pytest", label)
+        return None
+    try:
+        return subprocess.run(
+            ["shutdown", flag, *extra],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding=console_encoding(),
+            errors="replace",
+            timeout=_SHUTDOWN_CALL_TIMEOUT_S,
+            creationflags=NO_WINDOW,
+        )
+    except OSError as exc:
+        logger.warning("⚠️ Failed to invoke %s: %s", label, exc)
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "⚠️ %s did not return within %d s — outcome unconfirmed",
+            label,
+            _SHUTDOWN_CALL_TIMEOUT_S,
+        )
+    return None
+
+
+def _accepted(result: Optional[subprocess.CompletedProcess[str]], flag: str) -> bool:
+    """True when ``shutdown <flag>`` ran and exited 0; a nonzero exit is logged."""
+
+    if result is None:
+        return False
+    if result.returncode != 0:
+        logger.warning(
+            "⚠️ shutdown %s returned %d: %s",
+            flag,
+            result.returncode,
+            (result.stderr or result.stdout or "").strip(),
+        )
+        return False
+    return True
+
+
 def initiate_shutdown(*, grace_seconds: int = LOW_BATTERY_GRACE_S, message: str = "") -> bool:
     """Schedule a graceful Windows shutdown after ``grace_seconds``.
 
@@ -40,42 +92,14 @@ def initiate_shutdown(*, grace_seconds: int = LOW_BATTERY_GRACE_S, message: str 
     caller's alert/log flow.
     """
 
-    if "pytest" in sys.modules:
-        logger.info("🧪 Shutdown suppressed under pytest (grace=%ds)", grace_seconds)
-        return False
-    try:
-        result = subprocess.run(
-            [
-                "shutdown",
-                "/s",
-                "/t",
-                str(grace_seconds),
-                "/c",
-                message or "Low UPS battery — shutting down to avoid data loss",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding=console_encoding(),
-            errors="replace",
-            timeout=_SHUTDOWN_CALL_TIMEOUT_S,
-            creationflags=NO_WINDOW,
-        )
-    except OSError as exc:
-        logger.warning("⚠️ Failed to invoke shutdown /s: %s", exc)
-        return False
-    except subprocess.TimeoutExpired:
-        logger.warning(
-            "⚠️ shutdown /s did not return within %d s — outcome unconfirmed",
-            _SHUTDOWN_CALL_TIMEOUT_S,
-        )
-        return False
-    if result.returncode != 0:
-        logger.warning(
-            "⚠️ shutdown /s returned %d: %s",
-            result.returncode,
-            (result.stderr or result.stdout or "").strip(),
-        )
+    result = _run_shutdown(
+        "/s",
+        "/t",
+        str(grace_seconds),
+        "/c",
+        message or "Low UPS battery — shutting down to avoid data loss",
+    )
+    if not _accepted(result, "/s"):
         return False
     logger.warning("🔻 Host shutdown scheduled in %ds (low UPS battery)", grace_seconds)
     return True
@@ -91,35 +115,7 @@ def initiate_hibernate() -> bool:
     raises, and is hard-blocked under pytest like :func:`initiate_shutdown`.
     """
 
-    if "pytest" in sys.modules:
-        logger.info("🧪 Hibernate suppressed under pytest")
-        return False
-    try:
-        result = subprocess.run(
-            ["shutdown", "/h"],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding=console_encoding(),
-            errors="replace",
-            timeout=_SHUTDOWN_CALL_TIMEOUT_S,
-            creationflags=NO_WINDOW,
-        )
-    except OSError as exc:
-        logger.warning("⚠️ Failed to invoke shutdown /h: %s", exc)
-        return False
-    except subprocess.TimeoutExpired:
-        logger.warning(
-            "⚠️ shutdown /h did not return within %d s — outcome unconfirmed",
-            _SHUTDOWN_CALL_TIMEOUT_S,
-        )
-        return False
-    if result.returncode != 0:
-        logger.warning(
-            "⚠️ shutdown /h returned %d: %s",
-            result.returncode,
-            (result.stderr or result.stdout or "").strip(),
-        )
+    if not _accepted(_run_shutdown("/h"), "/h"):
         return False
     logger.warning("🔻 Host hibernating (low UPS battery)")
     return True
@@ -132,28 +128,8 @@ def cancel_shutdown() -> bool:
     logged as a failure.
     """
 
-    if "pytest" in sys.modules:
+    result = _run_shutdown("/a")
+    if result is None or result.returncode != 0:
         return False
-    try:
-        result = subprocess.run(
-            ["shutdown", "/a"],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding=console_encoding(),
-            errors="replace",
-            timeout=_SHUTDOWN_CALL_TIMEOUT_S,
-            creationflags=NO_WINDOW,
-        )
-    except OSError as exc:
-        logger.warning("⚠️ Failed to invoke shutdown /a: %s", exc)
-        return False
-    except subprocess.TimeoutExpired:
-        logger.warning(
-            "⚠️ shutdown /a did not return within %d s — outcome unconfirmed",
-            _SHUTDOWN_CALL_TIMEOUT_S,
-        )
-        return False
-    if result.returncode == 0:
-        logger.info("✅ Pending host shutdown cancelled (mains power restored)")
-    return result.returncode == 0
+    logger.info("✅ Pending host shutdown cancelled (mains power restored)")
+    return True

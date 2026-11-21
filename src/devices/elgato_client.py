@@ -19,6 +19,8 @@ from typing import Any, Optional
 import aiohttp
 from dotenv import load_dotenv
 
+from src.network.lan_discovery import browse_mdns, parse_host_port
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_PORT = 9123
@@ -92,23 +94,8 @@ def kelvin_to_temperature(kelvin: int) -> int:
 
 
 def _parse_host(raw: str) -> Optional[ElgatoEndpoint]:
-    raw = raw.strip()
-    if not raw:
-        return None
-    if raw.startswith("http://"):
-        raw = raw[len("http://") :]
-    if raw.startswith("https://"):
-        raw = raw[len("https://") :]
-    raw = raw.split("/", 1)[0].strip()
-    if not raw:
-        return None
-    if raw.count(":") == 1:
-        host, port_raw = raw.rsplit(":", 1)
-        try:
-            return ElgatoEndpoint(host=host.strip(), port=int(port_raw))
-        except ValueError:
-            return ElgatoEndpoint(host=raw, port=_DEFAULT_PORT)
-    return ElgatoEndpoint(host=raw, port=_DEFAULT_PORT)
+    parsed = parse_host_port(raw, _DEFAULT_PORT)
+    return ElgatoEndpoint(host=parsed[0], port=parsed[1]) if parsed else None
 
 
 def _configured_endpoints() -> list[ElgatoEndpoint]:
@@ -119,56 +106,33 @@ def _configured_endpoints() -> list[ElgatoEndpoint]:
 
 
 def _discover_sync(timeout_s: float) -> list[ElgatoEndpoint]:
+    endpoints: list[ElgatoEndpoint] = []
+
+    def on_service(zc: Any, service_type: str, name: str) -> None:
+        info = zc.get_service_info(service_type, name)
+        if info is None:
+            return
+        addresses = [addr for addr in info.parsed_scoped_addresses() if ":" not in addr]
+        if not addresses:
+            return
+        label = info.properties.get(b"mf") or info.properties.get(b"id")
+        endpoints.append(
+            ElgatoEndpoint(
+                host=addresses[0],
+                port=info.port or _DEFAULT_PORT,
+                name=label.decode("utf-8", errors="ignore") if label else name,
+            )
+        )
+
     try:
-        from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
+        browse_mdns(_SERVICE_TYPE, on_service, timeout_s)
     except ImportError as exc:
         raise ElgatoDiscoveryError(
             "zeroconf is not installed; set ELGATO_LIGHT_HOSTS or install requirements.txt"
         ) from exc
 
-    class _Listener(ServiceListener):
-        def __init__(self) -> None:
-            self.endpoints: list[ElgatoEndpoint] = []
-
-        def add_service(self, zc: Zeroconf, service_type: str, name: str) -> None:
-            info = zc.get_service_info(service_type, name)
-            if info is None:
-                return
-            addresses = [addr for addr in info.parsed_scoped_addresses() if ":" not in addr]
-            if not addresses:
-                return
-            label = info.properties.get(b"mf") or info.properties.get(b"id")
-            self.endpoints.append(
-                ElgatoEndpoint(
-                    host=addresses[0],
-                    port=info.port or _DEFAULT_PORT,
-                    name=label.decode("utf-8", errors="ignore") if label else name,
-                )
-            )
-
-        def update_service(self, zc: Zeroconf, service_type: str, name: str) -> None:
-            self.add_service(zc, service_type, name)
-
-        def remove_service(self, zc: Zeroconf, service_type: str, name: str) -> None:
-            return None
-
-    listener = _Listener()
-    zc = Zeroconf()
-    browser = None
-    try:
-        browser = ServiceBrowser(zc, _SERVICE_TYPE, listener)
-        import time
-
-        time.sleep(timeout_s)
-    finally:
-        # ``Zeroconf.close()`` leaves the browser's worker thread parked on its
-        # queue for the life of the process; only ``cancel()`` ends it.
-        if browser is not None:
-            browser.cancel()
-        zc.close()
-
     unique: dict[str, ElgatoEndpoint] = {}
-    for endpoint in listener.endpoints:
+    for endpoint in endpoints:
         unique[endpoint.light_id] = endpoint
     return list(unique.values())
 

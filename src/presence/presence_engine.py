@@ -504,6 +504,28 @@ def _fresh_people(
     return fresh
 
 
+def _fully_fresh(
+    people: Iterable[PersonPresence],
+    config: PresenceAutomationConfig,
+    at: datetime,
+    corroboration: Optional[Dict[str, PresenceCorroboration]],
+    known_person_ids: Iterable[str],
+) -> Optional[list[PersonPresence]]:
+    """The alarm-safety input gate: a non-empty roster, no member missing, everyone fresh.
+
+    ``None`` means refuse to act. A shrunken roster is not a smaller household, so
+    this refuses both directions (refusing a disarm leaves the house armed, the
+    safe way to be wrong). One copy keeps the decision, the satisfied-disarm key
+    and the arm-block diagnosis agreeing on what "everyone is accounted for" means.
+    """
+
+    current = list(people)
+    if not current or missing_people(current, known_person_ids):
+        return None
+    fresh = _fresh_people(current, config=config, at=at, corroboration=corroboration)
+    return fresh if len(fresh) == len(current) else None
+
+
 def evaluate_alarm_decision(
     people: Iterable[PersonPresence],
     *,
@@ -551,16 +573,8 @@ def evaluate_alarm_decision(
     if not config.auto_arm_enabled and not config.auto_disarm_enabled:
         return None
 
-    current = list(people)
-    if not current:
-        return None
-    # A shrunken roster is not a smaller household. Refuse both
-    # directions, not just arm: refusing a disarm leaves the house armed, which
-    # is the safe way to be wrong about who is in it.
-    if missing_people(current, known_person_ids):
-        return None
-    fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
-    if len(fresh) != len(current):
+    fresh = _fully_fresh(people, config, stamp, corroboration, known_person_ids)
+    if fresh is None:
         return None
 
     home = [p for p in fresh if p.state == "home"]
@@ -712,14 +726,8 @@ def satisfied_disarm_key(
 
     if not config.auto_disarm_enabled or security_mode != "disarmed":
         return None
-    stamp = at or now_utc()
-    current = list(people)
-    if not current:
-        return None
-    if missing_people(current, known_person_ids):
-        return None
-    fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
-    if len(fresh) != len(current):
+    fresh = _fully_fresh(people, config, at or now_utc(), corroboration, known_person_ids)
+    if fresh is None:
         return None
     home = [p for p in fresh if p.state == "home"]
     if not home:
@@ -751,17 +759,11 @@ def evaluate_arm_block(
 
     if not config.auto_arm_enabled or security_mode != "disarmed":
         return None
-    stamp = at or now_utc()
-    current = list(people)
-    if not current:
-        return None
     # A missing roster member is :func:`evaluate_staleness_block`'s story to
     # tell, not this one's — reporting "ana is still home" while the engine has
     # lost sight of roberto entirely would name the wrong blocker.
-    if missing_people(current, known_person_ids):
-        return None
-    fresh = _fresh_people(current, config=config, at=stamp, corroboration=corroboration)
-    if len(fresh) != len(current):
+    fresh = _fully_fresh(people, config, at or now_utc(), corroboration, known_person_ids)
+    if fresh is None:
         return None
     home = [p for p in fresh if p.state == "home"]
     away = [p for p in fresh if p.state == "away"]

@@ -89,6 +89,8 @@ import aiohttp
 from dotenv import load_dotenv
 
 from src._env import _env_int
+from src.network.lan_discovery import browse_mdns, parse_host_port
+from src.network.network_types import _normalise_mac
 
 logger = logging.getLogger("athom")
 
@@ -246,14 +248,6 @@ _discovery_cache: Optional[tuple[float, List[MeterEndpoint]]] = None
 _state_cache: Dict[str, tuple[float, MeterState]] = {}
 
 
-def _normalise_mac(raw: str) -> str:
-    """``aabbccddee01`` / ``88-56-a6-…`` → ``AA:BB:CC:DD:EE:01``."""
-    hex_only = re.sub(r"[^0-9A-Fa-f]", "", raw or "")
-    if len(hex_only) != 12:
-        return (raw or "").strip().upper()
-    return ":".join(hex_only[i : i + 2] for i in range(0, 12, 2)).upper()
-
-
 def _channel_count(project_name: str, package_url: str) -> int:
     """Channels this model has, taken from its own advertised metadata."""
     match = _CHANNELS_IN_PROJECT.search(project_name or "")
@@ -278,22 +272,10 @@ def _parse_host(raw: str) -> Optional[MeterEndpoint]:
     A statically configured meter has no MAC until it is read, so its address
     stands in as the id. Discovery wins when both find the same device.
     """
-    raw = (raw or "").strip()
-    for prefix in ("http://", "https://"):
-        if raw.startswith(prefix):
-            raw = raw[len(prefix) :]
-    raw = raw.split("/", 1)[0].strip()
-    if not raw:
+    parsed = parse_host_port(raw, _DEFAULT_PORT)
+    if parsed is None:
         return None
-    host, port = raw, _DEFAULT_PORT
-    if raw.count(":") == 1:
-        head, tail = raw.rsplit(":", 1)
-        try:
-            host, port = head.strip(), int(tail)
-        except ValueError:
-            host, port = raw, _DEFAULT_PORT
-    if not host:
-        return None
+    host, port = parsed
     return MeterEndpoint(meter_id=f"host:{host}", host=host, port=port, name=host)
 
 
@@ -306,73 +288,52 @@ def _configured_endpoints() -> List[MeterEndpoint]:
 
 def _discover_sync(timeout_s: float) -> List[MeterEndpoint]:
     """Browse mDNS for Athom energy monitors (blocking; runs in a worker thread)."""
+    endpoints: List[MeterEndpoint] = []
+
+    def on_service(zc: Any, service_type: str, name: str) -> None:
+        info = zc.get_service_info(service_type, name)
+        if info is None:
+            return
+        props = {
+            (k.decode("utf-8", "ignore") if isinstance(k, bytes) else str(k)): (
+                v.decode("utf-8", "ignore") if isinstance(v, bytes) else ("" if v is None else str(v))
+            )
+            for k, v in (info.properties or {}).items()
+        }
+        if not _is_athom_meter(props):
+            return
+        # IPv4 only: the ESPHome web server is reached over v4 here, and a
+        # link-local v6 address would need a scope the HTTP client can't use.
+        addresses = [a for a in info.parsed_scoped_addresses() if ":" not in a]
+        if not addresses:
+            return
+        mac = props.get("mac") or ""
+        short = name.split(".", 1)[0]
+        endpoints.append(
+            MeterEndpoint(
+                meter_id=_normalise_mac(mac) if mac else f"host:{addresses[0]}",
+                host=addresses[0],
+                # The advertised port is the *native API* (6053); the web
+                # server this client reads is always plain HTTP on 80.
+                port=_DEFAULT_PORT,
+                name=props.get("friendly_name") or short,
+                model=props.get("project_name") or None,
+                channel_count=_channel_count(
+                    props.get("project_name") or "",
+                    props.get("package_import_url") or "",
+                ),
+            )
+        )
+
     try:
-        from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
+        browse_mdns(_SERVICE_TYPE, on_service, timeout_s)
     except ImportError as exc:  # pragma: no cover — requirements.txt pins it
         raise AthomDiscoveryError(
             "zeroconf is not installed; set ATHOM_METER_HOSTS or install requirements.txt"
         ) from exc
 
-    class _Listener(ServiceListener):
-        def __init__(self) -> None:
-            self.endpoints: List[MeterEndpoint] = []
-
-        def add_service(self, zc: "Zeroconf", service_type: str, name: str) -> None:
-            info = zc.get_service_info(service_type, name)
-            if info is None:
-                return
-            props = {
-                (k.decode("utf-8", "ignore") if isinstance(k, bytes) else str(k)): (
-                    v.decode("utf-8", "ignore") if isinstance(v, bytes) else ("" if v is None else str(v))
-                )
-                for k, v in (info.properties or {}).items()
-            }
-            if not _is_athom_meter(props):
-                return
-            # IPv4 only: the ESPHome web server is reached over v4 here, and a
-            # link-local v6 address would need a scope the HTTP client can't use.
-            addresses = [a for a in info.parsed_scoped_addresses() if ":" not in a]
-            if not addresses:
-                return
-            mac = props.get("mac") or ""
-            short = name.split(".", 1)[0]
-            self.endpoints.append(
-                MeterEndpoint(
-                    meter_id=_normalise_mac(mac) if mac else f"host:{addresses[0]}",
-                    host=addresses[0],
-                    # The advertised port is the *native API* (6053); the web
-                    # server this client reads is always plain HTTP on 80.
-                    port=_DEFAULT_PORT,
-                    name=props.get("friendly_name") or short,
-                    model=props.get("project_name") or None,
-                    channel_count=_channel_count(
-                        props.get("project_name") or "",
-                        props.get("package_import_url") or "",
-                    ),
-                )
-            )
-
-        def update_service(self, zc: "Zeroconf", service_type: str, name: str) -> None:
-            self.add_service(zc, service_type, name)
-
-        def remove_service(self, zc: "Zeroconf", service_type: str, name: str) -> None:
-            return None
-
-    listener = _Listener()
-    zc = Zeroconf()
-    browser = None
-    try:
-        browser = ServiceBrowser(zc, _SERVICE_TYPE, listener)
-        time.sleep(timeout_s)
-    finally:
-        # ``Zeroconf.close()`` leaves the browser's worker thread parked on its
-        # queue for the life of the process; only ``cancel()`` ends it.
-        if browser is not None:
-            browser.cancel()
-        zc.close()
-
     unique: Dict[str, MeterEndpoint] = {}
-    for endpoint in listener.endpoints:
+    for endpoint in endpoints:
         unique[endpoint.meter_id] = endpoint
     return list(unique.values())
 

@@ -8,7 +8,8 @@ from here so the key form can never drift between them.
 
 Note: ``src.network.network_types._normalise_mac`` is a *different*, richer helper
 (``Optional[str]`` in/out, re-joins to colon-separated hex pairs) used by the
-live network clients — it is intentionally not folded in here.
+live network clients, the Athom meter ids and ``device_address``'s cache key — it
+is intentionally not folded in here.
 """
 
 from __future__ import annotations

@@ -34,6 +34,8 @@ import time
 from typing import Optional
 from urllib.parse import urlsplit, urlunsplit
 
+from src.network.network_types import _normalise_mac
+
 logger = logging.getLogger(__name__)
 
 # How long a resolved MAC→IP mapping is trusted before we look again. Short
@@ -60,10 +62,6 @@ def is_mac(value: Optional[str]) -> bool:
     return bool(_MAC_RE.match((value or "").strip()))
 
 
-def _key(mac: str) -> str:
-    return mac.strip().upper().replace("-", ":")
-
-
 def clear_cache() -> None:
     """Drop every cached resolution (tests, and a manual 'refresh now')."""
     _cache.clear()
@@ -87,7 +85,7 @@ async def resolve_device_host(configured: Optional[str]) -> Optional[str]:
     if not is_mac(value):
         return value  # literal IP/hostname — the fast path, no lookup
 
-    key = _key(value)
+    key = _normalise_mac(value) or value
     cached = _cache.get(key)
     now = time.monotonic()
     if cached and now < cached[1]:
